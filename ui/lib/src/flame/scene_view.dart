@@ -1,27 +1,23 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' hide Focus;
 import 'package:flame/game.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' hide Focus;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'scene_game.dart';
-import 'prefabs/sphere.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
+import 'prefabs/sphere.dart';
+import 'scene_game.dart';
 
 typedef SceneReplayKeyHandler = void Function(String key, String cursor);
 
-/// Hosts one scene neuron in a [GameWidget] with interactive camera pan/zoom/fit/reset
-/// and a floating camera HUD overlay.
-///
-/// With a [client] it reads the scene itself and re-reads on every [refresh] event (the
-/// shell's watch stream for the scene key carries `SceneChanged`/`SceneEntered`); gestures go
-/// back through [SceneClient.report]. Without one it draws [state] as given.
+/// Hosts one scene neuron in a [GameWidget] with interactive camera pan/zoom/fit/reset,
+/// `[● Follow Live]` smooth camera tracking, and a `132×72px` corner Viewport Minimap.
 class SceneView extends StatefulWidget {
   const SceneView({
     super.key,
@@ -49,7 +45,7 @@ class SceneView extends StatefulWidget {
   /// The game to draw into, for a host that adds components of its own (the brain scene's pulses); a fresh one by default.
   final SceneGame? game;
 
-  /// Whether to render the floating camera HUD (`-`, zoom `%`, `+`, `Fit`, `Reset`).
+  /// Whether to render the floating camera HUD & corner Viewport Minimap.
   final bool showCameraHud;
 
   /// Optional callback invoked on time-travel shortcuts (`ArrowLeft`, `ArrowRight`, `Space`, `Home`, `End`).
@@ -420,6 +416,7 @@ class _SceneViewState extends State<SceneView> {
 
       return Semantics(
         identifier: 'scene:${widget.sceneKey}',
+        label: 'Scene ${widget.sceneKey}',
         container: true,
         explicitChildNodes: true,
         child: Focus(
@@ -443,9 +440,17 @@ class _SceneViewState extends State<SceneView> {
                 Positioned(
                   right: 12,
                   bottom: 12,
-                  child: _FlameCameraHud(
-                    game: _game,
-                    viewportSize: _viewportSize,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _FlameViewportMinimap(
+                        game: _game,
+                        viewportSize: _viewportSize,
+                      ),
+                      const SizedBox(height: 6),
+                      _FlameCameraHud(game: _game, viewportSize: _viewportSize),
+                    ],
                   ),
                 ),
               if (_error != null)
@@ -465,6 +470,244 @@ class _SceneViewState extends State<SceneView> {
       );
     },
   );
+}
+
+final class _MinimapProjection {
+  const _MinimapProjection({
+    required this.worldBounds,
+    required this.scale,
+    required this.offsetX,
+    required this.offsetY,
+  });
+
+  final Rect worldBounds;
+  final double scale;
+  final double offsetX;
+  final double offsetY;
+
+  static _MinimapProjection compute({
+    required Size minimapSize,
+    required Rect? sceneBounds,
+    required Rect cameraWorldRect,
+  }) {
+    final base = sceneBounds ?? const Rect.fromLTRB(-220, -140, 220, 140);
+    final merged = base.expandToInclude(cameraWorldRect).inflate(48.0);
+    final worldW = math.max(merged.width, 160.0);
+    final worldH = math.max(merged.height, 100.0);
+    final pad = 6.0;
+    final availW = math.max(minimapSize.width - pad * 2, 16.0);
+    final availH = math.max(minimapSize.height - pad * 2, 16.0);
+    final scale = math.min(availW / worldW, availH / worldH);
+    final drawnW = worldW * scale;
+    final drawnH = worldH * scale;
+    final offsetX = (minimapSize.width - drawnW) / 2 - merged.left * scale;
+    final offsetY = (minimapSize.height - drawnH) / 2 - merged.top * scale;
+    return _MinimapProjection(
+      worldBounds: merged,
+      scale: scale,
+      offsetX: offsetX,
+      offsetY: offsetY,
+    );
+  }
+
+  Offset worldToLocal(double wx, double wy) =>
+      Offset(wx * scale + offsetX, wy * scale + offsetY);
+
+  Rect worldRectToLocal(Rect r) => Rect.fromLTRB(
+    r.left * scale + offsetX,
+    r.top * scale + offsetY,
+    r.right * scale + offsetX,
+    r.bottom * scale + offsetY,
+  );
+
+  Vector2 localToWorld(Offset local) => Vector2(
+    (local.dx - offsetX) / math.max(scale, 1e-6),
+    (local.dy - offsetY) / math.max(scale, 1e-6),
+  );
+}
+
+class _FlameViewportMinimap extends StatefulWidget {
+  const _FlameViewportMinimap({required this.game, required this.viewportSize});
+
+  static const double width = 132.0;
+  static const double height = 72.0;
+
+  final SceneGame game;
+  final Size viewportSize;
+
+  @override
+  State<_FlameViewportMinimap> createState() => _FlameViewportMinimapState();
+}
+
+class _FlameViewportMinimapState extends State<_FlameViewportMinimap> {
+  _MinimapProjection? _dragProjection;
+
+  Rect _cameraWorldRect(SceneCameraSnapshot snap) {
+    final z = snap.zoom.clamp(SceneGame.minZoom, SceneGame.maxZoom);
+    final vw = widget.viewportSize.width > 0
+        ? widget.viewportSize.width
+        : 800.0;
+    final vh = widget.viewportSize.height > 0
+        ? widget.viewportSize.height
+        : 500.0;
+    return Rect.fromCenter(
+      center: Offset(snap.x, snap.y),
+      width: vw / z,
+      height: vh / z,
+    );
+  }
+
+  _MinimapProjection _currentProjection(SceneCameraSnapshot snap) =>
+      _MinimapProjection.compute(
+        minimapSize: const Size(
+          _FlameViewportMinimap.width,
+          _FlameViewportMinimap.height,
+        ),
+        sceneBounds: widget.game.sceneBounds(),
+        cameraWorldRect: _cameraWorldRect(snap),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final tokens = UiTokens.of(context);
+
+    return ValueListenableBuilder<SceneCameraSnapshot>(
+      valueListenable: widget.game.cameraState,
+      builder: (context, snap, _) {
+        final projection = _dragProjection ?? _currentProjection(snap);
+        final dots = widget.game.minimapNodes();
+        final camRect = _cameraWorldRect(snap);
+
+        return KeyedSubtree(
+          key: const ValueKey('flame-viewport-minimap'),
+          child: Semantics(
+            identifier: 'key:flame-viewport-minimap',
+            label: 'Viewport minimap',
+            container: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (details) {
+                final worldTarget = projection.localToWorld(
+                  details.localPosition,
+                );
+                widget.game.flyToWorld(worldTarget);
+              },
+              onPanStart: (details) {
+                _dragProjection = projection;
+                final worldTarget = projection.localToWorld(
+                  details.localPosition,
+                );
+                widget.game.flyToWorld(worldTarget, animate: false);
+              },
+              onPanUpdate: (details) {
+                final activeProj = _dragProjection ?? projection;
+                final worldTarget = activeProj.localToWorld(
+                  details.localPosition,
+                );
+                widget.game.flyToWorld(worldTarget, animate: false);
+              },
+              onPanEnd: (_) => setState(() => _dragProjection = null),
+              onPanCancel: () => setState(() => _dragProjection = null),
+              child: Container(
+                width: _FlameViewportMinimap.width,
+                height: _FlameViewportMinimap.height,
+                decoration: BoxDecoration(
+                  color: c.elevated.withValues(alpha: 0.90),
+                  borderRadius: BorderRadius.circular(tokens.card),
+                  border: Border.all(color: c.hairline),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: CustomPaint(
+                  size: const Size(
+                    _FlameViewportMinimap.width,
+                    _FlameViewportMinimap.height,
+                  ),
+                  painter: _MinimapPainter(
+                    projection: projection,
+                    dots: dots,
+                    cameraWorldRect: camRect,
+                    accentColor: c.accent,
+                    gridColor: c.hairline.withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MinimapPainter extends CustomPainter {
+  const _MinimapPainter({
+    required this.projection,
+    required this.dots,
+    required this.cameraWorldRect,
+    required this.accentColor,
+    required this.gridColor,
+  });
+
+  final _MinimapProjection projection;
+  final List<MinimapNodeDot> dots;
+  final Rect cameraWorldRect;
+  final Color accentColor;
+  final Color gridColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 0.7;
+    canvas.drawLine(
+      Offset(size.width / 2, 0),
+      Offset(size.width / 2, size.height),
+      gridPaint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height / 2),
+      Offset(size.width, size.height / 2),
+      gridPaint,
+    );
+
+    for (final dot in dots) {
+      final pt = projection.worldToLocal(dot.x, dot.y);
+      if (dot.active) {
+        canvas.drawCircle(
+          pt,
+          5.0,
+          Paint()..color = dot.color.withValues(alpha: 0.30),
+        );
+      }
+      canvas.drawCircle(pt, dot.active ? 3.2 : 2.5, Paint()..color = dot.color);
+    }
+
+    final rawCam = projection.worldRectToLocal(cameraWorldRect);
+    final clampedCam = Rect.fromLTRB(
+      rawCam.left.clamp(1.0, size.width - 5.0),
+      rawCam.top.clamp(1.0, size.height - 5.0),
+      rawCam.right.clamp(5.0, size.width - 1.0),
+      rawCam.bottom.clamp(5.0, size.height - 1.0),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(clampedCam, const Radius.circular(3)),
+      Paint()..color = accentColor.withValues(alpha: 0.14),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(clampedCam, const Radius.circular(3)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = accentColor.withValues(alpha: 0.90),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MinimapPainter oldDelegate) =>
+      oldDelegate.cameraWorldRect != cameraWorldRect ||
+      oldDelegate.dots.length != dots.length ||
+      oldDelegate.projection.worldBounds != projection.worldBounds;
 }
 
 class _FlameCameraHud extends StatelessWidget {
@@ -499,6 +742,21 @@ class _FlameCameraHud extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _HudButton(
+                  keyId: 'flame-follow-live',
+                  label: 'Follow Live',
+                  semanticLabel: 'Follow Live',
+                  icon: LucideIcons.radio,
+                  showText: true,
+                  active: snap.followLive,
+                  onTap: game.toggleFollowLive,
+                ),
+                Container(
+                  width: 1,
+                  height: 14,
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  color: c.hairline,
+                ),
                 _HudButton(
                   keyId: 'flame-zoom-out',
                   label: '-',
@@ -580,6 +838,7 @@ class _HudButton extends StatelessWidget {
     required this.onTap,
     this.enabled = true,
     this.showText = false,
+    this.active = false,
   });
 
   final String keyId;
@@ -589,18 +848,22 @@ class _HudButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool enabled;
   final bool showText;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final fg = enabled ? c.strong : c.muted.withValues(alpha: 0.45);
+    final fg = active
+        ? c.accent
+        : (enabled ? c.strong : c.muted.withValues(alpha: 0.45));
 
     return KeyedSubtree(
       key: ValueKey(keyId),
       child: Semantics(
         identifier: 'key:$keyId',
         button: true,
+        toggled: active ? true : null,
         enabled: enabled,
         label: semanticLabel,
         container: true,
@@ -617,8 +880,13 @@ class _HudButton extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: showText ? 8 : 5),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: c.recessed.withValues(alpha: 0.7),
+                  color: active
+                      ? c.accent.withValues(alpha: 0.16)
+                      : c.recessed.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(tokens.pill),
+                  border: active
+                      ? Border.all(color: c.accent.withValues(alpha: 0.65))
+                      : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

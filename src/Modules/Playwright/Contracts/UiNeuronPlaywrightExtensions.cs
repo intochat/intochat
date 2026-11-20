@@ -4,8 +4,24 @@ using PlaywrightSdk = Microsoft.Playwright;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
+public sealed record UiGeometryBox(float X, float Y, float Width, float Height)
+{
+    public float Right => X + Width;
+
+    public float Bottom => Y + Height;
+
+    public float HeightRatio(float viewportHeight) => viewportHeight > 0f ? Height / viewportHeight : 0f;
+
+    public float WidthRatio(float viewportWidth) => viewportWidth > 0f ? Width / viewportWidth : 0f;
+
+    public string Format(float viewportWidth = 1440f, float viewportHeight = 900f) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"x={X:0.#}, y={Y:0.#}, w={Width:0.#}, h={Height:0.#} ({WidthRatio(viewportWidth) * 100f:0.0}%w x {HeightRatio(viewportHeight) * 100f:0.0}%h)");
+}
+
 // Typed Playwright helpers driving IntoChat.OS.Modules.UI neurons, Flame SceneView camera HUD,
-// Creator time-travel controls, and re_editor code views over Flutter Web's semantics DOM (?semantics=true).
+// Studio shell chrome, WebBrowser surfaces, Creator time-travel controls, and DOM bounding-box geometry.
 public static partial class UiNeuronPlaywrightExtensions
 {
     private const float DefaultTimeoutMs = 15_000;
@@ -51,7 +67,7 @@ public static partial class UiNeuronPlaywrightExtensions
         await scope.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
         var btn = scope.Locator("xpath=descendant-or-self::*[@role='button']").First;
         var target = await btn.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0 && await btn.IsVisibleAsync().WaitAsync(ct).ConfigureAwait(false) ? btn : scope;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+        await ClickStableAsync(target, ct).ConfigureAwait(false);
     }
 
     public static async Task ToggleAsync(this PlaywrightSdk.IPage page, string key, CancellationToken ct = default)
@@ -89,11 +105,33 @@ public static partial class UiNeuronPlaywrightExtensions
         ArgumentNullException.ThrowIfNull(page);
         var host = page.Neuron("ui.tabs", key).First;
         await host.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
-        var exact = host.GetByText(label, new() { Exact = true }).First;
-        var target = await exact.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0
-            ? exact
-            : host.GetByText(label, new() { Exact = false }).First;
-        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+
+        var byRole = host.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = label, Exact = true }).First;
+        PlaywrightSdk.ILocator target;
+        if (await byRole.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
+        {
+            target = byRole;
+        }
+        else
+        {
+            var exact = host.GetByText(label, new() { Exact = true }).First;
+            target = await exact.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0
+                ? exact
+                : host.GetByText(label, new() { Exact = false }).First;
+        }
+
+        for (var settle = 0; settle < 3; settle++)
+        {
+            var b1 = await target.BoundingBoxAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
+            await page.WaitForTimeoutAsync(90).WaitAsync(ct).ConfigureAwait(false);
+            var b2 = await target.BoundingBoxAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
+            if (b1 is not null && b2 is not null && Math.Abs(b1.X - b2.X) <= 1f && Math.Abs(b1.Y - b2.Y) <= 1f)
+            {
+                break;
+            }
+        }
+
+        await ClickStableAsync(target, ct).ConfigureAwait(false);
     }
 
     public static async Task SelectListItemAsync(this PlaywrightSdk.IPage page, string key, string label, CancellationToken ct = default)
@@ -226,13 +264,13 @@ public static partial class UiNeuronPlaywrightExtensions
         var sendRole = host.GetByRole(PlaywrightSdk.AriaRole.Button, new() { Name = "Send", Exact = true }).First;
         if (await sendRole.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
         {
-            await sendRole.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+            await ClickStableAsync(sendRole, ct).ConfigureAwait(false);
             return;
         }
         var sendText = host.GetByText("Send", new() { Exact = true }).First;
         if (await sendText.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
         {
-            await sendText.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+            await ClickStableAsync(sendText, ct).ConfigureAwait(false);
             return;
         }
         await input.PressAsync("Enter", new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
@@ -495,9 +533,169 @@ public static partial class UiNeuronPlaywrightExtensions
             """).WaitAsync(ct).ConfigureAwait(false);
     }
 
-    // Flame SceneView Camera HUD (zoom in, zoom out, fit, reset, zoom readout, pan/wheel gestures)
+    // Flame SceneView Camera HUD (zoom in, zoom out, fit, reset, follow live, minimap, zoom readout, pan/wheel gestures)
+    public static PlaywrightSdk.ILocator SceneCanvas(this PlaywrightSdk.IPage page, string sceneKey = "brain")
+        => page.SemanticsId($"scene:{sceneKey}");
+
     public static PlaywrightSdk.ILocator SceneCameraHud(this PlaywrightSdk.IPage page)
         => page.KeyedNode("flame-camera-hud");
+
+    public static PlaywrightSdk.ILocator SceneFollowLive(this PlaywrightSdk.IPage page)
+        => page.KeyedNode("flame-follow-live");
+
+    public static PlaywrightSdk.ILocator SceneViewportMinimap(this PlaywrightSdk.IPage page)
+        => page.KeyedNode("flame-viewport-minimap");
+
+    public static async Task ToggleSceneFollowLiveAsync(this PlaywrightSdk.IPage page, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        var target = await ResolveSceneHudButtonAsync(
+            page,
+            ["key:flame-follow-live", "flame-follow-live"],
+            ["Follow live", "Follow Live", "Live"],
+            ct).ConfigureAwait(false);
+        await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+    }
+
+    public static async Task ClickSceneMinimapAsync(
+        this PlaywrightSdk.IPage page,
+        float normalizedX = 0.5f,
+        float normalizedY = 0.5f,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        var minimap = page.SceneViewportMinimap().First;
+        var box = await minimap.WaitForBoxAsync(8f, 8f, ct).ConfigureAwait(false);
+        if (box.Width > 1f && box.Height > 1f)
+        {
+            var clampedX = Math.Clamp(normalizedX, 0.05f, 0.95f);
+            var clampedY = Math.Clamp(normalizedY, 0.05f, 0.95f);
+            await page.Mouse.ClickAsync(box.X + (box.Width * clampedX), box.Y + (box.Height * clampedY)).WaitAsync(ct).ConfigureAwait(false);
+            return;
+        }
+        await minimap.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+    }
+
+    // Studio AppShell chrome toggles + WebBrowser & real DOM BoundingBoxAsync geometry probes
+    public static PlaywrightSdk.ILocator ShellToggleSidebar(this PlaywrightSdk.IPage page)
+        => page.KeyedNode("shell-toggle-sidebar");
+
+    public static PlaywrightSdk.ILocator ShellToggleInspector(this PlaywrightSdk.IPage page)
+        => page.KeyedNode("shell-toggle-inspector");
+
+    public static Task ToggleShellSidebarAsync(this PlaywrightSdk.IPage page, CancellationToken ct = default)
+        => page.ClickButtonAsync("shell-toggle-sidebar", ct);
+
+    public static Task ToggleShellInspectorAsync(this PlaywrightSdk.IPage page, CancellationToken ct = default)
+        => page.ClickButtonAsync("shell-toggle-inspector", ct);
+
+    public static PlaywrightSdk.ILocator WebBrowserSurface(this PlaywrightSdk.IPage page, string key)
+        => page.KeyedNode(key);
+
+    public static Task<UiGeometryBox> MeasureWebBrowserBoxAsync(
+        this PlaywrightSdk.IPage page,
+        string key,
+        CancellationToken ct = default)
+        => page.WebBrowserSurface(key).WaitForBoxAsync(10f, 10f, ct);
+
+    public static async Task<UiGeometryBox?> MeasureBoxAsync(
+        this PlaywrightSdk.ILocator locator,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(locator);
+        var first = locator.First;
+        if (await first.CountAsync().WaitAsync(ct).ConfigureAwait(false) == 0)
+        {
+            return null;
+        }
+
+        var direct = await first.BoundingBoxAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
+        if (direct is { Width: > 1f, Height: > 1f })
+        {
+            return new UiGeometryBox(direct.X, direct.Y, direct.Width, direct.Height);
+        }
+
+        var union = await first.EvaluateAsync<float[]?>(
+            """
+            el => {
+              const r = el.getBoundingClientRect();
+              if (r.width > 1 && r.height > 1) return [r.x, r.y, r.width, r.height];
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              for (const d of el.querySelectorAll('*')) {
+                const dr = d.getBoundingClientRect();
+                if (dr.width > 1 && dr.height > 1) {
+                  if (dr.left < minX) minX = dr.left;
+                  if (dr.top < minY) minY = dr.top;
+                  if (dr.right > maxX) maxX = dr.right;
+                  if (dr.bottom > maxY) maxY = dr.bottom;
+                }
+              }
+              return (minX < maxX && minY < maxY) ? [minX, minY, maxX - minX, maxY - minY] : null;
+            }
+            """).WaitAsync(ct).ConfigureAwait(false);
+
+        return union is { Length: 4 }
+            ? new UiGeometryBox(union[0], union[1], union[2], union[3])
+            : direct is not null ? new UiGeometryBox(direct.X, direct.Y, direct.Width, direct.Height) : null;
+    }
+
+    public static async Task<UiGeometryBox> WaitForBoxAsync(
+        this PlaywrightSdk.ILocator locator,
+        float minWidth = 1f,
+        float minHeight = 1f,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(locator);
+        await locator.First.WaitForAsync(new() { State = PlaywrightSdk.WaitForSelectorState.Attached, Timeout = DefaultTimeoutMs }).WaitAsync(ct).ConfigureAwait(false);
+        UiGeometryBox? latest = null;
+        for (var i = 0; i < 60; i++)
+        {
+            latest = await locator.MeasureBoxAsync(ct).ConfigureAwait(false);
+            if (latest is { } b && b.Width >= minWidth && b.Height >= minHeight)
+            {
+                return b;
+            }
+            await Task.Delay(100, ct).ConfigureAwait(false);
+        }
+        return latest ?? new UiGeometryBox(0f, 0f, 0f, 0f);
+    }
+
+    public static Task<UiGeometryBox> MeasureKeyedBoxAsync(
+        this PlaywrightSdk.IPage page,
+        string key,
+        float minWidth = 1f,
+        float minHeight = 1f,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        return page.KeyedNode(key).WaitForBoxAsync(minWidth, minHeight, ct);
+    }
+
+    public static Task<UiGeometryBox> MeasureNeuronBoxAsync(
+        this PlaywrightSdk.IPage page,
+        string kind,
+        string key,
+        float minWidth = 1f,
+        float minHeight = 1f,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        return page.Neuron(kind, key).WaitForBoxAsync(minWidth, minHeight, ct);
+    }
+
+    public static async Task<UiGeometryBox> MeasureSceneCanvasBoxAsync(
+        this PlaywrightSdk.IPage page,
+        string sceneKey = "brain",
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        var named = page.SceneCanvas(sceneKey);
+        if (await named.CountAsync().WaitAsync(ct).ConfigureAwait(false) > 0)
+        {
+            return await named.WaitForBoxAsync(100f, 100f, ct).ConfigureAwait(false);
+        }
+        return await page.SemanticsPrefix("scene:").WaitForBoxAsync(100f, 100f, ct).ConfigureAwait(false);
+    }
 
     public static async Task ZoomSceneInAsync(this PlaywrightSdk.IPage page, CancellationToken ct = default)
     {
@@ -719,5 +917,21 @@ public static partial class UiNeuronPlaywrightExtensions
             }
         }
         return page.GetByText(candidateLabels[^1], new() { Exact = true }).First;
+    }
+
+    private static async Task ClickStableAsync(PlaywrightSdk.ILocator target, CancellationToken ct)
+    {
+        try
+        {
+            await target.ClickAsync(new() { Timeout = 4_000 }).WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (PlaywrightSdk.PlaywrightException)
+        {
+            await target.ClickAsync(ClickOpts).WaitAsync(ct).ConfigureAwait(false);
+        }
     }
 }

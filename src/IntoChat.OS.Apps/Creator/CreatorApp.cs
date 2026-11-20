@@ -15,6 +15,7 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
@@ -69,7 +70,7 @@ public sealed record CreatorApprove(string? ApprovalId = null) : DigitalBrain.Si
 public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Signal;
 
 [Neuron("app.creator"), Screen("app.creator", Title = "Creator")]
-public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>
+public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
 {
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<CreatorApp>();
 
@@ -83,6 +84,38 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>
     {
         _logger = (ILogger?)logger ?? ConsoleLogger;
         _time = time;
+    }
+
+    public async Task OnNavigatedTo(NavigationArrival<StudioNavArgs> arrival, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arrival);
+        var next = State.ApplyArrival(arrival.Args);
+        if (next != State)
+        {
+            await Show(next);
+        }
+
+        await RefreshAsync();
+        await InspectAsync();
+        await SyncUiNeuronsAsync();
+    }
+
+    public Rule CanNavigateFrom(NavigationDeparture departure)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        bool inFlight;
+        lock (_running)
+        {
+            inFlight = _running.Count > 0 || State.ScenarioInFlight;
+        }
+
+        return (State with { ScenarioInFlight = inFlight }).CanDepart(departure.Force);
+    }
+
+    public Task OnNavigatedFrom(NavigationDeparture departure, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return Task.CompletedTask;
     }
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
@@ -575,7 +608,7 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>
     public new CreatorWorkspaceState State => base.State;
     public View Render() => PreviewView(State);
     protected override Node Render(CreatorWorkspaceState state)
-        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses);
+        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses, ActiveTransition);
 
     private async Task RefreshAsync()
     {

@@ -1,19 +1,20 @@
-﻿import 'dart:convert';
-import 'dart:async';
-import 'dart:typed_data';
+﻿import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame_behavior_tree/flame_behavior_tree.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_svg/flutter_svg.dart' as svg;
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../../shell_icon.dart';
 import '../behavior/default_idle_tree.dart';
 import '../behavior/tree_runtime.dart';
+import '../graph_semantics.dart';
 import '../node_components.dart';
 
 typedef SphereIconLoader = Future<Uint8List?> Function(
@@ -21,8 +22,8 @@ typedef SphereIconLoader = Future<Uint8List?> Function(
   String icon,
 );
 
-/// What a sphere's behavior tree moves: draws the icon disc and its labels, and runs the tree's
-/// moveTo, scale, fade and pulse tasks as Flame effects on itself.
+/// What a sphere's behavior tree moves: draws a sleek 3D-elevated rounded icon card, status ring,
+/// optional `0–100%` circular progress arc, and labels, running the tree's moveTo/scale/fade/pulse effects.
 final class SphereVisual extends PositionComponent
     with HasPaint
     implements SphereBody {
@@ -38,12 +39,17 @@ final class SphereVisual extends PositionComponent
   String icon = '';
   String title = '';
   String description = '';
+  String nodeStatus = '';
+  Color accentColor = const Color(0xFF7FB069);
+  double? progress;
+  bool selected = false;
   bool badge = false;
   double presentationOpacity = 1;
   ui.Image? iconImage;
 
   final _effects = <String, Effect>{};
-  TextPainter? _titleText, _descriptionText;
+  TextPainter? _titleText, _descriptionText, _progressText;
+  String _cachedProgressLabel = '';
 
   bool get hasEffects => _effects.values.any((effect) => !effect.isRemoved);
 
@@ -55,7 +61,12 @@ final class SphereVisual extends PositionComponent
   void setLabels(String title, String description) {
     if (title != this.title || _titleText == null) {
       this.title = title;
-      _titleText = _label(title, 13, const Color(0xFFE6EDF3));
+      _titleText = _label(
+        title,
+        13,
+        const Color(0xFFE6EDF3),
+        weight: FontWeight.w600,
+      );
     }
     if (description != this.description || _descriptionText == null) {
       this.description = description;
@@ -63,16 +74,45 @@ final class SphereVisual extends PositionComponent
     }
   }
 
-  static TextPainter _label(String text, double size, Color color) =>
-      TextPainter(
+  void setProgress(double? value) {
+    progress = value?.clamp(0.0, 1.0);
+    if (progress == null) {
+      _progressText = null;
+      _cachedProgressLabel = '';
+      return;
+    }
+    final pctText = '${(progress! * 100).round()}%';
+    if (pctText != _cachedProgressLabel || _progressText == null) {
+      _cachedProgressLabel = pctText;
+      _progressText = TextPainter(
         text: TextSpan(
-          text: text,
-          style: TextStyle(color: color, fontSize: size),
+          text: pctText,
+          style: const TextStyle(
+            color: Color(0xFFF1F5F9),
+            fontSize: 9.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
-        ellipsis: '...',
-      )..layout(maxWidth: 160);
+      )..layout();
+    }
+  }
+
+  static TextPainter _label(
+    String text,
+    double size,
+    Color color, {
+    FontWeight weight = FontWeight.w400,
+  }) => TextPainter(
+    text: TextSpan(
+      text: text,
+      style: TextStyle(color: color, fontSize: size, fontWeight: weight),
+    ),
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+    ellipsis: '...',
+  )..layout(maxWidth: 176);
 
   @override
   void begin(String kind, TreeNode params) {
@@ -119,21 +159,108 @@ final class SphereVisual extends PositionComponent
       ui.Paint()
         ..color = Color.fromRGBO(255, 255, 255, opacity * presentationOpacity),
     );
+
     final center = (size / 2).toOffset();
     final radius = size.x / 2;
-    canvas.drawCircle(
-      center,
-      radius,
-      ui.Paint()..color = const Color(0xFF1B2A22),
+    final cardRect = Rect.fromLTWH(4, 4, size.x - 8, size.y - 8);
+    const cardRadius = ui.Radius.circular(22);
+    final cardRRect = ui.RRect.fromRectAndRadius(cardRect, cardRadius);
+
+    // 1. 3D Extruded Pedestal Lip
+    final pedestalRRect = ui.RRect.fromRectAndRadius(
+      cardRect.shift(const Offset(0, 4.5)),
+      cardRadius,
     );
-    canvas.drawCircle(
-      center,
-      radius,
+    canvas.drawRRect(
+      pedestalRRect,
+      ui.Paint()..color = const Color(0xFF060A10),
+    );
+    canvas.drawRRect(
+      pedestalRRect,
       ui.Paint()
         ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = const Color(0xFF7FB069),
+        ..strokeWidth = 1.2
+        ..color = Color.lerp(const Color(0xFF0E1622), accentColor, 0.30)!,
     );
+
+    // 2. 3D Elevated Card Surface + Top Bevel Highlight
+    final topSurface = Color.lerp(const Color(0xFF1C2736), accentColor, 0.22)!;
+    const bottomSurface = Color(0xFF0F1620);
+    canvas.drawRRect(
+      cardRRect,
+      ui.Paint()
+        ..shader = ui.Gradient.linear(
+          cardRect.topCenter,
+          cardRect.bottomCenter,
+          [topSurface, bottomSurface],
+        ),
+    );
+    canvas.drawRRect(
+      cardRRect,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = selected ? 2.6 : 1.8
+        ..color = selected
+            ? const Color(0xFFF8FAFC)
+            : accentColor.withValues(alpha: 0.85),
+    );
+    canvas.drawLine(
+      Offset(cardRect.left + 18, cardRect.top + 1.5),
+      Offset(cardRect.right - 18, cardRect.top + 1.5),
+      ui.Paint()
+        ..strokeWidth = 1.1
+        ..strokeCap = ui.StrokeCap.round
+        ..color = const Color(0x38FFFFFF),
+    );
+
+    // 3. Recessed Icon Medallion + Status Ring + Optional 0–100% Circular Progress Ring
+    final medallionRadius = radius * 0.56;
+    canvas.drawCircle(
+      center,
+      medallionRadius,
+      ui.Paint()..color = const Color(0xFF0A1018),
+    );
+    final statusColor = resolveGraphStatusRingColor(
+      nodeStatus,
+      accentColor.withValues(alpha: 0.55),
+    );
+    canvas.drawCircle(
+      center,
+      medallionRadius + 1.5,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..color = statusColor,
+    );
+
+    if (progress case final pct?) {
+      final arcRadius = radius * 0.70;
+      final arcRect = Rect.fromCircle(center: center, radius: arcRadius);
+      canvas.drawCircle(
+        center,
+        arcRadius,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 3.8
+          ..color = accentColor.withValues(alpha: 0.20),
+      );
+      if (pct > 0.001) {
+        final arcColor = pct >= 0.999 ? const Color(0xFF34D399) : accentColor;
+        canvas.drawArc(
+          arcRect,
+          -math.pi / 2,
+          2 * math.pi * pct.clamp(0.0, 1.0),
+          false,
+          ui.Paint()
+            ..style = ui.PaintingStyle.stroke
+            ..strokeWidth = 4.2
+            ..strokeCap = ui.StrokeCap.round
+            ..color = arcColor,
+        );
+      }
+    }
+
+    // 4. Crisp Icon Image or Glyph
     if (iconImage case final image?) {
       final extent = radius * 1.3;
       canvas.drawImageRect(
@@ -150,8 +277,8 @@ final class SphereVisual extends PositionComponent
               ? icon[0].toUpperCase()
               : String.fromCharCode(data.codePoint),
           style: TextStyle(
-            fontSize: radius * 0.9,
-            color: const Color(0xFFE9F4DF),
+            fontSize: radius * 0.78,
+            color: const Color(0xFFEFF6FF),
             fontFamily: data?.fontFamily,
             package: data?.fontPackage,
           ),
@@ -160,25 +287,60 @@ final class SphereVisual extends PositionComponent
       )..layout();
       glyph.paint(canvas, center - Offset(glyph.width / 2, glyph.height / 2));
     }
+
+    // 5. Optional Percentage Pill on Card Bottom
+    if (_progressText case final pctPainter?) {
+      final pillW = pctPainter.width + 10;
+      final pillH = pctPainter.height + 3;
+      final pillRect = Rect.fromCenter(
+        center: Offset(center.dx, cardRect.bottom - pillH / 2 - 3),
+        width: pillW,
+        height: pillH,
+      );
+      canvas.drawRRect(
+        ui.RRect.fromRectAndRadius(pillRect, const ui.Radius.circular(8)),
+        ui.Paint()..color = const Color(0xEE0B121C),
+      );
+      canvas.drawRRect(
+        ui.RRect.fromRectAndRadius(pillRect, const ui.Radius.circular(8)),
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..color = accentColor.withValues(alpha: 0.75),
+      );
+      pctPainter.paint(
+        canvas,
+        Offset(
+          center.dx - pctPainter.width / 2,
+          pillRect.center.dy - pctPainter.height / 2,
+        ),
+      );
+    }
+
+    // 6. Title & Subtitle Labels Above Card
     var top = -6.0;
     for (final text in [_descriptionText, _titleText]) {
       if (text == null || (text.text?.toPlainText().isEmpty ?? true)) continue;
       top -= text.height;
       text.paint(canvas, Offset(center.dx - text.width / 2, top));
     }
+
+    // 7. Attention / Error Badge
     if (badge) {
+      final badgeCenter = center.translate(radius * 0.72, -radius * 0.72);
       canvas.drawCircle(
-        center.translate(radius * 0.72, -radius * 0.72),
+        badgeCenter,
         7,
         ui.Paint()..color = const Color(0xFFE5484D),
       );
     }
+
     canvas.restore();
   }
 }
 
-/// A neuron's sphere: the icon disc with its labels, driven by the behavior tree its node carries
-/// (or [defaultIdleTree]). The game rewrites [blackboard] from the node's `blackboard` on every apply.
+/// A neuron's sphere: 3D-elevated icon card with status & progress rings, driven by the behavior tree
+/// its node carries (or [defaultIdleTree]). The game rewrites [blackboard] from `blackboard` on every apply.
 final class SphereComponent extends NodeComponent
     with HasBehaviorTree<BaseNode> {
   SphereComponent(super.node);
@@ -202,6 +364,9 @@ final class SphereComponent extends NodeComponent
     _iconKey = '';
     _readIcon();
   }
+
+  double? get progress => body.progress;
+  String get nodeStatus => body.nodeStatus;
 
   void _readIcon() {
     final icon = params['icon'] ?? '', neuron = params['neuron'] ?? nodeId;
@@ -238,7 +403,6 @@ final class SphereComponent extends NodeComponent
             ui.Canvas(recorder)
               ..scale(96 / picture.size.width, 96 / picture.size.height)
               ..drawPicture(picture.picture);
-            // End recording before awaiting conversion so both pictures have explicit owners.
             final scaled = recorder.endRecording();
             try {
               image = await scaled.toImage(96, 96);
@@ -304,13 +468,27 @@ final class SphereComponent extends NodeComponent
     size.setAll(96);
     super.changed();
     _readBoard();
+    final resolvedProgress = parseGraphNodeProgress(
+      progressParam: params['progress'] ?? blackboard['progress'],
+      status: params['nodeStatus'],
+      subtitle: params['description'],
+      label: params['title'],
+    );
     body
       ..size.setFrom(size)
       ..position.setValues(size.x / 2, size.y / 2)
+      ..accentColor = sceneColor(style) ?? const Color(0xFF7FB069)
       ..icon = params['icon'] ?? ''
+      ..nodeStatus = params['nodeStatus'] ?? ''
+      ..selected = params['selected'] == 'true'
       ..presentationOpacity = params['state'] == 'unready' ? .45 : 1
-      ..badge = attentionBadge || params['state'] == 'error'
-      ..setLabels(params['title'] ?? '', params['description'] ?? '');
+      ..badge =
+          attentionBadge ||
+          params['state'] == 'error' ||
+          params['nodeStatus'] == 'error' ||
+          params['nodeStatus'] == 'failed'
+      ..setLabels(params['title'] ?? '', params['description'] ?? '')
+      ..setProgress(resolvedProgress);
     _readIcon();
     final key = treeDef == null ? '' : jsonEncode(treeDef!.toJson());
     if (key != _treeKey) {

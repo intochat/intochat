@@ -26,7 +26,9 @@ public sealed record EngineerCandidateSummary(
     [property: Id(14)] bool ZeroTelemetryErrors = false,
     [property: Id(15)] string UnifiedDiff = "",
     [property: Id(16)] string Summary = "",
-    [property: Id(17)] int Rank = 1)
+    [property: Id(17)] int Rank = 1,
+    [property: Id(18)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(19)] string[]? DeletedFiles = null)
 {
     public EngineerCandidateSummary()
         : this(0, "os-run-0", "LocalGit", "ino/feature-run-w1", "prepared", [], null)
@@ -58,7 +60,13 @@ public sealed record EngineerWorkspaceState(
     [property: Id(19)] string[] DiagnosticsAndTraces,
     [property: Id(20)] string? ActiveFlowId = null,
     [property: Id(21)] string? PullRequestUrl = null,
-    [property: Id(22)] string? ConfirmationPlanId = null)
+    [property: Id(22)] string? ConfirmationPlanId = null,
+    [property: Id(23)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(24)] string[]? CleanupTargets = null,
+    [property: Id(25)] EngineerTaskSlice[]? Slices = null,
+    [property: Id(26)] MissionCollaborator[]? Collaborators = null,
+    [property: Id(27)] bool AwaitingPlanRatification = false,
+    [property: Id(28)] bool LiveViewportPeek = false)
 {
     public static readonly string[] PipelineStageIds =
     [
@@ -88,13 +96,26 @@ public sealed record EngineerWorkspaceState(
         VerificationPassed: false,
         PrPublished: false,
         WorktreesCleaned: false,
-        StatusBanner: "Ready · Review User + Architect + Critic plan or start a new multi-worktree run.",
+        StatusBanner: "Ready · Ratify Ino Native parallel slice plan or start a new multi-worktree mission.",
         Tasks: DefaultSeedTasks(),
         BrainstormTurns: DefaultSeedTurns(),
         Candidates: DefaultSeedCandidates(),
-        DiagnosticsAndTraces: DefaultSeedTraces())
+        DiagnosticsAndTraces: DefaultSeedTraces(),
+        Harness: EngineeringHarnessKind.InoNative,
+        CleanupTargets: DefaultSeedCleanupTargets(),
+        Slices: DefaultSeedSlices(),
+        Collaborators: DefaultSeedCollaborators())
     {
     }
+
+    [JsonIgnore]
+    public string[] EffectiveCleanupTargets => CleanupTargets ?? [];
+
+    [JsonIgnore]
+    public EngineerTaskSlice[] EffectiveSlices => Slices is { Length: > 0 } s ? s : DefaultSeedSlices();
+
+    [JsonIgnore]
+    public MissionCollaborator[] EffectiveCollaborators => Collaborators is { Length: > 0 } c ? c : DefaultSeedCollaborators();
 
     [Invariant("ActiveTab is always plan, code, verify, or pr."), JsonIgnore]
     public bool ValidTab => TabIds.Contains(ActiveTab, StringComparer.Ordinal);
@@ -114,13 +135,15 @@ public sealed record EngineerWorkspaceState(
         "plan_not_ready",
         (HasPlan, PlanApproved),
         static x => !x.HasPlan || x.PlanApproved,
-        static x => x.PlanApproved ? "Task plan is already approved." : "Run Brainstorm first to draft an EngineerTaskPlan.");
+        static x => x.PlanApproved ? "Mission plan is already ratified." : "Run Brainstorm first to draft an EngineerTaskPlan.");
+
+    public Rule DisjointSlicesGuard() => new NoOverlappingFileSlices(EffectiveSlices);
 
     public Rule ReadyForVerification() => Decision.Rule(
         "plan_not_approved",
         (PlanApproved, PrPublished),
         static x => !x.PlanApproved || x.PrPublished,
-        static x => x.PrPublished ? "Run has already published its Draft PR." : "Approve the task plan before running worktree build & live verification.");
+        static x => x.PrPublished ? "Run has already published its Draft PR." : "Ratify the mission plan before running worktree build & live verification.");
 
     public Rule ReadyForPrApproval() => Decision.Rule(
         "verification_not_passed",
@@ -133,6 +156,16 @@ public sealed record EngineerWorkspaceState(
         WorktreesCleaned,
         static cleaned => cleaned,
         "All isolated worktree leases are already cleaned up.");
+
+    public Rule CanDepart(bool force = false) => Decision.Rule(
+        "active_verification_in_flight",
+        (CurrentStage, VerificationPassed, PrPublished, WorktreesCleaned, force),
+        static x => !x.force
+            && !x.VerificationPassed
+            && !x.PrPublished
+            && !x.WorktreesCleaned
+            && x.CurrentStage is "build-and-test" or "live-verify",
+        "Verification gates are actively running; wait for completion or pass Force=true to leave Studio.");
 
     public Rule ValidCandidateSelection(int candidateIndex) => Decision.Rule(
         "invalid_candidate_selection",
@@ -156,7 +189,7 @@ public sealed record EngineerWorkspaceState(
         return this with
         {
             ActiveTab = normalized,
-            StatusBanner = $"Viewing {TabTitle(normalized)} tab · Stage: {StageTitle(CurrentStage)}",
+            StatusBanner = $"Viewing {TabTitle(normalized)} · Stage: {StageTitle(CurrentStage)}",
         };
     }
 
@@ -177,6 +210,15 @@ public sealed record EngineerWorkspaceState(
             StatusBanner = $"Stage focused: {StageTitle(normalized)}",
         };
     }
+
+    public EngineerWorkspaceState ToggleViewportPeek()
+        => this with
+        {
+            LiveViewportPeek = !LiveViewportPeek,
+            StatusBanner = !LiveViewportPeek
+                ? "Opened Live App Viewport Peek alongside 3D Flow Graph."
+                : "Closed Live App Viewport Peek.",
+        };
 
     public EngineerWorkspaceState SetParallelInstances([Sample(1, 2, 3)] int count, [Sample("LocalGit", "ContainerVolume")] string? backend = null)
     {
@@ -205,7 +247,9 @@ public sealed record EngineerWorkspaceState(
                     ],
                     Strategy: strategyId,
                     StrategyLabel: strategyLabel,
-                    Rank: i + 1);
+                    Rank: i + 1,
+                    Harness: Harness,
+                    DeletedFiles: EffectiveCleanupTargets);
             })
             .ToArray();
 
@@ -215,7 +259,7 @@ public sealed record EngineerWorkspaceState(
             BackendMode = mode,
             SelectedInstanceIndex = Math.Clamp(SelectedInstanceIndex, 0, clamped - 1),
             Candidates = candidates,
-            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Configured {clamped} parallel {mode} worktree instance(s)."),
+            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Configured {clamped} parallel {mode} worktree instance(s) on {Harness}."),
         };
     }
 
@@ -242,11 +286,15 @@ public sealed record EngineerWorkspaceState(
             VerificationPassed: false,
             PrPublished: false,
             WorktreesCleaned: false,
-            StatusBanner: $"Started new run '{nextRunId}' ({count} worktree instance(s)) · Ready to brainstorm & approve plan.",
+            StatusBanner: $"Started mission '{nextRunId}' ({count} worktree(s), {Harness}) · Ready to ratify plan.",
             Tasks: DefaultSeedTasks(),
             BrainstormTurns: DefaultSeedTurns(),
             Candidates: DefaultSeedCandidates(),
-            DiagnosticsAndTraces: DefaultSeedTraces());
+            DiagnosticsAndTraces: DefaultSeedTraces(),
+            Harness: Harness,
+            CleanupTargets: DefaultSeedCleanupTargets(),
+            Slices: DefaultSeedSlices(),
+            Collaborators: DefaultSeedCollaborators());
         return reset.SetParallelInstances(count, BackendMode);
     }
 
@@ -288,14 +336,25 @@ public sealed record EngineerWorkspaceState(
         });
     }
 
-    public Decision<EngineerWorkspaceState> ApprovePlan() =>
-        Decision.Check("approve-plan", PlanReadyToApprove())
-        ?? Decision.Accept(this with
+    public Decision<EngineerWorkspaceState> ApprovePlan()
+    {
+        if (Decision.Check("approve-plan", PlanReadyToApprove(), DisjointSlicesGuard()) is { } rejected)
+        {
+            return rejected;
+        }
+
+        var progressedSlices = EffectiveSlices
+            .Select(static s => s with { Status = "implementing", Percent = 60 })
+            .ToArray();
+
+        return Decision.Accept(this with
         {
             PlanApproved = true,
+            AwaitingPlanRatification = false,
             WorktreesCleaned = false,
             CurrentStage = "implement-tasks",
             ActiveTab = "code",
+            Slices = progressedSlices,
             Candidates =
             [
                 .. Candidates.Select((c, idx) =>
@@ -312,8 +371,9 @@ public sealed record EngineerWorkspaceState(
                     };
                 }),
             ],
-            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Plan approved · Prepared {InstanceCount} isolated worktree(s) and checkpointed {Tasks.Length} task(s)."),
+            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Plan ratified · Executing {progressedSlices.Length} parallel Ino slices across {InstanceCount} isolated worktree(s)."),
         });
+    }
 
     public Decision<EngineerWorkspaceState> CompleteVerification()
     {
@@ -362,6 +422,9 @@ public sealed record EngineerWorkspaceState(
 
         var winningIdx = ordered.FirstOrDefault()?.InstanceIndex ?? 0;
         var winningSha = rankedCandidates.ElementAtOrDefault(winningIdx)?.CommitSha ?? new string('a', 40);
+        var completedSlices = EffectiveSlices
+            .Select(static s => s with { Status = "verified", Percent = 100 })
+            .ToArray();
 
         return Decision.Accept(this with
         {
@@ -369,6 +432,7 @@ public sealed record EngineerWorkspaceState(
             CurrentStage = "review-and-pr",
             ActiveTab = "verify",
             SelectedInstanceIndex = winningIdx,
+            Slices = completedSlices,
             Candidates = rankedCandidates,
             ConfirmationPlanId = string.Create(CultureInfo.InvariantCulture, $"app:engineer:{ActiveRunId}:{winningSha}"),
             DiagnosticsAndTraces =
@@ -409,11 +473,103 @@ public sealed record EngineerWorkspaceState(
             StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Cleaned all {InstanceCount} isolated worktree lease(s) idempotently."),
         });
 
+    [IgnoreExplore]
+    public EngineerWorkspaceState ApplyOperationProgress(OperationProgressed progressed)
+    {
+        ArgumentNullException.ThrowIfNull(progressed);
+        var clampedPct = Math.Clamp(progressed.Percent, 0, 100);
+        var updatedSlices = EffectiveSlices
+            .Select(s => string.Equals(s.SliceId, progressed.SliceId, StringComparison.Ordinal)
+                ? s with { Percent = clampedPct, Status = string.IsNullOrWhiteSpace(progressed.Phase) ? s.Status : progressed.Phase }
+                : s)
+            .ToArray();
+
+        if (!string.IsNullOrWhiteSpace(progressed.SliceId)
+            && !updatedSlices.Any(s => string.Equals(s.SliceId, progressed.SliceId, StringComparison.Ordinal)))
+        {
+            updatedSlices =
+            [
+                .. updatedSlices,
+                new EngineerTaskSlice(
+                    SliceId: progressed.SliceId,
+                    Title: string.IsNullOrWhiteSpace(progressed.Detail) ? progressed.SliceId : progressed.Detail,
+                    OwnedPaths: [],
+                    DependsOnSliceIds: [],
+                    Status: string.IsNullOrWhiteSpace(progressed.Phase) ? "running" : progressed.Phase,
+                    Percent: clampedPct),
+            ];
+        }
+
+        return this with
+        {
+            Harness = progressed.Harness,
+            Slices = updatedSlices,
+            StatusBanner = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{progressed.Harness} · {progressed.SliceId} ({clampedPct}%) · {progressed.Phase}"),
+        };
+    }
+
+    [IgnoreExplore]
+    public EngineerWorkspaceState SelectChangedFile(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return this;
+        }
+
+        var clean = filePath.Trim();
+        var lang = clean.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
+        return this with
+        {
+            SelectedFilePath = clean,
+            SelectedLanguage = lang,
+            ActiveTab = ActiveTab == "plan" ? "code" : ActiveTab,
+            StatusBanner = $"Viewing diff · {clean}",
+        };
+    }
+
+    [IgnoreExplore]
+    public EngineerWorkspaceState ApplyArrival(StudioNavArgs? args)
+    {
+        if (args is null)
+        {
+            return this;
+        }
+
+        var next = this;
+        if (!string.IsNullOrWhiteSpace(args.CandidateId)
+            && int.TryParse(args.CandidateId.TrimStart('w', 'W'), NumberStyles.Integer, CultureInfo.InvariantCulture, out var candNum))
+        {
+            var idx = candNum >= 1 && candNum <= next.Candidates.Length ? candNum - 1 : candNum;
+            var promoted = next.PromoteCandidateCore(idx, args.FilePath);
+            if (promoted.IsAccepted)
+            {
+                next = promoted.Next;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(args.FilePath))
+        {
+            next = next.SelectChangedFile(args.FilePath!);
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.Lens))
+        {
+            next = next.SelectTab(args.Lens);
+        }
+        else if (!string.IsNullOrWhiteSpace(args.Mode))
+        {
+            next = next.SelectTab(args.Mode);
+        }
+
+        return next;
+    }
+
     public static string NormalizeTab(string? tab) => (tab ?? "plan").Trim().ToLowerInvariant() switch
     {
-        "code" or "editor" or "diff" or "source" => "code",
+        "code" or "editor" or "diff" or "changes" or "source" => "code",
         "verify" or "verification" or "traces" or "diagnostics" or "test" => "verify",
-        "pr" or "review" or "publish" or "approval" => "pr",
+        "pr" or "review" or "publish" or "approval" or "ship" => "pr",
         _ => "plan",
     };
 
@@ -443,10 +599,10 @@ public sealed record EngineerWorkspaceState(
 
     public static string TabTitle(string tab) => NormalizeTab(tab) switch
     {
-        "code" => "Code & Diff",
-        "verify" => "Verification & Traces",
+        "code" => "Changes & Diff",
+        "verify" => "Verification",
         "pr" => "PR Review",
-        _ => "Plan & Brainstorm",
+        _ => "3D Flow & Plan",
     };
 
     public static string StageTitle(string stage) => NormalizeStage(stage) switch
@@ -490,6 +646,40 @@ public sealed record EngineerWorkspaceState(
                 +            live: live);
                  }
                 """;
+
+    private static string[] DefaultSeedCleanupTargets() =>
+    [
+        "src/IntoChat.OS.Apps/Creator/LegacyPipelineCards.cs",
+        "src/IntoChat.OS.Apps/Engineer/StackedKpiHeader.cs",
+    ];
+
+    private static EngineerTaskSlice[] DefaultSeedSlices() =>
+    [
+        new(
+            SliceId: "slice-1",
+            Title: "Worktree Contracts & Roslyn Guard",
+            OwnedPaths: ["src/Modules/GitHub/WorkTree/WorkTreeService.cs", "src/Modules/Roslyn/Editing/WorktreeRoslynAnalyzer.cs"],
+            DependsOnSliceIds: [],
+            Status: "planned",
+            Percent: 25,
+            AssignedAgentKey: "ino.slice-1",
+            Language: "csharp"),
+        new(
+            SliceId: "slice-2",
+            Title: "Flow Orchestrator & Dart Mirrors",
+            OwnedPaths: ["src/Modules/Catalog/Flows/EngineerFlow.cs", "ui/lib/src/ui/stepper/stepper_widget.dart"],
+            DependsOnSliceIds: [],
+            Status: "planned",
+            Percent: 25,
+            AssignedAgentKey: "ino.slice-2",
+            Language: "mixed"),
+    ];
+
+    private static MissionCollaborator[] DefaultSeedCollaborators() =>
+    [
+        new("person:owner", "Owner", "person", "ratify-plan", Active: true),
+        new("ino.native", "Ino Native Swarm", "ino-agent", "slice-1", Active: true),
+    ];
 
     private static EngineerTaskItem[] DefaultSeedTasks() =>
     [

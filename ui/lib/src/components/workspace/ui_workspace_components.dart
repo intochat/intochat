@@ -4,6 +4,113 @@ import 'package:flutter/material.dart';
 
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_tokens.dart';
+import '../../theme/wire_node_values.dart';
+
+/// Smooth 180ms ticker-driven transition (`fade-through`, `shared-axis-x`,
+/// `shared-axis-z`, `camera-fly-to`) that starts settled (`value: 1`) on mount,
+/// honours `MediaQuery.disableAnimationsOf(context)`, preserves incoming box
+/// constraints, and leaves zero pending timers in widget tests.
+class UiViewTransition extends StatefulWidget {
+  const UiViewTransition({
+    super.key,
+    required this.transition,
+    required this.signature,
+    required this.child,
+  });
+
+  final WireViewTransition transition;
+  final String signature;
+  final Widget child;
+
+  @override
+  State<UiViewTransition> createState() => _UiViewTransitionState();
+}
+
+class _UiViewTransitionState extends State<UiViewTransition>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(milliseconds: 180);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _duration,
+    value: 1,
+  );
+  late final CurvedAnimation _curved = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+  );
+
+  bool get _canAnimate =>
+      widget.transition != WireViewTransition.none &&
+      !MediaQuery.disableAnimationsOf(context);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_canAnimate) {
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant UiViewTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_canAnimate) {
+      if (_controller.isAnimating) _controller.stop();
+      _controller.value = 1;
+    } else if (widget.signature != oldWidget.signature) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _curved.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.transition == WireViewTransition.none) {
+      return widget.child;
+    }
+
+    final keyed = KeyedSubtree(
+      key: ValueKey('view-transition:${widget.signature}'),
+      child: widget.child,
+    );
+
+    return switch (widget.transition) {
+      WireViewTransition.none => widget.child,
+      WireViewTransition.fadeThrough => FadeTransition(
+        opacity: _curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.97, end: 1.0).animate(_curved),
+          child: keyed,
+        ),
+      ),
+      WireViewTransition.sharedAxisX => FadeTransition(
+        opacity: _curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.035, 0),
+            end: Offset.zero,
+          ).animate(_curved),
+          child: keyed,
+        ),
+      ),
+      WireViewTransition.sharedAxisZ ||
+      WireViewTransition.cameraFlyTo => FadeTransition(
+        opacity: _curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.94, end: 1.0).animate(_curved),
+          child: keyed,
+        ),
+      ),
+    };
+  }
+}
 
 // A mounted snapshot is already current; only a subsequent identity change moves.
 class UiMotion extends StatefulWidget {

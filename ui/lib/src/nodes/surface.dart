@@ -14,6 +14,7 @@ import '../theme/ui_tokens.dart';
 import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 import 'node_context.dart';
+import 'node_renderer.dart';
 
 Uint8List? _tryDecodeDataUrl(String raw) {
   final trimmed = raw.trim();
@@ -38,7 +39,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     if (variant.kind == SurfaceVariantKind.toolbar) {
       final items = renderAll(node.children, ctx);
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: c.surfaceSunk,
           borderRadius: BorderRadius.circular(tokens.surfaceRadius),
@@ -46,7 +47,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
         ),
         child: Wrap(
           spacing: 6,
-          runSpacing: 6,
+          runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: items,
         ),
@@ -216,56 +217,73 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     // 7. Live App Studio device/viewport frame (`kind: "studio-frame"` | `"studio-frame:<width>"`)
     if (variant.kind == SurfaceVariantKind.studioFrame) {
       final targetWidth = variant.targetWidth;
-      final frameBody = Container(
-        padding: EdgeInsets.all(node.padding.clamp(8.0, 32.0)),
-        decoration: BoxDecoration(
-          color: c.page,
-          borderRadius: BorderRadius.circular(tokens.surfaceRadius),
-          border: Border.all(color: c.borderStrong),
-          boxShadow: UiShadows.md(c),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 12,
-          children: [
-            if (node.title case final title? when title.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: c.borderHairline)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.monitor, size: 14, color: c.accent),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: UiType.textStyle(
-                          12.5,
-                          weight: FontWeight.w600,
-                          color: c.textStrong,
-                        ),
+      final singleFill =
+          node.children.length == 1 && NodeRenderer.fills(node.children.single);
+      final renderedChildren = renderAll(node.children, ctx);
+      final frameBody = LayoutBuilder(
+        builder: (context, constraints) {
+          final stretch =
+              singleFill &&
+              constraints.hasBoundedHeight &&
+              constraints.maxHeight.isFinite &&
+              constraints.maxHeight >= 180;
+          return Container(
+            padding: EdgeInsets.all(node.padding.clamp(8.0, 32.0)),
+            decoration: BoxDecoration(
+              color: c.page,
+              borderRadius: BorderRadius.circular(tokens.surfaceRadius),
+              border: Border.all(color: c.borderStrong),
+              boxShadow: UiShadows.md(c),
+            ),
+            child: Column(
+              mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 12,
+              children: [
+                if (node.title case final title? when title.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: c.borderHairline),
                       ),
                     ),
-                    if (node.subtitle case final sub? when sub.isNotEmpty)
-                      Text(
-                        sub,
-                        style: UiType.textStyle(
-                          11.5,
-                          weight: FontWeight.w500,
-                          color: c.muted,
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.monitor, size: 14, color: c.accent),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: UiType.textStyle(
+                              12.5,
+                              weight: FontWeight.w600,
+                              color: c.textStrong,
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-            ...renderAll(node.children, ctx),
-          ],
-        ),
+                        if (node.subtitle case final sub? when sub.isNotEmpty)
+                          Text(
+                            sub,
+                            style: UiType.textStyle(
+                              11.5,
+                              weight: FontWeight.w500,
+                              color: c.muted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (stretch)
+                  Expanded(child: renderedChildren.single)
+                else
+                  ...renderedChildren,
+              ],
+            ),
+          );
+        },
       );
 
       if (targetWidth != null && targetWidth > 0) {
@@ -314,24 +332,39 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
         0.0,
       ),
     };
-    return UiKitSurface(
-      padding: EdgeInsets.all(node.padding.clamp(0, 128)),
-      color: color,
-      borderColor: borderColor,
-      shadows: shadows,
-      blurSigma: blurSigma,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 12,
-        children: [
-          if (node.title case final title? when title.isNotEmpty)
-            Text(title, style: theme.textTheme.titleMedium),
-          if (node.subtitle case final subtitle? when subtitle.isNotEmpty)
-            Text(subtitle, style: theme.textTheme.bodySmall),
-          ...renderAll(node.children, ctx),
-        ],
-      ),
+    final singleFill =
+        node.children.length == 1 && NodeRenderer.fills(node.children.single);
+    final renderedChildren = renderAll(node.children, ctx);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stretch =
+            singleFill &&
+            constraints.hasBoundedHeight &&
+            constraints.maxHeight.isFinite &&
+            constraints.maxHeight >= 180;
+        return UiKitSurface(
+          padding: EdgeInsets.all(node.padding.clamp(0, 128)),
+          color: color,
+          borderColor: borderColor,
+          shadows: shadows,
+          blurSigma: blurSigma,
+          child: Column(
+            mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
+            children: [
+              if (node.title case final title? when title.isNotEmpty)
+                Text(title, style: theme.textTheme.titleMedium),
+              if (node.subtitle case final subtitle? when subtitle.isNotEmpty)
+                Text(subtitle, style: theme.textTheme.bodySmall),
+              if (stretch)
+                Expanded(child: renderedChildren.single)
+              else
+                ...renderedChildren,
+            ],
+          ),
+        );
+      },
     );
   },
 );

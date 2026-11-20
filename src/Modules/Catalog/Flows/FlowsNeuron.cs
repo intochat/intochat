@@ -280,7 +280,12 @@ internal sealed class FlowsNeuron(
             Goal: goal,
             InstanceCount: instances,
             RequestedBaseBranch: parsedBase?.Value,
-            Backend: backend).ToStartJson();
+            Backend: backend,
+            RequirePlanRatification: request.RequirePlanRatification,
+            Harness: request.Harness,
+            CleanupTargets: request.CleanupTargets,
+            Slices: request.Slices,
+            CircleBrainId: request.CircleBrainId).ToStartJson();
 
         string flowId;
         try
@@ -296,33 +301,11 @@ internal sealed class FlowsNeuron(
                 goal,
                 instances,
                 backend,
-                $"Could not start IntoChat-Engineer '{title}': {ex.Message}");
+                $"Could not start IntoChat-Engineer '{title}': {ex.Message}",
+                harness: request.Harness);
         }
 
-        // Poll briefly when steps are actively advancing so live agent tool calls return the approval-gate summary directly,
-        // while exiting quickly if the host scheduler defers flow execution until an explicit pump (e.g. TestOS.Idle).
-        var deadline = Context.Time.GetUtcNow() + TimeSpan.FromSeconds(15);
-        for (var attempt = 0; attempt < 80 && !ct.IsCancellationRequested; attempt++)
-        {
-            var head = await Flow(flowId).Head().ConfigureAwait(true);
-            if (head.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
-            {
-                break;
-            }
-
-            if (attempt >= 3 && head.Done.Length == 0)
-            {
-                break;
-            }
-
-            if (Context.Time.GetUtcNow() >= deadline)
-            {
-                break;
-            }
-
-            await Task.Delay(50, ct).ConfigureAwait(true);
-        }
-
+        await AwaitEngineerStepSettlementAsync(flowId, ct).ConfigureAwait(true);
         return await InspectEngineerRun(flowId, ct).ConfigureAwait(true);
     }
 
@@ -346,7 +329,7 @@ internal sealed class FlowsNeuron(
             var view = State.Flows.TryGetValue(resolvedFlowId, out var entry)
                 ? await View(entry, State.Flows, ct).ConfigureAwait(true)
                 : null;
-            return EngineerDelegationSummaries.Build(Id.Brain, resolvedFlowId, view, head);
+            return await EngineerDelegationSummaries.BuildAsync(Id.Brain, resolvedFlowId, view, head, services, ct).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -362,6 +345,53 @@ internal sealed class FlowsNeuron(
         }
     }
 
+    public async Task<EngineerRunSummary> RatifyEngineerPlan(
+        string flowId,
+        string[]? approvedCleanupTargets = null,
+        EngineerTaskSlice[]? slices = null,
+        CancellationToken ct = default)
+    {
+        var resolvedFlowId = ResolveEngineerFlowId(flowId);
+        if (string.IsNullOrWhiteSpace(resolvedFlowId))
+        {
+            throw new KeyNotFoundException("No IntoChat-Engineer (flow.engineer) run was found in this brain.");
+        }
+
+        var ratifier = CallerRules.ActsFor(RequiredCaller()) ?? Owner();
+        var starter = Flow(resolvedFlowId);
+        await starter.RatifyPlan(approvedCleanupTargets, slices, ratifier).ConfigureAwait(true);
+
+        await AwaitEngineerStepSettlementAsync(resolvedFlowId, ct).ConfigureAwait(true);
+        return await InspectEngineerRun(resolvedFlowId, ct).ConfigureAwait(true);
+    }
+
+    private async Task AwaitEngineerStepSettlementAsync(string flowId, CancellationToken ct)
+    {
+        // Poll briefly when steps are actively advancing so live agent/UI calls return the next settled stage summary directly,
+        // while exiting quickly if the host scheduler defers flow execution until an explicit pump (e.g. TestOS.Idle).
+        var deadline = Context.Time.GetUtcNow() + TimeSpan.FromSeconds(15);
+        for (var attempt = 0; attempt < 80 && !ct.IsCancellationRequested; attempt++)
+        {
+            var head = await Flow(flowId).Head().ConfigureAwait(true);
+            if (head.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
+            {
+                break;
+            }
+
+            if (attempt >= 3 && head.Done.Length == 0)
+            {
+                break;
+            }
+
+            if (Context.Time.GetUtcNow() >= deadline)
+            {
+                break;
+            }
+
+            await Task.Delay(50, ct).ConfigureAwait(true);
+        }
+    }
+
     public async Task<EngineerRunSummary> SelectEngineerCandidate(string flowId, int candidateIndex, CancellationToken ct = default)
     {
         var resolvedFlowId = ResolveEngineerFlowId(flowId);
@@ -372,43 +402,6 @@ internal sealed class FlowsNeuron(
 
         var starter = Flow(resolvedFlowId);
         await starter.SelectCandidate(candidateIndex).ConfigureAwait(true);
-
-        var head = await starter.Head().ConfigureAwait(true);
-        var run = string.IsNullOrWhiteSpace(head.InnerJson)
-            ? null
-            : System.Text.Json.JsonSerializer.Deserialize<EngineerRun>(head.InnerJson, EngineerFlow.Json);
-        var updatedPlanId = run?.Approval?.PlanId;
-        var updatedSubject = run?.SelectedInstance?.Lease is { } lease
-            ? $"{lease.RepositoryId}:{lease.BranchName}"
-            : null;
-
-        await Fold(
-            resolvedFlowId,
-            entry =>
-            {
-                var nextEntry = entry;
-                if (updatedSubject is not null && nextEntry.Subject != updatedSubject)
-                {
-                    nextEntry = nextEntry with { Subject = updatedSubject };
-                }
-
-                if (head.Status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(updatedPlanId))
-                {
-                    var nextWait = new Waiting("approval-gate", WaitReason.Approval, nextEntry.Waiting?.Expires, updatedPlanId);
-                    if (nextEntry.Waiting != nextWait || nextEntry.Status != FlowStatus.Waiting)
-                    {
-                        nextEntry = nextEntry with
-                        {
-                            Status = FlowStatus.Waiting,
-                            Current = "approval-gate",
-                            Waiting = nextWait,
-                        };
-                    }
-                }
-
-                return nextEntry;
-            },
-            readHead: true).ConfigureAwait(true);
 
         return await InspectEngineerRun(resolvedFlowId, ct).ConfigureAwait(true);
     }

@@ -1516,9 +1516,11 @@ public sealed class HouseRules22Facts
             "IDirectoryStore",
             "IPrincipalCredential",
             "IExternalTicketReplay",
-            // App-internal UI seams
+            // App-internal UI seams & IntoChat.OS.UI root navigation lifecycle contracts
             "IGalleryLibrary",
             "ISecretVault",
+            "INavigatedTo",
+            "INavigatedFrom",
         };
 
         var unexpected = new List<string>();

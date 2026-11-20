@@ -1,6 +1,309 @@
+using System.Globalization;
+using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.Rules;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
+
+[JsonConverter(typeof(JsonStringEnumConverter<EngineeringHarnessKind>))]
+[GenerateSerializer, Alias("engineer.harness-kind")]
+public enum EngineeringHarnessKind
+{
+    InoNative = 0,
+    ClaudeCli = 1,
+    CodexCli = 2,
+}
+
+[GenerateSerializer, Alias("engineer.task-slice")]
+public sealed record EngineerTaskSlice(
+    [property: Id(0)] string SliceId,
+    [property: Id(1)] string Title,
+    [property: Id(2)] string[] OwnedPaths,
+    [property: Id(3)] string[] DependsOnSliceIds,
+    [property: Id(4)] string Status = "pending",
+    [property: Id(5)] int Percent = 0,
+    [property: Id(6)] string AssignedAgentKey = "ino.slice-1",
+    [property: Id(7)] string Language = "csharp",
+    [property: Id(8)] string Instructions = "")
+{
+    public EngineerTaskSlice()
+        : this("", "", [], [], "pending", 0, "ino.slice-1", "csharp", "")
+    {
+    }
+}
+
+[GenerateSerializer, Alias("engineer.collaborator")]
+public sealed record MissionCollaborator(
+    [property: Id(0)] string Id,
+    [property: Id(1)] string DisplayName,
+    [property: Id(2)] string Kind,
+    [property: Id(3)] string? FocusNodeId = null,
+    [property: Id(4)] bool Active = true)
+{
+    public MissionCollaborator()
+        : this("", "", "person", null, true)
+    {
+    }
+}
+
+public sealed record NoOverlappingFileSlices(IReadOnlyList<EngineerTaskSlice> Slices) : Rule("overlapping_file_slices")
+{
+    public override bool Broken => EvaluateViolation(Slices) is not null;
+
+    public override string Message => EvaluateViolation(Slices) ?? "Parallel DAG wave slices have disjoint file ownership.";
+
+    internal static string? EvaluateViolation(IReadOnlyList<EngineerTaskSlice>? slices)
+    {
+        if (slices is null || slices.Count == 0)
+        {
+            return null;
+        }
+
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var slice in slices)
+        {
+            if (slice is null || string.IsNullOrWhiteSpace(slice.SliceId))
+            {
+                return "Every EngineerTaskSlice must have a non-empty SliceId.";
+            }
+
+            if (!ids.Add(slice.SliceId.Trim()))
+            {
+                return $"Duplicate SliceId '{slice.SliceId}' in slice plan.";
+            }
+        }
+
+        if (!EngineerTaskSlices.TryComputeWaves(slices, out var waves, out var dagError))
+        {
+            return dagError ?? "Slice dependency graph contains a cycle or unknown dependency.";
+        }
+
+        for (var waveIndex = 0; waveIndex < waves.Length; waveIndex++)
+        {
+            var wave = waves[waveIndex];
+            if (wave.Length < 2)
+            {
+                continue;
+            }
+
+            var claimed = new List<(string SliceId, string NormalizedPath)>();
+            foreach (var slice in wave)
+            {
+                var slicePaths = (slice.OwnedPaths ?? [])
+                    .Where(static p => !string.IsNullOrWhiteSpace(p))
+                    .Select(EngineerTaskSlices.NormalizePath)
+                    .Where(static p => p.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                foreach (var candidatePath in slicePaths)
+                {
+                    foreach (var (priorSliceId, priorPath) in claimed)
+                    {
+                        if (string.Equals(priorSliceId, slice.SliceId, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        if (PathsOverlap(priorPath, candidatePath))
+                        {
+                            return string.Create(
+                                CultureInfo.InvariantCulture,
+                                $"Parallel slices '{priorSliceId}' and '{slice.SliceId}' in DAG wave {waveIndex + 1} claim overlapping OwnedPaths ('{priorPath}' vs '{candidatePath}').");
+                        }
+                    }
+
+                    claimed.Add((slice.SliceId, candidatePath));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool PathsOverlap(string left, string right)
+        => string.Equals(left, right, StringComparison.OrdinalIgnoreCase)
+            || left.StartsWith(right + "/", StringComparison.OrdinalIgnoreCase)
+            || right.StartsWith(left + "/", StringComparison.OrdinalIgnoreCase);
+}
+
+public static class EngineerTaskSlices
+{
+    public static NoOverlappingFileSlices CheckDisjoint(IReadOnlyList<EngineerTaskSlice> slices)
+        => new(slices);
+
+    public static string NormalizePath(string rawPath)
+        => (rawPath ?? string.Empty).Trim().Replace('\\', '/').Trim('/');
+
+    public static EngineerTaskSlice[][] ComputeWaves(IReadOnlyList<EngineerTaskSlice> slices)
+        => TryComputeWaves(slices, out var waves, out var error)
+            ? waves
+            : throw new InvalidOperationException(error ?? "Cannot compute topological waves for invalid EngineerTaskSlice DAG.");
+
+    public static bool TryComputeWaves(
+        IReadOnlyList<EngineerTaskSlice>? slices,
+        out EngineerTaskSlice[][] waves,
+        out string? error)
+    {
+        waves = [];
+        error = null;
+        if (slices is null || slices.Count == 0)
+        {
+            return true;
+        }
+
+        var byId = new Dictionary<string, EngineerTaskSlice>(slices.Count, StringComparer.Ordinal);
+        foreach (var slice in slices)
+        {
+            if (slice is null || string.IsNullOrWhiteSpace(slice.SliceId))
+            {
+                error = "Every EngineerTaskSlice must declare a non-empty SliceId.";
+                return false;
+            }
+
+            var id = slice.SliceId.Trim();
+            if (!byId.TryAdd(id, slice))
+            {
+                error = $"Duplicate SliceId '{id}' in slice plan.";
+                return false;
+            }
+        }
+
+        var remainingDeps = new Dictionary<string, HashSet<string>>(slices.Count, StringComparer.Ordinal);
+        foreach (var slice in slices)
+        {
+            var id = slice.SliceId.Trim();
+            var deps = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var rawDep in slice.DependsOnSliceIds ?? [])
+            {
+                if (string.IsNullOrWhiteSpace(rawDep))
+                {
+                    continue;
+                }
+
+                var dep = rawDep.Trim();
+                if (string.Equals(dep, id, StringComparison.Ordinal))
+                {
+                    error = $"Slice '{id}' cannot depend on itself.";
+                    return false;
+                }
+
+                if (!byId.ContainsKey(dep))
+                {
+                    error = $"Slice '{id}' depends on unknown slice '{dep}'.";
+                    return false;
+                }
+
+                deps.Add(dep);
+            }
+
+            remainingDeps[id] = deps;
+        }
+
+        var waveList = new List<EngineerTaskSlice[]>();
+        var unscheduled = slices.Select(static s => s.SliceId.Trim()).ToList();
+
+        while (unscheduled.Count > 0)
+        {
+            var readyIds = unscheduled
+                .Where(id => remainingDeps[id].Count == 0)
+                .ToArray();
+
+            if (readyIds.Length == 0)
+            {
+                error = "Slice plan contains a dependency cycle.";
+                return false;
+            }
+
+            waveList.Add([.. readyIds.Select(id => byId[id])]);
+            foreach (var completedId in readyIds)
+            {
+                unscheduled.Remove(completedId);
+            }
+
+            foreach (var pendingId in unscheduled)
+            {
+                foreach (var completedId in readyIds)
+                {
+                    remainingDeps[pendingId].Remove(completedId);
+                }
+            }
+        }
+
+        waves = [.. waveList];
+        return true;
+    }
+
+    public static EngineerTaskSlice[] FromTaskPlan(EngineerTaskPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        if (plan.Slices is { Length: > 0 })
+        {
+            return plan.Slices;
+        }
+
+        if (plan.Tasks is null || plan.Tasks.Length == 0)
+        {
+            return [];
+        }
+
+        var converted = new EngineerTaskSlice[plan.Tasks.Length];
+        for (var i = 0; i < plan.Tasks.Length; i++)
+        {
+            var task = plan.Tasks[i];
+            converted[i] = new EngineerTaskSlice(
+                SliceId: task.Id,
+                Title: task.Title,
+                OwnedPaths: task.TargetFiles ?? [],
+                DependsOnSliceIds: task.DependsOn ?? [],
+                Status: "pending",
+                Percent: 0,
+                AssignedAgentKey: string.Create(CultureInfo.InvariantCulture, $"ino.slice-{i + 1}"),
+                Language: string.IsNullOrWhiteSpace(task.Language) ? "csharp" : task.Language,
+                Instructions: task.Instructions ?? string.Empty);
+        }
+
+        return converted;
+    }
+}
+
+[GenerateSerializer, Alias("engineer.ratified-plan")]
+public sealed record RatifiedPlan(
+    [property: Id(0)] string Goal,
+    [property: Id(1)] string ArchitectureSummary,
+    [property: Id(2)] string[] CleanupTargets,
+    [property: Id(3)] EngineerTaskSlice[] Slices,
+    [property: Id(4)] bool Ratified = true,
+    [property: Id(5)] string? RatifiedBy = null,
+    [property: Id(6)] DateTimeOffset? RatifiedAt = null,
+    [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative)
+{
+    public RatifiedPlan()
+        : this("", "", [], [], true, null, null, EngineeringHarnessKind.InoNative)
+    {
+    }
+
+    public NoOverlappingFileSlices DisjointSlicesRule() => new(Slices ?? []);
+
+    public EngineerTaskSlice[][] TopologicalWaves() => EngineerTaskSlices.ComputeWaves(Slices ?? []);
+}
+
+[GenerateSerializer, Alias("engineer.mission")]
+public sealed record Mission(
+    [property: Id(0)] string MissionId,
+    [property: Id(1)] string RepositoryId,
+    [property: Id(2)] string Goal,
+    [property: Id(3)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(4)] bool RequirePlanRatification = false,
+    [property: Id(5)] RatifiedPlan? RatifiedPlan = null,
+    [property: Id(6)] MissionCollaborator[]? Collaborators = null,
+    [property: Id(7)] string? LinkedCircleBrainId = null)
+{
+    public Mission()
+        : this("", "os", "", EngineeringHarnessKind.InoNative, false, null, null, null)
+    {
+    }
+}
 
 [GenerateSerializer, Alias("engineer.start-request")]
 public sealed record EngineerStartRequest(
@@ -9,7 +312,12 @@ public sealed record EngineerStartRequest(
     [property: Id(2)] string Goal,
     [property: Id(3)] int InstanceCount = 1,
     [property: Id(4)] string? RequestedBaseBranch = null,
-    [property: Id(5)] string? Backend = null)
+    [property: Id(5)] string? Backend = null,
+    [property: Id(6)] bool RequirePlanRatification = false,
+    [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(8)] string[]? CleanupTargets = null,
+    [property: Id(9)] EngineerTaskSlice[]? Slices = null,
+    [property: Id(10)] string? CircleBrainId = null)
 {
     public EngineerStartRequest() : this("", "os", "", 1, null, null) { }
 
@@ -35,7 +343,12 @@ public sealed record EngineerDelegationRequest(
     [property: Id(2)] int ParallelInstances = 1,
     [property: Id(3)] string Backend = "LocalGit",
     [property: Id(4)] string? RequestedBaseBranch = null,
-    [property: Id(5)] string? RunId = null)
+    [property: Id(5)] string? RunId = null,
+    [property: Id(6)] bool RequirePlanRatification = false,
+    [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(8)] string[]? CleanupTargets = null,
+    [property: Id(9)] EngineerTaskSlice[]? Slices = null,
+    [property: Id(10)] string? CircleBrainId = null)
 {
     public EngineerDelegationRequest() : this("os", "", 1, "LocalGit", null, null) { }
 }
@@ -55,7 +368,7 @@ public sealed record EngineerCandidateScore(
 {
     public EngineerCandidateScore() : this(false, false, false, false, 0, 0, null, "", "", 0) { }
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool AllGatesPassed =>
         !string.IsNullOrWhiteSpace(CommitSha)
         && BuildPassed
@@ -100,7 +413,7 @@ public sealed record EngineerCandidateScore(
 
         total = Math.Max(0, total);
         var shortSha = commitSha is { Length: >= 8 } sha ? sha[..8] : (hasCommit ? commitSha : "pending");
-        var summary = System.FormattableString.Invariant(
+        var summary = FormattableString.Invariant(
             $"Score={total} · Build={(buildPassed ? "PASS" : "FAIL")}, Tests={(testsPassed ? "PASS" : "FAIL")}, Live={(livePassed ? "PASS" : "FAIL")}, OTel={(zeroTelemetryErrors ? "0 err" : "ERR")}, Δ={effectiveLines} lines ({shortSha})");
 
         return new EngineerCandidateScore(
@@ -158,7 +471,10 @@ public sealed record EngineerCandidateResult(
     [property: Id(11)] EngineerCandidateScore Score,
     [property: Id(12)] EngineerBuildReport? Build = null,
     [property: Id(13)] EngineerLiveReport? Live = null,
-    [property: Id(14)] string? FailureDetail = null)
+    [property: Id(14)] string? FailureDetail = null,
+    [property: Id(15)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(16)] EngineerTaskSlice[]? Slices = null,
+    [property: Id(17)] string[]? DeletedFiles = null)
 {
     public EngineerCandidateResult()
         : this(0, "surgical-patch", "Minimal Surgical Patch", "", "LocalGit", "", "pending", [], [], 1, false, new EngineerCandidateScore(), null, null, null)
@@ -245,7 +561,10 @@ public sealed record EngineerInstanceSummary(
     [property: Id(13)] int ChangedLines = 0,
     [property: Id(14)] string UnifiedDiff = "",
     [property: Id(15)] int Rank = 1,
-    [property: Id(16)] bool IsSelected = false)
+    [property: Id(16)] bool IsSelected = false,
+    [property: Id(17)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(18)] EngineerTaskSlice[]? Slices = null,
+    [property: Id(19)] string[]? DeletedFiles = null)
 {
     public EngineerInstanceSummary()
         : this(0, "", "LocalGit", "", "pending", [], [], null, false, false, null, "surgical-patch", 0, 0, "", 1, false)
@@ -277,7 +596,13 @@ public sealed record EngineerRunSummary(
     string SummaryText,
     IntoChat.OS.Modules.Apps.InoCard? Card = null,
     int SelectedCandidateIndex = 0,
-    EngineerCandidateResult[]? Candidates = null);
+    EngineerCandidateResult[]? Candidates = null,
+    EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    bool AwaitingPlanRatification = false,
+    RatifiedPlan? RatifiedPlan = null,
+    string[]? CleanupTargets = null,
+    EngineerTaskSlice[]? Slices = null,
+    MissionCollaborator[]? Collaborators = null);
 
 [GenerateSerializer, Alias("engineer.brainstorm-turn")]
 public sealed record EngineerBrainstormTurn(
@@ -307,7 +632,9 @@ public sealed record EngineerTaskPlan(
     [property: Id(1)] string ArchitectureSummary,
     [property: Id(2)] string CriticReview,
     [property: Id(3)] EngineerBrainstormTurn[] Transcript,
-    [property: Id(4)] EngineerTaskItem[] Tasks)
+    [property: Id(4)] EngineerTaskItem[] Tasks,
+    [property: Id(5)] string[]? CleanupTargets = null,
+    [property: Id(6)] EngineerTaskSlice[]? Slices = null)
 {
     public EngineerTaskPlan() : this("", "", "", [], []) { }
 
@@ -318,51 +645,119 @@ public sealed record EngineerTaskPlan(
             return "EngineerTaskPlan requires a non-empty goal.";
         }
 
-        if (Tasks is null || Tasks.Length == 0)
+        if ((Tasks is null || Tasks.Length == 0) && (Slices is null || Slices.Length == 0))
         {
-            return "EngineerTaskPlan must contain at least one task.";
+            return "EngineerTaskPlan must contain at least one task or slice.";
         }
 
-        var ids = new HashSet<string>(StringComparer.Ordinal);
         var distinctTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var task in Tasks)
+        foreach (var rawCleanup in CleanupTargets ?? [])
         {
-            if (task is null || string.IsNullOrWhiteSpace(task.Id))
+            if (string.IsNullOrWhiteSpace(rawCleanup))
             {
-                return "Every task in EngineerTaskPlan must have a non-empty id.";
+                return "EngineerTaskPlan contains a blank cleanup target path.";
             }
 
-            if (!ids.Add(task.Id.Trim()))
+            var clean = rawCleanup.Trim().Replace('\\', '/');
+            if (clean.StartsWith('/') || Path.IsPathRooted(clean) || clean.Split('/').Any(static seg => seg.Length == 0 || seg.StartsWith('.')))
             {
-                return $"Duplicate task id '{task.Id}' in EngineerTaskPlan.";
+                return $"EngineerTaskPlan contains invalid or hidden cleanup target path '{rawCleanup}'.";
             }
 
-            if (string.IsNullOrWhiteSpace(task.Title))
-            {
-                return $"Task '{task.Id}' must have a non-empty title.";
-            }
+            distinctTargets.Add(clean);
+        }
 
-            var lang = (task.Language ?? string.Empty).Trim().ToLowerInvariant();
-            if (lang is not ("csharp" or "dart" or "markdown" or "mixed"))
+        if (Tasks is { Length: > 0 })
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var task in Tasks)
             {
-                return $"Task '{task.Id}' has unsupported language '{task.Language}' (expected csharp, dart, markdown, or mixed).";
-            }
-
-            foreach (var rawFile in task.TargetFiles ?? [])
-            {
-                if (string.IsNullOrWhiteSpace(rawFile))
+                if (task is null || string.IsNullOrWhiteSpace(task.Id))
                 {
-                    return $"Task '{task.Id}' contains a blank target file path.";
+                    return "Every task in EngineerTaskPlan must have a non-empty id.";
                 }
 
-                var clean = rawFile.Trim().Replace('\\', '/');
-                if (clean.StartsWith('/') || Path.IsPathRooted(clean) || clean.Split('/').Any(static seg => seg.Length == 0 || seg.StartsWith('.')))
+                if (!ids.Add(task.Id.Trim()))
                 {
-                    return $"Task '{task.Id}' contains invalid or hidden target file path '{rawFile}'.";
+                    return $"Duplicate task id '{task.Id}' in EngineerTaskPlan.";
                 }
 
-                distinctTargets.Add(clean);
+                if (string.IsNullOrWhiteSpace(task.Title))
+                {
+                    return $"Task '{task.Id}' must have a non-empty title.";
+                }
+
+                var lang = (task.Language ?? string.Empty).Trim().ToLowerInvariant();
+                if (lang is not ("csharp" or "dart" or "markdown" or "mixed"))
+                {
+                    return $"Task '{task.Id}' has unsupported language '{task.Language}' (expected csharp, dart, markdown, or mixed).";
+                }
+
+                foreach (var rawFile in task.TargetFiles ?? [])
+                {
+                    if (string.IsNullOrWhiteSpace(rawFile))
+                    {
+                        return $"Task '{task.Id}' contains a blank target file path.";
+                    }
+
+                    var clean = rawFile.Trim().Replace('\\', '/');
+                    if (clean.StartsWith('/') || Path.IsPathRooted(clean) || clean.Split('/').Any(static seg => seg.Length == 0 || seg.StartsWith('.')))
+                    {
+                        return $"Task '{task.Id}' contains invalid or hidden target file path '{rawFile}'.";
+                    }
+
+                    distinctTargets.Add(clean);
+                }
+            }
+
+            foreach (var task in Tasks)
+            {
+                foreach (var dep in task.DependsOn ?? [])
+                {
+                    if (string.Equals(dep, task.Id, StringComparison.Ordinal))
+                    {
+                        return $"Task '{task.Id}' cannot depend on itself.";
+                    }
+
+                    if (!ids.Contains(dep))
+                    {
+                        return $"Task '{task.Id}' depends on unknown task '{dep}'.";
+                    }
+                }
+            }
+
+            if (!TryComputeTopologicalOrder(out _))
+            {
+                return "EngineerTaskPlan contains a dependency cycle.";
+            }
+        }
+
+        if (Slices is { Length: > 0 })
+        {
+            foreach (var slice in Slices)
+            {
+                foreach (var rawOwned in slice?.OwnedPaths ?? [])
+                {
+                    if (string.IsNullOrWhiteSpace(rawOwned))
+                    {
+                        return $"Slice '{slice?.SliceId}' contains a blank owned path.";
+                    }
+
+                    var clean = rawOwned.Trim().Replace('\\', '/');
+                    if (clean.StartsWith('/') || Path.IsPathRooted(clean) || clean.Split('/').Any(static seg => seg.Length == 0 || seg.StartsWith('.')))
+                    {
+                        return $"Slice '{slice?.SliceId}' contains invalid or hidden owned path '{rawOwned}'.";
+                    }
+
+                    distinctTargets.Add(clean);
+                }
+            }
+
+            var disjointRule = new NoOverlappingFileSlices(Slices);
+            if (disjointRule.Broken)
+            {
+                return $"{disjointRule.Name}: {disjointRule.Message}";
             }
         }
 
@@ -371,25 +766,7 @@ public sealed record EngineerTaskPlan(
             return $"EngineerTaskPlan targets {distinctTargets.Count} distinct files, exceeding the policy maximum of {maxChangedFiles}.";
         }
 
-        foreach (var task in Tasks)
-        {
-            foreach (var dep in task.DependsOn ?? [])
-            {
-                if (string.Equals(dep, task.Id, StringComparison.Ordinal))
-                {
-                    return $"Task '{task.Id}' cannot depend on itself.";
-                }
-
-                if (!ids.Contains(dep))
-                {
-                    return $"Task '{task.Id}' depends on unknown task '{dep}'.";
-                }
-            }
-        }
-
-        return TryComputeTopologicalOrder(out _)
-            ? null
-            : "EngineerTaskPlan contains a dependency cycle.";
+        return null;
     }
 
     public EngineerTaskItem[] TopologicalOrder()
@@ -505,6 +882,50 @@ public sealed record EngineerLiveReport(
     [property: Id(10)] string Summary)
 {
     public EngineerLiveReport() : this(false, false, false, false, 0, 0, 0, 0, [], [], "") { }
+}
+
+public sealed record EngineeringHarnessRequest(
+    string FlowId,
+    string RunId,
+    string RepositoryId,
+    string Goal,
+    string WorktreeId,
+    string WorktreePath,
+    int InstanceIndex,
+    int TotalInstances,
+    string Strategy,
+    string StrategyLabel,
+    string StrategyPromptLens,
+    EngineeringHarnessKind Harness,
+    RatifiedPlan RatifiedPlan,
+    BrainId? Brain = null,
+    string? BaseBranch = null,
+    string? SourceRepositoryPath = null);
+
+public sealed record EngineeringHarnessResult(
+    bool Succeeded,
+    EngineeringHarnessKind Harness,
+    string Summary,
+    string ModelId,
+    string[] TouchedFiles,
+    string[] DeletedFiles,
+    EngineerTaskSlice[] CompletedSlices,
+    OperationProgressed[] ProgressEvents,
+    bool UiStateGraphsHealthy = true,
+    int SemanticErrorCount = 0,
+    string? HydratedContextSummary = null,
+    string? FailureDetail = null);
+
+public interface IEngineeringHarness
+{
+    EngineeringHarnessKind Kind { get; }
+
+    Task<bool> IsAvailableAsync(CancellationToken ct = default);
+
+    Task<EngineeringHarnessResult> ExecuteAsync(
+        EngineeringHarnessRequest request,
+        Func<OperationProgressed, Task>? onProgress = null,
+        CancellationToken ct = default);
 }
 
 public interface IEngineerPlanner

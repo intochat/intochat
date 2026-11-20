@@ -83,134 +83,145 @@ class _PropertyGridNeuronWidgetState extends State<PropertyGridNeuronWidget> {
 
         final visibleEntries = entries.where(isVisible).toList();
 
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
-            border: Border.all(color: c.borderHairline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        final entriesContent = visibleEntries.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'No matching properties.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: c.textMuted),
+                ),
+              )
+            : SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final entry in visibleEntries)
+                      _PropertyRow(
+                        entry: entry,
+                        isSelected: entry['path'] == selectedPath,
+                        isExpanded: expanded.contains(entry['path']),
+                        indent: lowerFilter.isEmpty
+                            ? ((entry['depth'] as num?)?.toInt() ?? 0) * 14.0
+                            : 0.0,
+                        readOnly: readOnly,
+                        colors: c,
+                        onSelect: () => unawaited(
+                          invoke('Select', ['${entry['path'] ?? ''}']),
+                        ),
+                        onToggleExpand: () => unawaited(
+                          invoke('ToggleExpand', ['${entry['path'] ?? ''}']),
+                        ),
+                        onEditValue: (nextVal) => unawaited(
+                          invoke('SetValue', [
+                            '${entry['path'] ?? ''}',
+                            nextVal,
+                          ]),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final stretch =
+                constraints.hasBoundedHeight &&
+                constraints.maxHeight.isFinite &&
+                constraints.maxHeight >= 160;
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: c.surfaceCard,
+                borderRadius: BorderRadius.circular(IcRadius.card),
+                border: Border.all(color: c.borderHairline),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
                 children: [
-                  Icon(LucideIcons.braces, size: 15, color: c.accent),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: c.textStrong,
+                  Row(
+                    children: [
+                      Icon(LucideIcons.braces, size: 15, color: c.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: c.textStrong,
+                          ),
+                        ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.surfaceSunk,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          readOnly ? 'INSPECT' : 'EDITABLE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: c.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 32,
+                    child: TextField(
+                      controller: _filterController,
+                      style: TextStyle(fontSize: 12, color: c.textStrong),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'Filter properties…',
+                        hintStyle: TextStyle(fontSize: 12, color: c.textMuted),
+                        prefixIcon: Icon(
+                          LucideIcons.search,
+                          size: 14,
+                          color: c.textMuted,
+                        ),
+                        filled: true,
+                        fillColor: c.surfaceSunk,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(IcRadius.xs),
+                          borderSide: BorderSide(color: c.borderHairline),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(IcRadius.xs),
+                          borderSide: BorderSide(color: c.borderHairline),
+                        ),
+                      ),
+                      onSubmitted: (q) => unawaited(invoke('SetFilter', [q])),
+                      onChanged: (q) => unawaited(invoke('SetFilter', [q])),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
+                  const SizedBox(height: 8),
+                  if (stretch)
+                    Expanded(child: entriesContent)
+                  else
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 280),
+                      child: entriesContent,
                     ),
-                    decoration: BoxDecoration(
-                      color: c.surfaceSunk,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      readOnly ? 'INSPECT' : 'EDITABLE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: c.textMuted,
-                      ),
-                    ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 32,
-                child: TextField(
-                  controller: _filterController,
-                  style: TextStyle(fontSize: 12, color: c.textStrong),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Filter properties…',
-                    hintStyle: TextStyle(fontSize: 12, color: c.textMuted),
-                    prefixIcon: Icon(
-                      LucideIcons.search,
-                      size: 14,
-                      color: c.textMuted,
-                    ),
-                    filled: true,
-                    fillColor: c.surfaceSunk,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(IcRadius.xs),
-                      borderSide: BorderSide(color: c.borderHairline),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(IcRadius.xs),
-                      borderSide: BorderSide(color: c.borderHairline),
-                    ),
-                  ),
-                  onSubmitted: (q) => unawaited(invoke('SetFilter', [q])),
-                  onChanged: (q) => unawaited(invoke('SetFilter', [q])),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 280),
-                child: visibleEntries.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Text(
-                          'No matching properties.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: c.textMuted),
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final entry in visibleEntries)
-                              _PropertyRow(
-                                entry: entry,
-                                isSelected: entry['path'] == selectedPath,
-                                isExpanded: expanded.contains(entry['path']),
-                                indent: lowerFilter.isEmpty
-                                    ? ((entry['depth'] as num?)?.toInt() ?? 0) *
-                                          14.0
-                                    : 0.0,
-                                readOnly: readOnly,
-                                colors: c,
-                                onSelect: () => unawaited(
-                                  invoke('Select', ['${entry['path'] ?? ''}']),
-                                ),
-                                onToggleExpand: () => unawaited(
-                                  invoke('ToggleExpand', [
-                                    '${entry['path'] ?? ''}',
-                                  ]),
-                                ),
-                                onEditValue: (nextVal) => unawaited(
-                                  invoke('SetValue', [
-                                    '${entry['path'] ?? ''}',
-                                    nextVal,
-                                  ]),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

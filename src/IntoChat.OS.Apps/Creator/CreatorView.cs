@@ -31,8 +31,9 @@ public static class CreatorView
         Approval[] approvals,
         Inspection inspection,
         IReadOnlyList<TraceHop>? timelineHops = null,
-        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
-        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses));
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
+        string transition = "")
+        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition));
 
     public static Node RenderNode(
         CreatorWorkspaceState state,
@@ -41,7 +42,8 @@ public static class CreatorView
         Approval[] approvals,
         Inspection inspection,
         IReadOnlyList<TraceHop> timelineHops,
-        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
+        string transition = "")
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -50,11 +52,86 @@ public static class CreatorView
         ArgumentNullException.ThrowIfNull(inspection);
         ArgumentNullException.ThrowIfNull(timelineHops);
 
+        var toolbar = TopToolbar(state, timelineHops);
         var left = LeftPane(state, topology, flows, approvals, synapses);
-        var center = CenterPane(state, topology, flows, inspection, timelineHops);
+        var center = CenterPane(state, topology, inspection, timelineHops);
         var right = CreatorInspector.Render(state, inspection, timelineHops, flows, approvals);
 
-        return ResponsiveSplit(left, ResponsiveSplit(center, right, 680), 280);
+        return AppShell(
+            key: "creator-shell",
+            sidebar: left,
+            body: center,
+            toolbar: toolbar,
+            inspector: right,
+            automationName: "Creator Topology & State Studio",
+            transition: transition);
+    }
+
+    public static Node TopToolbar(CreatorWorkspaceState state, IReadOnlyList<TraceHop> timelineHops)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(timelineHops);
+
+        var activeGraphMode = state.ShowStateGraph || state.CanvasMode == "state" ? "state" : "brain";
+        var modeSwitcher = Segmented(
+            activeGraphMode,
+            Option("brain", "Brain Graph").Key("mode-brain").Emits(AppSignals.Emit(App, "select", "mode:brain")),
+            Option("state", "Accordant State Graph").Key("mode-state").Emits(AppSignals.Emit(App, "select", "mode:state")));
+
+        var steps = ReplayScript.Steps(timelineHops);
+        var hasEvents = steps.Length > 0;
+        var cursorReadout = ReplayScript.FormatCursorReadout(state.ReplayCursor, steps.Length);
+        var toggleLabel = state.IsReplayActive ? "Live" : "Replay";
+        var toggleIcon = state.IsReplayActive ? "play" : "pause";
+
+        Node[] items =
+        [
+            modeSwitcher,
+            Button("First", "chevrons-left")
+                .Key("replay-first")
+                .Small()
+                .Disabled(!hasEvents)
+                .Emits(AppSignals.Emit(App, "replay", "first")),
+            Button("Prev", "chevron-left")
+                .Key("replay-prev")
+                .Small()
+                .Disabled(!hasEvents)
+                .Emits(AppSignals.Emit(App, "replay", "prev")),
+            PrimaryButton(toggleLabel, toggleIcon)
+                .Key("replay-toggle")
+                .Small()
+                .Disabled(!hasEvents && !state.IsReplayActive)
+                .Emits(AppSignals.Emit(App, "replay", "toggle")),
+            Button("Next", "chevron-right")
+                .Key("replay-next")
+                .Small()
+                .Disabled(!hasEvents)
+                .Emits(AppSignals.Emit(App, "replay", "next")),
+            Button("Last", "chevrons-right")
+                .Key("replay-last")
+                .Small()
+                .Disabled(!hasEvents)
+                .Emits(AppSignals.Emit(App, "replay", "last")),
+            GhostButton("Stop", "radio")
+                .Key("replay-live")
+                .Small()
+                .Disabled(!state.IsReplayActive)
+                .Emits(AppSignals.Emit(App, "replay", "stop")),
+            GhostButton(cursorReadout, "history")
+                .Key("replay-cursor-readout")
+                .Small()
+                .Emits(AppSignals.Emit(App, "replay", "toggle")),
+            new NeuronRef("ui.slider", ReplaySliderKey),
+            new Button("open-engineer-studio", "Open Studio (Engineer) ↗", Intent: AppSignals.OpenApp("engineer", state.ActiveRunId))
+            {
+                Small = true,
+                Icon = Icons.Sparkles,
+            },
+        ];
+
+        // Extent index 8 gives `creator/replay/slider` a compact 144px inline width inside the single <=44px row.
+        double[] extents = [0, 0, 0, 0, 0, 0, 0, 0, 144, 0];
+        return new Row(items) { Gap = Space.Xs, Extents = extents };
     }
 
     public static Node LeftPane(
@@ -71,279 +148,179 @@ public static class CreatorView
 
         var children = new List<Node>();
 
-        if (synapses is { Length: > 0 })
-        {
-            children.Add(SectionHeader("Synapses"));
-            foreach (var form in synapses.GroupBy(synapse => synapse.Form).OrderBy(group => group.Key))
-            {
-                children.Add(MutedText(form.Key.ToString()));
-                children.Add(HStack(Space.Xs, [.. form.Select(RenderSynapse)]));
-            }
-        }
-
-        // 1. Catalog Units
-        children.Add(SectionHeader("Catalog Units"));
-        var unitNodes = topology.Nodes
-            .Where(n => n.Role == BrainGraph.Unit || (!n.Id.StartsWith("draft:", StringComparison.Ordinal) && !AppRef.TryParse(n.Id, out _)))
-            .Take(12)
+        // 1. Installed Apps (Clean vertical NavItems — zero horizontal overflow!)
+        var appNodes = topology.Nodes
+            .Where(n => n.Role == BrainGraph.App || AppRef.TryParse(n.Id, out _))
+            .Where(n => !AppRef.TryParse(n.Id, out var a) || a.Name != App)
+            .Take(16)
             .ToArray();
 
+        children.Add(SectionHeader("Apps"));
+        if (appNodes.Length > 0)
+        {
+            foreach (var node in appNodes)
+            {
+                var label = node.Label.Length > 0
+                    ? node.Label
+                    : AppRef.TryParse(node.Id, out var nodeRef) ? nodeRef.Name : node.Id;
+                var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
+                children.Add(NavItem(
+                    key: $"app:{node.Id}",
+                    label: label,
+                    icon: Icons.LayoutGrid,
+                    action: BrainGraph.NodeKey(node.Id),
+                    selected: isSelected,
+                    emit: AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id))));
+            }
+        }
+        else
+        {
+            children.Add(MutedText("No external apps installed."));
+        }
+
+        // 2. Catalog Units (Clean vertical NavItems)
+        var unitNodes = topology.Nodes
+            .Where(n => n.Role == BrainGraph.Unit || (!n.Id.StartsWith("draft:", StringComparison.Ordinal) && !AppRef.TryParse(n.Id, out _)))
+            .Take(16)
+            .ToArray();
+
+        children.Add(SectionHeader("Units"));
         if (unitNodes.Length > 0)
         {
-            var unitButtons = unitNodes.Select(node =>
+            foreach (var node in unitNodes)
             {
                 var alias = BrainGraph.AliasOf(node.Id) ?? node.Id;
                 var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
-                return (Node)(isSelected ? PrimaryButton(alias) : Button(alias))
-                    .Key($"unit:{node.Id}")
-                    .Small()
-                    .Emits(AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id)));
-            });
-            children.Add(HStack(Space.Xs, [.. unitButtons]));
+                children.Add(NavItem(
+                    key: $"unit:{node.Id}",
+                    label: alias,
+                    icon: "cpu",
+                    action: BrainGraph.NodeKey(node.Id),
+                    selected: isSelected,
+                    emit: AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id))));
+            }
         }
         else
         {
             children.Add(MutedText("No runtime units installed yet."));
         }
 
-        // 2. Installed Apps
-        var appNodes = topology.Nodes
-            .Where(n => n.Role == BrainGraph.App || AppRef.TryParse(n.Id, out _))
-            .Where(n => !AppRef.TryParse(n.Id, out var a) || a.Name != App)
-            .Take(12)
-            .ToArray();
-
-        if (appNodes.Length > 0)
-        {
-            children.Add(SectionHeader("Installed Apps"));
-            var appButtons = appNodes.Select(node =>
-            {
-                var label = node.Label.Length > 0
-                    ? node.Label
-                    : AppRef.TryParse(node.Id, out var nodeRef) ? nodeRef.Name : node.Id;
-                var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
-                return (Node)(isSelected ? PrimaryButton(label) : GhostButton(label))
-                    .Key($"app:{node.Id}")
-                    .Small()
-                    .Emits(AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id)));
-            });
-            children.Add(HStack(Space.Xs, [.. appButtons]));
-        }
-
-        // 3. Active Change Runs
-        children.Add(SectionHeader("Active Change Runs"));
+        // 3. Active Flows (Vertical list covering EngineerFlow, ChangeFlow, and BuildFlow)
+        children.Add(SectionHeader("Active Flows"));
         var activeFlows = flows
-            .Where(f => f.Type is IFlows.ChangeFlow or BuildFlow.Alias)
+            .Where(f => f.Type is IFlows.EngineerFlow or IFlows.ChangeFlow or BuildFlow.Alias)
             .OrderByDescending(f => f.Started)
             .Take(10)
             .ToArray();
 
-        foreach (var flow in activeFlows)
+        if (activeFlows.Length > 0)
         {
-            children.Add(Turn(flow, approvals));
+            foreach (var flow in activeFlows)
+            {
+                var isSelectedRun = string.Equals(state.ActiveRunId, flow.FlowId, StringComparison.Ordinal);
+                children.Add(NavItem(
+                    key: $"run:{flow.FlowId}",
+                    label: $"{flow.Title} · {flow.FlowId}",
+                    icon: "workflow",
+                    action: flow.FlowId,
+                    selected: isSelectedRun,
+                    badge: flow.Status.ToString(),
+                    emit: AppSignals.Emit(App, "run", flow.FlowId)));
+
+                if (Consent(flow, approvals) is { } consent)
+                {
+                    var visual = VisualCatalog.ForApproval(consent.Subject);
+                    children.Add(new ApprovalCardNode(
+                        $"consent:{flow.FlowId}",
+                        consent.PlanId,
+                        consent.Title,
+                        consent.Detail,
+                        [],
+                        Icon: visual.IconKey,
+                        CapabilityLabel: visual.Label));
+                }
+            }
+        }
+        else
+        {
+            children.Add(MutedText("No active flows."));
         }
 
-        if (activeFlows.Length == 0)
+        if (synapses is { Length: > 0 })
         {
-            children.Add(MutedText("No active change runs."));
+            children.Add(SectionHeader("Synapses"));
+            foreach (var synapse in synapses.OrderBy(static s => s.Name, StringComparer.Ordinal).Take(8))
+            {
+                if (synapse.Form == IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow)
+                {
+                    children.Add(HStack(Space.Xs)[
+                        Button($"Run {synapse.Name}", Icons.Play)
+                            .Key($"synapse:{synapse.Id}")
+                            .Small()
+                            .Emits(AppSignals.Emit(App, "start-workflow", synapse.Name))
+                    ]);
+                }
+                else
+                {
+                    children.Add(MutedText(synapse.Name));
+                }
+            }
         }
 
-        // 4. Studio Navigation & Status
-        children.Add(SectionHeader("Studio Workbench"));
-        children.Add(HStack(Space.Sm)[
+        children.Add(HStack(Space.Xs)[
             StatusPill(
                 approvals.Length > 0 ? StatusKind.NeedsYou : (state.IsReplayActive ? StatusKind.Working : StatusKind.Idle),
-                approvals.Length > 0 ? $"{approvals.Length} Approval(s)" : (state.IsReplayActive ? "Time-Travel Replay" : "Live Stream")),
+                approvals.Length > 0 ? $"{approvals.Length} Approval(s)" : (state.IsReplayActive ? "Replay" : "Live")),
             MutedText(state.Status)
         ]);
-        children.Add(HStack(Space.Xs)[
-            new Button("open-ino-chat", "Co-Author in Ino", Intent: AppSignals.OpenApp("ino")) { Small = true, Icon = Icons.MessageSquare },
-            new Button("open-engineer-studio", "Open Engineer", Intent: AppSignals.OpenApp("engineer")) { Small = true, Icon = Icons.Sparkles },
-            new Button("open-gallery", "UI Kit Gallery", Intent: AppSignals.OpenApp("gallery")) { Small = true, Icon = Icons.LayoutGrid }
-        ]);
 
-        return VStack(Space.Sm, [.. children]);
+        return VStack(Space.Xs, [.. children]);
     }
 
     public static Node CenterPane(
         CreatorWorkspaceState state,
         BrainTopology topology,
-        FlowView[] flows,
         Inspection inspection,
         IReadOnlyList<TraceHop> timelineHops)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
-        ArgumentNullException.ThrowIfNull(flows);
         ArgumentNullException.ThrowIfNull(inspection);
         ArgumentNullException.ThrowIfNull(timelineHops);
 
-        var mode = state.ShowStateGraph && state.CanvasMode == "brain" ? "state" : state.CanvasMode;
-        var modeSwitcher = Segmented(
-            mode,
-            Option("brain", "Brain Topology").Key("mode-brain").Emits(AppSignals.Emit(App, "select", "mode:brain")),
-            Option("live", "Live Studio").Key("mode-live").Emits(AppSignals.Emit(App, "select", "mode:live")),
-            Option("state", "State Graph").Key("mode-state").Emits(AppSignals.Emit(App, "select", "mode:state")),
-            Option("source", "Source & Kit").Key("mode-source").Emits(AppSignals.Emit(App, "select", "mode:source")));
-
-        var steps = ReplayScript.Steps(timelineHops);
-        var cursorReadout = ReplayScript.FormatCursorReadout(state.ReplayCursor, steps.Length);
-
-        var children = new List<Node>
+        if (state.CanvasMode == "live")
         {
-            Toolbar(
-                modeSwitcher,
-                FlexSpacer(),
-                StatusPill(
-                    mode == "state" ? StatusKind.Working : StatusKind.Done,
-                    mode switch
-                    {
-                        "live" => "Interactive App Studio",
-                        "state" => "Accordant State Space",
-                        "source" => "C# Source & Kit v2",
-                        _ => "Live Brain Topology",
-                    }),
-                Button(
-                    state.ShowStateGraph ? "Show Live Brain Graph" : "Show Accordant State Graph",
-                    state.ShowStateGraph ? "activity" : "git-branch")
-                    .Key("toggle-state-graph")
-                    .Small()
-                    .Emits(AppSignals.Emit(App, "select", ToggleStateGraphTarget)))
-        };
-
-        // 1. Primary Studio Canvas
-        if (mode == "live")
-        {
-            children.Add(RenderLiveStudioPreview(state, inspection));
+            return RenderLiveStudioPreview(state, inspection);
         }
-        else if (mode == "source")
+
+        if (state.CanvasMode == "state" || state.ShowStateGraph)
         {
-            children.Add(RenderSourceAndKitStudio(inspection));
-        }
-        else if (mode == "state" || state.ShowStateGraph)
-        {
-            children.Add(state.Selected is { Kind: Selection.Node } && inspection.Alias is { } unitAlias && inspection.Files.Count > 0
+            return state.Selected is { Kind: Selection.Node } && inspection.Alias is { } unitAlias && inspection.Files.Count > 0
                 ? CreatorStateSpaceInspector.RenderUnitStateScene(unitAlias, inspection.Files)
-                : StateGraphView(CreatorStateSpaceInspector.CreatorGraph));
+                : StateGraphView(CreatorStateSpaceInspector.CreatorGraph);
         }
-        else
+
+        var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null);
+        var replayTraceId = state.TraceId ?? (inspection.Kind == Selection.Pulse ? inspection.Id : "timeline");
+        if (timelineHops.Count > 0)
         {
-            var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null);
-            var replayTraceId = state.TraceId ?? (inspection.Kind == Selection.Pulse ? inspection.Id : "timeline");
-            if (timelineHops.Count > 0)
+            graph = graph with
             {
-                graph = graph with
-                {
-                    Synapses = [.. graph.Synapses, .. ReplayScript.Synapses(timelineHops, replayTraceId, state.ReplayCursor, topology)],
-                };
-            }
-
-            children.Add(graph);
-
-            if (TryResolveLivePreviewTarget(state, inspection, out var quickSlotUri, out var quickSlotKind, out var quickAppName, out var quickTitle))
-            {
-                children.Add(RenderEmbeddedStudioCard(state, quickTitle, quickSlotUri, quickSlotKind, quickAppName));
-            }
+                Synapses = [.. graph.Synapses, .. ReplayScript.Synapses(timelineHops, replayTraceId, state.ReplayCursor, topology)],
+            };
         }
 
-        // 2. Time-Travel Transport Bar (ICommandBar + ISlider + 1-Event Keyboard Stepper)
-        children.Add(RenderTimeTravelBar(state, steps.Length, cursorReadout));
-
-        // 3. Active Unit Summary
-        if (state.Selected is { Kind: Selection.Node } && inspection.Alias is { } alias)
-        {
-            var ghost = inspection.Id.StartsWith("draft:", StringComparison.Ordinal);
-            children.Add(Card(alias, ghost ? "Under construction: drawn from its build flow until installed." : inspection.Id)[
-                StatusPill(ghost ? StatusKind.Working : StatusKind.Done, ghost ? "Building" : "Installed")
-            ]);
-            if (!ghost)
-            {
-                var stateJson = ReplayScript.StateJsonAt(steps, state.ReplayCursor, inspection.State);
-                children.Add(Card("State", inspection.State ?? stateJson));
-                children.Add(Card("View", inspection.View ?? "No view published yet."));
-            }
-
-            children.Add(CreatorStateSpaceInspector.RenderUnitSummaryCard(alias, inspection.Files));
-
-            foreach (var name in CreatorInspector.OrderedFiles(inspection.Files))
-            {
-                if (inspection.Files.TryGetValue(name, out var text))
-                {
-                    children.Add(Card(name, text));
-                }
-            }
-        }
-
-        // 4. Active FeatureToPrFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists)
-        var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == IFlows.ChangeFlow);
-        if (activeRun is not null)
-        {
-            children.Add(SectionHeader("Change Pipeline (7 Stages)"));
-            children.Add(RenderPipeline(activeRun));
-
-            children.Add(SectionHeader("Unified Diff Review"));
-            children.Add(RenderDiffViewer(activeRun));
-
-            children.Add(SectionHeader("Build & Test Summary"));
-            children.Add(RenderBuildAndTestSummary(activeRun));
-        }
-
-        return VStack(Space.Md, [.. children]);
+        // Return BrainSceneNode directly so AppShellNode + NodeRenderer.fills stretches it to 100% window height!
+        return graph;
     }
 
-    private static Node RenderTimeTravelBar(CreatorWorkspaceState state, int stepCount, string cursorReadout)
+    public static Approval? Consent(FlowView flow, Approval[] approvals)
     {
-        var hasEvents = stepCount > 0;
-        var toggleLabel = state.IsReplayActive ? "Live" : "Replay";
-        var toggleIcon = state.IsReplayActive ? "play" : "pause";
-
-        return Surface(
-            SurfaceKind.Elevated,
-            "Time-Travel Debugger",
-            "Keys: ← Step Back · → Step Forward · Space Live/Replay · Home First · End Last")[
-            HStack(Space.Sm)[
-                StatCard(
-                    "replay-cursor-readout",
-                    "Timeline Cursor",
-                    cursorReadout,
-                    state.IsReplayActive ? "Paused (Replay)" : "Live Tail",
-                    state.IsReplayActive ? BadgeTone.Accent : BadgeTone.Neutral,
-                    "history"),
-                FlexSpacer(),
-                Button("First", "chevrons-left")
-                    .Key("replay-first")
-                    .Small()
-                    .Disabled(!hasEvents)
-                    .Emits(AppSignals.Emit(App, "replay", "first")),
-                Button("Step Back", "chevron-left")
-                    .Key("replay-prev")
-                    .Small()
-                    .Disabled(!hasEvents)
-                    .Emits(AppSignals.Emit(App, "replay", "prev")),
-                PrimaryButton(toggleLabel, toggleIcon)
-                    .Key("replay-toggle")
-                    .Small()
-                    .Disabled(!hasEvents && !state.IsReplayActive)
-                    .Emits(AppSignals.Emit(App, "replay", "toggle")),
-                Button("Step Forward", "chevron-right")
-                    .Key("replay-next")
-                    .Small()
-                    .Disabled(!hasEvents)
-                    .Emits(AppSignals.Emit(App, "replay", "next")),
-                Button("Last", "chevrons-right")
-                    .Key("replay-last")
-                    .Small()
-                    .Disabled(!hasEvents)
-                    .Emits(AppSignals.Emit(App, "replay", "last")),
-                GhostButton("Stop", "radio")
-                    .Key("replay-live")
-                    .Small()
-                    .Disabled(!state.IsReplayActive)
-                    .Emits(AppSignals.Emit(App, "replay", "stop"))
-            ],
-            new NeuronRef("ui.command-bar", ReplayCommandBarKey),
-            new NeuronRef("ui.slider", ReplaySliderKey)
-        ];
+        ArgumentNullException.ThrowIfNull(flow);
+        ArgumentNullException.ThrowIfNull(approvals);
+        return flow is { Status: FlowStatus.Waiting, WaitingStep: "install" }
+            ? approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == flow.ConfirmationPlanId)
+            : null;
     }
 
     private static bool TryResolveLivePreviewTarget(
@@ -393,19 +370,9 @@ public static class CreatorView
         {
             return Empty(
                 "Select an App or Unit to Preview Live",
-                "Pick any installed app or runtime unit in the left sidebar or Brain Topology to mount its live interactive View inside this Studio viewport.");
+                "Pick any installed app or runtime unit in the left sidebar or Brain Graph to mount its live interactive View.");
         }
 
-        return RenderEmbeddedStudioCard(state, title, slotUri, slotKind, openAppId);
-    }
-
-    private static Node RenderEmbeddedStudioCard(
-        CreatorWorkspaceState state,
-        string title,
-        string slotUri,
-        string slotKind,
-        string? openAppId)
-    {
         double? viewportWidth = state.PreviewViewport switch
         {
             "390" => 390,
@@ -413,183 +380,24 @@ public static class CreatorView
             _ => null,
         };
 
-        var viewportBar = Toolbar(
+        var viewportBar = HStack(Space.Xs)[
+            Button("Back to 3D Graph", "git-branch")
+                .Key("preview-back-graph")
+                .Small()
+                .Emits(AppSignals.Emit(App, "select", "mode:brain")),
             Segmented(
-                "Viewport",
                 state.PreviewViewport,
-                Option("fill", "Desktop Fill").Key("vp-fill").Emits(AppSignals.Emit(App, "select", "viewport:fill")),
-                Option("720", "Tablet 720px").Key("vp-720").Emits(AppSignals.Emit(App, "select", "viewport:720")),
-                Option("390", "Compact 390px").Key("vp-390").Emits(AppSignals.Emit(App, "select", "viewport:390"))),
-            FlexSpacer(),
+                Option("fill", "Fill").Key("vp-fill").Emits(AppSignals.Emit(App, "select", "viewport:fill")),
+                Option("720", "720px").Key("vp-720").Emits(AppSignals.Emit(App, "select", "viewport:720")),
+                Option("390", "390px").Key("vp-390").Emits(AppSignals.Emit(App, "select", "viewport:390"))),
             openAppId is { Length: > 0 }
-                ? new Button("studio-open-window", $"Open {openAppId} Window", Intent: AppSignals.OpenApp(openAppId)) { Small = true, Icon = "external-link" }
-                : null);
+                ? new Button("studio-open-window", $"Open {openAppId} ↗", Intent: AppSignals.OpenApp(openAppId)) { Small = true, Icon = "external-link" }
+                : null
+        ];
 
         return VStack(Space.Sm)[
             viewportBar,
             StudioFrame($"Live Studio · {title}", $"Mounted via Slot(\"{slotUri}\")", viewportWidth, Slot(slotUri, slotKind))
         ];
-    }
-
-    private static Node RenderSourceAndKitStudio(Inspection inspection)
-    {
-        var blocks = new List<Node>();
-        if (inspection.Files.Count > 0)
-        {
-            foreach (var name in CreatorInspector.OrderedFiles(inspection.Files))
-            {
-                if (inspection.Files.TryGetValue(name, out var source))
-                {
-                    blocks.Add(CodeBlock(name, source, CreatorInspector.InferLanguage(name), maxHeight: 340));
-                }
-            }
-        }
-        else
-        {
-            blocks.Add(Empty(
-                "Select a Unit to Inspect Source",
-                "Choose a runtime unit in the topology or catalog to view its C# aggregate, specification, and scenarios."));
-        }
-
-        return VStack(Space.Md, [.. blocks]);
-    }
-
-    private static Node RenderPipeline(FlowView? flow)
-    {
-        var currentStep = flow?.Current?.ToLowerInvariant() ?? "clone";
-        var isWaiting = flow?.Status == FlowStatus.Waiting;
-        var isDone = flow?.Status == FlowStatus.Completed;
-
-        (string Label, string Key)[] stages =
-        [
-            ("1. Clone", "clone"),
-            ("2. Branch", "branch"),
-            ("3. SynthesizePatch", "synthesize-patch"),
-            ("4. Build", "build"),
-            ("5. Test", "test"),
-            ("6. DiffReview", "diff-review"),
-            ("7. ApprovalGate / Promote", "approval-gate"),
-        ];
-
-        var statusBadge = flow is null
-            ? StatusPill(StatusKind.Idle, "Idle")
-            : isDone
-                ? StatusPill(StatusKind.Done, "Promoted")
-                : isWaiting
-                    ? StatusPill(StatusKind.NeedsYou, "Needs Approval")
-                    : StatusPill(StatusKind.Working, flow.Current ?? "Running");
-
-        var stageButtons = stages.Select(s =>
-        {
-            var isActive = string.Equals(currentStep, s.Key, StringComparison.OrdinalIgnoreCase) ||
-                           (s.Key == "approval-gate" && (currentStep is "approval" or "promote"));
-            var prefix = isDone ? "✓ " : (isActive ? (isWaiting ? "⏳ " : "▶ ") : "○ ");
-            var builder = isActive ? PrimaryButton($"{prefix}{s.Label}") : Button($"{prefix}{s.Label}");
-            return (Node)builder.Key($"stage:{s.Key}").Small().WithIntent(default, $"stage:{s.Key}");
-        });
-
-        return Card("Pipeline Stages", flow is not null ? $"Run: {flow.FlowId} ({flow.Status})" : "No active change run")[
-            statusBadge,
-            HStack(Space.Xs, [.. stageButtons])
-        ];
-    }
-
-    private static Node RenderDiffViewer(FlowView flow)
-    {
-        var subject = flow.Subject ?? "unit";
-        var summary = flow.Detail ?? $"Change flow '{flow.Title}' at stage '{flow.Current ?? "completed"}'.";
-        return Card("Unified Diff", $"{flow.Title} ({flow.FlowId})")[
-            HStack(Space.Sm)[
-                StatusPill(flow.Status == FlowStatus.Failed ? StatusKind.Error : StatusKind.Done, $"{flow.Done.Length}/{flow.Steps.Length} steps done"),
-                StatusPill(StatusKind.Idle, $"Target: {subject}")
-            ],
-            MutedText(summary)
-        ];
-    }
-
-    private static Node RenderBuildAndTestSummary(FlowView flow)
-    {
-        var completedCount = flow.Done.Length;
-        var totalCount = Math.Max(completedCount, flow.Steps.Length);
-        var failed = flow.Status == FlowStatus.Failed;
-        var cancelled = flow.Status == FlowStatus.Cancelled;
-        var completed = flow.Status == FlowStatus.Completed;
-        var summaryText = !string.IsNullOrWhiteSpace(flow.Detail)
-            ? flow.Detail
-            : flow.Status switch
-            {
-                FlowStatus.Completed => $"Run {flow.FlowId}: Completed ({completedCount}/{totalCount} steps).",
-                FlowStatus.Waiting => $"Run {flow.FlowId}: Waiting on {flow.WaitingStep ?? "approval"} ({completedCount}/{totalCount} steps).",
-                FlowStatus.Failed => $"Run {flow.FlowId}: Failed.",
-                FlowStatus.Cancelled => $"Run {flow.FlowId}: Cancelled.",
-                _ => $"Run {flow.FlowId}: {flow.Current ?? "Running"} ({completedCount}/{totalCount} steps).",
-            };
-
-        var buildRecorded = flow.Done.Contains("build");
-        var testRecorded = flow.Done.Contains("test");
-        var stagePillKind = failed || cancelled ? StatusKind.Error : (completed ? StatusKind.Done : StatusKind.Idle);
-        var stageLabel = flow.Status.ToString();
-
-        return HStack(Space.Sm)[
-            Card("Flow Status", summaryText)[
-                StatusPill(stagePillKind, stageLabel)
-            ],
-            Card(
-                "Recorded Stages",
-                flow.Done.Length > 0
-                    ? $"Completed: {string.Join(", ", flow.Done)}"
-                    : $"Pending first stage ({flow.Current ?? "initializing"}).")[
-                StatusPill(
-                    buildRecorded && testRecorded ? StatusKind.Done : stagePillKind,
-                    $"{completedCount}/{totalCount} done")
-            ]
-        ];
-    }
-
-    private static Node Turn(FlowView flow, Approval[] approvals)
-    {
-        var statusKind = flow.Status switch
-        {
-            FlowStatus.Completed => StatusKind.Done,
-            FlowStatus.Waiting => StatusKind.NeedsYou,
-            FlowStatus.Failed or FlowStatus.Cancelled => StatusKind.Error,
-            FlowStatus.Running => StatusKind.Working,
-            _ => StatusKind.Idle,
-        };
-
-        List<Node?> children =
-        [
-            StatusPill(statusKind, flow.Status.ToString()),
-            HStack(Space.Xs)[
-                new Button($"flow:{flow.FlowId}", "Open on the Tasks board", Intent: AppSignals.OpenApp("tasks", flow.FlowId)) { Small = true, Icon = "tasks" },
-                Button("Inspect Run", "eye").Key($"run:{flow.FlowId}").Small().Emits(AppSignals.Emit(App, "run", flow.FlowId))
-            ],
-        ];
-        if (Consent(flow, approvals) is { } consent)
-        {
-            var visual = VisualCatalog.ForApproval(consent.Subject);
-            children.Add(new ApprovalCardNode($"consent:{flow.FlowId}", consent.PlanId, consent.Title, consent.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label));
-            children.Add(MutedText("Approve or deny in the inbox."));
-        }
-
-        var step = flow.Current is { } current ? $" · {current}" : "";
-        return Card(flow.Title, $"{flow.Status.ToString().ToLowerInvariant()}{step}{(flow.Subject is { } alias ? $" · {alias}" : "")}", [.. children]);
-    }
-
-    public static Approval? Consent(FlowView flow, Approval[] approvals)
-    {
-        ArgumentNullException.ThrowIfNull(flow);
-        ArgumentNullException.ThrowIfNull(approvals);
-        return flow is { Status: FlowStatus.Waiting, WaitingStep: "install" }
-            ? approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == flow.ConfirmationPlanId)
-            : null;
-    }
-
-    private static Node RenderSynapse(IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition synapse)
-    {
-        var label = synapse.Runs == 0 ? synapse.Name : $"{synapse.Name} · {synapse.Runs} run(s), last {synapse.LastRun}";
-        return synapse.Form == IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow
-            ? Button($"Run {label}").Key($"synapse:{synapse.Id}").Small().Emits(AppSignals.Emit(App, "start-workflow", synapse.Name))
-            : MutedText(label);
     }
 }

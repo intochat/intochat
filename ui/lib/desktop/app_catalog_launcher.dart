@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 class SmartAppTileSpec {
@@ -88,6 +88,7 @@ const _coreSmartAppIds = <String>[
   'gallery',
   'markdraw',
   'aspire',
+  'orleans',
   'trace',
   'friends',
   'circles',
@@ -105,7 +106,14 @@ final List<SmartAppTileSpec> artCraftSmartAppSpecs = List.unmodifiable([
 /// Complete catalog of all DigitalBrain OS & ArtCraft Studio apps for the
 /// All Apps Launcher and Command Palette (`⌘K`), derived directly from `IcAppIcon.builtInSpecs`.
 final List<SmartAppTileSpec> allSmartAppSpecs = List.unmodifiable([
-  for (final id in _coreSmartAppIds) SmartAppTileSpec.fromIconSpec(id),
+  for (final id in _coreSmartAppIds)
+    id == 'orleans'
+        ? SmartAppTileSpec.fromIconSpec(
+            id,
+            titleOverride: 'Orleans Dashboard',
+            categoryOverride: 'Developer',
+          )
+        : SmartAppTileSpec.fromIconSpec(id),
   ...artCraftSmartAppSpecs,
   SmartAppTileSpec.fromIconSpec('settings'),
 ]);

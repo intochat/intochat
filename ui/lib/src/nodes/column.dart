@@ -5,6 +5,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_common.dart';
 import 'node_context.dart';
+import 'node_renderer.dart';
 
 bool _isIntrinsicWidthControl(Node node) =>
     node is ButtonNode || node is TagPillNode || node is BadgeNode;
@@ -30,14 +31,36 @@ Widget renderColumn(ColumnNode node, NodeContext ctx) {
     padding: pad,
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final boundedHeight = constraints.hasBoundedHeight;
+        final boundedHeight =
+            constraints.hasBoundedHeight && constraints.maxHeight.isFinite;
+        final hasExplicitFlex = extents.any((e) => e > 0 && e <= 1);
+        int? autoFillIdx;
+        if (boundedHeight &&
+            constraints.maxHeight >= 220 &&
+            !hasExplicitFlex &&
+            node.children.length <= 4) {
+          for (var i = 0; i < node.children.length; i++) {
+            if (NodeRenderer.fills(node.children[i])) {
+              if (autoFillIdx == null && extents.elementAtOrNull(i) == null) {
+                autoFillIdx = i;
+              } else {
+                autoFillIdx = null;
+                break;
+              }
+            }
+          }
+        }
         final hasVerticalFlex =
-            boundedHeight && extents.any((e) => e > 0 && e <= 1);
+            boundedHeight && (hasExplicitFlex || autoFillIdx != null);
 
         Widget wrapChild(int i) {
           final child = children[i];
           final rawNode = node.children[i];
           final ext = extents.elementAtOrNull(i);
+
+          if (autoFillIdx == i) {
+            return Expanded(child: child);
+          }
 
           if (ext != null) {
             if (ext > 1) {

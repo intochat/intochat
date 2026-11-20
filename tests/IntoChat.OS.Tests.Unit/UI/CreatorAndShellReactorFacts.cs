@@ -52,8 +52,9 @@ public sealed class CreatorAndShellReactorFacts
         await creator.Request("open", new CreatorOpen());
         Assert.False(creator.App.State.ShowStateGraph);
 
-        var toggleBtn = Assert.Single(AllNodes(creator.App.Render()).OfType<Button>(), b => b.Key == "toggle-state-graph");
-        Assert.NotNull(toggleBtn.Command);
+        var switcher = Assert.Single(AllNodes(creator.App.Render()).OfType<Select>());
+        var stateOption = Assert.Single(switcher.Options, o => o.Key == "mode-state");
+        Assert.NotNull(stateOption.Emit);
         await creator.Request("select", new CreatorSelect(CreatorView.ToggleStateGraphTarget));
         Assert.True(creator.App.State.ShowStateGraph);
 

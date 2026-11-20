@@ -5,9 +5,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Apps.Aspire;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Tests.Support;
 using Microsoft.AspNetCore.Builder;
@@ -51,17 +53,26 @@ public sealed class WebShellHost : IAsyncLifetime
     {
         var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
         IntoChat.OS.Framework.Modules.OsModule.InitializeConfigurationRoot();
+        var originPort = FreePort();
+        Origin = $"http://127.0.0.1:{originPort}";
+        var aspireDashboardUrl = $"{Origin}/aspire-dashboard-stub";
         List<string> args =
         [
             $"--{IntoChatOSNames.HomeKey}={_home.Path}",
             $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
             $"--{IntoChatOSNames.ShellEnabledKey}=false",
             $"--{IntoChatOSNames.FrontEnabledKey}=false",
+            $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
         ];
         args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
         try
         {
             _builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.IntoChat_OS_AppHost>([.. args]);
+            if (_builder.Resources.OfType<ProjectResource>().FirstOrDefault(r => r.Name == "OperatingSystem-a") is { } kernelResource)
+            {
+                _builder.CreateResourceBuilder(kernelResource)
+                    .WithArgs($"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}");
+            }
             App = await _builder.BuildAsync();
             using var start = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             await App.StartAsync(start.Token);
@@ -85,8 +96,6 @@ public sealed class WebShellHost : IAsyncLifetime
 
     private async Task StartOrigin(string bundle, string kernel)
     {
-        var port = FreePort();
-        Origin = $"http://127.0.0.1:{port}";
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseUrls(Origin);
         builder.Logging.ClearProviders();
@@ -101,6 +110,11 @@ public sealed class WebShellHost : IAsyncLifetime
         // The bundle ships a placeholder config.json: answer this origin's own first.
         app.Use((context, next) => context.Request.Path == "/config.json"
             ? Results.Text(config, "application/json").ExecuteAsync(context)
+            : next(context));
+        app.Use((context, next) => context.Request.Path.StartsWithSegments("/aspire-dashboard-stub", StringComparison.OrdinalIgnoreCase)
+            ? Results.Text(
+                $"<!doctype html><html><head><title>.NET Aspire Dashboard</title></head><body><h1>.NET Aspire Dashboard</h1><p>{WebUtility.HtmlEncode(context.Request.Path.Value)}</p></body></html>",
+                "text/html").ExecuteAsync(context)
             : next(context));
         // Static files run before routing: the forwarder's catch-all route would otherwise claim every path first.
         var files = new PhysicalFileProvider(bundle);

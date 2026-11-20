@@ -1,16 +1,18 @@
 import 'dart:math' as math;
 
-import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_components.dart';
 import 'placeholder_node.dart';
 import 'prefabs/sphere.dart';
 import 'primitive_nodes.dart';
+
+export 'graph_semantics.dart';
 
 typedef SceneInputHandler = void Function(
   String nodeId,
@@ -20,18 +22,22 @@ typedef SceneInputHandler = void Function(
   String? payload,
 );
 
-/// Immutable snapshot of the active Flame scene camera (`x`, `y`, `zoom`).
+/// Immutable snapshot of the active Flame scene camera (`x`, `y`, `zoom`, `followLive`).
 @immutable
 final class SceneCameraSnapshot {
   const SceneCameraSnapshot({
     this.x = 0,
     this.y = 0,
     this.zoom = SceneGame.defaultZoom,
+    this.followLive = false,
+    this.followTargetId,
   });
 
   final double x;
   final double y;
   final double zoom;
+  final bool followLive;
+  final String? followTargetId;
 
   int get zoomPercent => (zoom * 100).round();
 
@@ -40,14 +46,36 @@ final class SceneCameraSnapshot {
       other is SceneCameraSnapshot &&
       (other.x - x).abs() < 1e-4 &&
       (other.y - y).abs() < 1e-4 &&
-      (other.zoom - zoom).abs() < 1e-4;
+      (other.zoom - zoom).abs() < 1e-4 &&
+      other.followLive == followLive &&
+      other.followTargetId == followTargetId;
 
   @override
   int get hashCode => Object.hash(
     (x * 1000).round(),
     (y * 1000).round(),
     (zoom * 1000).round(),
+    followLive,
+    followTargetId,
   );
+}
+
+/// Lightweight world-space node marker rendered in the corner Viewport Minimap.
+@immutable
+final class MinimapNodeDot {
+  const MinimapNodeDot({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.color,
+    this.active = false,
+  });
+
+  final String id;
+  final double x;
+  final double y;
+  final Color color;
+  final bool active;
 }
 
 /// Draws a scene neuron: nodes become components keyed by id, a sphere runs the behavior tree its node
@@ -60,6 +88,7 @@ final class SceneGame extends FlameGame {
   static const double defaultZoom = 1.0;
   static const double zoomStepFactor = 1.25;
   static const double keyboardPanStep = 56.0;
+  static const double cameraFlyDurationSeconds = 0.26;
 
   final _byId = <String, NodeComponent>{};
   SceneInputHandler? onInput;
@@ -81,17 +110,32 @@ final class SceneGame extends FlameGame {
   SceneState? _state;
   SceneCamera? _appliedCamera;
   bool _userMovedCamera = false;
+  bool _followLive = false;
+  String? _followTargetId;
+  String? _lastLiveNodeId;
+  ({
+    Vector2 fromPos,
+    Vector2 toPos,
+    double fromZoom,
+    double toZoom,
+    double elapsed,
+    double duration,
+  })?
+  _cameraTween;
   Color _background = const Color(0xFF0B0F14);
 
   final ValueNotifier<SceneCameraSnapshot> _cameraState = ValueNotifier(
     const SceneCameraSnapshot(),
   );
 
-  /// Reactive camera state observed by the floating HUD overlay in `SceneView`.
+  /// Reactive camera state observed by the floating HUD & Viewport Minimap in `SceneView`.
   ValueListenable<SceneCameraSnapshot> get cameraState => _cameraState;
 
   double get zoom => camera.viewfinder.zoom;
   Vector2 get cameraPosition => camera.viewfinder.position;
+  bool get followLive => _followLive;
+  String? get followTargetId => _followTargetId;
+  bool get isCameraFlying => _cameraTween != null;
 
   SceneState? get state => _state;
 
@@ -106,12 +150,16 @@ final class SceneGame extends FlameGame {
       x: vf.position.x,
       y: vf.position.y,
       zoom: vf.zoom,
+      followLive: _followLive,
+      followTargetId: _followTargetId,
     );
   }
 
   /// Pans the camera in response to a screen-space pointer drag [screenDelta].
   void panByScreenDelta(Offset screenDelta) {
     if (screenDelta == Offset.zero) return;
+    _cameraTween = null;
+    if (_followLive) _followLive = false;
     final currentZoom = camera.viewfinder.zoom.clamp(minZoom, maxZoom);
     camera.viewfinder.position -= Vector2(
       screenDelta.dx / currentZoom,
@@ -125,6 +173,8 @@ final class SceneGame extends FlameGame {
   /// Pans the camera along world axes `(dx, dy)` in `[-1, 1]` scaled by [keyboardPanStep] / zoom (WASD).
   void panCameraDirection(double dx, double dy) {
     if (dx == 0 && dy == 0) return;
+    _cameraTween = null;
+    if (_followLive) _followLive = false;
     final currentZoom = camera.viewfinder.zoom.clamp(minZoom, maxZoom);
     final step = keyboardPanStep / currentZoom;
     camera.viewfinder.position += Vector2(dx * step, dy * step);
@@ -136,6 +186,7 @@ final class SceneGame extends FlameGame {
   /// Sets camera zoom clamped to `[minZoom, maxZoom]` (`0.35x`–`3.0x`), anchored at [focalPoint]
   /// in viewport coordinates (or viewport center when omitted).
   void setZoom(double targetZoom, {Offset? focalPoint, Size? viewportSize}) {
+    _cameraTween = null;
     final oldZoom = camera.viewfinder.zoom.clamp(minZoom, maxZoom);
     final nextZoom = targetZoom.clamp(minZoom, maxZoom);
     final vw =
@@ -185,6 +236,9 @@ final class SceneGame extends FlameGame {
 
   /// Resets the camera to `1.0x` zoom centered at `(0, 0)`.
   void resetCamera() {
+    _cameraTween = null;
+    _followLive = false;
+    _followTargetId = null;
     camera.viewfinder
       ..zoom = defaultZoom
       ..position = Vector2.zero();
@@ -192,6 +246,120 @@ final class SceneGame extends FlameGame {
     _syncCameraState();
     wake();
   }
+
+  /// Smoothly interpolates (or snaps under reduced motion) the camera to world coordinate [target].
+  void flyToWorld(Vector2 target, {double? targetZoom, bool animate = true}) {
+    final nextZoom = (targetZoom ?? camera.viewfinder.zoom).clamp(
+      minZoom,
+      maxZoom,
+    );
+    _userMovedCamera = true;
+
+    if (!animations || !animate || cameraFlyDurationSeconds <= 0) {
+      _cameraTween = null;
+      camera.viewfinder
+        ..position = target.clone()
+        ..zoom = nextZoom;
+      _syncCameraState();
+      wake();
+      return;
+    }
+
+    _cameraTween = (
+      fromPos: camera.viewfinder.position.clone(),
+      toPos: target.clone(),
+      fromZoom: camera.viewfinder.zoom.clamp(minZoom, maxZoom),
+      toZoom: nextZoom,
+      elapsed: 0.0,
+      duration: cameraFlyDurationSeconds,
+    );
+    _syncCameraState();
+    wake();
+  }
+
+  /// Smoothly flies the camera to center on [nodeId], returning `true` when found.
+  bool flyToNode(String nodeId, {double? targetZoom, bool animate = true}) {
+    final comp = _byId[nodeId];
+    if (comp == null) return false;
+    _followTargetId = nodeId;
+    flyToWorld(
+      _worldPositionOf(comp),
+      targetZoom: targetZoom,
+      animate: animate,
+    );
+    return true;
+  }
+
+  /// Resolves the best active/pulsing/progressing node id for `Follow Live`.
+  String? resolveActiveLiveNodeId() {
+    if (_lastLiveNodeId != null) {
+      final liveComp = _byId[_lastLiveNodeId!];
+      if (liveComp != null && liveComp is! PathNode) {
+        return _lastLiveNodeId;
+      }
+    }
+
+    for (final comp in _byId.values) {
+      if (comp is SphereComponent) {
+        final pct = comp.progress;
+        if (pct != null && pct > 0.0 && pct < 1.0) return comp.nodeId;
+        final status = comp.nodeStatus.toLowerCase();
+        if (status.contains('work') ||
+            status.contains('run') ||
+            status.contains('implement') ||
+            status.contains('build') ||
+            status.contains('active') ||
+            comp.blackboard['running'] == 'true') {
+          return comp.nodeId;
+        }
+      }
+    }
+
+    for (final comp in _byId.values) {
+      if (comp is SphereComponent && comp.params['selected'] == 'true') {
+        return comp.nodeId;
+      }
+    }
+
+    for (final comp in _byId.values) {
+      if (comp is! PathNode && comp is! GroupNode) {
+        return comp.nodeId;
+      }
+    }
+    return null;
+  }
+
+  /// Records [nodeId] as the latest live signal/progress target; when [followLive] is enabled,
+  /// smoothly centers the camera on it.
+  void notifyLiveNode(String nodeId, {bool animate = true}) {
+    final comp = _byId[nodeId];
+    if (comp == null || comp is PathNode) return;
+    _lastLiveNodeId = nodeId;
+    if (_followLive) {
+      flyToNode(nodeId, animate: animate);
+    }
+  }
+
+  /// Enables or disables `[● Follow Live]` camera tracking.
+  void setFollowLive(bool enabled, {bool animate = true}) {
+    _followLive = enabled;
+    if (enabled) {
+      final targetId = resolveActiveLiveNodeId();
+      if (targetId != null) {
+        flyToNode(targetId, animate: animate);
+        return;
+      }
+    } else {
+      _followTargetId = null;
+      _cameraTween = null;
+    }
+    _syncCameraState();
+    wake();
+  }
+
+  /// Toggles `[● Follow Live]` camera tracking.
+  void toggleFollowLive({bool animate = true}) =>
+      setFollowLive(!_followLive, animate: animate);
 
   Vector2 _worldPositionOf(NodeComponent component) {
     final pos = component.position.clone();
@@ -203,13 +371,48 @@ final class SceneGame extends FlameGame {
     return pos;
   }
 
+  /// Snapshot of node positions and colors for the Corner Viewport Minimap.
+  List<MinimapNodeDot> minimapNodes() {
+    final dots = <MinimapNodeDot>[];
+    for (final comp in _byId.values) {
+      if (comp is PathNode || comp is GroupNode) continue;
+      final pos = _worldPositionOf(comp);
+      final isActive =
+          comp.nodeId == _followTargetId ||
+          comp.nodeId == _lastLiveNodeId ||
+          (comp is SphereComponent &&
+              (comp.params['selected'] == 'true' ||
+                  (comp.progress != null &&
+                      comp.progress! > 0 &&
+                      comp.progress! < 1)));
+      dots.add(
+        MinimapNodeDot(
+          id: comp.nodeId,
+          x: pos.x,
+          y: pos.y,
+          color: comp.color,
+          active: isActive,
+        ),
+      );
+    }
+    return dots;
+  }
+
   /// Computes the world-space bounding rectangle enclosing active scene nodes, or null when empty.
   Rect? sceneBounds() {
     if (_byId.isEmpty) return null;
     final candidates = _byId.values
-        .where((c) => c is! GroupNode || c.size.x > 0 || c.size.y > 0)
+        .where(
+          (c) =>
+              c is! PathNode &&
+              (c is! GroupNode || c.size.x > 0 || c.size.y > 0),
+        )
         .toList();
-    final source = candidates.isNotEmpty ? candidates : _byId.values.toList();
+    final source = candidates.isNotEmpty
+        ? candidates
+        : _byId.values
+              .where((c) => c is! GroupNode || c.size.x > 0 || c.size.y > 0)
+              .toList();
     if (source.isEmpty) return null;
 
     var minX = double.infinity;
@@ -236,6 +439,7 @@ final class SceneGame extends FlameGame {
 
   /// Centers the camera on the bounding box of active scene nodes and scales zoom to fit with [padding].
   void fitToGraph({double padding = 64.0, Size? viewportSize}) {
+    _cameraTween = null;
     final bounds = sceneBounds();
     if (bounds == null) {
       resetCamera();
@@ -343,11 +547,9 @@ final class SceneGame extends FlameGame {
         final opacity = component.opacity;
         component.configure(node);
         if (position != null) {
-          // Content can change while its entrance continues toward the same target.
           component.position.setFrom(position);
           component.opacity = opacity;
         }
-        // A parent rebuilt for a new type, or a node moved in the definition, takes it along.
         if (component.parent != parent) component.parent = parent;
       }
       for (final child in node.children) {
@@ -361,6 +563,8 @@ final class SceneGame extends FlameGame {
     for (final id in _byId.keys.where((k) => !seen.contains(k)).toList()) {
       _byId.remove(id)!.removeFromParent();
       _appearances.remove(id);
+      if (_lastLiveNodeId == id) _lastLiveNodeId = null;
+      if (_followTargetId == id) _followTargetId = null;
     }
 
     final defCamera = state.definition.camera;
@@ -376,6 +580,16 @@ final class SceneGame extends FlameGame {
         ..zoom = defCamera.zoom.clamp(minZoom, maxZoom)
         ..position = Vector2(defCamera.x, defCamera.y);
       _syncCameraState();
+    } else {
+      // Notify minimap listeners when scene nodes change even if camera stayed put.
+      _syncCameraState();
+    }
+
+    if (_followLive) {
+      final liveId = resolveActiveLiveNodeId();
+      if (liveId != null) {
+        flyToNode(liveId);
+      }
     }
 
     _background = sceneColor(state.definition.background) ?? _background;
@@ -388,6 +602,13 @@ final class SceneGame extends FlameGame {
       (_, appearance) => appearance.effects.every((effect) => effect.isRemoved),
     );
     if (!animations) {
+      if (_cameraTween case final tween?) {
+        camera.viewfinder
+          ..position = tween.toPos.clone()
+          ..zoom = tween.toZoom;
+        _cameraTween = null;
+        _syncCameraState();
+      }
       for (final appearance in _appearances.values) {
         for (final effect in appearance.effects) {
           effect.removeFromParent();
@@ -421,12 +642,42 @@ final class SceneGame extends FlameGame {
   @override
   void update(double dt) {
     super.update(dt);
-    final animating = world.descendants().any(
-      (c) =>
-          c is Effect ||
-          c is ParticlesNode ||
-          (c is SphereComponent && c.needsFrames),
-    );
+    if (_cameraTween case final tween?) {
+      final nextElapsed = tween.elapsed + dt;
+      final rawT = tween.duration <= 0
+          ? 1.0
+          : (nextElapsed / tween.duration).clamp(0.0, 1.0);
+      final ease = 1.0 - math.pow(1.0 - rawT, 3).toDouble();
+      camera.viewfinder
+        ..position = Vector2(
+          tween.fromPos.x + (tween.toPos.x - tween.fromPos.x) * ease,
+          tween.fromPos.y + (tween.toPos.y - tween.fromPos.y) * ease,
+        )
+        ..zoom = tween.fromZoom + (tween.toZoom - tween.fromZoom) * ease;
+      if (rawT >= 1.0) {
+        _cameraTween = null;
+      } else {
+        _cameraTween = (
+          fromPos: tween.fromPos,
+          toPos: tween.toPos,
+          fromZoom: tween.fromZoom,
+          toZoom: tween.toZoom,
+          elapsed: nextElapsed,
+          duration: tween.duration,
+        );
+      }
+      _syncCameraState();
+    }
+
+    final animating =
+        _cameraTween != null ||
+        world.descendants().any(
+          (c) =>
+              c is Effect ||
+              c is ParticlesNode ||
+              (c is PathNode && c.needsPulseFrames) ||
+              (c is SphereComponent && c.needsFrames),
+        );
     _idleFrames = animating ? 0 : _idleFrames + 1;
     if (_idleFrames > 2) pauseEngine();
   }

@@ -1,5 +1,4 @@
 ﻿import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +30,10 @@ const _tints = {
   'app': '#81C784',
   'initial': '#34D399',
   'state': '#60A5FA',
+  'worktree': '#38BDF8',
+  'slice': '#818CF8',
+  'verify': '#34D399',
+  'pr': '#A78BFA',
   'kernel': '#9E9E9E',
   'draft': '#CE93D8',
 };
@@ -96,68 +99,30 @@ List<PulseEdge> brainEdges(BrainSceneNode node) {
   ];
 }
 
-/// The scene of [node]: a sphere per node, kind-tinted (a draft is a half-transparent ghost), a line per edge.
-SceneState brainSceneState(BrainSceneNode node, {int revision = 1}) {
-  final nodes = <SceneNode>[];
-  for (final edge in brainEdges(node)) {
-    final isSelfLoop =
-        (edge.start.x - edge.end.x).abs() < 0.01 &&
-        (edge.start.y - edge.end.y).abs() < 0.01;
-    final left = math.min(edge.start.x, edge.end.x);
-    final top = math.min(edge.start.y, edge.end.y);
-    final w = (edge.start.x - edge.end.x).abs(),
-        h = (edge.start.y - edge.end.y).abs();
-    final pathD = isSelfLoop
-        ? 'M 0 0 C -26 -38 26 -38 4 0'
-        : 'M ${edge.start.x - left} ${edge.start.y - top} L ${edge.end.x - left} ${edge.end.y - top}';
-    nodes.add(
-      SceneNode(
-        id: edge.key,
-        type: 'path',
-        transform: SceneTransform(
-          x: isSelfLoop ? edge.start.x : left + w / 2,
-          y: isSelfLoop ? edge.start.y - 18 : top + h / 2,
+/// The scene of [node]: 3D icon-badged cards with circular progress rings and 3 Accordant DDD edge styles.
+SceneState brainSceneState(BrainSceneNode node, {int revision = 1}) =>
+    SceneState(
+      name: 'brain',
+      revision: revision,
+      definition: SceneDefinition(
+        nodes: buildBrainGraphSceneNodes(
+          node,
+          tints: _tints,
+          wildcardStubOffset: _stub,
+          replayPrefix: brainReplayPrefix,
         ),
-        style: isSelfLoop ? '#B3D97706' : '#808B9BB4',
-        parameters: {'d': pathD, 'stroke': '2', 'alias': edge.alias},
-        inputs: const ['tap'],
+        camera: const SceneCamera(zoom: .5),
       ),
     );
-  }
-  for (final n in node.nodes) {
-    nodes.add(
-      SceneNode(
-        id: n.id,
-        type: 'sphere',
-        transform: SceneTransform(
-          x: n.x,
-          y: n.y,
-          opacity: isDraftBrainNode(n.kind) ? .5 : 1,
-        ),
-        style: _tints[n.kind] ?? _tints['kernel'],
-        parameters: {
-          'title': n.label,
-          'description': n.subtitle ?? n.kind,
-          'kind': n.kind,
-        },
-        inputs: const ['tap'],
-      ),
-    );
-  }
-  return SceneState(
-    name: 'brain',
-    revision: revision,
-    definition: SceneDefinition(
-      nodes: nodes,
-      camera: const SceneCamera(zoom: .5),
-    ),
-  );
-}
 
-/// The brain as a graph with live pulses.
-Widget renderBrainScene(BrainSceneNode node, NodeContext ctx) => SizedBox(
-  height: 420,
-  child: BrainSceneView(node: node, ctx: ctx),
+/// The brain as a full-bleed graph with live pulses, `Follow Live` camera, and corner minimap.
+Widget renderBrainScene(BrainSceneNode node, NodeContext ctx) => LayoutBuilder(
+  builder: (context, constraints) => SizedBox(
+    height: constraints.hasBoundedHeight && constraints.maxHeight.isFinite
+        ? constraints.maxHeight
+        : 420,
+    child: BrainSceneView(node: node, ctx: ctx),
+  ),
 );
 
 class BrainSceneView extends StatefulWidget {
@@ -185,6 +150,7 @@ class BrainSceneViewState extends State<BrainSceneView> {
   late SceneState _state;
   int _revision = 1;
   String _structure = '';
+  String? _lastZoomTarget;
   var _nodes = <String, BrainGraphNode>{};
 
   /// How many times the scene was laid out.
@@ -224,10 +190,12 @@ class BrainSceneViewState extends State<BrainSceneView> {
   }
 
   static String _structureOf(BrainSceneNode node) => [
+    node.selectedId ?? '',
+    node.zoomTargetId ?? '',
     for (final n in node.nodes)
-      '${n.id}|${n.kind}|${n.label}|${n.subtitle}|${n.x}|${n.y}|${n.select?.key}',
+      '${n.id}|${n.kind}|${n.label}|${n.subtitle}|${n.status}|${n.x}|${n.y}|${n.select?.key}',
     for (final e in node.synapses)
-      if (!_isReplay(e)) '${e.fromId}|${e.toId}|${e.signalLabel}',
+      if (!_isReplay(e)) '${e.fromId}|${e.toId}|${e.signalLabel}|${e.active}',
   ].join(';');
 
   void _layout() {
@@ -241,6 +209,19 @@ class BrainSceneViewState extends State<BrainSceneView> {
     pulses.layout(brainEdges(widget.node), {
       for (final n in widget.node.nodes) n.id: Vector2(n.x, n.y),
     });
+    final zoomTarget = resolveSceneZoomTarget(widget.node);
+    if (zoomTarget != null && zoomTarget != _lastZoomTarget) {
+      _lastZoomTarget = zoomTarget;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        game.flyToNode(
+          zoomTarget,
+          targetZoom: widget.node.targetZoom > 0
+              ? widget.node.targetZoom
+              : null,
+        );
+      });
+    }
   }
 
   void _listen(Stream<List<JournalTailSignal>>? source) {
@@ -268,12 +249,13 @@ class BrainSceneViewState extends State<BrainSceneView> {
         ),
       );
     }
+    game.notifyLiveNode(added.last.edge.toId);
     game.wake();
   }
 
   void _input(String id, String kind, double x, double y, String? payload) {
     if (!isTapBrainInput(kind)) return;
-    if (id.startsWith('edge:')) {
+    if (isGraphEdgeId(id)) {
       unawaited(widget.ctx.activate(brainSelectKey, value: id));
       return;
     }

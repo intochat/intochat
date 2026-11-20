@@ -115,18 +115,30 @@ class TreeViewWidget extends StatelessWidget {
           return result;
         }
 
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
-            border: Border.all(color: c.borderHairline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: buildLevel(null, 0),
-          ),
+        final itemsColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: buildLevel(null, 0),
+        );
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final stretch =
+                constraints.hasBoundedHeight &&
+                constraints.maxHeight.isFinite &&
+                constraints.maxHeight >= 100;
+            return Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: c.surfaceCard,
+                borderRadius: BorderRadius.circular(IcRadius.card),
+                border: Border.all(color: c.borderHairline),
+              ),
+              child: stretch
+                  ? SingleChildScrollView(primary: false, child: itemsColumn)
+                  : itemsColumn,
+            );
+          },
         );
       },
     );

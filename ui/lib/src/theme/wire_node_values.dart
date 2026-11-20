@@ -23,6 +23,15 @@ enum TextToneVariant { muted, strong, semantic }
 
 enum DiffChangeVariant { added, deleted, renamed, modified }
 
+/// Canonical view and shell transition modes emitted by `IntoChat.OS.UI.ViewTransition`.
+enum WireViewTransition {
+  none,
+  fadeThrough,
+  sharedAxisX,
+  sharedAxisZ,
+  cameraFlyTo,
+}
+
 enum SurfaceVariantKind {
   toolbar,
   breadcrumb,
@@ -372,4 +381,61 @@ String stripSignalAliasHash(String? signalLabel) {
     alias: parts[3],
     traceId: parts.sublist(4).join(':'),
   );
+}
+
+WireViewTransition parseViewTransition(String raw) =>
+    switch (raw.trim().toLowerCase()) {
+      'fade-through' || 'fadethrough' => WireViewTransition.fadeThrough,
+      'shared-axis-x' || 'sharedaxisx' => WireViewTransition.sharedAxisX,
+      'shared-axis-z' || 'sharedaxisz' => WireViewTransition.sharedAxisZ,
+      'camera-fly-to' || 'cameraflyto' => WireViewTransition.cameraFlyTo,
+      _ => WireViewTransition.none,
+    };
+
+bool isFillingNeuronRefKind(String refKind) =>
+    switch (refKind.trim().toLowerCase()) {
+      'ui.code-editor' ||
+      'ui.chat' ||
+      'ui.property-grid' ||
+      'ui.tree-view' ||
+      'ui.table' ||
+      'viewport' ||
+      'webbrowser' => true,
+      _ => false,
+    };
+
+bool isContainerSurfaceFillable(String surfaceKind) =>
+    switch (parseSurfaceVariant(surfaceKind).kind) {
+      SurfaceVariantKind.recessed ||
+      SurfaceVariantKind.elevated ||
+      SurfaceVariantKind.acrylic ||
+      SurfaceVariantKind.studioFrame ||
+      SurfaceVariantKind.generic => true,
+      _ => false,
+    };
+
+String shellBodyTransitionSignature(Node body, String transition) {
+  String describe(Node n, int depth) {
+    if (depth > 2) return n.kind;
+    return switch (n) {
+      BrainSceneNode(:final selectedId, :final zoomTargetId) =>
+        'brain:${selectedId ?? ''}:${zoomTargetId ?? ''}',
+      WebBrowserNode(:final key, :final url) => 'browser:$key:$url',
+      NeuronRefNode(:final refKind, :final neuronUri) =>
+        'ref:$refKind:$neuronUri',
+      SplitPaneNode(:final leading, :final trailing) =>
+        'split:${describe(leading, depth + 1)}|${describe(trailing, depth + 1)}',
+      ColumnNode(:final children) =>
+        'col:${children.length}:${children.isEmpty ? '' : describe(children.first, depth + 1)}:${children.length < 2 ? '' : describe(children.last, depth + 1)}',
+      SurfaceNode(:final surfaceKind, :final title, :final children) =>
+        'surf:$surfaceKind:${title ?? ''}:${children.isEmpty ? '' : describe(children.first, depth + 1)}',
+      CardNode(:final title, :final children) =>
+        'card:$title:${children.isEmpty ? '' : describe(children.first, depth + 1)}',
+      TabsNode(:final selectedId) => 'tabs:$selectedId',
+      SelectNode(:final selected) => 'sel:$selected',
+      _ => n.kind,
+    };
+  }
+
+  return '${parseViewTransition(transition).name}:${describe(body, 0)}';
 }

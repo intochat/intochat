@@ -451,7 +451,7 @@ internal sealed partial class EngineerBuildVerifier(
             var res = await ExecuteVerificationToolAsync(
                 lease,
                 "dotnet",
-                ["build", projectTarget, "-c", "Release", "--nologo", "-v", "minimal"],
+                ["build", projectTarget, "-c", "Release", "--nologo", "--disable-build-servers", "-v", "minimal"],
                 root,
                 relativeWorkingDir: null,
                 ct).ConfigureAwait(false);
@@ -505,7 +505,7 @@ internal sealed partial class EngineerBuildVerifier(
                 var testRes = await ExecuteVerificationToolAsync(
                     lease,
                     "dotnet",
-                    ["test", testTarget, "-c", "Release", "--nologo", "-v", "minimal"],
+                    ["test", testTarget, "-c", "Release", "--nologo", "--disable-build-servers", "-v", "minimal"],
                     root,
                     relativeWorkingDir: null,
                     ct).ConfigureAwait(false);

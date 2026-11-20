@@ -3,6 +3,7 @@ using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 
@@ -20,7 +21,10 @@ internal sealed record EngineerInstance(
     string Status = "pending",
     string? FailureDetail = null,
     string? Strategy = null,
-    EngineerCandidateScore? Score = null)
+    EngineerCandidateScore? Score = null,
+    EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    EngineerTaskSlice[]? Slices = null,
+    string[]? DeletedFiles = null)
 {
     [JsonIgnore]
     public string EffectiveStrategy => string.IsNullOrWhiteSpace(Strategy)
@@ -58,8 +62,8 @@ internal sealed record EngineerInstance(
 
 /// <summary>
 /// Immutable IntoChat-Engineer pipeline aggregate (<c>flow.engineer</c>) orchestrating 1..N isolated worktree instances
-/// across planning, parallel strategy tournament implementation, build/test, live behavioral verification,
-/// deterministic candidate scoring/ranking, human candidate promotion, and SHA-bound human PR publication.
+/// across planning, optional human plan ratification, 2-level parallel InoNative slice/worktree execution,
+/// build/test, live behavioral verification, deterministic candidate scoring/ranking, and SHA-bound human PR publication.
 /// </summary>
 internal sealed record EngineerRun
 {
@@ -82,7 +86,14 @@ internal sealed record EngineerRun
         ChangeApproval? approval,
         ChangePublication? publication,
         string? requestedBackend = null,
-        int approvalRevision = 0)
+        int approvalRevision = 0,
+        EngineeringHarnessKind harness = EngineeringHarnessKind.InoNative,
+        bool requirePlanRatification = false,
+        RatifiedPlan? ratifiedPlan = null,
+        string[]? requestedCleanupTargets = null,
+        EngineerTaskSlice[]? requestedSlices = null,
+        string? circleBrainId = null,
+        string? matchedProjectBriefKey = null)
     {
         RunId = runId ?? string.Empty;
         Repository = repository;
@@ -96,6 +107,13 @@ internal sealed record EngineerRun
         Publication = publication;
         RequestedBackend = NormalizeBackend(requestedBackend);
         ApprovalRevision = Math.Max(0, approvalRevision);
+        Harness = harness;
+        RequirePlanRatification = requirePlanRatification;
+        RatifiedPlan = ratifiedPlan;
+        RequestedCleanupTargets = requestedCleanupTargets;
+        RequestedSlices = requestedSlices;
+        CircleBrainId = string.IsNullOrWhiteSpace(circleBrainId) ? null : circleBrainId.Trim();
+        MatchedProjectBriefKey = string.IsNullOrWhiteSpace(matchedProjectBriefKey) ? null : matchedProjectBriefKey.Trim();
     }
 
     public string RunId { get; private init; } = string.Empty;
@@ -122,6 +140,20 @@ internal sealed record EngineerRun
 
     public int ApprovalRevision { get; private init; }
 
+    public EngineeringHarnessKind Harness { get; private init; } = EngineeringHarnessKind.InoNative;
+
+    public bool RequirePlanRatification { get; private init; }
+
+    public RatifiedPlan? RatifiedPlan { get; private init; }
+
+    public string[]? RequestedCleanupTargets { get; private init; }
+
+    public EngineerTaskSlice[]? RequestedSlices { get; private init; }
+
+    public string? CircleBrainId { get; private init; }
+
+    public string? MatchedProjectBriefKey { get; private init; }
+
     [JsonIgnore]
     public int SelectedCandidateIndex => SelectedInstanceIndex;
 
@@ -133,18 +165,42 @@ internal sealed record EngineerRun
         => Instances.FirstOrDefault(i => i.InstanceIndex == SelectedInstanceIndex)
             ?? Instances.FirstOrDefault();
 
+    public Mission ToMission(MissionCollaborator[]? collaborators = null) => new(
+        MissionId: RunId,
+        RepositoryId: Repository?.Value ?? "os",
+        Goal: Goal,
+        Harness: Harness,
+        RequirePlanRatification: RequirePlanRatification,
+        RatifiedPlan: RatifiedPlan,
+        Collaborators: collaborators,
+        LinkedCircleBrainId: CircleBrainId);
+
     public static EngineerRun Start(
         string? runId,
         RepositoryId repository,
         string goal,
         BranchName? requestedBaseBranch = null,
         int instanceCount = 1,
-        string? requestedBackend = null)
+        string? requestedBackend = null,
+        EngineeringHarnessKind harness = EngineeringHarnessKind.InoNative,
+        bool requirePlanRatification = false,
+        string[]? cleanupTargets = null,
+        EngineerTaskSlice[]? slices = null,
+        string? circleBrainId = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(instanceCount, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(instanceCount, MaxParallelInstances);
+
+        if (slices is { Length: > 0 })
+        {
+            var disjoint = new NoOverlappingFileSlices(slices);
+            if (DigitalBrain.Rules.Rules.Judge("EngineerRun.Start", disjoint) is { } rejected)
+            {
+                throw new RuleViolationException(rejected);
+            }
+        }
 
         return new EngineerRun
         {
@@ -154,6 +210,11 @@ internal sealed record EngineerRun
             RequestedBaseBranch = requestedBaseBranch,
             InstanceCount = instanceCount,
             RequestedBackend = NormalizeBackend(requestedBackend),
+            Harness = harness,
+            RequirePlanRatification = requirePlanRatification,
+            RequestedCleanupTargets = cleanupTargets,
+            RequestedSlices = slices,
+            CircleBrainId = string.IsNullOrWhiteSpace(circleBrainId) ? null : circleBrainId.Trim(),
         };
     }
 
@@ -172,7 +233,18 @@ internal sealed record EngineerRun
         var count = untrusted.InstanceCount is null or <= 0 ? 1 : untrusted.InstanceCount.Value;
         var backend = untrusted.Backend ?? untrusted.RequestedBackend;
 
-        return Start(untrusted.RunId, repository, untrusted.Goal ?? string.Empty, requestedBase, count, backend);
+        return Start(
+            untrusted.RunId,
+            repository,
+            untrusted.Goal ?? string.Empty,
+            requestedBase,
+            count,
+            backend,
+            untrusted.Harness ?? EngineeringHarnessKind.InoNative,
+            untrusted.RequirePlanRatification ?? false,
+            untrusted.CleanupTargets,
+            untrusted.Slices,
+            untrusted.CircleBrainId);
     }
 
     public static IReadOnlyList<EngineerInstance> OrderByTournamentRank(IEnumerable<EngineerInstance> instances)
@@ -259,7 +331,10 @@ internal sealed record EngineerRun
                         Score: score,
                         Build: inst.Build,
                         Live: inst.Live,
-                        FailureDetail: inst.FailureDetail);
+                        FailureDetail: inst.FailureDetail,
+                        Harness: inst.Harness,
+                        Slices: inst.Slices,
+                        DeletedFiles: inst.DeletedFiles);
                 }),
         ];
     }
@@ -274,6 +349,45 @@ internal sealed record EngineerRun
         ArgumentNullException.ThrowIfNull(plan);
         return this with { Plan = plan };
     }
+
+    public EngineerRun WithDraftPlan(RatifiedPlan draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        var disjoint = new NoOverlappingFileSlices(draft.Slices ?? []);
+        if (DigitalBrain.Rules.Rules.Judge("EngineerRun.WithDraftPlan", disjoint) is { } rejected)
+        {
+            throw new RuleViolationException(rejected);
+        }
+
+        return this with { RatifiedPlan = draft with { Ratified = false, Harness = Harness } };
+    }
+
+    public EngineerRun WithRatifiedPlan(RatifiedPlan ratified)
+    {
+        ArgumentNullException.ThrowIfNull(ratified);
+        var disjoint = new NoOverlappingFileSlices(ratified.Slices ?? []);
+        if (DigitalBrain.Rules.Rules.Judge("EngineerRun.WithRatifiedPlan", disjoint) is { } rejected)
+        {
+            throw new RuleViolationException(rejected);
+        }
+
+        var updatedTaskPlan = Plan is null
+            ? null
+            : Plan with
+            {
+                CleanupTargets = ratified.CleanupTargets,
+                Slices = ratified.Slices,
+            };
+
+        return this with
+        {
+            Plan = updatedTaskPlan,
+            RatifiedPlan = ratified with { Ratified = true, Harness = Harness },
+        };
+    }
+
+    public EngineerRun WithMatchedProjectBrief(string? briefKey)
+        => string.IsNullOrWhiteSpace(briefKey) ? this : this with { MatchedProjectBriefKey = briefKey.Trim() };
 
     public EngineerRun WithLeases(string runId, IReadOnlyList<WorkTreeLease> leases)
     {
@@ -300,10 +414,11 @@ internal sealed record EngineerRun
                 ? prior with
                 {
                     Lease = lease,
+                    Harness = Harness,
                     Strategy = string.IsNullOrWhiteSpace(prior.Strategy) ? strategy : prior.Strategy,
                     Status = prior.Commit is not null ? prior.Status : "prepared",
                 }
-                : new EngineerInstance(idx, lease, [], Status: "prepared", Strategy: strategy);
+                : new EngineerInstance(idx, lease, [], Status: "prepared", Strategy: strategy, Harness: Harness);
         }
 
         return this with
@@ -509,5 +624,10 @@ internal sealed record EngineerRun
         string? RequestedBaseBranch,
         int? InstanceCount,
         string? Backend = null,
-        string? RequestedBackend = null);
+        string? RequestedBackend = null,
+        bool? RequirePlanRatification = null,
+        EngineeringHarnessKind? Harness = null,
+        string[]? CleanupTargets = null,
+        EngineerTaskSlice[]? Slices = null,
+        string? CircleBrainId = null);
 }

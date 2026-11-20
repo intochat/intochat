@@ -27,9 +27,11 @@ public static class KernelHost
                 : OperatingSystemModules.Discover(rootAssembly))
             .Where(module => module.LoadsUnder(topology))
             .ToArray();
-        var dashboardEnabled = builder.Configuration.GetValue<bool>("OrleansDashboard:Enabled")
-            || builder.Configuration.GetValue<bool>("IntoChatOS:OrleansDashboard:Enabled")
-            || (builder.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]));
+        var explicitDashboard = builder.Configuration.GetValue<bool?>("OrleansDashboard:Enabled")
+            ?? builder.Configuration.GetValue<bool?>("IntoChatOS:OrleansDashboard:Enabled");
+        var dashboardEnabled = explicitDashboard
+            ?? (string.Equals(IntoChatOSNames.CanonicalTopology(topology), IntoChatOSNames.TopologyLocal, StringComparison.Ordinal)
+                || (builder.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"])));
         builder.AddIntoChatOSServer(server =>
         {
             if (dashboardEnabled) { server.UseOrleansDashboard(); }
