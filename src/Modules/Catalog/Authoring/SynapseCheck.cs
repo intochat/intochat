@@ -9,6 +9,9 @@ namespace IntoChat.OS.Modules.Apps;
 // StatusString) with the compile, so the Builder sees what a deploy would refuse.
 internal static class SynapseCheck
 {
+    private static readonly Lazy<SynapseCompiler> DefaultCompiler =
+        new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+
     public static bool IsSynapseSource(IReadOnlyDictionary<string, string> files)
         => files.Values.Any(source => source.Contains("[Synapse", StringComparison.Ordinal));
 
@@ -17,6 +20,13 @@ internal static class SynapseCheck
     {
         if (!IsSynapseSource(files)) { return null; }
         var compiler = services.GetService<SynapseCompiler>() ?? throw new InvalidOperationException(SynapseStudioNeuron.Unavailable);
+        return Compile(compiler, files);
+    }
+
+    public static ScriptCompilationCheck CompileOrDefault(IServiceProvider? services, IReadOnlyDictionary<string, string> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var compiler = services?.GetService<SynapseCompiler>() ?? DefaultCompiler.Value;
         return Compile(compiler, files);
     }
 

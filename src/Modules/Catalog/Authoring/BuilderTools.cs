@@ -27,7 +27,9 @@ internal static partial class BuilderTools
         CancellationToken ct = default)
     {
         var compiler = services?.GetService<SynapseCompiler>() ?? DefaultCompiler.Value;
-        return Check(compiler, alias, files, needs: null, scenarios, ct);
+        // Run Roslyn + TestOS scenario verification on TaskScheduler.Default so SynapseCompiler's synchronous
+        // GetAllDiagnosticsAsync().GetAwaiter().GetResult() never deadlocks Orleans' ActivationTaskScheduler.
+        return Task.Run(() => Check(compiler, alias, files, needs: null, scenarios, ct), ct);
     }
 
     public static readonly IReadOnlyList<InferenceTool> Definitions =
