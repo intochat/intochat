@@ -34,6 +34,7 @@ public sealed class ShellAppsScreenBaselineFacts
 {
     public static readonly IReadOnlyList<Type> Standalone14Apps =
     [
+        typeof(IntoChat.OS.Apps.Aspire.AspireApp),
         typeof(CalculatorApp),
         typeof(CreatorApp),
         typeof(DataStudioApp),
@@ -44,6 +45,7 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(GalleryApp),
         typeof(InoApp),
         typeof(MarkdrawApp),
+        typeof(IntoChat.OS.Apps.Orleans.OrleansApp),
         typeof(PhotoCraftApp),
         typeof(SettingsApp),
         typeof(TasksApp),
@@ -101,7 +103,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(30, concreteScreens.Count);
+        Assert.Equal(32, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);
