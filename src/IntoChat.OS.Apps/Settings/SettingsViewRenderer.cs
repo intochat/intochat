@@ -11,7 +11,7 @@ internal static class SettingsViewRenderer
 {
     public static Node RenderRoot(SettingsAppState state, SettingsSlots slots, Rejected? lastRejection = null)
     {
-        var section = SettingsDecisions.NormalizeSection(state.Section);
+        var section = SettingsAppState.NormalizeSection(state.Section);
         var sectionEntry = SettingsApp.SearchIndex.First(entry => entry.SectionId == section);
 
         var sidebar = BuildSidebar(state, section, slots);
@@ -26,16 +26,16 @@ internal static class SettingsViewRenderer
             RenderSectionBody(state, section, state.SubPage, slots),
         };
 
-        return new AppShellNode(
-            Key: "settings-shell",
-            Sidebar: sidebar,
-            Body: VStack(Space.Md, contentChildren.ToArray()),
-            Toolbar: RenderHeader(state, sectionEntry));
+        return AppShell(
+            key: "settings-shell",
+            sidebar: sidebar,
+            body: VStack(Space.Md, contentChildren.ToArray()),
+            toolbar: RenderHeader(state, sectionEntry));
     }
 
     private static Node BuildSidebar(SettingsAppState state, string activeSection, SettingsSlots slots)
     {
-        var filtered = SettingsDecisions.FilterSections(state.SearchQuery);
+        var filtered = SettingsAppState.FilterSections(state.SearchQuery);
         var groups = new[] { "Preferences", "Capabilities & Data", "Organization & System" };
         var nodes = new List<Node?>
         {
@@ -110,7 +110,7 @@ internal static class SettingsViewRenderer
                     .Key("settings:header-back")
                     .Small()
                     .Guard(state.CanReturnRule)
-                    .OnClick<SettingsAppState>(s => s.GoBack())
+                    .OnClick<SettingsAppState>(s => s.ReturnPrevious())
                     .ToNode()
                 : null,
             StatusPill(StatusKind.Idle, sectionEntry.Group),
@@ -493,7 +493,7 @@ internal static class SettingsViewRenderer
         return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault via SecretRef and never enter neuron state or journals")[
             VStack(Space.Md)[
                 VStack(Space.Sm, cards),
-                new NeuronRef("ui.form", SettingsApp.ApiKeysFormKey),
+                Slot(SettingsApp.ApiKeysFormKey, "ui.form"),
                 HStack(Space.Sm)[
                     PrimaryButton("Open secure vault window", Icons.KeyRound)
                         .Key("keys:open-vault")
@@ -518,7 +518,7 @@ internal static class SettingsViewRenderer
             .. (state.Variables ?? []).Select(static variable => (IReadOnlyList<string>)
             [
                 variable.Key,
-                SettingsDecisions.RedactSecretDisplay(variable.Key, variable.Value),
+                SettingsAppState.RedactSecretDisplay(variable.Key, variable.Value),
                 "brain",
             ]),
         ];

@@ -2,14 +2,14 @@
 # Markdraw
 Role: Default
 Shipped: true
-Operations: open, read-canvas, sync-scene, patch-elements, from-data, save, export
+Operations: open, read-canvas, sync-scene, patch-elements, from-data, save, export, ui.command
 
 Excalidraw-inspired interactive diagram, architecture, and data-flow canvas studio powered by the Flutter markdraw package.
 Persists .markdraw Markdown sketch files, .excalidraw JSON scenes, and .svg exports directly to IFilesVfsService (/work/*),
 and exposes co-drawing operations (read-canvas, patch-elements, from-data, sync-scene) so both the user and Ino can inspect
 and mutate the exact same live canvas without overwriting hand-drawn strokes.
 */
-using System.Text.Json.Serialization;
+using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
@@ -18,6 +18,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Markdraw;
@@ -43,85 +44,17 @@ public sealed record MarkdrawSave(string? Document = null, string? Content = nul
 [Signal("markdraw.export")]
 public sealed record MarkdrawExport(string? Format = null, string? TargetPath = null) : Signal;
 
-[GenerateSerializer, Alias("markdraw.element-summary")]
-public sealed record MarkdrawElementSummary(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Kind,
-    [property: Id(2)] string Label,
-    [property: Id(3)] int X,
-    [property: Id(4)] int Y,
-    [property: Id(5)] int Width,
-    [property: Id(6)] int Height,
-    [property: Id(7)] string? FromId = null,
-    [property: Id(8)] string? ToId = null,
-    [property: Id(9)] string? Color = null);
-
-public sealed record MarkdrawAppState(
-    string ActiveDocument,
-    string Format,
-    string Content,
-    int Revision,
-    string Status,
-    MarkdrawElementSummary[] Elements,
-    string[] WorkspaceDrawings,
-    string? LastExportPath = null,
-    string? LastMutationSummary = null)
-{
-    public MarkdrawAppState() : this(
-        "/work/architecture.markdraw", "markdraw", MarkdrawApp.DefaultArchitectureScene, 1,
-        "Markdraw Canvas Ready · Co-drawing enabled with Ino & Files VFS",
-        MarkdrawSceneEngine.ParseSceneElements(MarkdrawApp.DefaultArchitectureScene),
-        ["/work/architecture.markdraw", "/work/pipeline-flow.markdraw"])
-    { }
-
-    [Invariant("Canvas revision is strictly positive."), JsonIgnore]
-    public bool PositiveRevision => Revision >= 1;
-
-    [Invariant("Scene format is markdraw or excalidraw."), JsonIgnore]
-    public bool ValidSceneFormat => Format is "markdraw" or "excalidraw";
-
-    [Invariant("ActiveDocument and scene collections are non-null."), JsonIgnore]
-    public bool NonNullScene => !string.IsNullOrWhiteSpace(ActiveDocument) && Elements is not null && WorkspaceDrawings is not null;
-
-    public Rule HasCanvasElements() => Decision.Rule("canvas_empty", Elements, static e => e.Length == 0, "Add at least one element before exporting.");
-
-    public Rule SupportedExportFormat(string? format) => Decision.Rule(
-        "invalid_export_format",
-        format,
-        static f => string.IsNullOrWhiteSpace(f) || f.Trim().TrimStart('.').ToLowerInvariant() is not ("excalidraw" or "svg" or "markdraw"),
-        "Export format must be excalidraw, svg, or markdraw.");
-
-    public Decision<MarkdrawAppState> SwitchTemplate([Sample("architecture", "pipeline", "unknown")] string template)
-    {
-        var clean = template?.Trim().ToLowerInvariant() ?? string.Empty;
-        if (Decision.Check("switch-template", Decision.Rule("unsupported_template", clean, static t => t is not ("architecture" or "pipeline" or "crm" or "sales"), "Template must be architecture or pipeline.")) is { } refusal)
-        {
-            return refusal;
-        }
-
-        var isPipeline = clean is "pipeline" or "crm" or "sales";
-        var doc = isPipeline ? "/work/pipeline-flow.markdraw" : "/work/architecture.markdraw";
-        var content = isPipeline ? MarkdrawApp.DefaultPipelineScene : MarkdrawApp.DefaultArchitectureScene;
-        var elements = MarkdrawSceneEngine.ParseSceneElements(content);
-        var nextRev = Revision + 1;
-        return Decision.Accept(this with { ActiveDocument = doc, Format = "markdraw", Content = content, Revision = nextRev, Elements = elements, Status = $"Opened {doc} ({elements.Length} canvas element(s), rev {nextRev})" });
-    }
-
-    public Decision<MarkdrawAppState> RecordExport([Sample("excalidraw", "svg", "bmp")] string format, [Sample("/work/architecture.excalidraw")] string targetPath)
-    {
-        if (Decision.Check("export", HasCanvasElements(), SupportedExportFormat(format), Decision.Rule("empty_export_path", targetPath, static p => string.IsNullOrWhiteSpace(p), "Target export path is required.")) is { } refusal)
-        {
-            return refusal;
-        }
-
-        var cleanFormat = format.Trim().TrimStart('.').ToLowerInvariant();
-        return Decision.Accept(this with { LastExportPath = targetPath.Trim(), Status = $"Exported {Elements.Length} element(s) to {targetPath.Trim()} ({cleanFormat})" });
-    }
-}
-
 [Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw")]
 public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesVfs
 {
+    public MarkdrawApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public MarkdrawApp(IFilesVfsService? filesVfs = null)
+    {
+        FilesVfs = filesVfs;
+    }
+
     protected override Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -184,6 +117,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                 new("from-data", "Generate or update an interactive data-flow or schema diagram on the canvas from a dataset or SQL table."),
                 new("save", "Save the active .markdraw or .excalidraw document to the Files workspace (/work/*)."),
                 new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format in Files VFS."),
+                new(UiCommand.SignalAlias, "Dispatch a typed Markdraw aggregate command."),
             ],
             Settings: [], Slots: [], Icon: "icon.svg", Dock: 4, Studio: true,
             Toolbar: [new("open", Icon: "pen-tool", Label: "Open Canvas"), new("save", Icon: "save", Label: "Save to Files"), new("export", Icon: "download", Label: "Export .excalidraw")]),
@@ -216,6 +150,12 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         }
 
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
+        if (elements.Length == 0)
+        {
+            content = DefaultArchitectureScene;
+            elements = MarkdrawSceneEngine.ParseSceneElements(content);
+        }
+
         await Show(State with { ActiveDocument = doc, Format = InferFormat(doc, content), Content = content, Elements = elements, WorkspaceDrawings = drawings, Status = $"Opened {doc} ({elements.Length} canvas element(s), rev {State.Revision})" });
     }
 
@@ -226,6 +166,12 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         var doc = ResolveTargetDoc(request.Document);
         var content = await ReadVfsOrCurrentContentAsync(doc);
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
+        if (elements.Length == 0)
+        {
+            content = State.Content;
+            elements = State.Elements;
+        }
+
         await Show(State with { ActiveDocument = doc, Content = content, Elements = elements, Status = $"Read {elements.Length} element(s) from {doc} (rev {State.Revision})" });
     }
 
@@ -234,10 +180,16 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     {
         ArgumentNullException.ThrowIfNull(request);
         var doc = ResolveTargetDoc(request.Document);
-        var rawContent = string.IsNullOrWhiteSpace(request.Content) ? State.Content : UnescapeIncomingScene(request.Content);
+        var rawContent = request.Content is null ? State.Content : UnescapeIncomingScene(request.Content);
+        var elements = MarkdrawSceneEngine.ParseSceneElements(rawContent);
+        if (request.Content is not null && Decision.Check("sync-scene", MarkdrawAppState.NonEmptyDiagramSceneRule(rawContent, elements)) is { } rejected)
+        {
+            await ApplyDecisionAsync(rejected);
+            return;
+        }
+
         var format = NormalizeSceneFormat(request.Format, doc, rawContent);
         var (savedDoc, drawings) = await PersistSceneAsync(doc, rawContent);
-        var elements = MarkdrawSceneEngine.ParseSceneElements(rawContent);
         var nextRev = State.Revision + 1;
         await Show(State with
         {
@@ -258,8 +210,14 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         ArgumentNullException.ThrowIfNull(request);
         var doc = ResolveTargetDoc(request.Document);
         var (mergedContent, mutationSummary) = MarkdrawSceneEngine.ApplyCoDrawingPatch(await ReadVfsOrCurrentContentAsync(doc), request.Prompt, request.AddOrUpdateDsl, request.RemoveIdsCsv);
-        var (savedDoc, drawings) = await PersistSceneAsync(doc, mergedContent);
         var elements = MarkdrawSceneEngine.ParseSceneElements(mergedContent);
+        if (Decision.Check("patch-elements", MarkdrawAppState.NonEmptyDiagramSceneRule(mergedContent, elements)) is { } rejected)
+        {
+            await ApplyDecisionAsync(rejected);
+            return;
+        }
+
+        var (savedDoc, drawings) = await PersistSceneAsync(doc, mergedContent);
         var nextRev = State.Revision + 1;
         await Show(State with
         {
@@ -297,9 +255,15 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     {
         ArgumentNullException.ThrowIfNull(request);
         var doc = ResolveTargetDoc(request.Document);
-        var content = string.IsNullOrWhiteSpace(request.Content) ? State.Content : UnescapeIncomingScene(request.Content);
-        var (savedDoc, drawings) = await PersistSceneAsync(doc, content);
+        var content = request.Content is null ? State.Content : UnescapeIncomingScene(request.Content);
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
+        if (request.Content is not null && Decision.Check("save", MarkdrawAppState.NonEmptyDiagramSceneRule(content, elements)) is { } rejected)
+        {
+            await ApplyDecisionAsync(rejected);
+            return;
+        }
+
+        var (savedDoc, drawings) = await PersistSceneAsync(doc, content);
         await Show(State with { ActiveDocument = savedDoc, Format = InferFormat(savedDoc, content), Content = content, Elements = elements, WorkspaceDrawings = drawings, Status = $"Saved {savedDoc} ({elements.Length} element(s), rev {State.Revision})" });
     }
 
@@ -307,11 +271,25 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     public async Task Export(MarkdrawExport request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var rawFormat = string.IsNullOrWhiteSpace(request.Format) ? "excalidraw" : request.Format.Trim().TrimStart('.').ToLowerInvariant();
-        var format = rawFormat is "excalidraw" or "svg" or "markdraw" ? rawFormat : "excalidraw";
+        var effectiveFormat = string.IsNullOrWhiteSpace(request.Format) ? "excalidraw" : request.Format.Trim().TrimStart('.').ToLowerInvariant();
         var stem = Path.GetFileNameWithoutExtension(State.ActiveDocument);
-        var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{(string.IsNullOrWhiteSpace(stem) ? "architecture" : stem)}.{format}" : NormalizeExportPath(request.TargetPath, format);
-        var payload = format switch { "svg" => MarkdrawSceneEngine.RenderSvgPreview(State.Elements), "markdraw" => State.Content, _ => MarkdrawSceneEngine.RenderExcalidrawJson(State.Elements) };
+        var targetPath = string.IsNullOrWhiteSpace(request.TargetPath)
+            ? $"/work/{(string.IsNullOrWhiteSpace(stem) ? "architecture" : stem)}.{effectiveFormat}"
+            : NormalizeExportPath(request.TargetPath, effectiveFormat);
+
+        var decision = State.RecordExport(effectiveFormat, targetPath);
+        if (decision.IsRefused)
+        {
+            await ApplyDecisionAsync(decision);
+            return;
+        }
+
+        var payload = effectiveFormat switch
+        {
+            "svg" => MarkdrawSceneEngine.RenderSvgPreview(State.Elements),
+            "markdraw" => State.Content,
+            _ => MarkdrawSceneEngine.RenderExcalidrawJson(State.Elements),
+        };
 
         var drawings = State.WorkspaceDrawings;
         if (FilesVfs is not null)
@@ -324,7 +302,12 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
             catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to export canvas to VFS."); }
         }
 
-        await Show(State with { LastExportPath = targetPath, WorkspaceDrawings = drawings, Status = $"Exported {State.Elements.Length} element(s) to {targetPath} ({format})" });
+        await Show(decision.Next with
+        {
+            LastExportPath = targetPath,
+            WorkspaceDrawings = drawings,
+            Status = $"Exported {State.Elements.Length} element(s) to {targetPath} ({effectiveFormat})",
+        });
     }
 
     public Task SaveActiveSceneAsync() => Save(new MarkdrawSave(State.ActiveDocument));
@@ -335,8 +318,15 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     {
         var shapeCount = state.Elements.Count(e => e.Kind is not ("arrow" or "line"));
         var connectorCount = state.Elements.Count(e => e.Kind is "arrow" or "line");
+        var zoomOutTarget = state.ZoomPercent - 25;
+        var zoomInTarget = state.ZoomPercent + 25;
+        var prevLayerTarget = state.ActiveLayer - 1;
+        var nextLayerTarget = state.ActiveLayer + 1;
 
         return VStack(Space.Md)[
+            LastRejection is not null
+                ? Banner("Canvas rule refused command", string.Join(" ", LastRejection.Messages), tone: "error")
+                : null,
             HeaderBar(
                 $"Markdraw · {Path.GetFileName(state.ActiveDocument)}",
                 state.Status,
@@ -350,6 +340,36 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                     Grid(2, Space.Sm)[
                         StatCard("kpi-markdraw-shapes", "Shapes", $"{shapeCount}", state.Format, BadgeTone.Accent, "box"),
                         StatCard("kpi-markdraw-links", "Arrows", $"{connectorCount}", $"rev {state.Revision}", BadgeTone.Done, "git-commit")
+                    ],
+                    Card("Studio Tools & Viewport", string.Create(CultureInfo.InvariantCulture, $"Tool: {state.ActiveTool} · {state.ZoomPercent}% · Layer {state.ActiveLayer}"))[
+                        VStack(Space.Xs)[
+                            HStack(Space.Xs)[
+                                (state.ActiveTool == "select" ? PrimaryButton("Select") : GhostButton("Select"))
+                                    .Key("markdraw-tool:select").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("select")),
+                                (state.ActiveTool == "rect" ? PrimaryButton("Rect") : GhostButton("Rect"))
+                                    .Key("markdraw-tool:rect").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("rect")),
+                                (state.ActiveTool == "diamond" ? PrimaryButton("Diamond") : GhostButton("Diamond"))
+                                    .Key("markdraw-tool:diamond").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("diamond")),
+                                (state.ActiveTool == "arrow" ? PrimaryButton("Arrow") : GhostButton("Arrow"))
+                                    .Key("markdraw-tool:arrow").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("arrow"))
+                            ],
+                            HStack(Space.Xs)[
+                                GhostButton("Zoom -").Key("markdraw-zoom:out").Small()
+                                    .Guard(MarkdrawAppState.ValidZoomRule(zoomOutTarget))
+                                    .OnClick<MarkdrawAppState>(x => x.SetZoom(zoomOutTarget)),
+                                GhostButton(string.Create(CultureInfo.InvariantCulture, $"{state.ZoomPercent}%")).Key("markdraw-zoom:reset").Small()
+                                    .OnClick<MarkdrawAppState>(x => x.SetZoom(100)),
+                                GhostButton("Zoom +").Key("markdraw-zoom:in").Small()
+                                    .Guard(MarkdrawAppState.ValidZoomRule(zoomInTarget))
+                                    .OnClick<MarkdrawAppState>(x => x.SetZoom(zoomInTarget)),
+                                GhostButton("L-").Key("markdraw-layer:prev").Small()
+                                    .Guard(MarkdrawAppState.ValidLayerRule(prevLayerTarget))
+                                    .OnClick<MarkdrawAppState>(x => x.SelectLayer(prevLayerTarget)),
+                                GhostButton("L+").Key("markdraw-layer:next").Small()
+                                    .Guard(MarkdrawAppState.ValidLayerRule(nextLayerTarget))
+                                    .OnClick<MarkdrawAppState>(x => x.SelectLayer(nextLayerTarget))
+                            ]
+                        ]
                     ],
                     Card("Templates & Drawings", $"{state.WorkspaceDrawings.Length} workspace file(s)")[
                         VStack(Space.Xs,
