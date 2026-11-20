@@ -28,7 +28,7 @@ public sealed class ModuleInventory
             .Concat(Modules.Select(module => module.Contracts).OfType<Assembly>())
             .Distinct()];
 
-    // Connection contracts live alongside ModuleInventory in IntoChat.OS.Framework.
+    // Connection contracts live alongside ModuleInventory in IntoChat.OS.Host.
     private static Assembly ConnectionContracts() => typeof(ModuleInventory).Assembly;
 
     public OsModule? Declaring(Assembly contracts) => Modules.FirstOrDefault(module => module.Contracts == contracts);

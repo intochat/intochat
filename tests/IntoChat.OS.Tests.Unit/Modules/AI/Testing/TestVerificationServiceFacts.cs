@@ -7,7 +7,6 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

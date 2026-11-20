@@ -3,7 +3,6 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Settings;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Tests;
 

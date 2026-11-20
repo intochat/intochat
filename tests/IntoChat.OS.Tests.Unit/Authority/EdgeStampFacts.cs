@@ -6,7 +6,6 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

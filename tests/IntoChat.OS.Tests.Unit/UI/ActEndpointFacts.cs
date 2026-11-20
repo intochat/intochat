@@ -4,7 +4,6 @@ using DigitalBrain.Access;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.AspNetCore.Http;
 using Xunit;

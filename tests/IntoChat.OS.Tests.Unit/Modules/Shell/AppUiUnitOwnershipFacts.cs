@@ -5,7 +5,6 @@ using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Http;
 using Xunit;
 using IntoChat.OS.Host.Kernel;

@@ -5,7 +5,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity.Accounts;

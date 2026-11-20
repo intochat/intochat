@@ -5,8 +5,7 @@ using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// The brain of a neuron address follows BrainKey.ScopeOf. That every manifest neuron's runtime address is its grain id
-// is GrainNeuronContext's own fact, in IntoChat.OS.Framework.Tests.Integration (Runtime/NeuronAddressFacts).
+// The brain of a neuron address follows BrainKey.ScopeOf.
 public sealed class NeuronAddressFacts
 {
     [Theory]

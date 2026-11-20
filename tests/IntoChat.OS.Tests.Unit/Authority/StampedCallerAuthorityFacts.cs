@@ -8,7 +8,6 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Framework;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Serialization.Invocation;

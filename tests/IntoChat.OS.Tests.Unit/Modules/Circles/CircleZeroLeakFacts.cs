@@ -4,7 +4,6 @@ using System;
 using System.Reflection;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Circles;
 using Xunit;
 using IntoChat.OS.Modules.Identity.Grants;

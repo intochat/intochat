@@ -5,7 +5,6 @@ using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;

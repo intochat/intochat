@@ -34,7 +34,7 @@ public sealed partial class DuplicateShapesFacts
             .ToArray();
 
         Assert.True(offenders.Length == 0,
-            "Modules use CallerAdmission in IntoChat.OS.Framework instead of private Require* methods checking CallerKind:\n"
+            "Modules use DigitalBrain's CallerAdmission instead of private Require* methods checking CallerKind:\n"
             + string.Join('\n', offenders));
     }
 }

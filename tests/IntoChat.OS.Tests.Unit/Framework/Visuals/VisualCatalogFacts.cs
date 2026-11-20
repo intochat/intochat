@@ -1,6 +1,6 @@
 using IntoChat.OS.Host.Visuals;
 
-namespace IntoChat.OS.Framework.Tests.Unit.Visuals;
+namespace IntoChat.OS.Tests.Unit.Framework.Visuals;
 
 public sealed class VisualCatalogFacts
 {

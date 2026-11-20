@@ -8,7 +8,6 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;

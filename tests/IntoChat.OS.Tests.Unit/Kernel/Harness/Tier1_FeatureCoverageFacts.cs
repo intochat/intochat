@@ -10,7 +10,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.AI.Memory;

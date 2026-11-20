@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using global::Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
