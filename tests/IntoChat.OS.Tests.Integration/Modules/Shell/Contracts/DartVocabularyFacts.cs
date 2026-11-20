@@ -36,10 +36,15 @@ public sealed partial class DartVocabularyFacts
     public void EveryNodeContractNamesAVocabularyKindItsContractAndItsChangeSignal()
     {
         var table = NodeContracts();
-        Assert.Equal(KeptKinds.Order(StringComparer.Ordinal), table.Select(entry => entry.Kind).Order(StringComparer.Ordinal));
-        var assemblies = new[] { typeof(UIVocabulary).Assembly };
+        var coreTable = table.Where(entry => !entry.Kind.StartsWith("ui.", StringComparison.Ordinal)).ToArray();
+        var uiTable = table.Where(entry => entry.Kind.StartsWith("ui.", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(KeptKinds.Order(StringComparer.Ordinal), coreTable.Select(entry => entry.Kind).Order(StringComparer.Ordinal));
+        Assert.NotEmpty(uiTable);
+
+        var shellAssemblies = new[] { typeof(UIVocabulary).Assembly };
+        var uiAssembly = typeof(IntoChat.OS.Modules.UI.Chart.IChart).Assembly;
         var offenders = new List<string>();
-        foreach (var (kind, contract, changed) in table)
+        foreach (var (kind, contract, changed) in coreTable)
         {
             if (!Vocabulary().Contains(VocabularyKind(kind))) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
             if (kind == UIVocabulary.ConfirmationType)
@@ -49,10 +54,28 @@ public sealed partial class DartVocabularyFacts
                 Assert.Equal(nameof(DigitalBrain.Confirmation.ConfirmationRequested), changed);
                 continue;
             }
-            var type = assemblies.Select(assembly => assembly.GetType(contract)).SingleOrDefault(found => found is not null);
+            var type = shellAssemblies.Select(assembly => assembly.GetType(contract)).SingleOrDefault(found => found is not null);
             if (type is null || !type.IsInterface || !DigitalBrain.Contracts.PlainNeuronContracts.Is(type)) { offenders.Add($"{kind}: {contract} is not a neuron contract"); continue; }
             if (!type.Assembly.GetExportedTypes().Any(signal => typeof(DigitalBrain.Signal).IsAssignableFrom(signal) && signal.Name == changed && signal.Namespace!.StartsWith(type.Namespace!, StringComparison.Ordinal)))
             { offenders.Add($"{kind}: no signal {changed} beside {contract}"); }
+        }
+        foreach (var (kind, contract, changed) in uiTable)
+        {
+            var type = uiAssembly.GetType(contract);
+            if (type is null || !type.IsInterface || !DigitalBrain.Contracts.PlainNeuronContracts.Is(type))
+            {
+                offenders.Add($"{kind}: {contract} is not a Modules.UI neuron contract");
+                continue;
+            }
+            var declaredAlias = PlainNeuronContracts.TypeOf(type);
+            if (!string.Equals(declaredAlias, kind, StringComparison.Ordinal))
+            {
+                offenders.Add($"{kind}: {contract} declares '{declaredAlias ?? "(none)"}' instead of '{kind}'");
+            }
+            if (!uiAssembly.GetExportedTypes().Any(signal => typeof(DigitalBrain.Signal).IsAssignableFrom(signal) && signal.Name == changed && signal.Namespace!.StartsWith(type.Namespace!, StringComparison.Ordinal)))
+            {
+                offenders.Add($"{kind}: no signal {changed} beside {contract}");
+            }
         }
         Assert.True(offenders.Count == 0, "node_contracts.dart drifted from the C# contracts:\n" + string.Join('\n', offenders));
     }
@@ -106,9 +129,9 @@ public sealed partial class DartVocabularyFacts
         Assert.True(missing.Length == 0, "Kinds the server can emit have no entry in node_contracts.dart:\n" + string.Join('\n', missing));
     }
 
-    [GeneratedRegex(@"ViewRef\(\s*""(?<kind>\w+)""")]
+    [GeneratedRegex(@"ViewRef\(\s*""(?<kind>[\w.-]+)""")]
     private static partial Regex LiteralViewRef();
 
-    [GeneratedRegex(@"'(?<kind>\w+)':\s*NodeContract\(\s*'(?<contract>[\w.]+)',\s*'(?<changed>\w+)',?\s*\)")]
+    [GeneratedRegex(@"'(?<kind>[\w.-]+)':\s*NodeContract\(\s*'(?<contract>[\w.]+)',\s*'(?<changed>\w+)',?\s*\)")]
     private static partial Regex NodeContract();
 }

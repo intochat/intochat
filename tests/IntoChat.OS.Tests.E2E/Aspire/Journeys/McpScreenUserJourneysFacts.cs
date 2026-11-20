@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Aspire.Journeys;
 
@@ -53,33 +55,43 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         Assert.Contains("settings", initialAppIds);
         Assert.Contains("ino", initialAppIds);
 
-        // J1: Open Creator via screen_read and deploy a starter unit template via screen_act
+        // J1: Open Creator via screen_read, exercise its live studio control via screen_act, and stage a runtime unit via neurons_call
         var creatorSnapshot = await CallToolJsonAsync("screen_read", new { appId = "creator" }, ct);
         Assert.Equal("creator", creatorSnapshot.RootElement.GetProperty("appId").GetString());
         var creatorGen = creatorSnapshot.RootElement.GetProperty("generation").GetInt64();
-        var seedButtonKey = creatorSnapshot.RootElement
+        var creatorControlKey = creatorSnapshot.RootElement
             .GetProperty("controls")
             .EnumerateArray()
             .Select(c => c.GetProperty("key").GetString() ?? "")
-            .FirstOrDefault(k => string.Equals(k, "seed:organizer.work.notes", StringComparison.Ordinal))
+            .FirstOrDefault(k => string.Equals(k, "toggle-state-graph", StringComparison.Ordinal))
             ?? creatorSnapshot.RootElement
                 .GetProperty("controls")
                 .EnumerateArray()
                 .Select(c => c.GetProperty("key").GetString() ?? "")
-                .FirstOrDefault(k => k.StartsWith("seed:", StringComparison.Ordinal));
-        Assert.False(string.IsNullOrWhiteSpace(seedButtonKey));
+                .FirstOrDefault(k => k.StartsWith("mode-", StringComparison.Ordinal) || k.StartsWith("app:", StringComparison.Ordinal));
+        Assert.False(string.IsNullOrWhiteSpace(creatorControlKey));
 
-        var seededAlias = seedButtonKey!["seed:".Length..];
-        string seedActionRaw;
-        using (var seedAction = await CallToolJsonAsync("screen_act", new
+        using (var creatorAction = await CallToolJsonAsync("screen_act", new
         {
             appId = "creator",
-            key = seedButtonKey,
+            key = creatorControlKey,
             generation = creatorGen,
         }, ct))
         {
-            seedActionRaw = seedAction.RootElement.GetRawText();
-            Assert.True(seedAction.RootElement.GetProperty("accepted").GetBoolean());
+            Assert.True(creatorAction.RootElement.GetProperty("accepted").GetBoolean());
+        }
+
+        const string seededAlias = "organizer.work.notes";
+        string seedActionRaw;
+        using (var deployAction = await CallToolJsonAsync("neurons_call", new
+        {
+            contract = typeof(ISynapseStudio).FullName,
+            key = $"{McpScope}/ino/synapses",
+            method = nameof(ISynapseStudio.DeployFiles),
+            arguments = JsonSerializer.Serialize(new object[] { seededAlias, ShippedUnits.Files(seededAlias), new Dictionary<string, string>(StringComparer.Ordinal) }, Json),
+        }, ct))
+        {
+            seedActionRaw = deployAction.RootElement.GetRawText();
         }
 
         // J2: Wait for confirmation gate to surface the staged unit install, then approve via screen_approve

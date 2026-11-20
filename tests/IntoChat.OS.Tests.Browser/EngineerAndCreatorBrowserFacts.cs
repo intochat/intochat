@@ -129,6 +129,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await page.SendChatMessageAsync(EngineerApp.BrainstormChatKey, "Verify cloud sandbox lease isolation", ct);
             var brainstormedChat = await WaitForNeuronTextContainsAsync(page, "ui.chat", EngineerApp.BrainstormChatKey, "Verify cloud sandbox lease isolation", ct);
             Assert.Contains("Verify cloud sandbox lease isolation", brainstormedChat, StringComparison.OrdinalIgnoreCase);
+            await WaitForSemanticsTextContainsAsync(page, "Brainstorm complete", ct);
 
             // Approve plan -> transitions EngineerApp to implement-tasks & Code tab with syntax-highlighted ICodeEditor
             await page.ClickButtonAsync("engineer:approve-plan", ct);
@@ -198,5 +199,20 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await page.WaitForTimeoutAsync(150).WaitAsync(ct);
         }
         return await page.ReadNeuronTextAsync(kind, key, ct);
+    }
+
+    private static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)
+    {
+        for (var i = 0; i < 300; i++)
+        {
+            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
+            if (visible.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+            await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+        }
+        var finalText = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? ''").WaitAsync(ct);
+        Assert.Contains(expectedSubstring, finalText, StringComparison.OrdinalIgnoreCase);
     }
 }
