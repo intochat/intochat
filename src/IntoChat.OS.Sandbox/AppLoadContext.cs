@@ -6,6 +6,9 @@ namespace IntoChat.OS.Sandbox;
 /// <summary>Collectible assembly load context that isolates sandboxed user apps and runtime synapses from host assemblies.</summary>
 internal sealed class AppLoadContext(string name, string? contractsDirectory = null) : AssemblyLoadContext(name, isCollectible: true)
 {
+    // Checked before the IntoChat.OS.Modules.* allowance below, so a host assembly that lives under Modules/ (the
+    // identity module, which also carries the OS host layer) is still refused. Every IntoChat.OS name here must be a
+    // real project; SandboxGuardFacts fails when one goes stale.
     private static readonly string[] ForbiddenPrefixes =
     [
         "System.Diagnostics.Process",
@@ -14,7 +17,7 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
         "System.Net.WebSockets",
         "Microsoft.AspNetCore",
         "IntoChat.OS.Kernel",
-        "IntoChat.OS.Framework",
+        "IntoChat.OS.Modules.Identity",
         "IntoChat.OS.AppHost",
         "IntoChat.OS.Sandbox",
         "DigitalBrain.Runtime.Orleans",

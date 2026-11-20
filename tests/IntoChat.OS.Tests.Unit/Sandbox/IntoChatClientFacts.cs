@@ -93,7 +93,7 @@ public sealed class IntoChatClientFacts
                 "System.Net.Http",
                 "Microsoft.AspNetCore.Http",
                 "IntoChat.OS.Kernel",
-                "IntoChat.OS.Framework",
+                "IntoChat.OS.Modules.Identity",
                 "IntoChat.OS.AppHost",
                 "DigitalBrain.Runtime.Orleans",
                 "DigitalBrain.Identity",
