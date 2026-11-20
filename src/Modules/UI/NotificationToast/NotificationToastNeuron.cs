@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using System.Globalization;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.NotificationToast.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.NotificationToast.Signals;
 namespace IntoChat.OS.Modules.UI.NotificationToast;
 
 [Neuron("ui.toast")]
-internal sealed class NotificationToastNeuron : Neuron<NotificationToastState>, INotificationToast
+internal sealed class NotificationToastNeuron : UiNeuronBase<NotificationToastState>, INotificationToast
 {
     private const int MaxToasts = 10;
 

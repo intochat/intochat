@@ -58,11 +58,22 @@ Future<String> _resolveDirectUrl(String rawUri) async {
   final trimmed = rawUri.trim();
   if (trimmed.isEmpty) return trimmed;
   final lower = trimmed.toLowerCase();
+  final isRootRelative = trimmed.startsWith('/') && !trimmed.startsWith('//');
   final isLocal =
-      lower.startsWith('/artcraft/') ||
+      isRootRelative ||
       lower.contains('localhost') ||
       lower.contains('127.0.0.1');
   if (!isLocal) return trimmed;
+
+  final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
+  final parsedUiBase = uiBase.isNotEmpty ? Uri.tryParse(uiBase) : null;
+  final kernelOrigin =
+      (parsedUiBase != null &&
+          parsedUiBase.hasAuthority &&
+          parsedUiBase.host.isNotEmpty &&
+          (parsedUiBase.scheme == 'http' || parsedUiBase.scheme == 'https'))
+      ? parsedUiBase.origin
+      : (await _isLoopbackPortOpen(5080) ? 'http://localhost:5080' : null);
 
   final craftSpec = IcAppIcon.findArtCraftByUrlOrName(lower);
   if (craftSpec != null) {
@@ -76,17 +87,16 @@ Future<String> _resolveDirectUrl(String rawUri) async {
         return 'http://localhost:$port/';
       }
     }
-    final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
-    if (uiBase.isNotEmpty) {
-      final parsed = Uri.tryParse(uiBase);
-      if (parsed != null && parsed.hasAuthority) {
-        return '${parsed.origin}/artcraft/${craftSpec.appId}/index.html';
-      }
+    if (kernelOrigin != null) {
+      return '$kernelOrigin/artcraft/${craftSpec.appId}/index.html';
     }
-    if (await _isLoopbackPortOpen(5080)) {
-      return 'http://localhost:5080/artcraft/${craftSpec.appId}/index.html';
-    }
-    return 'https://os.test.intochat.io/artcraft/${craftSpec.appId}/index.html';
+    return 'http://localhost:5080/artcraft/${craftSpec.appId}/index.html';
+  }
+
+  // Resolve any root-relative Kernel route (e.g. /orleans#/overview, /aspire, /widgetbook)
+  // against the active Kernel origin so WebView2 never receives a bare relative path.
+  if (isRootRelative && kernelOrigin != null) {
+    return '$kernelOrigin$trimmed';
   }
 
   return trimmed;

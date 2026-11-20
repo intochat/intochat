@@ -24,6 +24,7 @@ Widget renderWebBrowser(WebBrowserNode node, NodeContext ctx) => Semantics(
           title: node.title ?? node.url,
         ),
         height: effectiveHeight,
+        frameless: node.chrome.trim().toLowerCase() == 'frameless',
       );
     },
   ),

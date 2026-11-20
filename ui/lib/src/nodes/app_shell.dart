@@ -479,10 +479,17 @@ class _AppShellWidgetState extends State<_AppShellWidget> {
           ],
         );
 
-        final paddedPanes = Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-          child: panesRow,
-        );
+        final isEdgeToEdge =
+            node.edgeToEdge ||
+            (node.body is WebBrowserNode &&
+                node.sidebar == null &&
+                node.inspector == null);
+        final paddedPanes = isEdgeToEdge
+            ? panesRow
+            : Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                child: panesRow,
+              );
 
         if (node.toolbar == null &&
             sidebarToggle == null &&

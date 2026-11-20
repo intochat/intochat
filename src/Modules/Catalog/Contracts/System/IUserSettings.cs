@@ -16,9 +16,10 @@ public sealed record UserSettingsState(
     string DesktopTone = "cream",
     string Language = "English",
     string TimeZone = "UTC",
-    string DateFormat = "17 Oct 2026")
+    string DateFormat = "17 Oct 2026",
+    string ArtCraftDefaultMode = "wasm-ui")
 {
-    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026") { }
+    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026", "wasm-ui") { }
 }
 
 [DigitalBrain.Signal("os.settings.changed")]
@@ -32,7 +33,8 @@ public sealed record UserSettingsChanged(
     string DesktopTone = "cream",
     string Language = "English",
     string TimeZone = "UTC",
-    string DateFormat = "17 Oct 2026") : DigitalBrain.Signal;
+    string DateFormat = "17 Oct 2026",
+    string ArtCraftDefaultMode = "wasm-ui") : DigitalBrain.Signal;
 
 [NeuronAlias("os.settings"), DefaultNeuronType("os.settings")]
 public interface IUserSettings
@@ -51,7 +53,8 @@ public interface IUserSettings
         string? desktopTone = null,
         string? language = null,
         string? timeZone = null,
-        string? dateFormat = null);
+        string? dateFormat = null,
+        string? artCraftDefaultMode = null);
 
     Task<UserSettingsState> SetVariable(string key, string value);
 }

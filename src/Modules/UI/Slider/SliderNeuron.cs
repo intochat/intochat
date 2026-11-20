@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Slider.Signals;
 
 namespace IntoChat.OS.Modules.UI.Slider;
 
 [Neuron("ui.slider")]
-internal sealed class SliderNeuron : Neuron<SliderState>, ISlider
+internal sealed class SliderNeuron : UiNeuronBase<SliderState>, ISlider
 {
     public async Task<SliderState> Configure(string label, double min = 0, double max = 100, double step = 1, double? value = null, bool isEnabled = true, string unit = "")
     {

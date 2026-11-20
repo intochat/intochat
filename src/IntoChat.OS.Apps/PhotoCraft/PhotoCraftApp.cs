@@ -64,10 +64,10 @@ public sealed record PhotoCraftAppState(
     string? ActivePreset = null)
 {
     public PhotoCraftAppState() : this(
-        "mcp", "/work/portrait.png", "/work/portrait.nobg.png", "layer.removeBackground", "Ready · PhotoCraft Studio",
+        "wasm-ui", "/work/portrait.png", "/work/portrait.nobg.png", "layer.removeBackground", "Ready · PhotoCraft Studio",
         string.Empty,
-        string.Empty, "PhotoCraft MCP server not connected.",
-        ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"], [])
+        string.Empty, "PhotoCraft WASM Studio ready.",
+        ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"], [], "/artcraft/photocraft/index.html")
     { }
 
     [Invariant("ExecutionMode is wasm-ui, mcp, or native-linux."), JsonIgnore]
@@ -197,13 +197,14 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
     {
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
-        if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
+        var preferredMode = await ResolvePreferredExecutionModeAsync();
+        if (string.IsNullOrWhiteSpace(State.WebUrl) || IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
         {
             await Show(State with
             {
-                ExecutionMode = "mcp",
+                ExecutionMode = preferredMode,
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"PhotoCraft studio ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
+                Status = $"PhotoCraft studio ({FormatModeLabel(preferredMode)}) · Active: {State.ActiveDocument}",
             });
         }
     }

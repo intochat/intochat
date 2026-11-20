@@ -285,8 +285,9 @@ public static class Kit
         Node? toolbar = null,
         Node? inspector = null,
         string automationName = "",
-        string transition = "")
-        => Ui.AppShell(key, sidebar, body, toolbar, inspector, automationName, transition);
+        string transition = "",
+        bool edgeToEdge = false)
+        => Ui.AppShell(key, sidebar, body, toolbar, inspector, automationName, transition, edgeToEdge);
 
     /// <summary>Builds a <see cref="Command"/> dispatching typed <see cref="UiNavigateTo"/> arrival arguments to <paramref name="target"/> (via <see cref="UiCommand"/> for universal manifest compatibility).</summary>
     public static Command NavigateToCommand<TArgs>(
@@ -377,8 +378,9 @@ public static class Kit
         string key = "web-browser",
         double height = 520,
         string executionMode = "wasm-ui",
-        string automationName = "")
-        => Ui.WebBrowser(url, title, key, height, executionMode, automationName);
+        string automationName = "",
+        string chrome = "full")
+        => Ui.WebBrowser(url, title, key, height, executionMode, automationName, chrome);
 
     /// <summary>Honest empty-state prompt (<see cref="EmptyStateNode"/>) with optional suggestion buttons.</summary>
     public static EmptyStateNode Empty(string title, string? body = null, params Button[] suggestions)

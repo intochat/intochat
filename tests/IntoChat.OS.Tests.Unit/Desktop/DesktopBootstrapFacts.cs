@@ -151,8 +151,8 @@ public sealed class DesktopBootstrapFacts
                 PresenceProof.ComputeTokenHash(presenceToken),
                 kernelConfig[PresenceProof.TokenHashConfigurationKey]);
 
-            Assert.Equal("false", env[DesktopBootstrap.OrleansDashboardEnabledEnvVar]);
-            Assert.Equal("false", env[DesktopBootstrap.IntoChatOrleansDashboardEnabledEnvVar]);
+            Assert.Equal("true", env[DesktopBootstrap.OrleansDashboardEnabledEnvVar]);
+            Assert.Equal("true", env[DesktopBootstrap.IntoChatOrleansDashboardEnabledEnvVar]);
             Assert.Equal("salesforce,gmail", env[DesktopBootstrap.ModulesDisabledEnvVar]);
 
             // salesforce and gmail are disabled by default; github and time MUST remain enabled!

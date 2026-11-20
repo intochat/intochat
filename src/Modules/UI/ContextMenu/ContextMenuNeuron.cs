@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.ContextMenu.Signals;
 
 namespace IntoChat.OS.Modules.UI.ContextMenu;
 
 [Neuron("ui.context-menu")]
-internal sealed class ContextMenuNeuron : Neuron<ContextMenuState>, IContextMenu
+internal sealed class ContextMenuNeuron : UiNeuronBase<ContextMenuState>, IContextMenu
 {
     public async Task<ContextMenuState> Configure(string triggerLabel, IReadOnlyList<ContextMenuItem> items)
     {

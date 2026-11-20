@@ -34,6 +34,11 @@
         "default": ""
       },
       {
+        "name": "edgeToEdge",
+        "type": "bool",
+        "default": false
+      },
+      {
         "name": "automationName",
         "type": "String",
         "default": ""
@@ -3106,6 +3111,11 @@
         "name": "executionMode",
         "type": "String",
         "default": "wasm-ui"
+      },
+      {
+        "name": "chrome",
+        "type": "String",
+        "default": "full"
       },
       {
         "name": "automationName",

@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.GridView.Signals;
 
 namespace IntoChat.OS.Modules.UI.GridView;
 
 [Neuron("ui.grid-view")]
-internal sealed class GridViewNeuron : Neuron<GridViewState>, IGridView
+internal sealed class GridViewNeuron : UiNeuronBase<GridViewState>, IGridView
 {
     public async Task<GridViewState> Configure(string title, IReadOnlyList<GridViewItem> items, string? selectedId = null, int columns = 3)
     {

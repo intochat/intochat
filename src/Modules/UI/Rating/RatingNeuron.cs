@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Rating.Signals;
 
 namespace IntoChat.OS.Modules.UI.Rating;
 
 [Neuron("ui.rating")]
-internal sealed class RatingNeuron : Neuron<RatingState>, IRating
+internal sealed class RatingNeuron : UiNeuronBase<RatingState>, IRating
 {
     public async Task<RatingState> Configure(string label, int value = 0, int max = 5, bool isEnabled = true)
     {

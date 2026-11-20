@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Toggle.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.Toggle.Signals;
 namespace IntoChat.OS.Modules.UI.Toggle;
 
 [Neuron("ui.toggle")]
-internal sealed class ToggleNeuron : Neuron<ToggleState>, IToggle
+internal sealed class ToggleNeuron : UiNeuronBase<ToggleState>, IToggle
 {
     public async Task<ToggleState> Configure(string label, bool? isOn = null, bool isEnabled = true, string onLabel = "On", string offLabel = "Off")
     {

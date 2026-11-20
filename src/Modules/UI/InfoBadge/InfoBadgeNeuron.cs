@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.InfoBadge.Signals;
 
 namespace IntoChat.OS.Modules.UI.InfoBadge;
 
 [Neuron("ui.info-badge")]
-internal sealed class InfoBadgeNeuron : Neuron<InfoBadgeState>, IInfoBadge
+internal sealed class InfoBadgeNeuron : UiNeuronBase<InfoBadgeState>, IInfoBadge
 {
     public async Task<InfoBadgeState> Configure(string label, int? value = null, string severity = "attention", string? icon = null, bool isVisible = true)
     {

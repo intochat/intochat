@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.TeachingTip.Signals;
 
 namespace IntoChat.OS.Modules.UI.TeachingTip;
 
 [Neuron("ui.teaching-tip")]
-internal sealed class TeachingTipNeuron : Neuron<TeachingTipState>, ITeachingTip
+internal sealed class TeachingTipNeuron : UiNeuronBase<TeachingTipState>, ITeachingTip
 {
     public async Task<TeachingTipState> Show(string title, string subtitle, string? actionLabel = null)
     {

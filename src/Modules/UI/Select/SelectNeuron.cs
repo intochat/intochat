@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Select.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.Select.Signals;
 namespace IntoChat.OS.Modules.UI.Select;
 
 [Neuron("ui.select")]
-internal sealed class SelectNeuron : Neuron<SelectState>, ISelect
+internal sealed class SelectNeuron : UiNeuronBase<SelectState>, ISelect
 {
     public async Task<SelectState> Configure(string label, IReadOnlyList<UiSelectOption> options, string? selectedId = null, bool isEnabled = true)
     {

@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.ColorPicker.Signals;
 
 namespace IntoChat.OS.Modules.UI.ColorPicker;
 
 [Neuron("ui.color-picker")]
-internal sealed class ColorPickerNeuron : Neuron<ColorPickerState>, IColorPicker
+internal sealed class ColorPickerNeuron : UiNeuronBase<ColorPickerState>, IColorPicker
 {
     public async Task<ColorPickerState> Configure(string label, string hex = "#1F5EFF", IReadOnlyList<string>? swatches = null, bool isEnabled = true)
     {

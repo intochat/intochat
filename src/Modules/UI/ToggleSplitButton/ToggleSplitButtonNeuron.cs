@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.ToggleSplitButton.Signals;
 
 namespace IntoChat.OS.Modules.UI.ToggleSplitButton;
 
 [Neuron("ui.toggle-split-button")]
-internal sealed class ToggleSplitButtonNeuron : Neuron<ToggleSplitButtonState>, IToggleSplitButton
+internal sealed class ToggleSplitButtonNeuron : UiNeuronBase<ToggleSplitButtonState>, IToggleSplitButton
 {
     public async Task<ToggleSplitButtonState> Configure(
         string label,

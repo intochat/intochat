@@ -25,7 +25,8 @@ public sealed class PhotoCraftAppFacts
         Assert.NotNull(initial);
         var initialJson = System.Text.Json.JsonSerializer.Serialize(initial, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Contains("preset-cutout", initialJson, StringComparison.Ordinal);
-        Assert.Contains("toggle-layer-0", initialJson, StringComparison.Ordinal);
+        Assert.Contains("\"chrome\":\"frameless\"", initialJson, StringComparison.Ordinal);
+        Assert.Contains("\"edgeToEdge\":true", initialJson, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -35,7 +36,8 @@ public sealed class PhotoCraftAppFacts
         os.Register(typeof(AppsModule).Assembly);
         var installed = await os.Install<PhotoCraftApp>();
 
-        Assert.Null(installed.App.State.WebUrl);
+        Assert.Equal("wasm-ui", installed.App.State.ExecutionMode);
+        Assert.Equal("/artcraft/photocraft/index.html", installed.App.State.WebUrl);
         Assert.Equal(string.Empty, installed.App.State.PreviewDataUrl);
         Assert.Equal(string.Empty, installed.App.State.LastCliInvocation);
 
@@ -63,6 +65,13 @@ public sealed class PhotoCraftAppFacts
         Assert.Contains(0, installed.App.State.HiddenLayerIndices!);
         Assert.StartsWith("[Hidden] ", installed.App.State.Layers[0], StringComparison.Ordinal);
 
+        // In default wasm-ui mode, renders fullscreen frameless WebBrowser
+        var wasmJson = System.Text.Json.JsonSerializer.Serialize(installed.App.Render(), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.Contains("\"chrome\":\"frameless\"", wasmJson, StringComparison.Ordinal);
+        Assert.Contains("\"edgeToEdge\":true", wasmJson, StringComparison.Ordinal);
+
+        // Switching to mcp mode renders the native layer sidebar & presets
+        await installed.Request("switch-mode", new PhotoCraftSwitchMode("mcp"));
         var renderedJson = System.Text.Json.JsonSerializer.Serialize(installed.App.Render(), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Contains("toggle-layer-0", renderedJson, StringComparison.Ordinal);
         Assert.Contains("preset-warm", renderedJson, StringComparison.Ordinal);

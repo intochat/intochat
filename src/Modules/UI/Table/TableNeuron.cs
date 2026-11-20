@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
@@ -6,7 +7,7 @@ using IntoChat.OS.Modules.UI.Table.Signals;
 namespace IntoChat.OS.Modules.UI.Table;
 
 [Neuron("ui.table")]
-internal sealed class TableNeuron : Neuron<TableState>, ITable
+internal sealed class TableNeuron : UiNeuronBase<TableState>, ITable
 {
     public async Task<TableState> Bind(string sourceNeuronId, string title, IReadOnlyList<TableColumn> columns, int pageSize = 10)
     {

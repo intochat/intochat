@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.ListBox.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.ListBox.Signals;
 namespace IntoChat.OS.Modules.UI.ListBox;
 
 [Neuron("ui.listbox")]
-internal sealed class ListBoxNeuron : Neuron<UiListBoxState>, IListBox
+internal sealed class ListBoxNeuron : UiNeuronBase<UiListBoxState>, IListBox
 {
     public async Task<UiListBoxState> Configure(IReadOnlyList<UiListBoxItem> items, string? selectedId = null, bool isEnabled = true)
     {

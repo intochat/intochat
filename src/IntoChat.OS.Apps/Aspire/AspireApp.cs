@@ -281,7 +281,8 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
             "Aspire Dashboard",
             key: "aspire-browser",
             height: 920,
-            automationName: "Aspire Dashboard");
+            automationName: "Aspire Dashboard",
+            chrome: "frameless");
 
         return AppShell(
             "aspire-shell",
@@ -290,7 +291,8 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
             toolbar: toolbar,
             inspector: null,
             automationName: "Aspire Dashboard",
-            transition: ActiveTransition);
+            transition: ActiveTransition,
+            edgeToEdge: true);
     }
 
     private static Node BuildSectionPill(string sectionId, string label, string activeSection)

@@ -45,6 +45,7 @@ dev_dependencies:
   collection: ^1.19.0
   test: ^1.25.0
   protoc_plugin: ^25.0.0
+  widgetbook: ^3.11.0
 
 dependency_overrides:
   freezed_annotation: ^3.1.0
@@ -57,6 +58,7 @@ flutter:
     - assets/brands/
     - assets/brands/artcraft/
     - assets/brands/providers/
+    - lib/src/generated/showcase_catalog.json
   fonts:
     - family: Inter
       fonts:

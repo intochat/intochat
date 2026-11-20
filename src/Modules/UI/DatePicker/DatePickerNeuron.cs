@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.DatePicker.Signals;
 
 namespace IntoChat.OS.Modules.UI.DatePicker;
 
 [Neuron("ui.date-picker")]
-internal sealed class DatePickerNeuron : Neuron<DatePickerState>, IDatePicker
+internal sealed class DatePickerNeuron : UiNeuronBase<DatePickerState>, IDatePicker
 {
     public async Task<DatePickerState> Configure(string label, string selectedDate, string? minDate = null, string? maxDate = null, bool disabled = false)
     {

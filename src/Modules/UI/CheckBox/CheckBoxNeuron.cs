@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.CheckBox.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.CheckBox.Signals;
 namespace IntoChat.OS.Modules.UI.CheckBox;
 
 [Neuron("ui.checkbox")]
-internal sealed class CheckBoxNeuron : Neuron<UiCheckBoxState>, ICheckBox
+internal sealed class CheckBoxNeuron : UiNeuronBase<UiCheckBoxState>, ICheckBox
 {
     public async Task<UiCheckBoxState> Configure(string label, bool? isChecked = null, bool isEnabled = true)
     {

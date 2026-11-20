@@ -188,7 +188,8 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
             "Orleans Grain Dashboard",
             key: "orleans-browser",
             height: 920,
-            automationName: "Orleans Grain Dashboard");
+            automationName: "Orleans Grain Dashboard",
+            chrome: "frameless");
 
         return AppShell(
             "orleans-shell",
@@ -197,7 +198,8 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
             toolbar: toolbar,
             inspector: null,
             automationName: "Orleans Grain Dashboard",
-            transition: ActiveTransition);
+            transition: ActiveTransition,
+            edgeToEdge: true);
     }
 
     private static Node BuildSectionPill(string sectionId, string label, string activeSection)

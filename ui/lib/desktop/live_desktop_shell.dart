@@ -1052,6 +1052,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 
+  bool _shouldLaunchMaximized(String appId) {
+    final normalized = appId.trim().toLowerCase();
+    return normalized == 'orleans' ||
+        normalized == 'aspire' ||
+        normalized == 'widgetbook' ||
+        IcAppIcon.findArtCraftByUrlOrName(normalized) != null;
+  }
+
   void _syncWindowStates(List<_ParsedDesktopWindow> parsed, Size desk) {
     for (var i = 0; i < parsed.length; i++) {
       final spec = parsed[i];
@@ -1064,12 +1072,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         final optimistic = spec.windowId == optimisticId
             ? null
             : _windowStates[optimisticId];
+        final launchMax = _shouldLaunchMaximized(spec.appId);
         _windowStates[spec.windowId] = DesktopWindowState(
           id: spec.numericId,
           appId: spec.appId,
           title: spec.title,
           neuronUri: spec.neuronUri,
           bounds: optimistic?.bounds ?? _initialWindowBounds(i, desk),
+          zoomed: optimistic?.zoomed ?? launchMax,
           minimized: optimistic?.minimized ?? false,
           isPinned: (optimistic?.isPinned ?? false) || nodePinned,
         );

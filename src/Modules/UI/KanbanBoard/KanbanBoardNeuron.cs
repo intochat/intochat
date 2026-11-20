@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.KanbanBoard.Signals;
 
 namespace IntoChat.OS.Modules.UI.KanbanBoard;
 
 [Neuron("ui.kanban")]
-internal sealed class KanbanBoardNeuron : Neuron<KanbanBoardState>, IKanbanBoard
+internal sealed class KanbanBoardNeuron : UiNeuronBase<KanbanBoardState>, IKanbanBoard
 {
     public async Task<KanbanBoardState> Configure(string title, IReadOnlyList<KanbanColumn> columns, IReadOnlyList<KanbanCard> cards, string? selectedCardId = null)
     {

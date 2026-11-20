@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.TimePicker.Signals;
 
 namespace IntoChat.OS.Modules.UI.TimePicker;
 
 [Neuron("ui.time-picker")]
-internal sealed class TimePickerNeuron : Neuron<TimePickerState>, ITimePicker
+internal sealed class TimePickerNeuron : UiNeuronBase<TimePickerState>, ITimePicker
 {
     public async Task<TimePickerState> Configure(string label, int hour, int minute, bool use24Hour = true, bool disabled = false)
     {

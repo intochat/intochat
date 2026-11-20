@@ -52,10 +52,10 @@ public sealed record ArtCraftStudioAppState(
     string McpEndpointUri)
 {
     public ArtCraftStudioAppState() : this(
-        "artcraft", "mcp", "/work/project.craft", "/work/project.export.png", "suite.inspect",
+        "artcraft", "wasm-ui", "/work/project.craft", "/work/project.export.png", "suite.inspect",
         "Inspect ArtCraft Workspace", string.Empty,
-        "ArtCraft MCP server not connected. Connect ArtCraft in Settings to use tools.",
-        ["ArtCraft Suite Hub · Disconnected"], null, "neuron://local/mcp/artcraft")
+        "ArtCraft WASM Studio ready.",
+        ["ArtCraft Suite Hub · Ready"], "/artcraft/artcraft/index.html", "neuron://local/mcp/artcraft")
     { }
 
     [Invariant("ExecutionMode is wasm-ui, mcp, or native-linux."), JsonIgnore]
@@ -92,13 +92,14 @@ public sealed record ArtCraftStudioAppState(
             LayersOrTracks = result.LayersOrTracks,
         };
 
-    public static ArtCraftStudioAppState For(string appId)
+    public static ArtCraftStudioAppState For(string appId, string? executionMode = null)
     {
         var d = ArtCraftCatalog.Get(appId);
+        var mode = string.IsNullOrWhiteSpace(executionMode) ? "wasm-ui" : ArtCraftEngineRunner.NormalizeMode(executionMode);
         return new(
-            d.Id, "mcp", d.DefaultDocument, d.DefaultOutputDocument, d.DefaultCommandId, $"Ready · {d.Title}",
-            string.Empty, $"{d.Title} MCP server not connected.",
-            d.DefaultLayersOrTracks, null, $"neuron://local/mcp/{d.Id}");
+            d.Id, mode, d.DefaultDocument, d.DefaultOutputDocument, d.DefaultCommandId, $"Ready · {d.Title}",
+            string.Empty, mode == "wasm-ui" ? $"{d.Title} WASM Studio ready." : $"{d.Title} MCP server not connected.",
+            d.DefaultLayersOrTracks, d.StaticWebPath, $"neuron://local/mcp/{d.Id}");
     }
 }
 
@@ -216,14 +217,60 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logge
         ];
 
         var effectiveWebUrl = ResolveEmbeddedWebUrl(webUrl);
-        Node body = executionMode == "wasm-ui"
-            ? VStack(Space.Md)[
-                Banner("Embedded WASM Studio", $"Hosted via IntoChat OS Kernel ({effectiveWebUrl}). Switch to MCP or CLI for instant headless execution."),
-                WebBrowser(effectiveWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", height: 480, executionMode: executionMode)
-            ]
-            : nativeCanvas ?? BuildDefaultNativeCanvas(activeDoc, outputDoc, executionMode, itemsTitle, items, cliInvocation, mcpUri);
+        if (executionMode == "wasm-ui")
+        {
+            var wasmToolbar = HStack(
+                Space.Xs,
+                [
+                    StatusPill(StatusKind.Working, $"{Descriptor.Title} · WASM"),
+                    MutedText(activeDoc).Tabular().ToNode(),
+                    FlexSpacer(),
+                    .. headerActions ?? [],
+                ]);
 
+            var browser = WebBrowser(
+                effectiveWebUrl,
+                $"{Descriptor.Title} WASM Studio",
+                $"{Descriptor.Id}-wasm",
+                height: 920,
+                executionMode: executionMode,
+                automationName: $"{Descriptor.Title} WASM Studio",
+                chrome: "frameless");
+
+            return AppShell(
+                $"{Descriptor.Id}-shell",
+                sidebar: null,
+                body: browser,
+                toolbar: wasmToolbar,
+                inspector: null,
+                automationName: $"{Descriptor.Title} WASM Studio",
+                edgeToEdge: true);
+        }
+
+        var body = nativeCanvas ?? BuildDefaultNativeCanvas(activeDoc, outputDoc, executionMode, itemsTitle, items, cliInvocation, mcpUri);
         return AppShell($"{Descriptor.Id}-shell", sidebar: sidebar, body: body, toolbar: toolbar);
+    }
+
+    protected async Task<string> ResolvePreferredExecutionModeAsync(string fallback = "wasm-ui")
+    {
+        try
+        {
+            var settingsKey = IUserSettings.Key(Id.Brain);
+            if (TryGetOptional<IUserSettings>(settingsKey, $"IUserSettings is optional when resolving ArtCraft default mode for {Descriptor.Title}.") is { } settings)
+            {
+                var state = await settings.Read();
+                if (!string.IsNullOrWhiteSpace(state.ArtCraftDefaultMode))
+                {
+                    return ArtCraftEngineRunner.NormalizeMode(state.ArtCraftDefaultMode);
+                }
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            AppLogger.LogDebug(error, "Falling back to {Fallback} execution mode for {App}.", fallback, Descriptor.Title);
+        }
+
+        return ArtCraftEngineRunner.NormalizeMode(fallback);
     }
 
     protected string ResolveEmbeddedWebUrl(string? candidateUrl)
@@ -291,19 +338,20 @@ public abstract class ArtCraftStudioAppBase(string appId, ILogger? logger = null
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
+        var preferredMode = await ResolvePreferredExecutionModeAsync();
         if (State.AppId != Descriptor.Id)
         {
-            await Show(ArtCraftStudioAppState.For(Descriptor.Id));
+            await Show(ArtCraftStudioAppState.For(Descriptor.Id, preferredMode));
             return;
         }
 
-        if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
+        if (string.IsNullOrWhiteSpace(State.WebUrl) || IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
         {
             await Show(State with
             {
-                ExecutionMode = "mcp",
+                ExecutionMode = preferredMode,
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"{Descriptor.Title} studio ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
+                Status = $"{Descriptor.Title} studio ({FormatModeLabel(preferredMode)}) · Active: {State.ActiveDocument}",
             });
         }
     }

@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.PipsPager.Signals;
 
 namespace IntoChat.OS.Modules.UI.PipsPager;
 
 [Neuron("ui.pips-pager")]
-internal sealed class PipsPagerNeuron : Neuron<PipsPagerState>, IPipsPager
+internal sealed class PipsPagerNeuron : UiNeuronBase<PipsPagerState>, IPipsPager
 {
     public async Task<PipsPagerState> Configure(int pageCount, int selectedIndex = 0, int maxVisiblePips = 5, string orientation = "horizontal", bool showPrevNext = true)
     {

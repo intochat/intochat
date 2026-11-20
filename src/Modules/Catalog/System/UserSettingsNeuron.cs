@@ -53,8 +53,15 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
         string? desktopTone = null,
         string? language = null,
         string? timeZone = null,
-        string? dateFormat = null)
+        string? dateFormat = null,
+        string? artCraftDefaultMode = null)
     {
+        var normalizedArtCraftMode = string.IsNullOrWhiteSpace(artCraftDefaultMode)
+            ? State.ArtCraftDefaultMode
+            : artCraftDefaultMode.Trim().ToLowerInvariant() is "wasm-ui" or "mcp" or "native-linux"
+                ? artCraftDefaultMode.Trim().ToLowerInvariant()
+                : State.ArtCraftDefaultMode;
+
         var next = State with
         {
             ThemeMode = string.IsNullOrWhiteSpace(themeMode) ? State.ThemeMode : themeMode.Trim(),
@@ -62,6 +69,7 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
             Language = string.IsNullOrWhiteSpace(language) ? State.Language : language.Trim(),
             TimeZone = string.IsNullOrWhiteSpace(timeZone) ? State.TimeZone : timeZone.Trim(),
             DateFormat = string.IsNullOrWhiteSpace(dateFormat) ? State.DateFormat : dateFormat.Trim(),
+            ArtCraftDefaultMode = normalizedArtCraftMode,
         };
         await Save(next, new UserSettingsChanged(
             next.DisplayName,
@@ -73,7 +81,8 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
             next.DesktopTone,
             next.Language,
             next.TimeZone,
-            next.DateFormat));
+            next.DateFormat,
+            next.ArtCraftDefaultMode));
         return next;
     }
 

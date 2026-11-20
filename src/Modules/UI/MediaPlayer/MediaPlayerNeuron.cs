@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.MediaPlayer.Signals;
 
 namespace IntoChat.OS.Modules.UI.MediaPlayer;
 
 [Neuron("ui.media-player")]
-internal sealed class MediaPlayerNeuron : Neuron<MediaPlayerState>, IMediaPlayer
+internal sealed class MediaPlayerNeuron : UiNeuronBase<MediaPlayerState>, IMediaPlayer
 {
     public async Task<MediaPlayerState> Configure(string title, string artist, string sourceUrl, string kind = "audio", double durationSeconds = 180)
     {

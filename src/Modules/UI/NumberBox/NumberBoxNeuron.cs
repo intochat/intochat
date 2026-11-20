@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.NumberBox.Signals;
 
 namespace IntoChat.OS.Modules.UI.NumberBox;
 
 [Neuron("ui.number-box")]
-internal sealed class NumberBoxNeuron : Neuron<NumberBoxState>, INumberBox
+internal sealed class NumberBoxNeuron : UiNeuronBase<NumberBoxState>, INumberBox
 {
     public async Task<NumberBoxState> Configure(string label, double value = 0, double min = 0, double max = 1000, double step = 1, bool isEnabled = true, string prefix = "")
     {

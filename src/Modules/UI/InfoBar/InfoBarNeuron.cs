@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.InfoBar.Signals;
 
 namespace IntoChat.OS.Modules.UI.InfoBar;
 
 [Neuron("ui.info-bar")]
-internal sealed class InfoBarNeuron : Neuron<InfoBarState>, IInfoBar
+internal sealed class InfoBarNeuron : UiNeuronBase<InfoBarState>, IInfoBar
 {
     public async Task<InfoBarState> Show(string title, string message, string severity = "info", bool isClosable = true)
     {

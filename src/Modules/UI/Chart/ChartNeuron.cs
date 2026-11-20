@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
@@ -6,7 +7,7 @@ using IntoChat.OS.Modules.UI.Chart.Signals;
 namespace IntoChat.OS.Modules.UI.Chart;
 
 [Neuron("ui.chart")]
-internal sealed class ChartNeuron : Neuron<ChartState>, IChart
+internal sealed class ChartNeuron : UiNeuronBase<ChartState>, IChart
 {
     public async Task<ChartState> Render(ChartSpec spec)
     {

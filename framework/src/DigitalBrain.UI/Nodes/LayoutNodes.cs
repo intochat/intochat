@@ -124,7 +124,8 @@ public sealed record AppShellNode(
     Node? Toolbar = null,
     Node? Inspector = null,
     string AutomationName = "",
-    string Transition = "") : Node
+    string Transition = "",
+    bool EdgeToEdge = false) : Node
 {
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
     public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : Key ?? "";

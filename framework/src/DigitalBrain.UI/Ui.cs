@@ -11,8 +11,9 @@ public static class Ui
         Node? toolbar = null,
         Node? inspector = null,
         string automationName = "",
-        string transition = "") =>
-        new(key, sidebar, body, toolbar, inspector, automationName, transition);
+        string transition = "",
+        bool edgeToEdge = false) =>
+        new(key, sidebar, body, toolbar, inspector, automationName, transition, edgeToEdge);
 
     /// <summary>Creates a sidebar navigation item with a Lucide icon key, operation name, selection state, and optional badge.</summary>
     public static NavItemNode NavItem(
@@ -44,8 +45,9 @@ public static class Ui
         string key = "web-browser",
         double height = 520,
         string executionMode = "wasm-ui",
-        string automationName = "") =>
-        new(key, url, title, height, executionMode, automationName);
+        string automationName = "",
+        string chrome = "full") =>
+        new(key, url, title, height, executionMode, automationName, chrome);
 
     /// <summary>Creates a micro-app telemetry tile with optional sparkline, threshold, and quick actions.</summary>
     public static MetricTileNode MetricTile(

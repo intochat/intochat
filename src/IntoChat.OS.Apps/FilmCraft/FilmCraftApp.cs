@@ -52,10 +52,11 @@ public sealed record FilmCraftAppState(
     string McpEndpointUri = "neuron://local/mcp/filmcraft")
 {
     public FilmCraftAppState() : this(
-        "mcp", "/work/launch-trailer.fcproj", "/work/launch-trailer.cut.mp4", "timeline.razor", "Ready · FilmCraft Studio",
+        "wasm-ui", "/work/launch-trailer.fcproj", "/work/launch-trailer.cut.mp4", "timeline.razor", "Ready · FilmCraft Studio",
         string.Empty,
-        "FilmCraft MCP server not connected.",
-        ["V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)", "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)", "A1 · Master Dialogue Bus (-14 LUFS)"])
+        "FilmCraft WASM Studio ready.",
+        ["V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)", "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)", "A1 · Master Dialogue Bus (-14 LUFS)"],
+        "/artcraft/filmcraft/index.html")
     { }
 
     [Invariant("ExecutionMode is wasm-ui, mcp, or native-linux."), JsonIgnore]
@@ -128,13 +129,14 @@ public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
     {
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
-        if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
+        var preferredMode = await ResolvePreferredExecutionModeAsync();
+        if (string.IsNullOrWhiteSpace(State.WebUrl) || IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
         {
             await Show(State with
             {
-                ExecutionMode = "mcp",
+                ExecutionMode = preferredMode,
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"FilmCraft studio ({FormatModeLabel("mcp")}) · Sequence: {State.ActiveSequence}",
+                Status = $"FilmCraft studio ({FormatModeLabel(preferredMode)}) · Sequence: {State.ActiveSequence}",
             });
         }
     }

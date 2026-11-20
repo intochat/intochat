@@ -31,7 +31,8 @@ public sealed class FilmCraftAppFacts
         os.Register(typeof(AppsModule).Assembly);
         var installed = await os.Install<FilmCraftApp>();
 
-        Assert.Null(installed.App.State.WebUrl);
+        Assert.Equal("wasm-ui", installed.App.State.ExecutionMode);
+        Assert.Equal("/artcraft/filmcraft/index.html", installed.App.State.WebUrl);
         Assert.Equal(string.Empty, installed.App.State.LastCliInvocation);
 
         await installed.Request("export", new FilmCraftExport("/work/out.mp4", "mp4"));

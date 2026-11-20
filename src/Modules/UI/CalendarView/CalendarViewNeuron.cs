@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.CalendarView.Signals;
 
 namespace IntoChat.OS.Modules.UI.CalendarView;
 
 [Neuron("ui.calendar")]
-internal sealed class CalendarViewNeuron : Neuron<CalendarViewState>, ICalendarView
+internal sealed class CalendarViewNeuron : UiNeuronBase<CalendarViewState>, ICalendarView
 {
     public async Task<CalendarViewState> Configure(string title, int year, int month, IReadOnlyList<string>? selectedDates = null, bool multiSelect = false)
     {

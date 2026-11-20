@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.AutoSuggestBox.Signals;
 
 namespace IntoChat.OS.Modules.UI.AutoSuggestBox;
 
 [Neuron("ui.auto-suggest")]
-internal sealed class AutoSuggestBoxNeuron : Neuron<AutoSuggestBoxState>, IAutoSuggestBox
+internal sealed class AutoSuggestBoxNeuron : UiNeuronBase<AutoSuggestBoxState>, IAutoSuggestBox
 {
     public async Task<AutoSuggestBoxState> Configure(string placeholder, IReadOnlyList<string> items)
     {

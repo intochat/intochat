@@ -652,8 +652,19 @@ internal static partial class DesktopBootstrap
         environment[AuthPostureEnvVar] = "Open";
         environment[AuthorityIdentityPostureEnvVar] = "Open";
         environment[PresenceTokenFileEnvVar] = layout.PresenceFilePath;
-        environment[OrleansDashboardEnabledEnvVar] = "false";
-        environment[IntoChatOrleansDashboardEnabledEnvVar] = "false";
+        var dashboardEnabled = readEnv(IntoChatOrleansDashboardEnabledEnvVar)
+            ?? readEnv(OrleansDashboardEnabledEnvVar)
+            ?? "true";
+        environment[OrleansDashboardEnabledEnvVar] = dashboardEnabled;
+        environment[IntoChatOrleansDashboardEnabledEnvVar] = dashboardEnabled;
+
+        foreach (var aspireVar in (string[])["IntoChatOS__AspireDashboardUrl", "ASPIRE_DASHBOARD_URL", "DOTNET_DASHBOARD_URLS"])
+        {
+            if (readEnv(aspireVar) is { Length: > 0 } aspireVal)
+            {
+                environment[aspireVar] = aspireVal;
+            }
+        }
 
         var disabledCsv = readEnv(ModulesDisabledEnvVar) is { Length: > 0 } configuredDisabled
             ? configuredDisabled

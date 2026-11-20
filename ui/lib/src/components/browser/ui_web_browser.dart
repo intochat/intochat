@@ -15,6 +15,7 @@ final class UiWebBrowser extends StatefulWidget {
     super.key,
     required this.part,
     this.height = 160,
+    this.frameless = false,
     this.onConnect,
     this.onDisconnect,
     this.onUnavailable,
@@ -25,6 +26,7 @@ final class UiWebBrowser extends StatefulWidget {
 
   final UiWebBrowserPart part;
   final double? height;
+  final bool frameless;
   final Future<void> Function(int, String)? onConnect;
   final Future<void> Function(String)? onDisconnect;
   final Future<void> Function(String)? onUnavailable;
@@ -69,6 +71,46 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
         : connection == 'waiting'
         ? 'Waiting for the page...'
         : null;
+
+    final viewport = Stack(
+      fit: StackFit.expand,
+      children: [
+        EmbeddedBrowser(
+          // Reconnect replaces the native page and its marked connector session.
+          key: ValueKey(_session),
+          uri: url,
+          onConnect: widget.onConnect,
+          onDisconnect: widget.onDisconnect,
+          onUnavailable: widget.onUnavailable,
+        ),
+        if (placeholder != null)
+          ColoredBox(
+            color: scheme.surface,
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(tokens.spaceMedium),
+                child: SelectableText(
+                  placeholder,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    if (widget.frameless) {
+      return Semantics(
+        label: 'browser ${widget.part.title}',
+        child: SizedBox(
+          key: Key('ui_webbrowser_${widget.part.name}'),
+          width: double.infinity,
+          height: widget.height,
+          child: viewport,
+        ),
+      );
+    }
 
     return Semantics(
       label: 'browser ${widget.part.title}',
@@ -121,37 +163,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
                   ],
                 ),
                 SizedBox(height: tokens.spaceSmall),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      EmbeddedBrowser(
-                        // Reconnect replaces the native page and its marked connector session.
-                        key: ValueKey(_session),
-                        uri: url,
-                        onConnect: widget.onConnect,
-                        onDisconnect: widget.onDisconnect,
-                        onUnavailable: widget.onUnavailable,
-                      ),
-                      if (placeholder != null)
-                        ColoredBox(
-                          color: scheme.surface,
-                          child: Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(tokens.spaceMedium),
-                              child: SelectableText(
-                                placeholder,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                Expanded(child: viewport),
               ],
             ),
           ),

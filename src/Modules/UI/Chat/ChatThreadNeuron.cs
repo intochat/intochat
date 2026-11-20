@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Chat.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.Chat.Signals;
 namespace IntoChat.OS.Modules.UI.Chat;
 
 [Neuron("ui.chat")]
-internal sealed class ChatThreadNeuron : Neuron<UiChatThreadState>, IChatThread
+internal sealed class ChatThreadNeuron : UiNeuronBase<UiChatThreadState>, IChatThread
 {
     public async Task<UiChatThreadState> Configure(
         string conversationId,

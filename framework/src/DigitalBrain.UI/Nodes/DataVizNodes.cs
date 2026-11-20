@@ -120,7 +120,8 @@ public sealed record WebBrowser(
     string? Title = null,
     double Height = 520,
     string ExecutionMode = "wasm-ui",
-    string AutomationName = "") : Node
+    string AutomationName = "",
+    string Chrome = "full") : Node
 {
     /// <summary>The accessible name: the given one, or <see cref="Title"/> / <see cref="Key"/> when none was given.</summary>
     public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : !string.IsNullOrWhiteSpace(Title) ? Title! : Key ?? "";

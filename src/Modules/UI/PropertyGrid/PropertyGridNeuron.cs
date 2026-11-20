@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain.Neurons;
@@ -6,7 +7,7 @@ using IntoChat.OS.Modules.UI.PropertyGrid.Signals;
 namespace IntoChat.OS.Modules.UI.PropertyGrid;
 
 [Neuron("ui.property-grid")]
-internal sealed class PropertyGridNeuron : Neuron<PropertyGridState>, IPropertyGrid
+internal sealed class PropertyGridNeuron : UiNeuronBase<PropertyGridState>, IPropertyGrid
 {
     private const int MaxEntries = 500;
 

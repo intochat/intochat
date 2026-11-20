@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.CodeEditor.Signals;
 
 namespace IntoChat.OS.Modules.UI.CodeEditor;
 
 [Neuron("ui.code-editor")]
-internal sealed class CodeEditorNeuron : Neuron<CodeEditorState>, ICodeEditor
+internal sealed class CodeEditorNeuron : UiNeuronBase<CodeEditorState>, ICodeEditor
 {
     public async Task<CodeEditorState> Configure(string title, string language, string content, bool readOnly = false, bool wordWrap = false)
     {

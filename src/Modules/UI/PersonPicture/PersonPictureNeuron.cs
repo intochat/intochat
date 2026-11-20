@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.PersonPicture.Signals;
 
 namespace IntoChat.OS.Modules.UI.PersonPicture;
 
 [Neuron("ui.person-picture")]
-internal sealed class PersonPictureNeuron : Neuron<PersonPictureState>, IPersonPicture
+internal sealed class PersonPictureNeuron : UiNeuronBase<PersonPictureState>, IPersonPicture
 {
     public async Task<PersonPictureState> Configure(string displayName, string? subtitle = null, string? avatarUrl = null, string presence = "online")
     {

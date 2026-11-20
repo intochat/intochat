@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.SplitButton.Signals;
 
 namespace IntoChat.OS.Modules.UI.SplitButton;
 
 [Neuron("ui.split-button")]
-internal sealed class SplitButtonNeuron : Neuron<SplitButtonState>, ISplitButton
+internal sealed class SplitButtonNeuron : UiNeuronBase<SplitButtonState>, ISplitButton
 {
     public async Task<SplitButtonState> Configure(string primaryLabel, IReadOnlyList<SplitButtonOption> options, string? primaryIcon = null, string? selectedOptionId = null)
     {

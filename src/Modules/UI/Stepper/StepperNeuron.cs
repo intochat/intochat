@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Stepper.Signals;
 
 namespace IntoChat.OS.Modules.UI.Stepper;
 
 [Neuron("ui.stepper")]
-internal sealed class StepperNeuron : Neuron<StepperState>, IStepper
+internal sealed class StepperNeuron : UiNeuronBase<StepperState>, IStepper
 {
     public async Task<StepperState> Configure(IReadOnlyList<StepperStep> steps, string? activeStepId = null, string title = "", bool allowInteractiveSelection = true)
     {

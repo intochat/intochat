@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.MarkdownViewer.Signals;
 
 namespace IntoChat.OS.Modules.UI.MarkdownViewer;
 
 [Neuron("ui.markdown")]
-internal sealed class MarkdownViewerNeuron : Neuron<MarkdownViewerState>, IMarkdownViewer
+internal sealed class MarkdownViewerNeuron : UiNeuronBase<MarkdownViewerState>, IMarkdownViewer
 {
     public async Task<MarkdownViewerState> SetDocument(string title, string markdown)
     {

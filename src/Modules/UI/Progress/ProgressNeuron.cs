@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Progress.Signals;
 
 namespace IntoChat.OS.Modules.UI.Progress;
 
 [Neuron("ui.progress")]
-internal sealed class ProgressIndicatorNeuron : Neuron<ProgressState>, IProgressIndicator
+internal sealed class ProgressIndicatorNeuron : UiNeuronBase<ProgressState>, IProgressIndicator
 {
     public async Task<ProgressState> SetProgress(string label, double value, bool isIndeterminate = false, string kind = "bar")
     {

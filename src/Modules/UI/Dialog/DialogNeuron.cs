@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Dialog.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.Dialog.Signals;
 namespace IntoChat.OS.Modules.UI.Dialog;
 
 [Neuron("ui.dialog")]
-internal sealed class DialogNeuron : Neuron<DialogState>, IDialog
+internal sealed class DialogNeuron : UiNeuronBase<DialogState>, IDialog
 {
     public async Task<DialogState> Open(
         string title,

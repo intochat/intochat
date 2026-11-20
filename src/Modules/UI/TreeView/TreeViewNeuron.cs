@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.TreeView.Signals;
 
 namespace IntoChat.OS.Modules.UI.TreeView;
 
 [Neuron("ui.tree-view")]
-internal sealed class TreeViewNeuron : Neuron<TreeViewState>, ITreeView
+internal sealed class TreeViewNeuron : UiNeuronBase<TreeViewState>, ITreeView
 {
     public async Task<TreeViewState> Configure(IReadOnlyList<TreeNode> nodes, IReadOnlyList<string>? expandedIds = null, string? selectedId = null)
     {

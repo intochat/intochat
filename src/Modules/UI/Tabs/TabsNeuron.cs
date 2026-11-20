@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Tabs.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.Tabs.Signals;
 namespace IntoChat.OS.Modules.UI.Tabs;
 
 [Neuron("ui.tabs")]
-internal sealed class TabsNeuron : Neuron<TabsState>, ITabs
+internal sealed class TabsNeuron : UiNeuronBase<TabsState>, ITabs
 {
     public async Task<TabsState> Configure(IReadOnlyList<UiTabItem> items, string? selectedId = null, bool isEnabled = true)
     {

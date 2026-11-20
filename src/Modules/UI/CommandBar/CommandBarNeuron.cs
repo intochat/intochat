@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.CommandBar.Signals;
 
 namespace IntoChat.OS.Modules.UI.CommandBar;
 
 [Neuron("ui.command-bar")]
-internal sealed class CommandBarNeuron : Neuron<CommandBarState>, ICommandBar
+internal sealed class CommandBarNeuron : UiNeuronBase<CommandBarState>, ICommandBar
 {
     public async Task<CommandBarState> Configure(IReadOnlyList<CommandBarItem> items)
     {

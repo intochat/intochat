@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.ImageViewer.Signals;
 
 namespace IntoChat.OS.Modules.UI.ImageViewer;
 
 [Neuron("ui.image-viewer")]
-internal sealed class ImageViewerNeuron : Neuron<ImageViewerState>, IImageViewer
+internal sealed class ImageViewerNeuron : UiNeuronBase<ImageViewerState>, IImageViewer
 {
     public async Task<ImageViewerState> Configure(string title, string sourceUrl, string? caption = null, string fitMode = "contain")
     {

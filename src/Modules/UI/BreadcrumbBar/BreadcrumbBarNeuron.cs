@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.BreadcrumbBar.Signals;
 
 namespace IntoChat.OS.Modules.UI.BreadcrumbBar;
 
 [Neuron("ui.breadcrumb")]
-internal sealed class BreadcrumbBarNeuron : Neuron<BreadcrumbBarState>, IBreadcrumbBar
+internal sealed class BreadcrumbBarNeuron : UiNeuronBase<BreadcrumbBarState>, IBreadcrumbBar
 {
     public async Task<BreadcrumbBarState> SetItems(IReadOnlyList<BreadcrumbItem> items)
     {

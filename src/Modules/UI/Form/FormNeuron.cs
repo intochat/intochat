@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Form.Signals;
@@ -5,7 +6,7 @@ using IntoChat.OS.Modules.UI.Form.Signals;
 namespace IntoChat.OS.Modules.UI.Form;
 
 [Neuron("ui.form")]
-internal sealed class FormNeuron : Neuron<UiFormState>, IForm
+internal sealed class FormNeuron : UiNeuronBase<UiFormState>, IForm
 {
     public async Task<UiFormState> Configure(
         string title,

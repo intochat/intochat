@@ -1,10 +1,11 @@
+using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.FilePicker.Signals;
 
 namespace IntoChat.OS.Modules.UI.FilePicker;
 
 [Neuron("ui.file-picker")]
-internal sealed class FilePickerNeuron : Neuron<FilePickerState>, IFilePicker
+internal sealed class FilePickerNeuron : UiNeuronBase<FilePickerState>, IFilePicker
 {
     public async Task<FilePickerState> Configure(
         string title,
