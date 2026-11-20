@@ -30,10 +30,7 @@ public static class BrainHosting
         // The host registers what became of every module it was given; a bare silo reports its modules Active.
         silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
         foreach (var module in selected) { module.BindOptions(silo.Services); }
-        if (selected.Any(module => module.Id.Value == "windows"))
-        {
-            silo.Services.AddWindowsMachineIdentity();
-        }
+        silo.Services.AddMachineId();
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<IOperationHandler<WritePlan>, StorageWriteHandler>();

@@ -1,3 +1,3 @@
 # DigitalBrain.Identity.Local
 
-Opt-in local single-owner identity, secrets vault, connections and file master-key custody for DigitalBrain hosts, with no Orleans dependency.
+Opt-in local single-owner identity, secrets vault, connections, file master-key custody and the machine id for DigitalBrain hosts, with no Orleans dependency.

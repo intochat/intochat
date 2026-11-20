@@ -3,14 +3,14 @@ using System.Security;
 using System.Text.Json;
 using DigitalBrain.Operations;
 using IntoChat.OS.Framework.Logging;
-using IntoChat.OS.Framework.Machine;
+using DigitalBrain.Identity.Local.Machine;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 
 // Local process evidence is independent of Aspire's allocated Orleans ports. The installation identity must match
 // before probing a PID; a PID namespace we cannot identify contributes no evidence to recovery.
-internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, ILocalProcessProbe processes,
+internal sealed class LocalOperationDriverLifetime(MachineId? machine, ILocalProcessProbe processes,
     ILogger<LocalOperationDriverLifetime>? logger = null) : IOperationDriverLifetime
 {
     private readonly ILogger<LocalOperationDriverLifetime> _logger = logger ?? OsConsoleLog.For<LocalOperationDriverLifetime>();
@@ -19,14 +19,14 @@ internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, I
     {
         try
         {
-            var machine = identity?.Id;
+            var id = machine?.Value;
             var space = processes.Namespace;
-            if (string.IsNullOrWhiteSpace(machine) || string.IsNullOrWhiteSpace(space)) { return null; }
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(space)) { return null; }
             var pid = processes.CurrentProcessId;
             if (pid <= 0) { return null; }
             var process = processes.Observe(pid);
             return process is { Alive: true, StartedUtcTicks: > 0 } && process.StartedUtcTicks <= DateTime.MaxValue.Ticks
-                ? System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(new Token(1, machine, space, pid, process.StartedUtcTicks), typeof(Token))) : null;
+                ? System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(new Token(1, id, space, pid, process.StartedUtcTicks), typeof(Token))) : null;
         }
         catch (Exception error) when (Unavailable(error))
         {
@@ -43,7 +43,7 @@ internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, I
             var saved = DigitalBrain.Invocation.RuntimeProtocol.Deserialize(System.Text.Encoding.UTF8.GetBytes(token), typeof(Token)) as Token;
             if (saved is not { Version: 1, ProcessId: > 0, StartedUtcTicks: > 0 }
                 || saved.StartedUtcTicks > DateTime.MaxValue.Ticks || string.IsNullOrWhiteSpace(saved.Machine)
-                || string.IsNullOrWhiteSpace(saved.Namespace) || saved.Machine != identity?.Id || saved.Namespace != processes.Namespace)
+                || string.IsNullOrWhiteSpace(saved.Namespace) || saved.Machine != machine?.Value || saved.Namespace != processes.Namespace)
             { return null; }
             var process = processes.Observe(saved.ProcessId);
             return process.Alive switch

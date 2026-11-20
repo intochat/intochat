@@ -11,7 +11,7 @@ The product has four parts.
 | Modules | Capabilities and connectors the kernel composes. | `src/Modules` |
 | Shell | What you see: the Flutter client and the desktop launcher. | `ui`, `src/IntoChat.OS.Desktop` |
 
-`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, `SiloAccessCallFilter`, `NeuronsGrpcService`). `src/IntoChat.OS.AppHost` (`IntoChat.OS.Aspire.Hosting`) provides .NET Aspire helpers (`AddIntoChatOS` and `AddIntoChatOSContainer` in `Hosting/IntoChatOSHostingExtensions.cs`, and `AddKernel` in `Hosting/Composition/OperatingSystemHosting.cs`). `src/Modules/Shell/Contracts` (`IntoChat.OS.Modules.Shell.Contracts`) holds the shell wire contracts and signals separately from `src/Modules/Shell`.
+`src/Modules/Identity` (assembly `IntoChat.OS.Modules.Identity`) holds the identity module and, for now, the product-side hosting code (connections, `SiloAccessCallFilter`, `NeuronsGrpcService`, service defaults and the Orleans client). `src/IntoChat.OS.AppHost` (`IntoChat.OS.Aspire.Hosting`) provides .NET Aspire helpers (`AddIntoChatOS` and `AddIntoChatOSContainer` in `Hosting/IntoChatOSHostingExtensions.cs`, and `AddKernel` in `Hosting/Composition/OperatingSystemHosting.cs`). `src/Modules/Shell/Contracts` (`IntoChat.OS.Modules.Shell.Contracts`) holds the shell wire contracts and signals separately from `src/Modules/Shell`.
 
 ## Kernel
 

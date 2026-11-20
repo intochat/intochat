@@ -10,12 +10,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Identity.Local.Machine;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 internal sealed class LocalWindowsDeviceBootstrap(
     IServiceProvider services,
-    MachineIdentity identity,
+    MachineId thisMachine,
     IOptions<WindowsOptions> options,
     IHostApplicationLifetime? lifetime = null,
     IBrainObserver? brains = null,
@@ -96,7 +97,7 @@ internal sealed class LocalWindowsDeviceBootstrap(
         using var edgeScope = hasHumanUser
             ? null
             : edge?.Enter(edge.Module(WindowsModule.ManifestName, new BrainId(brainId)));
-        var key = ConnectionKeys.For(brainId, WindowsModule.ManifestName, identity.Id);
+        var key = ConnectionKeys.For(brainId, WindowsModule.ManifestName, thisMachine.Value);
         var connection = SiloNeurons.Get<IConnection>(services, ConnectionKeys.IdFor(key));
         var view = await connection.Read().ConfigureAwait(false);
         if (view.Status == ConnectionStatus.Connected)
@@ -107,7 +108,7 @@ internal sealed class LocalWindowsDeviceBootstrap(
         var requests = SiloNeurons.Get<IConnectionRequests>(services, IConnectionRequests.Key(brainId));
         _ = await requests.ListConnections().ConfigureAwait(false);
 
-        var result = await connection.Connect("device", identity.Id).ConfigureAwait(false);
+        var result = await connection.Connect("device", thisMachine.Value).ConfigureAwait(false);
         return result.Status == ConnectionStatus.Connected;
     }
 
@@ -195,7 +196,7 @@ internal sealed class LocalWindowsDeviceBootstrap(
             {
                 if (attempt == maxAttempts)
                 {
-                    logger?.LogWarning(error, "Could not auto-enroll Windows device '{MachineId}' after {Attempts} attempts.", identity.Id, maxAttempts);
+                    logger?.LogWarning(error, "Could not auto-enroll Windows device '{MachineId}' after {Attempts} attempts.", thisMachine.Value, maxAttempts);
                     return;
                 }
 

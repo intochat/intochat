@@ -39,7 +39,6 @@ public sealed class WindowsModule : DigitalBrain.Modules.Module, IHttpModule
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<MachineIdentity>();
         services.TryAddSingleton<WindowsStorageCoordinator>();
         services.TryAddSingleton<WindowsFolderWatcher>();
         services.AddHostedService(sp => sp.GetRequiredService<WindowsFolderWatcher>());

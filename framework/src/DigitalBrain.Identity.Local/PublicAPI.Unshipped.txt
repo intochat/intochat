@@ -233,3 +233,6 @@ DigitalBrain.Identity.Local.Vault.LocalVaultPort.Remove(string! name, System.Thr
 DigitalBrain.Identity.Local.Vault.LocalVaultPort.Resolve(DigitalBrain.Capabilities.Secrets.SecretRef! secret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultResult!>!
 DigitalBrain.Identity.Local.Vault.LocalVaultPort.Seal(string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret?>!
 DigitalBrain.Identity.Local.Vault.LocalVaultPort.Set(string! name, string! label, string! value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultResult!>!
+DigitalBrain.Identity.Local.Machine.MachineId
+DigitalBrain.Identity.Local.Machine.MachineId.MachineId(string! file) -> void
+DigitalBrain.Identity.Local.Machine.MachineId.Value.get -> string!

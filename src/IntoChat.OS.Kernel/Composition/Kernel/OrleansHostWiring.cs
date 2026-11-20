@@ -28,7 +28,7 @@ public static class OrleansHostWiring
         {
             services.TryAddSingleton<Operations.ILocalProcessProbe, Operations.SystemLocalProcessProbe>();
             services.TryAddSingleton<DigitalBrain.Operations.IOperationDriverLifetime>(provider =>
-                new Operations.LocalOperationDriverLifetime(provider.GetService<IntoChat.OS.Framework.Machine.IMachineIdentity>(),
+                new Operations.LocalOperationDriverLifetime(provider.GetService<DigitalBrain.Identity.Local.Machine.MachineId>(),
                     provider.GetRequiredService<Operations.ILocalProcessProbe>(),
                     provider.GetService<Microsoft.Extensions.Logging.ILogger<Operations.LocalOperationDriverLifetime>>()));
         }

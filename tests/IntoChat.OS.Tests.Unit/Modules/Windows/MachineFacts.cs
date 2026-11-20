@@ -1,5 +1,4 @@
 using DigitalBrain.Capabilities.Storage.Confinement;
-using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
@@ -53,38 +52,5 @@ public sealed class MachineFacts : IDisposable
         Assert.Equal(Path.Combine(_root, "dir"), PathConfinement.Normalize(Path.Combine(_root, "dir") + Path.DirectorySeparatorChar));
         var filesystemRoot = Path.GetPathRoot(_root)!;
         Assert.Equal(filesystemRoot, PathConfinement.Normalize(filesystemRoot));
-    }
-
-    [Fact]
-    public void TheMachineIdIsCreatedOnceThenReadBack()
-    {
-        var file = Path.Combine(_root, "state", "machine-id");
-        var options = MicrosoftSdk.Extensions.Options.Options.Create(new WindowsOptions { MachineIdFile = file });
-
-        var created = new MachineIdentity(options).Id;
-
-        Assert.True(Guid.TryParseExact(created, "N", out _));
-        Assert.Equal(created, new MachineIdentity(options).Id);
-        Assert.Equal(created, File.ReadAllText(file));
-    }
-
-    [Fact]
-    public void AGarbledMachineIdFileIsAnErrorAndIsNeverReplaced()
-    {
-        var file = Path.Combine(_root, "machine-id");
-        File.WriteAllText(file, "not-a-guid");
-        var options = MicrosoftSdk.Extensions.Options.Options.Create(new WindowsOptions { MachineIdFile = file });
-
-        Assert.Throws<InvalidDataException>(() => new MachineIdentity(options).Id);
-        Assert.Equal("not-a-guid", File.ReadAllText(file));
-    }
-
-    [Fact]
-    public void TheDefaultOptionsLeaveTheMachineIdFileToTheLocalAppDataDefault()
-    {
-        var options = new WindowsOptions();
-
-        options.Validate();
-        Assert.Equal("", options.MachineIdFile);
     }
 }

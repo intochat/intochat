@@ -27,7 +27,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 | `Time` | `time` | Timers and persistent periodic reminders. |
 | `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |
 
-The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`, and `IdentityModule` in `src/IntoChat.OS.Framework`.
+The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`, and `IdentityModule` in `src/Modules/Identity`.
 
 ## How a module is added
 

@@ -8,6 +8,7 @@ using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Identity.Local.Machine;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -22,14 +23,14 @@ internal sealed record WindowsConnectionState : ConnectionState
 // to the allowed roots, read fresh on every call.
 [DigitalBrain.Neurons.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
-    MachineIdentity identity, WindowsStorageCoordinator coordinator, IOperations operations,
+    MachineId thisMachine, WindowsStorageCoordinator coordinator, IOperations operations,
     IConfirmations? confirmations = null, IStorageWriteAuthorizer? authorizer = null)
     : ConnectionNeuron<WindowsConnectionState>, IWindows, IStorage, IStorageUpload
 {
     private StorageUploadSessions? _uploads;
 
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(
-        identity.Id, Environment.MachineName, Environment.OSVersion.VersionString, Environment.ProcessorCount,
+        thisMachine.Value, Environment.MachineName, Environment.OSVersion.VersionString, Environment.ProcessorCount,
         GC.GetGCMemoryInfo().TotalAvailableMemoryBytes));
 
     public Task<string[]> Roots() => Task.FromResult(Snapshot.Roots);
@@ -107,13 +108,13 @@ internal sealed class WindowsNeuron(
     }
 
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) =>
-        Task.FromResult(OperatingSystem.IsWindows() && credential.Value == identity.Id
+        Task.FromResult(OperatingSystem.IsWindows() && credential.Value == thisMachine.Value
             ? ConnectionProbeResult.Connected()
             : ConnectionProbeResult.Failing("This device value is not the machine this silo runs on."));
 
     internal void RequireThisMachine()
     {
-        if (Key.Connection != identity.Id)
+        if (Key.Connection != thisMachine.Value)
         { throw new ServiceUnavailableException($"Windows machine '{Key.Connection}' is not this silo's machine."); }
     }
 

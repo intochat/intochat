@@ -38,12 +38,8 @@ public sealed class WindowsFolderMediationFacts : IDisposable
     private TestOS CreateOs(WindowsFolderWatcher? watcher = null)
     {
         var services = new ServiceCollection();
-        services.Configure<WindowsOptions>(options =>
-        {
-            options.MachineIdFile = Path.Combine(_sandboxRoot, "machine-id");
-            options.AutoEnrollThisPc = false;
-        });
-        services.AddSingleton<MachineIdentity>();
+        services.Configure<WindowsOptions>(options => options.AutoEnrollThisPc = false);
+        services.AddSingleton(new DigitalBrain.Identity.Local.Machine.MachineId(Path.Combine(_sandboxRoot, "machine-id")));
         services.AddSingleton<WindowsStorageCoordinator>();
         services.AddSingleton(watcher ?? new WindowsFolderWatcher());
 

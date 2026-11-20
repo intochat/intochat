@@ -3,7 +3,7 @@
     <IsPackable>true</IsPackable>
     <RootNamespace>DigitalBrain.Identity.Local</RootNamespace>
     <PackageId>DigitalBrain.Identity.Local</PackageId>
-    <Description>Local single-owner identity, secrets vault, connections and file master-key custody for DigitalBrain hosts. No Orleans.</Description>
+    <Description>Local single-owner identity, secrets vault, connections, file master-key custody and the machine id for DigitalBrain hosts. No Orleans.</Description>
     <PackageReadmeFile Condition="Exists('README.md')">README.md</PackageReadmeFile>
     <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
   </PropertyGroup>

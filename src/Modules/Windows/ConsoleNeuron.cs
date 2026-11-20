@@ -7,12 +7,13 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
 using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Framework.Logging;
+using DigitalBrain.Identity.Local.Machine;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/console.
 [DigitalBrain.Neurons.Neuron("windows.console")]
-internal sealed class ConsoleNeuron(MachineIdentity identity, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IConsole
+internal sealed class ConsoleNeuron(MachineId thisMachine, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IConsole
 {
     private const int MaxOutputChars = 20_000;
 
@@ -23,7 +24,7 @@ internal sealed class ConsoleNeuron(MachineIdentity identity, IServiceProvider s
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
         var connection = WindowsKeys.Connection(Id.FullKey());
-        if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
+        if (ConnectionKeys.Parse(connection).ConnectionId != thisMachine.Value)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
         var roots = await SiloNeurons.Get<IWindows>(services, connection).Roots();
         var directory = PathConfinement.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
