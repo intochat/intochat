@@ -602,11 +602,6 @@
       "persisted": false
     },
     {
-      "old": "IntoChat.OS.Framework.NeutralCallFilter",
-      "alias": null,
-      "persisted": false
-    },
-    {
       "old": "IntoChat.OS.Framework.NeutralCallMapping",
       "alias": null,
       "persisted": false

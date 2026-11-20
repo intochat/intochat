@@ -35,6 +35,9 @@ internal sealed record ContractManifest(
     [
         // The caller model's exception (deleted with the one-caller model); it crossed the wire inside failed call results.
         ("IntoChat.OS.Framework.UntrustedCallerException", "enforcement.untrusted-caller; "),
+        // The semantic type catalog (deleted unused with TypeCatalog in the identity break-up); nothing produced either value.
+        ("IntoChat.OS.Connections.SemanticType", "semantic.type; Kind=0, Id=1, Primitive=2, Sensitivity=3, LlmExposure=4, InputWidget=5, DisplayWidget=6, Redactor=7, Indexable=8"),
+        ("IntoChat.OS.Connections.TypeValidationException", "types.type-validation; Kind=0, AllowedValues=1, RejectedValue=2"),
     ];
 
     private static readonly (string Old, Type Current, string? Alias)[] MovedContracts =
