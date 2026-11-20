@@ -30,6 +30,8 @@
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.AspNetCore.Web" />
     <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />
     <PackageReference Include="Microsoft.Agents.AI.DevUI" />
     <PackageReference Include="Microsoft.Agents.AI.Hosting.AGUI.AspNetCore" />
@@ -80,4 +82,7 @@
                                              CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
+  <ItemGroup>
+    <Protobuf Include="Platform/neurons.proto" GrpcServices="Both" />
+  </ItemGroup>
 </Project>

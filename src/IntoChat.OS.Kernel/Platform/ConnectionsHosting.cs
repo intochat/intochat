@@ -5,9 +5,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Secrets;
 using IntoChat.OS.Host.Kernel;
-using IntoChat.OS.Host.Brains;
 
-namespace IntoChat.OS.Connections;
+namespace IntoChat.OS.Kernel.Platform;
 
 // What the Connections assembly adds to a host the Framework composed (D-18): the identity-backed brain membership,
 // the connector type entries, secret redaction and the neuron type search.
@@ -17,7 +16,7 @@ public static class ConnectionsHosting
     public static IServiceCollection AddIntoChatOSConnections(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<IBrainMembership, IdentityBrainMembership>();
+        services.AddIdentityBrainMembership();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IModuleTypeSource, ConnectionTypeSource>());
         services.TryAddSingleton<ISecretRedactor, SecretRedactor>();
         services.TryAddSingleton<IConnectionBindings, NoConnectionBindings>();

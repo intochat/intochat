@@ -8,15 +8,15 @@ using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Signals.Watch;
 using Google.Protobuf;
 using Grpc.Core;
-using IntoChat.OS.Authority.Neurons.Proto;
+using IntoChat.OS.Kernel.Platform.Proto;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
+using CallRequest = IntoChat.OS.Kernel.Platform.Proto.CallRequest;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Surface;
 
-namespace IntoChat.OS.Authority.Neurons;
+namespace IntoChat.OS.Kernel.Platform;
 
 // The gRPC edge of the operations every caller has: neurons_call, brain.On<T>, and neuron state inspection. The brain
 // rides in the message, so each call decides access the way a /brains/{brainId} route does.

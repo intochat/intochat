@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Authority.Hosting;
+namespace IntoChat.OS.Kernel.Platform;
 
 // Registration is directory state, not proof that execution or storage is ready.
 public sealed record RuntimeObservation(

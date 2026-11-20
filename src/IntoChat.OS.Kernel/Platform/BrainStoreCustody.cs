@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Authority.Storage;
+namespace IntoChat.OS.Kernel.Platform;
 
 // The brain store's custody rules, checked when the silo starts (the kernel composition runs them).
 public static class BrainStoreCustody

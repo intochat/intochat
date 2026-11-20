@@ -1,5 +1,7 @@
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Orleans;
 
@@ -12,4 +14,15 @@ internal sealed class IdentityBrainMembership(IGrainFactory grains, IOptions<Ide
 
     public Task<string[]> BrainsOf(string personId, CancellationToken cancellationToken = default)
         => grains.GetGrain<IIdentityDirectory>((identity?.Value ?? DefaultIdentity).DirectoryKey).BrainsOfAsync(personId, cancellationToken);
+}
+
+// How a host composes the membership above: the implementation stays the identity module's own.
+public static class IdentityBrainMembershipHosting
+{
+    public static IServiceCollection AddIdentityBrainMembership(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IntoChat.OS.Host.Brains.IBrainMembership, IdentityBrainMembership>();
+        return services;
+    }
 }

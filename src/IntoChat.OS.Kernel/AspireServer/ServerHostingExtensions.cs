@@ -32,6 +32,7 @@ using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.ServiceDefaults;
 using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Host.Client;
+using IntoChat.OS.Kernel.Platform;
 
 namespace IntoChat.OS.Kernel.AspireServer;
 
@@ -122,7 +123,7 @@ public static class ServerHostingExtensions
             silo.AddStartupTask(static (provider, cancellationToken) =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                IntoChat.OS.Authority.Storage.BrainStoreCustody.Validate(provider);
+                IntoChat.OS.Kernel.Platform.BrainStoreCustody.Validate(provider);
                 return Task.CompletedTask;
             });
             // os grain state keeps the Orleans binary format it had in memory and on blob storage (persisted-format rule):
@@ -168,6 +169,8 @@ public static class ServerHostingExtensions
             static sp => sp.GetRequiredService<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>()));
         // Storage, clustering and reminders are the topology's; the platform composes over whatever it registered.
         builder.AddIntoChatOSPlatform();
+        // The silo's own platform pieces (store custody, diagnostics, the gRPC edge) right after identity's.
+        builder.UseOrleans(static silo => silo.AddKernelPlatform());
         return builder;
     }
 
@@ -177,6 +180,8 @@ public static class ServerHostingExtensions
         if (!((IApplicationBuilder)app).Properties.TryAdd("IntoChat.OS.Mapped", true)) { throw new InvalidOperationException("MapIntoChatOSServer runs once per application."); }
         UseStaticWebShell(app);
         app.UsePlatformHttp(beforeAccountSession: beforeAccountSession);
+        // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
+        app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();
@@ -184,6 +189,7 @@ public static class ServerHostingExtensions
         IntoChat.OS.Kernel.Sandbox.SandboxEdgeEndpoints.Map(app);
         app.MapIntoChatOSModules();
         app.MapIntoChatOSPlatform();
+        app.MapKernelPlatform();
         return app;
     }
 

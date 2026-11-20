@@ -12,6 +12,7 @@ using IntoChat.OS.Host.Brains;
 using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Host.Http;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Kernel.Platform;
 
 namespace IntoChat.OS.Kernel.Mcp;
 

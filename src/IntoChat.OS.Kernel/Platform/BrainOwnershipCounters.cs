@@ -3,7 +3,7 @@ using DigitalBrain.Runtime.Orleans;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Authority.Storage;
+namespace IntoChat.OS.Kernel.Platform;
 
 internal sealed class NoBrainOwnershipCounters : IBrainOwnershipCounters
 {

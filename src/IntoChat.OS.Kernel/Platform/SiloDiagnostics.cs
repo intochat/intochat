@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Authority.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 
-namespace IntoChat.OS.Authority.Hosting;
+namespace IntoChat.OS.Kernel.Platform;
 
 // Operator diagnostics for post-deploy smoke tests: which silo answered (address, cluster, revision, host, storage
 // mode, ownership counters) and a durability canary kept beside the brain logs. Mapped only when a deployment

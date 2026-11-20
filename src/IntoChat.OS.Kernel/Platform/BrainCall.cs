@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Http;
 
-namespace IntoChat.OS.Authority.Neurons;
+namespace IntoChat.OS.Kernel.Platform;
 
 // A gRPC message carries its brain where an HTTP route carries it in the path: the same id rule,
 // the same membership decision, then the brain stamped into the caller for BrainScope.CurrentId().

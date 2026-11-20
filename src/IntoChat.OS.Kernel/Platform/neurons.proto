@@ -1,6 +1,6 @@
 syntax = "proto3";
 package intochat.os;
-option csharp_namespace = "IntoChat.OS.Authority.Neurons.Proto";
+option csharp_namespace = "IntoChat.OS.Kernel.Platform.Proto";
 
 // The operations the OS has: call a neuron contract, watch a source's signals, read a neuron's inspectable state.
 // Payloads are JSON with the HTTP surface's web defaults; the C# contracts are the schema.

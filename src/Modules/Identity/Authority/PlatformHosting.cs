@@ -6,7 +6,6 @@ using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Identity.Local.Custody;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Authority.Connections;
-using IntoChat.OS.Authority.Hosting;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Directory;
 using IntoChat.OS.Authority.Identity.Grants;
@@ -43,16 +42,6 @@ public static class PlatformHosting
         // Pricing and the compute ledger are 0.8.0. External calls are not charged.
         services.TryAddSingleton<DigitalBrain.Capabilities.Compute.ModulePriceListRegistry>();
         services.TryAddSingleton(TimeProvider.System);
-        services.AddOptions<Storage.OsBrainStoreOptions>().BindConfiguration(Storage.OsBrainStoreOptions.Key)
-            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
-        services.AddOptions<DigitalBrain.Runtime.Orleans.BrainStoreOptions>().BindConfiguration(Storage.OsBrainStoreOptions.Key)
-            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
-        services.AddSiloDiagnostics();
-        services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(
-            System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
-        services.TryAddSingleton<DigitalBrain.Runtime.Orleans.IBrainKeyCustody>(provider =>
-            new MasterKeyBrainCustodyAdapter(provider.GetRequiredService<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>()));
-        services.TryAddSingleton<DigitalBrain.Runtime.Orleans.BrainStorageKeys>();
         services.TryAddSingleton<EdgeGrantsCache>();
         services.TryAddSingleton<IEdgeGrantsCache>(sp => sp.GetRequiredService<EdgeGrantsCache>());
         services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
@@ -73,8 +62,6 @@ public static class PlatformHosting
         services.TryAddSingleton<IntoChat.OS.Connections.Platform.Entries.IBrainProviderKeys, Entries.BrainProviderKeys>();
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
-        services.AddGrpc();
-        services.TryAddSingleton<IntoChat.OS.Host.Surface.OsNeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
@@ -114,19 +101,8 @@ public static class PlatformHosting
         Entries.BrainEntriesEndpoints.MapBrainEntries(endpoints);
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
-        Hosting.RuntimeManagementEndpoints.Map(endpoints);
-        endpoints.MapSiloDiagnostics();
-        endpoints.MapGrpcService<Neurons.NeuronsGrpcService>();
         IntoChat.OS.Connections.Http.HandleRoutes.Map(endpoints);
         return endpoints;
-    }
-
-    private sealed class MasterKeyBrainCustodyAdapter(DigitalBrain.Identity.Local.Custody.IMasterKeyCustody inner)
-        : DigitalBrain.Runtime.Orleans.IBrainKeyCustody
-    {
-        public byte[] Wrap(string accountId, string context, byte[] secret) => inner.Wrap(accountId, context, secret);
-
-        public byte[] Unwrap(string accountId, string context, byte[] wrapped) => inner.Unwrap(accountId, context, wrapped);
     }
 
     private sealed class PlatformRegistration;

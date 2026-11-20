@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Kernel;
 
-namespace IntoChat.OS.Authority.Neurons;
+namespace IntoChat.OS.Kernel.Platform;
 
 // The CLR type behind a signal name the shell knows: short ("ButtonChanged") or full. Only the
 // brain's own signal types (the kernel's type table) are watchable; an unknown name costs one pass

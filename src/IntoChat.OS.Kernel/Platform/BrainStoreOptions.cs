@@ -1,5 +1,5 @@
 using DigitalBrain.Identity.Local.Custody;
-namespace IntoChat.OS.Authority.Storage;
+namespace IntoChat.OS.Kernel.Platform;
 
 // The os side of the brain store (06-02): where the runtime BrainLog lives and the master key custody checks. The runtime
 // owns the log, its format and its writer ownership (the cloud profile's blob lease); Ownership:* keys are no longer read here.

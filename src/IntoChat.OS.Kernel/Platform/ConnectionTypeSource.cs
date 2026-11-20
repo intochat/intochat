@@ -8,7 +8,7 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Host.Kernel;
 
-namespace IntoChat.OS.Connections.Hosting;
+namespace IntoChat.OS.Kernel.Platform;
 
 // The connectors a module declares (ConnectorDefinition.DeclaredBy) as compiled type entries.
 internal sealed class ConnectionTypeSource : IModuleTypeSource

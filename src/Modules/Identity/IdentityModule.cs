@@ -11,7 +11,7 @@ public sealed class IdentityModule : Module
 {
     public const string Id = "identity";
 
-    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Authority.Hosting.RuntimeObservation).Assembly;
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Connections.Platform.Identity.IIdentityClient).Assembly;
 
     public static ModuleManifest Manifest { get; } = new(
         Provides: [Capability.Identity.V1, Capability.Secrets.V1],

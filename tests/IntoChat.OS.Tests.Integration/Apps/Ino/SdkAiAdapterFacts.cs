@@ -16,6 +16,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IntoChat.OS.Kernel.Platform;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 
