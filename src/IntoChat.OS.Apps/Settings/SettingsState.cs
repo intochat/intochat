@@ -71,6 +71,8 @@ public sealed record SettingsAppState(
         "floating-glass", "compact-pill", "classic-bottom", "split-top-dock",
     ];
     public static readonly string[] SupportedDesktopTones = ["cream", "sand", "peat", "ink"];
+    public static readonly string[] SupportedGitHubPolicyPresets = ["auto-10", "draft-only", "reset"];
+    public static readonly string[] SupportedGitHubSynapseModes = ["DraftForApproval", "AutoComment"];
 
     public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
     public static IReadOnlyList<string> DefaultFriendGrants { get; } = [];
@@ -92,6 +94,52 @@ public sealed record SettingsAppState(
     public bool ShowOsBarClock { get; init; } = true;
     public IReadOnlyList<SettingsModelOption> AvailableModels { get; init; } = [];
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
+
+    // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):
+    [Id(40)]
+    public bool HasUnsavedChanges { get; init; }
+
+    [Id(41)]
+    public string ActiveTransition { get; init; } = string.Empty;
+
+    [Id(42)]
+    public string GitHubConnectionSlug { get; init; } = "main";
+
+    [Id(43)]
+    public string GitHubRepository { get; init; } = string.Empty;
+
+    [Id(44)]
+    public bool GitHubConnected { get; init; }
+
+    [Id(45)]
+    public string? GitHubLastWebhookAt { get; init; }
+
+    [Id(46)]
+    public int GitHubPullRequestCount { get; init; }
+
+    [Id(47)]
+    public int GitHubIssueCount { get; init; }
+
+    [Id(48)]
+    public int GitHubPendingDraftCount { get; init; }
+
+    [Id(49)]
+    public bool GitHubWebhookSecretConfigured { get; init; }
+
+    [Id(50)]
+    public string GitHubTriagePolicyPreset { get; init; } = string.Empty;
+
+    [Id(51)]
+    public string? GitHubTriagePolicyPlanId { get; init; }
+
+    [Id(52)]
+    public string GitHubInstalledSynapseAlias { get; init; } = string.Empty;
+
+    [Id(53)]
+    public string GitHubSynapseInstallStatus { get; init; } = string.Empty;
+
+    [Id(54)]
+    public string GitHubSynapseMode { get; init; } = string.Empty;
 
     [JsonIgnore]
     public Rejected? LastRejection { get; init; }
@@ -153,7 +201,41 @@ public sealed record SettingsAppState(
     public bool ValidVariablesInvariant =>
         (Variables ?? []).All(static v => !string.IsNullOrWhiteSpace(v.Key));
 
+    [Invariant("Navigation transition and GitHub hub telemetry fields remain within valid domain bounds."), JsonIgnore]
+    public bool ValidGitHubHubProjectionInvariant =>
+        ViewTransition.IsValid(ActiveTransition)
+        && GitHubPullRequestCount >= 0
+        && GitHubIssueCount >= 0
+        && GitHubPendingDraftCount >= 0
+        && !string.IsNullOrWhiteSpace(GitHubConnectionSlug)
+        && (string.IsNullOrEmpty(GitHubTriagePolicyPreset) || SupportedGitHubPolicyPresets.Contains(GitHubTriagePolicyPreset, StringComparer.Ordinal))
+        && (string.IsNullOrEmpty(GitHubSynapseMode) || SupportedGitHubSynapseModes.Contains(GitHubSynapseMode, StringComparer.Ordinal));
+
     // ── Declarative Domain Rules ─────────────────────────────────────────────
+
+    public Rule CanDepart(bool force = false) => Decision.Rule(
+        "settings_unsaved_changes",
+        (HasUnsavedChanges, Force: force),
+        static x => x.HasUnsavedChanges && !x.Force,
+        "Save or discard unsaved settings changes before leaving Settings.");
+
+    public static Rule ValidateGitHubRepositoryRule(string? repository) => Decision.Rule(
+        "invalid_github_repository",
+        repository,
+        static r => NormalizeGitHubRepository(r) is null,
+        "GitHub repository must be formatted as 'owner/repo'.");
+
+    public static Rule ValidateGitHubPolicyPresetRule(string? preset) => Decision.Rule(
+        "invalid_github_policy_preset",
+        preset,
+        static p => NormalizeGitHubPolicyPreset(p) is null,
+        "GitHub triage policy preset must be 'auto-10', 'draft-only', or 'reset'.");
+
+    public static Rule ValidateGitHubSynapseModeRule(string? mode) => Decision.Rule(
+        "invalid_triage_synapse_mode",
+        mode,
+        static m => NormalizeGitHubSynapseMode(m) is null,
+        "Issue triage Synapse mode must be 'DraftForApproval' or 'AutoComment'.");
 
     [JsonIgnore]
     public bool CanGoBack => !string.IsNullOrEmpty(SubPage) || !string.IsNullOrEmpty(Sheet) || (History is { Count: > 0 });
@@ -335,6 +417,7 @@ public sealed record SettingsAppState(
             BarLayout = nextBar,
             ThemeMode = nextMode,
             DesktopTone = nextTone,
+            HasUnsavedChanges = false,
         });
     }
 
@@ -467,6 +550,43 @@ public sealed record SettingsAppState(
             Variables = (user.Variables ?? []).Where(static v => !string.IsNullOrWhiteSpace(v.Key)).ToArray(),
             DeployedUnits = deployedUnits ?? DeployedUnits ?? [],
             TeamFriends = teamFriends ?? TeamFriends ?? [],
+            HasUnsavedChanges = false,
+        };
+    }
+
+    [IgnoreExplore]
+    public SettingsAppState MarkUnsavedChanges(bool unsaved = true)
+        => this with { HasUnsavedChanges = unsaved };
+
+    [IgnoreExplore]
+    public SettingsAppState ApplyArrival(SettingsNavArgs? args, string transition = ViewTransition.FadeThrough)
+    {
+        var normalizedTransition = ViewTransition.Normalize(transition);
+        if (args is null)
+        {
+            return this with { ActiveTransition = normalizedTransition };
+        }
+
+        var rawSection = args.Section;
+        var rawSubPage = args.SubPage;
+        if (!string.IsNullOrWhiteSpace(rawSection)
+            && rawSection.Contains('/', StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(rawSubPage))
+        {
+            var slashParts = rawSection.Split('/', 2, StringSplitOptions.TrimEntries);
+            rawSection = slashParts[0];
+            rawSubPage = slashParts.Length > 1 && !string.IsNullOrWhiteSpace(slashParts[1]) ? slashParts[1] : null;
+        }
+
+        var navigated = NavigateCore(rawSection, rawSubPage, args.Sheet, args.SearchQuery);
+        var nextSlug = IsGitHubSubPage(navigated.SubPage)
+            ? ResolveGitHubSlug(navigated.SubPage, GitHubConnectionSlug)
+            : GitHubConnectionSlug;
+        return navigated with
+        {
+            ActiveTransition = normalizedTransition,
+            SearchQuery = args.SearchQuery is not null ? args.SearchQuery.Trim() : navigated.SearchQuery,
+            GitHubConnectionSlug = nextSlug,
         };
     }
 
@@ -561,6 +681,146 @@ public sealed record SettingsAppState(
 
     public static string FormatUsd(long micros)
         => (micros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
+
+    public static bool IsGitHubSubPage(string? subPage)
+        => !string.IsNullOrWhiteSpace(subPage)
+            && (string.Equals(subPage.Trim(), "github", StringComparison.OrdinalIgnoreCase)
+                || subPage.Trim().StartsWith("github/", StringComparison.OrdinalIgnoreCase));
+
+    public static string NormalizeGitHubSlug(string? rawSlug)
+    {
+        if (string.IsNullOrWhiteSpace(rawSlug))
+        {
+            return "main";
+        }
+
+        var trimmed = rawSlug.Trim().Trim('/');
+        if (trimmed.StartsWith("connection/github/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["connection/github/".Length..].Trim('/');
+        }
+        else if (trimmed.StartsWith("github/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["github/".Length..].Trim('/');
+        }
+        else if (string.Equals(trimmed, "github", StringComparison.OrdinalIgnoreCase))
+        {
+            return "main";
+        }
+
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return "main";
+        }
+
+        var chars = trimmed.Where(static ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.').ToArray();
+        return chars.Length > 0 ? new string(chars) : "main";
+    }
+
+    public static string ResolveGitHubSlug(string? subPage, string? fallbackSlug = null)
+    {
+        if (!string.IsNullOrWhiteSpace(subPage))
+        {
+            var trimmed = subPage.Trim();
+            if (trimmed.StartsWith("github/", StringComparison.OrdinalIgnoreCase))
+            {
+                var suffix = trimmed["github/".Length..].Trim();
+                if (!string.IsNullOrWhiteSpace(suffix))
+                {
+                    return NormalizeGitHubSlug(suffix);
+                }
+            }
+        }
+
+        return NormalizeGitHubSlug(fallbackSlug);
+    }
+
+    public static string NormalizeGitHubConnectionKey(string? connectionKey, string? fallbackSlug = null)
+    {
+        var slug = string.IsNullOrWhiteSpace(connectionKey)
+            ? NormalizeGitHubSlug(fallbackSlug)
+            : NormalizeGitHubSlug(connectionKey);
+        return $"connection/github/{slug}";
+    }
+
+    public static string? NormalizeGitHubRepository(string? rawRepository)
+    {
+        if (string.IsNullOrWhiteSpace(rawRepository))
+        {
+            return null;
+        }
+
+        var trimmed = rawRepository.Trim();
+        if (trimmed.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["https://github.com/".Length..];
+        }
+        else if (trimmed.StartsWith("http://github.com/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["http://github.com/".Length..];
+        }
+
+        trimmed = trimmed.Trim('/');
+        if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase) && trimmed.Length > 4)
+        {
+            trimmed = trimmed[..^4];
+        }
+
+        var parts = trimmed.Split('/');
+        if (parts.Length != 2)
+        {
+            return null;
+        }
+
+        var owner = parts[0].Trim();
+        var repo = parts[1].Trim();
+        if (string.IsNullOrWhiteSpace(owner)
+            || string.IsNullOrWhiteSpace(repo)
+            || !IsValidRepoSegment(owner)
+            || !IsValidRepoSegment(repo))
+        {
+            return null;
+        }
+
+        return $"{owner}/{repo}";
+
+        static bool IsValidRepoSegment(string segment)
+            => segment.Any(char.IsLetterOrDigit)
+                && segment.All(static ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.');
+    }
+
+    public static string? NormalizeGitHubPolicyPreset(string? preset)
+    {
+        if (string.IsNullOrWhiteSpace(preset))
+        {
+            return null;
+        }
+
+        return preset.Trim().ToLowerInvariant() switch
+        {
+            "auto-10" => "auto-10",
+            "draft-only" => "draft-only",
+            "reset" => "reset",
+            _ => null,
+        };
+    }
+
+    public static string? NormalizeGitHubSynapseMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            return null;
+        }
+
+        return mode.Trim() switch
+        {
+            var m when string.Equals(m, "DraftForApproval", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(m, "draft", StringComparison.OrdinalIgnoreCase) => "DraftForApproval",
+            var m when string.Equals(m, "AutoComment", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(m, "auto", StringComparison.OrdinalIgnoreCase) => "AutoComment",
+            _ => null,
+        };
+    }
 
     public override string ToString()
         => $"{Section}{(SubPage is null ? "" : "/" + SubPage)}{(Sheet is null ? "" : "#" + Sheet)} · {ComputeBudgetUsd}";

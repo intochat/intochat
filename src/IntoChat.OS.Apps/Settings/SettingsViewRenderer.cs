@@ -30,7 +30,8 @@ internal static class SettingsViewRenderer
             key: "settings-shell",
             sidebar: sidebar,
             body: VStack(Space.Md, contentChildren.ToArray()),
-            toolbar: RenderHeader(state, sectionEntry));
+            toolbar: RenderHeader(state, sectionEntry),
+            transition: state.ActiveTransition);
     }
 
     private static Node BuildSidebar(SettingsAppState state, string activeSection, SettingsSlots slots)
@@ -324,6 +325,11 @@ internal static class SettingsViewRenderer
     private static Node RenderConnectionsSection(SettingsAppState state, string? subPage)
     {
         var keys = state.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys;
+        if (SettingsAppState.IsGitHubSubPage(subPage))
+        {
+            return RenderGitHubConnectionHub(state, subPage!);
+        }
+
         if (!string.IsNullOrWhiteSpace(subPage))
         {
             return Surface(SurfaceKind.Elevated, $"Connections / {subPage}", "Zero-token credential injection via ICapabilityBroker")[
@@ -378,6 +384,147 @@ internal static class SettingsViewRenderer
                         .Key("conn:google-drive")
                         .Small()
                         .Emits(AppSignals.Emit("settings", "navigate", "connections", "google-drive"))
+                ]
+            ]
+        ];
+    }
+
+    private static Node RenderGitHubConnectionHub(SettingsAppState state, string subPage)
+    {
+        var slug = SettingsAppState.ResolveGitHubSlug(subPage, state.GitHubConnectionSlug);
+        var connectionKey = SettingsAppState.NormalizeGitHubConnectionKey(slug);
+        var isConnected = state.GitHubConnected
+            || (state.ConnectionKeys ?? []).Any(k =>
+                string.Equals(k, connectionKey, StringComparison.OrdinalIgnoreCase)
+                || (string.Equals(slug, "main", StringComparison.OrdinalIgnoreCase) && string.Equals(k, "github", StringComparison.OrdinalIgnoreCase)));
+
+        var repoTarget = string.IsNullOrWhiteSpace(state.GitHubRepository) ? "<owner/repo>" : state.GitHubRepository.Trim();
+        const string webhookPath = "/integrations/github/webhook";
+        var ghForwardCommand = $"gh webhook forward --repo {repoTarget} --events=issues,issue_comment,pull_request,check_run,check_suite --url=http://localhost:5000/integrations/github/webhook";
+
+        var copyWebhookIntent = AppSignals.Copy(webhookPath);
+        var copyGhForwardIntent = AppSignals.Copy(ghForwardCommand);
+        var openTasksIntent = AppSignals.OpenApp("tasks", "approvals");
+        var openCreatorIntent = AppSignals.OpenApp("creator", state.GitHubInstalledSynapseAlias);
+
+        var policyLabel = state.GitHubTriagePolicyPreset switch
+        {
+            "auto-10" => "Auto-comment cap: 10 / hr",
+            "draft-only" => "Draft-only (0 auto-posts)",
+            "reset" => "Policy reset (unrestricted)",
+            _ => "Default governance",
+        };
+        var policyStatusKind = state.GitHubTriagePolicyPreset switch
+        {
+            "auto-10" or "draft-only" => StatusKind.Done,
+            _ => StatusKind.Idle,
+        };
+
+        var synapseSummary = !string.IsNullOrWhiteSpace(state.GitHubInstalledSynapseAlias)
+            ? $"Installed unit: {state.GitHubInstalledSynapseAlias}"
+                + (!string.IsNullOrWhiteSpace(state.GitHubSynapseMode) ? $" ({state.GitHubSynapseMode})" : "")
+            : "No issue triage Synapse unit installed yet.";
+
+        return Surface(SurfaceKind.Elevated, $"Connections / {subPage}", "Turnkey GitHub Repository, Webhook & Issue Triage Hub")[
+            VStack(Space.Md)[
+                HStack(Space.Sm)[
+                    Heading($"GitHub Hub · {slug}", 3, "Fine-Grained PAT vault onboarding, signed webhook forwarding, policy governance, and 1-click Synapse triage."),
+                    StatusPill(isConnected ? StatusKind.Done : StatusKind.Idle, isConnected ? "Connected" : "Not configured"),
+                    state.GitHubWebhookSecretConfigured
+                        ? StatusPill(StatusKind.Done, "Webhook secret sealed")
+                        : null
+                ],
+                Grid(4, Space.Md)[
+                    StatCard("gh-stat-prs", "Tracked PRs", $"{state.GitHubPullRequestCount}", isConnected ? connectionKey : "Awaiting sync", BadgeTone.Neutral, "git-pull-request"),
+                    StatCard("gh-stat-issues", "Tracked Issues", $"{state.GitHubIssueCount}", "Untrusted-fenced", BadgeTone.Accent, "circle-dot"),
+                    StatCard("gh-stat-drafts", "Pending Triage Drafts", $"{state.GitHubPendingDraftCount}", state.GitHubPendingDraftCount > 0 ? "Awaiting approval" : "Clear", state.GitHubPendingDraftCount > 0 ? BadgeTone.Accent : BadgeTone.Done, Icons.MessageSquare),
+                    StatCard("gh-stat-webhook", "LastWebhookAt", state.GitHubLastWebhookAt ?? "Never", webhookPath, isConnected ? BadgeTone.Done : BadgeTone.Neutral, "radio")
+                ],
+                Table(
+                    $"Live repository telemetry · {connectionKey}",
+                    ["Field", "Value"],
+                    [
+                        ["Connection key", connectionKey],
+                        ["Repository", string.IsNullOrWhiteSpace(state.GitHubRepository) ? "Not configured" : state.GitHubRepository],
+                        ["Status", isConnected ? "Connected" : "Not configured"],
+                        ["LastWebhookAt", state.GitHubLastWebhookAt ?? "Never"],
+                        ["Webhook endpoint", webhookPath],
+                        ["CLI forwarder", ghForwardCommand],
+                    ]),
+                HStack(Space.Sm)[
+                    Button("Copy webhook URL", "copy")
+                        .Key("settings:github:copy-webhook-url")
+                        .Small()
+                        .WithIntent(copyWebhookIntent.Kind, copyWebhookIntent.Arg),
+                    Button("Copy gh webhook forward", "terminal")
+                        .Key("settings:github:copy-gh-forward")
+                        .Small()
+                        .WithIntent(copyGhForwardIntent.Kind, copyGhForwardIntent.Arg)
+                ],
+                Card("Fine-Grained PAT & Webhook Onboarding", "Tokens are sealed via SecretRef and ConnectionNeuron; raw credentials never touch SettingsAppState.")[
+                    Slot(SettingsApp.GitHubPatFormKey, "ui.form")
+                ],
+                Card("Issue Comment Policy Governance (github.issue.comment)", "Set hourly comment limits or draft-only human review before Octokit writes execute.")[
+                    VStack(Space.Sm)[
+                        HStack(Space.Sm)[
+                            StatusPill(policyStatusKind, policyLabel),
+                            !string.IsNullOrWhiteSpace(state.GitHubTriagePolicyPlanId)
+                                ? StatusPill(StatusKind.NeedsYou, $"Pending plan {state.GitHubTriagePolicyPlanId}")
+                                : null
+                        ],
+                        HStack(Space.Sm)[
+                            (string.Equals(state.GitHubTriagePolicyPreset, "auto-10", StringComparison.Ordinal)
+                                ? PrimaryButton("Auto-comment (10 / hr)", "shield-check")
+                                : Button("Auto-comment (10 / hr)", "shield-check"))
+                                .Key("settings:github-policy:auto-10")
+                                .Small()
+                                .Emits(AppSignals.Emits("settings", new SettingsSetGitHubTriagePolicy("auto-10"))),
+                            (string.Equals(state.GitHubTriagePolicyPreset, "draft-only", StringComparison.Ordinal)
+                                ? PrimaryButton("Draft-only (0 auto-posts)", Icons.Hand)
+                                : Button("Draft-only (0 auto-posts)", Icons.Hand))
+                                .Key("settings:github-policy:draft-only")
+                                .Small()
+                                .Emits(AppSignals.Emits("settings", new SettingsSetGitHubTriagePolicy("draft-only"))),
+                            Button("Reset policy", Icons.RefreshCw)
+                                .Key("settings:github-policy:reset")
+                                .Small()
+                                .Emits(AppSignals.Emits("settings", new SettingsSetGitHubTriagePolicy("reset")))
+                        ]
+                    ]
+                ],
+                Card("1-Click Issue Triage Synapse & Cross-Window Studio", "Deploy a deterministic read-only fenced IssueChanged Synapse unit and jump directly to Tasks or Creator.")[
+                    VStack(Space.Sm)[
+                        HStack(Space.Sm)[
+                            StatusPill(
+                                !string.IsNullOrWhiteSpace(state.GitHubInstalledSynapseAlias) ? StatusKind.Done : StatusKind.Idle,
+                                synapseSummary),
+                            !string.IsNullOrWhiteSpace(state.GitHubSynapseInstallStatus)
+                                ? MutedText(state.GitHubSynapseInstallStatus).ToNode()
+                                : null
+                        ],
+                        HStack(Space.Sm)[
+                            PrimaryButton("Install Triage Synapse (Draft)", Icons.Sparkles)
+                                .Key("settings:github-synapse:draft")
+                                .Small()
+                                .Emits(AppSignals.Emits("settings", new SettingsInstallIssueTriageSynapse(connectionKey, "DraftForApproval"))),
+                            Button("Install Triage Synapse (Auto)", Icons.Play)
+                                .Key("settings:github-synapse:auto")
+                                .Small()
+                                .Emits(AppSignals.Emits("settings", new SettingsInstallIssueTriageSynapse(connectionKey, "AutoComment"))),
+                            Button("Open Tasks Approvals ↗", "list-checks")
+                                .Key("settings:github:open-tasks")
+                                .Small()
+                                .WithIntent(openTasksIntent.Kind, openTasksIntent.Arg),
+                            Button("Open in Creator ↗", "wand-sparkles")
+                                .Key("settings:github:open-creator")
+                                .Small()
+                                .WithIntent(openCreatorIntent.Kind, openCreatorIntent.Arg),
+                            Button("Back to Connections", "arrow-left")
+                                .Key("conn:back")
+                                .Small()
+                                .Emits(AppSignals.Emit("settings", "go-back"))
+                        ]
+                    ]
                 ]
             ]
         ];
