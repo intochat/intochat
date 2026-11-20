@@ -1,7 +1,6 @@
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS;
-using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.AI;
 
@@ -9,14 +8,14 @@ namespace IntoChat.OS.Modules.AI;
 public static class AIKeys
 {
     public static readonly string Options = ModuleConfiguration.ModuleOptionsSection(new ModuleId("ai"));
-    public static readonly string DefaultModel = Options + ":Default:Model";
-    public static readonly string DefaultEmbedding = Options + ":Default:Embedding";
-    public static readonly string DefaultTranscription = Options + ":Default:Transcription";
-    public static readonly string DefaultImage = Options + ":Default:Image";
-    public static readonly string DefaultSystemOne = Options + ":Default:SystemOne";
+    public static readonly string Roles = Options + ":Roles";
+    public static readonly string LegacyDefault = Options + ":Default";
     public static readonly string Ollama = Options + ":Ollama";
     public static readonly string OllamaEndpoint = Ollama + ":Endpoint";
     public static readonly string OllamaModels = Ollama + ":Models";
     public static readonly string TavilyEnabled = Options + ":Tavily:Enabled";
     public static readonly string TelemetryEnableSensitiveData = Options + ":Telemetry:EnableSensitiveData";
+
+    public static string Role(Where where, Models.Role role)
+        => $"{Roles}:{(where == Where.Device ? "Device" : "Cloud")}:{role}";
 }

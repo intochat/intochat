@@ -32,6 +32,10 @@ public sealed partial class UnitsAllTheWayFacts
         var sources = NoProgramLanesFacts.ProductionSources().ToArray();
         Assert.NotEmpty(sources);
         var roslynDir = Repository.ProjectNamed(RoslynModule).Directory + Path.DirectorySeparatorChar;
+        var generatorDirs = Repository.Projects.Values
+            .Where(IsCompileTimeGenerator)
+            .Select(project => project.Directory + Path.DirectorySeparatorChar)
+            .ToArray();
         var sandboxLoadContext = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Sandbox").Directory, "AppLoadContext.cs");
         var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         Assert.Contains(sources, path => Path.GetFullPath(path).StartsWith(roslynDir, pathComparison));
@@ -40,8 +44,11 @@ public sealed partial class UnitsAllTheWayFacts
         {
             var relative = Repository.Relative(path);
             var text = File.ReadAllText(path);
-            var isSandboxLoadContext = Path.GetFullPath(path).Equals(Path.GetFullPath(sandboxLoadContext), pathComparison);
-            if (!Path.GetFullPath(path).StartsWith(roslynDir, pathComparison) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
+            var fullPath = Path.GetFullPath(path);
+            var isSandboxLoadContext = fullPath.Equals(Path.GetFullPath(sandboxLoadContext), pathComparison);
+            var isCompileTimeRoslyn = fullPath.StartsWith(roslynDir, pathComparison)
+                || generatorDirs.Any(dir => fullPath.StartsWith(dir, pathComparison));
+            if (!isCompileTimeRoslyn && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
             { offenders.Add(relative + ": Microsoft.CodeAnalysis"); }
             if (!isSandboxLoadContext)
             {
@@ -62,12 +69,18 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.True(Repository.Projects.ContainsKey(RoslynModule), RoslynModule + " is not in the solution; update this fact.");
         var offenders = Repository.Projects.Values
             .Where(project => !project.Name.Contains(".Tests", StringComparison.Ordinal)
-                && project.Name != RoslynModule)
+                && project.Name != RoslynModule
+                && !IsCompileTimeGenerator(project))
             .Where(project => Repository.PackageReferences(project.Path).Any(package => package.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)))
             .Select(project => project.Name)
             .Order(StringComparer.Ordinal);
         Assert.Empty(offenders);
     }
+
+    // Build-time Roslyn source generators run inside csc and are never loaded at runtime.
+    private static bool IsCompileTimeGenerator(Repository.Project project)
+        => project.Name.EndsWith(".Generators", StringComparison.Ordinal)
+            && File.ReadAllText(project.Path).Contains("<IsRoslynComponent>true</IsRoslynComponent>", StringComparison.Ordinal);
 
     // The shell's own apps: the desktop and the workspace are the host's surfaces and ino is the shell's agent, not apps a person installs,
     // so the host may name them.

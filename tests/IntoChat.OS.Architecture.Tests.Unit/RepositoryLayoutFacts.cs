@@ -99,7 +99,8 @@ public sealed class RepositoryLayoutFacts
             Assert.True(folderName == name
                     || name == Prefix + folderName
                     || name == "IntoChat.OS.Modules." + folderName
-                    || (folderName == "Contracts" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts"),
+                    || (folderName == "Contracts" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts")
+                    || (folderName == "Generators" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Generators"),
                 $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;
@@ -291,7 +292,7 @@ public sealed class RepositoryLayoutFacts
         var folder = "/" + string.Join('/', segments) + "/";
         // A module's Contracts/, implementation and tests/ directories (by module, R4-03) are grouped either with the module or
         // as their own subfolder. Slnd/slnx may also flatten all entries to root.
-        return segments[^1] is "tests" or "Contracts" or ModuleFolderFacts.SourceFolder
+        return segments[^1] is "tests" or "Contracts" or "Generators" or ModuleFolderFacts.SourceFolder
             ? [null, folder, "/" + string.Join('/', segments[..^1]) + "/"]
             : [null, folder];
     }

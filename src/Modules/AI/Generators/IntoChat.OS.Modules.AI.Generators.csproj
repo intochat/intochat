@@ -6,6 +6,7 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <EnableConfigurationBindingGenerator>false</EnableConfigurationBindingGenerator>
     <IsPackable>false</IsPackable>
+    <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>

@@ -138,7 +138,8 @@ public sealed class TasksCancelOnRealHostFacts
             builder.Services.PostConfigure<AIOptions>(ai =>
             {
                 ai.Ollama.Endpoint = null;
-                ai.Default.Model = null;
+                ai.Roles.Device.Clear();
+                ai.Roles.Cloud.Clear();
             });
         });
         try

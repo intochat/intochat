@@ -48,7 +48,7 @@ public sealed partial class SettingsApp
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
         var modelInfo = await TryReadModelCatalogAsync(user.DefaultModel);
         var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
-            ? (modelInfo.AutomaticModel ?? ModelCatalog.DefaultChatModelId)
+            ? (modelInfo.AutomaticModel ?? KnownModels.Defaults.Device[Role.Chat].Value)
             : user.DefaultModel.Trim();
         var effectiveUser = string.Equals(displayModel, user.DefaultModel, StringComparison.Ordinal)
             ? user
@@ -80,12 +80,12 @@ public sealed partial class SettingsApp
 
     internal static IReadOnlyList<SettingsModelOption> CatalogFallbackOptions() =>
     [
-        .. LLMModel.All
-            .Where(static m => m.SupportsTools && (m.Provider != AiProvider.Ollama || string.Equals(m.Id, ModelCatalog.DefaultChatModelId, StringComparison.Ordinal)))
+        .. KnownModels.All
+            .Where(static m => m.Can.HasFlag(Abilities.Tools) && (m.Provider != AiProvider.Ollama || m.Id == KnownModels.Defaults.Device[Role.Chat]))
             .Select(static m =>
             {
-                var visual = VisualCatalog.ForModel(m.Id, m.Provider.ToString());
-                return new SettingsModelOption(m.Id, visual.Label, true, visual.Category);
+                var visual = VisualCatalog.ForModel(m.Id.Value, m.Provider.ToString());
+                return new SettingsModelOption(m.Id.Value, visual.Label, true, visual.Category);
             }),
     ];
 

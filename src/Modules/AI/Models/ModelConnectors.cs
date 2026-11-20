@@ -26,7 +26,7 @@ internal static class ModelConnectors
         };
         return new(schema.Id, schema.DisplayName, ["api-key"], [schema.Id])
         {
-            Neurons = [typeof(ILLM), .. LLMModel.All.Where(model => model.Provider == provider).Select(model => model.Marker), .. media],
+            Neurons = [typeof(ILLM), .. media],
             Signals = [typeof(InferenceStarted), typeof(InferenceCompleted), typeof(InferenceFailed), .. signals],
         };
     }

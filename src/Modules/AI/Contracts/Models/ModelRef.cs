@@ -14,7 +14,7 @@ public abstract record ModelRef
 {
     private ModelRef() { }
 
-    public sealed record Catalogued(LLMModel Model) : ModelRef;
+    public sealed record Catalogued(ModelCard Model) : ModelRef;
     public sealed record Profile(string Name) : ModelRef;
     public sealed record Tag(AiProvider Provider, string Id) : ModelRef;
 
@@ -53,7 +53,7 @@ public abstract record ModelRef
             return true;
         }
 
-        if (LLMModel.Find(trimmed) is { } catalogued)
+        if (KnownModels.Find(trimmed) is { } catalogued && catalogued.Can.HasFlag(Abilities.Text))
         {
             parsed = new Catalogued(catalogued);
             return true;
@@ -119,14 +119,14 @@ public abstract record ModelRef
     }
 
     // What a model reference can do when the catalogue does not say; the AI module's catalogue falls back to it.
-    public static LlmCapabilities DefaultCapabilitiesFor(ModelRef reference, string? rawHint = null) => reference switch
+    public static Abilities DefaultCapabilitiesFor(ModelRef reference, string? rawHint = null) => reference switch
     {
-        Catalogued c => c.Model.Capabilities,
+        Catalogued c => c.Model.Can,
         Tag t when t.Provider is AiProvider.Anthropic or AiProvider.OpenAI or AiProvider.Google
-            => LlmCapabilities.Tools | LlmCapabilities.Vision,
+            => Abilities.Text | Abilities.Tools | Abilities.Vision,
         Tag when TryValidateRaw(rawHint, out var clean) && TryInferLegacy(StripPresetPrefix(clean), out _, out _, out var caps)
             => caps,
-        _ => LlmCapabilities.Tools,
+        _ => Abilities.Text | Abilities.Tools,
     };
 
     private static bool TryValidateRaw(string? raw, out string trimmed)
@@ -176,9 +176,9 @@ public abstract record ModelRef
         string trimmed,
         out AiProvider provider,
         out string modelId,
-        out LlmCapabilities capabilities)
+        out Abilities capabilities)
     {
-        capabilities = LlmCapabilities.Tools;
+        capabilities = Abilities.Text | Abilities.Tools;
         if (trimmed.StartsWith("ollama/", StringComparison.OrdinalIgnoreCase)
             || trimmed.StartsWith("ollama:", StringComparison.OrdinalIgnoreCase))
         {
@@ -206,7 +206,7 @@ public abstract record ModelRef
         {
             provider = AiProvider.Anthropic;
             modelId = anthropicId;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            capabilities = Abilities.Text | Abilities.Tools | Abilities.Vision;
             return true;
         }
 
@@ -214,7 +214,7 @@ public abstract record ModelRef
         {
             provider = AiProvider.OpenAI;
             modelId = openaiId;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            capabilities = Abilities.Text | Abilities.Tools | Abilities.Vision;
             return true;
         }
 
@@ -222,7 +222,7 @@ public abstract record ModelRef
         {
             provider = AiProvider.Google;
             modelId = googleId;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            capabilities = Abilities.Text | Abilities.Tools | Abilities.Vision;
             return true;
         }
 
@@ -260,9 +260,9 @@ public abstract record ModelRef
         string trimmed,
         out AiProvider provider,
         out string modelId,
-        out LlmCapabilities capabilities)
+        out Abilities capabilities)
     {
-        capabilities = LlmCapabilities.Tools;
+        capabilities = Abilities.Text | Abilities.Tools;
         if (TryParseExplicitProviderTag(trimmed, out provider, out modelId, out capabilities))
         {
             return true;
@@ -272,7 +272,7 @@ public abstract record ModelRef
         {
             provider = AiProvider.Anthropic;
             modelId = trimmed;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            capabilities = Abilities.Text | Abilities.Tools | Abilities.Vision;
             return true;
         }
 
@@ -285,7 +285,7 @@ public abstract record ModelRef
         {
             provider = AiProvider.OpenAI;
             modelId = trimmed;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            capabilities = Abilities.Text | Abilities.Tools | Abilities.Vision;
             return true;
         }
 
@@ -293,7 +293,7 @@ public abstract record ModelRef
         {
             provider = AiProvider.Google;
             modelId = trimmed;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            capabilities = Abilities.Text | Abilities.Tools | Abilities.Vision;
             return true;
         }
 

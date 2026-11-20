@@ -1,14 +1,10 @@
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.SystemOne;
-using IntoChat.OS.Modules.AI.Voice;
-using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
-public sealed class AIModuleHosting : ModuleHosting<IntoChat.OS.Modules.AI.AIModule>
+public sealed class AIModuleHosting : ModuleHosting<AIModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
         => AIHostingExtensions.ConfigureDeclaration(brain,
@@ -19,36 +15,57 @@ public static partial class AIHostingExtensions
 {
     internal static void ConfigureDeclaration(IntoChatOSBuilder brain, AIOptions options)
     {
-        var module = new IntoChatOSModuleBuilder<IntoChat.OS.Modules.AI.Aspire.Hosting.AIModuleHosting>(brain);
+        var module = new IntoChatOSModuleBuilder<AIModuleHosting>(brain);
         var state = State(module);
         state.EnableSensitiveData = options.Telemetry.EnableSensitiveData ?? false;
+        state.SetRoles(options.Roles);
+
         foreach (var name in options.Hosting.Llms)
         {
-            var model = LLMModel.FindByMarkerName(name) ?? throw new InvalidOperationException(
-                $"'{name}' is not a catalogued LLM. Known: {string.Join(", ", LLMModel.All.Select(static m => m.Marker.Name))}.");
-            state.AddLlm(model.Marker);
+            var card = KnownModels.Find(name) ?? throw new InvalidOperationException(
+                $"'{name}' is not a catalogued LLM. Known: {string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Text)).Select(static c => c.Id.Value))}.");
+            state.AddModel(card);
         }
+
         foreach (var name in options.Hosting.Embeddings)
         {
-            var model = EmbeddingModel.FindByMarkerName(name) ?? throw new InvalidOperationException(
-                $"'{name}' is not a catalogued embedding model. Known: {string.Join(", ", EmbeddingModel.All.Select(static m => m.Marker.Name))}.");
-            state.AddEmbedding(model.Marker);
+            var card = KnownModels.Find(name) ?? throw new InvalidOperationException(
+                $"'{name}' is not a catalogued embedding model. Known: {string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)).Select(static c => c.Id.Value))}.");
+            state.AddModel(card);
         }
-        if (options.Default.Transcription is { Length: > 0 } nameOfVoice)
+
+        var roleMap = options.Roles.ToRoleMap();
+        if (TryRole(roleMap, Role.Hear, out var hearId))
         {
-            var model = TranscriptionModel.FindByMarkerName(nameOfVoice) ?? throw new InvalidOperationException(
-                $"'{nameOfVoice}' is not a catalogued transcription model. Known: {string.Join(", ", TranscriptionModel.All.Select(static m => m.Marker.Name))}.");
+            var card = KnownModels.Find(hearId.Value) ?? throw new InvalidOperationException(
+                $"'{hearId.Value}' is not a catalogued transcription model. Known: {string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Hear)).Select(static c => c.Id.Value))}.");
             var voice = module.GetOrAddProjection(b => new VoiceToTextHostingState(b, module.Resource));
-            voice.SetModel(model);
+            voice.SetModel(card);
         }
-        foreach (var name in options.Hosting.SystemOnes)
+
+        if (TryRole(roleMap, Role.Fast, out var fastId) && KnownModels.Find(fastId.Value) is { } fastCard && IsSystemOne(fastCard))
         {
-            var model = SystemOneModel.FindByMarkerName(name) ?? throw new InvalidOperationException(
-                $"'{name}' is not a catalogued System One model. Known: {string.Join(", ", SystemOneModel.All.Select(static m => m.Marker.Name))}.");
-            if (!string.Equals(options.Default.SystemOne, name, StringComparison.Ordinal)) { continue; }
             var systemOne = module.GetOrAddProjection(b => new SystemOneHostingState(b, module.Resource));
-            if (model.Provider is AiProvider.Ollama) { systemOne.SetDefault(model, state.AddOllamaBackingModel(model.Id)); }
-            else { systemOne.SetDefault(model, null); }
+            if (fastCard.Provider is AiProvider.Ollama) { systemOne.SetDefault(fastCard, state.AddOllamaBackingModel(fastCard.Id.Value)); }
+            else { systemOne.SetDefault(fastCard, null); }
+        }
+        else
+        {
+            foreach (var name in options.Hosting.SystemOnes)
+            {
+                var card = KnownModels.Find(name) ?? throw new InvalidOperationException(
+                    $"'{name}' is not a catalogued System One model.");
+                if (!IsSystemOne(card)) { continue; }
+                var systemOne = module.GetOrAddProjection(b => new SystemOneHostingState(b, module.Resource));
+                if (card.Provider is AiProvider.Ollama) { systemOne.SetDefault(card, state.AddOllamaBackingModel(card.Id.Value)); }
+                else { systemOne.SetDefault(card, null); }
+            }
         }
     }
+
+    private static bool TryRole(RoleMap map, Role role, out ModelId id)
+        => map.Device.TryGetValue(role, out id) || map.Cloud.TryGetValue(role, out id);
+
+    private static bool IsSystemOne(ModelCard card)
+        => card.Provider == AiProvider.TypeSafe || card.Id == KnownModels.LocalJev.Id;
 }

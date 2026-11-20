@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using Microsoft.Extensions.AI;
@@ -10,24 +12,22 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-// The one resolver from a model key to a client. A key is a marker name, a model ID, or a configured profile
-// name; null is the deployment default. brainId is the calling brain: its own provider keys make
-// models available to it alone and win over the deployment registration. A null brain sees only the
-// deployment's registrations.
+// The one resolver from a model key to a client. A key is a card id, a legacy alias, or a configured profile
+// name; null resolves through the brain's active role and deployment defaults.
 public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOptions> options)
 {
-    internal static LLMModel DefaultChatModel { get; } =
-        LLMModel.FindByMarker(typeof(IQwen35))
-        ?? throw new InvalidOperationException("Catalogued default chat model IQwen35 is missing.");
-
-    public static string DefaultChatModelId => DefaultChatModel.Id;
+    private static readonly ModelCard[] ChatCards =
+    [
+        .. KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Text)
+            && (c.Provider == AiProvider.Ollama || AiIntegrations.KeyedProviders.Contains(c.Provider))),
+    ];
 
     private IAiCredentials Deployment => services.GetRequiredService<IAiCredentials>();
+
+    private string? Topology => services.GetService<IConfiguration>()?[IntoChatOSNames.TopologyKey];
 
     private IAiCredentials CredentialsFor(string? brainId)
         => brainId is not null && BrainScope.IsValidId(brainId) && services.GetService<BrainKeyAvailability>() is { } keys
@@ -43,7 +43,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             ? probe.Detect(ct)
             : Task.FromResult<LocalOllamaDetection?>(null);
 
-    /// <summary>Applies the shared local-topology Ollama endpoint and chat model defaults when configured.</summary>
+    /// <summary>Applies the shared local-topology Ollama endpoint and optional local model override.</summary>
     internal static void ApplyTopologyDefaults(AIOptions ai, IConfiguration? configuration)
     {
         ArgumentNullException.ThrowIfNull(ai);
@@ -69,15 +69,10 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             ai.Ollama.Endpoint = IntoChatOSNames.LocalOllamaEndpoint;
         }
 
-        if (string.IsNullOrWhiteSpace(ai.Default.Model))
-        {
-            ai.Default.Model = DefaultChatModel.Marker.Name;
-        }
-
         var localModel = Clean(configuration[IntoChatOSNames.LocalModelKey]);
-        if (localModel is not null && !ai.Ollama.Models.ContainsKey(DefaultChatModel.Marker.Name))
+        if (localModel is not null && !ai.Roles.Device.ContainsKey(Role.Chat))
         {
-            ai.Ollama.Models[DefaultChatModel.Marker.Name] = new AIModelOptions { Model = localModel };
+            ai.Roles.Device[Role.Chat] = KnownModels.Find(localModel)?.Id.Value ?? localModel;
         }
     }
 
@@ -99,17 +94,18 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         var credentials = CredentialsFor(brainId);
         turn ??= new();
         var configuration = options.CurrentValue;
+        var role = use == ModelUse.Code ? Role.Think : Role.Chat;
 
         var turnKey = Clean(turn.Model);
         var personKey = Clean(personModel);
-        var deploymentKey = Clean(configuration.Default.Model);
+        var deploymentKey = Clean(RoleMaps.Explicit(configuration, Topology, role)?.Value);
         var key = turnKey ?? personKey ?? deploymentKey;
         var fromTurn = turnKey is not null;
         var fromDeploymentOnly = turnKey is null && personKey is null && deploymentKey is not null;
         var inheritDeploymentTuning = turnKey is null && personKey is null;
 
-        var reasoning = Clean(turn.Reasoning) ?? (inheritDeploymentTuning ? Clean(configuration.Default.Reasoning) : null);
-        var maxTokens = turn.MaxOutputTokens ?? (inheritDeploymentTuning ? configuration.Default.MaxOutputTokens : null);
+        var reasoning = Clean(turn.Reasoning) ?? (inheritDeploymentTuning ? Clean(configuration.Reasoning) : null);
+        var maxTokens = turn.MaxOutputTokens ?? (inheritDeploymentTuning ? configuration.MaxOutputTokens : null);
 
         if (fromDeploymentOnly
             && use == ModelUse.Code
@@ -128,7 +124,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                     coderEndpoint,
                     null,
                     string.Empty,
-                    LlmCapabilities.Tools,
+                    Abilities.Text | Abilities.Tools,
                     NormalizeReasoning(reasoning),
                     maxTokens);
                 return coderResolved with { Revision = Revision(coderResolved) };
@@ -139,16 +135,17 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         string modelId;
         string? endpoint = null;
         string? profileName = null;
-        LlmCapabilities? declared = null;
-        LLMModel? preset = null;
+        Abilities? declared = null;
+        ModelCard? preset = null;
         if (key is null)
         {
+            var defaultChatId = KnownModels.Defaults.Device[Role.Chat];
             // Automatic: lowest list input price among configured tool-capable models; ties prefer stock chat default.
             var prices = services.GetService<IPriceList>();
-            foreach (var candidate in LLMModel.All
-                .Where(model => !requiresTools || model.SupportsTools)
-                .OrderBy(model => InputPrice(prices, model))
-                .ThenBy(model => model == DefaultChatModel ? 0 : 1))
+            foreach (var candidate in ChatCards
+                .Where(card => !requiresTools || card.Can.HasFlag(Abilities.Tools))
+                .OrderBy(card => InputPrice(prices, card))
+                .ThenBy(card => card.Id == defaultChatId ? 0 : 1))
             {
                 if (await AIClients.Factory(candidate.Provider).IsConfigured(configuration, credentials, ct))
                 {
@@ -168,11 +165,11 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                         ? HttpLocalOllamaProbe.SelectPreferredCoderModel(localAuto.InstalledModels)
                         : HttpLocalOllamaProbe.SelectPreferredModel(localAuto.InstalledModels);
                     endpoint = Endpoint(localAuto.Endpoint, AiProvider.Ollama);
-                    declared = LlmCapabilities.Tools;
+                    declared = Abilities.Text | Abilities.Tools;
                 }
                 else
                 {
-                    var host = new ResolvedModel(AiProvider.Host, "default", null, null, string.Empty, LlmCapabilities.Tools, reasoning, maxTokens);
+                    var host = new ResolvedModel(AiProvider.Host, "default", null, null, string.Empty, Abilities.Text | Abilities.Tools, reasoning, maxTokens);
                     return host with { Revision = Revision(host) };
                 }
             }
@@ -184,13 +181,13 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             {
                 var coderTag = HttpLocalOllamaProbe.SelectPreferredCoderModel(localCodeAuto.InstalledModels);
                 provider = AiProvider.Ollama;
-                modelId = HttpLocalOllamaProbe.IsCoderModelTag(coderTag) ? coderTag : preset.Id;
-                declared = preset.Capabilities;
+                modelId = HttpLocalOllamaProbe.IsCoderModelTag(coderTag) ? coderTag : preset.Id.Value;
+                declared = preset.Can;
             }
             else
             {
                 provider = preset.Provider;
-                modelId = preset.Id;
+                modelId = preset.Id.Value;
             }
         }
         else
@@ -212,7 +209,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             }
             if (parsed is null)
             {
-                throw new ArgumentException($"Unknown model '{key}'. Use a model marker name or a configured profile name.", fromTurn ? nameof(turn) : nameof(personModel));
+                throw new ArgumentException($"Unknown model '{key}'. Use a catalogued model id or a configured profile name.", fromTurn ? nameof(turn) : nameof(personModel));
             }
 
             switch (parsed)
@@ -225,39 +222,40 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                     reasoning = Clean(turn.Reasoning) ?? Clean(profile.Reasoning);
                     maxTokens = turn.MaxOutputTokens ?? profile.MaxOutputTokens;
                     declared = profile.Capabilities;
-                    preset = LLMModel.Find(modelId);
+                    preset = KnownModels.Find(modelId);
                     if (preset is not null && preset.Provider != provider) { preset = null; }
                     break;
                 case ModelRef.Catalogued c:
                     preset = c.Model;
                     provider = c.Model.Provider;
-                    modelId = c.Model.Id;
+                    modelId = c.Model.Id.Value;
                     break;
                 case ModelRef.Tag t:
                     provider = t.Provider;
                     modelId = t.Id;
                     declared = ModelRef.DefaultCapabilitiesFor(t, key);
-                    preset = LLMModel.Find(modelId);
+                    preset = KnownModels.Find(modelId);
                     if (preset is not null && preset.Provider != provider) { preset = null; }
                     break;
                 default:
-                    throw new ArgumentException($"Unknown model '{key}'. Use a model marker name or a configured profile name.");
+                    throw new ArgumentException($"Unknown model '{key}'. Use a catalogued model id or a configured profile name.");
             }
         }
 
         if (provider == AiProvider.Ollama && preset is not null)
-        { modelId = Clean(configuration.Ollama.Models.GetValueOrDefault(preset.Marker.Name)?.Model) ?? modelId; }
+        {
+            modelId = OllamaProviderFactory.TryResolveConfiguredTag(configuration.Ollama, preset) ?? modelId;
+        }
+
         if (modelId.Length > 200 || modelId.Any(char.IsControl))
         { throw new ArgumentException("Model ID must contain at most 200 printable characters.", nameof(turn)); }
 
         var factory = AIClients.Factory(provider);
         if (!await factory.IsConfigured(configuration, credentials, ct) && !(provider == AiProvider.Ollama && endpoint is not null))
         {
-            // When running against a test/host-supplied IChatClient with no external providers configured,
-            // preserve the requested model ID on the Host client so dynamic model selection is observable.
             if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct))
             {
-                var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty, declared ?? preset?.Capabilities ?? LlmCapabilities.Tools, NormalizeReasoning(reasoning), maxTokens);
+                var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty, declared ?? preset?.Can ?? (Abilities.Text | Abilities.Tools), NormalizeReasoning(reasoning), maxTokens);
                 return host with { Revision = Revision(host) };
             }
             if (provider == AiProvider.Ollama)
@@ -271,7 +269,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                             ? HttpLocalOllamaProbe.SelectPreferredCoderModel(localDetected.InstalledModels)
                             : HttpLocalOllamaProbe.SelectPreferredModel(localDetected.InstalledModels);
                     }
-                    declared ??= LlmCapabilities.Tools;
+                    declared ??= Abilities.Text | Abilities.Tools;
                 }
                 else
                 {
@@ -283,15 +281,16 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                 await credentials.RequireReady(AiIntegrations.IdOf(provider), ct);
             }
         }
-        // Integration endpoints and keys are materialized together when the client is used; persist
-        // only explicit host/profile overrides, where null means the provider integration default.
+
         endpoint ??= provider == AiProvider.Ollama ? Clean(configuration.Ollama.Endpoint) : Clean(configuration.Provider(provider).Endpoint);
         if (endpoint is not null || provider == AiProvider.Ollama) { endpoint = Endpoint(endpoint, provider); }
 
-        var capabilities = declared ?? preset?.Capabilities ?? LlmCapabilities.None;
-        if ((capabilities & ~(LlmCapabilities.Tools | LlmCapabilities.Vision | LlmCapabilities.StructuredOutput)) != 0)
+        var capabilities = declared ?? preset?.Can ?? Abilities.None;
+        const Abilities allKnownAbilities = Abilities.Text | Abilities.Tools | Abilities.Vision | Abilities.Reasoning
+            | Abilities.StructuredOutput | Abilities.Hear | Abilities.Speak | Abilities.Talk | Abilities.Embed | Abilities.Image;
+        if ((capabilities & ~allKnownAbilities) != 0)
         { throw new ArgumentException("Model capabilities contain unknown flags.", nameof(turn)); }
-        if (requiresTools && !capabilities.HasFlag(LlmCapabilities.Tools))
+        if (requiresTools && !capabilities.HasFlag(Abilities.Tools))
         { throw new ArgumentException($"Model '{modelId}' does not declare tool support. Configure Tools capabilities in its model profile before attaching tools.", nameof(turn)); }
         reasoning = NormalizeReasoning(reasoning);
         if (requiresTools && provider == AiProvider.OpenAI && modelId.StartsWith("gpt-5.6", StringComparison.OrdinalIgnoreCase))
@@ -347,17 +346,17 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
     }
 
     private static bool IsGenericLocalChatDeployment(AIOptions configuration, string deploymentKey)
-        => LLMModel.Find(deploymentKey) == DefaultChatModel
-            && !configuration.Ollama.Models.ContainsKey(DefaultChatModel.Marker.Name);
+    {
+        var defaultChat = KnownModels.Defaults.Device[Role.Chat];
+        return KnownModels.Find(deploymentKey)?.Id == defaultChat
+            && !configuration.Ollama.Models.ContainsKey(defaultChat.Value)
+            && !configuration.Ollama.Models.Keys.Any(k => KnownModels.Find(k)?.Id == defaultChat);
+    }
 
     private static bool IsDefaultOrLoopbackOllamaEndpoint(string? endpoint)
         => string.IsNullOrWhiteSpace(endpoint)
             || (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && uri.IsLoopback && uri.Port == 11434);
 
-    // By default the pipeline carries GenAI telemetry and metering but never function invocation:
-    // inference returns proposed calls and the agent owns the only tool loop. invokesTools is for
-    // a caller that hands the client AIFunctions and expects it to run them; it also rejects tools
-    // the model does not declare. The Host client is the deployment's and is not owned by the caller.
     public Task<IChatClient> CreateClient(ResolvedModel resolved, CancellationToken ct, bool invokesTools = false)
         => CreateClient(null, resolved, ct, invokesTools);
 
@@ -367,8 +366,6 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         ArgumentNullException.ThrowIfNull(resolved);
         if (!string.Equals(resolved.Revision, Revision(resolved), StringComparison.Ordinal))
         { throw new ArgumentException("The resolved model configuration does not match its revision.", nameof(resolved)); }
-        // Pinned options are applied inside the normal pipeline. Validate them before they
-        // can overwrite the per-call ceiling at the provider boundary.
         _ = services.GetService<ProviderExecutionGate>()?.Bound(new ChatOptions { MaxOutputTokens = resolved.MaxOutputTokens });
         if (resolved.Provider == AiProvider.Host)
         {
@@ -388,15 +385,11 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             if (resolved.MaxOutputTokens is not null) { request.MaxOutputTokens = resolved.MaxOutputTokens; }
         }).Build();
         ct.ThrowIfCancellationRequested();
-        return AIClients.BuildChatPipeline(services, !invokesTools || resolved.Capabilities.HasFlag(LlmCapabilities.Tools),
+        return AIClients.BuildChatPipeline(services, !invokesTools || resolved.Capabilities.HasFlag(Abilities.Tools),
             resolved.Provider.ToString(), pinned, resolved.Provider.ToString(), resolved.Model,
             rejectUnsupportedTools: invokesTools, useFunctionInvocation: invokesTools);
     }
 
-    // One release per build decides whose key this client carries. A brain key goes only to the
-    // provider's public endpoint: operator-declared and registration endpoints are the deployment's and
-    // never see it. An operator profile with its own endpoint is a deployment model: it always uses the
-    // deployment's key and that endpoint, and the brain key is not even released for it.
     private async Task<IChatClient> Build(string? brainId, ResolvedModel resolved, AIOptions configuration, CancellationToken ct)
     {
         var factory = AIClients.Factory(resolved.Provider);
@@ -423,17 +416,14 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         if (profile?.AllowedReasoning?.Any(value => value is not ("none" or "low" or "medium" or "high" or "xhigh")) == true)
         { throw new ArgumentException("AllowedReasoning contains an unsupported reasoning value."); }
         var declared = profile?.Capabilities;
-        CapabilitySupport Support(LlmCapabilities capability) => model.Capabilities.HasFlag(capability)
+        CapabilitySupport Support(Abilities capability) => model.Capabilities.HasFlag(capability)
             ? CapabilitySupport.Supported : declared is null ? CapabilitySupport.Unknown : CapabilitySupport.Unsupported;
         return new(model.Provider.ToString(), model.Model, model.Profile, model.Revision,
-            Support(LlmCapabilities.Tools), Support(LlmCapabilities.Vision), Support(LlmCapabilities.StructuredOutput),
+            Support(Abilities.Tools), Support(Abilities.Vision), Support(Abilities.StructuredOutput),
             profile?.ContextWindowTokens, profile?.MaximumOutputTokens, SupportFlag(profile?.SupportsTemperature),
             SupportFlag(profile?.SupportsTopP), profile?.AllowedReasoning?.ToArray());
     }
 
-    // The browser's allowlist: never a resolved model, which carries operator endpoints.
-    // Catalogued models whose provider has no key yet are listed as unavailable, so a picker can show
-    // them and say why; profiles that do not resolve are left out.
     public Task<ModelChoices> List(string? defaultModel, CancellationToken ct) => List(null, defaultModel, ct);
 
     public async Task<ModelChoices> List(string? brainId, string? defaultModel, CancellationToken ct)
@@ -444,10 +434,10 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         {
             var (resolved, reason) = await Attempt(brainId, choice.Selection, ct);
             if (resolved is not null) { choices.Add(Describe(choice.Id, choice.Label, resolved)); }
-            else if (choice.Preset is { } preset && preset.SupportsTools && reason is not null)
+            else if (choice.Preset is { } preset && preset.Can.HasFlag(Abilities.Tools) && reason is not null)
             {
-                var presetVisual = VisualCatalog.ForModel(preset.Id, preset.Provider.ToString());
-                choices.Add(new(choice.Id, presetVisual.Label, preset.Provider.ToString(), preset.Id, false, [.. Flags(preset.Capabilities)])
+                var presetVisual = VisualCatalog.ForModel(preset.Id.Value, preset.Provider.ToString());
+                choices.Add(new(choice.Id, presetVisual.Label, preset.Provider.ToString(), preset.Id.Value, false, [.. Flags(preset.Can)])
                 {
                     Reason = reason,
                     IconKey = presetVisual.IconKey,
@@ -467,7 +457,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                     continue;
                 }
                 var localVisual = VisualCatalog.ForModel(tag, AiProvider.Ollama.ToString());
-                choices.Insert(0, new("ollama/" + tag, localVisual.Label, AiProvider.Ollama.ToString(), tag, true, [nameof(LlmCapabilities.Tools)])
+                choices.Insert(0, new("ollama/" + tag, localVisual.Label, AiProvider.Ollama.ToString(), tag, true, [nameof(Abilities.Tools)])
                 {
                     IconKey = localVisual.IconKey,
                     ProviderLabel = localVisual.Category,
@@ -489,7 +479,6 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         catch (ProviderUnavailableException) { throw; }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException)
         { throw new ArgumentException(Unavailable); }
-        // The host client is a deployment fallback, not a choice a user can make.
         if (resolved.Provider is AiProvider.Host) { throw new ArgumentException(Unavailable); }
         return selection;
     }
@@ -502,7 +491,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         : ModelRef.TryReadStored(id, options.CurrentValue.ModelProfiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase), null, out var parsed)
             ? parsed switch
             {
-                ModelRef.Catalogued c => new(c.Model.Marker.Name),
+                ModelRef.Catalogued c => new(c.Model.Id.Value),
                 ModelRef.Profile p => new(p.Name),
                 ModelRef.Tag t => new(t.Id),
                 _ => throw new ArgumentException("The selected model is unavailable. Choose a model from Settings."),
@@ -511,38 +500,37 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     private static ModelSelection? Default(string? defaultModel) => defaultModel is { Length: > 0 } model ? new(model) : null;
 
-    private sealed record Choice(string Id, string Label, ModelSelection Selection, LLMModel? Preset = null);
+    private sealed record Choice(string Id, string Label, ModelSelection Selection, ModelCard? Preset = null);
 
-    // Micros per million input tokens from the module's price list; a local model without a listed
-    // price is free, any other unlisted model sorts after every priced one.
-    private static long InputPrice(IPriceList? prices, LLMModel model)
-        => prices?.MicrosPerUnit(CostKind.Model, model.Id + ":input") ?? (model.Provider == AiProvider.Ollama ? 0 : long.MaxValue);
+    private static long InputPrice(IPriceList? prices, ModelCard card)
+        => prices?.MicrosPerUnit(CostKind.Model, card.Id.Value + ":input") ?? (card.Provider == AiProvider.Ollama ? 0 : long.MaxValue);
 
-    private static IEnumerable<string> Flags(LlmCapabilities capabilities)
-        => Enum.GetValues<LlmCapabilities>().Where(c => c != LlmCapabilities.None && capabilities.HasFlag(c)).Select(c => c.ToString());
+    private static IEnumerable<string> Flags(Abilities capabilities)
+        => Enum.GetValues<Abilities>()
+            .Where(c => c is Abilities.Tools or Abilities.Vision or Abilities.StructuredOutput && capabilities.HasFlag(c))
+            .Select(c => c.ToString());
 
     private IEnumerable<Choice> Choices()
     {
         foreach (var name in options.CurrentValue.ModelProfiles.Keys.Order(StringComparer.OrdinalIgnoreCase))
         { yield return new("profile:" + name, name, new(name)); }
-        foreach (var preset in LLMModel.All)
+        var defaultChat = KnownModels.Defaults.Device[Role.Chat];
+        foreach (var preset in ChatCards)
         {
-            // Include the configured local default chat model when Ollama endpoint is declared even without explicit model overrides.
             if (preset.Provider == AiProvider.Ollama
-                && !options.CurrentValue.Ollama.Models.ContainsKey(preset.Marker.Name)
-                && !(preset == DefaultChatModel && !string.IsNullOrWhiteSpace(options.CurrentValue.Ollama.Endpoint)))
+                && !options.CurrentValue.Ollama.Models.ContainsKey(preset.Id.Value)
+                && !options.CurrentValue.Ollama.Models.Keys.Any(k => KnownModels.Find(k)?.Id == preset.Id)
+                && !(preset.Id == defaultChat && !string.IsNullOrWhiteSpace(options.CurrentValue.Ollama.Endpoint)))
             {
                 continue;
             }
-            var visual = VisualCatalog.ForModel(preset.Id, preset.Provider.ToString());
-            yield return new("preset:" + preset.Marker.Name, visual.Label, new(preset.Marker.Name), preset);
+            var visual = VisualCatalog.ForModel(preset.Id.Value, preset.Provider.ToString());
+            yield return new("preset:" + preset.Id.Value, visual.Label, new(preset.Id.Value), preset);
         }
     }
 
     internal const string NoKeyReason = "Add a key in API keys";
 
-    // A catalogued model that does not resolve says why: a key-based provider without a key asks for
-    // one; any other refusal carries its own message (catalog messages name no endpoint or secret).
     private async Task<(ResolvedModel? Resolved, string? Reason)> Attempt(string? brainId, ModelSelection selection, CancellationToken ct)
     {
         try { return (await Resolve(brainId, selection, requiresTools: true, ct), null); }
@@ -589,7 +577,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     private static AiProvider ParseProvider(string name)
         => Enum.TryParse<AiProvider>(name, ignoreCase: true, out var provider) && Enum.IsDefined(provider)
-            && provider is not (AiProvider.FoundryLocal or AiProvider.Host)
+            && provider is not (AiProvider.FoundryLocal or AiProvider.Host or AiProvider.TypeSafe)
             ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter or Ollama.", nameof(name));
 
     private static string? Endpoint(string? endpoint, AiProvider provider)
@@ -644,7 +632,6 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         };
     }
 
-    // The host client is a singleton; a caller's `using` must not dispose it.
     private sealed class NonDisposing(IChatClient inner) : DelegatingChatClient(inner)
     {
         protected override void Dispose(bool disposing) { }

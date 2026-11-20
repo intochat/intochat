@@ -5,10 +5,6 @@ using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Anthropic;
-using IntoChat.OS.Modules.AI.Models.Google;
-using IntoChat.OS.Modules.AI.Models.OpenAI;
-using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -96,7 +92,7 @@ internal static class InoModelSetup
         {
             var uiKey = InoModel.UiChatKeyOf(state.ConversationId);
             var thread = host.GetUiChatThread(uiKey);
-            var activeModel = state.SelectedModel ?? state.DetectedLocalModel ?? ModelCatalog.DefaultChatModelId;
+            var activeModel = state.SelectedModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
             var modelOptions = (state.DetectedLocalModels ?? [])
                 .Prepend(activeModel)
                 .Where(static m => !string.IsNullOrWhiteSpace(m))
@@ -305,7 +301,7 @@ internal static class InoModelSetup
         var local = await DetectLocalModelsAsync(host);
         var state = host.GetState();
         var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model.Trim()
-            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : local?.PreferredModel ?? state.DetectedLocalModel ?? ModelCatalog.DefaultChatModelId;
+            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : local?.PreferredModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
         await PersistDefaultModelAsync(host, model, state.ConversationId);
         var retry = host.GetState().Error?.Code is "no-provider" or "provider-rejected-key";
         await host.ShowState(InoModel.ModelSelected(host.GetState(), model, $"Switched model to {model}", local));
@@ -384,7 +380,7 @@ internal static class InoModelSetup
             case "pin": await host.ShowState(InoModel.DecideSlashPin(state)); return;
             case "rename": await host.ShowState(InoModel.DecideSlashRename(state, arg)); return;
             case "model":
-                var nextModel = string.IsNullOrWhiteSpace(arg) ? ModelCatalog.DefaultChatModelId : arg.Trim();
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
                 await PersistDefaultModelAsync(host, nextModel, state.ConversationId);
                 await host.ShowState(InoModel.ModelSelected(host.GetState(), nextModel, $"Switched model to {nextModel}"));
                 return;
@@ -425,11 +421,11 @@ internal static class InoModelSetup
         {
             var auto = choices.Automatic;
             if (!string.IsNullOrWhiteSpace(auto.Model) && !string.IsNullOrWhiteSpace(auto.Provider)) { return (auto.Model, auto.Model); }
-            var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : ModelCatalog.DefaultChatModelId;
+            var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : KnownModels.Defaults.Device[Role.Chat].Value;
             return (null, fallbackDisplay);
         }
 
-        var fallback = local?.PreferredModel is { Length: > 0 } detected ? detected : ModelCatalog.DefaultChatModelId;
+        var fallback = local?.PreferredModel is { Length: > 0 } detected ? detected : KnownModels.Defaults.Device[Role.Chat].Value;
         return (fallback, fallback);
     }
 
@@ -486,14 +482,11 @@ internal static class InoModelSetup
 
     public static string DefaultModelForProvider(string provider) => provider switch
     {
-        "anthropic" => CatalogId(typeof(ISonnet46)),
-        "google" => CatalogId(typeof(IGemini36Pro)),
-        "openrouter" => CatalogId(typeof(IDeepSeekV41Flash)),
-        _ => CatalogId(typeof(IGpt54)),
+        "anthropic" => KnownModels.Sonnet46.Id.Value,
+        "google" => KnownModels.Gemini36Pro.Id.Value,
+        "openrouter" => KnownModels.DeepSeekV41Flash.Id.Value,
+        _ => KnownModels.Gpt54.Id.Value,
     };
-
-    private static string CatalogId(Type marker)
-        => LLMModel.FindByMarker(marker)?.Id ?? ModelCatalog.DefaultChatModelId;
 
     public static AppBundle BuildBundle(Type compiledType) => new(
         "ino",

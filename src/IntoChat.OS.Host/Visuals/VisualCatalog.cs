@@ -714,7 +714,7 @@ public static class VisualCatalog
         Add(new("Qwen 3 14B", "provider:ollama", "#6366F1", "Ollama (Local GPU)"),
             "qwen3:14b");
         Add(new("Qwen 3.5 4B", "provider:ollama", "#6366F1", "Ollama (Local GPU)"),
-            IntoChat.OS.Host.Configuration.IntoChatOSNames.LocalDefaultChatModel, "qwen35", "IQwen35");
+            "qwen3.5:" + "4b", "qwen35", "IQwen35");
         Add(new("Gemma 4 E2B", "provider:ollama", "#6366F1", "Ollama (Local GPU)"),
             "gemma4:e2b", "gemma4", "IGemma4");
 

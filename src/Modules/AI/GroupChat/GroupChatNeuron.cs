@@ -92,7 +92,7 @@ internal sealed class GroupChatNeuron(IServiceProvider services)
         var conversation = new StringBuilder().AppendLine($"Question: {question}");
         foreach (var turn in transcript) { conversation.AppendLine($"{turn.Speaker}: {turn.Text}"); }
         conversation.AppendLine().AppendLine(instruction);
-        var text = await ModelNeurons.Complete(services, Id.Brain.Value, participant.Model, system, conversation.ToString());
+        var text = await ModelNeurons.Complete(services, Id.Brain, participant.Model, system, conversation.ToString());
         return text.Length > 0 ? text : throw new InvalidOperationException($"{participant.Name} returned an empty turn.");
     }
 }

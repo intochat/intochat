@@ -19,8 +19,9 @@ internal sealed class AnthropicProviderFactory : ApiKeyProviderFactory
     }
 
     public override Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
-        EmbeddingModel model,
+        ModelCard card,
         AIOptions configuration,
-        IAiCredentials credentials, CancellationToken cancellationToken = default)
+        IAiCredentials credentials,
+        CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Anthropic does not provide embedding models.");
 }

@@ -6,39 +6,39 @@ using OpenAI.Images;
 
 namespace IntoChat.OS.Modules.AI;
 
-internal sealed class OpenAIImageGeneration(ImageModel model, IAiCredentials credentials) : IImageGeneration, IConditionallyAvailable
+internal sealed class OpenAIImageGeneration(ModelCard card, IAiCredentials credentials) : IImageGeneration, IConditionallyAvailable
 {
-    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => credentials.IsReady(AiIntegrations.IdOf(model.Provider), cancellationToken);
+    private const string DefaultMediaType = "image/png";
+
+    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => credentials.IsReady(AiIntegrations.IdOf(card.Provider), cancellationToken);
 
     public async Task<GeneratedUiImage> GenerateAsync(string prompt, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
 
-        var material = await credentials.MaterializeAsync(AiIntegrations.IdOf(model.Provider), cancellationToken).ConfigureAwait(false);
+        var material = await credentials.MaterializeAsync(AiIntegrations.IdOf(card.Provider), cancellationToken).ConfigureAwait(false);
         var apiKey = material.Values[AiIntegrations.ApiKeyField];
         var options = new OpenAIClientOptions();
         if (material.Snapshot.Settings.GetValueOrDefault(AiIntegrations.EndpointField) is { Length: > 0 } endpoint) { options.Endpoint = new Uri(endpoint); }
-        var client = new OpenAIClient(new ApiKeyCredential(apiKey), options).GetImageClient(model.Id);
+        var client = new OpenAIClient(new ApiKeyCredential(apiKey), options).GetImageClient(card.Id.Value);
         var image = await client.GenerateImageAsync(
             prompt,
-            OptionsFor(model),
+            OptionsFor(card),
             cancellationToken).ConfigureAwait(false);
 
         var bytes = image.Value.ImageBytes
-            ?? throw new InvalidOperationException(
-                $"{model.DisplayName} returned no image bytes. A model that answers with a URL must set "
-                + $"{nameof(ImageModel.AcceptsResponseFormat)} so bytes are requested explicitly.");
+            ?? throw new InvalidOperationException($"{card.Name} returned no image bytes.");
 
-        return new GeneratedUiImage(bytes.ToArray(), model.MediaType, model.Id);
+        return new GeneratedUiImage(bytes.ToArray(), DefaultMediaType, card.Id.Value);
     }
 
     // Asking gpt-image-1 for a response format is HTTP 400 unknown_parameter: it
-    // always answers with base64. Only models that accept the option get it.
-    internal static ImageGenerationOptions OptionsFor(ImageModel model)
+    // always answers with base64. Only older dall-e models accept ResponseFormat.
+    internal static ImageGenerationOptions OptionsFor(ModelCard card)
     {
-        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(card);
 
-        return model.AcceptsResponseFormat
+        return card.Id.Value.StartsWith("dall-e", StringComparison.OrdinalIgnoreCase)
             ? new ImageGenerationOptions { ResponseFormat = GeneratedImageFormat.Bytes }
             : new ImageGenerationOptions();
     }

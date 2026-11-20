@@ -115,7 +115,7 @@ internal sealed partial class InoNativeHarness
             var options = supportsTemp ? new InferenceOptions(Temperature: 0.1f) : null;
             var reply = await inference.Generate(
                 new InferenceRequest(messages, Model: selection, Options: options, Tools: tools),
-                marker: null,
+                model: null,
                 cancellationToken: ct,
                 brainId: request.Brain?.Value).ConfigureAwait(false);
 
@@ -258,11 +258,11 @@ internal sealed partial class InoNativeHarness
                 : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
                 : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
                 : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
-            var desc = await inference.Describe(sel, marker: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
+            var desc = await inference.Describe(sel, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
             return (inference, sel, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
         }
 
-        var defaultDesc = await inference.Describe(null, marker: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
+        var defaultDesc = await inference.Describe(null, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
         return (inference, null, defaultDesc.Model, defaultDesc.Temperature == CapabilitySupport.Supported);
     }
 

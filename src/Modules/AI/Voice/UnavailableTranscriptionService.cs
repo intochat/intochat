@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.AI;
 internal sealed class UnavailableTranscriptionService : IAudioTranscriptionService
 {
     private const string NotConfigured =
-        "Voice-to-text is not configured. Call AIModule.WithVoiceToText<T>() in AppHost.";
+        "Voice-to-text is not configured. Configure Role.Hear with AIOptions.WithRole(Role.Hear, ...).";
 
     public UnavailableTranscriptionService()
         : this(NotConfigured)

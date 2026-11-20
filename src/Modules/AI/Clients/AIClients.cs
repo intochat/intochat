@@ -1,5 +1,5 @@
 using DigitalBrain.Capabilities.Compute;
-using IntoChat.OS;
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
@@ -15,18 +15,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Orleans;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 
 internal static class AIClients
 {
     internal static readonly string ConfigurationRoot = AIKeys.Options;
-    internal static readonly string DefaultModelKey = AIKeys.DefaultModel;
-    internal static readonly string DefaultEmbeddingKey = AIKeys.DefaultEmbedding;
-    internal static readonly string DefaultTranscriptionKey = AIKeys.DefaultTranscription;
-    internal static readonly string DefaultImageKey = AIKeys.DefaultImage;
     private const string TelemetrySource = "IntoChat.OS.Modules.AI";
 
     private static readonly IReadOnlyDictionary<AiProvider, ILlmProviderFactory> Factories =
@@ -43,38 +37,42 @@ internal static class AIClients
     internal static void Add(IServiceCollection services)
     {
         services.TryAddSingleton<ProviderExecutionGate>();
-        foreach (var model in LLMModel.All)
+        foreach (var card in KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Text) && Factories.ContainsKey(c.Provider)))
         {
             services.AddKeyedSingleton<IChatClient>(
-                model.Marker,
-                (provider, _) => BuildChatPipeline(provider, model));
+                card.Id,
+                (provider, _) => BuildChatPipeline(provider, card));
         }
 
-        foreach (var model in EmbeddingModel.All)
+        foreach (var card in KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed) && Factories.ContainsKey(c.Provider)))
         {
             services.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-                model.Marker,
+                card.Id,
                 (provider, _) =>
                 {
                     var inner = new RebuildingEmbeddingGenerator(
-                        ct => Factories[model.Provider].CreateEmbeddingGenerator(
-                            model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
-                        GenerationOf(provider, model.Provider));
+                        ct => Factories[card.Provider].CreateEmbeddingGenerator(
+                            card, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
+                        GenerationOf(provider, card.Provider));
                     IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
                     return provider.GetService<ICostMeter>() is { } meter
-                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(model.Provider), model.Id, provider.GetService<ILoggerFactory>()?.CreateLogger<MeteringEmbeddingGenerator>())
+                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(card.Provider), card.Id.Value, provider.GetService<ILoggerFactory>()?.CreateLogger<MeteringEmbeddingGenerator>())
                         : limited;
                 });
         }
 
-        // Apply local topology defaults once before resolving AIDefaults or clients when topology is configured.
+        // Apply legacy Default:* aliases and local topology defaults before resolving options.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, LegacyDefaultsAlias>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, TopologyAiOptionsPostConfigure>());
         services.TryAddSingleton<ModelCatalog>();
 
-        // Resolve the final options after application Configure delegates have run.
-        // An empty marker preserves Providers' fallback to the default IChatClient.
-        services.TryAddSingleton(provider => new AIDefaults(
-            provider.GetRequiredService<IOptions<AIOptions>>().Value.Default.Model ?? string.Empty));
+        services.TryAddSingleton(provider =>
+        {
+            var ai = provider.GetRequiredService<IOptions<AIOptions>>().Value;
+            var topology = provider.GetService<IConfiguration>()?[IntoChatOSNames.TopologyKey];
+            var chat = RoleMaps.Explicit(ai, topology, Role.Chat)?.Value ?? string.Empty;
+            return new AIDefaults(chat);
+        });
         services.TryAddSingleton(DefaultChatClient);
         services.TryAddSingleton(DefaultEmbeddingGenerator);
 
@@ -100,10 +98,10 @@ internal static class AIClients
     private static Funding FundingOf(string provider)
         => Enum.TryParse<AiProvider>(provider, out var parsed) ? FundingOf(parsed) : Funding.Local;
 
-    private static IChatClient BuildChatPipeline(IServiceProvider provider, LLMModel model)
-        => BuildChatPipeline(provider, model, Rebuilding(provider, model.Provider,
-            ct => Factories[model.Provider].CreateChatClient(
-                model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct)));
+    private static IChatClient BuildChatPipeline(IServiceProvider provider, ModelCard card)
+        => BuildChatPipeline(provider, card, Rebuilding(provider, card.Provider,
+            ct => Factories[card.Provider].CreateChatClient(
+                card, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct)));
 
     // A keyed provider's client is rebuilt when its registration is re-read, so a cleared or rotated key takes effect without a restart.
     private static IChatClient Rebuilding(IServiceProvider services, AiProvider provider, Func<CancellationToken, Task<IChatClient>> create)
@@ -113,9 +111,9 @@ internal static class AIClients
         => ct => AiIntegrations.KeyedProviders.Contains(provider)
             ? services.GetRequiredService<IAiCredentials>().GenerationOf(AiIntegrations.IdOf(provider), ct) : Task.FromResult(0L);
 
-    internal static IChatClient BuildChatPipeline(IServiceProvider provider, LLMModel model, IChatClient innerClient)
-        => BuildChatPipeline(provider, model.SupportsTools, model.Marker.Name, innerClient,
-            model.Provider.ToString(), model.Id);
+    internal static IChatClient BuildChatPipeline(IServiceProvider provider, ModelCard card, IChatClient innerClient)
+        => BuildChatPipeline(provider, card.Can.HasFlag(Abilities.Tools), card.Id.Value, innerClient,
+            card.Provider.ToString(), card.Id.Value);
 
     internal static IChatClient BuildChatPipeline(IServiceProvider provider, bool supportsTools, string telemetryName,
         IChatClient innerClient, string? meterProvider = null, string? meterModel = null,
@@ -175,60 +173,63 @@ internal static class AIClients
     private static IEmbeddingGenerator<string, Embedding<float>> DefaultEmbeddingGenerator(IServiceProvider provider)
     {
         var configuration = provider.GetRequiredService<IOptions<AIOptions>>().Value;
+        var topology = provider.GetService<IConfiguration>()?[IntoChatOSNames.TopologyKey];
+        var configuredId = RoleMaps.Explicit(configuration, topology, Role.Embed);
 
-        if (configuration.Default.Embedding is { Length: > 0 } markerName)
+        if (configuredId is { Value.Length: > 0 } id)
         {
-            var configured = EmbeddingModel.FindByMarkerName(markerName)
-                ?? throw UnknownMarker(DefaultEmbeddingKey, markerName, EmbeddingModel.All.Select(static m => m.Marker.Name));
-            return provider.GetRequiredKeyedService<IEmbeddingGenerator<string, Embedding<float>>>(configured.Marker);
+            var configured = KnownModels.Find(id.Value);
+            if (configured is null || !configured.Can.HasFlag(Abilities.Embed))
+            {
+                throw UnknownModel(AIKeys.Roles, id.Value, KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)).Select(static c => c.Id.Value));
+            }
+            return provider.GetRequiredKeyedService<IEmbeddingGenerator<string, Embedding<float>>>(configured.Id);
         }
 
         // The default embedding stays pinned to the local model unless explicitly
         // configured: silently switching it changes vector dimensions and orphans
-        // every existing Qdrant collection.
-        var local = EmbeddingModel.All.Single(static model => model.Marker == typeof(Models.Ollama.IEmbeddingGemma));
+        // every existing vector collection.
+        var local = KnownModels.EmbeddingGemma;
         if (string.IsNullOrEmpty(configuration.Ollama.Endpoint))
         {
             throw new InvalidOperationException(
-                $"No embedding model is configured. Supply an Ollama endpoint for {local.Marker.Name}, "
-                + $"or pin {DefaultEmbeddingKey} to a configured cloud embedding "
-                + $"({string.Join(", ", EmbeddingModel.All.Select(static m => m.Marker.Name))}).");
+                $"No embedding model is configured. Supply an Ollama endpoint for {local.Id}, "
+                + $"or pin {AIKeys.Role(Where.Cloud, Role.Embed)} to a configured cloud embedding "
+                + $"({string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)).Select(static c => c.Id.Value))}).");
         }
 
-        return provider.GetRequiredKeyedService<IEmbeddingGenerator<string, Embedding<float>>>(local.Marker);
+        return provider.GetRequiredKeyedService<IEmbeddingGenerator<string, Embedding<float>>>(local.Id);
     }
 
     internal static void AddImageGeneration(IServiceCollection services, IConfiguration configuration)
-        => AddImageGeneration(services, AIOptionsRuntime.Read(configuration));
+        => AddImageGeneration(services, AIOptionsRuntime.Read(configuration), configuration[IntoChatOSNames.TopologyKey]);
 
-    internal static void AddImageGeneration(IServiceCollection services, AIOptions configuration)
+    internal static void AddImageGeneration(IServiceCollection services, AIOptions configuration, string? topology = null)
     {
-        // The marker names the model, as with chat and embeddings; an unpinned
-        // key keeps the catalogue's first entry.
-        var markerName = configuration.Default.Image;
-        var model = string.IsNullOrEmpty(markerName)
-            ? ImageModel.All[0]
-            : ImageModel.FindByMarkerName(markerName);
+        var configuredId = RoleMaps.Explicit(configuration, topology, Role.Image);
+        var card = configuredId is { Value.Length: > 0 } id
+            ? KnownModels.Find(id.Value)
+            : KnownModels.Find(KnownModels.Defaults.Cloud[Role.Image].Value);
 
         // Resolution failure is deferred into the factory rather than thrown here:
         // this runs during service registration, so throwing would take the whole
-        // silo down over a typo in a peripheral feature. Default:Model does the
-        // same, and Default:Transcription degrades to a 503 with the reason.
-        if (model is null)
+        // silo down over a typo in a peripheral feature.
+        if (card is null || !card.Can.HasFlag(Abilities.Image))
         {
-            services.AddSingleton<IImageGeneration>(_ => throw UnknownMarker(
-                DefaultImageKey, markerName!, ImageModel.All.Select(static m => m.Marker.Name)));
+            services.AddSingleton<IImageGeneration>(_ => throw UnknownModel(
+                AIKeys.Roles, configuredId?.Value ?? string.Empty,
+                KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Image)).Select(static c => c.Id.Value)));
             return;
         }
 
         services.AddSingleton<IImageGeneration>(sp =>
-            new OpenAIImageGeneration(model, sp.GetRequiredService<IAiCredentials>()));
+            new OpenAIImageGeneration(card, sp.GetRequiredService<IAiCredentials>()));
     }
 
-    private static InvalidOperationException UnknownMarker(
+    private static InvalidOperationException UnknownModel(
         string configurationKey,
-        string markerName,
-        IEnumerable<string> knownMarkerNames)
-        => new($"{configurationKey} names unknown model '{markerName}'. "
-            + $"Known models: {string.Join(", ", knownMarkerNames)}.");
+        string modelId,
+        IEnumerable<string> knownIds)
+        => new($"{configurationKey} names unknown model '{modelId}'. "
+            + $"Known models: {string.Join(", ", knownIds)}.");
 }

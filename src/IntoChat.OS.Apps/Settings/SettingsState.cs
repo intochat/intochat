@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
@@ -149,7 +148,7 @@ public sealed record SettingsAppState(
         "Settings",
         "User",
         "dark",
-        ModelCatalog.DefaultChatModelId,
+        KnownModels.Defaults.Device[Role.Chat].Value,
         "general",
         null,
         null,
@@ -380,7 +379,7 @@ public sealed record SettingsAppState(
     public Decision<SettingsAppState> ApplyPreferences(
         [Sample("Ada", "")] string? displayName = null,
         [Sample("dark", "neon-invalid")] string? theme = null,
-        [Sample(nameof(IQwen35))] string? defaultModel = null,
+        [Sample(nameof(KnownModels.Qwen35))] string? defaultModel = null,
         [Sample("fluent-acrylic")] string? stylePreset = null,
         [Sample("floating-glass")] string? barLayout = null,
         [Sample("auto")] string? themeMode = null,

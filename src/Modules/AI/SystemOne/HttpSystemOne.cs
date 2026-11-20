@@ -31,8 +31,8 @@ internal sealed class HttpSystemOne(
             ? configured
             : options.Value.SystemOne.Endpoint;
         var model = request.Model is { Length: > 0 } ? request.Model
-            : options.Value.Default.SystemOne is { Length: > 0 } marker && SystemOneModel.FindByMarkerName(marker) is { } catalogued ? catalogued.Id
-            : options.Value.SystemOne.Model;
+            : ResolveFastSystemOneModel(options.Value)
+            ?? options.Value.SystemOne.Model;
 
         var questions = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var (key, question) in request.Questions) { questions[key] = Body(question); }
@@ -47,6 +47,22 @@ internal sealed class HttpSystemOne(
         var answers = new Dictionary<string, SystemOneAnswer>(StringComparer.Ordinal);
         foreach (var (key, answer) in parsed.Answers) { answers[key] = Answer(answer); }
         return new SystemOneResult(parsed.Model, answers, parsed.Usage?.InputTokens ?? 0, parsed.Usage?.OutputTokens ?? 0);
+    }
+
+    private static string? ResolveFastSystemOneModel(AIOptions ai)
+    {
+        var map = ai.Roles.ToRoleMap();
+        if (map.Device.TryGetValue(Role.Fast, out var devId) && KnownModels.Find(devId.Value) is { } devCard && AIOptionsExtensions.IsSystemOne(devCard))
+        {
+            return devCard.Id.Value;
+        }
+
+        if (map.Cloud.TryGetValue(Role.Fast, out var cloudId) && KnownModels.Find(cloudId.Value) is { } cloudCard && AIOptionsExtensions.IsSystemOne(cloudCard))
+        {
+            return cloudCard.Id.Value;
+        }
+
+        return null;
     }
 
     private static object Body(SystemOneQuestion question) => question switch

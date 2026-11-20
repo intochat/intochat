@@ -1,15 +1,14 @@
 using System.Text.Json.Serialization;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Models;
-using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 
 public sealed class AIOptions : IModuleOptions
 {
-    public AIDefaultOptions Default { get; set; } = new();
+    public AIRoleOptions Roles { get; set; } = new();
+    public string? Reasoning { get; set; }
+    public int? MaxOutputTokens { get; set; }
     public AITelemetryOptions Telemetry { get; set; } = new();
     public AIProviderOptions OpenAI { get; set; } = new();
     public AIProviderOptions Anthropic { get; set; } = new();
@@ -34,11 +33,6 @@ public sealed class AIOptions : IModuleOptions
         _ => throw new NotSupportedException($"{provider} has no hosted provider settings."),
     };
 
-    // Options validate only their own values; marker names are the hosting ring's
-    // question, resolved loudly once at bind in AIModuleHosting.
+    // Options validate only their own values; model ids are resolved at bind in AIModuleHosting and ModelCatalog.
     public void Validate() { }
-
-    // Model markers are open-ended child keys beside Endpoint, rather than under Models.
-    // Keep that public configuration shape.
-
 }

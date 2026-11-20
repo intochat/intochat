@@ -42,10 +42,10 @@ public sealed partial class ModelPolicyFacts
         var profiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "work-fast" };
 
         var cataloguedById = Assert.IsType<ModelRef.Catalogued>(ModelRef.Parse("qwen3.5:4b", profiles));
-        Assert.Equal("qwen3.5:4b", cataloguedById.Model.Id);
+        Assert.Equal("qwen3.5:4b", cataloguedById.Model.Id.Value);
 
         var cataloguedByMarker = Assert.IsType<ModelRef.Catalogued>(ModelRef.Parse("IQwen35", profiles));
-        Assert.Equal(typeof(IQwen35), cataloguedByMarker.Model.Marker);
+        Assert.Equal(KnownModels.Qwen35, cataloguedByMarker.Model);
 
         var profile = Assert.IsType<ModelRef.Profile>(ModelRef.Parse("WORK-FAST", profiles));
         Assert.Equal("work-fast", profile.Name);
@@ -80,13 +80,13 @@ public sealed partial class ModelPolicyFacts
         Assert.Equal((AiProvider.OpenAI, "gpt-5"), (gpt.Provider, gpt.Id));
 
         var gemma12b = Assert.IsType<ModelRef.Catalogued>(ModelRef.ReadStored("gemma4:12b", profiles));
-        Assert.Equal("gemma4:12b", gemma12b.Model.Id);
+        Assert.Equal("gemma4:e2b", gemma12b.Model.Id.Value);
 
-        var gemmaLegacyTag = Assert.IsType<ModelRef.Tag>(ModelRef.ReadStored("gemma4:e2b", profiles));
-        Assert.Equal((AiProvider.Ollama, "gemma4:e2b"), (gemmaLegacyTag.Provider, gemmaLegacyTag.Id));
+        var gemmaLegacyTag = Assert.IsType<ModelRef.Catalogued>(ModelRef.ReadStored("gemma4:e2b", profiles));
+        Assert.Equal((AiProvider.Ollama, "gemma4:e2b"), (gemmaLegacyTag.Model.Provider, gemmaLegacyTag.Model.Id.Value));
 
-        var coder = Assert.IsType<ModelRef.Tag>(ModelRef.ReadStored("qwen2.5-coder:14b", profiles, ["qwen2.5-coder:14b"]));
-        Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (coder.Provider, coder.Id));
+        var coder = Assert.IsType<ModelRef.Catalogued>(ModelRef.ReadStored("qwen2.5-coder:14b", profiles, ["qwen2.5-coder:14b"]));
+        Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (coder.Model.Provider, coder.Model.Id.Value));
 
         Assert.Throws<ArgumentException>(() => ModelRef.ReadStored("not-a-valid-model-at-all", profiles));
     }
@@ -95,7 +95,11 @@ public sealed partial class ModelPolicyFacts
     public async Task DecideRespectsPrecedenceTurnThenPersonThenDeploymentThenDetected()
     {
         var services = new ServiceCollection();
-        services.AddOptions<AIOptions>().Configure(o => o.Default.Model = "claude-sonnet-4-6");
+        services.AddOptions<AIOptions>().Configure(o =>
+        {
+            o.Roles.Device[Role.Chat] = "claude-sonnet-4-6";
+            o.Roles.Cloud[Role.Chat] = "claude-sonnet-4-6";
+        });
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials()
             .Ready("openai", "sk-openai")
             .Ready("anthropic", "sk-anthropic")
@@ -132,7 +136,7 @@ public sealed partial class ModelPolicyFacts
         services.AddOptions<AIOptions>().Configure(o =>
         {
             o.Ollama.Endpoint = "http://127.0.0.1:11434";
-            o.Default.Model = nameof(IQwen35);
+            o.Roles.Device[Role.Chat] = KnownModels.Qwen35.Id.Value;
         });
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
@@ -215,7 +219,7 @@ public sealed partial class ModelPolicyFacts
     public void DefaultChatClientFollowsUnifiedDefaultModelGrammar()
     {
         var services = new ServiceCollection();
-        services.AddOptions<AIOptions>().Configure(o => o.Default.Model = "qwen3.5:4b");
+        services.AddOptions<AIOptions>().Configure(o => o.Roles.Device[Role.Chat] = KnownModels.Qwen35.Id.Value);
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<ILocalOllamaProbe>(new StubProbe(null));
         AIClients.Add(services);
@@ -226,12 +230,12 @@ public sealed partial class ModelPolicyFacts
         var chatClient = provider.GetRequiredService<IChatClient>();
 
         Assert.NotNull(chatClient);
-        Assert.Equal("qwen3.5:4b", ModelCatalog.DefaultChatModelId);
-        Assert.Equal(LocalModelOptions.DefaultModel, ModelCatalog.DefaultChatModelId);
+        Assert.Equal("qwen3.5:4b", KnownModels.Defaults.Device[Role.Chat].Value);
+        Assert.Equal(LocalModelOptions.DefaultModel, KnownModels.Defaults.Device[Role.Chat].Value);
     }
 
     [Fact]
-    public void DefaultChatModelLiteralExistsOnceInOwnedModelPolicyCode()
+    public void DefaultChatModelLiteralExistsOnlyInModelsJson()
     {
         var slnPath = FindSolutionFile();
         var slnRoot = Path.GetDirectoryName(slnPath)!;
@@ -249,7 +253,6 @@ public sealed partial class ModelPolicyFacts
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
         var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
         var hostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Host", StringComparison.OrdinalIgnoreCase));
-        var frameworkDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Identity", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Identity", StringComparison.OrdinalIgnoreCase));
 
         string[] ownedDirectories =
         [
@@ -270,13 +273,6 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(hostDir, "Visuals"),
         ];
 
-        // Two homes, proven equal below: the hosting default (IntoChatOSNames) and the model's own identity in the AI contracts,
-        // which may not depend on hosting code.
-        string[] expectedSources =
-        [
-            Path.GetFullPath(Path.Combine(hostDir, "Configuration", "IntoChatOSNames.cs")),
-            Path.GetFullPath(Path.Combine(aiDir, "Contracts", "Models", "Ollama", "IQwen35.cs")),
-        ];
         var literalHits = new List<string>();
         foreach (var path in ownedDirectories)
         {
@@ -291,12 +287,12 @@ public sealed partial class ModelPolicyFacts
             }
         }
 
-        Assert.Equal(expectedSources.Order(StringComparer.OrdinalIgnoreCase), literalHits.Order(StringComparer.OrdinalIgnoreCase));
+        Assert.Empty(literalHits);
     }
 
     [Fact]
-    public void TheLocalDefaultChatModelIsTheQwen35Model()
-        => Assert.Equal(IntoChat.OS.Host.Configuration.IntoChatOSNames.LocalDefaultChatModel, new IntoChat.OS.Modules.AI.Models.Ollama.Qwen35().Id);
+    public void TheLocalDefaultChatModelIsTheQwen35Card()
+        => Assert.Equal(KnownModels.Qwen35.Id, KnownModels.Defaults.Device[Role.Chat]);
 
     private static string FindSolutionFile()
     {

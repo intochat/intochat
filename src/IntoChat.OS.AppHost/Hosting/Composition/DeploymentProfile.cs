@@ -2,10 +2,6 @@ using Aspire.Hosting;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.FoundryLocal;
-using IntoChat.OS.Modules.AI.Models.Ollama;
-using IntoChat.OS.Modules.AI.Models.OpenAI;
-using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 using IntoChat.OS.Modules.ClickHouse;
@@ -117,20 +113,22 @@ public sealed record DeploymentProfile
         return os;
     }
 
-    // Local: Ollama on the host (endpoint only, no container) serving default chat model IQwen35 unless IntoChatOS:Local:Model was passed.
+    // Local: Ollama on the host (endpoint only, no container); IntoChatOS:Local:Model overrides Roles.Device[Chat].
     internal static AIOptions LocalAi(string? model)
     {
         var ai = new AIOptions().WithModelEndpoint(AiProvider.Ollama, new Uri(IntoChatOSNames.LocalOllamaEndpoint)).WithoutWebSearch();
-        ai.Default.Model = nameof(IQwen35);
-        if (model is { Length: > 0 }) { ai.Ollama.Models[nameof(IQwen35)] = new AIModelOptions { Model = model }; }
+        if (model is { Length: > 0 })
+        {
+            ai.Roles.Device[Role.Chat] = KnownModels.Find(model)?.Id.Value ?? model.Trim();
+        }
         return ai;
     }
 
     private static AIOptions CloudAi() => new AIOptions()
-        .WithLlm<IGpt56Luna>()
-        .WithDefaultLlm<IDeepSeekV41Flash>()
-        .WithDefaultEmbedding<ITextEmbedding3Small>()
-        .WithVoiceToText<IWhisperLargeV3Turbo>()
+        .WithModel(KnownModels.Gpt56Luna)
+        .WithRole(Role.Chat, KnownModels.DeepSeekV41Flash)
+        .WithRole(Role.Embed, KnownModels.TextEmbedding3Small)
+        .WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo)
         .WithoutLocalModels()
         .WithTavilySearch();
 }

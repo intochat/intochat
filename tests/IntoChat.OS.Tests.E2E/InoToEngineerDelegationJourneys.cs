@@ -365,7 +365,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
     {
         public bool HasProfile(string name) => true;
 
-        public Task<ModelDescriptor> Describe(ModelSelection? selection, Type? marker, CancellationToken cancellationToken, string? brainId)
+        public Task<ModelDescriptor> Describe(ModelSelection? selection, ModelId? model, CancellationToken cancellationToken, string? brainId)
             => Task.FromResult(new ModelDescriptor(
                 "Ollama",
                 "qwen2.5-coder:14b",
@@ -375,7 +375,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
                 CapabilitySupport.Unsupported,
                 CapabilitySupport.Supported));
 
-        public Task<InferenceResult> Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        public Task<InferenceResult> Generate(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
         {
             var combinedPrompt = string.Join("\n", request.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text));
             lock (recordedPrompts)
@@ -437,7 +437,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
             return Task.FromResult(new InferenceResult([new AiMessage("assistant", [new AiText(criticJson)])], "stop", null, null, "qwen2.5-coder:14b"));
         }
 
-        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
             => throw new NotSupportedException();
     }
 

@@ -63,7 +63,7 @@ public sealed class HelloWorldInteractiveAppFacts
 
         public Task<ModelDescriptor> Describe(
             ModelSelection? selection = null,
-            Type? marker = null,
+            ModelId? model = null,
             CancellationToken cancellationToken = default,
             string? brainId = null)
             => Task.FromResult(new ModelDescriptor(
@@ -77,7 +77,7 @@ public sealed class HelloWorldInteractiveAppFacts
 
         public async Task<InferenceResult> Generate(
             InferenceRequest request,
-            Type? marker = null,
+            ModelId? model = null,
             CancellationToken cancellationToken = default,
             string? brainId = null)
         {
@@ -102,7 +102,7 @@ public sealed class HelloWorldInteractiveAppFacts
 
         public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(
             InferenceRequest request,
-            Type? marker = null,
+            ModelId? model = null,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default,
             string? brainId = null)
         {

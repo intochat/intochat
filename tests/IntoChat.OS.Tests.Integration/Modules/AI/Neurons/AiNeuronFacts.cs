@@ -183,7 +183,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
         using var person = runtime.As(Who.Person);
-        var model = runtime.Get<ILLM>(runtime.Id("ai.llm.gpt56luna", "models"));
+        var model = runtime.Get<ILLM>(runtime.Id("ai.llm", "llm/" + KnownModels.Gpt56Luna.Id.Value));
         fixture.Inference.Expect(2);
 
         var held = model.Generate(Ask("held"), ct);

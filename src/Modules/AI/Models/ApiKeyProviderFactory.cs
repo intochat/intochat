@@ -10,15 +10,16 @@ internal abstract class ApiKeyProviderFactory : ILlmProviderFactory
     public Task<bool> IsConfigured(AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
         => credentials.IsReady(IntegrationId, cancellationToken);
 
-    public virtual Task<IChatClient> CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
-        => CreateChatClient(model.Id, configuration, credentials, cancellationToken: cancellationToken);
+    public virtual Task<IChatClient> CreateChatClient(ModelCard card, AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => CreateChatClient(card.Id.Value, configuration, credentials, cancellationToken: cancellationToken);
 
     public abstract Task<IChatClient> CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null, CancellationToken cancellationToken = default);
 
     public abstract Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
-        EmbeddingModel model,
+        ModelCard card,
         AIOptions configuration,
-        IAiCredentials credentials, CancellationToken cancellationToken = default);
+        IAiCredentials credentials,
+        CancellationToken cancellationToken = default);
 
     protected string IntegrationId => AiIntegrations.IdOf(Provider);
 

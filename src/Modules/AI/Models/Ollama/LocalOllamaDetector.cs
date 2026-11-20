@@ -19,7 +19,6 @@ internal interface ILocalOllamaProbe
 internal sealed class HttpLocalOllamaProbe : ILocalOllamaProbe
 {
     public const string DefaultEndpoint = "http://127.0.0.1:11434";
-    public const string PreferredCoderModel = "qwen2.5-coder:14b";
 
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan HitCacheDuration = TimeSpan.FromSeconds(5);
@@ -172,7 +171,7 @@ internal sealed class HttpLocalOllamaProbe : ILocalOllamaProbe
 
     internal static string SelectPreferredModel(IReadOnlyList<string> chatTags)
     {
-        var defaultChat = ModelCatalog.DefaultChatModelId;
+        var defaultChat = KnownModels.Defaults.Device[Role.Chat].Value;
         return chatTags.FirstOrDefault(t => string.Equals(t, defaultChat, StringComparison.OrdinalIgnoreCase))
             ?? chatTags.FirstOrDefault(static t => !IsCoderModelTag(t) && t.StartsWith("qwen3.5", StringComparison.OrdinalIgnoreCase))
             ?? chatTags.FirstOrDefault(static t => !IsCoderModelTag(t))
@@ -181,8 +180,8 @@ internal sealed class HttpLocalOllamaProbe : ILocalOllamaProbe
 
     internal static string SelectPreferredCoderModel(IReadOnlyList<string> chatTags)
     {
-        return chatTags.FirstOrDefault(static t => string.Equals(t, PreferredCoderModel, StringComparison.OrdinalIgnoreCase))
-            ?? chatTags.FirstOrDefault(static t => t.StartsWith("qwen2.5-coder:14b", StringComparison.OrdinalIgnoreCase))
+        var defaultThink = KnownModels.Defaults.Device[Role.Think].Value;
+        return chatTags.FirstOrDefault(t => string.Equals(t, defaultThink, StringComparison.OrdinalIgnoreCase))
             ?? chatTags.FirstOrDefault(static t => t.StartsWith("qwen2.5-coder", StringComparison.OrdinalIgnoreCase))
             ?? chatTags.FirstOrDefault(static t => t.StartsWith("qwen3-coder", StringComparison.OrdinalIgnoreCase))
             ?? chatTags.FirstOrDefault(IsCoderModelTag)
