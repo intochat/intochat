@@ -6,7 +6,11 @@ import '../../design/tokens.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.Slider.ISlider`.
-class SliderWidget extends StatelessWidget {
+///
+/// Uses optimistic local drag state for 120fps visual responsiveness and
+/// commits the final value via `SetValue` on drag end (preventing per-pixel
+/// RPC flooding).
+class SliderWidget extends StatefulWidget {
   const SliderWidget({
     super.key,
     required this.neuronKey,
@@ -19,22 +23,30 @@ class SliderWidget extends StatelessWidget {
   final Stream<void> Function(String kind, String name)? watch;
 
   @override
+  State<SliderWidget> createState() => _SliderWidgetState();
+}
+
+class _SliderWidgetState extends State<SliderWidget> {
+  double? _draftValue;
+
+  @override
   Widget build(BuildContext context) {
     return NeuronWidget(
       kind: 'ui.slider',
-      neuronKey: neuronKey,
-      callNeuron: callNeuron,
-      watch: watch,
+      neuronKey: widget.neuronKey,
+      callNeuron: widget.callNeuron,
+      watch: widget.watch,
       builder: (context, state, invoke) {
         final c = IcTheme.of(context);
         final label = '${state['label'] ?? ''}';
         final min = (state['min'] as num?)?.toDouble() ?? 0.0;
         final max = (state['max'] as num?)?.toDouble() ?? 100.0;
         final step = (state['step'] as num?)?.toDouble() ?? 1.0;
-        final value = ((state['value'] as num?)?.toDouble() ?? min).clamp(
+        final serverValue = ((state['value'] as num?)?.toDouble() ?? min).clamp(
           min,
           max,
         );
+        final value = (_draftValue ?? serverValue).clamp(min, max);
         final unit = '${state['unit'] ?? ''}';
         final isEnabled = state['isEnabled'] != false;
         final divisions = step > 0 && max > min
@@ -75,7 +87,13 @@ class SliderWidget extends StatelessWidget {
               max: max > min ? max : min + 1,
               divisions: divisions,
               onChanged: isEnabled
-                  ? (v) => unawaited(invoke('SetValue', [v]))
+                  ? (v) => setState(() => _draftValue = v)
+                  : null,
+              onChangeEnd: isEnabled
+                  ? (v) {
+                      setState(() => _draftValue = null);
+                      unawaited(invoke('SetValue', [v]));
+                    }
                   : null,
             ),
           ],

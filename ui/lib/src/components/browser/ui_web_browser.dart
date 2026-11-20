@@ -16,6 +16,7 @@ final class UiWebBrowser extends StatefulWidget {
     required this.part,
     this.height = 160,
     this.frameless = false,
+    this.chrome = 'full',
     this.onConnect,
     this.onDisconnect,
     this.onUnavailable,
@@ -27,6 +28,8 @@ final class UiWebBrowser extends StatefulWidget {
   final UiWebBrowserPart part;
   final double? height;
   final bool frameless;
+  final String chrome;
+  bool get isFrameless => frameless || chrome.trim().toLowerCase() == 'frameless';
   final Future<void> Function(int, String)? onConnect;
   final Future<void> Function(String)? onDisconnect;
   final Future<void> Function(String)? onUnavailable;
@@ -100,7 +103,7 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
       ],
     );
 
-    if (widget.frameless) {
+    if (widget.isFrameless) {
       return Semantics(
         label: 'browser ${widget.part.title}',
         child: SizedBox(

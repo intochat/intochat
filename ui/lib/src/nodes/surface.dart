@@ -502,8 +502,8 @@ class _CodeSurfaceViewState extends State<_CodeSurfaceView> {
                       '${'${i + 1}'.padLeft(3)}  ${lines[i]}',
                   ].join('\n'),
                   style: TextStyle(
-                    fontFamily: 'Consolas',
-                    fontFamilyFallback: const ['JetBrains Mono', 'monospace'],
+                    fontFamily: 'JetBrains Mono',
+                    fontFamilyFallback: const ['monospace'],
                     fontSize: 12,
                     height: 1.45,
                     color: c.textBody,
