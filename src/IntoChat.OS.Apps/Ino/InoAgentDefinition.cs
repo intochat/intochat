@@ -80,7 +80,7 @@ public static class InoAgentDefinition
             Model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : new ModelSelection(settings.DefaultModel.Trim()),
             Contracts =
             [
-                typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
+                typeof(IStudio).FullName!, typeof(IData).FullName!, typeof(IUserSettings).FullName!, typeof(IFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IFocus).FullName!,
                 typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
                 typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
                 typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).FullName!,

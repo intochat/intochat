@@ -84,7 +84,7 @@ public sealed class InoAppFacts
     public void InoAgentDefinitionExposesStudioMemoryAspireTraceReaderAndFlows()
     {
         var def = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Vlad", DefaultModel = "qwen2.5-coder:14b" });
-        Assert.Contains(typeof(IInoStudio).FullName!, def.Contracts);
+        Assert.Contains(typeof(IStudio).FullName!, def.Contracts);
         Assert.Contains(typeof(IMemory).FullName!, def.Contracts);
         Assert.Contains(typeof(IAspire).FullName!, def.Contracts);
         Assert.Contains(typeof(ITraceReader).FullName!, def.Contracts);

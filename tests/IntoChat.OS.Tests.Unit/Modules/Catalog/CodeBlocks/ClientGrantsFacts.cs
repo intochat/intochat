@@ -39,8 +39,8 @@ public sealed class ClientGrantsFacts
         Assert.Empty(await grants.Allowed("codeblock-2"));
 
         await grants.Record("codeblock-1", "IRuns.List", true);
-        await grants.Record("codeblock-1", "IInoFiles.Write", false);
-        Assert.Equal([("IRuns.List", true), ("IInoFiles.Write", false)], (await grants.Steps("codeblock-1")).Select(step => (step.Call, step.Allowed)));
+        await grants.Record("codeblock-1", "IFiles.Write", false);
+        Assert.Equal([("IRuns.List", true), ("IFiles.Write", false)], (await grants.Steps("codeblock-1")).Select(step => (step.Call, step.Allowed)));
 
         await grants.Release("codeblock-1");
         Assert.Empty(await grants.Allowed("codeblock-1"));

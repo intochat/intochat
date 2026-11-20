@@ -7,6 +7,8 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 [Shareable]
 public interface IRepository
 {
+    const string KeyPattern = "connection/github/{repo}";
+
     Task<RepositoryView> Refresh(RefreshRepository request);
 
     [DigitalBrain.Contracts.ReadOnlyCall]

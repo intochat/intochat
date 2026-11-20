@@ -381,7 +381,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
         var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOrKey(flowId);
-        await Get<IInoFocus>(IInoFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
+        await Get<IFocus>(IFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
         await Show(State.WithStatus($"Asked Ino to change {alias}"));
         await SyncUiNeuronsAsync();
     }

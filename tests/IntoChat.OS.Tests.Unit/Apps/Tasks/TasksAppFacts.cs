@@ -938,7 +938,7 @@ public sealed class TasksAppFacts
     }
 
     [Neuron("ino.focus")]
-    private sealed class FakeFocus : Neuron, IInoFocus
+    private sealed class FakeFocus : Neuron, IFocus
     {
         public static List<Focus> Points { get; } = [];
 

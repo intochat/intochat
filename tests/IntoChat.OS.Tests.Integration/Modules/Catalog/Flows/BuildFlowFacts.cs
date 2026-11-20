@@ -518,7 +518,7 @@ public sealed class BuildFlowFacts
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
 
-        var result = await runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio")).Make("watch elonmusk on X");
+        var result = await runtime.Get<IStudio>(runtime.Id("ino.studio", "ino/studio")).Make("watch elonmusk on X");
 
         var card = Assert.IsType<InoCard>(result.Card);
         var view = await Settled(runtime, card.Id);
@@ -550,7 +550,7 @@ public sealed class BuildFlowFacts
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var ino = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
+        var ino = runtime.Get<IStudio>(runtime.Id("ino.studio", "ino/studio"));
         var card = Assert.IsType<InoCard>((await ino.Make("watch elonmusk on X")).Card);
         await Settled(runtime, card.Id);
 

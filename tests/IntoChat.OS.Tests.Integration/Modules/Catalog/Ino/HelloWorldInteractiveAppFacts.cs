@@ -136,7 +136,7 @@ public sealed class HelloWorldInteractiveAppFacts
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = AsPerson(runtime);
 
-        var inoStudio = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
+        var inoStudio = runtime.Get<IStudio>(runtime.Id("ino.studio", "ino/studio"));
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
         var installs = runtime.Get<IInstalls>(new NeuronId(runtime.Brain, "synapse.installs", "default"));
 
@@ -221,7 +221,7 @@ public sealed class HelloWorldInteractiveAppFacts
         using var person = AsPerson(runtime);
 
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
-        var inoStudio = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
+        var inoStudio = runtime.Get<IStudio>(runtime.Id("ino.studio", "ino/studio"));
         var installs = runtime.Get<IInstalls>(new NeuronId(runtime.Brain, "synapse.installs", "default"));
 
         // 1. Import apps/helloworld via AppPackageArchive
@@ -229,7 +229,7 @@ public sealed class HelloWorldInteractiveAppFacts
         Assert.True(imported.Succeeded, string.Join("\n", imported.Errors));
         Assert.Equal("helloworld", imported.Alias);
 
-        // 2. SkillDiscovery + IInoStudio.List() surface deployed SKILL.md sidecar
+        // 2. SkillDiscovery + IStudio.List() surface deployed SKILL.md sidecar
         var skills = await SkillDiscovery.DiscoverAsync(studio, ct: Ct);
         var helloSkill = Assert.Single(skills, s => s.Alias == "helloworld");
         Assert.Equal("deployed-unit", helloSkill.Source);

@@ -36,13 +36,19 @@ public sealed record UserSettingsChanged(
     string DateFormat = "17 Oct 2026",
     string ArtCraftDefaultMode = "wasm-ui") : DigitalBrain.Signal;
 
-[NeuronAlias("os.settings"), DefaultNeuronType("os.settings")]
+[NeuronAlias("os.settings", Formerly = ["ino.settings", "IntoChat.OS.Modules.Apps.IInoSettings"]), DefaultNeuronType("os.settings")]
 public interface IUserSettings
 {
+    const string DefaultKey = "settings";
+
     static string Key(BrainId brainId) => $"{brainId.Value}/settings";
 
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<UserSettingsState> Read();
+
+    Task<UserSettingsState> Open(string section, string? item = null);
+
+    Task<UserSettingsState> SetInference(string? model = null, float? temperature = null);
 
     Task<UserSettingsState> SetProfile(string displayName, string theme, string defaultModel);
 

@@ -9,6 +9,8 @@ namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 [Description("Fast read-only Roslyn C# symbol search, file outline, and call-graph index over allowlisted repositories.")]
 public interface ICodeGraph
 {
+    const string DefaultKey = "roslyn/codegraph";
+
     static string Key(string brainId) => $"{brainId}/roslyn/codegraph";
 
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]

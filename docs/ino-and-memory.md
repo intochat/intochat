@@ -9,7 +9,7 @@ Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/I
 `InoAgentDefinition` builds the `AgentDefinition` that the app gives the agent. It holds three things:
 
 - **Instructions.** The persona, with your display name filled in from settings.
-- **Contracts.** The neuron contracts the model may act on, for example `IInoStudio`, `IInoData`, `IInoFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
+- **Contracts.** The neuron contracts the model may act on, for example `IStudio`, `IData`, `IFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
 - **Contexts.** The context neurons the agent reads at the start of every turn.
 
 The model you chose in settings becomes the agent's model.
@@ -43,7 +43,7 @@ Ino lists nine contexts, each under the key `context/` plus a name:
 | `conversation.inference`, `conversation.inference.tone` | What has been inferred about the conversation. `ToneObserverNeuron` writes the tone. |
 | `apps.capabilities` | What the apps in the brain can do. |
 | `security.posture` | The brain's security posture, written by `SecurityPostureNeuron`. |
-| `ui.focus`, `ui.state` | What you are looking at. `IInoFocus` writes the focus when Ino points you at something. |
+| `ui.focus`, `ui.state` | What you are looking at. `IFocus` writes the focus when Ino points you at something. |
 | `memory.recall` | What memory recalled for this turn. |
 
 Before each turn the agent reads every listed context. A context that is missing or fails is skipped; the turn still runs. Untagged entries reach the model as knowledge.

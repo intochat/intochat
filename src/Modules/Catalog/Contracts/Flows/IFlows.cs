@@ -9,6 +9,8 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 [NeuronAlias("flows"), DefaultNeuronType("flows")]
 public interface IFlows
 {
+    const string DefaultKey = "flows/index";
+
     // The flow type of a single-instance feature-to-PR change run (FeatureToPrFlow adapter over EngineerPipelineStages).
     const string ChangeFlow = "flow.change";
 

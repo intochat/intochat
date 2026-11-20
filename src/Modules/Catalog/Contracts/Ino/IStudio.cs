@@ -2,9 +2,11 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[NeuronAlias("ino.studio"), DefaultNeuronType("ino.studio")]
-public interface IInoStudio
+[NeuronAlias("studio", Formerly = ["ino.studio", "IntoChat.OS.Modules.Apps.IInoStudio"]), DefaultNeuronType("ino.studio")]
+public interface IStudio
 {
+    const string DefaultKey = "ino/studio";
+
     // Starts the unit flow for the goal: the unit is authored, verified against its scenarios, deployed and waits for the person's
     // consent to its needs. The card points at the flow on the Tasks board; nothing is approved on the user's behalf.
     [Interleaves]

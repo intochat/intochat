@@ -38,7 +38,7 @@ A screen can slot control neurons (`src/IntoChat.OS.Apps/Controls`) into its vie
 
 `CreatorApp` (`src/IntoChat.OS.Apps/Creator`) is the place to make units and watch them run. It shows the brain as a graph, with an inspector for the selected node, edge or trace. It reads everything from the kernel. Its operations are signals:
 
-- `CreatorMake` passes a goal to `IInoStudio`, which starts a build.
+- `CreatorMake` passes a goal to `IStudio`, which starts a build.
 - `CreatorChange` starts a build flow over a unit's current files through `IFlows`.
 - `CreatorScenario` runs a unit's kept scenarios and shows the transcript.
 - `CreatorSeed` deploys a shipped unit through `ISynapseStudio`.

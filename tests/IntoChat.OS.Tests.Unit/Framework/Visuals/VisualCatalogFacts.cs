@@ -80,7 +80,7 @@ public sealed class VisualCatalogFacts
     [InlineData("ICodeGraph", "CodeGraph", "capability:codegraph", "#10B981", "Developer")]
     [InlineData("roslyn.codegraph", "CodeGraph", "capability:codegraph", "#10B981", "Developer")]
     [InlineData("codegraph", "CodeGraph", "capability:codegraph", "#10B981", "Developer")]
-    [InlineData("IInoStudio", "Ino Studio", "brand:intochat", "#6366F1", "Studio")]
+    [InlineData("IStudio", "Ino Studio", "brand:intochat", "#6366F1", "Studio")]
     [InlineData("ino.studio", "Ino Studio", "brand:intochat", "#6366F1", "Studio")]
     [InlineData("ITraceReader", "System Traces", "capability:traces", "#F59E0B", "Diagnostics")]
     [InlineData("traces", "System Traces", "capability:traces", "#F59E0B", "Diagnostics")]

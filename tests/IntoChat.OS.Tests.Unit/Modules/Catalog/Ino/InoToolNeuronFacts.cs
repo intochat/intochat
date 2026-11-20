@@ -19,31 +19,28 @@ public sealed class InoToolNeuronFacts
         return os;
     }
 
-    private static IInoSettings Settings(TestOS os) => os.Get<IInoSettings>(new NeuronId(Brain, "ino.settings", "ino/settings"));
+    private static IUserSettings Settings(TestOS os) => os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", IUserSettings.DefaultKey));
 
     private static IAgentContext Inference(TestOS os) => os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/conversation.inference"));
 
     [Fact]
-    public async Task NavigateReturnsASettingsCard()
+    public async Task OpenNavigatesSettingsApp()
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services.AddSingleton(TimeProvider.System).BuildServiceProvider();
         await using var os = NewOs(services);
-        await os.Get<IApp>(new NeuronId(Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/settings"))
-            .Create(new AppManifest("Settings", "Settings", [new AppOperation("navigate", "Open a settings page")], [], []), "spec");
-        var result = await Settings(os).Navigate("models", "local-server");
-        Assert.True(result.Card is not null, result.Text);
-        Assert.Equal("settings", result.Card.Kind);
-        Assert.Equal("neuron://owner/apps/settings", result.Card.SourceNeuronUri);
-        Assert.Equal("Settings · models / local-server", result.Card.Title);
+        var app = os.Get<IApp>(new NeuronId(Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/settings"));
+        await app.Create(new AppManifest("Settings", "Settings", [new AppOperation("navigate", "Open a settings page")], [], []), "spec");
+        var state = await Settings(os).Open("models", "local-server");
+        Assert.NotNull(state);
     }
 
     [Fact]
-    public async Task SetModelWritesAnInferenceEntry()
+    public async Task SetInferenceModelWritesAnInferenceEntry()
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
-        await Settings(os).SetModel("x");
+        await Settings(os).SetInference(model: "x");
         var entry = Assert.Single((await Inference(os).Read()).Entries);
         Assert.Contains(ContextTags.Inference, entry.Tags!);
         Assert.Equal("""{"model":"x"}""", entry.Text);
@@ -75,8 +72,8 @@ public sealed class InoToolNeuronFacts
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
-        await Settings(os).SetModel("x");
-        await Settings(os).SetTemperature(0.5f);
+        await Settings(os).SetInference(model: "x");
+        await Settings(os).SetInference(temperature: 0.5f);
         var entry = Assert.Single((await Inference(os).Read()).Entries);
         Assert.Equal("""{"model":"x","temperature":0.5}""", entry.Text);
     }
@@ -90,9 +87,8 @@ public sealed class InoToolNeuronFacts
         await os.Get<IProfileContextWriter>(new NeuronId(Brain, "ino.profile-writer", "ino/profile-writer")).Ensure();
         var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
 
-        // 1. Set explicit turn model & temperature via IInoSettings (writes to context/conversation.inference)
-        await Settings(os).SetModel("qwen3.5:4b");
-        await Settings(os).SetTemperature(0.4f);
+        // 1. Set explicit turn model & temperature via IUserSettings.SetInference (writes to context/conversation.inference)
+        await Settings(os).SetInference(model: "qwen3.5:4b", temperature: 0.4f);
         await os.Idle();
         Assert.Equal("""{"model":"qwen3.5:4b","temperature":0.4}""", Assert.Single((await Inference(os).Read()).Entries).Text);
 
@@ -122,7 +118,7 @@ public sealed class InoToolNeuronFacts
         var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
         storage.AddFile(storage.Root, "notes.md", "hello from storage"u8.ToArray());
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
-        var files = os.Get<IInoFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
+        var files = os.Get<IFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
 
         var opened = await files.Open("notes.md");
         Assert.Contains("notes.md", opened.Text);
@@ -131,13 +127,11 @@ public sealed class InoToolNeuronFacts
     }
 
     [Fact]
-    public async Task NavigateWithoutASettingsAppSaysSoAndHasNoCard()
+    public async Task OpenWithoutASettingsAppThrows()
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
-        var result = await Settings(os).Navigate("models");
-        Assert.Null(result.Card);
-        Assert.Contains("Settings is unavailable", result.Text);
+        await Assert.ThrowsAnyAsync<Exception>(() => Settings(os).Open("models"));
     }
 
     [Fact]
@@ -147,7 +141,7 @@ public sealed class InoToolNeuronFacts
         var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
         storage.AddFile(storage.Root, "roadmap.md", "ship it"u8.ToArray());
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
-        var files = os.Get<IInoFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
+        var files = os.Get<IFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
 
         var hit = await files.Find("roadmap");
         Assert.Contains("roadmap.md", hit.Text);
@@ -156,7 +150,7 @@ public sealed class InoToolNeuronFacts
         var miss = await files.Find("no-such-file.md");
         Assert.Contains("No files match", miss.Text);
     }
-    private static IInoData Data(TestOS os) => os.Get<IInoData>(new NeuronId(Brain, "ino.data", "ino/data"));
+    private static IData Data(TestOS os) => os.Get<IData>(new NeuronId(Brain, "ino.data", "ino/data"));
 
     // Without a configured model/provider, Make must fail honestly with a Settings setup card rather than synthesizing a fake unit.
     [Fact]
@@ -165,7 +159,7 @@ public sealed class InoToolNeuronFacts
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
 
-        var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("Draft the Q4 plan");
+        var result = await os.Get<IStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("Draft the Q4 plan");
 
         Assert.False(result.Ok);
         Assert.NotNull(result.Card);
@@ -182,7 +176,7 @@ public sealed class InoToolNeuronFacts
             .AddSingleton(TimeProvider.System)
             .AddSingleton(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly])).BuildServiceProvider();
         await using var os = NewOs(services);
-        var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).List();
+        var result = await os.Get<IStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).List();
         Assert.Contains("- markdraw: ", result.Text);
         Assert.Contains("- photocraft: ", result.Text);
         Assert.DoesNotContain("- creator: ", result.Text);

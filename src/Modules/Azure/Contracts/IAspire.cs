@@ -31,6 +31,8 @@ public sealed record AspireTelemetryChanged(int LogCount, int TraceCount) : Digi
 [Description("Local and cloud telemetry inspector for resources, console logs, structured logs, and distributed traces.")]
 public interface IAspire
 {
+    const string KeyPattern = "diagnostics/aspire";
+
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<AspireResourceView[]> GetResourcesAsync();
 

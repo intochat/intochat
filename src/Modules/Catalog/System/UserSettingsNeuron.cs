@@ -1,9 +1,52 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using IntoChat.OS.Modules.AI.Agents.Context;
+
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("os.settings")]
 public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSettingsState>, IUserSettings
 {
     public Task<UserSettingsState> Read() => Task.FromResult(State);
+
+    public async Task<UserSettingsState> Open(string section, string? item = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(section);
+        var route = string.IsNullOrWhiteSpace(item) ? section.Trim() : $"{section.Trim()}:{item.Trim()}";
+        await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/settings"))
+            .Request("navigate", route);
+        return State;
+    }
+
+    public async Task<UserSettingsState> SetInference(string? model = null, float? temperature = null)
+    {
+        if (temperature is { } temp && (float.IsNaN(temp) || temp < 0f || temp > 2f))
+        {
+            throw new ArgumentOutOfRangeException(nameof(temperature), "Temperature is between 0 and 2.");
+        }
+
+        var next = State;
+        var trimmedModel = string.IsNullOrWhiteSpace(model) ? null : model.Trim();
+        if (trimmedModel is not null)
+        {
+            next = await SetProfile(State.DisplayName, State.Theme, trimmedModel);
+        }
+
+        if (trimmedModel is not null || temperature is not null)
+        {
+            var context = Get<IAgentContext>(new DigitalBrain.NeuronId(Id.Brain, "agent-context", "context/conversation.inference"));
+            var snapshot = await context.Read();
+            var existing = snapshot.Entries.FirstOrDefault(entry => entry.Name == "inference");
+            JsonObject inference;
+            try { inference = existing is null ? new JsonObject() : JsonNode.Parse(existing.Text) as JsonObject ?? new JsonObject(); }
+            catch (JsonException) { inference = new JsonObject(); }
+            if (trimmedModel is not null) { inference["model"] = trimmedModel; }
+            if (temperature is { } t) { inference["temperature"] = t; }
+            await context.Set(new ContextEntry("inference", inference.ToJsonString(), [], [ContextTags.Inference]));
+        }
+
+        return next;
+    }
 
     public async Task<UserSettingsState> SetProfile(string displayName, string theme, string defaultModel)
     {

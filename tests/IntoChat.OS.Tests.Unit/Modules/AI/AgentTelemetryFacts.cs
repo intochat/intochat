@@ -10,7 +10,7 @@ public sealed class AgentTelemetryFacts
 {
     private static FunctionCallContent Call() => new("c1", "neurons_call", new Dictionary<string, object?>
     {
-        ["contract"] = "IntoChat.OS.Modules.Apps.IInoFiles",
+        ["contract"] = "IntoChat.OS.Modules.Apps.IFiles",
         ["key"] = "{brain}/ino/files",
         ["method"] = "Write",
         ["arguments"] = "[\"a.txt\",\"secret\"]",
@@ -40,7 +40,7 @@ public sealed class AgentTelemetryFacts
         }
         var tool = Assert.Single(stopped);
         Assert.Equal("execute_tool neurons_call", tool.DisplayName);
-        Assert.Equal("IntoChat.OS.Modules.Apps.IInoFiles", tool.GetTagItem("intochat.contract"));
+        Assert.Equal("IntoChat.OS.Modules.Apps.IFiles", tool.GetTagItem("intochat.contract"));
         Assert.Equal("Write", tool.GetTagItem("intochat.method"));
         Assert.Null(tool.GetTagItem("gen_ai.tool.call.arguments"));
         Assert.Null(tool.GetTagItem("gen_ai.tool.call.result"));

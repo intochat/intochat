@@ -22,7 +22,7 @@ internal static class States
                 new InoMessage("r1/user", "user", "hello"),
                 new InoMessage("r1/assistant", "assistant", "Thinking through this...", "running")
                 {
-                    Activities = [new InoActivity("a1", "IntoChat.OS.Modules.Apps.IInoStudio.ProposeChange", "ok")],
+                    Activities = [new InoActivity("a1", "IntoChat.OS.Modules.Apps.IStudio.ProposeChange", "ok")],
                 },
             ],
         },

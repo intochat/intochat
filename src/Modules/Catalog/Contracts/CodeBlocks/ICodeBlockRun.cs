@@ -27,6 +27,8 @@ public sealed record CodeBlockRunDone(string RunId, bool Succeeded, string? Outp
 [Description("Run a small piece of C# in the sandbox container. source declares `public static class Block { public static string Run(string input) { ... } }`; only safe APIs compile.")]
 public interface ICodeBlockRun
 {
+    const string KeyPattern = "codeblocks/{new short id}";
+
     [Description("Compile source, run Block.Run(input) in the sandbox, and return the output. A run starts once; starting again returns it as it is.")]
     Task<CodeBlockRunView> Start(string title, string source, string input);
 

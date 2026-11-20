@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Apps;
 // are not visible here.
 [DigitalBrain.Neurons.Neuron("ino.files")]
 internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null, IOperations? operations = null)
-    : DigitalBrain.Neurons.Neuron<InoFilesState>, IInoFiles
+    : DigitalBrain.Neurons.Neuron<InoFilesState>, IFiles
 {
     private const int KeptWrites = 32;
 

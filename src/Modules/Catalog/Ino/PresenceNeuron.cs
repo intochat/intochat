@@ -71,7 +71,7 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         _interrupts.Clear();
         _focus = null;
         _focusAt = null;
-        string[] contexts = [IInoFocus.ContextKey];
+        string[] contexts = [IFocus.ContextKey];
         if (_agent is { } agent)
         {
             await Quietly(async () =>

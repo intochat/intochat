@@ -32,6 +32,8 @@ public sealed record RunsChanged(int Count) : DigitalBrain.Signal;
 [Description("Everything running in this brain, by id: flows, agent turns and operations, with state, steps and what each waits for.")]
 public interface IRuns
 {
+    const string DefaultKey = "runs/index";
+
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "runs", "runs/index");
 
     [Description("The newest runs, running and waiting ones first. limit is at most 200.")]
