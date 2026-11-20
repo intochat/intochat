@@ -10,8 +10,9 @@ namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
 /// Validates model-supplied <see cref="Node"/> trees for <see cref="IInoFocus.Show"/> and for rendering
-/// stored <c>node</c> cards: bounded size (16 KiB) and depth (12), no <see cref="NeuronRef"/>, and no
-/// interactive actions (emits, commands, intents, submits, or resolve handlers).
+/// stored <c>node</c> cards: bounded size (16 KiB) and depth (12), no <see cref="NeuronRef"/>, no
+/// <see cref="WebBrowser"/>, no interactive control views or actions (emits, commands, intents, submits,
+/// or resolve handlers), and non-null required collections.
 /// </summary>
 public static class InoNodeCard
 {
@@ -99,6 +100,18 @@ public static class InoNodeCard
         return true;
     }
 
+    private static bool IsForbiddenControlViewKind(string kind) => kind is
+        "checkBoxView" or
+        "comboBoxView" or
+        "expanderView" or
+        "formView" or
+        "listBoxView" or
+        "queryTableView" or
+        "tabStripView" or
+        "toggleSwitchView" or
+        "chatThreadView" or
+        "liveChartView";
+
     private static bool ValidateRawNode(JsonElement element, int depth, [NotNullWhen(true)] out string? refusal)
     {
         if (depth > MaxDepth)
@@ -126,9 +139,21 @@ public static class InoNodeCard
             return true;
         }
 
+        if (string.Equals(kind, "webBrowser", StringComparison.Ordinal))
+        {
+            refusal = "Node kind 'webBrowser' is not allowed in chat cards.";
+            return true;
+        }
+
         if (kind is "button" or "iconButton" or "intent")
         {
             refusal = $"Node kind '{kind}' is not allowed: interactive actions (buttons, intents, emits, commands, or submits) are forbidden in chat cards.";
+            return true;
+        }
+
+        if (IsForbiddenControlViewKind(kind))
+        {
+            refusal = $"Node kind '{kind}' is an interactive control view and is not allowed: interactive actions are forbidden in chat cards.";
             return true;
         }
 
@@ -216,6 +241,15 @@ public static class InoNodeCard
                 refusal = "Node kind 'neuronRef' is not allowed in chat cards.";
                 return true;
 
+            case WebBrowser:
+                refusal = "Node kind 'webBrowser' is not allowed in chat cards.";
+                return true;
+
+            case CheckBoxView or ComboBoxView or ExpanderView or FormView or ListBoxView
+                or QueryTableView or TabStripView or ToggleSwitchView or ChatThreadView or LiveChartView:
+                refusal = "Interactive control view nodes are not allowed: interactive actions are forbidden in chat cards.";
+                return true;
+
             case Button or IconButton or Intent:
                 refusal = "Interactive actions (buttons, intents, emits, commands, or submits) are not allowed in chat cards.";
                 return true;
@@ -228,13 +262,31 @@ public static class InoNodeCard
                 refusal = "Switch actions (command or emit) are not allowed in chat cards.";
                 return true;
 
-            case Select sel when sel.Options is not null && sel.Options.Any(static o => o?.Emit is not null):
-                refusal = "Select emit actions are not allowed in chat cards.";
-                return true;
+            case Select sel:
+                if (sel.Options is null || sel.Options.Any(static o => o is null))
+                {
+                    refusal = "Node 'select' requires a non-null 'options' array.";
+                    return true;
+                }
+                if (sel.Options.Any(static o => o.Emit is not null))
+                {
+                    refusal = "Select emit actions are not allowed in chat cards.";
+                    return true;
+                }
+                break;
 
-            case Tabs tabs when tabs.Items is not null && tabs.Items.Any(static i => i?.Emit is not null):
-                refusal = "Tabs emit actions are not allowed in chat cards.";
-                return true;
+            case Tabs tabs:
+                if (tabs.Items is null || tabs.Items.Any(static i => i is null))
+                {
+                    refusal = "Node 'tabs' requires a non-null 'items' array.";
+                    return true;
+                }
+                if (tabs.Items.Any(static i => i.Emit is not null))
+                {
+                    refusal = "Tabs emit actions are not allowed in chat cards.";
+                    return true;
+                }
+                break;
 
             case NavItemNode nav when nav.Command is not null || !string.IsNullOrWhiteSpace(nav.Action):
                 refusal = "NavItem actions are not allowed in chat cards.";
@@ -244,33 +296,80 @@ public static class InoNodeCard
                 refusal = "InfoBar actions (action or close) are not allowed in chat cards.";
                 return true;
 
-            case ApprovalCardNode { Resolve: not null }:
-                refusal = "ApprovalCard resolve actions are not allowed in chat cards.";
-                return true;
+            case ApprovalCardNode approval:
+                if (approval.Resolve is not null)
+                {
+                    refusal = "ApprovalCard resolve actions are not allowed in chat cards.";
+                    return true;
+                }
+                if (approval.Rows is null || approval.Rows.Any(static r => r is null))
+                {
+                    refusal = "Node 'approvalCard' requires a non-null 'rows' array.";
+                    return true;
+                }
+                break;
 
-            case ChoiceCardNode choice when choice.Options is not null && choice.Options.Any(static o => o?.Pick is not null):
-                refusal = "ChoiceCard pick actions are not allowed in chat cards.";
-                return true;
+            case ChoiceCardNode choice:
+                if (choice.Options is null || choice.Options.Any(static o => o is null))
+                {
+                    refusal = "Node 'choiceCard' requires a non-null 'options' array.";
+                    return true;
+                }
+                if (choice.Options.Any(static o => o.Pick is not null))
+                {
+                    refusal = "ChoiceCard pick actions are not allowed in chat cards.";
+                    return true;
+                }
+                break;
 
             case DraftCardNode draft when draft.Send is not null || draft.Discard is not null:
                 refusal = "DraftCard actions (send or discard) are not allowed in chat cards.";
                 return true;
 
-            case RecordCardNode { Open: not null }:
-                refusal = "RecordCard open actions are not allowed in chat cards.";
-                return true;
+            case RecordCardNode rec:
+                if (rec.Open is not null)
+                {
+                    refusal = "RecordCard open actions are not allowed in chat cards.";
+                    return true;
+                }
+                if (rec.Fields is null || rec.Fields.Any(static f => f is null))
+                {
+                    refusal = "Node 'recordCard' requires a non-null 'fields' array.";
+                    return true;
+                }
+                break;
 
             case SecretCardNode secret when secret.Enter is not null || secret.Skip is not null:
                 refusal = "SecretCard actions (enter or skip) are not allowed in chat cards.";
                 return true;
 
-            case JobCardNode { Cancel: not null }:
-                refusal = "JobCard cancel actions are not allowed in chat cards.";
-                return true;
+            case JobCardNode job:
+                if (job.Cancel is not null)
+                {
+                    refusal = "JobCard cancel actions are not allowed in chat cards.";
+                    return true;
+                }
+                if (job.Steps is null || job.Steps.Any(static s => s is null))
+                {
+                    refusal = "Node 'jobCard' requires a non-null 'steps' array.";
+                    return true;
+                }
+                break;
 
-            case BrainSceneNode scene when scene.Nodes is not null && scene.Nodes.Any(static n => n?.Select is not null):
-                refusal = "BrainScene select actions are not allowed in chat cards.";
-                return true;
+            case BrainSceneNode scene:
+                if (scene.Nodes is null || scene.Synapses is null
+                    || scene.Nodes.Any(static n => n is null)
+                    || scene.Synapses.Any(static s => s is null))
+                {
+                    refusal = "Node 'brainScene' requires non-null 'nodes' and 'synapses' arrays.";
+                    return true;
+                }
+                if (scene.Nodes.Any(static n => n.Select is not null))
+                {
+                    refusal = "BrainScene select actions are not allowed in chat cards.";
+                    return true;
+                }
+                break;
 
             case ErrorLineNode { Action: not null }:
                 refusal = "ErrorLine actions are not allowed in chat cards.";
@@ -290,22 +389,15 @@ public static class InoNodeCard
                     refusal = "Conversation actions (submit or stop) are not allowed in chat cards.";
                     return true;
                 }
+                if (conv.Messages is null)
+                {
+                    refusal = "Node 'conversation' requires a 'messages' array.";
+                    return true;
+                }
                 if (ValidateOptionalNode(conv.Waiting, depth + 1, out refusal)
                     || ValidateOptionalNode(conv.Error, depth + 1, out refusal)
                     || ValidateOptionalNode(conv.Empty, depth + 1, out refusal)
                     || ValidateMessages(conv.Messages, depth + 1, out refusal))
-                {
-                    return true;
-                }
-                break;
-
-            case ChatThreadView chat:
-                if (chat.Composer?.OnSubmit is not null || chat.Stop is not null || chat.Retry is not null)
-                {
-                    refusal = "ChatThreadView actions (submit, stop, or retry) are not allowed in chat cards.";
-                    return true;
-                }
-                if (ValidateMessages(chat.Messages, depth + 1, out refusal))
                 {
                     return true;
                 }
@@ -326,7 +418,7 @@ public static class InoNodeCard
             case Card card:
                 if (ValidateOptionalNode(card.Header, depth + 1, out refusal)
                     || ValidateOptionalNode(card.Footer, depth + 1, out refusal)
-                    || (card.Children is not null && ValidateChildren(card.Children, depth + 1, "card", out refusal)))
+                    || ValidateChildren(card.Children, depth + 1, "card", out refusal))
                 {
                     return true;
                 }
@@ -360,16 +452,20 @@ public static class InoNodeCard
                 }
                 break;
 
-            case DataTable table when table.Columns is null || table.Rows is null:
-                refusal = "Node 'dataTable' requires 'columns' and 'rows' arrays.";
+            case DataTable table when table.Columns is null || table.Rows is null || table.Rows.Any(static r => r is null):
+                refusal = "Node 'dataTable' requires non-null 'columns' and 'rows' arrays.";
                 return true;
 
-            case Chart { Points: null }:
-                refusal = "Node 'chart' requires a 'points' array.";
+            case Chart chart when chart.Points is null || chart.Points.Any(static p => p is null):
+                refusal = "Node 'chart' requires a non-null 'points' array.";
                 return true;
 
-            case Collection { Entries: null }:
-                refusal = "Node 'collection' requires an 'entries' array.";
+            case Collection coll when coll.Entries is null || coll.Entries.Any(static e => e is null):
+                refusal = "Node 'collection' requires a non-null 'entries' array.";
+                return true;
+
+            case DiffCardNode diff when diff.Files is null || diff.Files.Any(static f => f is null || f.Hunks is null || f.Hunks.Any(static h => h is null || h.Lines is null)):
+                refusal = "Node 'diffCard' requires non-null 'files', 'hunks', and 'lines' arrays.";
                 return true;
         }
 
@@ -414,19 +510,14 @@ public static class InoNodeCard
         return false;
     }
 
-    private static bool ValidateMessages(IReadOnlyList<MessageNode>? messages, int depth, [NotNullWhen(true)] out string? refusal)
+    private static bool ValidateMessages(IReadOnlyList<MessageNode> messages, int depth, [NotNullWhen(true)] out string? refusal)
     {
-        if (messages is null)
-        {
-            refusal = null;
-            return false;
-        }
-
         foreach (var message in messages)
         {
             if (message is null)
             {
-                continue;
+                refusal = "Node 'conversation' contains a null message.";
+                return true;
             }
 
             if (message.Retry is not null)
