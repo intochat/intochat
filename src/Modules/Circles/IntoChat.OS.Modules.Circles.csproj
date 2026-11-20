@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.Circles</RootNamespace>
     <Description>Circles: social contacts, invites, and shared brains.</Description>
     <NoWarn>$(NoWarn);DB0033</NoWarn>
   </PropertyGroup>

@@ -94,8 +94,12 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         // change across the read window; a racing rerun is revisited on reconciliation.
         var confirmation = await ReadChecksAsync(repository, ciSha, token).ConfigureAwait(false);
         complete &= confirmation.Complete && ci.SourceRevision == confirmation.SourceRevision;
-        var revision = Hash(JsonSerializer.Serialize(new { repository.RepositoryId, number, head, @base, merge, state = pull.GetProperty("state").GetString(), draft = pull.GetProperty("draft").GetBoolean(), }));
-        var ciRevision = Hash(JsonSerializer.Serialize(new { revision, ciSha, complete, checks = ci.Checks }));
+        var revision = Hash(JsonSerializer.Serialize(
+            new PullRequestRevisionPayload(repository.RepositoryId, number, head, @base, merge, pull.GetProperty("state").GetString(), pull.GetProperty("draft").GetBoolean()),
+            GitHubAotJsonContext.Default.PullRequestRevisionPayload));
+        var ciRevision = Hash(JsonSerializer.Serialize(
+            new PullRequestCiRevisionPayload(revision, ciSha, complete, ci.Checks),
+            GitHubAotJsonContext.Default.PullRequestCiRevisionPayload));
         return new PullRequestSnapshot(number, BoundedString(pull, "title", 1024), BoundedString(pull, "html_url", 2048), pull.GetProperty("state").GetString() == "open", pull.GetProperty("draft").GetBoolean(), head, @base, merge, ciSha, ci.Checks.ToArray(), complete, _time.GetUtcNow(), pull.GetProperty("created_at").GetDateTimeOffset(), revision, ciRevision, repository.RepositoryId, OptionalString(pull.GetProperty("base"), "ref"));
     }
 
@@ -564,7 +568,11 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         }
 
         var latest = checks.GroupBy(static check => (check.Kind, check.Name, check.AppId)).Select(static group => group.OrderByDescending(static check => long.Parse(check.AttemptId, System.Globalization.CultureInfo.InvariantCulture)).First()).OrderBy(static check => check.Kind, StringComparer.Ordinal).ThenBy(static check => check.Name, StringComparer.Ordinal).ThenBy(static check => check.AppId).ToArray();
-        return new CheckEvidence(latest, complete, Hash(JsonSerializer.Serialize(new { checks = latest, suites = suites.Items.Select(static suite => new { id = suite.GetProperty("id").GetInt64(), state = OptionalString(suite, "status"), conclusion = OptionalString(suite, "conclusion"), }).OrderBy(static suite => suite.id), })));
+        var suiteItems = suites.Items
+            .Select(static suite => new CheckSuiteEvidenceItem(suite.GetProperty("id").GetInt64(), OptionalString(suite, "status"), OptionalString(suite, "conclusion")))
+            .OrderBy(static suite => suite.Id)
+            .ToArray();
+        return new CheckEvidence(latest, complete, Hash(JsonSerializer.Serialize(new CheckEvidencePayload(latest, suiteItems), GitHubAotJsonContext.Default.CheckEvidencePayload)));
     }
 
     private async Task<PageItems> PagesAsync(GitHubRepository repository, string path, string? property, CancellationToken token)

@@ -59,9 +59,9 @@ public static class ExternalSignInTicket
         ArgumentNullException.ThrowIfNull(clock);
         if (!Valid(claims, clock.GetUtcNow()))
         { throw new ArgumentException("A ticket needs a verified address, a known method and a lifetime of at most 60 seconds.", nameof(claims)); }
-        var header = Encode(JsonSerializer.SerializeToUtf8Bytes(new Header("ES256", "JWT", claims.Issuer), Json));
-        var payload = Encode(JsonSerializer.SerializeToUtf8Bytes(new Payload(claims.Issuer, claims.Audience, claims.ExpiresAt.ToUnixTimeSeconds(),
-            claims.Jti, claims.Email, claims.Name, claims.EmailVerified, claims.Amr), Json));
+        var header = Encode(JsonSerializer.SerializeToUtf8Bytes(new ExternalSignInHeader("ES256", "JWT", claims.Issuer), ExternalSignInTicketJsonContext.Default.ExternalSignInHeader));
+        var payload = Encode(JsonSerializer.SerializeToUtf8Bytes(new ExternalSignInPayload(claims.Issuer, claims.Audience, claims.ExpiresAt.ToUnixTimeSeconds(),
+            claims.Jti, claims.Email, claims.Name, claims.EmailVerified, claims.Amr), ExternalSignInTicketJsonContext.Default.ExternalSignInPayload));
         var body = header + "." + payload;
         return body + "." + Encode(privateKey.SignData(Encoding.ASCII.GetBytes(body), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
     }
@@ -79,14 +79,14 @@ public static class ExternalSignInTicket
         {
             var parts = token.Split('.');
             if (parts.Length != 3 || parts.Any(part => part.Length == 0)) { return null; }
-            var header = JsonSerializer.Deserialize<Header>(Decode(parts[0]), Json);
+            var header = JsonSerializer.Deserialize(Decode(parts[0]), ExternalSignInTicketJsonContext.Default.ExternalSignInHeader);
             if (header is not { Alg: "ES256" } || header.Typ is not (null or "JWT") || string.IsNullOrEmpty(header.Kid)) { return null; }
             if (keyOf(header.Kid) is not { } trusted) { return null; }
             var signature = Decode(parts[2]);
             if (signature.Length != 64 ||
                 !trusted.Key.VerifyData(Encoding.ASCII.GetBytes(parts[0] + "." + parts[1]), signature, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation))
             { return null; }
-            var payload = JsonSerializer.Deserialize<Payload>(Decode(parts[1]), Json);
+            var payload = JsonSerializer.Deserialize(Decode(parts[1]), ExternalSignInTicketJsonContext.Default.ExternalSignInPayload);
             if (payload is null || payload.Iss != header.Kid || payload.Aud is not { } audience || audience != trusted.Audience ||
                 payload.Exp is < 0 or > 253_402_300_799) { return null; }
             var claims = new ExternalSignInClaims(header.Kid, audience, payload.Email ?? "", payload.Name ?? "", payload.EmailVerified,
@@ -126,8 +126,14 @@ public static class ExternalSignInTicket
         return Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
     }
 
-    private sealed record Header(string? Alg, string? Typ, string? Kid);
-
-    private sealed record Payload(string? Iss, string? Aud, long Exp, string? Jti, string? Email, string? Name,
-        [property: JsonPropertyName("email_verified")] bool EmailVerified, string? Amr);
 }
+
+internal sealed record ExternalSignInHeader(string? Alg, string? Typ, string? Kid);
+
+internal sealed record ExternalSignInPayload(string? Iss, string? Aud, long Exp, string? Jti, string? Email, string? Name,
+    [property: JsonPropertyName("email_verified")] bool EmailVerified, string? Amr);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(ExternalSignInHeader))]
+[JsonSerializable(typeof(ExternalSignInPayload))]
+internal sealed partial class ExternalSignInTicketJsonContext : JsonSerializerContext;

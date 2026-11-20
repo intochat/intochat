@@ -6,7 +6,6 @@
     <PackageId>IntoChat.OS.Modules.Shell.Contracts</PackageId>
     <RootNamespace>IntoChat.OS.Modules.Flutter</RootNamespace>
     <Description>Wire contracts, signals, and vocabulary for the IntoChat OS shell module.</Description>
-    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />

@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.ClickHouse</RootNamespace>
     <Description>ClickHouse analytical table connector.</Description>
   </PropertyGroup>
   <ItemGroup>

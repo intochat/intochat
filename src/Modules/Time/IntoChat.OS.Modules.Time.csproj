@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.Time</RootNamespace>
     <Description>Time and reminder scheduling connector.</Description>
   </PropertyGroup>
   <ItemGroup>

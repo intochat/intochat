@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.Google</RootNamespace>
     <Description>Google Auth, Drive, and Gmail modules.</Description>
   </PropertyGroup>
   <ItemGroup>

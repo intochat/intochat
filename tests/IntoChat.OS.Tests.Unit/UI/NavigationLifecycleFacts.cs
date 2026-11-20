@@ -10,6 +10,7 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using IntoChat.OS.UI.Dispatch;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Tests.Unit.UI;

@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.Postgres</RootNamespace>
     <Description>PostgreSQL transactional storage connector.</Description>
     <NoWarn>$(NoWarn);CA1812;DB0033</NoWarn>
   </PropertyGroup>

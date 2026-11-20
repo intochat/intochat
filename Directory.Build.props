@@ -128,8 +128,12 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <PackageTags>neurons;signals;synapses;brain;actors</PackageTags>
+    <PackageReadmeFile Condition="Exists('README.md')">README.md</PackageReadmeFile>
     <NoWarn>$(NoWarn);CA1716;CA1711;CS0618;IDE0011;IDE0019;IDE0023;IDE0039;IDE0040;IDE0045;IDE0047;IDE0052;IDE0060;IDE0062;IDE0063;IDE0065;IDE0200;IDE0410;DB0020;DB0021;DB0022;DB0023;DB0024;DB0025;DB0026;DB0027;DB0028;DB0029</NoWarn>
   </PropertyGroup>
+  <ItemGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/framework/')) And Exists('README.md')">
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
   <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/framework/')) And $(MSBuildProjectName.Contains('.Tests.'))">
     <NoWarn>$(NoWarn);CS1591;CA1707;CA1515</NoWarn>
   </PropertyGroup>

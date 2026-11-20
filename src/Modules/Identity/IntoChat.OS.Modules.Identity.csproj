@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>The identity module: accounts, brains, grants, sessions, the vault, connections and integrations (identity@1 and secrets@1).</Description>
-    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005;CA1812</NoWarn>
+    <NoWarn>$(NoWarn);CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Contracts/**" />

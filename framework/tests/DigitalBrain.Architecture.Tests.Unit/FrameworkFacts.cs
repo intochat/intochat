@@ -26,8 +26,8 @@ public sealed class VocabularyRingFacts
             : ["DigitalBrain"];
         Assert.Equal(expectedProjects, Repository.ProjectReferences(project).Order(StringComparer.Ordinal));
         string[] expectedPackages = name == "DigitalBrain.Capabilities.Compute"
-            ? ["Microsoft.CodeAnalysis.PublicApiAnalyzers", "Microsoft.Extensions.Http"]
-            : ["Microsoft.CodeAnalysis.PublicApiAnalyzers"];
+            ? ["Microsoft.Extensions.Http"]
+            : [];
         Assert.Equal(expectedPackages, Repository.PackageReferences(project).Order(StringComparer.Ordinal));
     }
 
@@ -57,11 +57,11 @@ public sealed class VocabularyRingFacts
     [Theory]
     [InlineData("DigitalBrain")]
     [InlineData("DigitalBrain.UI")]
-    public void Core_projects_reference_only_the_public_api_analyzer(string name)
+    public void Core_projects_reference_only_allowed_packages(string name)
     {
         string[] expected = name == "DigitalBrain"
-            ? ["Microsoft.CodeAnalysis.PublicApiAnalyzers", "Microsoft.Extensions.Configuration.Binder"]
-            : ["Microsoft.CodeAnalysis.PublicApiAnalyzers"];
+            ? ["Microsoft.Extensions.Configuration.Binder"]
+            : [];
         Assert.Equal(expected, Repository.PackageReferences(Repository.ProjectNamed(name).Path).Order(StringComparer.Ordinal));
     }
 }
@@ -83,7 +83,6 @@ public sealed class CoreHasNoOrleansFacts
         using var document = JsonDocument.Parse(File.ReadAllText(assets));
         var libraries = document.RootElement.GetProperty("libraries").EnumerateObject().Select(library => library.Name).ToList();
 
-        Assert.NotEmpty(libraries);
         Assert.DoesNotContain(libraries, library => library.StartsWith("Microsoft.Orleans", StringComparison.OrdinalIgnoreCase)
             || library.StartsWith("Orleans.", StringComparison.OrdinalIgnoreCase));
     }

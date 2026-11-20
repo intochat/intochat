@@ -7,6 +7,8 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.UI.Dispatch;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.UI;
 
@@ -505,6 +507,79 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
         return element.Deserialize(param.ParameterType, RuntimeProtocol.OptionsFor(param.ParameterType));
     }
 
+    /// <summary>Resolves an optional collaborator neuron, returning <c>null</c> in minimal test hosts where the service is unavailable.</summary>
+    protected T? GetOptional<T>(string key, ILogger logger) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        try
+        {
+            return Get<T>(key);
+        }
+#pragma warning disable CA1031
+        catch (Exception error) when (error is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            logger.LogDebug(error, "{Contract} ({Key}) is optional in standalone hosts.", typeof(T).Name, key);
+            return null;
+        }
+    }
+
+    /// <summary>Follows an optional signal stream, logging at Debug on non-cancellation failures.</summary>
+    protected async Task FollowOptionalAsync<TNeuron, TSignal>(string key, ILogger logger)
+        where TNeuron : class
+        where TSignal : Signal
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        try
+        {
+            await Follow<TNeuron, TSignal>(key);
+        }
+#pragma warning disable CA1031
+        catch (Exception error) when (error is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            logger.LogDebug(error, "Following {Neuron} ({Key}) is optional in standalone hosts.", typeof(TNeuron).Name, key);
+        }
+    }
+
+    /// <summary>Returns the current <see cref="BrainId"/>, or <c>null</c> when running outside an active grain turn.</summary>
+    protected BrainId? ResolveBrainId(Action<Exception>? onError = null)
+    {
+        try
+        {
+            return Id.Brain;
+        }
+        catch (InvalidOperationException error)
+        {
+            onError?.Invoke(error);
+            return null;
+        }
+    }
+
+    /// <summary>Returns the current UTC timestamp from <paramref name="overrideTime"/>, <see cref="Neuron.Context"/>, or <see cref="TimeProvider.System"/>.</summary>
+    protected DateTimeOffset CurrentUtcNow(TimeProvider? overrideTime = null)
+    {
+        if (overrideTime is not null)
+        {
+            return overrideTime.GetUtcNow();
+        }
+
+        try
+        {
+            return Context.Time.GetUtcNow();
+        }
+        catch (InvalidOperationException)
+        {
+            return TimeProvider.System.GetUtcNow();
+        }
+    }
+
+    /// <summary>Returns <c>true</c> when a signal's <paramref name="sourceId"/> matches <paramref name="expectedKey"/> (either exact or trailing <c>/key</c> segment).</summary>
+    protected static bool MatchesNeuronSourceKey(string? sourceId, string expectedKey)
+        => !string.IsNullOrEmpty(sourceId)
+            && (string.Equals(sourceId, expectedKey, StringComparison.Ordinal)
+                || sourceId.EndsWith("/" + expectedKey, StringComparison.Ordinal));
+
     private sealed class CommandDispatchTable(MethodInfo[] stateMethods, MethodInfo[] screenMethods)
     {
         public static CommandDispatchTable Build(Type screenType, Type stateType)
@@ -575,304 +650,6 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
     }
 }
 
-internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntry[] targets)
-{
-    public TargetEntry[] Targets { get; } = targets;
-
-    public static NavigationDispatchTable Build(Type screenType)
-    {
-        var entries = screenType
-            .GetInterfaces()
-            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INavigatedTo<>))
-            .Select(iface =>
-            {
-                var argsType = iface.GetGenericArguments()[0];
-                var arrivalType = typeof(NavigationArrival<>).MakeGenericType(argsType);
-                var map = screenType.GetInterfaceMap(iface);
-                var method = map.TargetMethods[0];
-                var options = new JsonSerializerOptions(RuntimeProtocol.OptionsFor(argsType))
-                {
-                    PropertyNameCaseInsensitive = true,
-                };
-                return new TargetEntry(argsType, arrivalType, method, options);
-            })
-            .ToArray();
-        return new NavigationDispatchTable(entries);
-    }
-
-    public async Task InvokeJsonAsync(
-        object screen,
-        string? argsJson,
-        string? fromNeuron,
-        string transition,
-        string? correlationId,
-        CancellationToken cancellationToken,
-        string? input = null)
-    {
-        var entry = Targets[0];
-        var argsValue = DeserializeArgs(argsJson, input, entry);
-        var arrival = Activator.CreateInstance(entry.ArrivalType, argsValue, fromNeuron, transition, correlationId)!;
-        object? rawTask;
-        try
-        {
-            rawTask = entry.Method.Invoke(screen, [arrival, cancellationToken]);
-        }
-        catch (TargetInvocationException tie) when (tie.InnerException is not null)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
-            throw;
-        }
-
-        if (rawTask is Task task)
-        {
-            await task.ConfigureAwait(true);
-        }
-    }
-
-    private static object? DeserializeArgs(string? argsJson, string? input, TargetEntry entry)
-    {
-        if (entry.ArgsType == typeof(string))
-        {
-            if (!string.IsNullOrEmpty(argsJson))
-            {
-                return ExtractScalarString(argsJson.Trim(), entry.JsonOptions);
-            }
-
-            return input ?? string.Empty;
-        }
-
-        var trimmedJson = argsJson?.Trim();
-        if (!string.IsNullOrEmpty(trimmedJson))
-        {
-            if (trimmedJson.StartsWith('{'))
-            {
-                if (string.Equals(trimmedJson, "{}", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(input))
-                {
-                    return CoercePlainInput(input.Trim(), entry);
-                }
-
-                var parsed = JsonSerializer.Deserialize(trimmedJson, entry.ArgsType, entry.JsonOptions);
-                return !string.IsNullOrWhiteSpace(input)
-                    ? MergeFallbackInput(parsed, input.Trim(), entry)
-                    : parsed;
-            }
-
-            var scalar = ExtractScalarString(trimmedJson, entry.JsonOptions);
-            if (!string.IsNullOrWhiteSpace(scalar))
-            {
-                return CoercePlainInput(scalar, entry);
-            }
-
-            if (!string.IsNullOrWhiteSpace(input))
-            {
-                return CoercePlainInput(input.Trim(), entry);
-            }
-
-            return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
-        }
-
-        if (!string.IsNullOrWhiteSpace(input))
-        {
-            return CoercePlainInput(input.Trim(), entry);
-        }
-
-        return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
-    }
-
-    private static string ExtractScalarString(string trimmed, JsonSerializerOptions options)
-    {
-        if (string.Equals(trimmed, "null", StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        if (trimmed.StartsWith('"'))
-        {
-            try
-            {
-                return JsonSerializer.Deserialize<string>(trimmed, options) ?? string.Empty;
-            }
-            catch (JsonException)
-            {
-                return trimmed.Trim('"');
-            }
-        }
-
-        return trimmed;
-    }
-
-    private static object? CoercePlainInput(string rawInput, TargetEntry entry)
-    {
-        var clean = rawInput.Trim();
-        if (clean.Length == 0)
-        {
-            return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
-        }
-
-        if (entry.ArgsType == typeof(BrowserNavArgs))
-        {
-            if ((clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                    || clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                && Uri.TryCreate(clean, UriKind.Absolute, out var uri)
-                && string.IsNullOrEmpty(uri.AbsolutePath.Trim('/'))
-                && string.IsNullOrEmpty(uri.Fragment))
-            {
-                return new BrowserNavArgs(BaseUrl: clean);
-            }
-
-            return new BrowserNavArgs(Route: clean);
-        }
-
-        if (entry.ArgsType == typeof(StudioNavArgs))
-        {
-            if (IsCandidateToken(clean))
-            {
-                return new StudioNavArgs(CandidateId: clean);
-            }
-
-            if (IsStudioLensKeyword(clean))
-            {
-                return new StudioNavArgs(Lens: clean, Mode: clean);
-            }
-
-            if (IsExplicitStudioTarget(clean))
-            {
-                return new StudioNavArgs(TargetId: clean);
-            }
-
-            return new StudioNavArgs(TargetId: clean, FlowId: clean);
-        }
-
-        if (entry.ArgsType == typeof(TasksNavArgs))
-        {
-            var lower = clean.ToLowerInvariant();
-            if (lower is "board" or "kanban" or "table" or "list" or "approvals" or "confirmations")
-            {
-                var tab = lower switch
-                {
-                    "kanban" => "board",
-                    "list" => "table",
-                    "confirmations" => "approvals",
-                    _ => lower,
-                };
-                return new TasksNavArgs(Tab: tab);
-            }
-
-            if (clean.StartsWith("confirm:", StringComparison.OrdinalIgnoreCase)
-                || clean.StartsWith("confirmation:", StringComparison.OrdinalIgnoreCase))
-            {
-                var id = clean[(clean.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
-                return new TasksNavArgs(Tab: "approvals", ConfirmationId: id.Length > 0 ? id : null);
-            }
-
-            if (clean.StartsWith("draft:", StringComparison.OrdinalIgnoreCase))
-            {
-                var id = clean["draft:".Length..].Trim();
-                return new TasksNavArgs(Tab: "approvals", DraftPreviewId: id.Length > 0 ? id : null);
-            }
-
-            return new TasksNavArgs(FlowId: clean);
-        }
-
-        if (entry.ArgsType == typeof(InoNavArgs))
-        {
-            if (clean.StartsWith("conversation:", StringComparison.OrdinalIgnoreCase)
-                || clean.StartsWith("chat:", StringComparison.OrdinalIgnoreCase))
-            {
-                var id = clean[(clean.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
-                return new InoNavArgs(ConversationId: id.Length > 0 ? id : null);
-            }
-
-            if (clean.StartsWith("focus:", StringComparison.OrdinalIgnoreCase)
-                || clean.StartsWith("node:", StringComparison.OrdinalIgnoreCase))
-            {
-                return new InoNavArgs(FocusTarget: clean);
-            }
-
-            return new InoNavArgs(Prompt: clean);
-        }
-
-        if (entry.ArgsType == typeof(SettingsNavArgs))
-        {
-            if (clean.Contains('/', StringComparison.Ordinal))
-            {
-                var parts = clean.Split('/', 2, StringSplitOptions.TrimEntries);
-                var section = parts.Length > 0 && parts[0].Length > 0 ? parts[0] : null;
-                var subPage = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
-                return new SettingsNavArgs(Section: section, SubPage: subPage);
-            }
-
-            return new SettingsNavArgs(Section: clean);
-        }
-
-        var ctors = entry.ArgsType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
-        if (ctors.Length > 0)
-        {
-            var parameters = ctors[0].GetParameters();
-            if (parameters.Length > 0
-                && parameters[0].ParameterType == typeof(string)
-                && parameters.Skip(1).All(p => p.HasDefaultValue))
-            {
-                var ctorArgs = new object?[parameters.Length];
-                ctorArgs[0] = clean;
-                for (var i = 1; i < parameters.Length; i++)
-                {
-                    ctorArgs[i] = parameters[i].DefaultValue;
-                }
-
-                return ctors[0].Invoke(ctorArgs);
-            }
-        }
-
-        return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
-    }
-
-    private static object? MergeFallbackInput(object? parsed, string cleanInput, TargetEntry entry)
-    {
-        return parsed switch
-        {
-            BrowserNavArgs { Section: null, TraceId: null, GrainFilter: null, Route: null, BaseUrl: null } => CoercePlainInput(cleanInput, entry),
-            StudioNavArgs { TargetId: null, Lens: null, FlowId: null, CandidateId: null, FilePath: null, Mode: null } => CoercePlainInput(cleanInput, entry),
-            TasksNavArgs { FlowId: null, Tab: null, ConfirmationId: null, DraftPreviewId: null } => CoercePlainInput(cleanInput, entry),
-            InoNavArgs { Prompt: null, ConversationId: null, FocusTarget: null } => CoercePlainInput(cleanInput, entry),
-            SettingsNavArgs { Section: null, SubPage: null, Sheet: null, SearchQuery: null } => CoercePlainInput(cleanInput, entry),
-            _ => parsed,
-        };
-    }
-
-    private static bool IsCandidateToken(string candidate)
-    {
-        if (candidate.Length is < 2 or > 5 || candidate[0] is not ('w' or 'W'))
-        {
-            return false;
-        }
-
-        for (var i = 1; i < candidate.Length; i++)
-        {
-            if (!char.IsAsciiDigit(candidate[i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool IsStudioLensKeyword(string candidate)
-        => candidate.ToLowerInvariant() is "flow" or "plan" or "code" or "changes" or "verify" or "pr" or "brain" or "state" or "source" or "signals";
-
-    private static bool IsExplicitStudioTarget(string candidate)
-        => candidate.StartsWith("trace/", StringComparison.OrdinalIgnoreCase)
-            || candidate.StartsWith("trace:", StringComparison.OrdinalIgnoreCase)
-            || candidate.StartsWith("node:", StringComparison.OrdinalIgnoreCase)
-            || candidate.StartsWith("unit:", StringComparison.OrdinalIgnoreCase)
-            || candidate.StartsWith("pulse:", StringComparison.OrdinalIgnoreCase)
-            || candidate.StartsWith("edge:", StringComparison.OrdinalIgnoreCase)
-            || candidate.StartsWith("app.", StringComparison.OrdinalIgnoreCase);
-
-    public sealed record TargetEntry(Type ArgsType, Type ArrivalType, MethodInfo Method, JsonSerializerOptions JsonOptions);
-}
-
 /// <summary>
 /// DDD Aggregate-first reactive screen base class. Subclasses implement <see cref="Render(TState)"/> returning a <see cref="Node"/>
 /// built with <c>using static IntoChat.OS.UI.Kit;</c> and bind buttons/fields directly to <typeparamref name="TState"/> commands.
@@ -883,108 +660,4 @@ public abstract class AggregateScreen<TState> : AggregateScreenBase<TState> wher
     protected new abstract Node Render(TState state);
 
     private protected sealed override Node RenderNodeCore(TState state) => Render(state);
-}
-
-internal static class NodeOwnerNormalizer
-{
-    public static Node Normalize(Node node, string owner)
-    {
-        return node switch
-        {
-            Column col => col with { Children = NormalizeList(col.Children, owner) },
-            Row row => row with { Children = NormalizeList(row.Children, owner) },
-            Grid grid => grid with { Children = NormalizeList(grid.Children, owner) },
-            SplitPane split => split with
-            {
-                Leading = Normalize(split.Leading, owner),
-                Trailing = Normalize(split.Trailing, owner),
-            },
-            Surface surface => surface with { Children = NormalizeList(surface.Children, owner) },
-            Card card => card with
-            {
-                Children = NormalizeList(card.Children, owner),
-                Header = card.Header is null ? null : Normalize(card.Header, owner),
-                Footer = card.Footer is null ? null : Normalize(card.Footer, owner),
-            },
-            Tabs tabs => tabs with
-            {
-                Items = [.. tabs.Items.Select(item => item with { Emit = NormalizeEmit(item.Emit, owner)! })],
-            },
-            Field field => field with { OnSubmit = NormalizeCommand(field.OnSubmit, owner) },
-            DigitalBrain.UI.Switch sw => sw with { Command = NormalizeCommand(sw.Command, owner) },
-            DigitalBrain.UI.Button btn => btn with { Command = NormalizeCommand(btn.Command, owner) },
-            DigitalBrain.UI.IconButton icon => icon with { Command = NormalizeCommand(icon.Command, owner) },
-            InfoBar bar => bar with
-            {
-                Close = NormalizeCommand(bar.Close, owner),
-                Action = bar.Action is null ? null : (DigitalBrain.UI.Button)Normalize(bar.Action, owner),
-            },
-            Select sel => sel with
-            {
-                Options = [.. sel.Options.Select(opt => opt with { Emit = NormalizeEmit(opt.Emit, owner) })],
-            },
-            AppShellNode shell => shell with
-            {
-                Sidebar = shell.Sidebar is null ? null : Normalize(shell.Sidebar, owner),
-                Body = Normalize(shell.Body, owner),
-                Toolbar = shell.Toolbar is null ? null : Normalize(shell.Toolbar, owner),
-                Inspector = shell.Inspector is null ? null : Normalize(shell.Inspector, owner),
-            },
-            NavItemNode nav => nav with { Command = NormalizeCommand(nav.Command, owner) },
-            DigitalBrain.UI.Conversation conv => conv with
-            {
-                Composer = conv.Composer with { OnSubmit = NormalizeEmit(conv.Composer.OnSubmit, owner)! },
-                Waiting = conv.Waiting is null ? null : Normalize(conv.Waiting, owner),
-                Messages = [.. conv.Messages.Select(m => m.Cards is null ? m : m with { Cards = NormalizeList(m.Cards, owner) })],
-            },
-            _ => node,
-        };
-    }
-
-    private static IReadOnlyList<Node> NormalizeList(IReadOnlyList<Node> children, string owner)
-    {
-        if (children.Count == 0)
-        {
-            return children;
-        }
-
-        var normalized = new Node[children.Count];
-        var changed = false;
-        for (var i = 0; i < children.Count; i++)
-        {
-            var next = Normalize(children[i], owner);
-            if (!ReferenceEquals(next, children[i]))
-            {
-                changed = true;
-            }
-
-            normalized[i] = next;
-        }
-
-        return changed ? normalized : children;
-    }
-
-    private static Emit? NormalizeEmit(Emit? emit, string owner)
-    {
-        if (emit is null)
-        {
-            return null;
-        }
-
-        return emit.Owner == CommandBinding.PendingOwner ? emit with { Owner = owner } : emit;
-    }
-
-    private static Command? NormalizeCommand(Command? command, string owner)
-    {
-        if (command is null)
-        {
-            return null;
-        }
-
-        return string.IsNullOrWhiteSpace(command.Target)
-            || command.Target == CommandBinding.PendingOwner
-            || string.Equals(command.Target, owner, StringComparison.Ordinal)
-            ? command with { Target = "." }
-            : command;
-    }
 }

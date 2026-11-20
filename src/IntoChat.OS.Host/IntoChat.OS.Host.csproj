@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>IntoChat.OS.Host</RootNamespace>
     <Description>The OS host layer: service defaults, configuration names, logging, confined process execution, cluster contracts and the other host pieces every OS process and module stands on.</Description>
     <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005;CA1812</NoWarn>
   </PropertyGroup>

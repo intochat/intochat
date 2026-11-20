@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using DigitalBrain.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -40,7 +41,7 @@ public sealed class ModulePriceListRegistry
 
 public static class ModulePriceLists
 {
-    public static IServiceCollection AddModulePriceList<TPriceList>(this IServiceCollection services,
+    public static IServiceCollection AddModulePriceList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPriceList>(this IServiceCollection services,
         string moduleId, ExternalOperationDescriptor[] operations)
         where TPriceList : class, IPriceList
     {

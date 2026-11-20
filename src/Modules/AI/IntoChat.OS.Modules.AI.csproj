@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.AI</RootNamespace>
     <Description>AI module: multi-provider LLM and embedding clients, agents, and voice transcription.</Description>
     <NoWarn>$(NoWarn);CA1812</NoWarn>
     <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>

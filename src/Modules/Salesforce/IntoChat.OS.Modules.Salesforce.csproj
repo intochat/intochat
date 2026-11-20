@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.Salesforce</RootNamespace>
     <Description>Salesforce CRM capability connector.</Description>
     <NoWarn>$(NoWarn);CA1812</NoWarn>
   </PropertyGroup>

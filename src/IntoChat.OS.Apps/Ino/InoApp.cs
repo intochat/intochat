@@ -191,9 +191,9 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         }
     }
 
-    private Task SendToThread<TCommand>(TCommand command) where TCommand : Signal
-        => Send(new Command(InoView.ConversationKey, System.Reflection.CustomAttributeExtensions.GetCustomAttribute<SignalAttribute>(typeof(TCommand))!.Alias,
-            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(command, typeof(TCommand))));
+    private Task SendToThread(ImportMessages command)
+        => Send(new Command(InoView.ConversationKey, "control.importMessages",
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(command, typeof(ImportMessages))));
 
     // Messages stored by Ino before the conversation thread held them: imported once (the import is idempotent by id), then cleared in one save.
     private async Task MigrateMessagesAsync()

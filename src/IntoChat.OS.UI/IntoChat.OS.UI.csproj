@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>IntoChat.OS.UI</RootNamespace>
     <Description>Fluent Reactor UI kit, DDD Decision and AggregateScreen command binding, and Accordant-inspired AggregateExplorer for IntoChat OS.</Description>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>

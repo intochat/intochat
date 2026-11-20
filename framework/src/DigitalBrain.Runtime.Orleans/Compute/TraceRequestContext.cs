@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using DigitalBrain.Capabilities.Compute;
 using Orleans;
 using Orleans.Runtime;
@@ -12,6 +14,11 @@ public static class TraceRequestContext
 
     /// <summary>Parses a cost origin <see cref="NeuronId"/> from a brain identifier and key.</summary>
     public static NeuronId OriginOf(string brainId, string osKey) => TraceContext.OriginOf(brainId, osKey);
+
+    [ModuleInitializer]
+    [SuppressMessage("Usage", "CA2255:The 'ModuleInitializer' attribute should not be used in libraries", Justification = "Registers the Orleans RequestContext bridge for TraceContext without runtime reflection.")]
+    internal static void RegisterBridge()
+        => TraceContext.RegisterRequestContextAccessor(RequestContext.Get, RequestContext.Set, RequestContext.Remove);
 }
 
 /// <summary>Outgoing grain call filter that copies <see cref="TraceContext.Current"/> into Orleans <see cref="RequestContext"/>.</summary>
