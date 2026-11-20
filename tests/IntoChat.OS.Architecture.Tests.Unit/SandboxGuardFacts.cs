@@ -21,8 +21,31 @@ public sealed partial class SandboxGuardFacts
         Assert.All(names, name => Assert.True(Repository.Projects.ContainsKey(name), $"'{name}' is refused by the sandbox but no project builds it."));
     }
 
+    // A module reaches sandboxed code through its Contracts assembly. The interim list names the implementations still admitted
+    // because a slot contract lives in them (OWED.md); each must be a real implementation project, and the old blanket
+    // IntoChat.OS.Modules.* allowance must not come back. AppLoadContextAdmitsModuleContractsButNoModuleImplementation in the
+    // unit tier checks the rule against every module assembly the kernel ships.
+    [Fact]
+    public void OnlyNamedModuleImplementationsAreAdmittedAndEachIsARealProject()
+    {
+        var source = File.ReadAllText(Path.Combine(Repository.ProjectNamed("IntoChat.OS.Sandbox").Directory, "AppLoadContext.cs"));
+        Assert.DoesNotContain("StartsWith(\"IntoChat.OS.Modules.\"", source, StringComparison.Ordinal);
+
+        var list = InterimList().Match(source);
+        Assert.True(list.Success, "AppLoadContext.InterimModuleImplementations was not found.");
+        var names = Quoted().Matches(list.Groups["body"].Value).Select(match => match.Groups["name"].Value).ToArray();
+        Assert.All(names, name =>
+        {
+            Assert.True(Repository.Projects.ContainsKey(name), $"'{name}' is admitted by the sandbox but no project builds it.");
+            Assert.False(name.EndsWith(".Contracts", StringComparison.Ordinal), $"'{name}' is a contracts assembly; the rule admits it already.");
+        });
+    }
+
     [GeneratedRegex(@"ForbiddenPrefixes\s*=\s*\[(?<body>[^\]]*)\]", RegexOptions.Singleline)]
     private static partial Regex ForbiddenList();
+
+    [GeneratedRegex(@"InterimModuleImplementations\s*=\s*\[(?<body>[^\]]*)\]", RegexOptions.Singleline)]
+    private static partial Regex InterimList();
 
     [GeneratedRegex("\"(?<name>[^\"]+)\"")]
     private static partial Regex Quoted();

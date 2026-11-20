@@ -40,7 +40,7 @@ The kernel then deploys the assembly through `ISandboxRuntimeBridge`, implemente
 - When `Url` is set, the kernel posts to a sandbox worker at that address, for example a container built from `src/IntoChat.OS.Sandbox/Dockerfile`. The worker serves `/apps/deploy`, `/apps/dispatch` and `/apps/unload`. When an enroll key is configured, each request must carry it.
 - Otherwise the kernel starts `IntoChat.OS.Sandbox` as a child process with `--unit-host`. The two talk in JSON lines over standard input and output. The child opens no socket. `ChildEnvironmentPolicy` scrubs its environment so the kernel's secrets do not reach it. On Windows the child is attached to a job object.
 
-Inside the worker, `AppSandboxHost` loads each app into its own collectible `AppLoadContext`. That context refuses to load process, networking, kernel and Orleans runtime assemblies.
+Inside the worker, `AppSandboxHost` loads each app into its own collectible `AppLoadContext`. That context refuses to load process, networking, kernel and Orleans runtime assemblies. From the OS it admits `IntoChat.OS`, `IntoChat.OS.UI` and each module's `Contracts` assembly (except identity's), never a module implementation; the Catalog implementation is admitted for now because the `notifications@1` slot interface still lives there.
 
 ## What a sandboxed app can do
 

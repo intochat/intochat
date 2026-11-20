@@ -6,9 +6,9 @@ namespace IntoChat.OS.Sandbox;
 /// <summary>Collectible assembly load context that isolates sandboxed user apps and runtime synapses from host assemblies.</summary>
 internal sealed class AppLoadContext(string name, string? contractsDirectory = null) : AssemblyLoadContext(name, isCollectible: true)
 {
-    // Checked before the IntoChat.OS.Modules.* allowance below, so a host assembly that lives under Modules/ (the
-    // identity module) is still refused. The OS host layer (IntoChat.OS.Host) is ASP.NET and Orleans host code. Every IntoChat.OS name here must be a
-    // real project; SandboxGuardFacts fails when one goes stale.
+    // Checked before the module contracts allowance below, so the identity module's contracts are refused too. The OS host
+    // layer (IntoChat.OS.Host) is ASP.NET and Orleans host code. Every IntoChat.OS name here must be a real project;
+    // SandboxGuardFacts fails when one goes stale.
     private static readonly string[] ForbiddenPrefixes =
     [
         "System.Diagnostics.Process",
@@ -24,6 +24,18 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
         "DigitalBrain.Runtime.Orleans",
         "DigitalBrain.Identity",
     ];
+
+    // A module reaches sandboxed code through its Contracts assembly only. Its implementation carries process, file, network
+    // and Orleans code, and the kernel's bin folder (the contracts directory) holds every one. These implementations are
+    // admitted until the slot contracts they still define move to their Contracts assembly (OWED.md); SandboxGuardFacts keeps
+    // each name a real implementation project.
+    private static readonly string[] InterimModuleImplementations =
+    [
+        "IntoChat.OS.Modules.Catalog",
+    ];
+
+    private const string ModulePrefix = "IntoChat.OS.Modules.";
+    private const string ContractsSuffix = ".Contracts";
 
     private static string? _registeredContractsDirectory;
     private static int _resolverAttached;
@@ -56,7 +68,8 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
 
         if (string.Equals(assemblyName, "IntoChat.OS", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "IntoChat.OS.UI", StringComparison.OrdinalIgnoreCase)
-            || assemblyName.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase)
+            || IsModuleContracts(assemblyName)
+            || InterimModuleImplementations.Contains(assemblyName, StringComparer.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "Microsoft.Extensions.Logging.Abstractions", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "netstandard", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "mscorlib", StringComparison.OrdinalIgnoreCase)
@@ -115,6 +128,19 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
 
             throw;
         }
+    }
+
+    // IntoChat.OS.Modules.<Module>.Contracts, with one module name between the prefix and the suffix.
+    private static bool IsModuleContracts(string assemblyName)
+    {
+        if (!assemblyName.StartsWith(ModulePrefix, StringComparison.OrdinalIgnoreCase)
+            || !assemblyName.EndsWith(ContractsSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var module = assemblyName.AsSpan(ModulePrefix.Length, Math.Max(0, assemblyName.Length - ModulePrefix.Length - ContractsSuffix.Length));
+        return module.Length > 0 && !module.Contains('.');
     }
 
     private static bool IsForbidden(string assemblyName)

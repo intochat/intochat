@@ -71,6 +71,29 @@ public sealed class IntoChatClientFacts
 {
     private static readonly Uri KernelUri = new("http://kernel.test:8080", UriKind.Absolute);
 
+    // The kernel hands the sandbox its own bin folder, which holds every module. Sandboxed code may load a module's Contracts
+    // assembly, never its implementation: an implementation brings its process, file, network and Orleans code with it.
+    // This test project references every module, so its bin folder is the kernel's set.
+    [Fact]
+    public void AppLoadContextAdmitsModuleContractsButNoModuleImplementation()
+    {
+        var modules = Directory.EnumerateFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.dll")
+            .Select(path => Path.GetFileNameWithoutExtension(path)!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Contains("IntoChat.OS.Modules.Windows", modules);
+        Assert.Contains("IntoChat.OS.Modules.AI.Contracts", modules);
+
+        var wrong = modules.Where(name => AppLoadContext.IsAssemblyAllowed(name) != ShouldAdmit(name))
+            .Select(name => $"{name}: {(AppLoadContext.IsAssemblyAllowed(name) ? "admitted" : "refused")}")
+            .ToArray();
+        Assert.True(wrong.Length == 0, string.Join(Environment.NewLine, wrong));
+
+        static bool ShouldAdmit(string name)
+            => name == "IntoChat.OS.Modules.Catalog"
+            || (name.EndsWith(".Contracts", StringComparison.Ordinal) && !name.StartsWith("IntoChat.OS.Modules.Identity", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void AppLoadContextAllowsSdkAndRefusesForbiddenHostAssemblies()
     {
@@ -81,7 +104,10 @@ public sealed class IntoChatClientFacts
             Assert.Same(typeof(ISandboxBrain).Assembly, osAssembly);
 
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS"));
-            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Google"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.UI"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.AI.Contracts"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Catalog.Contracts"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Shell.Contracts"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("DigitalBrain"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("DigitalBrain.UI"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("Microsoft.Extensions.Logging.Abstractions"));
@@ -94,6 +120,12 @@ public sealed class IntoChatClientFacts
                 "Microsoft.AspNetCore.Http",
                 "IntoChat.OS.Kernel",
                 "IntoChat.OS.Modules.Identity",
+                "IntoChat.OS.Modules.Identity.Contracts",
+                "IntoChat.OS.Modules.Windows",
+                "IntoChat.OS.Modules.Google",
+                "IntoChat.OS.Modules.Roslyn",
+                "IntoChat.OS.Modules.Contracts",
+                "IntoChat.OS.Modules.Windows.Contracts.Extra",
                 "IntoChat.OS.AppHost",
                 "DigitalBrain.Runtime.Orleans",
                 "DigitalBrain.Identity",
