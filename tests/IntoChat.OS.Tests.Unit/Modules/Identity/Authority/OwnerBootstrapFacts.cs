@@ -5,16 +5,14 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Authority;
+using IntoChat.OS.Modules.Identity.Directory;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Authority.Identity;
 

@@ -2,8 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
 using Microsoft.Extensions.DependencyInjection;

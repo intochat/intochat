@@ -1,8 +1,6 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

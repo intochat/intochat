@@ -5,9 +5,10 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Identity.Contacts;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Modules.Identity.Contacts;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Contracts.Contacts;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Authority;
 

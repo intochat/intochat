@@ -7,7 +7,6 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;

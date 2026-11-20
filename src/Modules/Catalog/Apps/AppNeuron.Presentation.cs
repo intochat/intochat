@@ -2,8 +2,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.UI;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;

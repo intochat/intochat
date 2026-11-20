@@ -9,10 +9,11 @@ using System.Text.RegularExpressions;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
-using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Tests.Support;
 

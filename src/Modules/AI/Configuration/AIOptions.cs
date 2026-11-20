@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Configuration;

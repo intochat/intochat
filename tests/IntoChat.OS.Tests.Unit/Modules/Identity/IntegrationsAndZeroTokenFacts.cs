@@ -7,19 +7,16 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
-using IntoChat.OS.Authority.Connections;
-using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Authority.Secrets;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Hosting;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Modules.Identity;
+using IntoChat.OS.Modules.Identity.Connections;
+using IntoChat.OS.Modules.Identity.Connections.OAuth;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Secrets;
 
 namespace IntoChat.OS.Authority;
 

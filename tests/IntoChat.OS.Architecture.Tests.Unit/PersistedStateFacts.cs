@@ -11,7 +11,7 @@ public sealed partial class PersistedStateFacts
     {
         Assert.NotEmpty(States);
         Assert.Contains(States, type => type.FullName == "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceStorage");
-        Assert.Contains(States, type => type.FullName == "IntoChat.OS.Authority.Secrets.SecretsState");
+        Assert.Contains(States, type => type.FullName == "IntoChat.OS.Modules.Identity.Secrets.SecretsState");
         var violations = States.SelectMany(PersistedStateRules.ShapeViolations).ToArray();
         Assert.True(violations.Length == 0, string.Join(Environment.NewLine, violations));
     }

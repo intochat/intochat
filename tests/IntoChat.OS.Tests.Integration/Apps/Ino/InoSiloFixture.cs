@@ -31,10 +31,6 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
@@ -55,6 +51,8 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Kernel.Platform;
+using IntoChat.OS.Modules.Identity;
+using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 

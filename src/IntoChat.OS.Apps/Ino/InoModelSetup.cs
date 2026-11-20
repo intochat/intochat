@@ -1,5 +1,4 @@
 using DigitalBrain;
-using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
@@ -15,6 +14,7 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.UI.Chat;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -65,7 +65,7 @@ internal static class InoModelSetup
         => host.ReadStringArrayOptional("grants", fallback ?? [], async () =>
         {
             var grants = await host.GetGrants().List();
-            return InoModel.SummarizeGrants(grants, IntoChat.OS.Framework.CallerApps.Assistant);
+            return InoModel.SummarizeGrants(grants, IntoChat.OS.Modules.Identity.Contracts.Grants.CallerApps.Assistant);
         });
 
     public static Task<string[]> ReadRecentConversationsAsync(InoSetupHost host, string[]? fallback = null)

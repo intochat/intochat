@@ -8,15 +8,15 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Kernel;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Kernel.Platform;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Hosting;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Authority;
 

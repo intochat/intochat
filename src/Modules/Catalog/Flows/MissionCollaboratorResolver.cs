@@ -6,8 +6,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;

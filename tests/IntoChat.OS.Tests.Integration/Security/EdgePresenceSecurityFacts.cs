@@ -13,15 +13,6 @@ using DigitalBrain.Identity;
 using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -34,6 +25,11 @@ using Orleans.Runtime;
 using Orleans.Serialization.Invocation;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Kernel.Platform;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Authority;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Tests.Integration.Security;
 

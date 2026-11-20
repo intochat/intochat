@@ -5,8 +5,6 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel.Testing;
 using IntoChat.OS.Host.Kernel;

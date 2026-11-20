@@ -2,7 +2,6 @@ using System.Text;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.GroupChat.Signals;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.DependencyInjection;

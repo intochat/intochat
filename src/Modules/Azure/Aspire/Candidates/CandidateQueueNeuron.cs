@@ -1,5 +1,4 @@
 using DigitalBrain.Contracts;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;

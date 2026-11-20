@@ -11,12 +11,12 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Testing.Conformance.Host;
-using IntoChat.OS.Authority;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Serialization.Cloning;
+using IntoChat.OS.Modules.Identity;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Aspire.Conformance;
 

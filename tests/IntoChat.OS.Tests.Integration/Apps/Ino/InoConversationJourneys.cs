@@ -5,12 +5,12 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Tests.Support;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 

@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using Microsoft.Extensions.AI;

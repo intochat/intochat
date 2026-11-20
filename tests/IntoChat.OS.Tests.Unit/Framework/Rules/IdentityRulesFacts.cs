@@ -5,11 +5,9 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Authority.Identity.Rules;
-using IntoChat.OS.Authority.Integrations;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Modules.Identity.Directory;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Rules;
 
 namespace IntoChat.OS.Tests.Unit.Framework.Rules;
 

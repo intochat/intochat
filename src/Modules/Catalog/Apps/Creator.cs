@@ -7,7 +7,6 @@ using DigitalBrain.Modules.Options;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Synapses;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;

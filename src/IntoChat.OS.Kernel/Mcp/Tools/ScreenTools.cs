@@ -4,7 +4,6 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Runtime;
 using ModelContextProtocol.Protocol;
@@ -12,6 +11,7 @@ using ModelContextProtocol.Server;
 
 using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Kernel.Mcp.Tools;
 

@@ -2,14 +2,9 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Hosting;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Grants;
 
 namespace IntoChat.OS.Authority;
 

@@ -1,15 +1,14 @@
-using IntoChat.OS.Framework;
 using DigitalBrain.Access;
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Authority.Integrations;
-using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Modules.Identity.Directory;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
-namespace IntoChat.OS.Authority.Identity.Rules;
+namespace IntoChat.OS.Modules.Identity.Rules;
 
 internal sealed record AccountOwnerMatches(string ExistingOwner, string RequestedOwner) : Rule("identity.account-owner-matches")
 {

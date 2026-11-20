@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DigitalBrain.Capabilities.Connections.Integrations;
-using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using IntoChat.OS.Host.ServiceDefaults;

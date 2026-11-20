@@ -16,14 +16,13 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IntoChat.OS.Modules.Identity;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 

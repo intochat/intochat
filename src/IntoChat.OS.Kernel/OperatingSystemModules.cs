@@ -1,5 +1,4 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Http;
 using Microsoft.Extensions.DependencyModel;
@@ -17,7 +16,7 @@ public static class OperatingSystemModules
 
     private static readonly Assembly[] BuiltInModuleAssemblies =
     [
-        typeof(IntoChat.OS.Authority.IdentityModule).Assembly,
+        typeof(IntoChat.OS.Modules.Identity.IdentityModule).Assembly,
         typeof(OperatingSystemModules).Assembly,
         typeof(IntoChat.OS.Modules.AI.AIModule).Assembly,
         typeof(IntoChat.OS.Modules.ArtCraft.ArtCraftModule).Assembly,
@@ -80,7 +79,7 @@ public static class OperatingSystemModules
         // The kernel composition carries three product modules of its own: Orleans, the http@1 connector, and Identity.
         if (type == typeof(IntoChat.OS.Kernel.Composition.OrleansModule)) { return true; }
         if (type == typeof(IntoChat.OS.Kernel.Composition.Capabilities.HttpModule)) { return true; }
-        if (type == typeof(IntoChat.OS.Authority.IdentityModule)) { return true; }
+        if (type == typeof(IntoChat.OS.Modules.Identity.IdentityModule)) { return true; }
         return DeclaresModule(type.Assembly);
     }
 

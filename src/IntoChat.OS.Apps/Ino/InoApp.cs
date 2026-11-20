@@ -12,7 +12,6 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
-using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
@@ -29,6 +28,7 @@ using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.Chat.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Apps.Ino;
 

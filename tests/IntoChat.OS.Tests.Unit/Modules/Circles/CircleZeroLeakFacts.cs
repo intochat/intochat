@@ -4,12 +4,10 @@ using System;
 using System.Reflection;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Modules.Circles;
 using Xunit;
+using IntoChat.OS.Modules.Identity.Grants;
 
 namespace IntoChat.OS.Modules.Circles.Tests.Unit;
 

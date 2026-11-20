@@ -4,7 +4,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Invocation;
 using DigitalBrain.Access;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 

@@ -5,11 +5,8 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Modules.Identity.Grants;
 
 namespace IntoChat.OS.Authority;
 

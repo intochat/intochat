@@ -1,5 +1,4 @@
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 

@@ -6,8 +6,6 @@ using DigitalBrain.Hosting;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;

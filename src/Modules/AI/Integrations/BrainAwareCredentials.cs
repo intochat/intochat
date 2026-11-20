@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
-using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Contracts.Entries;
 
 namespace IntoChat.OS.Modules.AI;
 

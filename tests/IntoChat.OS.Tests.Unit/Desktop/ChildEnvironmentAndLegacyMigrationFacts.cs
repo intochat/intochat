@@ -16,6 +16,8 @@ using Microsoft.Extensions.Configuration;
 using System.Net;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 

@@ -17,8 +17,6 @@ using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Settings;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -36,6 +34,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities.Secrets;
 using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -629,7 +629,7 @@ public sealed class InoAppFacts
         await using var os = AgentOs();
         os.Register<GrantsNeuron>();
         var grants = os.Get<IGrantsNeuron>(new NeuronId(Brain, IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
-        await grants.Grant(new Grant { AppId = IntoChat.OS.Framework.CallerApps.Assistant, Scope = "run", Target = "local/ino/settings", WorkspaceId = "local" });
+        await grants.Grant(new Grant { AppId = IntoChat.OS.Modules.Identity.Contracts.Grants.CallerApps.Assistant, Scope = "run", Target = "local/ino/settings", WorkspaceId = "local" });
         await grants.Grant(new Grant { AppId = "other", Scope = "run", Target = "local/elsewhere", WorkspaceId = "local" });
         var ino = await os.Install<InoApp>();
 

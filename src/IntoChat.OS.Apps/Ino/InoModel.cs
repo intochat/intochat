@@ -2,8 +2,6 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;

@@ -3,7 +3,6 @@ using DigitalBrain.Graph;
 using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

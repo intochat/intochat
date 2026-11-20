@@ -3,7 +3,6 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents.Context.Rules;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using DigitalBrain.Access;

@@ -7,8 +7,6 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.Testing;

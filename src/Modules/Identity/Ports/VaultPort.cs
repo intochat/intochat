@@ -1,20 +1,17 @@
-using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Authority.Secrets;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;
 using SecretRef = DigitalBrain.Capabilities.Secrets.SecretRef;
 using SecretStatus = DigitalBrain.Capabilities.Secrets.SecretStatus;
 using IntoChat.OS.Host.Callers;
+using IntoChat.OS.Modules.Identity.Secrets;
 
-namespace IntoChat.OS.Authority;
+namespace IntoChat.OS.Modules.Identity.Ports;
 
 // secrets@1's vault port over the vault neuron. A caller stores in and removes from its own principal's vault.
 public sealed class VaultPort(

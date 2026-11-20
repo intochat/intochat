@@ -1,42 +1,32 @@
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // CORE-05: namespaces follow assemblies. Rules:
-// (a) public types of IntoChat.OS.Modules.* assemblies live under IntoChat.OS.Modules., except the identity module
-//     (it keeps the Authority, Connections, Integrations and Confirmation namespaces);
-// (b) those kept namespaces live only in the identity module and its contracts;
-// (c) no os assembly declares a DigitalBrain namespace (no DigitalBrain source lives in os);
-// (d) IntoChat.OS.Framework namespaces live only in the Framework (which keeps its name, R4-03).
+// (a) public types of IntoChat.OS.Modules.* assemblies live under IntoChat.OS.Modules. (the identity module included,
+//     since the 2026-11-20 break-up gave its namespaces its folders);
+// (b) the retired namespaces of the old Framework and Authority projects stay retired: no assembly declares them;
+// (c) no os assembly declares a DigitalBrain namespace (no DigitalBrain source lives in os).
 public sealed class NamespaceSchemeFacts
 {
+    private static readonly string[] Retired =
+    [
+        "IntoChat.OS.Authority", "IntoChat.OS.Connections", "IntoChat.OS.Integrations", "IntoChat.OS.Confirmation", "IntoChat.OS.Framework",
+    ];
+
     internal static bool Offends(Type type)
     {
         var assembly = type.Assembly.GetName().Name ?? "";
         var ns = type.Namespace ?? "";
         if (assembly.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && type.IsPublic && !ns.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
         {
-            if (IdentityAssembly(assembly)) { return false; }
             return true;
         }
-        if (KeptIdentityNamespace(ns) && !IdentityAssembly(assembly))
+        if (Retired.Any(retired => ns == retired || ns.StartsWith(retired + ".", StringComparison.Ordinal)))
         {
             return true;
         }
         // The DigitalBrain namespaces belong to the DigitalBrain packages (loaded as the lowest kernel layer) and to no os assembly.
-        if (ns.StartsWith("DigitalBrain", StringComparison.Ordinal))
-        {
-            return !assembly.StartsWith("DigitalBrain", StringComparison.Ordinal);
-        }
-        return ns.StartsWith("IntoChat.OS.Framework", StringComparison.Ordinal) && !IdentityAssembly(assembly);
+        return ns.StartsWith("DigitalBrain", StringComparison.Ordinal) && !assembly.StartsWith("DigitalBrain", StringComparison.Ordinal);
     }
-
-    private static bool IdentityAssembly(string assembly)
-        => assembly is "IntoChat.OS.Modules.Identity" or "IntoChat.OS.Modules.Identity.Contracts";
-
-    private static bool KeptIdentityNamespace(string ns)
-        => ns.StartsWith("IntoChat.OS.Authority", StringComparison.Ordinal)
-            || ns.StartsWith("IntoChat.OS.Connections", StringComparison.Ordinal)
-            || ns.StartsWith("IntoChat.OS.Integrations", StringComparison.Ordinal)
-            || ns.StartsWith("IntoChat.OS.Confirmation", StringComparison.Ordinal);
 
     internal static Dictionary<string, int> Capture()
         => ProductionArchitecture.Types.Where(Offends)

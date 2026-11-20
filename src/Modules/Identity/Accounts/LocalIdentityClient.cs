@@ -1,0 +1,62 @@
+using DigitalBrain;
+using DigitalBrain.Access;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
+using IntoChat.OS.Modules.Identity.Authority;
+using IntoChat.OS.Modules.Identity.Directory;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+
+namespace IntoChat.OS.Modules.Identity.Accounts;
+
+// The in-module directory facade. State lives on DirectoryNeuron; product callers use ICapabilityBroker.
+internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthority? edge = null, IntoChat.OS.Modules.Identity.Grants.IEdgeGrantsCache? edgeCache = null) : IIdentityClient
+{
+    private IDirectoryStore Directory => neurons.Directory();
+
+    private async Task<T> SystemCall<T>(Func<Task<T>> call)
+    {
+        using var _ = edge?.Enter(edge.Module("identity.directory", new BrainId("system")));
+        return await call();
+    }
+
+    private async Task SystemCall(Func<Task> call)
+    {
+        using var _ = edge?.Enter(edge.Module("identity.directory", new BrainId("system")));
+        await call();
+    }
+
+    public Task<Account?> ReadAccount(string accountId) => SystemCall(() => Directory.ReadAccount(accountId));
+    public Task<Account?> OwnerOfBrain(string brainId) => SystemCall(() => Directory.OwnerOfBrain(brainId));
+    public Task EnsureAccount(Account account) => SystemCall(() => Directory.EnsureAccount(account));
+    public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind)
+        => SystemCall(() => Directory.CreateBrain(accountId, principalId, operationId, displayName, kind));
+    public Task<BrainProvision> EnsureBrain(Member owner) => SystemCall(() => Directory.EnsureBrain(owner));
+    public Task<BrainProvision> ProvisionOwner(Member owner) => SystemCall(() => Directory.ProvisionOwner(owner));
+    public Task<bool> IsRegistered(string principalId) => SystemCall(() => Directory.IsRegistered(principalId));
+    public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => SystemCall(() => Directory.RegisterPrincipal(principalId, displayName));
+    public Task<BrainProvision?> CompleteRegistration(string principalId) => SystemCall(() => Directory.CompleteRegistration(principalId));
+    public Task<BrainEntry[]> BrainsOf(string principalId) => SystemCall(() => Directory.BrainsOf(principalId));
+    public Task<BrainKind> KindOf(string brainScopeId) => SystemCall(() => Directory.KindOf(brainScopeId));
+    public Task<bool> BrainExists(string brainScopeId) => SystemCall(() => Directory.BrainExists(brainScopeId));
+    public Task<Member?> Membership(string brainScopeId, string principalId) => SystemCall(() => Directory.Membership(brainScopeId, principalId));
+    public Task<Member?> EnsureMember(Member member) => SystemCall(() => Directory.EnsureMember(member));
+    public Task RemoveMember(string brainScopeId, string accountId) => SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
+    public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
+    // Decided here, from the caller value, over the directory's state. A one-time grant the decision consumes is spent on the
+    // directory in one turn; when another call spent it first, this call is refused.
+    public Task<CallDecision?> Authorize(Caller? caller, CallRequest request)
+        => BrainAuthorityDecisions.Authorize(caller, request,
+            (brain, grantsBrain) => SystemCall(() => Directory.AuthorityOf(brain, grantsBrain)),
+            (brain, grantsBrain, ids) => SystemCall(() => Directory.SpendOnce(brain, grantsBrain, ids)),
+            edgeCache);
+    public Task<Grant[]> ListGrants(string brainScopeId) => SystemCall(() => Directory.ListGrants(brainScopeId));
+    // The owner methods keep the stamped owner: no module stamp replaces it.
+    public Task<Grant> GrantAsOwner(string brainId, Grant grant) => Directory.GrantAsOwner(brainId, grant);
+    public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => SystemCall(() => Directory.GrantShipped(brainScopeId, grants));
+    public Task RevokeAsOwner(string brainId, string grantId) => Directory.RevokeAsOwner(brainId, grantId);
+    [Obsolete("Use RevokeAsOwner with grantId")]
+    public Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode)
+        => Directory.RevokeAsOwner(brainId, appId, semanticTypeId, mode);
+    public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
+        => SystemCall(() => Directory.RedeemExternalTicket(issuer, email, displayName));
+}

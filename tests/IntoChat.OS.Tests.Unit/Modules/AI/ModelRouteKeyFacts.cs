@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Testing;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Host.Configuration;
 

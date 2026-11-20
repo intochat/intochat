@@ -1,5 +1,4 @@
 using IntoChat.OS.Tests;
-using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -7,7 +6,6 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;

@@ -1,6 +1,5 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Contracts;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

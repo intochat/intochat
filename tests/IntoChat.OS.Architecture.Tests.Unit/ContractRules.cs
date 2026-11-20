@@ -1,7 +1,5 @@
 using System.Reflection;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;

@@ -1,15 +1,13 @@
 using System.Reflection;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Http;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Kernel.Platform;
 

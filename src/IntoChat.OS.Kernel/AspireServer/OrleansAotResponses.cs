@@ -1,8 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
@@ -13,6 +11,7 @@ using Orleans.Serialization.Invocation;
 using Orleans.Serialization.Serializers;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Host.Surface;
+using IntoChat.OS.Modules.Identity.Contracts.Entries;
 
 #nullable disable
 
@@ -27,7 +26,7 @@ internal static class OrleansAotResponses
         AddEnum<DigitalBrain.Graph.GraphLevel>(services);
         AddEnum<IntoChat.Sdk.FolderAccess>(services);
         AddEnum<IntoChat.Sdk.NotificationPriority>(services);
-        AddEnum<IntoChat.OS.Authority.Identity.InvitationKind>(services);
+        AddEnum<IntoChat.OS.Modules.Identity.Contracts.Authority.InvitationKind>(services);
         AddEnum<EntryKind>(services);
         AddEnum<IntoChat.OS.Host.Modules.ModuleState>(services);
         AddEnum<IntoChat.OS.Host.ServiceDefaults.BindKind>(services);

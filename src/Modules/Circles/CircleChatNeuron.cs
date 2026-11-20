@@ -3,8 +3,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Host.Primitives;

@@ -1,15 +1,15 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
-namespace IntoChat.OS.Authority;
+namespace IntoChat.OS.Modules.Identity.Ports;
 
 // identity@1's directory port over the local directory. Membership changes need the brain's owner as the stamped caller.
 public sealed class DirectoryPort(
     IIdentityClient identity,
     ICallerAmbient callers,
-    Identity.IBrainBirths? births = null) : IIdentityDirectoryPort
+    IntoChat.OS.Modules.Identity.Contracts.Accounts.IBrainBirths? births = null) : IIdentityDirectoryPort
 {
     private Caller RequiredCaller() => callers.Current ?? throw new UnauthorizedAccessException("identity@1: the call carries no caller.");
 

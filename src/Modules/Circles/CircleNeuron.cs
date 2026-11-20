@@ -7,8 +7,6 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Rules;
 using IntoChat.OS.Modules.Circles.Signals;
@@ -182,7 +180,7 @@ internal sealed class CircleNeuron(
 
                 if (!string.IsNullOrEmpty(binding.Slot))
                 {
-                    var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
+                    var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Modules.Identity.Contracts.Grants.IGrantsNeuron>(plain, IntoChat.OS.Modules.Identity.Contracts.Grants.IGrantsNeuron.Key(source));
                     await BrainActs.In(broker, plain, source, async () =>
                     {
                         await grantsNeuron.Revoke($"circle:{CircleBrain}:conn:{binding.ConnectionKey}");
@@ -202,7 +200,7 @@ internal sealed class CircleNeuron(
         {
             try
             {
-                var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
+                var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Modules.Identity.Contracts.Grants.IGrantsNeuron>(plain, IntoChat.OS.Modules.Identity.Contracts.Grants.IGrantsNeuron.Key(source));
                 await BrainActs.In(broker, plain, source, async () =>
                 {
                     await grantsNeuron.Revoke($"circle:{CircleBrain}:app:{appName}");
@@ -313,7 +311,7 @@ internal sealed class CircleNeuron(
         var app = SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, sourceApp.Key);
         var shared = await BrainActs.In(broker, plain, source, app.Read);
 
-        var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
+        var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Modules.Identity.Contracts.Grants.IGrantsNeuron>(plain, IntoChat.OS.Modules.Identity.Contracts.Grants.IGrantsNeuron.Key(source));
         await BrainActs.In(broker, plain, source, async () =>
         {
             await grantsNeuron.Grant(DigitalBrain.Capabilities.Identity.Grant.Tuple(

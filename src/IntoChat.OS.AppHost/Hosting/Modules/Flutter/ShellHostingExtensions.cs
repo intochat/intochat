@@ -5,10 +5,6 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -17,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 

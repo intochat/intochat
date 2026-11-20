@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Host.Modules;
 

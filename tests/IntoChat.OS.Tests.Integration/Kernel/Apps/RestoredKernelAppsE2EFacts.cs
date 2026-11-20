@@ -23,9 +23,6 @@ using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -34,6 +31,8 @@ using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Identity;
+using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 

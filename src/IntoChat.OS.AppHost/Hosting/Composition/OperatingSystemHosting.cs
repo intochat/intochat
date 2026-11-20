@@ -2,7 +2,6 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Dotnet;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;

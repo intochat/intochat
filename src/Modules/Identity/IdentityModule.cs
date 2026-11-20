@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Modules;
 
-namespace IntoChat.OS.Authority;
+namespace IntoChat.OS.Modules.Identity;
 
 // identity@1 and secrets@1 live in this assembly. The host registers one keyed capability over the directory and
 // vault ports. A cloud host binds sessions through Cloud.Auth and DigitalBrain.Runtime.Http.ISessionIssuer.
@@ -11,7 +11,7 @@ public sealed class IdentityModule : Module
 {
     public const string Id = "identity";
 
-    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Connections.Platform.Identity.IIdentityClient).Assembly;
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient).Assembly;
 
     public static ModuleManifest Manifest { get; } = new(
         Provides: [Capability.Identity.V1, Capability.Secrets.V1],

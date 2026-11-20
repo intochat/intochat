@@ -2,12 +2,9 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

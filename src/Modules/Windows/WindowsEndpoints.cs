@@ -6,11 +6,6 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -19,6 +14,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Identity.Local.Machine;
 using IntoChat.OS.Host.Http;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 

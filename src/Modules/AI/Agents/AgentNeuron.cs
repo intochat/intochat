@@ -6,7 +6,6 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.State;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;

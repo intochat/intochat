@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Identity.Handles;
+using IntoChat.OS.Modules.Identity.Handles;
+using IntoChat.OS.Modules.Identity.Contracts.Handles;
 
 namespace IntoChat.OS.Authority;
 

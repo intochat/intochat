@@ -10,7 +10,6 @@ using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;

@@ -8,10 +8,6 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.LocalDisk;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +18,7 @@ using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Callers;
 using IntoChat.OS.Host.Connections;
+using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 

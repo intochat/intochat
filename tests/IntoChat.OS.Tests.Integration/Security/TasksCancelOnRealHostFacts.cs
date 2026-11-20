@@ -10,8 +10,6 @@ using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Apps.Tests.Integration.Ino;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
@@ -23,6 +21,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using EdgeKernelHarness = IntoChat.OS.Tests.Integration.Security.Gate20EdgeApprovalWallFacts.EdgeKernelHarness;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Tests.Integration.Security;
 

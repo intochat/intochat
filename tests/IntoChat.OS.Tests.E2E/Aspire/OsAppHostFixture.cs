@@ -6,12 +6,12 @@ using Aspire.Hosting.Testing;
 using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Tests.Support;
 using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Aspire;
 

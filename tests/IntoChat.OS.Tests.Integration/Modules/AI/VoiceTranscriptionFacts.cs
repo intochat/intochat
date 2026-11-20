@@ -8,8 +8,6 @@ using System.Text.Json;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Modules.AI.Models.FoundryLocal;
@@ -22,6 +20,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

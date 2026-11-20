@@ -12,9 +12,6 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;
@@ -34,6 +31,7 @@ using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.AI;
 

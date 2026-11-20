@@ -3,16 +3,14 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Access;
 using DigitalBrain.Signals.Watch;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using IntoChat.OS.Host.Brains;
 using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Host.Http;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Kernel.Platform;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Kernel.Mcp;
 

@@ -1,7 +1,5 @@
 using DigitalBrain.Neurons;
 using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;

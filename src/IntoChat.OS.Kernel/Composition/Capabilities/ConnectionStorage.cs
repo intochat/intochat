@@ -1,8 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;

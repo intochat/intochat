@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Authority;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
 

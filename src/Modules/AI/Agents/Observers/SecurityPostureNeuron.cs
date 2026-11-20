@@ -2,9 +2,8 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Access;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Modules.AI.Agents.Observers;
 

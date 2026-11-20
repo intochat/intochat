@@ -3,7 +3,6 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;

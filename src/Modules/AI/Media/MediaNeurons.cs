@@ -1,6 +1,4 @@
 using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;

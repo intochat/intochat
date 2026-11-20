@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Capabilities.Identity;
 

@@ -1,7 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Identity.Contacts;
+using IntoChat.OS.Modules.Identity.Contacts;
+using IntoChat.OS.Modules.Identity.Contracts.Contacts;
 
 namespace IntoChat.OS.Authority;
 

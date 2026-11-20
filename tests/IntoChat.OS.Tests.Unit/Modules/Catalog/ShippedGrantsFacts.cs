@@ -1,4 +1,3 @@
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Modules.ArtCraft;
 using DigitalBrain.Capabilities.Identity;
 

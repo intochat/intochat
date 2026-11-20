@@ -7,7 +7,6 @@ using DigitalBrain.Limits;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.Apps;

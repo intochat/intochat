@@ -6,6 +6,8 @@ using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Kernel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 

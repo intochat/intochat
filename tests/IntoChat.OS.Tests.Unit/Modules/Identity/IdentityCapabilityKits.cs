@@ -8,7 +8,6 @@ using DigitalBrain.Testing.Conformance;
 using DigitalBrain.Testing.Conformance.Identity;
 using DigitalBrain.Testing.Conformance.Secrets;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority;

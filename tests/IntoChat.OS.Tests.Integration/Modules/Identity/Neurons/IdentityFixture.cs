@@ -1,16 +1,13 @@
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Modules.Identity;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Authority;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Authority.Tests;
 
@@ -36,7 +33,7 @@ public sealed class IdentityFixture : BothRuntimesFixture
         services.AddJournalPayloads(typeof(Grant).Assembly);
         services.AddJournalPayloads(typeof(IdentityModule).Assembly);
         // The module's signals (GrantsChanged, ContactsChanged) live in its contracts assembly, which a host registers through IdentityModule.Contracts.
-        services.AddJournalPayloads(typeof(IntoChat.OS.Authority.Identity.Grants.GrantsChanged).Assembly);
+        services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Identity.Contracts.Grants.GrantsChanged).Assembly);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions
         {

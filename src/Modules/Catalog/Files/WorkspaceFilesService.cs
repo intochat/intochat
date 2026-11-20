@@ -5,7 +5,6 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.LocalDisk;
-using IntoChat.OS.Framework;
 using DigitalBrain.Log;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Logging;

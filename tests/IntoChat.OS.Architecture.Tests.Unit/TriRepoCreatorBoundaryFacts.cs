@@ -1,9 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Access;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

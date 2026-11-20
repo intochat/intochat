@@ -5,7 +5,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Access;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Google.Gmail;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -165,8 +164,8 @@ internal sealed partial class GmailNeuron()
         => PayerOf(RequireCaller(), Key.Brain, VerifiedOwnerAccount);
 
     private async Task<string?> VerifiedOwnerAccount(string brain)
-        => ServiceProvider.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>() is { } identity
-            ? (await IntoChat.OS.Authority.Identity.BrainOwners.VerifiedOwnerAsync(identity, brain))?.AccountId
+        => ServiceProvider.GetService<IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient>() is { } identity
+            ? (await IntoChat.OS.Modules.Identity.Contracts.Accounts.BrainOwners.VerifiedOwnerAsync(identity, brain))?.AccountId
             : null;
 
     internal static async Task<string> PayerOf(Caller caller, string brain, Func<string, Task<string?>> verifiedOwnerAccount)

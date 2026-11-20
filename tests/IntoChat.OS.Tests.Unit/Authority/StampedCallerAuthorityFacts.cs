@@ -8,13 +8,14 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Serialization.Invocation;
 using Xunit;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
+using IntoChat.OS.Modules.Identity.Ports;
 
 namespace IntoChat.OS.Tests.Unit.Authority;
 
@@ -106,10 +107,10 @@ public sealed class StampedCallerAuthorityFacts
         await using var os = TestOS.Local();
         var brain = new BrainId(Brain);
 
-        Assert.Equal("files", IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Module("files", brain)));
-        Assert.Equal(Brain, IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Kernel(brain)));
-        Assert.Equal("alice", IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Agent(new Actor.Person("alice", "alice"), brain)));
-        Assert.Null(IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Scheduler(brain)));
+        Assert.Equal("files", IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Module("files", brain)));
+        Assert.Equal(Brain, IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Kernel(brain)));
+        Assert.Equal("alice", IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Agent(new Actor.Person("alice", "alice"), brain)));
+        Assert.Null(IntoChat.OS.Modules.Identity.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Scheduler(brain)));
     }
 
     [Fact]

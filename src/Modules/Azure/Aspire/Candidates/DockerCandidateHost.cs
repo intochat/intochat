@@ -4,13 +4,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using DigitalBrain.Flows;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 

@@ -1,8 +1,6 @@
 using System.Text;
 using DigitalBrain.Identity.Local.Custody;
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Host.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -10,6 +8,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Secrets;
 
 namespace IntoChat.OS.Kernel.Platform;
 

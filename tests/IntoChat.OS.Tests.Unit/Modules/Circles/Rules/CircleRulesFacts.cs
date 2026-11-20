@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
-using IntoChat.OS.Connections;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

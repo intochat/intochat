@@ -5,12 +5,6 @@ using DigitalBrain.Identity.Local.Custody;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Authority;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.AspNetCore.Builder;
@@ -33,6 +27,9 @@ using IntoChat.OS.Host.ServiceDefaults;
 using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Host.Client;
 using IntoChat.OS.Kernel.Platform;
+using IntoChat.OS.Modules.Identity;
+using IntoChat.OS.Modules.Identity.Hosting;
+using IntoChat.OS.Modules.Identity.Accounts;
 
 namespace IntoChat.OS.Kernel.AspireServer;
 
@@ -87,7 +84,7 @@ public static class ServerHostingExtensions
         // the Framework module is selected.
         // The Authority's plain neurons (the connection index and requests, 06-08) are hosted on every silo, as its grains are.
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
-            .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons))
+            .Append(typeof(IntoChat.OS.Modules.Identity.AuthorityPlainNeurons))
             // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
             .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
@@ -324,7 +321,7 @@ public static class ServerHostingExtensions
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _ = services.GetRequiredService<DigitalBrain.Runtime.Http.Surface.IBrainAccess>();
-            if (!services.GetServices<IntoChat.OS.Framework.ICallFilterStage>().Any())
+            if (!services.GetServices<IntoChat.OS.Modules.Identity.Contracts.Grants.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddIntoChatOSPlatform before starting the server."); }
             return Task.CompletedTask;
         }

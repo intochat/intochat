@@ -2,8 +2,8 @@ using System.Reflection;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using DigitalBrain.Modules;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Modules.Identity.Contracts.Integrations;
+using IntoChat.OS.Modules.Identity.Directory;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -131,8 +131,8 @@ public sealed class BoundaryFacts
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
-        InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Identity")
-        || InNamespace(type, "IntoChat.OS.Connections.Platform.Integrations") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Integrations"));
+        InNamespace(type, "IntoChat.OS.Modules.Identity.Contracts.Accounts") || InNamespace(type, "IntoChat.OS.Modules.Identity.Directory")
+        || InNamespace(type, "IntoChat.OS.Modules.Identity.Contracts.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>
         type.Namespace == name || type.Namespace?.StartsWith(name + ".", StringComparison.Ordinal) == true;

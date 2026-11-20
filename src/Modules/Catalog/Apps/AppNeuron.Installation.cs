@@ -7,8 +7,6 @@ using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
 using Microsoft.Extensions.Configuration;

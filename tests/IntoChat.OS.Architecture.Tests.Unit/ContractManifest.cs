@@ -40,6 +40,43 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Connections.TypeValidationException", "types.type-validation; Kind=0, AllowedValues=1, RejectedValue=2"),
     ];
 
+    // OS types whose CLR name changed while their persisted identity did not (identity break-up, 2026-11-20: identity's
+    // namespaces follow its folders). Every section records them under the name the baseline pinned, so their grain types,
+    // interface ids, state names, aliases and field ids are still compared.
+    private static readonly (string Old, string Current)[] RenamedTypes =
+    [
+        ("IntoChat.OS.Authority.Entries.BrainEntriesNeuron", "IntoChat.OS.Modules.Identity.Entries.BrainEntriesNeuron"),
+        ("IntoChat.OS.Authority.Entries.BrainEntriesState", "IntoChat.OS.Modules.Identity.Entries.BrainEntriesState"),
+        ("IntoChat.OS.Authority.Entries.StoredEntry", "IntoChat.OS.Modules.Identity.Entries.StoredEntry"),
+        ("IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged", "IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryChanged"),
+        ("IntoChat.OS.Authority.Identity.Contacts.ContactEntry", "IntoChat.OS.Modules.Identity.Contracts.Contacts.ContactEntry"),
+        ("IntoChat.OS.Authority.Identity.Contacts.ContactList", "IntoChat.OS.Modules.Identity.Contracts.Contacts.ContactList"),
+        ("IntoChat.OS.Authority.Identity.Contacts.ContactsChanged", "IntoChat.OS.Modules.Identity.Contracts.Contacts.ContactsChanged"),
+        ("IntoChat.OS.Authority.Identity.Contacts.ContactsState", "IntoChat.OS.Modules.Identity.Contracts.Contacts.ContactsState"),
+        ("IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron", "IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryNeuron"),
+        ("IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain", "IntoChat.OS.Modules.Identity.External.ExternalTicketReplayGrain"),
+        ("IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState", "IntoChat.OS.Modules.Identity.External.ExternalTicketReplayState"),
+        ("IntoChat.OS.Authority.Identity.External.ExternalTicketUse", "IntoChat.OS.Modules.Identity.External.ExternalTicketUse"),
+        ("IntoChat.OS.Authority.Identity.External.IExternalTicketReplay", "IntoChat.OS.Modules.Identity.External.IExternalTicketReplay"),
+        ("IntoChat.OS.Authority.Identity.Grants.GrantsChanged", "IntoChat.OS.Modules.Identity.Contracts.Grants.GrantsChanged"),
+        ("IntoChat.OS.Authority.Identity.Grants.GrantsState", "IntoChat.OS.Modules.Identity.Contracts.Grants.GrantsState"),
+        ("IntoChat.OS.Authority.Identity.Handles.HandleState", "IntoChat.OS.Modules.Identity.Contracts.Handles.HandleState"),
+        ("IntoChat.OS.Authority.Identity.IPrincipalCredential", "IntoChat.OS.Modules.Identity.Accounts.IPrincipalCredential"),
+        ("IntoChat.OS.Authority.Identity.Invitation", "IntoChat.OS.Modules.Identity.Contracts.Authority.Invitation"),
+        ("IntoChat.OS.Authority.Identity.InvitationKind", "IntoChat.OS.Modules.Identity.Contracts.Authority.InvitationKind"),
+        ("IntoChat.OS.Authority.Identity.PrincipalCredentialGrain", "IntoChat.OS.Modules.Identity.Accounts.PrincipalCredentialGrain"),
+        ("IntoChat.OS.Authority.Identity.PrincipalCredentialState", "IntoChat.OS.Modules.Identity.Accounts.PrincipalCredentialState"),
+        ("IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Modules.Identity.Integrations.IntegrationNeuron"),
+        ("IntoChat.OS.Authority.Integrations.IntegrationState", "IntoChat.OS.Modules.Identity.Integrations.IntegrationState"),
+        ("IntoChat.OS.Authority.Secrets.OsSecretRecord", "IntoChat.OS.Modules.Identity.Secrets.OsSecretRecord"),
+        ("IntoChat.OS.Authority.Secrets.OsVaultChanged", "IntoChat.OS.Modules.Identity.Secrets.OsVaultChanged"),
+        ("IntoChat.OS.Authority.Secrets.SecretsState", "IntoChat.OS.Modules.Identity.Secrets.SecretsState"),
+        ("IntoChat.OS.Connections.Platform.Entries.EntrySummary", "IntoChat.OS.Modules.Identity.Contracts.Entries.EntrySummary"),
+        ("IntoChat.OS.Connections.Platform.Entries.IBrainEntries", "IntoChat.OS.Modules.Identity.Contracts.Entries.IBrainEntries"),
+        ("IntoChat.OS.Connections.Platform.Integrations.IIntegration", "IntoChat.OS.Modules.Identity.Contracts.Integrations.IIntegration"),
+        ("IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory", "IntoChat.OS.Modules.Identity.Directory.IIdentityDirectory"),
+    ];
+
     private static readonly (string Old, Type Current, string? Alias)[] MovedContracts =
     [
         ("IntoChat.OS.Connections.Contracts.NeuronType", typeof(DigitalBrain.Capabilities.Connections.Integrations.NeuronType), "registry.neuron-type"),
@@ -130,6 +167,30 @@ internal sealed record ContractManifest(
             }
             if (Contract(type) is { } contract) { manifest.Contracts[name] = contract; }
             if (typeof(DigitalBrain.Signal).IsAssignableFrom(type)) { manifest.Signals[name] = type.Name; }
+        }
+
+        // A renamed type is named inside other entries too (a grain's state type, a method's parameter types): those names
+        // read as recorded, since the CLR name is not what storage or the wire keeps (the alias, the grain type and the state
+        // name are, and they are still compared).
+        foreach (var section in new[] { manifest.Grains, manifest.GrainInterfaces, manifest.Contracts, manifest.States, manifest.Signals })
+        {
+            foreach (var key in section.Keys.ToArray())
+            {
+                var value = section[key];
+                foreach (var (old, current) in RenamedTypes.OrderByDescending(entry => entry.Current.Length))
+                {
+                    value = System.Text.RegularExpressions.Regex.Replace(value, @"(?<![\w.])" + System.Text.RegularExpressions.Regex.Escape(current) + @"(?!\w)", old);
+                }
+                section[key] = value;
+            }
+            foreach (var (old, current) in RenamedTypes)
+            {
+                if (section.TryGetValue(current, out var value))
+                {
+                    section.Remove(current);
+                    section[old] = value;
+                }
+            }
         }
 
         var surrogates = SurrogateMap();

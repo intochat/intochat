@@ -1,4 +1,3 @@
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

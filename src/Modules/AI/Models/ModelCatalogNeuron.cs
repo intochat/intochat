@@ -2,8 +2,8 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Connections.Platform.Entries;
 using Orleans;
+using IntoChat.OS.Modules.Identity.Contracts.Entries;
 
 namespace IntoChat.OS.Modules.AI.Models;
 

@@ -8,7 +8,6 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Tests.Unit;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;

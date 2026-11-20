@@ -4,7 +4,6 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Modules;
 

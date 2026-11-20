@@ -2,11 +2,8 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Modules.Identity.Grants;
 
 namespace IntoChat.OS.Authority;
 
@@ -57,9 +54,9 @@ public sealed class GrantRulesTupleFacts
     [Fact]
     public void APlainNeuronTargetBelongsToTheBrainAfterItsType()
     {
-        Assert.True(IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryGrain.InBrain("ui.workspace/test-brain/main", "test-brain"));
-        Assert.True(IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryGrain.InBrain("test-brain/apps/gallery", "test-brain"));
-        Assert.False(IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryGrain.InBrain("ui.workspace/other-brain/main", "test-brain"));
+        Assert.True(IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain.InBrain("ui.workspace/test-brain/main", "test-brain"));
+        Assert.True(IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain.InBrain("test-brain/apps/gallery", "test-brain"));
+        Assert.False(IntoChat.OS.Modules.Identity.Directory.IdentityDirectoryGrain.InBrain("ui.workspace/other-brain/main", "test-brain"));
     }
 
     [Fact]

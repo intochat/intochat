@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.UI;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.UI.BreadcrumbBar;
 using IntoChat.OS.Modules.UI.CodeEditor;
 using IntoChat.OS.Modules.UI.ContextMenu;

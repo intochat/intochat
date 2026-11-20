@@ -3,7 +3,6 @@ using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Modules.Validation;
-using IntoChat.OS.Framework.Modules;
 using Orleans.Hosting;
 using IntoChat.OS.Host.Configuration;
 

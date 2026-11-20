@@ -10,7 +10,6 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -632,7 +631,7 @@ internal sealed partial class HttpSandboxRuntimeBridge(
             var appRef = IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, entry.AppKey, out var parsed)
                 ? parsed
                 : IntoChat.OS.Host.Primitives.AppRef.Of(brainId, entry.AppKey);
-            var identityClient = services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
+            var identityClient = services.GetService<IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient>();
             var owner = identityClient is not null
                 ? await identityClient.OwnerOfBrain(brainId.Value).ConfigureAwait(false)
                 : null;

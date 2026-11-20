@@ -17,12 +17,6 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Sandbox;
@@ -42,6 +36,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Modules.Identity.Accounts;
 
 namespace IntoChat.OS.Tests.Integration.Sandbox;
 
@@ -714,8 +709,8 @@ public sealed class SandboxEndToEndIntegrationFacts
                 kernelApp.Services.GetRequiredService<IOptions<SandboxOptions>>().Value.KernelCallbackUrl = kernelUrl;
 
                 kernelClient = new HttpClient { BaseAddress = new Uri(kernelUrl, UriKind.Absolute) };
-                var presence = kernelApp.Services.GetRequiredService<IntoChat.OS.Authority.Identity.IPresenceProof>();
-                kernelClient.DefaultRequestHeaders.Add(IntoChat.OS.Authority.Identity.PresenceProof.HeaderName, presence.Token);
+                var presence = kernelApp.Services.GetRequiredService<IntoChat.OS.Modules.Identity.Accounts.IPresenceProof>();
+                kernelClient.DefaultRequestHeaders.Add(IntoChat.OS.Modules.Identity.Contracts.Accounts.PresenceProof.HeaderName, presence.Token);
                 var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
                 var ready = false;

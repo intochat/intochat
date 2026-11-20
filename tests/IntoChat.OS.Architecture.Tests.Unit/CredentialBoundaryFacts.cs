@@ -3,11 +3,9 @@ using System.Reflection.Emit;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Contracts.Entries;
+using IntoChat.OS.Modules.Identity.Contracts.Integrations;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

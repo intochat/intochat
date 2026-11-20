@@ -6,14 +6,13 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using DigitalBrain.Access;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Identity.Contracts.Entries;
 
 namespace IntoChat.OS.Kernel.Composition.Registry;
 

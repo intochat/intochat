@@ -1,6 +1,5 @@
 using System.Reflection;
 using DigitalBrain;
-using IntoChat.OS.Connections;
 using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Tests.Unit.Primitives;

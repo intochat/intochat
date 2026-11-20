@@ -3,8 +3,8 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Secrets;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Identity.Secrets;
 
 namespace IntoChat.OS.Tests.Unit.Framework.Callers;
 

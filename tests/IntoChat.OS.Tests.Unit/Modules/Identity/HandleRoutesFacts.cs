@@ -4,17 +4,15 @@ using System.Net;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Authority.Identity.Handles;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Http;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using BrainRoutes = IntoChat.OS.Host.Http.OsBrainRoutes;
+using IntoChat.OS.Modules.Identity.Handles;
+using IntoChat.OS.Modules.Identity.Contracts.Handles;
 
 namespace IntoChat.OS.Authority;
 

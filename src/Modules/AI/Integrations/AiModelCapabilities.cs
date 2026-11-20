@@ -1,6 +1,4 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;

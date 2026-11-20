@@ -1,9 +1,6 @@
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using DigitalBrain.State;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Apps;
 

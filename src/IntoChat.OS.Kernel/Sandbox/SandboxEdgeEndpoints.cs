@@ -5,7 +5,6 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.Apps;
@@ -140,7 +139,7 @@ internal static class SandboxEdgeEndpoints
     {
         try
         {
-            var identityClient = services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
+            var identityClient = services.GetService<IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient>();
             var owner = identityClient is not null
                 ? await identityClient.OwnerOfBrain(identity.BrainId).ConfigureAwait(false)
                 : null;

@@ -5,7 +5,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Runtime;

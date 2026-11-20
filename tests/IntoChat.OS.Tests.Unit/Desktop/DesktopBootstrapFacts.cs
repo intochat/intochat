@@ -5,6 +5,7 @@ using System.Security.Principal;
 using IntoChat.OS.Authority.Identity;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 

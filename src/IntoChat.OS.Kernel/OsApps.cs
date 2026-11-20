@@ -4,7 +4,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Neurons;
 using DigitalBrain.Signals;
 using IntoChat.OS.Apps.Settings;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;

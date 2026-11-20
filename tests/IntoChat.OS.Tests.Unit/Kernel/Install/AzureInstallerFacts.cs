@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Kernel.Install;
 using IntoChat.OS.Host.Configuration;

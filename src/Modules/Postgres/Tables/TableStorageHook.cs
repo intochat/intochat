@@ -1,5 +1,4 @@
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Modules;

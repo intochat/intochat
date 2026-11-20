@@ -1,6 +1,5 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Signals;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;
@@ -18,7 +17,7 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
     ICapabilityBroker? directory = null,
-    IntoChat.OS.Connections.Platform.Identity.IIdentityClient? identity = null)
+    IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient? identity = null)
     : DigitalBrain.Neurons.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)

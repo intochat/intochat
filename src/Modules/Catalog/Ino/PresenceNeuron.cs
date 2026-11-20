@@ -30,7 +30,7 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
     private static readonly TimeSpan ListeningWindow = TimeSpan.FromSeconds(2), AttentionWindow = TimeSpan.FromSeconds(10);
 
     // The app id FlowsNeuron records a flow an agent starts under; such a flow is Ino's.
-    private const string AssistantApp = IntoChat.OS.Framework.CallerApps.Assistant;
+    private const string AssistantApp = IntoChat.OS.Modules.Identity.Contracts.Grants.CallerApps.Assistant;
 
     private const string WindowTimer = "presence.window";
 

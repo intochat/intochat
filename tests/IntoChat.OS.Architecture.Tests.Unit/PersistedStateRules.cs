@@ -1,8 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
@@ -89,8 +87,8 @@ internal static class PersistedStateRules
     // and a member leaves it only when its stored shape becomes an array.
     internal static readonly HashSet<string> UnmigratedConcreteCollections = new(StringComparer.Ordinal)
     {
-        "IntoChat.OS.Authority.Integrations.IntegrationState.Settings",
-        "IntoChat.OS.Authority.Secrets.SecretsState.Fields",
+        "IntoChat.OS.Modules.Identity.Integrations.IntegrationState.Settings",
+        "IntoChat.OS.Modules.Identity.Secrets.SecretsState.Fields",
     };
 
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)

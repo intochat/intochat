@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain.Access;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.AI;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Surface;

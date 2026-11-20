@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.State;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Embeddings.Signals;
 using IntoChat.OS.Host.Configuration;
 

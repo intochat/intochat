@@ -9,12 +9,12 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;
 using DigitalBrain.Flows;
+using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Authority;
 

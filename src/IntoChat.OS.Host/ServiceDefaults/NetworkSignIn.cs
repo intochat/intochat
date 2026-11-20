@@ -10,7 +10,7 @@ namespace IntoChat.OS.Host.ServiceDefaults;
 //   network, no sign-in module         the built-in registration is closed, and the kernel starts only with the bootstrap
 //                                      credential (one owner, no way for a visitor to make another) or the explicit opt-in.
 //
-// Decide is the one place that says so. The identity host asks it twice (Authority.Identity.NetworkSignInGuard): over the
+// Decide is the one place that says so. The identity host asks it twice (IntoChat.OS.Modules.Identity.Accounts.NetworkSignInGuard): over the
 // listeners configuration names, before anything binds, and over the addresses the server really bound.
 public static class NetworkSignIn
 {

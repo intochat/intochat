@@ -7,7 +7,6 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.Apps;

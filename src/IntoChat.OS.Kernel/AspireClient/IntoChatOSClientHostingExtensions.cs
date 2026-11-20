@@ -1,7 +1,6 @@
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;

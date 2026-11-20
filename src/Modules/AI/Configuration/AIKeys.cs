@@ -1,8 +1,6 @@
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;

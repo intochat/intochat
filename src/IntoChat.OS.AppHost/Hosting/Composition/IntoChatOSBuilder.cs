@@ -5,9 +5,6 @@ using Aspire.Hosting.Orleans;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Configuration;
 
@@ -109,7 +106,7 @@ public sealed class IntoChatOSBuilder
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
     internal IReadOnlyDictionary<string, string?> Settings => _settings;
-    public IntoChat.OS.Connections.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
+    public IntoChat.OS.Modules.Identity.Contracts.Accounts.IdentityHostOptions? Identity { get; private set; }
     public IntoChatOSBuilder WithHttpIdentity()
     {
         Identity = HttpIdentityProjection.FromConfiguration(ApplicationBuilder.Configuration);

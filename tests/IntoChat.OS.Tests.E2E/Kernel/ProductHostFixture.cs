@@ -17,9 +17,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Authority;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Kernel.Tests.E2E.Policies;
@@ -35,6 +32,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Runtime;
 using Orleans.Serialization.Cloning;
+using IntoChat.OS.Modules.Identity;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

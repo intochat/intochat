@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.Signals;
 using IntoChat.OS.Host.Configuration;

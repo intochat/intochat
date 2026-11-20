@@ -5,8 +5,6 @@ using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Compute;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Machine;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,7 +36,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IOperationHandler<WritePlan>, StorageWriteHandler>();
         DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(silo.Services, typeof(DigitalBrain.Confirmation.ConfirmationRequested).Assembly);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainInstanceRegistration>());
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, IntoChat.OS.Authority.Identity.Grants.SiloAccessCallFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, IntoChat.OS.Modules.Identity.Grants.SiloAccessCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddSingleton<OsKernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<OsKernel>());

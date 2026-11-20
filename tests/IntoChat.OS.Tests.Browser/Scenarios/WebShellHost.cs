@@ -10,7 +10,6 @@ using Aspire.Hosting.Testing;
 using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Apps.Aspire;
-using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Tests.Support;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -22,6 +21,8 @@ using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Transforms;
 using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Tests.Browser.Scenarios;
 

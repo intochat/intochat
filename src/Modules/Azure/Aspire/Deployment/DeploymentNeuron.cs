@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;

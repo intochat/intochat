@@ -10,13 +10,13 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Screens;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Tests.E2E.Fixtures;
 using IntoChat.OS.Tests.E2E.Harness;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Serialization.Invocation;
 using Xunit;
+using IntoChat.OS.Modules.Identity.Grants;
 
 namespace IntoChat.OS.Tests.E2E.Tier2_BoundaryCases;
 
