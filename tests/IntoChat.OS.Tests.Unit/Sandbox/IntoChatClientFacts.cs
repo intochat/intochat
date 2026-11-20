@@ -90,8 +90,7 @@ public sealed class IntoChatClientFacts
         Assert.True(wrong.Length == 0, string.Join(Environment.NewLine, wrong));
 
         static bool ShouldAdmit(string name)
-            => name == "IntoChat.OS.Modules.Catalog"
-            || (name.EndsWith(".Contracts", StringComparison.Ordinal) && !name.StartsWith("IntoChat.OS.Modules.Identity", StringComparison.Ordinal));
+            => name.EndsWith(".Contracts", StringComparison.Ordinal) && !name.StartsWith("IntoChat.OS.Modules.Identity", StringComparison.Ordinal);
     }
 
     [Fact]
@@ -124,6 +123,7 @@ public sealed class IntoChatClientFacts
                 "IntoChat.OS.Modules.Windows",
                 "IntoChat.OS.Modules.Google",
                 "IntoChat.OS.Modules.Roslyn",
+                "IntoChat.OS.Modules.Catalog",
                 "IntoChat.OS.Modules.Contracts",
                 "IntoChat.OS.Modules.Windows.Contracts.Extra",
                 "IntoChat.OS.AppHost",

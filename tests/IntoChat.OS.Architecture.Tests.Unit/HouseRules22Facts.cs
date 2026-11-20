@@ -1170,7 +1170,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.PortableBrainArchive",
             "IntoChat.OS.Modules.Apps.ProfileNeuron",
             "IntoChat.OS.Modules.Apps.UserSettingsNeuron",
-            "IntoChat.OS.Modules.Apps.Notifications.INotifications",
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",

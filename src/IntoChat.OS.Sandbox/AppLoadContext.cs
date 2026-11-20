@@ -26,14 +26,7 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
     ];
 
     // A module reaches sandboxed code through its Contracts assembly only. Its implementation carries process, file, network
-    // and Orleans code, and the kernel's bin folder (the contracts directory) holds every one. These implementations are
-    // admitted until the slot contracts they still define move to their Contracts assembly (OWED.md); SandboxGuardFacts keeps
-    // each name a real implementation project.
-    private static readonly string[] InterimModuleImplementations =
-    [
-        "IntoChat.OS.Modules.Catalog",
-    ];
-
+    // and Orleans code, and the kernel's bin folder (the contracts directory) holds every one.
     private const string ModulePrefix = "IntoChat.OS.Modules.";
     private const string ContractsSuffix = ".Contracts";
 
@@ -69,7 +62,6 @@ internal sealed class AppLoadContext(string name, string? contractsDirectory = n
         if (string.Equals(assemblyName, "IntoChat.OS", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "IntoChat.OS.UI", StringComparison.OrdinalIgnoreCase)
             || IsModuleContracts(assemblyName)
-            || InterimModuleImplementations.Contains(assemblyName, StringComparer.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "Microsoft.Extensions.Logging.Abstractions", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "netstandard", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "mscorlib", StringComparison.OrdinalIgnoreCase)

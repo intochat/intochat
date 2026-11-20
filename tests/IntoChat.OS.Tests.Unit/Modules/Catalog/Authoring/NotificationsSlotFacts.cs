@@ -12,6 +12,19 @@ public sealed class NotificationsSlotFacts
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // The slot contract lives in Catalog.Contracts so sandboxed code never loads the Catalog implementation. Unit builds stored
+    // before the move name it in IntoChat.OS.Modules.Catalog; the forwarder there must keep resolving them, by type reference
+    // and by the name lookup AllowedReferences makes.
+    [Fact]
+    public void NotificationsSlotContractLivesInCatalogContractsAndTheOldAssemblyForwardsIt()
+    {
+        Assert.Equal("IntoChat.OS.Modules.Catalog.Contracts", typeof(INotifications).Assembly.GetName().Name);
+
+        var forwarded = typeof(AppsModule).Assembly.GetType(typeof(INotifications).FullName!, throwOnError: false);
+        Assert.Same(typeof(INotifications), forwarded);
+        Assert.Same(typeof(INotifications), Type.GetType($"{typeof(INotifications).FullName}, IntoChat.OS.Modules.Catalog", throwOnError: false));
+    }
+
     [Fact]
     public async Task NotificationsSlotDeliversThroughRealNotificationsInboxOnTestOS()
     {
