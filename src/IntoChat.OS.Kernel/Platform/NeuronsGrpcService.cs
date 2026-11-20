@@ -36,7 +36,7 @@ internal sealed class NeuronsGrpcService(OsNeuronSurface surface, IBrainObserver
         using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(await BrainCall.Enter(context, request.BrainId));
         try
         {
-            var arguments = request.Arguments.IsEmpty ? "[]" : request.Arguments.ToStringUtf8();
+            var arguments = request.Arguments.IsEmpty ? "{}" : request.Arguments.ToStringUtf8();
             var result = await surface.Call(request.Contract, request.Key, request.Method, arguments, context.CancellationToken);
             return new CallReply { Result = result is { } json ? ByteString.CopyFromUtf8(json.GetRawText()) : ByteString.Empty };
         }

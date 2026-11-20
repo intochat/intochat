@@ -4,10 +4,13 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Apps.Tests.Integration.Ino;
+using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Tools;
+using IntoChat.OS.Modules.Apps.Runs;
 using IntoChat.OS.Tests;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -79,5 +82,27 @@ public sealed class AgentToolsFacts(InoSiloFixture fixture) : IClassFixture<InoS
 
         Assert.NotNull(lastOptions?.Tools);
         Assert.Contains(lastOptions!.Tools!.OfType<AIFunction>(), static t => t.Name == "files_write");
+    }
+
+    [Fact]
+    public async Task NeuronsCallAcceptsArrayAndObject()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = fixture.NewBrain("namedargs");
+        using var _ = fixture.AsPerson(brain);
+        var surface = fixture.Services.GetRequiredService<OsNeuronSurface>();
+        var contract = typeof(IRuns).FullName!;
+        var key = $"{brain}/runs/index";
+
+        var byObject = await surface.Call(contract, key, nameof(IRuns.List), """{"limit":2}""", ct);
+        var byArray = await surface.Call(contract, key, nameof(IRuns.List), "[2]", ct);
+        Assert.Equal(byArray!.Value.GetRawText(), byObject!.Value.GetRawText());
+
+        var typo = await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(contract, key, nameof(IRuns.List), """{"limt":2}""", ct));
+        Assert.Contains("'limt'", typo.Message, StringComparison.Ordinal);
+
+        var byEmpty = await surface.Call(contract, key, nameof(IRuns.List), "", ct);
+        var byEmptyObject = await surface.Call(contract, key, nameof(IRuns.List), "{}", ct);
+        Assert.Equal(byEmpty!.Value.GetRawText(), byEmptyObject!.Value.GetRawText());
     }
 }
