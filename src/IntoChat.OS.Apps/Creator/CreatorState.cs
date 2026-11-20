@@ -16,7 +16,7 @@ public sealed record CreatorWorkspaceState(
     string Status)
 {
     public static readonly string[] InspectorTabIds = ["state", "source", "signals", "state-graph", "scenarios"];
-    public static readonly string[] CanvasModeIds = ["brain", "live", "state", "source"];
+    public static readonly string[] CanvasModeIds = ["brain", "state", "live"];
 
     public CreatorWorkspaceState() : this(null, null, null, "state", "brain", "fill", "Ready") { }
 
@@ -25,6 +25,7 @@ public sealed record CreatorWorkspaceState(
     public string? SelectedSourceFile { get; init; }
     public int ReplayStepCount { get; init; }
     public bool ShowStateGraph { get; init; }
+    public bool ScenarioInFlight { get; init; }
 
     [JsonIgnore]
     public bool IsReplayActive => ReplayCursor is not null;
@@ -39,9 +40,9 @@ public sealed record CreatorWorkspaceState(
     public bool ValidInspectorTab =>
         InspectorTab is "state" or "source" or "signals" or "state-graph" or "scenarios";
 
-    [Invariant("CanvasMode is brain, live, state, or source."), JsonIgnore]
+    [Invariant("CanvasMode is brain, state, or live."), JsonIgnore]
     public bool ValidCanvasMode =>
-        CanvasMode is "brain" or "live" or "state" or "source";
+        CanvasMode is "brain" or "state" or "live";
 
     [Invariant("PreviewViewport is fill, 720, or 390."), JsonIgnore]
     public bool ValidPreviewViewport =>
@@ -57,6 +58,12 @@ public sealed record CreatorWorkspaceState(
         Selected,
         static s => s is not { Kind: Selection.Node },
         "Select a unit or app node in the graph first.");
+
+    public Rule CanDepart(bool force = false) => Decision.Rule(
+        "scenario_run_in_progress",
+        (ScenarioInFlight, force),
+        static x => x.ScenarioInFlight && !x.force,
+        "Wait for the active scenario verification run to finish before leaving Creator.");
 
     public static Rule RequiresTimelineEvents(int eventCount) => Decision.Rule(
         "empty_timeline",
@@ -74,7 +81,7 @@ public sealed record CreatorWorkspaceState(
         "invalid_canvas_mode",
         mode,
         static m => TryNormalizeCanvasMode(m) is null,
-        "Canvas mode must be brain, live, state, or source.");
+        "Canvas mode must be brain, state, or live.");
 
     // ── Aggregate Commands & Transitions ─────────────────────────────────────
 
@@ -99,7 +106,7 @@ public sealed record CreatorWorkspaceState(
         return this with
         {
             ActiveRunId = runId.Trim(),
-            Status = $"Inspecting change run {runId.Trim()}",
+            Status = $"Inspecting flow {runId.Trim()}",
         };
     }
 
@@ -142,7 +149,7 @@ public sealed record CreatorWorkspaceState(
     }
 
     public Decision<CreatorWorkspaceState> SwitchCanvasMode(
-        [Sample("brain", "live", "state", "source", "invalid")] string mode)
+        [Sample("brain", "state", "live", "invalid")] string mode)
     {
         if (Decision.Check("switch-canvas-mode", SupportedCanvasMode(mode)) is { } refusal)
         {
@@ -237,7 +244,56 @@ public sealed record CreatorWorkspaceState(
             };
         }
 
+        if (input.Length > 0 && Selection.Parse(input) is { } selected)
+        {
+            return this with
+            {
+                Selected = selected,
+                ReplayCursor = null,
+            };
+        }
+
         return this;
+    }
+
+    [IgnoreExplore]
+    public CreatorWorkspaceState ApplyArrival(StudioNavArgs? args)
+    {
+        if (args is null)
+        {
+            return this;
+        }
+
+        var next = this;
+        if (!string.IsNullOrWhiteSpace(args.TargetId))
+        {
+            next = next.OpenInput(args.TargetId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.FlowId))
+        {
+            next = next.SelectRun(args.FlowId!);
+        }
+
+        var modeCandidate = args.Mode ?? args.Lens;
+        if (!string.IsNullOrWhiteSpace(modeCandidate))
+        {
+            if (TryNormalizeCanvasMode(modeCandidate) is { } canvasMode)
+            {
+                next = next.SetCanvasMode(canvasMode);
+            }
+            else if (TryNormalizeInspectorTab(modeCandidate) is { } tab)
+            {
+                next = next with { InspectorTab = tab };
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.FilePath))
+        {
+            next = next.SetSourceFile(args.FilePath);
+        }
+
+        return next;
     }
 
     [IgnoreExplore]
@@ -298,10 +354,9 @@ public sealed record CreatorWorkspaceState(
 
     public static string? TryNormalizeCanvasMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
-        "brain" => "brain",
-        "live" => "live",
-        "state" => "state",
-        "source" => "source",
+        "brain" or "topology" or "flow" => "brain",
+        "state" or "state-graph" or "accordant" => "state",
+        "live" or "preview" => "live",
         _ => null,
     };
 

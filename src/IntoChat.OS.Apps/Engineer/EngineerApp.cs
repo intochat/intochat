@@ -13,6 +13,7 @@ using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
@@ -69,7 +70,7 @@ public sealed record EngineerSelectCandidate(int CandidateIndex = 0, string? Fil
 
 [Neuron("app.engineer")]
 [Screen("app.engineer", Title = "IntoChat Engineer", Icon = "workflow")]
-public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
+public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
 {
     public const string AppName = "engineer";
 
@@ -144,7 +145,36 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     public View Render() => PreviewView(State);
 
     protected override Node Render(EngineerWorkspaceState state)
-        => EngineerViewRenderer.RenderRoot(state, LastRejection);
+        => EngineerViewRenderer.RenderRoot(state, LastRejection, ActiveTransition, TryBrainOrNull());
+
+    public async Task OnNavigatedTo(NavigationArrival<StudioNavArgs> arrival, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arrival);
+        var next = !string.IsNullOrWhiteSpace(arrival.Args?.FlowId)
+            ? await SyncFromLiveFlowAsync(State, arrival.Args!.FlowId!.Trim())
+            : await SyncLatestOrActiveFlowAsync(State);
+
+        next = next.ApplyArrival(arrival.Args);
+        await ShowAndSyncAsync(next);
+    }
+
+    public Rule CanNavigateFrom(NavigationDeparture departure)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return State.CanDepart(departure.Force);
+    }
+
+    public Task OnNavigatedFrom(NavigationDeparture departure, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return Task.CompletedTask;
+    }
+
+    private BrainId? TryBrainOrNull()
+    {
+        try { return Id.Brain; }
+        catch (InvalidOperationException) { return null; }
+    }
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
@@ -238,6 +268,31 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     public async Task ApprovePlan(EngineerApprovePlan request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (State.AwaitingPlanRatification
+            && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
+            && TryGetOptional<IFlows>(FlowsKey) is { } flows)
+        {
+            try
+            {
+                var ratified = await flows.RatifyEngineerPlan(
+                    State.ActiveFlowId!,
+                    State.EffectiveCleanupTargets,
+                    State.EffectiveSlices);
+                if (!string.IsNullOrWhiteSpace(ratified.FlowId))
+                {
+                    var synced = ApplyLiveSummary(State, ratified, preserveActiveTab: false, preferredFilePath: null);
+                    await ShowAndSyncAsync(synced);
+                    return;
+                }
+            }
+#pragma warning disable CA1031
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(ex, "Live RatifyEngineerPlan skipped for {FlowId}.", State.ActiveFlowId);
+            }
+        }
+
         await ApplyDecisionAsync(State.ApprovePlan());
         await SyncUiNeuronsAsync(State);
     }
@@ -281,6 +336,36 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
 
     public Task SelectCandidateCommand(int candidateIndex)
         => SelectCandidate(new EngineerSelectCandidate(candidateIndex));
+
+    public Task SelectFileCommand(string filePath)
+        => ShowAndSyncAsync(State.SelectChangedFile(filePath));
+
+    public Task SelectTabCommand(string tabId)
+        => SelectTab(new EngineerSelectTab(tabId));
+
+    public Task SelectStageCommand(string stageId)
+        => ShowAndSyncAsync(State.SelectStage(stageId));
+
+    public Task ToggleViewportPeekCommand()
+        => ShowAndSyncAsync(State.ToggleViewportPeek());
+
+    [On]
+    public async Task OnOperationProgressed(OperationProgressed progressed)
+    {
+        if (progressed is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(State.ActiveFlowId)
+            && !string.IsNullOrWhiteSpace(progressed.FlowId)
+            && !string.Equals(State.ActiveFlowId, progressed.FlowId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await ShowAndSyncAsync(State.ApplyOperationProgress(progressed));
+    }
 
     [On]
     public async Task SelectTab(EngineerSelectTab request)
@@ -439,7 +524,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
         }
 
         var matchesActive = State.ActiveFlowId is { } active && string.Equals(changed.FlowId, active, StringComparison.Ordinal);
-        var isEngineerFlow = changed.FlowId.Contains($"/{IFlows.EngineerFlow}/", StringComparison.Ordinal);
+        var isEngineerFlow = changed.FlowId.Contains("/" + IFlows.EngineerFlow + "/", StringComparison.Ordinal);
         if (matchesActive || isEngineerFlow)
         {
             var synced = await SyncFromLiveFlowAsync(State, changed.FlowId);
@@ -464,6 +549,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
         await TryFollowOneAsync<ITreeView, TreeViewChanged>(WorktreeTreeKey);
         await TryFollowOneAsync<IChatThread, ChatMessageSubmitted>(BrainstormChatKey);
         await TryFollowOneAsync<IFlows, FlowsChanged>(FlowsKey);
+        await TryFollowOneAsync<IFlows, OperationProgressed>(FlowsKey);
     }
 
     private async Task TryFollowOneAsync<TContract, TSignal>(string key)
@@ -642,7 +728,9 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
                     ZeroTelemetryErrors: c.Score.ZeroTelemetryErrors,
                     UnifiedDiff: c.Score.UnifiedDiff,
                     Summary: c.Score.Summary,
-                    Rank: c.Rank);
+                    Rank: c.Rank,
+                    Harness: c.Harness,
+                    DeletedFiles: c.DeletedFiles);
             }).ToArray()
             : summary.Instances.Length > 0
                 ? summary.Instances.Select(inst =>
@@ -670,7 +758,9 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
                         ZeroTelemetryErrors: inst.LiveSucceeded,
                         UnifiedDiff: inst.UnifiedDiff,
                         Summary: inst.FailureDetail ?? string.Empty,
-                        Rank: inst.Rank);
+                        Rank: inst.Rank,
+                        Harness: inst.Harness,
+                        DeletedFiles: inst.DeletedFiles);
                 }).ToArray()
                 : basis.Candidates;
 
@@ -728,6 +818,21 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
             DiagnosticsAndTraces = summary.DiagnosticsAndTraces is { Length: > 0 } traces ? traces : basis.DiagnosticsAndTraces,
             PullRequestUrl = summary.PullRequestUrl ?? basis.PullRequestUrl,
             ConfirmationPlanId = summary.ConfirmationPlanId ?? basis.ConfirmationPlanId,
+            Harness = summary.Harness,
+            AwaitingPlanRatification = summary.AwaitingPlanRatification,
+            CleanupTargets = summary.RatifiedPlan?.CleanupTargets is { Length: > 0 } rClean
+                ? rClean
+                : summary.CleanupTargets is { Length: > 0 } sClean
+                    ? sClean
+                    : basis.CleanupTargets,
+            Slices = summary.RatifiedPlan?.Slices is { Length: > 0 } rSlices
+                ? rSlices
+                : summary.Slices is { Length: > 0 } sSlices
+                    ? sSlices
+                    : basis.Slices,
+            Collaborators = summary.Collaborators is { Length: > 0 } collabs
+                ? collabs
+                : basis.Collaborators,
             StatusBanner = banner,
         };
     }
@@ -759,8 +864,8 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
             {
                 var tabState = await tabs.Configure(
                 [
-                    new UiTabItem("plan", "Plan"),
-                    new UiTabItem("code", "Code"),
+                    new UiTabItem("plan", "3D Flow & Plan"),
+                    new UiTabItem("code", "Changes & Diff"),
                     new UiTabItem("verify", "Verification & Traces"),
                     new UiTabItem("pr", "PR Review"),
                 ], state.ActiveTab);

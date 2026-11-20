@@ -115,11 +115,16 @@ public sealed class EngineerAppFacts
         Assert.NotNull(initialView);
 
         var viewJson = System.Text.Json.JsonSerializer.Serialize(initialView);
-        Assert.Contains(EngineerApp.StepperKey, viewJson, StringComparison.Ordinal);
-        Assert.Contains(EngineerApp.CommandBarKey, viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(EngineerApp.CommandBarKey, viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(EngineerApp.KanbanKey, viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("kpi-eng-build", viewJson, StringComparison.Ordinal);
         Assert.Contains(EngineerApp.WorktreeTreeKey, viewJson, StringComparison.Ordinal);
         Assert.Contains(EngineerApp.WorkspaceTabsKey, viewJson, StringComparison.Ordinal);
         Assert.Contains(EngineerApp.BrainstormChatKey, viewJson, StringComparison.Ordinal);
+        Assert.Contains("overlapping_file_slices", viewJson, StringComparison.Ordinal);
+        Assert.Contains("requires_verified_sha", viewJson, StringComparison.Ordinal);
+        Assert.Contains("engineer:open-aspire", viewJson, StringComparison.Ordinal);
+        Assert.Contains("engineer:open-orleans", viewJson, StringComparison.Ordinal);
 
         var stepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
         var tabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
@@ -138,12 +143,47 @@ public sealed class EngineerAppFacts
         Assert.Equal(3, (await kanban.Read()).Columns.Length);
         Assert.Equal(6, (await cmdBar.Read()).Items.Length);
 
-        // Invoke Approve Plan -> Run Verify -> Approve PR through live CommandBar neuron signals!
+        // Live UiNavigateTo, OperationProgressed (25% -> 85% circular progress ring), and UiNavigateFrom on TestOS!
+        var navScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "nav-test"));
+        var navArgsJson = System.Text.Json.JsonSerializer.Serialize(
+            new StudioNavArgs(Lens: "plan", CandidateId: "w2"),
+            System.Text.Json.JsonSerializerOptions.Web);
+        await navScreen.Request(new UiNavigateTo(navArgsJson, FromNeuron: "app.creator", Transition: ViewTransition.SharedAxisZ));
+        await os.Idle();
+        var navPublished = (await navScreen.Read())!;
+        var navRaw = navPublished.View.GetRawText();
+        Assert.Contains(ViewTransition.SharedAxisZ, navRaw, StringComparison.Ordinal);
+        Assert.Contains("Winning candidate: w2", navRaw, StringComparison.Ordinal);
+
+        await navScreen.Request(new IntoChat.OS.Modules.Apps.Flows.OperationProgressed(
+            FlowId: "",
+            WorktreeId: "wt-1",
+            NodeId: "slice:slice-1",
+            SliceId: "slice-1",
+            Harness: IntoChat.OS.Modules.Apps.Flows.EngineeringHarnessKind.InoNative,
+            Percent: 85,
+            Phase: "roslyn-batch",
+            Detail: "Verified semantic diagnostics"));
+        await os.Idle();
+        var progressedRaw = (await navScreen.Read())!.View.GetRawText();
+        Assert.Contains("85%", progressedRaw, StringComparison.Ordinal);
+
+        // UiNavigateFrom rule guard blocks departure during active live-verify unless Force=true
+        await navScreen.Request(new EngineerApprovePlan());
+        await os.Idle();
+        var pureVerifyState = new EngineerWorkspaceState().ApprovePlan().Next!.SelectStage("live-verify");
+        Assert.True(pureVerifyState.CanDepart(force: false).Broken);
+        Assert.False(pureVerifyState.CanDepart(force: true).Broken);
+
+        // Invoke Approve Plan -> switches to pure GitHub Desktop SplitPane + full-height ICodeEditor!
         await cmdBar.Invoke("approve-plan");
         await os.Idle();
         Assert.Equal("implement-tasks", (await stepper.Read()).ActiveStepId);
         Assert.Equal("code", (await tabs.Read()).SelectedId);
         Assert.Contains("EngineerFlow", (await editor.Read()).Content, StringComparison.Ordinal);
+        var codeViewJson = (await screen.Read())!.View.GetRawText();
+        Assert.Contains("engineer:diff-file:0", codeViewJson, StringComparison.Ordinal);
+        Assert.Contains("engineer:deleted-file:0", codeViewJson, StringComparison.Ordinal);
 
         await cmdBar.Invoke("run-verify");
         await os.Idle();

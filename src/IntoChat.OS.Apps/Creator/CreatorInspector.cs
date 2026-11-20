@@ -37,14 +37,8 @@ public static class CreatorInspector
                     .Small()
                     .Emits(AppSignals.Emit(App, "select"))
             ],
+            // Single canonical ITabs bar — zero duplicate static Tabs(...) bar!
             new NeuronRef("ui.tabs", CreatorView.InspectorTabsKey),
-            Tabs(
-                state.InspectorTab,
-                Tab("state", "State").Key("inspector-tab:state").Emits(AppSignals.Emit(App, "select", "tab:state")),
-                Tab("source", "Source").Key("inspector-tab:source").Emits(AppSignals.Emit(App, "select", "tab:source")),
-                Tab("signals", "Signals").Key("inspector-tab:signals").Emits(AppSignals.Emit(App, "select", "tab:signals")),
-                Tab("state-graph", "State Graph").Key("inspector-tab:state-graph").Emits(AppSignals.Emit(App, "select", "tab:state-graph")),
-                Tab("scenarios", "Scenarios").Key("inspector-tab:scenarios").Emits(AppSignals.Emit(App, "select", "tab:scenarios"))),
         ];
 
         if (inspection.Notice is { Length: > 0 } notice)
@@ -77,8 +71,9 @@ public static class CreatorInspector
             if (inspection.Alias is { } alias)
             {
                 var ghost = inspection.Id.StartsWith("draft:", StringComparison.Ordinal);
-                yield return Card(alias, ghost ? "Under construction: drawn from its build flow until installed." : inspection.Id)[
-                    StatusPill(ghost ? StatusKind.Working : StatusKind.Done, ghost ? "Under Construction" : "Live Unit")
+                yield return HStack(Space.Xs)[
+                    StatusPill(ghost ? StatusKind.Working : StatusKind.Done, ghost ? $"Building · {alias}" : alias),
+                    MutedText(inspection.Id)
                 ];
 
                 if (!ghost)
@@ -109,12 +104,15 @@ public static class CreatorInspector
             else
             {
                 var isApp = IntoChat.OS.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
-                yield return Card(inspection.Id, isApp ? "Compiled OS Application" : "Kernel System Neuron");
+                yield return HStack(Space.Xs)[
+                    StatusPill(StatusKind.Idle, isApp ? appRef.Name : inspection.Id),
+                    MutedText(isApp ? "Compiled App" : "Kernel Neuron")
+                ];
                 if (isApp)
                 {
                     var app = appRef.Name;
                     yield return HStack(Space.Xs)[
-                        PrimaryButton($"Preview {app} in Studio", "eye")
+                        PrimaryButton($"Preview {app}", "eye")
                             .Key("preview-compiled-app")
                             .Small()
                             .Emits(AppSignals.Emit(App, "select", "mode:live")),
@@ -127,23 +125,13 @@ public static class CreatorInspector
         {
             yield return Empty(
                 "No Node Selected",
-                "Select any unit, compiled app, edge, or live signal pulse in the Brain Topology to inspect its live or time-traveled state.");
+                "Select any unit, app, edge, or live signal pulse in the 3D Graph to inspect its state.");
         }
 
+        // Single canonical IPropertyGrid — zero duplicate raw JSON Card below!
         yield return new NeuronRef("ui.property-grid", CreatorView.InspectorStateKey);
 
         var steps = ReplayScript.Steps(timelineHops);
-        var stateJson = ReplayScript.StateJsonAt(steps, state.ReplayCursor, inspection.State);
-        var stateLabel = state.ReplayCursor is { } cursor && steps.Length > 0
-            ? string.Create(CultureInfo.InvariantCulture, $"State at Event {Math.Clamp(cursor, 0, steps.Length - 1) + 1} / {steps.Length}")
-            : "State";
-        yield return Card(stateLabel, stateJson);
-
-        if (inspection.View is { Length: > 0 } publishedView)
-        {
-            yield return Card("Published View", publishedView);
-        }
-
         if (state.ReplayCursor is { } stepIdx && ReplayScript.Diff(steps, stepIdx) is { } diff)
         {
             yield return Table(
@@ -173,15 +161,6 @@ public static class CreatorInspector
         if (orderedFiles.Length == 0)
         {
             yield return MutedText("No source files kept for the current selection.");
-            yield break;
-        }
-
-        foreach (var name in orderedFiles)
-        {
-            if (inspection.Files.TryGetValue(name, out var text))
-            {
-                yield return CodeBlock(name, text, InferLanguage(name), maxHeight: 220);
-            }
         }
     }
 
@@ -195,7 +174,7 @@ public static class CreatorInspector
         if (inspection.Kind == Selection.Edge)
         {
             var parts = BrainGraph.ParseEdge(inspection.Id);
-            yield return Card(inspection.Alias ?? inspection.Id, parts is { } p ? $"{p.From} → {p.To}" : inspection.Id);
+            yield return MutedText(parts is { } p ? $"{p.From} → {p.To}" : inspection.Id);
             yield return Table(
                 string.Create(CultureInfo.InvariantCulture, $"Last {inspection.Signals.Count} signal(s)"),
                 ["#", "At", "Publisher", "Trace"],
@@ -271,14 +250,13 @@ public static class CreatorInspector
         }
 
         var creatorGraph = CreatorStateSpaceInspector.CreatorGraph;
-        yield return Card(
-            "Creator Aggregate State Graph",
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{creatorGraph.States.Count} reachable state(s) · {creatorGraph.AcceptedTransitions.Count} accepted / {creatorGraph.RejectedTransitions.Count} guarded edge(s)"))[
+        yield return HStack(Space.Xs)[
             StatusPill(
                 creatorGraph.IsHealthy ? StatusKind.Done : StatusKind.Error,
-                creatorGraph.IsHealthy ? "Invariants Healthy" : $"{creatorGraph.Violations.Count} Violation(s)")
+                creatorGraph.IsHealthy ? "Invariants Healthy" : $"{creatorGraph.Violations.Count} Violation(s)"),
+            MutedText(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{creatorGraph.States.Count} states · {creatorGraph.AcceptedTransitions.Count} accepted / {creatorGraph.RejectedTransitions.Count} guarded"))
         ];
         yield return StateGraphView(creatorGraph);
     }
@@ -286,14 +264,13 @@ public static class CreatorInspector
     private static IEnumerable<Node> RenderScenariosTab(CreatorWorkspaceState state, Inspection inspection)
     {
         var alias = inspection.Alias;
-        yield return Card(
-            "Scenario Verification",
-            alias is { Length: > 0 } ? $"Unit: {alias}" : "Select an installed unit to execute its kept scenarios on TestOS fakes.")[
+        yield return HStack(Space.Xs)[
             PrimaryButton("Run scenario", "play")
                 .Key("run-scenario")
                 .Small()
                 .Guard(state.RequiresSelectedNode)
-                .Emits(AppSignals.Emit(App, "scenario", alias ?? ""))
+                .Emits(AppSignals.Emit(App, "scenario", alias ?? "")),
+            MutedText(alias is { Length: > 0 } ? $"Unit: {alias}" : "Select an installed unit first.")
         ];
 
         if (inspection.Files.TryGetValue("scenarios.json", out var scenariosJson) && !string.IsNullOrWhiteSpace(scenariosJson))

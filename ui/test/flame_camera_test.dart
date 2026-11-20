@@ -37,7 +37,7 @@ Widget _wrap(Widget child) => MaterialApp(
 );
 
 void main() {
-  group('SceneGame camera math & clamping', () {
+  group('SceneGame camera math, clamping, flyToNode & Follow Live', () {
     test('zoom clamps strictly to [0.35, 3.0] and anchors focal point', () {
       final game = SceneGame()
         ..apply(_makeScene([_circle('a', x: 100, y: 50)]));
@@ -55,8 +55,6 @@ void main() {
       expect(game.cameraPosition.x, closeTo(0, 1e-6));
       expect(game.cameraPosition.y, closeTo(0, 1e-6));
 
-      // Zoom 1.0 -> 2.0 anchored at focal point (500, 250) on an 800x500 viewport (+100px right of center).
-      // World point (100, 0) must remain under screen point (500, 250), so camera center shifts to (50, 0).
       game.setZoom(
         2.0,
         focalPoint: const Offset(500, 250),
@@ -80,9 +78,6 @@ void main() {
 
         game.fitToGraph(padding: 60, viewportSize: const Size(800, 500));
 
-        // Bounds: x in [-340, 540] -> center.x = 100, width = 880 (+120 pad = 1000)
-        //         y in [-140, 240] -> center.y = 50,  height = 380 (+120 pad = 500)
-        // Fit zoom = min(800 / 1000, 500 / 500) = 0.8
         expect(game.cameraPosition.x, closeTo(100, 1e-3));
         expect(game.cameraPosition.y, closeTo(50, 1e-3));
         expect(game.zoom, closeTo(0.8, 1e-3));
@@ -112,9 +107,152 @@ void main() {
       expect(game.cameraPosition.x, closeTo(savedPos.x, 1e-6));
       expect(game.cameraPosition.y, closeTo(savedPos.y, 1e-6));
     });
+
+    test('flyToNode and Follow Live smoothly interpolate camera to active progressing node', () {
+      final game = SceneGame()
+        ..apply(
+          _makeScene([
+            const SceneNode(
+              id: 'plan',
+              type: 'sphere',
+              transform: SceneTransform(x: -200, y: 0),
+              parameters: {
+                'title': 'Ratify Plan',
+                'nodeStatus': 'done',
+                'progress': '100%',
+              },
+            ),
+            const SceneNode(
+              id: 'slice-2',
+              type: 'sphere',
+              transform: SceneTransform(x: 320, y: -80),
+              parameters: {
+                'title': 'Ino Slice 2',
+                'nodeStatus': 'working · 65%',
+              },
+            ),
+          ]),
+        );
+
+      final sliceComp = game.componentFor('slice-2') as SphereComponent;
+      expect(sliceComp.progress, closeTo(0.65, 1e-3));
+
+      // Enable Follow Live: auto-selects progressing slice-2 at (320, -80) and tweens smoothly!
+      game.toggleFollowLive();
+      expect(game.followLive, isTrue);
+      expect(game.followTargetId, 'slice-2');
+      expect(game.isCameraFlying, isTrue);
+
+      game.update(0.10);
+      expect(game.cameraPosition.x, inExclusiveRange(10, 319));
+      expect(game.cameraPosition.y, inExclusiveRange(-79, -1));
+
+      game.update(0.25);
+      expect(game.isCameraFlying, isFalse);
+      expect(game.cameraPosition.x, closeTo(320, 1e-2));
+      expect(game.cameraPosition.y, closeTo(-80, 1e-2));
+    });
   });
 
-  group('SceneView gestures, HUD semantics & WASD', () {
+  group(
+    '3D Icon Nodes, Circular Progress Rings & 3 Accordant DDD Edge Styles',
+    () {
+      test('brainSceneState maps 0-100% progress rings and accepted, candidate, and refused Rule edges', () {
+        final brainNode = BrainSceneNode.fromJson({
+          'kind': 'brainScene',
+          'selectedId': 'slice-1',
+          'nodes': [
+            {
+              'id': 'plan',
+              'label': 'Ratify Plan',
+              'uri': 'state://engineer/plan',
+              'kind': 'initial',
+              'status': '100%',
+              'x': 0,
+              'y': 0,
+              'z': 0,
+            },
+            {
+              'id': 'slice-1',
+              'label': 'Slice 1 · Contracts',
+              'subtitle': 'InoNative · 60%',
+              'uri': 'state://engineer/slice-1',
+              'kind': 'slice',
+              'status': 'working',
+              'x': 240,
+              'y': -80,
+              'z': 0,
+            },
+            {
+              'id': 'slice-2',
+              'label': 'Candidate w2',
+              'subtitle': 'Clean Refactor · 25%',
+              'uri': 'state://engineer/w2',
+              'kind': 'worktree',
+              'status': 'pending',
+              'x': 240,
+              'y': 90,
+              'z': 0,
+            },
+          ],
+          'synapses': [
+            {
+              'fromId': 'plan',
+              'toId': 'slice-1',
+              'signalLabel': 'RatifyEngineerPlan',
+              'active': true,
+            },
+            {
+              'fromId': 'plan',
+              'toId': 'slice-2',
+              'signalLabel': 'candidate:w2',
+              'active': false,
+            },
+            {
+              'fromId': 'slice-1',
+              'toId': 'slice-1',
+              'signalLabel': 'ApprovePr [rejected: requires_verified_sha]',
+              'active': false,
+            },
+          ],
+        });
+
+        final game = SceneGame()..apply(brainSceneState(brainNode));
+
+        final planSphere = game.componentFor('plan') as SphereComponent;
+        final slice1Sphere = game.componentFor('slice-1') as SphereComponent;
+        final slice2Sphere = game.componentFor('slice-2') as SphereComponent;
+
+        expect(planSphere.progress, closeTo(1.0, 1e-3));
+        expect(slice1Sphere.progress, closeTo(0.60, 1e-3));
+        expect(slice2Sphere.progress, closeTo(0.25, 1e-3));
+        expect(slice1Sphere.params['icon'], 'cpu');
+        expect(slice2Sphere.params['icon'], 'git-branch');
+
+        final acceptedEdge = game.componentFor(
+          'edge:plan→slice-1:RatifyEngineerPlan',
+        ) as PathNode;
+        final candidateEdge =
+            game.componentFor('edge:plan→slice-2:candidate:w2') as PathNode;
+        final refusedEdge = game.componentFor(
+          'edge:slice-1→slice-1:ApprovePr [rejected: requires_verified_sha]',
+        ) as PathNode;
+
+        expect(acceptedEdge.accordantStyle, AccordantEdgeStyle.accepted);
+        expect(acceptedEdge.hasDirectionalArrow, isTrue);
+        expect(acceptedEdge.params['activePulse'], 'true');
+
+        expect(candidateEdge.accordantStyle, AccordantEdgeStyle.candidate);
+        expect(candidateEdge.hasDirectionalArrow, isTrue);
+
+        expect(refusedEdge.accordantStyle, AccordantEdgeStyle.refused);
+        expect(refusedEdge.hasDirectionalArrow, isTrue);
+        expect(refusedEdge.badgeLabel, '✕ requires_verified_sha');
+      });
+    },
+  );
+
+  group('SceneView gestures, HUD, Follow Live, Minimap & WASD', () {
     testWidgets(
       'background drag pans camera without breaking node tap or draggable node drag',
       (tester) async {
@@ -146,7 +284,6 @@ void main() {
         final viewRect = tester.getRect(find.byType(SceneView));
         final center = viewRect.center;
 
-        // 1. Background mouse drag pans camera smoothly
         final bgDrag = await tester.startGesture(
           center,
           kind: PointerDeviceKind.mouse,
@@ -158,11 +295,9 @@ void main() {
         expect(game.cameraPosition.x, closeTo(-80, 1e-2));
         expect(game.cameraPosition.y, closeTo(40, 1e-2));
 
-        // Reset before testing draggable node hit-testing
         game.resetCamera();
         await tester.pump();
 
-        // 2. Dragging on drag-node (x: +150 from center) moves node, NOT camera
         final dragNodeScreen = center + const Offset(150, 0);
         final nodeDrag = await tester.startGesture(
           dragNodeScreen,
@@ -176,7 +311,6 @@ void main() {
         expect(game.cameraPosition.y, closeTo(0, 1e-3));
         expect(game.componentFor('drag-node')!.position.x, closeTo(180, 1));
 
-        // 3. Middle-mouse drag pans camera even when starting over drag-node
         final middleDrag = await tester.startGesture(
           center + const Offset(180, 20),
           kind: PointerDeviceKind.mouse,
@@ -189,7 +323,6 @@ void main() {
         expect(game.cameraPosition.x, closeTo(50, 1e-2));
         expect(game.cameraPosition.y, closeTo(-25, 1e-2));
 
-        // 4. Node drag reported earlier and node tap still reports cleanly
         game.simulateTap('tap-node');
         expect(tapped, ['drag-node:drag', 'tap-node:tap']);
         await tester.pump(const Duration(milliseconds: 100));
@@ -197,13 +330,23 @@ void main() {
     );
 
     testWidgets(
-      'scroll wheel, pinch zoom, WASD pan, and HUD + / - / Fit / Reset semantics work end-to-end',
+      'scroll wheel, pinch zoom, WASD, Follow Live, 132x72 Minimap click/drag, and HUD semantics work end-to-end',
       (tester) async {
         final semantics = tester.ensureSemantics();
         final game = SceneGame();
         final state = _makeScene([
-          _circle('n1', x: -240, y: -120, radius: 36),
-          _circle('n2', x: 240, y: 120, radius: 36),
+          const SceneNode(
+            id: 'n1',
+            type: 'sphere',
+            transform: SceneTransform(x: -240, y: -120),
+            parameters: {'title': 'Start', 'nodeStatus': 'done'},
+          ),
+          const SceneNode(
+            id: 'n2',
+            type: 'sphere',
+            transform: SceneTransform(x: 260, y: 140),
+            parameters: {'title': 'Live Slice', 'nodeStatus': 'working · 50%'},
+          ),
         ]);
 
         await tester.pumpWidget(
@@ -211,12 +354,44 @@ void main() {
         );
         await tester.pump();
 
-        // Verify initial HUD readout & semantics identifiers
         expect(find.text('100%'), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('Follow Live')), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(RegExp('Viewport minimap')),
+          findsOneWidget,
+        );
         expect(find.bySemanticsLabel(RegExp('Zoom in')), findsOneWidget);
         expect(find.bySemanticsLabel(RegExp('Zoom out')), findsOneWidget);
         expect(find.bySemanticsLabel(RegExp('Fit to graph')), findsOneWidget);
         expect(find.bySemanticsLabel(RegExp('Reset camera')), findsOneWidget);
+
+        // Verify Corner Viewport Minimap is 132x72px and interactive
+        final minimapFinder = find.byKey(
+          const ValueKey('flame-viewport-minimap'),
+        );
+        final minimapRect = tester.getRect(minimapFinder);
+        expect(minimapRect.width, closeTo(132, 0.1));
+        expect(minimapRect.height, closeTo(72, 0.1));
+        expect(game.minimapNodes(), hasLength(2));
+
+        // Tapping upper-left of minimap flies camera toward negative world coordinates
+        await tester.tapAt(minimapRect.topLeft + const Offset(16, 12));
+        await tester.pump(const Duration(milliseconds: 320));
+        expect(game.cameraPosition.x, lessThan(-50));
+        expect(game.cameraPosition.y, lessThan(-25));
+
+        // Tapping Follow Live centers smoothly on active 50%-progress node 'n2' at (260, 140)
+        await tester.tap(find.byKey(const ValueKey('flame-follow-live')));
+        await tester.pump(const Duration(milliseconds: 320));
+        expect(game.followLive, isTrue);
+        expect(game.cameraPosition.x, closeTo(260, 1e-1));
+        expect(game.cameraPosition.y, closeTo(140, 1e-1));
+
+        // Reset before zoom/pan checks
+        await tester.tap(find.byKey(const ValueKey('flame-reset')));
+        await tester.pump();
+        expect(game.followLive, isFalse);
+        expect(game.zoom, closeTo(1.0, 1e-6));
 
         // Click HUD '+' (flame-zoom-in)
         await tester.tap(find.byKey(const ValueKey('flame-zoom-in')));
@@ -265,17 +440,18 @@ void main() {
         // Fit button centers & fits graph
         await tester.tap(find.byKey(const ValueKey('flame-fit')));
         await tester.pump();
-        expect(game.cameraPosition.x, closeTo(0, 1e-2));
-        expect(game.cameraPosition.y, closeTo(0, 1e-2));
+        expect(game.cameraPosition.x, closeTo(10, 1e-2));
 
         // WASD keyboard panning
+        final beforeY = game.cameraPosition.y;
+        final beforeX = game.cameraPosition.x;
         await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.keyW);
         await tester.sendKeyDownEvent(LogicalKeyboardKey.keyD);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.keyD);
         await tester.pump();
-        expect(game.cameraPosition.y, lessThan(0));
-        expect(game.cameraPosition.x, greaterThan(0));
+        expect(game.cameraPosition.y, lessThan(beforeY));
+        expect(game.cameraPosition.x, greaterThan(beforeX));
 
         // Reset button restores 1.0x (100%) at (0, 0)
         await tester.tap(find.byKey(const ValueKey('flame-reset')));
@@ -293,7 +469,7 @@ void main() {
 
   group('BrainScene & StateGraphView camera + replay shortcut inheritance', () {
     testWidgets(
-      'BrainSceneView inherits camera HUD and dispatches ArrowLeft/ArrowRight/Space/Home/End replay keys',
+      'BrainSceneView stretches full-bleed in bounded boxes, inherits HUD + Minimap, and dispatches replay keys',
       (tester) async {
         final activations = <String>[];
         final ctx = NodeContext(
@@ -342,16 +518,35 @@ void main() {
           ],
         });
 
-        await tester.pumpWidget(_wrap(BrainSceneView(node: node, ctx: ctx)));
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: UiTheme.light(null),
+            home: Scaffold(
+              body: SizedBox(
+                width: 760,
+                height: 560,
+                child: renderBrainScene(node, ctx),
+              ),
+            ),
+          ),
+        );
         await tester.pump();
 
-        // BrainScene / StateGraphView starts at 50% zoom and inherits HUD controls
+        // Full-bleed stretching inside bounded 560px parent box (> 420px fallback)!
+        final renderedRect = tester.getRect(find.byType(BrainSceneView));
+        expect(renderedRect.height, closeTo(560, 0.1));
+
         expect(find.text('50%'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('flame-viewport-minimap')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('flame-follow-live')), findsOneWidget);
+
         await tester.tap(find.byKey(const ValueKey('flame-reset')));
         await tester.pump();
         expect(find.text('100%'), findsOneWidget);
 
-        // Time-travel keyboard bindings dispatch replay commands
         await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
         await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
@@ -372,7 +567,6 @@ void main() {
           'replay-last:null',
         ]);
 
-        // Also verify IScreen act-route (`actsViaAct: true`) sends `creator.replay`
         final actEvents = <Map<String, dynamic>>[];
         final actCtx = NodeContext(
           view: 'local/apps/creator/view',

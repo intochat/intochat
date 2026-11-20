@@ -59,7 +59,7 @@ public sealed class Creator3PaneFacts
     }
 
     [Fact]
-    public void CreatorViewRendersThreePanesWithTimeTravelAndInspectorNeurons()
+    public void CreatorViewRendersAppShellWithFullBleedGraphAndZeroDuplicateBars()
     {
         var state = new CreatorWorkspaceState
         {
@@ -114,42 +114,32 @@ public sealed class Creator3PaneFacts
             },
         };
 
-        var view = CreatorView.Render(state, topology, flows, approvals, inspection);
+        var view = CreatorView.Render(state, topology, flows, approvals, inspection, transition: IntoChat.OS.UI.ViewTransition.FadeThrough);
         Assert.Equal("Creator", view.Title);
 
-        // Verify top-level structure is 3-pane SplitPane
-        var rootSplit = Assert.IsType<SplitPane>(view.Root);
-        var subSplit = Assert.IsType<SplitPane>(rootSplit.Trailing);
+        // Verify top-level AppShellNode with full-bleed BrainSceneNode in Body and zero card wall below
+        var shell = Assert.IsType<AppShellNode>(view.Root);
+        Assert.Equal("creator-shell", shell.Key);
+        Assert.Equal(IntoChat.OS.UI.ViewTransition.FadeThrough, shell.Transition);
+        Assert.IsType<BrainSceneNode>(shell.Body);
 
-        // Left Pane assertions (clean studio workbench, no dead template seeding)
-        var leftCol = Assert.IsType<Column>(rootSplit.Leading);
-        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Catalog Units");
-        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Active Change Runs");
-        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Studio Workbench");
+        // Left sidebar uses clean vertical NavItems (zero overflowing horizontal HStacks)
+        var leftNavItems = AllNodes(shell.Sidebar).OfType<NavItemNode>().ToArray();
+        Assert.Contains(leftNavItems, n => n.Key == "unit:local/unit1/default" && n.Selected);
+        Assert.Contains(leftNavItems, n => n.Key == "run:cf-run-99" && n.Selected);
 
-        // Center Pane assertions (BrainScene + Time-Travel Transport + Active Unit + Pipeline)
-        var centerCol = Assert.IsType<Column>(subSplit.Leading);
-        Assert.Contains(centerCol.Children.OfType<BrainSceneNode>(), _ => true);
-        Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Change Pipeline (7 Stages)");
-        Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
-        Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
-
+        // Toolbar + Inspector neurons: single ITabs bar, inline ISlider, IPropertyGrid — ZERO duplicate static Tabs or ui.command-bar
         var allNodes = AllNodes(view).ToArray();
         var neuronRefs = allNodes.OfType<NeuronRef>().ToArray();
         Assert.Contains(neuronRefs, n => n.Kind == "ui.slider" && n.NeuronUri == CreatorView.ReplaySliderKey);
-        Assert.Contains(neuronRefs, n => n.Kind == "ui.command-bar" && n.NeuronUri == CreatorView.ReplayCommandBarKey);
+        Assert.DoesNotContain(neuronRefs, n => n.Kind == "ui.command-bar");
         Assert.Contains(neuronRefs, n => n.Kind == "ui.tabs" && n.NeuronUri == CreatorView.InspectorTabsKey);
         Assert.Contains(neuronRefs, n => n.Kind == "ui.property-grid" && n.NeuronUri == CreatorView.InspectorStateKey);
+        Assert.DoesNotContain(allNodes.OfType<Tabs>(), _ => true);
+        Assert.DoesNotContain(allNodes.OfType<Card>(), c => c.Title == "State" || c.Title == "Published View" || c.Title == "spec.md");
 
-        // Center pane contains active unit state, view, and source
-        var centerCards = centerCol.Children.OfType<Card>().ToArray();
-        Assert.Contains(centerCards, c => c.Title == "State");
-        Assert.Contains(centerCards, c => c.Title == "View");
-        Assert.Contains(centerCards, c => c.Title == "spec.md");
-        Assert.Contains(centerCards, c => c.Title == "unit1.cs");
-
-        // Right Pane assertions (5-tab Inspector + Approvals)
-        var rightButtons = allNodes.OfType<Button>().ToArray();
+        // Right Inspector buttons & approval gates
+        var rightButtons = AllNodes(shell.Inspector).OfType<Button>().ToArray();
         Assert.Contains(rightButtons, b => b.Key == BrainGraph.SelectKey);
         Assert.Contains(rightButtons, b => b.Key == "share-unit");
         Assert.Contains(rightButtons, b => b.Key == "approve:plan-cf-99");
@@ -157,7 +147,7 @@ public sealed class Creator3PaneFacts
     }
 
     [Fact]
-    public void CreatorIdleHasZeroFakeDiffsAndLiveModeMountsStudioFrameSlot()
+    public void CreatorIdleHasFullBleedGraphAndLiveModeMountsStudioFrameSlot()
     {
         var idleState = new CreatorWorkspaceState();
         var topology = new BrainTopology(
@@ -165,13 +155,8 @@ public sealed class Creator3PaneFacts
             []);
 
         var idleView = CreatorView.Render(idleState, topology, [], [], Inspection.None);
-        var idleSplit = Assert.IsType<SplitPane>(idleView.Root);
-        var idleSubSplit = Assert.IsType<SplitPane>(idleSplit.Trailing);
-        var idleCenter = Assert.IsType<Column>(idleSubSplit.Leading);
-
-        Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
-        Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
-        Assert.DoesNotContain(idleCenter.Children.OfType<Card>(), c => c.Title == "spec.md");
+        var idleShell = Assert.IsType<AppShellNode>(idleView.Root);
+        Assert.IsType<BrainSceneNode>(idleShell.Body);
 
         var liveState = idleState
             .SelectSelection(new Selection(Selection.Node, "owner/apps/files"))
@@ -184,15 +169,10 @@ public sealed class Creator3PaneFacts
             [],
             [],
             new Inspection(Selection.Node, "owner/apps/files") { Notice = "Compiled app." });
-        var liveSplit = Assert.IsType<SplitPane>(liveView.Root);
-        var liveSubSplit = Assert.IsType<SplitPane>(liveSplit.Trailing);
-        var liveCenter = Assert.IsType<Column>(liveSubSplit.Leading);
+        var liveShell = Assert.IsType<AppShellNode>(liveView.Root);
+        var liveCenter = Assert.IsType<Column>(liveShell.Body);
 
-        var studioColumn = liveCenter.Children.OfType<Column>().FirstOrDefault(c =>
-            c.Children.OfType<Surface>().Any(s => s.Children.OfType<NeuronRef>().Any()));
-        Assert.NotNull(studioColumn);
-
-        var studioFrame = Assert.Single(studioColumn.Children.OfType<Surface>(), s => s.Children.OfType<NeuronRef>().Any());
+        var studioFrame = Assert.Single(liveCenter.Children.OfType<Surface>(), s => s.Children.OfType<NeuronRef>().Any());
         Assert.Equal("Live Studio · files", studioFrame.Title);
         var slot = Assert.Single(studioFrame.Children.OfType<NeuronRef>());
         Assert.Equal("owner/apps/files/view", slot.NeuronUri);

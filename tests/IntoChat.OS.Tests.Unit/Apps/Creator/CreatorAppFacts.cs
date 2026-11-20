@@ -12,6 +12,10 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.UI;
+using IntoChat.OS.Modules.UI.CodeEditor;
+using IntoChat.OS.Modules.UI.PropertyGrid;
+using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
 
@@ -27,9 +31,11 @@ public sealed class CreatorAppFacts
     public Task CreatorBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
-    public async Task SelectingAUnitShowsItsStateViewAndSource()
+    public async Task SelectingAUnitPopulatesPropertyGridAndCodeEditorWithoutCardWall()
     {
         await using var os = FakeOs();
+        os.Register(typeof(UiModule).Assembly);
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
         FakeReads.States["ctr"] = """{"bumps":3}""";
         FakeReads.Views["ctr"] = """{"alias":"ctr","generation":2,"view":{"title":"Counter"}}""";
         FakeSynapses.Files = new() { ["ctr.cs"] = "// the counter" };
@@ -37,13 +43,58 @@ public sealed class CreatorAppFacts
         var creator = await os.Install<CreatorApp>();
 
         await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
+        await os.Idle();
 
-        var strings = Strings(creator.App.Render()).ToArray();
-        Assert.Contains("""{"bumps":3}""", strings);
-        Assert.Contains(strings, s => s.Contains("Counter", StringComparison.Ordinal));
-        Assert.Contains("// the counter", strings);
-        Assert.Contains("Counts bumps.", strings);
+        var view = creator.App.Render();
+        var shell = Assert.IsType<AppShellNode>(view.Root);
+        Assert.Equal("creator-shell", shell.Key);
+        Assert.IsType<BrainSceneNode>(shell.Body);
+        Assert.DoesNotContain(Nodes(shell.Inspector).OfType<Tabs>(), _ => true);
+
+        var propGrid = await os.Get<IPropertyGrid>(new NeuronId(new BrainId("local"), "ui.property-grid", CreatorView.InspectorStateKey)).Read();
+        Assert.Contains(propGrid.Entries, e => e.Name == "bumps" && e.Value == "3");
+
+        var codeEditor = await os.Get<ICodeEditor>(new NeuronId(new BrainId("local"), "ui.code-editor", CreatorView.InspectorSourceKey)).Read();
+        Assert.Equal("// the counter", codeEditor.Content);
         Assert.Equal(new Selection(Selection.Node, Unit), creator.App.State.Selected);
+    }
+
+    [Fact]
+    public async Task CreatorImplementsNavigatedToAndRuleGuardedNavigatedFrom()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = FakeOs();
+        FakeTraces.Entries = [Entry("local/ino/ino", 1, null)];
+        var creator = await os.Install<CreatorApp>();
+
+        await creator.App.NavigateToAsync(
+            new StudioNavArgs(TargetId: "trace/t1", Mode: "state"),
+            "app.engineer",
+            ViewTransition.CameraFlyTo,
+            null,
+            ct);
+
+        Assert.Equal("t1", creator.App.State.TraceId);
+        Assert.Equal("state", creator.App.State.CanvasMode);
+        var shell = Assert.IsType<AppShellNode>(creator.App.Render().Root);
+        Assert.Equal(ViewTransition.CameraFlyTo, shell.Transition);
+
+        // Guarded departure when a scenario verification run is in flight
+        var release = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        creator.App.RunScenarios = (_, _, _, _) => release.Task;
+        var inFlightTask = creator.App.Scenario(new CreatorScenario("ctr"));
+
+        var blockedDeparture = await creator.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer"), ct);
+        Assert.False(blockedDeparture);
+        Assert.NotNull(creator.App.LastRejection);
+
+        var forcedDeparture = await creator.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer", Force: true), ct);
+        Assert.True(forcedDeparture);
+
+        release.SetResult("✓ ok");
+        await inFlightTask;
+        Assert.True(await creator.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer"), ct));
     }
 
     [Fact]
@@ -67,8 +118,8 @@ public sealed class CreatorAppFacts
         Assert.Equal("signals", creator.App.State.InspectorTab);
         Assert.Equal("t1", creator.App.State.TraceId);
 
-        var cursorCard = Assert.Single(Nodes(creator.App.Render()).OfType<StatCardNode>(), c => c.Key == "replay-cursor-readout");
-        Assert.Equal("Live · Event 4 / 4", cursorCard.Value);
+        var cursorReadout = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-cursor-readout");
+        Assert.Equal("Live · Event 4 / 4", cursorReadout.Label);
 
         var select = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == BrainGraph.SelectKey);
         Assert.Equal("select", select.Command!.Signal);
