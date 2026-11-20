@@ -302,11 +302,7 @@ final class IntoChatOSUiClient {
   /// `IScreen` from a view or screen address (`{brain}/apps/{app}/view`,
   /// `apps/{app}/view`, `{brain}/app.{app}/default`, `app.{app}`, etc.), or
   /// `null` when [name] does not name an app screen.
-  static String? screenNeuronKey(
-    String brainId,
-    String name, {
-    String? alias,
-  }) {
+  static String? screenNeuronKey(String brainId, String name, {String? alias}) {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return null;
     final withoutView = trimmed.endsWith('/view')
@@ -372,13 +368,14 @@ final class IntoChatOSUiClient {
 
   /// The node's own change signal; the view reads the node once per event.
   Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
-    if (kind == 'screen' ||
-        (kind == 'view' && isExplicitScreenAddress(name))) {
+    if (kind == 'screen' || (kind == 'view' && isExplicitScreenAddress(name))) {
       final source =
           screenNeuronKey(brainId, name) ?? _unitScreenKey(brainId, name);
       return watches(brainId)
           .watch(
-            WatchSourceSpec(screenContract, source, const [screenChangedSignal]),
+            WatchSourceSpec(screenContract, source, const [
+              screenChangedSignal,
+            ]),
           )
           .map(_logSignalLatency);
     }
@@ -390,16 +387,14 @@ final class IntoChatOSUiClient {
     final source = friendSlot
         ? '$brainId/space'
         : (kind.startsWith('ui.') && !name.startsWith('$brainId/')
-            ? '$brainId/$name'
-            : name);
+              ? '$brainId/$name'
+              : name);
     final signals = kind == 'confirmation'
         ? ['ConfirmationRequested', 'ConfirmationResolved']
         : [contract.changed];
-    return watches(
-      brainId,
-    ).watch(WatchSourceSpec(contract.contract, source, signals)).map(
-      _logSignalLatency,
-    );
+    return watches(brainId)
+        .watch(WatchSourceSpec(contract.contract, source, signals))
+        .map(_logSignalLatency);
   }
 
   static NeuronSignal _logSignalLatency(NeuronSignal signal) {

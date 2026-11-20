@@ -290,18 +290,57 @@ public enum FieldKind
     Multiline,
 }
 
-/// <summary>An editable field. Submitting it emits <paramref name="OnSubmit"/> with the typed text added as <c>value</c>.</summary>
+/// <summary>An editable field. Submitting it sends <paramref name="OnSubmit"/> with the typed text added as <c>value</c>.</summary>
 /// <param name="Key">The node's key within its view, by which an activation names it.</param>
-/// <param name="Name">The field's label.</param>
+/// <param name="Name">The field's label or field-neuron key.</param>
 /// <param name="Kind">What the field holds.</param>
 /// <param name="Placeholder">Hint shown while empty.</param>
-/// <param name="OnSubmit">The signal a submit emits.</param>
+/// <param name="OnSubmit">The command a submit sends.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
 [ViewNode("field")]
-public sealed record Field(string Key, string Name, [property: JsonPropertyName("fieldKind")] FieldKind Kind, string? Placeholder = null, Emit? OnSubmit = null) : Node;
+public sealed record Field(
+    string Key,
+    string Name,
+    [property: JsonPropertyName("fieldKind")] FieldKind Kind,
+    string? Placeholder = null,
+    Command? OnSubmit = null,
+    string AutomationName = "") : Node
+{
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
+}
 
 /// <summary>A 36x20px pill toggle switch.</summary>
+/// <param name="Key">The node's key within its view, by which an activation names it.</param>
+/// <param name="Label">The visible label beside the switch.</param>
+/// <param name="IsOn">True when toggled on.</param>
+/// <param name="Command">The command toggling sends, with the new boolean state added as <c>value</c>.</param>
+/// <param name="Locked">True when locked by policy or rule guard.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
 [ViewNode("switch")]
-public sealed record Switch(string Key, string Label, bool IsOn, Emit? Emit = null, bool Locked = false) : Node;
+public sealed record Switch(
+    string Key,
+    string Label,
+    bool IsOn,
+    Command? Command = null,
+    bool Locked = false,
+    string AutomationName = "") : Node
+{
+    // Reads stored views and fixtures written before switches carried commands.
+    [JsonConstructor]
+    private Switch(string key, string label, bool isOn, Command? command, bool locked, string automationName, Emit? emit)
+        : this(key, label, isOn, command ?? (emit is null ? null : new Command(".", emit.Signal, emit.Args)), locked, automationName ?? "")
+    {
+    }
+
+    [JsonInclude, JsonPropertyName("emit"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+#pragma warning disable CA1822
+    private Emit? Emit => null;
+#pragma warning restore CA1822
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
+}
 
 /// <summary>An option in a <see cref="Select"/> control.</summary>
 public sealed record SelectOption(string Key, string Id, string Label, Emit? Emit = null);
@@ -836,7 +875,24 @@ public sealed record NavItemNode(
     string Action,
     bool Selected = false,
     string? Badge = null,
-    Emit? Emit = null) : Node;
+    Command? Command = null,
+    string AutomationName = "") : Node
+{
+    // Reads stored views and fixtures written before nav items carried commands.
+    [JsonConstructor]
+    private NavItemNode(string key, string label, string icon, string action, bool selected, string? badge, Command? command, string automationName, Emit? emit)
+        : this(key, label, icon, action, selected, badge, command ?? (emit is null ? null : new Command(".", emit.Signal, emit.Args)), automationName ?? "")
+    {
+    }
+
+    [JsonInclude, JsonPropertyName("emit"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+#pragma warning disable CA1822
+    private Emit? Emit => null;
+#pragma warning restore CA1822
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
+}
 
 /// <summary>Compact KPI / telemetry card with tabular-numeral (<c>tnum</c>) metric value and optional delta pill.</summary>
 [ViewNode("statCard")]
@@ -1075,8 +1131,9 @@ public static class Ui
         string action,
         bool selected = false,
         string? badge = null,
-        Emit? emit = null) =>
-        new(key, label, icon, action, selected, badge, emit);
+        Command? command = null,
+        string automationName = "") =>
+        new(key, label, icon, action, selected, badge, command, string.IsNullOrEmpty(automationName) ? label : automationName);
 
     /// <summary>Creates a tabular-numeral (<c>tnum</c>) KPI stat card with optional delta pill and semantic tone.</summary>
     public static StatCardNode StatCard(

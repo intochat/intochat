@@ -131,6 +131,33 @@ public sealed record BoundCommand(
         return emit with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
     }
 
+    internal static Command? AttachFieldMetadata(
+        Command? command,
+        bool hasExplicitLabel,
+        string? explicitLabel,
+        string? controlledValue,
+        string? helper,
+        string? error,
+        bool liveChange)
+    {
+        var baseEmit = command is null ? null : new Emit(".", command.Signal, command.Args);
+        var attached = AttachFieldMetadata(
+            baseEmit,
+            ".",
+            hasExplicitLabel,
+            explicitLabel,
+            controlledValue,
+            helper,
+            error,
+            liveChange);
+        if (attached is null)
+        {
+            return null;
+        }
+
+        return new Command(command?.Target is { Length: > 0 } t ? t : ".", attached.Signal, attached.Args, command?.Props);
+    }
+
     internal static Emit? AttachFieldMetadata(
         Emit? emit,
         string owner,

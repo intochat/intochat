@@ -55,7 +55,7 @@ public sealed class MachineScreen : Screen<MachineScreenState>
             new Button("btn-fail", "Fail", Sends(new MachineScreenFail())),
             new Button("btn-noop", "NoOp", Sends(new MachineScreenNoOp())),
             new Button("btn-inject-by", "Inject By", Sends(new MachineScreenMakeInjectBy())),
-            new Switch("btn-alien", "Alien", false, new Emit("app.alien_owner", "machine-screen.step", null)),
+            new Tabs([new TabItem("btn-alien", "alien", "Alien", new Emit("app.alien_owner", "machine-screen.step", null))], "alien"),
             new Field("fld-no-emit", "Input", FieldKind.Text)
         };
 

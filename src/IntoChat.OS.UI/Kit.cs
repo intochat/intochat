@@ -284,6 +284,7 @@ public static class Kit
         => Ui.AppShell(key, sidebar, body, toolbar, inspector);
 
     /// <summary>Creates a sidebar navigation item (forwards to <see cref="DigitalBrain.UI.Ui.NavItem"/>).</summary>
+    [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]
     public static NavItemNode NavItem(
         string key,
         string label,
@@ -291,8 +292,29 @@ public static class Kit
         string action,
         bool selected = false,
         string? badge = null,
-        Emit? emit = null)
-        => Ui.NavItem(key, label, icon, action, selected, badge, emit);
+        Command? command = null,
+        string automationName = "")
+        => Ui.NavItem(key, label, icon, action, selected, badge, command, string.IsNullOrWhiteSpace(automationName) ? label : automationName);
+
+    /// <summary>Creates a sidebar navigation item converting a legacy <see cref="Emit"/> to a <see cref="Command"/> targeting <c>"."</c>.</summary>
+    public static NavItemNode NavItem(
+        string key,
+        string label,
+        string icon,
+        string action,
+        bool selected = false,
+        string? badge = null,
+        Emit? emit = null,
+        string automationName = "")
+        => Ui.NavItem(
+            key,
+            label,
+            icon,
+            action,
+            selected,
+            badge,
+            emit is null ? null : new Command(".", emit.Signal, emit.Args),
+            string.IsNullOrWhiteSpace(automationName) ? label : automationName);
 
     /// <summary>Creates a declarative WASM / Web studio browser surface (forwards to <see cref="DigitalBrain.UI.Ui.WebBrowser"/>).</summary>
     public static WebBrowser WebBrowser(
@@ -367,9 +389,128 @@ public static class Kit
     public static OptionBuilder Option(string id, string label)
         => new(id, label);
 
-    /// <summary>36x20px pill toggle switch (<see cref="Switch"/>).</summary>
+    /// <summary>36x20px pill toggle switch (<see cref="DigitalBrain.UI.Switch"/>).</summary>
     public static ToggleBuilder ToggleSwitch(string label, bool isOn, bool locked = false)
         => new(label, isOn, locked);
+
+    /// <summary>36x20px pill toggle switch (<see cref="DigitalBrain.UI.Switch"/>).</summary>
+    public static ToggleBuilder Switch(string label, bool isOn, bool locked = false)
+        => new(label, isOn, locked);
+
+    // ── Rich Cards & Conversation ────────────────────────────────────────────
+
+    /// <summary>Pre-filled inline approval card (<see cref="ApprovalCardNode"/>).</summary>
+    public static ApprovalCardNode ApprovalCard(
+        string key,
+        string id,
+        string title,
+        string summary,
+        IReadOnlyList<ApprovalRowNode> rows,
+        string valueLabel = "Value",
+        string systemName = "DigitalBrain",
+        string status = "pending",
+        Resolve? resolve = null,
+        string? sourceNeuronUri = null,
+        string? icon = null,
+        string? capabilityLabel = null)
+        => new(key, id, title, summary, rows, valueLabel, systemName, status, resolve, sourceNeuronUri, icon, capabilityLabel);
+
+    /// <summary>Disambiguation choice card (<see cref="ChoiceCardNode"/>).</summary>
+    public static ChoiceCardNode ChoiceCard(
+        string id,
+        string question,
+        IReadOnlyList<ChoiceOptionNode> options,
+        int? pickedIndex = null)
+        => new(id, question, options, pickedIndex);
+
+    /// <summary>Conversation timeline and composer (<see cref="DigitalBrain.UI.Conversation"/>).</summary>
+    public static DigitalBrain.UI.Conversation Conversation(
+        string key,
+        IReadOnlyList<MessageNode> messages,
+        ComposerNode composer,
+        Node? waiting = null,
+        string status = "ready",
+        ErrorLineNode? error = null,
+        DigitalBrain.UI.Button? stop = null,
+        EmptyStateNode? empty = null)
+        => new(key, messages, composer, waiting, status, error, stop, empty);
+
+    /// <summary>Structured code diff preview card (<see cref="DiffCardNode"/>).</summary>
+    public static DiffCardNode DiffCard(
+        string id,
+        string repo,
+        string targetBranch,
+        string headSha,
+        int filesChanged,
+        int additions,
+        int deletions,
+        IReadOnlyList<DiffFileNode> files)
+        => Ui.DiffCard(id, repo, targetBranch, headSha, filesChanged, additions, deletions, files);
+
+    /// <summary>Pre-filled outbound message draft card (<see cref="DraftCardNode"/>).</summary>
+    public static DraftCardNode DraftCard(
+        string id,
+        string channel,
+        string to,
+        string body,
+        string from,
+        string? subject = null,
+        string status = "pending",
+        DigitalBrain.UI.Button? send = null,
+        DigitalBrain.UI.Button? discard = null)
+        => new(id, channel, to, body, from, subject, status, send, discard);
+
+    /// <summary>Inline recoverable error line (<see cref="ErrorLineNode"/>).</summary>
+    public static ErrorLineNode ErrorLine(
+        string what,
+        string? detail = null,
+        DigitalBrain.UI.Button? action = null)
+        => new(what, detail, action);
+
+    /// <summary>Multi-step background job progress card (<see cref="JobCardNode"/>).</summary>
+    public static JobCardNode JobCard(
+        string title,
+        IReadOnlyList<JobStepNode> steps,
+        double progress = 0,
+        string status = "running",
+        string? resultText = null,
+        DigitalBrain.UI.Button? cancel = null)
+        => new(title, steps, progress, status, resultText, cancel);
+
+    /// <summary>Micro-app telemetry tile (<see cref="MetricTileNode"/>).</summary>
+    public static MetricTileNode MetricTile(
+        string id,
+        string appId,
+        string title,
+        string value,
+        string? delta = null,
+        string deltaTone = "neutral",
+        string? statusLabel = null,
+        string statusTone = "neutral",
+        IReadOnlyList<double>? sparkline = null,
+        double? threshold = null,
+        IReadOnlyList<DigitalBrain.UI.Button>? actions = null)
+        => Ui.MetricTile(id, appId, title, value, delta, deltaTone, statusLabel, statusTone, sparkline, threshold, actions);
+
+    /// <summary>Structured record summary card (<see cref="RecordCardNode"/>).</summary>
+    public static RecordCardNode RecordCard(
+        string objectLabel,
+        string name,
+        IReadOnlyList<RecordFieldNode> fields,
+        string? subtitle = null,
+        string linkLabel = "Open Neuron",
+        DigitalBrain.UI.Button? open = null)
+        => new(objectLabel, name, fields, subtitle, linkLabel, open);
+
+    /// <summary>Secure credential request card (<see cref="SecretCardNode"/>).</summary>
+    public static SecretCardNode SecretCard(
+        string name,
+        string why,
+        string savedIn = "Variables and secrets",
+        string status = "pending",
+        DigitalBrain.UI.Button? enter = null,
+        DigitalBrain.UI.Button? skip = null)
+        => new(name, why, savedIn, status, enter, skip);
 
     // ── Composition (Slots) ──────────────────────────────────────────────────
 

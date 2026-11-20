@@ -49,7 +49,7 @@ public static class DailyBriefUnit
         new Heading("Daily brief", Subtitle: $"{brief.Priorities.Length} open · {brief.Completed.Length} completed"),
         Ui.StatCard("brief-stats", "Open vs Completed", $"{brief.Priorities.Length} / {brief.Completed.Length}", $"{brief.Completed.Length} done", BadgeTone.Accent),
         new Column([.. brief.Priorities.Select(priority => (Node)new Card(priority, "Open priority", []))]) { Gap = 8 },
-        new Field("priority", "brief.daily/priority", FieldKind.Text, "Add a priority", OnSubmit: new Emit("brief.daily", "brief.add")),
+        new Field("priority", "brief.daily/priority", FieldKind.Text, "Add a priority", OnSubmit: new Command(".", "brief.add"), AutomationName: "Add a priority"),
     ]) { Gap = 12 });
 
     private static string? Read(JsonElement payload, string name)

@@ -981,7 +981,10 @@ void main() {
 
       expect(find.text('Pane:plan'), findsOneWidget);
       expect(viewLoads, 1);
-      expect(watchedTargets, contains(('screen', 'owner/app.engineer/default')));
+      expect(
+        watchedTargets,
+        contains(('screen', 'owner/app.engineer/default')),
+      );
       expect(activeViewListeners, 0);
       expect(activeScreenListeners, 1);
       expect(activeUiListeners, 1);

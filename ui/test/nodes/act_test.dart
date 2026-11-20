@@ -130,6 +130,119 @@ void main() {
     await ctx.act('.', 'toggle.set', const {});
   });
 
+  testWidgets(
+    'field, switch, and navItem dispatch Command and expose automationName',
+    (tester) async {
+      final sent = <Map<String, dynamic>>[];
+      final ctx = NodeContext(
+        view: 'local/apps/uikit/view',
+        generation: 2,
+        actsViaAct: true,
+        send: (event) async {
+          sent.add(event);
+          return {'delivered': true};
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.intochat(Brightness.light),
+          home: Scaffold(
+            body: Builder(
+              builder: (_) => NodeRenderer.render(
+                const ColumnNode(
+                  gap: 8,
+                  padding: 0,
+                  extents: null,
+                  children: [
+                    FieldNode(
+                      key: 'search',
+                      name: 'apps/uikit/search',
+                      fieldKind: FieldKind.search,
+                      placeholder: 'Filter controls',
+                      onSubmit: Command(
+                        target: 'filter-slot',
+                        signal: 'control.submit',
+                        args: {'scope': 'all'},
+                        props: null,
+                      ),
+                      automationName: 'Search controls',
+                    ),
+                    SwitchNode(
+                      key: 'live',
+                      label: 'Live sync',
+                      isOn: false,
+                      command: Command(
+                        target: 'live-slot',
+                        signal: 'control.setChecked',
+                        args: null,
+                        props: null,
+                      ),
+                      locked: false,
+                      automationName: 'Toggle live sync',
+                    ),
+                    NavItemNode(
+                      key: 'nav-overview',
+                      label: 'Overview',
+                      icon: 'house',
+                      action: 'overview',
+                      selected: false,
+                      badge: null,
+                      command: Command(
+                        target: '.',
+                        signal: 'uikit.navigate',
+                        args: {'page': 'overview'},
+                        props: null,
+                      ),
+                      automationName: 'Open overview',
+                    ),
+                  ],
+                ),
+                ctx,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Search controls'), findsWidgets);
+      expect(find.bySemanticsLabel('Toggle live sync'), findsWidgets);
+      expect(find.bySemanticsLabel('Open overview'), findsWidgets);
+
+      await tester.tap(find.byKey(const ValueKey('nav:nav-overview')));
+      await tester.pumpAndSettle();
+      expect(sent.last, {
+        'kind': 'act',
+        'neuron': 'local/apps/uikit',
+        'target': '.',
+        'signal': 'uikit.navigate',
+        'args': {'page': 'overview'},
+      });
+
+      await tester.tap(find.byType(UiKitSwitch));
+      await tester.pumpAndSettle();
+      expect(sent.last, {
+        'kind': 'act',
+        'neuron': 'local/apps/uikit',
+        'target': 'live-slot',
+        'signal': 'control.setChecked',
+        'args': {'value': 'true'},
+      });
+
+      await tester.enterText(find.byType(TextField), 'button');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(sent.last, {
+        'kind': 'act',
+        'neuron': 'local/apps/uikit',
+        'target': 'filter-slot',
+        'signal': 'control.submit',
+        'args': {'scope': 'all', 'value': 'button'},
+      });
+    },
+  );
+
   testWidgets('a slot is read by its app key path and redraws on its own', (
     tester,
   ) async {

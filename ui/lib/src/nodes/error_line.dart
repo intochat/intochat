@@ -88,11 +88,11 @@ class ErrorLineView extends StatelessWidget {
                 onTap: action.enabled && ctx.interactive
                     ? onAction ??
                           () => pressCommand(
-                                action.key,
-                                action.command,
-                                ctx,
-                                context,
-                              )
+                            action.key,
+                            action.command,
+                            ctx,
+                            context,
+                          )
                     : null,
               ),
             ],

@@ -48,7 +48,7 @@ public static class CircleRoomUnit
         new Heading("Circle room", Subtitle: room.Members.Length == 0 ? "No one has joined yet." : "Members: " + string.Join(", ", room.Members)),
         new Column([.. room.Messages.Select(message => (Node)new Card(message.Member, message.Text, []))]) { Gap = 8 },
         // Submitting the field sends its text; a button cannot carry a field's text, so there is none.
-        new Field("message", "circleroom/message", FieldKind.Text, "Message the circle", OnSubmit: new Emit("circleroom", "circleroom.message")),
+        new Field("message", "circleroom/message", FieldKind.Text, "Message the circle", OnSubmit: new Command(".", "circleroom.message"), AutomationName: "Message the circle"),
     ]) { Gap = 12 });
 
     // A string member of an object payload, whatever its casing.

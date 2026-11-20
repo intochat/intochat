@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' hide Focus;
@@ -281,7 +281,8 @@ class _SceneViewState extends State<SceneView> {
       _focusNode.requestFocus();
     }
     final isMiddle = (event.buttons & kMiddleMouseButton) != 0;
-    final overDraggable = !isMiddle &&
+    final overDraggable =
+        !isMiddle &&
         _game.hasDraggableAt(event.localPosition, viewportSize: _viewportSize);
     _pointers[event.pointer] = _TrackedPointer(
       startPos: event.localPosition,
@@ -335,9 +336,11 @@ class _SceneViewState extends State<SceneView> {
     tracked.lastPos = event.localPosition;
     if (tracked.overDraggable) return;
 
-    final isMiddle = (event.buttons & kMiddleMouseButton) != 0 ||
+    final isMiddle =
+        (event.buttons & kMiddleMouseButton) != 0 ||
         (tracked.buttons & kMiddleMouseButton) != 0;
-    final isPrimaryOrTouch = (event.buttons & kPrimaryButton) != 0 ||
+    final isPrimaryOrTouch =
+        (event.buttons & kPrimaryButton) != 0 ||
         event.kind == PointerDeviceKind.touch ||
         event.kind == PointerDeviceKind.stylus;
 
@@ -465,10 +468,7 @@ class _SceneViewState extends State<SceneView> {
 }
 
 class _FlameCameraHud extends StatelessWidget {
-  const _FlameCameraHud({
-    required this.game,
-    required this.viewportSize,
-  });
+  const _FlameCameraHud({required this.game, required this.viewportSize});
 
   final SceneGame game;
   final Size viewportSize;

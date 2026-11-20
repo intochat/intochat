@@ -33,9 +33,9 @@ public sealed class SampleCounterScreen : Screen<SampleCounterState>
             Root: new Column([
                 new Heading($"Count: {state.Count}"),
                 new Button("btn-inc", "Add One", Sends(new Increment(1))),
-                new Switch("btn-alien", "Alien Button", false, new Emit("alien.screen", "alien.signal")),
+                new Tabs([new TabItem("btn-alien", "alien", "Alien Button", new Emit("alien.screen", "alien.signal"))], "alien"),
                 new Button("btn-no-emit", "No Emit Button", Intent: new Intent(IntentKind.Copy, "nothing")),
-                new Field("fld-input", "input-label", FieldKind.Text, state.LastBy, OnSubmit: new Emit(Alias, "counter.set-caller", emptyObj.RootElement.Clone()))
+                new Field("fld-input", "input-label", FieldKind.Text, state.LastBy, OnSubmit: new Command(".", "counter.set-caller", emptyObj.RootElement.Clone()))
             ])
         );
     }

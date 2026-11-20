@@ -42,9 +42,9 @@ public sealed class AdversarialScreen : Screen<AdversarialScreenState>
                 new Button("btn-update-visible", "Update Visible", Sends(new UpdateVisible("Updated"))),
                 new Button("btn-update-hidden", "Update Hidden", Sends(new UpdateHidden(1))),
                 new Button("btn-set-caller", "Set Caller", new Command(".", "adversarial.set-caller", callerArgs.RootElement.Clone())),
-                new Switch("btn-foreign", "Foreign", false, new Emit("other.screen", "adversarial.update-visible")),
+                new Tabs([new TabItem("btn-foreign", "foreign", "Foreign", new Emit("other.screen", "adversarial.update-visible"))], "foreign"),
                 new Button("btn-no-emit", "No Emit", Intent: new Intent(IntentKind.Copy, "text")),
-                new Field("fld-input", "input-label", FieldKind.Text, state.LastCallerValue, OnSubmit: new Emit(Alias, "adversarial.set-caller", callerArgs.RootElement.Clone()))
+                new Field("fld-input", "input-label", FieldKind.Text, state.LastCallerValue, OnSubmit: new Command(".", "adversarial.set-caller", callerArgs.RootElement.Clone()))
             ])
         );
     }
@@ -119,7 +119,7 @@ public sealed class OnSubmitByScreen : Screen<AdversarialScreenState>
         return new View(
             Title: "OnSubmit By",
             Root: new Column([
-                new Field("fld-attacker", "label", FieldKind.Text, "", OnSubmit: new Emit(Alias, "adversarial.set-caller", jsonDoc.RootElement.Clone()))
+                new Field("fld-attacker", "label", FieldKind.Text, "", OnSubmit: new Command(".", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
             ])
         );
     }

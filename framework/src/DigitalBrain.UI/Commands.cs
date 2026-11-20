@@ -11,6 +11,18 @@ namespace DigitalBrain.UI;
 /// so a controlled control (props carry its value) can signal without storing. Anything else sending a command leaves it null.</param>
 public sealed record Command(string Target, string Signal, JsonElement? Args = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonElement? Props = null)
 {
+    // Reads legacy emit objects ({owner, signal, args}) in stored Field.onSubmit fixtures as a command to "." with the same signal and args.
+    [JsonConstructor]
+    private Command(string? target, string signal, JsonElement? args, JsonElement? props, string? owner)
+        : this(target ?? (owner is not null ? "." : null!), signal, args, props)
+    {
+    }
+
+    [JsonInclude, JsonPropertyName("owner"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+#pragma warning disable CA1822
+    private string? Owner => null;
+#pragma warning restore CA1822
+
     /// <inheritdoc />
     public bool Equals(Command? other) => other is not null && Target == other.Target && Signal == other.Signal
         && Args?.GetRawText() == other.Args?.GetRawText() && Props?.GetRawText() == other.Props?.GetRawText();

@@ -326,12 +326,14 @@ public static class AggregateExplorer<TState> where TState : class, new()
                 }
             }
 
+            TryExtractUiCommand(element, "command", extracted);
+            TryExtractUiCommand(element, "close", extracted);
             TryExtractUiCommand(element, "emit", extracted);
             TryExtractUiCommand(element, "onSubmit", extracted);
 
             foreach (var prop in element.EnumerateObject())
             {
-                if (prop.Name is "emit" or "onSubmit" or "args")
+                if (prop.Name is "command" or "close" or "emit" or "onSubmit" or "args")
                 {
                     continue;
                 }
@@ -350,6 +352,8 @@ public static class AggregateExplorer<TState> where TState : class, new()
 
     private static bool IsAddressableNode(JsonElement obj)
         => (obj.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String)
+            || (obj.TryGetProperty("command", out var c) && c.ValueKind == JsonValueKind.Object)
+            || (obj.TryGetProperty("close", out var cl) && cl.ValueKind == JsonValueKind.Object)
             || (obj.TryGetProperty("emit", out var e) && e.ValueKind == JsonValueKind.Object)
             || (obj.TryGetProperty("intent", out var i) && i.ValueKind == JsonValueKind.Object)
             || (obj.TryGetProperty("resolve", out var r) && r.ValueKind == JsonValueKind.Object)

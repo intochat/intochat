@@ -1218,6 +1218,7 @@ final class FieldNode extends Node {
     required this.fieldKind,
     required this.placeholder,
     required this.onSubmit,
+    required this.automationName,
   });
 
   @override
@@ -1227,7 +1228,8 @@ final class FieldNode extends Node {
   final String name;
   final FieldKind fieldKind;
   final String? placeholder;
-  final Emit? onSubmit;
+  final Command? onSubmit;
+  final String automationName;
 
   factory FieldNode.fromJson(Map<String, dynamic> json) => FieldNode(
     key: _string(json['key']),
@@ -1235,8 +1237,9 @@ final class FieldNode extends Node {
     fieldKind: _enum(FieldKind.values, json['fieldKind']),
     placeholder: _stringOrNull(json['placeholder']),
     onSubmit: json['onSubmit'] is Map
-        ? Emit.fromJson(_map(json['onSubmit']))
+        ? Command.fromJson(_map(json['onSubmit']))
         : null,
+    automationName: _string(json['automationName']),
   );
 }
 
@@ -1740,7 +1743,8 @@ final class NavItemNode extends Node {
     required this.action,
     required this.selected,
     required this.badge,
-    required this.emit,
+    required this.command,
+    required this.automationName,
   });
 
   @override
@@ -1752,7 +1756,8 @@ final class NavItemNode extends Node {
   final String action;
   final bool selected;
   final String? badge;
-  final Emit? emit;
+  final Command? command;
+  final String automationName;
 
   factory NavItemNode.fromJson(Map<String, dynamic> json) => NavItemNode(
     key: _string(json['key']),
@@ -1761,7 +1766,10 @@ final class NavItemNode extends Node {
     action: _string(json['action']),
     selected: _bool(json['selected']),
     badge: _stringOrNull(json['badge']),
-    emit: json['emit'] is Map ? Emit.fromJson(_map(json['emit'])) : null,
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
+    automationName: _string(json['automationName']),
   );
 }
 
@@ -2169,8 +2177,9 @@ final class SwitchNode extends Node {
     required this.key,
     required this.label,
     required this.isOn,
-    required this.emit,
+    required this.command,
     required this.locked,
+    required this.automationName,
   });
 
   @override
@@ -2179,15 +2188,19 @@ final class SwitchNode extends Node {
   final String key;
   final String label;
   final bool isOn;
-  final Emit? emit;
+  final Command? command;
   final bool locked;
+  final String automationName;
 
   factory SwitchNode.fromJson(Map<String, dynamic> json) => SwitchNode(
     key: _string(json['key']),
     label: _string(json['label']),
     isOn: _bool(json['isOn']),
-    emit: json['emit'] is Map ? Emit.fromJson(_map(json['emit'])) : null,
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
     locked: _bool(json['locked']),
+    automationName: _string(json['automationName']),
   );
 }
 

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -52,6 +52,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
     final q = Uri.base.queryParameters['root']?.trim() ?? '';
     return q.isNotEmpty ? q : _root;
   }
+
   static const _rootKind = String.fromEnvironment(
     'INTOCHATOS_ROOT_KIND',
     defaultValue: 'layout',

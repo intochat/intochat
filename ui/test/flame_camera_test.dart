@@ -32,9 +32,7 @@ SceneNode _circle(
 Widget _wrap(Widget child) => MaterialApp(
   theme: UiTheme.light(null),
   home: Scaffold(
-    body: Center(
-      child: SizedBox(width: 800, height: 500, child: child),
-    ),
+    body: Center(child: SizedBox(width: 800, height: 500, child: child)),
   ),
 );
 
@@ -69,28 +67,30 @@ void main() {
       expect(game.cameraPosition.y, closeTo(0.0, 1e-4));
     });
 
-    test('fitToGraph centers bounding box of active nodes and scales with padding', () {
-      final game = SceneGame()
-        ..apply(
-          _makeScene([
-            _circle('left', x: -300, y: -100, radius: 40),
-            _circle('right', x: 500, y: 200, radius: 40),
-          ]),
-        );
+    test(
+      'fitToGraph centers bounding box of active nodes and scales with padding',
+      () {
+        final game = SceneGame()
+          ..apply(
+            _makeScene([
+              _circle('left', x: -300, y: -100, radius: 40),
+              _circle('right', x: 500, y: 200, radius: 40),
+            ]),
+          );
 
-      game.fitToGraph(padding: 60, viewportSize: const Size(800, 500));
+        game.fitToGraph(padding: 60, viewportSize: const Size(800, 500));
 
-      // Bounds: x in [-340, 540] -> center.x = 100, width = 880 (+120 pad = 1000)
-      //         y in [-140, 240] -> center.y = 50,  height = 380 (+120 pad = 500)
-      // Fit zoom = min(800 / 1000, 500 / 500) = 0.8
-      expect(game.cameraPosition.x, closeTo(100, 1e-3));
-      expect(game.cameraPosition.y, closeTo(50, 1e-3));
-      expect(game.zoom, closeTo(0.8, 1e-3));
-    });
+        // Bounds: x in [-340, 540] -> center.x = 100, width = 880 (+120 pad = 1000)
+        //         y in [-140, 240] -> center.y = 50,  height = 380 (+120 pad = 500)
+        // Fit zoom = min(800 / 1000, 500 / 500) = 0.8
+        expect(game.cameraPosition.x, closeTo(100, 1e-3));
+        expect(game.cameraPosition.y, closeTo(50, 1e-3));
+        expect(game.zoom, closeTo(0.8, 1e-3));
+      },
+    );
 
     test('refreshing scene state preserves user-panned and zoomed camera', () {
-      final game = SceneGame()
-        ..apply(_makeScene([_circle('a', x: 0, y: 0)]));
+      final game = SceneGame()..apply(_makeScene([_circle('a', x: 0, y: 0)]));
       game.panByScreenDelta(const Offset(-120, 60));
       game.setZoom(1.5, viewportSize: const Size(800, 500));
 
@@ -213,22 +213,10 @@ void main() {
 
         // Verify initial HUD readout & semantics identifiers
         expect(find.text('100%'), findsOneWidget);
-        expect(
-          find.bySemanticsLabel(RegExp('Zoom in')),
-          findsOneWidget,
-        );
-        expect(
-          find.bySemanticsLabel(RegExp('Zoom out')),
-          findsOneWidget,
-        );
-        expect(
-          find.bySemanticsLabel(RegExp('Fit to graph')),
-          findsOneWidget,
-        );
-        expect(
-          find.bySemanticsLabel(RegExp('Reset camera')),
-          findsOneWidget,
-        );
+        expect(find.bySemanticsLabel(RegExp('Zoom in')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('Zoom out')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('Fit to graph')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('Reset camera')), findsOneWidget);
 
         // Click HUD '+' (flame-zoom-in)
         await tester.tap(find.byKey(const ValueKey('flame-zoom-in')));

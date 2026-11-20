@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:flame/components.dart';
@@ -135,17 +135,15 @@ final class SceneGame extends FlameGame {
 
   /// Sets camera zoom clamped to `[minZoom, maxZoom]` (`0.35x`–`3.0x`), anchored at [focalPoint]
   /// in viewport coordinates (or viewport center when omitted).
-  void setZoom(
-    double targetZoom, {
-    Offset? focalPoint,
-    Size? viewportSize,
-  }) {
+  void setZoom(double targetZoom, {Offset? focalPoint, Size? viewportSize}) {
     final oldZoom = camera.viewfinder.zoom.clamp(minZoom, maxZoom);
     final nextZoom = targetZoom.clamp(minZoom, maxZoom);
     final vw =
-        viewportSize?.width ?? (hasLayout && canvasSize.x > 0 ? canvasSize.x : 0.0);
+        viewportSize?.width ??
+        (hasLayout && canvasSize.x > 0 ? canvasSize.x : 0.0);
     final vh =
-        viewportSize?.height ?? (hasLayout && canvasSize.y > 0 ? canvasSize.y : 0.0);
+        viewportSize?.height ??
+        (hasLayout && canvasSize.y > 0 ? canvasSize.y : 0.0);
 
     if (focalPoint != null &&
         vw > 0 &&
@@ -166,15 +164,12 @@ final class SceneGame extends FlameGame {
   }
 
   /// Multiplies camera zoom by [factor], clamped to `[0.35, 3.0]`.
-  void zoomBy(
-    double factor, {
-    Offset? focalPoint,
-    Size? viewportSize,
-  }) => setZoom(
-    camera.viewfinder.zoom * factor,
-    focalPoint: focalPoint,
-    viewportSize: viewportSize,
-  );
+  void zoomBy(double factor, {Offset? focalPoint, Size? viewportSize}) =>
+      setZoom(
+        camera.viewfinder.zoom * factor,
+        focalPoint: focalPoint,
+        viewportSize: viewportSize,
+      );
 
   void zoomIn({Offset? focalPoint, Size? viewportSize}) => zoomBy(
     zoomStepFactor,
@@ -246,9 +241,11 @@ final class SceneGame extends FlameGame {
       resetCamera();
       return;
     }
-    final vw = viewportSize?.width ??
+    final vw =
+        viewportSize?.width ??
         (hasLayout && canvasSize.x > 0 ? canvasSize.x : 800.0);
-    final vh = viewportSize?.height ??
+    final vh =
+        viewportSize?.height ??
         (hasLayout && canvasSize.y > 0 ? canvasSize.y : 500.0);
     final spanW = math.max(bounds.width + padding * 2, 1.0);
     final spanH = math.max(bounds.height + padding * 2, 1.0);
@@ -265,13 +262,16 @@ final class SceneGame extends FlameGame {
   /// True when [viewportPoint] hits a node that handles `'drag'` inputs, so background camera pan yields to node drag.
   bool hasDraggableAt(Offset viewportPoint, {Size? viewportSize}) {
     final vw =
-        viewportSize?.width ?? (hasLayout && canvasSize.x > 0 ? canvasSize.x : 0.0);
+        viewportSize?.width ??
+        (hasLayout && canvasSize.x > 0 ? canvasSize.x : 0.0);
     final vh =
-        viewportSize?.height ?? (hasLayout && canvasSize.y > 0 ? canvasSize.y : 0.0);
+        viewportSize?.height ??
+        (hasLayout && canvasSize.y > 0 ? canvasSize.y : 0.0);
     if (vw <= 0 || vh <= 0) return false;
     final currentZoom = camera.viewfinder.zoom.clamp(minZoom, maxZoom);
     final offset = viewportPoint - Offset(vw / 2, vh / 2);
-    final worldPt = camera.viewfinder.position +
+    final worldPt =
+        camera.viewfinder.position +
         Vector2(offset.dx / currentZoom, offset.dy / currentZoom);
 
     for (final comp in _byId.values) {

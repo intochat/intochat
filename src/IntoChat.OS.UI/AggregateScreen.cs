@@ -437,8 +437,15 @@ internal static class NodeOwnerNormalizer
             {
                 Items = [.. tabs.Items.Select(item => item with { Emit = NormalizeEmit(item.Emit, owner)! })],
             },
-            Field field => field with { OnSubmit = NormalizeEmit(field.OnSubmit, owner) },
-            Switch sw => sw with { Emit = NormalizeEmit(sw.Emit, owner) },
+            Field field => field with { OnSubmit = NormalizeCommand(field.OnSubmit, owner) },
+            DigitalBrain.UI.Switch sw => sw with { Command = NormalizeCommand(sw.Command, owner) },
+            DigitalBrain.UI.Button btn => btn with { Command = NormalizeCommand(btn.Command, owner) },
+            DigitalBrain.UI.IconButton icon => icon with { Command = NormalizeCommand(icon.Command, owner) },
+            InfoBar bar => bar with
+            {
+                Close = NormalizeCommand(bar.Close, owner),
+                Action = bar.Action is null ? null : (DigitalBrain.UI.Button)Normalize(bar.Action, owner),
+            },
             Select sel => sel with
             {
                 Options = [.. sel.Options.Select(opt => opt with { Emit = NormalizeEmit(opt.Emit, owner) })],
@@ -450,8 +457,8 @@ internal static class NodeOwnerNormalizer
                 Toolbar = shell.Toolbar is null ? null : Normalize(shell.Toolbar, owner),
                 Inspector = shell.Inspector is null ? null : Normalize(shell.Inspector, owner),
             },
-            NavItemNode nav => nav with { Emit = NormalizeEmit(nav.Emit, owner) },
-            Conversation conv => conv with
+            NavItemNode nav => nav with { Command = NormalizeCommand(nav.Command, owner) },
+            DigitalBrain.UI.Conversation conv => conv with
             {
                 Composer = conv.Composer with { OnSubmit = NormalizeEmit(conv.Composer.OnSubmit, owner)! },
                 Waiting = conv.Waiting is null ? null : Normalize(conv.Waiting, owner),
@@ -492,5 +499,19 @@ internal static class NodeOwnerNormalizer
         }
 
         return emit.Owner == CommandBinding.PendingOwner ? emit with { Owner = owner } : emit;
+    }
+
+    private static Command? NormalizeCommand(Command? command, string owner)
+    {
+        if (command is null)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(command.Target)
+            || command.Target == CommandBinding.PendingOwner
+            || string.Equals(command.Target, owner, StringComparison.Ordinal)
+            ? command with { Target = "." }
+            : command;
     }
 }

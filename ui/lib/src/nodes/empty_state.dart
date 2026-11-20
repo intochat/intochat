@@ -75,11 +75,11 @@ class EmptyStateView extends StatelessWidget {
                               button: btn,
                               onTap: btn.enabled && ctx.interactive
                                   ? () => pressCommand(
-                                        btn.key,
-                                        btn.command,
-                                        ctx,
-                                        context,
-                                      )
+                                      btn.key,
+                                      btn.command,
+                                      ctx,
+                                      context,
+                                    )
                                   : null,
                             ),
                         ],

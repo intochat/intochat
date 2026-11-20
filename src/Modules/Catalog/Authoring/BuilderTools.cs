@@ -80,10 +80,9 @@ internal static partial class BuilderTools
         public sealed record Text(string Value) : Node;
         public sealed record Badge(string Label, string Tone = "neutral", string? Icon = null) : Node;   // tone: neutral, accent, success, warning, danger
         public sealed record StatCardNode(string Key, string Label, string Value, string? Delta = null) : Node;
-        public sealed record Field(string Key, string Name, FieldKind Kind, string? Placeholder = null, Emit? OnSubmit = null) : Node;
+        public sealed record Field(string Key, string Name, FieldKind Kind, string? Placeholder = null, Command? OnSubmit = null, string AutomationName = "") : Node;
         public sealed record Button(string Key, string Label, Command? Command = null, Intent? Intent = null, bool Enabled = true, string Tone = "neutral", string AutomationName = "", string? Tooltip = null) : Node;   // Key is stable within the view; give Command
         public sealed record Command(string Target, string Signal, JsonElement? Args = null);                // Target "." = the unit itself
-        public sealed record Emit(string Owner, string Signal, JsonElement? Args = null);                    // a Field's OnSubmit; Owner = the unit's own alias
 
         namespace DigitalBrain;
         [State("alias")] record; [Signal("signal.alias")] record : Signal; [Slot] parameter;

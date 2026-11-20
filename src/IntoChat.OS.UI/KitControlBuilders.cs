@@ -308,7 +308,8 @@ public sealed class FieldBuilder : KitNode
     private bool _liveChange;
     private readonly FieldKind _kind;
     private string? _placeholder;
-    private Emit? _onSubmit;
+    private Command? _onSubmit;
+    private string? _automationName;
 
     internal FieldBuilder(string name, FieldKind kind, string? placeholder = null)
     {
@@ -394,11 +395,26 @@ public sealed class FieldBuilder : KitNode
     public FieldBuilder OnChange<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class
         => Bind(CommandBinding.FromDecision(command), live: true);
 
-    /// <summary>Binds an explicit <see cref="DigitalBrain.UI.Emit"/>.</summary>
+    /// <summary>Sets the accessible name; defaults cleanly from label, name, or placeholder when omitted.</summary>
+    public FieldBuilder AutomationName(string automationName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(automationName);
+        _automationName = automationName;
+        return this;
+    }
+
+    /// <summary>Binds a classic <c>[On]</c> signal as a <see cref="Command"/> to the view's own neuron (".").</summary>
     public FieldBuilder Emits(Emit emit)
     {
         ArgumentNullException.ThrowIfNull(emit);
-        _onSubmit = emit;
+        return Sends(new Command(".", emit.Signal, emit.Args));
+    }
+
+    /// <summary>Binds the <see cref="Command"/> a field submission sends.</summary>
+    public FieldBuilder Sends(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        _onSubmit = command;
         return this;
     }
 
@@ -406,23 +422,66 @@ public sealed class FieldBuilder : KitNode
     {
         _derivedKey = bound.CanonicalKey;
         _liveChange = _liveChange || live;
-        _onSubmit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _onSubmit = bound.ToCommand();
         return this;
     }
 
     public override Node ToNode()
     {
         var key = _explicitKey ?? _derivedKey ?? ButtonBuilder.SlugifyKey("field", _name);
-        var emit = BoundCommand.AttachFieldMetadata(
+        var command = BoundCommand.AttachFieldMetadata(
             _onSubmit,
-            CommandBinding.ActiveOwner,
             _hasExplicitLabel,
             _explicitLabel,
             _controlledValue,
             _helper,
             _error,
             _liveChange);
-        return new Field(key, _name, _kind, _placeholder, emit);
+        var auto = ResolveFieldAutomationName(_automationName, _hasExplicitLabel, _explicitLabel, _name, _placeholder, key);
+        return new Field(key, _name, _kind, _placeholder, command, auto);
+    }
+
+    internal static string ResolveFieldAutomationName(
+        string? explicitAutomation,
+        bool hasExplicitLabel,
+        string? explicitLabel,
+        string? name,
+        string? placeholder,
+        string key)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitAutomation))
+        {
+            return explicitAutomation;
+        }
+
+        if (hasExplicitLabel)
+        {
+            if (!string.IsNullOrWhiteSpace(explicitLabel))
+            {
+                return explicitLabel;
+            }
+
+            if (!string.IsNullOrWhiteSpace(placeholder))
+            {
+                return placeholder;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(placeholder))
+        {
+            return placeholder;
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        return key;
     }
 }
 
@@ -434,7 +493,8 @@ public sealed class ToggleBuilder : KitNode
     private readonly string _label;
     private readonly bool _isOn;
     private bool _locked;
-    private Emit? _emit;
+    private Command? _command;
+    private string? _automationName;
 
     internal ToggleBuilder(string label, bool isOn, bool locked = false)
     {
@@ -447,6 +507,14 @@ public sealed class ToggleBuilder : KitNode
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         _explicitKey = key;
+        return this;
+    }
+
+    /// <summary>Sets the accessible name; defaults to the switch label or key when omitted.</summary>
+    public ToggleBuilder AutomationName(string automationName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(automationName);
+        _automationName = automationName;
         return this;
     }
 
@@ -482,22 +550,33 @@ public sealed class ToggleBuilder : KitNode
     public ToggleBuilder Emits(Emit emit)
     {
         ArgumentNullException.ThrowIfNull(emit);
-        _emit = emit;
+        return Sends(new Command(".", emit.Signal, emit.Args));
+    }
+
+    public ToggleBuilder Sends(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        _command = command;
         return this;
     }
 
     private ToggleBuilder Bind(BoundCommand bound)
     {
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         return this;
     }
 
-    public override Node ToNode()
+    public Switch ToSwitch()
     {
         var key = _explicitKey ?? _derivedKey ?? ButtonBuilder.SlugifyKey("toggle", _label);
-        return new Switch(key, _label, _isOn, _emit, _locked);
+        var auto = !string.IsNullOrWhiteSpace(_automationName)
+            ? _automationName
+            : (!string.IsNullOrWhiteSpace(_label) ? _label : key);
+        return new Switch(key, _label, _isOn, _command, _locked, auto);
     }
+
+    public override Node ToNode() => ToSwitch();
 }
 
 /// <summary>Fluent tab item builder for <see cref="Kit.Tabs(string, TabBuilder[])"/>.</summary>
