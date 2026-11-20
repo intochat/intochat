@@ -29,9 +29,18 @@ public sealed record GitHubCheck(
     string AttemptId,
     DateTimeOffset UpdatedAt);
 
+public sealed record GitHubReviewComment(
+    long Id,
+    string Author,
+    string Body,
+    string? Path = null,
+    int? Line = null,
+    DateTimeOffset? CreatedAt = null);
+
 public sealed record GitHubReviewEvidence(
     string HeadSha,
     string BaseSha,
     string Text,
     string Hash,
-    bool Complete);
+    bool Complete,
+    GitHubReviewComment[]? ReviewComments = null);

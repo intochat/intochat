@@ -25,7 +25,8 @@ public sealed record OrleansOpen(
     string? Section = null,
     string? View = null,
     string? GrainFilter = null,
-    string? BaseUrl = null) : Signal;
+    string? BaseUrl = null,
+    string? Input = null) : Signal;
 
 [Signal("orleans.select-section")]
 public sealed record OrleansSelectSection(string? Section = null) : Signal;
@@ -117,7 +118,8 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
         var requestedSection = !string.IsNullOrWhiteSpace(request.Section) ? request.Section : request.View;
         if (string.IsNullOrWhiteSpace(requestedSection)
             && string.IsNullOrWhiteSpace(request.GrainFilter)
-            && string.IsNullOrWhiteSpace(request.BaseUrl))
+            && string.IsNullOrWhiteSpace(request.BaseUrl)
+            && string.IsNullOrWhiteSpace(request.Input))
         {
             return Show(State);
         }
@@ -125,6 +127,7 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
         var nav = new BrowserNavArgs(
             Section: requestedSection,
             GrainFilter: request.GrainFilter,
+            Route: request.Input,
             BaseUrl: request.BaseUrl);
         return ApplyDecisionAsync(State.ApplyNavigation(nav, ViewTransition.FadeThrough));
     }

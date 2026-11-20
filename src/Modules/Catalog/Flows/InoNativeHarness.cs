@@ -37,6 +37,7 @@ internal sealed class InoNativeHarness(
     ILogger<InoNativeHarness>? logger = null) : IEngineeringHarness
 {
     public const int MaxHydratedContextBytes = 2_900;
+    public const int MaxSelfRepairTurns = 2;
     public const string KnowledgeStoreKey = "memory";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -160,7 +161,7 @@ internal sealed class InoNativeHarness(
             ct.ThrowIfCancellationRequested();
 
             // Level-2 Intra-Worktree Parallelism: all disjoint slices in the same DAG wave execute concurrently via Task.WhenAll!
-            var waveTasks = wave.Select(slice => ExecuteSingleSliceAsync(
+            var waveTasks = wave.Select(slice => ExecuteSliceAsync(
                 request,
                 plan,
                 slice,
@@ -189,7 +190,8 @@ internal sealed class InoNativeHarness(
                         UiStateGraphsHealthy: true,
                         SemanticErrorCount: outcome.SemanticErrorCount,
                         HydratedContextSummary: hydrated.CompactContext,
-                        FailureDetail: outcome.FailureDetail);
+                        FailureDetail: outcome.FailureDetail,
+                        SelfRepairAttempts: completedSlices.Sum(static s => s.SelfRepairAttempts));
                 }
 
                 foreach (var touched in outcome.TouchedFiles)
@@ -209,6 +211,7 @@ internal sealed class InoNativeHarness(
             }
         }
 
+        var totalSelfRepairAttempts = completedSlices.Sum(static s => s.SelfRepairAttempts);
         var touchedArray = allTouched.Order(StringComparer.Ordinal).ToArray();
         var liveCSharpFiles = touchedArray
             .Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !cleanupResult.DeletedFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
@@ -232,7 +235,8 @@ internal sealed class InoNativeHarness(
                 UiStateGraphsHealthy: true,
                 SemanticErrorCount: postDiagnostics.Count(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase)),
                 HydratedContextSummary: hydrated.CompactContext,
-                FailureDetail: $"Roslyn error {firstError.Id} in {firstError.FilePath}:{firstError.Line}: {firstError.Message}");
+                FailureDetail: $"Roslyn error {firstError.Id} in {firstError.FilePath}:{firstError.Line}: {firstError.Message}",
+                SelfRepairAttempts: totalSelfRepairAttempts);
         }
 
         var uiCheck = await _orchestrator.VerifyModifiedScreensAsync(
@@ -255,7 +259,8 @@ internal sealed class InoNativeHarness(
                 UiStateGraphsHealthy: false,
                 SemanticErrorCount: 0,
                 HydratedContextSummary: hydrated.CompactContext,
-                FailureDetail: string.Join("; ", uiCheck.Violations));
+                FailureDetail: string.Join("; ", uiCheck.Violations),
+                SelfRepairAttempts: totalSelfRepairAttempts);
         }
 
         var combinedSummary = summaries.Count > 0
@@ -265,6 +270,23 @@ internal sealed class InoNativeHarness(
 
         if (recordJournalMilestone && ResolveSessionJournal(request.Brain) is { } journal)
         {
+            string[] decisions = totalSelfRepairAttempts > 0
+                ?
+                [
+                    $"Executed {completedSlices.Count} slice(s) across {waves.Length} disjoint DAG wave(s) via InoNativeHarness ({request.Strategy}).",
+                    cleanupResult.DeletedFiles.Length > 0
+                        ? $"Deleted {cleanupResult.DeletedFiles.Length} dead cleanup target(s): {string.Join(", ", cleanupResult.DeletedFiles)}."
+                        : "Verified 0 Roslyn semantic errors and 0 Accordant StateGraph violations.",
+                    string.Create(CultureInfo.InvariantCulture, $"Resolved intra-slice Roslyn diagnostics in {totalSelfRepairAttempts} bounded self-repair turn(s)."),
+                ]
+                :
+                [
+                    $"Executed {completedSlices.Count} slice(s) across {waves.Length} disjoint DAG wave(s) via InoNativeHarness ({request.Strategy}).",
+                    cleanupResult.DeletedFiles.Length > 0
+                        ? $"Deleted {cleanupResult.DeletedFiles.Length} dead cleanup target(s): {string.Join(", ", cleanupResult.DeletedFiles)}."
+                        : "Verified 0 Roslyn semantic errors and 0 Accordant StateGraph violations.",
+                ];
+
             await RecordMilestoneBestEffortAsync(
                 journal,
                 request.FlowId,
@@ -275,13 +297,7 @@ internal sealed class InoNativeHarness(
                     .. completedSlices.Select(static s => $"Slice {s.SliceId} ({s.AssignedAgentKey}): {s.Title}"),
                     .. touchedArray.Select(static f => $"Modified/cleaned: {f}"),
                 ],
-                decisions:
-                [
-                    $"Executed {completedSlices.Count} slice(s) across {waves.Length} disjoint DAG wave(s) via InoNativeHarness ({request.Strategy}).",
-                    cleanupResult.DeletedFiles.Length > 0
-                        ? $"Deleted {cleanupResult.DeletedFiles.Length} dead cleanup target(s): {string.Join(", ", cleanupResult.DeletedFiles)}."
-                        : "Verified 0 Roslyn semantic errors and 0 Accordant StateGraph violations.",
-                ],
+                decisions: decisions,
                 openThreads: [$"Awaiting human SHA-bound review for run '{request.RunId}' on '{request.WorktreeId}'."],
                 resolvedThreads: null,
                 _logger).ConfigureAwait(false);
@@ -299,7 +315,8 @@ internal sealed class InoNativeHarness(
             UiStateGraphsHealthy: uiCheck.Succeeded,
             SemanticErrorCount: 0,
             HydratedContextSummary: hydrated.CompactContext,
-            FailureDetail: null);
+            FailureDetail: null,
+            SelfRepairAttempts: totalSelfRepairAttempts);
     }
 
     internal static async Task<InoHydratedBrainSnapshot> HydrateBrainContextAsync(
@@ -436,7 +453,7 @@ internal sealed class InoNativeHarness(
         }
     }
 
-    private async Task<SliceExecutionOutcome> ExecuteSingleSliceAsync(
+    private async Task<SliceExecutionOutcome> ExecuteSliceAsync(
         EngineeringHarnessRequest request,
         RatifiedPlan plan,
         EngineerTaskSlice slice,
@@ -448,6 +465,7 @@ internal sealed class InoNativeHarness(
         CancellationToken ct)
     {
         var agentKey = string.IsNullOrWhiteSpace(slice.AssignedAgentKey) ? $"ino.{slice.SliceId}" : slice.AssignedAgentKey;
+        var selfRepairAttempts = 0;
 
         try
         {
@@ -506,102 +524,130 @@ internal sealed class InoNativeHarness(
                 memoryDirective);
 
             var activeCoder = coder ?? services?.GetService<ICoder>();
-            CoderEditResult editResult;
+            var editResult = await InvokeSliceWorkerAsync(
+                request,
+                slice,
+                agentKey,
+                slicePrompt,
+                hydratedContext,
+                activeCoder,
+                ct).ConfigureAwait(false);
 
-            if (activeCoder is not null && activeCoder is not LocalLlmCoder)
-            {
-                var syntheticLease = new WorkTreeLease(
-                    RunId: request.RunId,
-                    RepositoryId: request.RepositoryId,
-                    SourceRepoPath: request.SourceRepositoryPath ?? request.WorktreePath,
-                    TreePath: request.WorktreePath,
-                    RealGitDirPath: request.WorktreePath,
-                    GitPointerSha256Hex: new string('0', 64),
-                    BaseBranch: request.BaseBranch ?? "main",
-                    BaseCommitSha: new string('0', 40),
-                    BranchName: $"ino/{request.RunId}",
-                    LeaseId: request.WorktreeId,
-                    InstanceIndex: request.InstanceIndex);
-
-                editResult = await activeCoder.EditAsync(syntheticLease, slicePrompt, ct).ConfigureAwait(false);
-                foreach (var touched in editResult.TouchedFiles)
-                {
-                    InoCodeOrchestrator.EnsureWithinSliceOwnership(touched, slice.OwnedPaths);
-                }
-            }
-            else if (CanResolveModelInference())
-            {
-                editResult = await RunNativeSliceModelWorkerAsync(
-                    request,
-                    slice,
-                    agentKey,
-                    slicePrompt,
-                    hydratedContext,
-                    ct).ConfigureAwait(false);
-            }
-            else if (activeCoder is not null)
-            {
-                var syntheticLease = new WorkTreeLease(
-                    RunId: request.RunId,
-                    RepositoryId: request.RepositoryId,
-                    SourceRepoPath: request.SourceRepositoryPath ?? request.WorktreePath,
-                    TreePath: request.WorktreePath,
-                    RealGitDirPath: request.WorktreePath,
-                    GitPointerSha256Hex: new string('0', 64),
-                    BaseBranch: request.BaseBranch ?? "main",
-                    BaseCommitSha: new string('0', 40),
-                    BranchName: $"ino/{request.RunId}",
-                    LeaseId: request.WorktreeId,
-                    InstanceIndex: request.InstanceIndex);
-
-                editResult = await activeCoder.EditAsync(syntheticLease, slicePrompt, ct).ConfigureAwait(false);
-                foreach (var touched in editResult.TouchedFiles)
-                {
-                    InoCodeOrchestrator.EnsureWithinSliceOwnership(touched, slice.OwnedPaths);
-                }
-            }
-            else
-            {
-                throw new InvalidOperationException("No IModelInference or ICoder is configured for InoNativeHarness slice execution.");
-            }
+            var touchedSet = new HashSet<string>(editResult.TouchedFiles, StringComparer.Ordinal);
+            var latestSummary = editResult.Summary;
+            var latestModelId = editResult.ModelId;
 
             await InoCodeOrchestrator.EmitProgressAsync(
                 request,
                 slice.SliceId,
                 percent: 60,
                 phase: "editing",
-                detail: $"[{agentKey}] Applied edits to {editResult.TouchedFiles.Count} file(s)",
+                detail: $"[{agentKey}] Applied edits to {touchedSet.Count} file(s)",
                 progressSink,
                 progressGate,
                 onProgress).ConfigureAwait(false);
 
-            var sliceCsFiles = editResult.TouchedFiles
-                .Where(static f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            var sliceDiags = await _orchestrator.GetSliceDiagnosticsAsync(
+                request.WorktreePath,
+                [.. touchedSet],
+                slice.OwnedPaths,
+                ct).ConfigureAwait(false);
+            var errorDiags = sliceDiags
+                .Where(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
-            var sliceDiags = sliceCsFiles.Length > 0
-                ? await _orchestrator.GetSemanticDiagnosticsAsync(request.WorktreePath, sliceCsFiles, ct).ConfigureAwait(false)
-                : [];
-            var sliceErrorCount = sliceDiags.Count(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase));
+
+            var canSelfRepair = activeCoder is not null || CanResolveModelInference();
+            while (errorDiags.Length > 0 && canSelfRepair && selfRepairAttempts < MaxSelfRepairTurns)
+            {
+                ct.ThrowIfCancellationRequested();
+                selfRepairAttempts++;
+                var primaryErr = errorDiags[0];
+                var repairDetail = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Repairing {primaryErr.Id} in {primaryErr.FilePath} (attempt {selfRepairAttempts}/{MaxSelfRepairTurns})");
+
+                await InoCodeOrchestrator.EmitProgressAsync(
+                    request,
+                    slice.SliceId,
+                    percent: 60 + (selfRepairAttempts * 10),
+                    phase: "self-repair",
+                    detail: repairDetail,
+                    progressSink,
+                    progressGate,
+                    onProgress).ConfigureAwait(false);
+
+                var diagnosticContext = await _orchestrator.BuildSelfRepairDiagnosticContextAsync(
+                    request.WorktreePath,
+                    errorDiags,
+                    ct).ConfigureAwait(false);
+                var repairPrompt = BuildSelfRepairPrompt(
+                    slicePrompt,
+                    slice,
+                    selfRepairAttempts,
+                    diagnosticContext);
+
+                var repairResult = await InvokeSliceWorkerAsync(
+                    request,
+                    slice,
+                    agentKey,
+                    repairPrompt,
+                    hydratedContext,
+                    activeCoder,
+                    ct).ConfigureAwait(false);
+
+                foreach (var repairedPath in repairResult.TouchedFiles)
+                {
+                    touchedSet.Add(repairedPath);
+                }
+
+                if (!string.IsNullOrWhiteSpace(repairResult.Summary))
+                {
+                    latestSummary = repairResult.Summary;
+                }
+
+                if (!string.IsNullOrWhiteSpace(repairResult.ModelId))
+                {
+                    latestModelId = repairResult.ModelId;
+                }
+
+                sliceDiags = await _orchestrator.GetSliceDiagnosticsAsync(
+                    request.WorktreePath,
+                    [.. touchedSet],
+                    slice.OwnedPaths,
+                    ct).ConfigureAwait(false);
+                errorDiags = sliceDiags
+                    .Where(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+            }
+
+            var sliceCsCount = touchedSet.Count(static f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+            var sliceErrorCount = errorDiags.Length;
 
             await InoCodeOrchestrator.EmitProgressAsync(
                 request,
                 slice.SliceId,
                 percent: 90,
                 phase: "diagnostics",
-                detail: $"[{agentKey}] Semantic check on {sliceCsFiles.Length} C# file(s): {sliceErrorCount} error(s)",
+                detail: $"[{agentKey}] Semantic check on {sliceCsCount} C# file(s): {sliceErrorCount} error(s)",
                 progressSink,
                 progressGate,
                 onProgress).ConfigureAwait(false);
 
             if (sliceErrorCount > 0)
             {
-                var err = sliceDiags.First(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase));
+                var err = errorDiags[0];
                 return new SliceExecutionOutcome(
                     Succeeded: false,
-                    UpdatedSlice: slice with { Status = "failed", Percent = 90, AssignedAgentKey = agentKey },
-                    TouchedFiles: [.. editResult.TouchedFiles],
-                    Summary: editResult.Summary,
-                    ModelId: editResult.ModelId,
+                    UpdatedSlice: slice with
+                    {
+                        Status = "failed",
+                        Percent = 90,
+                        AssignedAgentKey = agentKey,
+                        SelfRepairAttempts = selfRepairAttempts,
+                    },
+                    TouchedFiles: [.. touchedSet.Order(StringComparer.Ordinal)],
+                    Summary: latestSummary,
+                    ModelId: latestModelId,
                     SemanticErrorCount: sliceErrorCount,
                     FailureDetail: $"Roslyn error {err.Id} in {err.FilePath}:{err.Line}: {err.Message}");
             }
@@ -618,10 +664,16 @@ internal sealed class InoNativeHarness(
 
             return new SliceExecutionOutcome(
                 Succeeded: true,
-                UpdatedSlice: slice with { Status = "completed", Percent = 100, AssignedAgentKey = agentKey },
-                TouchedFiles: [.. editResult.TouchedFiles],
-                Summary: editResult.Summary,
-                ModelId: editResult.ModelId,
+                UpdatedSlice: slice with
+                {
+                    Status = "completed",
+                    Percent = 100,
+                    AssignedAgentKey = agentKey,
+                    SelfRepairAttempts = selfRepairAttempts,
+                },
+                TouchedFiles: [.. touchedSet.Order(StringComparer.Ordinal)],
+                Summary: latestSummary,
+                ModelId: latestModelId,
                 SemanticErrorCount: 0,
                 FailureDetail: null);
         }
@@ -630,13 +682,93 @@ internal sealed class InoNativeHarness(
             _logger.LogSwallowed(ex, $"InoNative slice '{slice.SliceId}' ({agentKey}) failed");
             return new SliceExecutionOutcome(
                 Succeeded: false,
-                UpdatedSlice: slice with { Status = "failed", AssignedAgentKey = agentKey },
+                UpdatedSlice: slice with
+                {
+                    Status = "failed",
+                    AssignedAgentKey = agentKey,
+                    SelfRepairAttempts = selfRepairAttempts,
+                },
                 TouchedFiles: [],
                 Summary: string.Empty,
                 ModelId: string.Empty,
                 SemanticErrorCount: 0,
                 FailureDetail: ex.Message);
         }
+    }
+
+    private async Task<CoderEditResult> InvokeSliceWorkerAsync(
+        EngineeringHarnessRequest request,
+        EngineerTaskSlice slice,
+        string agentKey,
+        string prompt,
+        string hydratedContext,
+        ICoder? activeCoder,
+        CancellationToken ct)
+    {
+        if (activeCoder is not null && activeCoder is not LocalLlmCoder)
+        {
+            var syntheticLease = BuildSyntheticSliceLease(request);
+            var result = await activeCoder.EditAsync(syntheticLease, prompt, ct).ConfigureAwait(false);
+            foreach (var touched in result.TouchedFiles)
+            {
+                InoCodeOrchestrator.EnsureWithinSliceOwnership(touched, slice.OwnedPaths);
+            }
+
+            return result;
+        }
+
+        if (CanResolveModelInference())
+        {
+            return await RunNativeSliceModelWorkerAsync(
+                request,
+                slice,
+                agentKey,
+                prompt,
+                hydratedContext,
+                ct).ConfigureAwait(false);
+        }
+
+        if (activeCoder is not null)
+        {
+            var syntheticLease = BuildSyntheticSliceLease(request);
+            var result = await activeCoder.EditAsync(syntheticLease, prompt, ct).ConfigureAwait(false);
+            foreach (var touched in result.TouchedFiles)
+            {
+                InoCodeOrchestrator.EnsureWithinSliceOwnership(touched, slice.OwnedPaths);
+            }
+
+            return result;
+        }
+
+        throw new InvalidOperationException("No IModelInference or ICoder is configured for InoNativeHarness slice execution.");
+    }
+
+    private static WorkTreeLease BuildSyntheticSliceLease(EngineeringHarnessRequest request)
+        => new(
+            RunId: request.RunId,
+            RepositoryId: request.RepositoryId,
+            SourceRepoPath: request.SourceRepositoryPath ?? request.WorktreePath,
+            TreePath: request.WorktreePath,
+            RealGitDirPath: request.WorktreePath,
+            GitPointerSha256Hex: new string('0', 64),
+            BaseBranch: request.BaseBranch ?? "main",
+            BaseCommitSha: new string('0', 40),
+            BranchName: $"ino/{request.RunId}",
+            LeaseId: request.WorktreeId,
+            InstanceIndex: request.InstanceIndex);
+
+    private static string BuildSelfRepairPrompt(
+        string originalSlicePrompt,
+        EngineerTaskSlice slice,
+        int attempt,
+        string diagnosticContext)
+    {
+        var ownedPathsNote = slice.OwnedPaths is { Length: > 0 }
+            ? $"Strictly confine repair edits to owned slice path(s): {string.Join(", ", slice.OwnedPaths)}."
+            : "Strictly confine repair edits within repository policy.";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{originalSlicePrompt}\n\n[Intra-Slice Roslyn Self-Repair — Attempt {attempt}/{MaxSelfRepairTurns}]\n{ownedPathsNote}\n{diagnosticContext}\nFix the reported C# compiler error(s) so semantic/syntax diagnostics reach 0 errors.");
     }
 
     private static string BuildSlicePrompt(
@@ -993,7 +1125,7 @@ internal sealed class InoNativeHarness(
         return null;
     }
 
-    private static ContextBriefSummary? SelectMatchingProjectBrief(
+    internal static ContextBriefSummary? SelectMatchingProjectBrief(
         IReadOnlyList<ContextBriefSummary>? briefs,
         string repositoryId,
         string goal)
@@ -1001,6 +1133,18 @@ internal sealed class InoNativeHarness(
         if (briefs is null || briefs.Count == 0)
         {
             return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(repositoryId))
+        {
+            var repoTag = $"repo:{repositoryId.Trim()}";
+            foreach (var brief in briefs)
+            {
+                if (string.Equals(brief.Key, repoTag, StringComparison.OrdinalIgnoreCase))
+                {
+                    return brief;
+                }
+            }
         }
 
         foreach (var brief in briefs)
@@ -1035,7 +1179,7 @@ internal sealed class InoNativeHarness(
         }
     }
 
-    private static string CollapseSingleLine(string text, int maxChars)
+    internal static string CollapseSingleLine(string text, int maxChars)
     {
         var single = text.Replace("\r\n", " ", StringComparison.Ordinal).Replace('\n', ' ').Trim();
         return single.Length <= maxChars ? single : single[..maxChars].TrimEnd() + "...";

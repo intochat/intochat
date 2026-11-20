@@ -33,8 +33,9 @@ public static class CreatorView
         Inspection inspection,
         IReadOnlyList<TraceHop>? timelineHops = null,
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
-        string transition = "")
-        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition));
+        string transition = "",
+        DigitalBrain.Units.DeployedSource[]? deployedUnits = null)
+        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition, deployedUnits));
 
     public static Node RenderNode(
         CreatorWorkspaceState state,
@@ -44,7 +45,8 @@ public static class CreatorView
         Inspection inspection,
         IReadOnlyList<TraceHop> timelineHops,
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
-        string transition = "")
+        string transition = "",
+        DigitalBrain.Units.DeployedSource[]? deployedUnits = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -54,8 +56,8 @@ public static class CreatorView
         ArgumentNullException.ThrowIfNull(timelineHops);
 
         var toolbar = TopToolbar(state, timelineHops);
-        var left = LeftPane(state, topology, flows, approvals, synapses);
-        var center = CenterPane(state, topology, inspection, timelineHops);
+        var left = LeftPane(state, topology, flows, approvals, synapses, deployedUnits);
+        var center = CenterPane(state, topology, inspection, timelineHops, flows);
         var right = CreatorInspector.Render(state, inspection, timelineHops, flows, approvals);
 
         return AppShell(
@@ -140,7 +142,8 @@ public static class CreatorView
         BrainTopology topology,
         FlowView[] flows,
         Approval[] approvals,
-        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
+        DigitalBrain.Units.DeployedSource[]? deployedUnits = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -179,14 +182,24 @@ public static class CreatorView
             children.Add(MutedText("No external apps installed."));
         }
 
-        // 2. Catalog Units (Clean vertical NavItems)
+        // 2. Catalog & Deployed Runtime Units (Clean vertical NavItems)
         var unitNodes = topology.Nodes
             .Where(n => n.Role == BrainGraph.Unit || (!n.Id.StartsWith("draft:", StringComparison.Ordinal) && !AppRef.TryParse(n.Id, out _)))
             .Take(16)
             .ToArray();
 
+        var knownAliases = new HashSet<string>(
+            unitNodes.Select(n => BrainGraph.AliasOf(n.Id) ?? n.Id),
+            StringComparer.Ordinal);
+
+        var extraDeployed = (deployedUnits ?? [])
+            .Select(u => (Unit: u, Alias: u.Aliases.FirstOrDefault() ?? u.SourceKey))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Alias) && knownAliases.Add(x.Alias))
+            .Take(16)
+            .ToArray();
+
         children.Add(SectionHeader("Units"));
-        if (unitNodes.Length > 0)
+        if (unitNodes.Length > 0 || extraDeployed.Length > 0)
         {
             foreach (var node in unitNodes)
             {
@@ -199,6 +212,22 @@ public static class CreatorView
                     action: BrainGraph.NodeKey(node.Id),
                     selected: isSelected,
                     emit: AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id))));
+            }
+
+            foreach (var (deployed, alias) in extraDeployed)
+            {
+                var synKey = $"{Selection.SynapsePrefix}{alias}";
+                var isSelected = state.Selected is { Kind: Selection.Node } sel
+                    && (string.Equals(sel.Id, synKey, StringComparison.Ordinal)
+                        || string.Equals(sel.Id, $"{Selection.SynapsePrefix}reaction:{alias}", StringComparison.Ordinal));
+                children.Add(NavItem(
+                    key: $"unit:{alias}",
+                    label: alias,
+                    icon: "cpu",
+                    action: synKey,
+                    selected: isSelected,
+                    badge: deployed.Status.ToString(),
+                    emit: AppSignals.Emit(App, "select", synKey)));
             }
         }
         else
@@ -252,18 +281,35 @@ public static class CreatorView
             children.Add(SectionHeader("Synapses"));
             foreach (var synapse in synapses.OrderBy(static s => s.Name, StringComparer.Ordinal).Take(8))
             {
+                var synTarget = $"{Selection.SynapsePrefix}{synapse.Id}";
                 if (synapse.Form == IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow)
                 {
                     children.Add(HStack(Space.Xs)[
                         Button($"Run {synapse.Name}", Icons.Play)
                             .Key($"synapse:{synapse.Id}")
                             .Small()
-                            .Emits(AppSignals.Emit(App, "start-workflow", synapse.Name))
+                            .Emits(AppSignals.Emit(App, "start-workflow", synapse.Name)),
+                        GhostButton("3D", "git-branch")
+                            .Key($"inspect:{synapse.Id}")
+                            .Small()
+                            .Emits(AppSignals.Emit(App, "select", synTarget))
                     ]);
                 }
                 else
                 {
-                    children.Add(MutedText(synapse.Name));
+                    var isSelectedSynapse = state.Selected is { Kind: Selection.Node } sel
+                        && (string.Equals(sel.Id, synTarget, StringComparison.Ordinal)
+                            || string.Equals(BrainGraph.AliasOf(sel.Id), synapse.Name, StringComparison.Ordinal));
+                    var badge = synapse.LastRun
+                        ?? (synapse.Runs > 0 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{synapse.Runs}x") : null);
+                    children.Add(NavItem(
+                        key: $"synapse:{synapse.Id}",
+                        label: $"{synapse.Name} · {synapse.Form}",
+                        icon: IconForSynapseForm(synapse.Form),
+                        action: synTarget,
+                        selected: isSelectedSynapse,
+                        badge: badge,
+                        emit: AppSignals.Emit(App, "select", synTarget)));
                 }
             }
         }
@@ -282,12 +328,15 @@ public static class CreatorView
         CreatorWorkspaceState state,
         BrainTopology topology,
         Inspection inspection,
-        IReadOnlyList<TraceHop> timelineHops)
+        IReadOnlyList<TraceHop> timelineHops,
+        FlowView[]? flows = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(inspection);
         ArgumentNullException.ThrowIfNull(timelineHops);
+
+        var effectiveFlows = flows ?? [.. topology.Flows];
 
         if (state.CanvasMode == "live")
         {
@@ -296,9 +345,14 @@ public static class CreatorView
 
         if (state.CanvasMode == "state" || state.ShowStateGraph)
         {
-            return state.Selected is { Kind: Selection.Node } && inspection.Alias is { } unitAlias && inspection.Files.Count > 0
-                ? CreatorStateSpaceInspector.RenderUnitStateScene(unitAlias, inspection.Files)
+            return CreatorStateSpaceInspector.HasInspectableUnitOrSynapse(state, inspection, effectiveFlows)
+                ? CreatorStateSpaceInspector.RenderInspectionScene(state, inspection, effectiveFlows)
                 : StateGraphView(CreatorStateSpaceInspector.CreatorGraph);
+        }
+
+        if (timelineHops.Count == 0 && CreatorStateSpaceInspector.ShouldProjectLiveSynapseScene(state, inspection, effectiveFlows))
+        {
+            return CreatorStateSpaceInspector.RenderInspectionScene(state, inspection, effectiveFlows);
         }
 
         var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null);
@@ -314,6 +368,15 @@ public static class CreatorView
         // Return BrainSceneNode directly so AppShellNode + NodeRenderer.fills stretches it to 100% window height!
         return graph;
     }
+
+    private static string IconForSynapseForm(IntoChat.OS.Modules.Apps.Synapses.SynapseForm form) => form switch
+    {
+        IntoChat.OS.Modules.Apps.Synapses.SynapseForm.App => Icons.LayoutGrid,
+        IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Flow => "workflow",
+        IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow => Icons.Play,
+        IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Agent => Icons.Sparkles,
+        _ => "cpu",
+    };
 
     public static Approval? Consent(FlowView flow, Approval[] approvals)
     {

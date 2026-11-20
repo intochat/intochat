@@ -37,8 +37,8 @@ public sealed class RepositoryLayoutFacts
         var allFiles = Directory.EnumerateFiles(Repository.Root, "*", SearchOption.AllDirectories)
             .Where(file =>
             {
-                var parts = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                return !parts.Any(p => p is ".git" or "bin" or "obj" or "artifacts" or "ephemeral");
+                var parts = Path.GetRelativePath(Repository.Root, file).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return !parts.Any(p => p is ".git" or ".claude" or "bin" or "obj" or "artifacts" or "ephemeral");
             })
             .ToList();
 

@@ -168,21 +168,28 @@ public sealed record OrleansAppState(
             rules.Add(ValidDashboardBaseRule(args.BaseUrl));
         }
 
-        var routeSection = !string.IsNullOrWhiteSpace(args.Section)
-            ? args.Section
-            : ExtractSectionFromRoute(args.Route, out _);
-        var effectiveGrainFilter = !string.IsNullOrWhiteSpace(args.GrainFilter)
-            ? args.GrainFilter
-            : (!string.IsNullOrWhiteSpace(args.Section) ? null : ExtractGrainFromRoute(args.Route));
+        string? routeSection = null;
+        string? effectiveGrainFilter = null;
 
-        if (!string.IsNullOrWhiteSpace(routeSection))
+        if (!string.IsNullOrWhiteSpace(args.Section))
         {
+            routeSection = args.Section;
             rules.Add(SupportedSectionRule(routeSection));
+            if (!string.IsNullOrWhiteSpace(args.GrainFilter))
+            {
+                effectiveGrainFilter = args.GrainFilter;
+                rules.Add(ValidGrainFilterRule(effectiveGrainFilter));
+            }
         }
-
-        if (!string.IsNullOrWhiteSpace(effectiveGrainFilter))
+        else if (!string.IsNullOrWhiteSpace(args.GrainFilter))
         {
+            routeSection = "grains";
+            effectiveGrainFilter = args.GrainFilter;
             rules.Add(ValidGrainFilterRule(effectiveGrainFilter));
+        }
+        else if (!string.IsNullOrWhiteSpace(args.Route))
+        {
+            ClassifyRouteOrInput(args.Route, out routeSection, out effectiveGrainFilter, rules);
         }
 
         if (rules.Count > 0 && Decision.Check("navigate-to", [.. rules]) is { } refused)
@@ -196,13 +203,15 @@ public sealed record OrleansAppState(
             nextBase = parsedBase!;
         }
 
-        var nextSection = !string.IsNullOrWhiteSpace(effectiveGrainFilter)
+        var nextSection = !string.IsNullOrWhiteSpace(effectiveGrainFilter) && string.IsNullOrWhiteSpace(args.Section)
             ? "grains"
             : (!string.IsNullOrWhiteSpace(routeSection) ? ResolveCanonicalSection(routeSection)! : Section);
 
-        var nextFilter = !string.IsNullOrWhiteSpace(effectiveGrainFilter)
-            ? effectiveGrainFilter!.Trim()
-            : (string.Equals(nextSection, "grains", StringComparison.Ordinal) && string.IsNullOrWhiteSpace(routeSection) ? GrainFilter : null);
+        var nextFilter = string.Equals(nextSection, "grains", StringComparison.Ordinal)
+            ? (!string.IsNullOrWhiteSpace(effectiveGrainFilter)
+                ? effectiveGrainFilter!.Trim()
+                : (string.IsNullOrWhiteSpace(routeSection) ? GrainFilter : null))
+            : null;
 
         var detail = nextFilter is not null ? $"Grains ({nextFilter})" : FormatSectionLabel(nextSection);
         return Decision.Accept(this with
@@ -318,46 +327,68 @@ public sealed record OrleansAppState(
     private static string NormalizeDashboardBaseOrFallback(string? raw)
         => TryNormalizeDashboardBase(raw, out var normalized) ? normalized! : DefaultDashboardBase;
 
-    private static string? ExtractSectionFromRoute(string? route, out string? grainFilter)
+    private static void ClassifyRouteOrInput(
+        string rawRoute,
+        out string? routeSection,
+        out string? effectiveGrainFilter,
+        List<Rule> rules)
     {
-        grainFilter = null;
-        if (string.IsNullOrWhiteSpace(route))
+        routeSection = null;
+        effectiveGrainFilter = null;
+
+        var clean = rawRoute.Trim();
+        if (clean.Length == 0)
         {
-            return null;
+            return;
         }
 
-        var clean = route.Trim();
         var hashIdx = clean.IndexOf('#', StringComparison.Ordinal);
         if (hashIdx >= 0)
         {
             clean = clean[(hashIdx + 1)..];
         }
-        else if (clean.StartsWith("/orleans", StringComparison.OrdinalIgnoreCase))
+        else if (clean.StartsWith("/orleans/", StringComparison.OrdinalIgnoreCase))
         {
-            clean = clean["/orleans".Length..];
+            clean = clean["/orleans/".Length..];
+        }
+        else if (string.Equals(clean, "/orleans", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = string.Empty;
         }
 
-        clean = clean.Trim('/');
+        if (clean.StartsWith('/'))
+        {
+            clean = clean[1..];
+        }
+
+        if (clean.EndsWith('/'))
+        {
+            clean = clean[..^1];
+        }
+
         if (clean.Length == 0)
         {
-            return null;
+            return;
+        }
+
+        if (ResolveCanonicalSection(clean) is { } canonical)
+        {
+            routeSection = canonical;
+            return;
         }
 
         const string grainsPrefix = "grains/";
         if (clean.StartsWith(grainsPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            grainFilter = clean[grainsPrefix.Length..].Trim('/');
-            return "grains";
+            routeSection = "grains";
+            effectiveGrainFilter = clean[grainsPrefix.Length..].Trim('/');
+            rules.Add(ValidGrainFilterRule(effectiveGrainFilter));
+            return;
         }
 
-        var slash = clean.IndexOf('/', StringComparison.Ordinal);
-        return slash > 0 ? clean[..slash] : clean;
-    }
-
-    private static string? ExtractGrainFromRoute(string? route)
-    {
-        _ = ExtractSectionFromRoute(route, out var grainFilter);
-        return grainFilter;
+        routeSection = "grains";
+        effectiveGrainFilter = clean;
+        rules.Add(ValidGrainFilterRule(effectiveGrainFilter));
     }
 
     public override string ToString()

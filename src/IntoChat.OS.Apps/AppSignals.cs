@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.UI;
+using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps;
 
@@ -66,4 +67,27 @@ public static class AppSignals
     // Opens the app's window; the first argument is handed to it as its open input (an app's view).
     public static Intent OpenApp(string app, string? input = null)
         => Open($"os://window/open?app={app}" + (string.IsNullOrEmpty(input) ? "" : $"&input={Uri.EscapeDataString(input)}"));
+
+    // Opens the app's window with strongly-typed arrival arguments and transition metadata for INavigatedTo<TArgs>.
+    public static Intent OpenApp<TArgs>(
+        string app,
+        TArgs args,
+        string transition = ViewTransition.FadeThrough,
+        string? fromNeuron = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(app);
+        var json = args is null
+            ? "{}"
+            : StripNullProperties(DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args, typeof(TArgs))).GetRawText();
+        var normalizedTransition = string.IsNullOrWhiteSpace(transition)
+            ? ViewTransition.FadeThrough
+            : ViewTransition.Normalize(transition);
+        var uri = $"os://window/open?app={app}&args={Uri.EscapeDataString(json)}&transition={Uri.EscapeDataString(normalizedTransition)}";
+        if (!string.IsNullOrWhiteSpace(fromNeuron))
+        {
+            uri += $"&from={Uri.EscapeDataString(fromNeuron.Trim())}";
+        }
+
+        return Open(uri);
+    }
 }

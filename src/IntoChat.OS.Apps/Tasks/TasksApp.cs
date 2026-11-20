@@ -9,7 +9,9 @@ and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, 
 */
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Catalog;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
@@ -21,6 +23,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Fields;
+using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.CommandBar.Signals;
 using IntoChat.OS.Modules.UI.KanbanBoard;
@@ -41,7 +44,16 @@ using static IntoChat.OS.UI.Kit;
 namespace IntoChat.OS.Apps.Tasks;
 
 [Signal("tasks.open")]
-public sealed record TasksOpen : Signal;
+public sealed record TasksOpen(string? Input = null, string? FlowId = null, string? View = null) : Signal;
+
+public sealed record PendingIssueTriageDraft(
+    string ConnectionKey,
+    string Repository,
+    string PreviewId,
+    int IssueNumber,
+    string Body,
+    string[] SuggestedLabels,
+    DateTimeOffset ExpiresAt);
 
 [Signal("tasks.view")]
 public sealed record TasksView(string? View = null) : Signal;
@@ -84,7 +96,7 @@ public sealed record TasksClearDone : Signal;
 
 [Neuron("app.tasks")]
 [Screen("app.tasks", Title = "Tasks", Icon = "tasks")]
-public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
+public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INavigatedTo<TasksNavArgs>, INavigatedFrom
 {
     public const string AppName = "tasks";
     public const string AppOwner = "app.tasks";
@@ -105,6 +117,8 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
 
     private FlowView[] _flows = [];
     private Approval[] _approvals = [];
+    private ConfirmationRequested[] _confirmations = [];
+    private PendingIssueTriageDraft[] _issueDrafts = [];
     private int _lastSyncedKanbanVersion;
     private int _lastSyncedStepperVersion;
     private int _lastSyncedTabsVersion;
@@ -165,7 +179,31 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
     public View RenderSide() => RenderSideCore(State, _flows, _approvals, State.Source);
 
     protected override Node Render(TasksWorkspaceState state)
-        => RenderRootCore(state, LastRejection, _flows, _approvals, NowUtc());
+        => RenderRootCore(state, LastRejection, _flows, _approvals, _confirmations, _issueDrafts, NowUtc(), ActiveTransition);
+
+    public async Task OnNavigatedTo(NavigationArrival<TasksNavArgs> arrival, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arrival);
+        var next = State.ApplyArrival(arrival.Args);
+        if (next != State)
+        {
+            await Show(next);
+        }
+
+        await RefreshFlowsAndSyncAsync();
+    }
+
+    public Rule CanNavigateFrom(NavigationDeparture departure)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return State.CanDepart(departure.Force);
+    }
+
+    public Task OnNavigatedFrom(NavigationDeparture departure, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
@@ -185,10 +223,16 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
     // ── App Operations ([On] Signals) ────────────────────────────────────────
 
     [On]
-    public Task Open(TasksOpen request)
+    public async Task Open(TasksOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return RefreshFlowsAndSyncAsync();
+        var next = State.ApplyOpen(request.Input, request.FlowId, request.View);
+        if (next != State)
+        {
+            await Show(next);
+        }
+
+        await RefreshFlowsAndSyncAsync();
     }
 
     [On]
@@ -396,6 +440,21 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
 
     public Task AskInoCommand(string flowId) => AskIno(new TasksAskIno(flowId));
 
+    public Task ClearFilterCommand() => Filter(new TasksFilter());
+
+    public Task ToggleStatusFilterCommand(string status)
+    {
+        var current = State.Query.Status?.ToString();
+        var nextStatus = string.Equals(current, status, StringComparison.OrdinalIgnoreCase) ? null : status;
+        return Filter(new TasksFilter(Owner: State.Query.Owner, Status: nextStatus, Type: State.Query.Type));
+    }
+
+    public Task ToggleOwnerFilterCommand(string owner)
+    {
+        var nextOwner = string.Equals(State.Query.Owner, owner, StringComparison.Ordinal) ? null : owner;
+        return Filter(new TasksFilter(Owner: nextOwner, Status: State.Query.Status?.ToString(), Type: State.Query.Type));
+    }
+
     public async Task OnField(string field, FieldChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
@@ -580,9 +639,100 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
             _logger.LogSwallowed(error, "Approvals are optional when the inbox is not reachable.");
         }
 
+        _confirmations = await TryReadConfirmationsAsync();
+        _issueDrafts = await TryReadGitHubIssueDraftsAsync();
+
         var synced = State.SyncLiveFlows(_flows);
         await Show(synced with { Status = synced.Status });
         await SyncUiNeuronsAsync();
+    }
+
+    private async Task<ConfirmationRequested[]> TryReadConfirmationsAsync()
+    {
+        try
+        {
+            var inboxId = new NeuronId(Id.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey);
+            var inbox = await Context.Get<IConfirmationInbox>(inboxId).Read();
+            var now = NowUtc();
+            return [.. inbox.Pending.Where(p => p.ExpiresAt > now)];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogDebug(error, "Confirmations inbox is optional in minimal TasksApp hosts.");
+            return [];
+        }
+    }
+
+    private async Task<PendingIssueTriageDraft[]> TryReadGitHubIssueDraftsAsync()
+    {
+        List<string> connectionKeys = [];
+        BrainId brain;
+        try
+        {
+            brain = Id.Brain;
+        }
+        catch (InvalidOperationException error)
+        {
+            _logger.LogDebug(error, "TasksApp brain id is unavailable outside neuron activation.");
+            return [];
+        }
+
+        try
+        {
+            var catalog = await Context.Get<IConnectionCatalog>(new NeuronId(brain, IConnectionCatalog.TypeName, "main")).Read();
+            foreach (var row in catalog.Rows.Where(static r => string.Equals(r.ConnectorId, "github", StringComparison.Ordinal)))
+            {
+                if (!string.IsNullOrWhiteSpace(row.ConnectionId))
+                {
+                    connectionKeys.Add(string.Concat("connection/github/", Uri.EscapeDataString(row.ConnectionId)));
+                }
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogDebug(error, "Connection catalog is optional when probing GitHub triage drafts.");
+        }
+
+        if (!connectionKeys.Contains("connection/github/main", StringComparer.Ordinal))
+        {
+            connectionKeys.Add("connection/github/main");
+        }
+
+        var now = NowUtc();
+        var results = new List<PendingIssueTriageDraft>();
+        var seenPreviews = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var connKey in connectionKeys.Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                var repo = Context.Get<IRepository>(new NeuronId(brain, "github", connKey));
+                var drafts = await repo.ReadPendingIssueDrafts();
+                foreach (var draft in drafts)
+                {
+                    if (draft.ExpiresAt <= now || !seenPreviews.Add(draft.PreviewId))
+                    {
+                        continue;
+                    }
+
+                    var repoLabel = !string.IsNullOrWhiteSpace(draft.Repository) ? draft.Repository : connKey;
+                    results.Add(new PendingIssueTriageDraft(
+                        connKey,
+                        repoLabel,
+                        draft.PreviewId,
+                        draft.IssueNumber,
+                        draft.Body,
+                        draft.SuggestedLabels ?? [],
+                        draft.ExpiresAt));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogDebug(error, "GitHub connection {ConnectionKey} has no pending issue triage drafts or is unhosted.", connKey);
+            }
+        }
+
+        return [.. results];
     }
 
     private async Task SyncUiNeuronsAsync(
@@ -609,14 +759,15 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
             if (!skipTabsConfigure && TryGetOptional<ITabs>(TabsKey) is { } tabs)
             {
                 var currentTabs = await tabs.Read();
-                if (currentTabs.Version == 0 || !string.Equals(currentTabs.SelectedId, state.ActiveTab, StringComparison.Ordinal))
+                var targetUiTab = TasksWorkspaceState.UiTabId(state.ActiveTab);
+                if (currentTabs.Version == 0 || !string.Equals(currentTabs.SelectedId, targetUiTab, StringComparison.Ordinal))
                 {
                     var tabsState = await tabs.Configure(
                     [
                         new UiTabItem("board", "Board"),
-                        new UiTabItem("list", "List"),
-                        new UiTabItem("details", "Details"),
-                    ], state.ActiveTab);
+                        new UiTabItem("table", "Table"),
+                        new UiTabItem("approvals", "Approvals"),
+                    ], targetUiTab);
                     _lastSyncedTabsVersion = Math.Max(_lastSyncedTabsVersion, tabsState.Version);
                 }
             }
@@ -783,26 +934,176 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
         Rejected? lastRejection,
         FlowView[] liveFlows,
         Approval[] approvals,
-        DateTimeOffset now)
+        ConfirmationRequested[] confirmations,
+        PendingIssueTriageDraft[] issueDrafts,
+        DateTimeOffset now,
+        string transition = "")
     {
         var visible = state.FilteredTasks(liveFlows);
         var activeTab = TasksWorkspaceState.NormalizeTab(state.ActiveTab);
 
-        var statusPill = approvals.Length > 0
-            ? StatusPill(StatusKind.NeedsYou, string.Create(CultureInfo.InvariantCulture, $"{approvals.Length} Approval(s)"))
-            : StatusPill(StatusKind.Done, string.Create(CultureInfo.InvariantCulture, $"{visible.Length} Task(s)"));
+        var toolbar = RenderTopBar(state, approvals, issueDrafts);
+        var sidebar = RenderSidebar(state, visible, liveFlows, approvals);
+        var inspector = RenderRightInspector(state, liveFlows, approvals, confirmations, issueDrafts);
 
-        var toolbar = VStack(Space.Xs)[
-            HeaderBar(
-                "Tasks",
-                "Kanban board, lifecycle stepper, and live brain flow orchestration",
-                statusPill,
-                PrimaryButton("Add Task", Icons.Plus)
-                    .Key("tasks:add")
+        var body = activeTab switch
+        {
+            "table" or "list" => RenderFullBleedStage(UiNeuron("ui.table", TableKey), lastRejection),
+            "approvals" or "details" => RenderApprovalsAndDetailsTab(state, lastRejection, liveFlows, approvals, confirmations, issueDrafts, now),
+            _ => RenderFullBleedStage(UiNeuron("ui.kanban", KanbanKey), lastRejection),
+        };
+
+        return BindOwner(
+            AppShell(
+                key: "tasks-shell",
+                sidebar: sidebar,
+                body: body,
+                toolbar: toolbar,
+                inspector: inspector,
+                automationName: "Tasks Studio",
+                transition: transition),
+            AppOwner);
+    }
+
+    private static Node RenderTopBar(
+        TasksWorkspaceState state,
+        Approval[] approvals,
+        PendingIssueTriageDraft[] issueDrafts)
+    {
+        var isAllFilter = state.Query.Status is null && string.IsNullOrWhiteSpace(state.Query.Owner);
+        var isRunningFilter = state.Query.Status == FlowStatus.Running;
+        var isWaitingFilter = state.Query.Status == FlowStatus.Waiting;
+        var isInoOwner = string.Equals(state.Query.Owner, "ino", StringComparison.Ordinal);
+        var pendingGates = approvals.Length + issueDrafts.Length;
+
+        List<Node?> items =
+        [
+            UiNeuron("ui.tabs", TabsKey),
+            (isAllFilter ? PrimaryButton("All") : GhostButton("All"))
+                .Key("tasks:filter:all")
+                .Small()
+                .OnClickAsync<TasksApp>(app => app.ClearFilterCommand()),
+            (isRunningFilter ? PrimaryButton("Active") : GhostButton("Active"))
+                .Key("tasks:filter:running")
+                .Small()
+                .OnClickAsync<TasksApp>(app => app.ToggleStatusFilterCommand("Running")),
+            (isWaitingFilter ? PrimaryButton("Review") : GhostButton("Review"))
+                .Key("tasks:filter:waiting")
+                .Small()
+                .OnClickAsync<TasksApp>(app => app.ToggleStatusFilterCommand("Waiting")),
+            (isInoOwner ? PrimaryButton("Owner: ino") : GhostButton("Owner: ino"))
+                .Key("tasks:filter:ino")
+                .Small()
+                .OnClickAsync<TasksApp>(app => app.ToggleOwnerFilterCommand("ino")),
+            pendingGates > 0
+                ? StatusPill(StatusKind.NeedsYou, string.Create(CultureInfo.InvariantCulture, $"{pendingGates} Gate(s)"))
+                : null,
+            FlexSpacer(),
+            PrimaryButton("New Task", Icons.Plus)
+                .Key("tasks:add")
+                .Small()
+                .Guard(state.BoardHasCapacity())
+                .OnClickAsync<TasksApp>(app => app.AddTaskCommand()),
+            new Button("tasks:open-engineer", "Engineer ↗", Intent: AppSignals.OpenApp("engineer", state.SelectedFlowId))
+            {
+                Small = true,
+                Icon = Icons.Sparkles,
+                AutomationName = "Open Engineer",
+            },
+            new Button("tasks:open-creator", "Creator ↗", Intent: AppSignals.OpenApp("creator", state.SelectedFlowId))
+            {
+                Small = true,
+                Icon = "git-branch",
+                AutomationName = "Open Creator",
+            },
+        ];
+
+        return HStack(Space.Xs, [.. items]);
+    }
+
+    private static Node RenderFullBleedStage(Node stageNeuron, Rejected? lastRejection)
+    {
+        if (lastRejection is not null)
+        {
+            return new Column(
+            [
+                Banner("Domain rule refused command", string.Join(" ", lastRejection.Messages), tone: "error"),
+                stageNeuron,
+            ])
+            {
+                Gap = Space.Xs,
+                Extents = [0, 1.0],
+            };
+        }
+
+        return new Column([stageNeuron])
+        {
+            Gap = 0,
+            Extents = [1.0],
+        };
+    }
+
+    private static Node RenderSidebar(
+        TasksWorkspaceState state,
+        TaskWorkItem[] visible,
+        FlowView[] liveFlows,
+        Approval[] approvals)
+    {
+        var startEmit = AppSignals.Emit(AppName, "new", state.Draft.Title, state.Draft.Description);
+        var statusLine = approvals.Length == 0
+            ? state.Status
+            : string.Create(CultureInfo.InvariantCulture, $"{state.Status} · {approvals.Length} pending approval(s)");
+
+        List<Node?> children =
+        [
+            SectionHeader("Quick Task", string.Create(CultureInfo.InvariantCulture, $"{visible.Length} visible")),
+            TextField(FieldKey("title"), "Title").Key("title"),
+            TextField(FieldKey("description"), "Description").Key("description").Emits(startEmit),
+            PrimaryButton("Start", Icons.Plus).Key("start").Small().Emits(startEmit),
+        ];
+
+        if (liveFlows.Length > 0)
+        {
+            children.Add(SectionHeader(
+                "Live Flows",
+                approvals.Length > 0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{liveFlows.Length} flow(s) · {approvals.Length} approval(s)")
+                    : string.Create(CultureInfo.InvariantCulture, $"{liveFlows.Length} active")));
+            foreach (var flow in liveFlows)
+            {
+                children.Add(Button(flow.Title, "activity")
+                    .Key($"open:{flow.FlowId}")
                     .Small()
-                    .Guard(state.BoardHasCapacity())
-                    .OnClickAsync<TasksApp>(app => app.AddTaskCommand()),
-                Button("Advance Stage", "arrow-right")
+                    .OnClickAsync<TasksApp>(app => app.SelectFlowCommand(flow.FlowId))
+                    .ToNode());
+            }
+        }
+
+        children.Add(MutedText(statusLine));
+        return VStack(Space.Sm, [.. children]);
+    }
+
+    private static Node RenderRightInspector(
+        TasksWorkspaceState state,
+        FlowView[] liveFlows,
+        Approval[] approvals,
+        ConfirmationRequested[] confirmations,
+        PendingIssueTriageDraft[] issueDrafts)
+    {
+        var selectedTask = state.SelectedTask;
+        var targetFlowId = state.SelectedFlowId;
+        var matchingFlow = targetFlowId is { Length: > 0 } fid
+            ? liveFlows.FirstOrDefault(f => string.Equals(f.FlowId, fid, StringComparison.Ordinal))
+            : null;
+
+        List<Node?> children =
+        [
+            SectionHeader(
+                "Inspector",
+                selectedTask?.Title ?? matchingFlow?.Title ?? "Select a task or flow"),
+            UiNeuron("ui.stepper", StepperKey),
+            HStack(Space.Xs)[
+                Button("Advance", "arrow-right")
                     .Key("tasks:advance")
                     .Small()
                     .Guard(state.CanAdvanceSelectedTask())
@@ -816,132 +1117,211 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
                     .Key("tasks:clear-done")
                     .Small()
                     .Guard(state.HasCompletedTasks())
-                    .OnClickAsync<TasksApp>(app => app.ClearDoneCommand())),
-            UiNeuron("ui.command-bar", CommandBarKey),
-            UiNeuron("ui.stepper", StepperKey)
+                    .OnClickAsync<TasksApp>(app => app.ClearDoneCommand())
+            ],
         ];
 
-        var sidebar = RenderSidebar(state, visible, liveFlows, approvals);
-
-        var statusLine = approvals.Length == 0
-            ? state.Status
-            : string.Create(CultureInfo.InvariantCulture, $"{state.Status} · {approvals.Length} pending approval(s)");
-
-        var body = VStack(Space.Md)[
-            lastRejection is not null
-                ? Banner("Domain rule refused command", string.Join(" ", lastRejection.Messages), tone: "error")
-                : null,
-            MutedText(statusLine),
-            UiNeuron("ui.tabs", TabsKey),
-            activeTab switch
+        if (selectedTask is not null)
+        {
+            children.Add(HStack(Space.Xs)[
+                StatusPill(StageStatusKind(selectedTask.Stage), TasksWorkspaceState.StageTitle(selectedTask.Stage)),
+                StatusPill(StatusKind.Idle, $"Owner: {selectedTask.Owner}"),
+                StatusPill(StatusKind.Idle, selectedTask.Tag)
+            ]);
+            if (!string.IsNullOrWhiteSpace(selectedTask.Description))
             {
-                "list" => RenderListTab(),
-                "details" => RenderDetailsTab(state, liveFlows, approvals, now),
-                _ => RenderBoardTab(state),
+                children.Add(MutedText(selectedTask.Description));
             }
-        ];
-
-        return BindOwner(
-            new AppShellNode(
-                Key: "tasks-shell",
-                Sidebar: sidebar,
-                Body: body,
-                Toolbar: toolbar),
-            AppOwner);
-    }
-
-    private static Node RenderSidebar(
-        TasksWorkspaceState state,
-        TaskWorkItem[] visible,
-        FlowView[] liveFlows,
-        Approval[] approvals)
-    {
-        var backlogCount = visible.Count(static t => t.Stage == "backlog");
-        var progressCount = visible.Count(static t => t.Stage == "in-progress");
-        var reviewCount = visible.Count(static t => t.Stage == "review");
-        var doneCount = visible.Count(static t => t.Stage == "done");
-
-        var startEmit = AppSignals.Emit(AppName, "new", state.Draft.Title, state.Draft.Description);
-
-        List<Node?> children =
-        [
-            Surface(SurfaceKind.Subtle, "Stage Summary", string.Create(CultureInfo.InvariantCulture, $"{visible.Length} visible item(s)"))[
-                VStack(Space.Xs)[
-                    HStack(Space.Xs)[
-                        StatusPill(StatusKind.Idle, string.Create(CultureInfo.InvariantCulture, $"Backlog {backlogCount}")),
-                        StatusPill(StatusKind.Working, string.Create(CultureInfo.InvariantCulture, $"Active {progressCount}"))
-                    ],
-                    HStack(Space.Xs)[
-                        StatusPill(StatusKind.NeedsYou, string.Create(CultureInfo.InvariantCulture, $"Review {reviewCount}")),
-                        StatusPill(StatusKind.Done, string.Create(CultureInfo.InvariantCulture, $"Done {doneCount}"))
-                    ]
-                ]
-            ],
-            Card("New task", "Start a plan flow or add a workspace task.")[
-                TextField(FieldKey("title"), "Title").Key("title"),
-                TextField(FieldKey("description"), "Description").Key("description").Emits(startEmit),
-                PrimaryButton("Start", Icons.Plus).Key("start").Small().Emits(startEmit)
-            ],
-        ];
-
-        if (state.SelectedTask is { } selected)
-        {
-            children.Add(Surface(
-                SurfaceKind.Elevated,
-                selected.Title,
-                $"Stage: {TasksWorkspaceState.StageTitle(selected.Stage)} · Owner: {selected.Owner}")[
-                VStack(Space.Xs)[
-                    !string.IsNullOrWhiteSpace(selected.Description)
-                        ? MutedText(selected.Description)
-                        : MutedText("Use the Stepper or Kanban board to transition stages."),
-                    state.Source is { Length: > 0 } src
-                        ? Card("Source", src).ToNode()
-                        : null
-                ]
-            ]);
         }
 
-        if (liveFlows.Length > 0)
+        if (matchingFlow is not null)
         {
-            var flowButtons = liveFlows.Select(flow =>
-                Button(flow.Title, "activity")
-                    .Key($"open:{flow.FlowId}")
+            children.Add(SectionHeader("Flow Stages", matchingFlow.Status.ToString()));
+            children.Add(new JobCardNode(
+                matchingFlow.Title,
+                [.. matchingFlow.Steps.Select(step => StepNode(matchingFlow, step))],
+                matchingFlow.Fraction,
+                matchingFlow.Status.ToString().ToLowerInvariant()));
+
+            List<Node?> flowActions =
+            [
+                new Button("inspector:open-trace", "Open trace", Intent: OpenTrace(matchingFlow.TraceId))
+                {
+                    Small = true,
+                    Icon = "activity",
+                    AutomationName = "Open trace",
+                },
+            ];
+
+            if (matchingFlow.Type == BuildFlow.Alias)
+            {
+                flowActions.Add(Button("Source", "code")
+                    .Key("inspector:show-source")
                     .Small()
-                    .OnClickAsync<TasksApp>(app => app.SelectFlowCommand(flow.FlowId))
-                    .ToNode()).ToArray();
+                    .OnClickAsync<TasksApp>(app => app.ShowSourceCommand(matchingFlow.FlowId)));
+                flowActions.Add(Button("Ask Ino", Icons.Sparkles)
+                    .Key("inspector:ask-ino")
+                    .Small()
+                    .OnClickAsync<TasksApp>(app => app.AskInoCommand(matchingFlow.FlowId)));
+            }
 
-            children.Add(Surface(
-                SurfaceKind.Subtle,
-                "Live Brain Flows",
-                approvals.Length > 0
-                    ? string.Create(CultureInfo.InvariantCulture, $"{liveFlows.Length} flow(s) · {approvals.Length} approval(s)")
-                    : string.Create(CultureInfo.InvariantCulture, $"{liveFlows.Length} active or recent flow(s)"))[
-                VStack(Space.Xs, flowButtons)
-            ]);
+            children.Add(HStack(Space.Xs, [.. flowActions]));
         }
 
-        return VStack(Space.Md, [.. children]);
+        if (state.Source is { Length: > 0 } src)
+        {
+            children.Add(CodeBlock("Unit Source", src, maxHeight: 220));
+        }
+
+        // SHA-Bound & Person-Gated Confirmations (IConfirmation)
+        children.Add(SectionHeader(
+            "Confirmations (Person Gate)",
+            "Human Person confirmation required for SHA-bound & destructive gates"));
+        if (confirmations.Length > 0 || approvals.Length > 0)
+        {
+            foreach (var conf in confirmations)
+            {
+                var sha = ExtractBoundSha(conf.PlanId, conf.Plan.TargetLabel, conf.Plan.Body);
+                var shaBadge = sha is not null ? $"SHA {sha[..Math.Min(8, sha.Length)]}" : "Person Gate";
+                var isFocused = string.Equals(state.FocusedConfirmationId, conf.PlanId, StringComparison.Ordinal);
+                children.Add(HStack(Space.Xs)[
+                    StatusPill(isFocused ? StatusKind.Working : StatusKind.NeedsYou, shaBadge),
+                    MutedText(conf.Plan.RequiresPerson ? "Person-only rule enforced" : $"Plan: {conf.PlanId}")
+                ]);
+                var visual = VisualCatalog.ForApproval(conf.Plan.TargetLabel);
+                children.Add(new ApprovalCardNode(
+                    $"inspector:confirm:{conf.PlanId}",
+                    conf.PlanId,
+                    conf.Plan.Title,
+                    conf.Plan.Body,
+                    sha is not null ? [new ApprovalRowNode("Bound SHA", "HEAD", sha)] : [],
+                    Icon: visual.IconKey,
+                    CapabilityLabel: visual.Label));
+            }
+
+            var coveredPlans = confirmations.Select(static c => c.PlanId).ToHashSet(StringComparer.Ordinal);
+            foreach (var apprv in approvals.Where(a => !coveredPlans.Contains(a.PlanId)))
+            {
+                var sha = ExtractBoundSha(apprv.PlanId, apprv.Subject, apprv.Detail);
+                var visual = VisualCatalog.ForApproval(apprv.Subject);
+                children.Add(new ApprovalCardNode(
+                    $"inspector:approval:{apprv.PlanId}",
+                    apprv.PlanId,
+                    apprv.Title,
+                    apprv.Detail,
+                    sha is not null ? [new ApprovalRowNode("Bound SHA", "HEAD", sha)] : [],
+                    Icon: visual.IconKey,
+                    CapabilityLabel: visual.Label));
+            }
+        }
+        else
+        {
+            children.Add(MutedText("No pending SHA-bound confirmations. Only a signed-in human Person may resolve confirmation gates."));
+        }
+
+        // Pending GitHub Issue Triage Comment Drafts ({brain}/connection/github/*)
+        children.Add(SectionHeader(
+            "GitHub Issue Triage Drafts",
+            issueDrafts.Length > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"{issueDrafts.Length} DraftForApproval preview(s)")
+                : "Synced from connection/github/*"));
+        if (issueDrafts.Length > 0)
+        {
+            foreach (var draft in issueDrafts)
+            {
+                var labelsNote = draft.SuggestedLabels.Length > 0
+                    ? $"Labels: {string.Join(", ", draft.SuggestedLabels)}"
+                    : "Triage comment preview";
+                children.Add(DraftCard(
+                    id: draft.PreviewId,
+                    channel: "GitHub Issue",
+                    to: string.Create(CultureInfo.InvariantCulture, $"{draft.Repository} #{draft.IssueNumber}"),
+                    body: draft.Body,
+                    from: draft.ConnectionKey,
+                    subject: labelsNote,
+                    status: string.Equals(state.FocusedDraftPreviewId, draft.PreviewId, StringComparison.Ordinal) ? "focused" : "pending"));
+            }
+        }
+        else
+        {
+            children.Add(MutedText("No pending GitHub issue triage comment drafts."));
+        }
+
+        return VStack(Space.Sm, [.. children]);
     }
 
-    private static Node RenderBoardTab(TasksWorkspaceState state) => VStack(Space.Md)[
-        Card("Kanban Delivery Board", $"Selected: {state.SelectedTask?.Title ?? "None"} · Drag or move cards across Backlog, In Progress, Review, and Done")[
-            UiNeuron("ui.kanban", KanbanKey)
-        ]
-    ];
-
-    private static Node RenderListTab() => VStack(Space.Md)[
-        Card("Sortable Task & Flow Table", "Click any row to focus it in the lifecycle stepper and inspector")[
-            UiNeuron("ui.table", TableKey)
-        ]
-    ];
-
-    private static Node RenderDetailsTab(
+    private static Node RenderApprovalsAndDetailsTab(
         TasksWorkspaceState state,
+        Rejected? lastRejection,
         FlowView[] liveFlows,
         Approval[] approvals,
+        ConfirmationRequested[] confirmations,
+        PendingIssueTriageDraft[] issueDrafts,
         DateTimeOffset now)
     {
         List<Node?> sections = [];
+
+        if (lastRejection is not null)
+        {
+            sections.Add(Banner("Domain rule refused command", string.Join(" ", lastRejection.Messages), tone: "error"));
+        }
+
+        sections.Add(Banner(
+            "Human Person Confirmation Rules",
+            "SHA-bound PR approvals, synapse capability installs, and DraftForApproval GitHub issue comments require an authenticated human Person.",
+            tone: "neutral"));
+
+        if (confirmations.Length > 0 || approvals.Length > 0)
+        {
+            List<Node?> gateCards = [];
+            var coveredPlans = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var conf in confirmations)
+            {
+                coveredPlans.Add(conf.PlanId);
+                var sha = ExtractBoundSha(conf.PlanId, conf.Plan.TargetLabel, conf.Plan.Body);
+                var visual = VisualCatalog.ForApproval(conf.Plan.TargetLabel);
+                gateCards.Add(new ApprovalCardNode(
+                    $"tab:confirm:{conf.PlanId}",
+                    conf.PlanId,
+                    conf.Plan.Title,
+                    conf.Plan.Body,
+                    sha is not null ? [new ApprovalRowNode("Bound SHA", "HEAD", sha)] : [],
+                    Icon: visual.IconKey,
+                    CapabilityLabel: visual.Label));
+            }
+
+            foreach (var apprv in approvals.Where(a => !coveredPlans.Contains(a.PlanId)))
+            {
+                var sha = ExtractBoundSha(apprv.PlanId, apprv.Subject, apprv.Detail);
+                var visual = VisualCatalog.ForApproval(apprv.Subject);
+                gateCards.Add(new ApprovalCardNode(
+                    $"tab:approval:{apprv.PlanId}",
+                    apprv.PlanId,
+                    apprv.Title,
+                    apprv.Detail,
+                    sha is not null ? [new ApprovalRowNode("Bound SHA", "HEAD", sha)] : [],
+                    Icon: visual.IconKey,
+                    CapabilityLabel: visual.Label));
+            }
+
+            sections.Add(Surface(SurfaceKind.Elevated, "Pending Confirmations", string.Create(CultureInfo.InvariantCulture, $"{gateCards.Count} item(s)"))[
+                VStack(Space.Sm, [.. gateCards])
+            ]);
+        }
+
+        if (issueDrafts.Length > 0)
+        {
+            var draftNodes = issueDrafts.Select(draft => (Node)DraftCard(
+                id: $"tab:{draft.PreviewId}",
+                channel: "GitHub Issue",
+                to: string.Create(CultureInfo.InvariantCulture, $"{draft.Repository} #{draft.IssueNumber}"),
+                body: draft.Body,
+                from: draft.ConnectionKey,
+                subject: draft.SuggestedLabels.Length > 0 ? $"Labels: {string.Join(", ", draft.SuggestedLabels)}" : "DraftForApproval")).ToArray();
+            sections.Add(Surface(SurfaceKind.Elevated, "Pending GitHub Issue Triage Drafts", string.Create(CultureInfo.InvariantCulture, $"{issueDrafts.Length} draft(s)"))[
+                VStack(Space.Sm, draftNodes)
+            ]);
+        }
 
         if (state.SelectedTask is { } selected)
         {
@@ -1005,6 +1385,27 @@ public sealed class TasksApp : AggregateScreen<TasksWorkspaceState>
         sections.Add(RenderTimelineProjection(liveFlows, approvals, now));
         return VStack(Space.Md, [.. sections]);
     }
+
+    private static string? ExtractBoundSha(params string?[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                continue;
+            }
+
+            if (HexShaRegex().Match(candidate) is { Success: true } match)
+            {
+                return match.Groups["sha"].Value;
+            }
+        }
+
+        return null;
+    }
+
+    [GeneratedRegex(@"(?<![A-Fa-f0-9])(?<sha>[a-fA-F0-9]{40}|[a-fA-F0-9]{12,39})(?![A-Fa-f0-9])", RegexOptions.CultureInvariant)]
+    private static partial Regex HexShaRegex();
 
     private static Node RenderTimelineProjection(FlowView[] flows, Approval[] approvals, DateTimeOffset now)
     {

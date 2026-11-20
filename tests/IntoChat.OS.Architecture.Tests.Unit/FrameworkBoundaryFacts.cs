@@ -40,7 +40,7 @@ public sealed partial class FrameworkBoundaryFacts
         "DigitalBrain.UI",
     ];
 
-    private static readonly string[] SkippedDirectories = ["bin", "obj", "artifacts", "node_modules", ".git", ".dart_tool", "build", ".vs", ".idea"];
+    private static readonly string[] SkippedDirectories = ["bin", "obj", "artifacts", "node_modules", ".git", ".claude", ".dart_tool", "build", ".vs", ".idea"];
 
     private static readonly StringComparison PathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 

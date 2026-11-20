@@ -26,7 +26,8 @@ public sealed record AspireOpen(
     string? Section = null,
     string? View = null,
     string? TraceId = null,
-    string? BaseUrl = null) : Signal;
+    string? BaseUrl = null,
+    string? Input = null) : Signal;
 
 [Signal("aspire.select-section")]
 public sealed record AspireSelectSection(string? Section = null) : Signal;
@@ -141,7 +142,8 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
         var requestedSection = !string.IsNullOrWhiteSpace(request.Section) ? request.Section : request.View;
         if (string.IsNullOrWhiteSpace(requestedSection)
             && string.IsNullOrWhiteSpace(request.TraceId)
-            && string.IsNullOrWhiteSpace(request.BaseUrl))
+            && string.IsNullOrWhiteSpace(request.BaseUrl)
+            && string.IsNullOrWhiteSpace(request.Input))
         {
             await Show(basis);
             return;
@@ -150,6 +152,7 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
         var nav = new BrowserNavArgs(
             Section: requestedSection,
             TraceId: request.TraceId,
+            Route: request.Input,
             BaseUrl: request.BaseUrl);
         await ApplyDecisionAsync(basis.ApplyNavigation(nav, ViewTransition.FadeThrough));
     }

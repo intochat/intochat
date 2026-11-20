@@ -54,7 +54,7 @@ public sealed class GitHubPolicyFacts
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, source) = await CreateHarnessAsync();
         await using var _ = os;
-        foreach (var action in (string[])["github.branch.push", "github.pull-request.create", "github.review.reply", "github.pull-request.merge"])
+        foreach (var action in (string[])["github.branch.push", "github.pull-request.create", "github.review.reply", "github.pull-request.merge", "github.issue.comment", "github.issue.label"])
         {
             await Adopt(os, new PolicyRule(
                 $"deny-{action}",
@@ -73,6 +73,8 @@ public sealed class GitHubPolicyFacts
             () => neuron.CreatePullRequest(new CreatePullRequest("Title", "feature-x", "main", "Body", false)));
         await Assert.ThrowsAsync<RuleViolationException>(
             () => neuron.ReplyToReviewComment(new ReplyReviewComment(42, 99, "Fixed")));
+        await Assert.ThrowsAsync<RuleViolationException>(
+            () => neuron.CommentOnIssue(new CommentOnIssueRequest(IssueNumber: 12, Body: "Triaged", Labels: ["bug"], RequestId: "req-1"), Ct));
 
         using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b"))))
         {
@@ -135,6 +137,41 @@ public sealed class GitHubPolicyFacts
     }
 
     [Fact]
+    public async Task DenyingLabelPolicyReleasesCommentReservationAndPreventsIssueWrite()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
+        var (os, neuron, source) = await CreateHarnessAsync();
+        await using var _ = os;
+        await Adopt(os, new PolicyRule(
+            "allow-one-comment",
+            "github.issue.comment",
+            PolicyMeasure.Count,
+            new PolicyWindow(PolicyWindowKind.Day, null),
+            1m,
+            null,
+            "Allow at most 1 comment per day",
+            os.Clock.GetUtcNow()));
+        await Adopt(os, new PolicyRule(
+            "deny-label",
+            "github.issue.label",
+            PolicyMeasure.Count,
+            new PolicyWindow(PolicyWindowKind.None, null),
+            0m,
+            null,
+            "Never label issues",
+            os.Clock.GetUtcNow()));
+
+        await Assert.ThrowsAsync<RuleViolationException>(
+            () => neuron.CommentOnIssue(new CommentOnIssueRequest(IssueNumber: 9, Body: "With blocked label", Labels: ["bug"], RequestId: "req-lbl"), Ct));
+        Assert.Equal(0, source.WriteCalls);
+
+        // Because the inner label guard refused before dispatch, the outer comment quota of 1 was released!
+        var commentOnly = await neuron.CommentOnIssue(new CommentOnIssueRequest(IssueNumber: 9, Body: "Comment without labels", RequestId: "req-no-lbl"), Ct);
+        Assert.Equal(9, commentOnly.IssueNumber);
+        Assert.Equal(1, source.WriteCalls);
+    }
+
+    [Fact]
     public void TheManifestDeclaresTheActions()
     {
         var actions = ModuleManifest.Of(typeof(GitHubModule)).Actions;
@@ -142,6 +179,8 @@ public sealed class GitHubPolicyFacts
         Assert.Contains(actions, a => a.Name == "github.pull-request.create" && a.AmountUnit is null);
         Assert.Contains(actions, a => a.Name == "github.review.reply" && a.AmountUnit is null);
         Assert.Contains(actions, a => a.Name == "github.pull-request.merge" && a.AmountUnit is null);
+        Assert.Contains(actions, a => a.Name == "github.issue.comment" && a.AmountUnit is null);
+        Assert.Contains(actions, a => a.Name == "github.issue.label" && a.AmountUnit is null);
     }
 
     private sealed class FakeGitHubSource : IGitHubRepositorySource
@@ -220,6 +259,23 @@ public sealed class GitHubPolicyFacts
                 throw new InvalidOperationException("Simulated GitHub merge failure.");
             }
             return Task.CompletedTask;
+        }
+
+        public Task<IssueCommentResult> CommentOnIssueAsync(
+            GitHubRepository repository,
+            int issueNumber,
+            string body,
+            string[] labels,
+            string requestId,
+            CancellationToken cancellationToken)
+        {
+            WriteCalls++;
+            if (ThrowOnNextWrite)
+            {
+                ThrowOnNextWrite = false;
+                throw new InvalidOperationException("Simulated GitHub issue comment failure.");
+            }
+            return Task.FromResult(new IssueCommentResult(issueNumber, 1001, "https://github.com/intochat/os/issues/9#issuecomment-1001", labels, requestId));
         }
     }
 }

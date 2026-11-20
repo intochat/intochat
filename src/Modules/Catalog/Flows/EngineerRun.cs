@@ -377,6 +377,7 @@ internal sealed record EngineerRun
             {
                 CleanupTargets = ratified.CleanupTargets,
                 Slices = ratified.Slices,
+                CodeGraphDigest = ratified.CodeGraphDigest ?? Plan.CodeGraphDigest,
             };
 
         return this with

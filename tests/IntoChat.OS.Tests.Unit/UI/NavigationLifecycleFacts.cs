@@ -1,9 +1,14 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Engineer;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
 
@@ -261,5 +266,213 @@ public sealed class NavigationLifecycleFacts
         }
 
         protected override Node Render(NavSampleState state) => Text("Dirty");
+    }
+
+    private sealed class TasksProbeScreen : AggregateScreen<NavSampleState>, INavigatedTo<TasksNavArgs>
+    {
+        public NavigationArrival<TasksNavArgs>? Received { get; private set; }
+
+        public Task OnNavigatedTo(NavigationArrival<TasksNavArgs> arrival, CancellationToken cancellationToken = default)
+        {
+            Received = arrival;
+            return Task.CompletedTask;
+        }
+
+        protected override Node Render(NavSampleState state) => Text("TasksProbe");
+    }
+
+    private sealed class InoProbeScreen : AggregateScreen<NavSampleState>, INavigatedTo<InoNavArgs>
+    {
+        public NavigationArrival<InoNavArgs>? Received { get; private set; }
+
+        public Task OnNavigatedTo(NavigationArrival<InoNavArgs> arrival, CancellationToken cancellationToken = default)
+        {
+            Received = arrival;
+            return Task.CompletedTask;
+        }
+
+        protected override Node Render(NavSampleState state) => Text("InoProbe");
+    }
+
+    [Fact]
+    public void AppSignalsOpenApp_TypedOverloadEncodesArgsAndTransition_WhilePlainOverloadStaysCompatible()
+    {
+        var plain = AppSignals.OpenApp("aspire", "4bf92f3577b34da6a3ce929d0e0e4736");
+        Assert.Equal(IntentKind.OpenWindow, plain.Kind);
+        Assert.Equal("os://window/open?app=aspire&input=4bf92f3577b34da6a3ce929d0e0e4736", plain.Arg);
+
+        var noInput = AppSignals.OpenApp("orleans");
+        Assert.Equal("os://window/open?app=orleans", noInput.Arg);
+
+        var typed = AppSignals.OpenApp(
+            "aspire",
+            new BrowserNavArgs(TraceId: "4bf92f3577b34da6a3ce929d0e0e4736"),
+            transition: ViewTransition.SharedAxisZ,
+            fromNeuron: "app.engineer");
+        Assert.Equal(IntentKind.OpenWindow, typed.Kind);
+
+        var uri = new Uri(typed.Arg!);
+        Assert.Equal("os", uri.Scheme);
+        Assert.Equal("window", uri.Host);
+        Assert.Equal("/open", uri.AbsolutePath);
+
+        var query = ParseQuery(uri.Query);
+        Assert.Equal("aspire", query["app"]);
+        Assert.Equal("shared-axis-z", query["transition"]);
+        Assert.Equal("app.engineer", query["from"]);
+        Assert.Contains("4bf92f3577b34da6a3ce929d0e0e4736", query["args"], StringComparison.Ordinal);
+        Assert.DoesNotContain("null", query["args"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlainInputAndOpenWindowQueryParameters_CoerceTasks_Ino_Studio_AndEngineerApp_AndEnforceDepartureGuards()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // 1. TasksNavArgs coercion from plain Input & structured JSON query parameters
+        var tasksTable = NavigationDispatchTable.Build(typeof(TasksProbeScreen));
+        var tasksProbe = new TasksProbeScreen();
+
+        var tasksPlainIntent = AppSignals.OpenApp("tasks", "flow-build-77");
+        var tasksPlainQuery = ParseQuery(new Uri(tasksPlainIntent.Arg!).Query);
+        await tasksTable.InvokeJsonAsync(
+            tasksProbe,
+            argsJson: null,
+            fromNeuron: "app.creator",
+            transition: ViewTransition.FadeThrough,
+            correlationId: null,
+            cancellationToken: ct,
+            input: tasksPlainQuery["input"]);
+        Assert.Equal("flow-build-77", tasksProbe.Received?.Args.FlowId);
+        Assert.Null(tasksProbe.Received?.Args.Tab);
+
+        await tasksTable.InvokeJsonAsync(tasksProbe, "\"confirm:plan-19\"", "app.ino", ViewTransition.SharedAxisX, null, ct);
+        Assert.Equal("approvals", tasksProbe.Received?.Args.Tab);
+        Assert.Equal("plan-19", tasksProbe.Received?.Args.ConfirmationId);
+
+        await tasksTable.InvokeJsonAsync(tasksProbe, "draft:issue-draft-3", "app.ino", ViewTransition.FadeThrough, null, ct);
+        Assert.Equal("approvals", tasksProbe.Received?.Args.Tab);
+        Assert.Equal("issue-draft-3", tasksProbe.Received?.Args.DraftPreviewId);
+
+        var tasksTypedIntent = AppSignals.OpenApp(
+            "tasks",
+            new TasksNavArgs(FlowId: "flow-99", Tab: "table", ConfirmationId: "c-1", DraftPreviewId: "d-2"),
+            transition: ViewTransition.SharedAxisZ,
+            fromNeuron: "app.engineer");
+        var tasksTypedQuery = ParseQuery(new Uri(tasksTypedIntent.Arg!).Query);
+        await tasksTable.InvokeJsonAsync(
+            tasksProbe,
+            argsJson: tasksTypedQuery["args"],
+            fromNeuron: tasksTypedQuery["from"],
+            transition: tasksTypedQuery["transition"],
+            correlationId: null,
+            cancellationToken: ct);
+        Assert.Equal("flow-99", tasksProbe.Received?.Args.FlowId);
+        Assert.Equal("table", tasksProbe.Received?.Args.Tab);
+        Assert.Equal("c-1", tasksProbe.Received?.Args.ConfirmationId);
+        Assert.Equal("d-2", tasksProbe.Received?.Args.DraftPreviewId);
+
+        // 2. InoNavArgs coercion from plain Input & typed OpenApp<InoNavArgs>
+        var inoTable = NavigationDispatchTable.Build(typeof(InoProbeScreen));
+        var inoProbe = new InoProbeScreen();
+        await inoTable.InvokeJsonAsync(inoProbe, argsJson: null, fromNeuron: "app.tasks", transition: ViewTransition.FadeThrough, correlationId: null, cancellationToken: ct, input: "Triage GitHub issue #42");
+        Assert.Equal("Triage GitHub issue #42", inoProbe.Received?.Args.Prompt);
+
+        var inoTypedIntent = AppSignals.OpenApp(
+            "ino",
+            new InoNavArgs(Prompt: "Inspect trace", ConversationId: "conv-8", FocusTarget: "node:app.aspire"),
+            transition: ViewTransition.FadeThrough,
+            fromNeuron: "app.creator");
+        var inoTypedQuery = ParseQuery(new Uri(inoTypedIntent.Arg!).Query);
+        await inoTable.InvokeJsonAsync(inoProbe, inoTypedQuery["args"], inoTypedQuery["from"], inoTypedQuery["transition"], null, ct);
+        Assert.Equal("conv-8", inoProbe.Received?.Args.ConversationId);
+        Assert.Equal("node:app.aspire", inoProbe.Received?.Args.FocusTarget);
+
+        // 3. Live EngineerApp deep-link via os://window/open query parameters & plain input + Dispatch departure guard
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
+            IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+        os.Register<NavSampleScreen>();
+
+        var brain = new BrainId("test");
+        var engineerScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
+        _ = await engineerScreen.Open();
+
+        var engineerTypedIntent = AppSignals.OpenApp(
+            "engineer",
+            new StudioNavArgs(Lens: "plan", CandidateId: "w2"),
+            transition: ViewTransition.SharedAxisX,
+            fromNeuron: "app.tasks");
+        var engQuery = ParseQuery(new Uri(engineerTypedIntent.Arg!).Query);
+        await engineerScreen.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    ArgsJson: engQuery["args"],
+                    FromNeuron: engQuery["from"],
+                    Transition: engQuery["transition"]),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+
+        var engViewJson = (await engineerScreen.Open())!.View.GetRawText();
+        Assert.Contains("Winning candidate: w2", engViewJson, StringComparison.Ordinal);
+        Assert.Contains("\"transition\":\"shared-axis-x\"", engViewJson, StringComparison.Ordinal);
+
+        var engineerPlainIntent = AppSignals.OpenApp("engineer", "w1");
+        var engPlainQuery = ParseQuery(new Uri(engineerPlainIntent.Arg!).Query);
+        await engineerScreen.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    FromNeuron: "app.creator",
+                    Transition: ViewTransition.FadeThrough,
+                    Input: engPlainQuery["input"]),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+        Assert.Contains("Winning candidate: w1", (await engineerScreen.Open())!.View.GetRawText(), StringComparison.Ordinal);
+
+        // 4. IScreen.Dispatch("ui.navigate-from") surfaces ActivationRefusedException with Rule:<code >: <message> when blocked
+        var guarded = os.Get<IScreen>(new NeuronId(brain, "app.test.nav-sample", "guard-check"));
+        var guardedInitial = await guarded.Open();
+        await guarded.Activate("app.test.nav-sample", guardedInitial!.Generation, "btn-toggle-dirty");
+        await os.Idle();
+
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
+            guarded.Dispatch(new Command(
+                ".",
+                UiNavigateFrom.SignalAlias,
+                RuntimeProtocol.SerializeToElement(
+                    new UiNavigateFrom(ToNeuron: "test/apps/aspire", Force: false),
+                    typeof(UiNavigateFrom)))));
+        Assert.StartsWith("Rule:unsaved_draft:", refused.Reason, StringComparison.Ordinal);
+        Assert.Contains("Save or discard draft changes", refused.Reason, StringComparison.Ordinal);
+
+        await guarded.Dispatch(new Command(
+            ".",
+            UiNavigateFrom.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateFrom(ToNeuron: "test/apps/aspire", Force: true),
+                typeof(UiNavigateFrom))));
+        await os.Idle();
+        Assert.Contains("test/apps/aspire", (await guarded.Open())!.View.GetRawText(), StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, string> ParseQuery(string rawQuery)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in rawQuery.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=', StringComparison.Ordinal);
+            if (eq > 0)
+            {
+                result[Uri.UnescapeDataString(pair[..eq])] = Uri.UnescapeDataString(pair[(eq + 1)..]);
+            }
+        }
+
+        return result;
     }
 }

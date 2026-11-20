@@ -33,6 +33,8 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
             new("github.pull-request.create", "create a GitHub pull request", null),
             new("github.review.reply", "reply to a GitHub review comment", null),
             new("github.pull-request.merge", "merge a GitHub pull request", null),
+            new("github.issue.comment", "comment on a GitHub issue", null),
+            new("github.issue.label", "add labels to a GitHub issue", null),
         ],
     };
 
@@ -46,11 +48,11 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         .OffersSecret("ClientSecret")
         .OffersSecret("WebhookSecret");
 
-    // GitHub App permissions belong to the installation, so the user authorization asks for no scopes.
-    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth"], ["github"])
+    // GitHub App permissions belong to the installation, so the user authorization asks for no scopes; Fine-Grained PAT is offered alongside OAuth.
+    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth", "pat"], ["github"])
     {
         Neurons = [typeof(IRepository)],
-        Signals = [typeof(Signals.PullRequestChanged)],
+        Signals = [typeof(Signals.PullRequestChanged), typeof(Signals.IssueChanged)],
         OAuthMethods = [new("oauth", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", [], "github", "ClientId", "ClientSecret")],
     };
 

@@ -458,6 +458,25 @@
                 "style": "secondary",
                 "icon": "play",
                 "small": true
+              },
+              {
+                "kind": "button",
+                "key": "inspect:workflow:approval-demo",
+                "label": "3D",
+                "command": {
+                  "target": ".",
+                  "signal": "select",
+                  "args": "synapse:workflow:approval-demo"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "inspect:workflow:approval-demo",
+                "style": "ghost",
+                "icon": "git-branch",
+                "small": true
               }
             ],
             "gap": 4,

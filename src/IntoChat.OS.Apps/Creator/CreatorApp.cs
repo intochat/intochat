@@ -275,6 +275,7 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
     private FlowView[] _flows = [];
     private Approval[] _approvals = [];
     private IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[] _synapses = [];
+    private DigitalBrain.Units.DeployedSource[] _deployedUnits = [];
     private Inspection _inspection = Inspection.None;
     private TraceHop[] _retainedTimelineHops = [];
     private int _lastSyncedSliderVersion;
@@ -465,6 +466,10 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
             lock (_running) { _running.Remove(alias); }
         }
 
+        _inspection = _inspection with
+        {
+            ScenarioPassRate = CreatorStateSpaceInspector.ComputeTranscriptPassRate(transcript) ?? _inspection.ScenarioPassRate,
+        };
         await Show(State with
         {
             Transcript = transcript,
@@ -533,6 +538,8 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
         }
 
         await RefreshAsync();
+        await InspectAsync();
+        await SyncUiNeuronsAsync();
     }
 
     [DigitalBrain.Neurons.On]
@@ -609,7 +616,7 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
     public new CreatorWorkspaceState State => base.State;
     public View Render() => PreviewView(State);
     protected override Node Render(CreatorWorkspaceState state)
-        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses, ActiveTransition);
+        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses, ActiveTransition, _deployedUnits);
 
     private async Task RefreshAsync()
     {
@@ -619,6 +626,8 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Approvals are optional."); }
         try { _synapses = await Get<IntoChat.OS.Modules.Apps.Synapses.ISynapseDefinitions>("synapses/definitions").List(); }
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Synapse catalog is optional."); }
+        try { _deployedUnits = await Get<ISynapseStudio>(SynapsesKey).List(); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Synapse studio list is optional."); }
         try { _topology = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Topology(); }
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Topology read is optional."); }
         _topology = _topology with { Flows = _flows };
@@ -629,6 +638,7 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
     {
         _inspection = State.Selected switch
         {
+            null when State.ActiveRunId is { Length: > 0 } runId => await FlowRunAsync(runId),
             null => Inspection.None,
             { Kind: Selection.Pulse } pulse => await PulseAsync(pulse.Id),
             { Kind: Selection.Edge } edge => await EdgeAsync(edge.Id),
@@ -780,42 +790,206 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
         }
     }
 
+    private async Task<Inspection> FlowRunAsync(string runId)
+    {
+        var flow = _flows.FirstOrDefault(f => string.Equals(f.FlowId, runId, StringComparison.Ordinal));
+        if (flow is null)
+        {
+            return Inspection.None;
+        }
+
+        var subjectAlias = Blank(flow.Subject);
+        var files = subjectAlias is not null
+            ? await FilesAsync(subjectAlias)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+        var deployed = subjectAlias is not null ? FindDeployedUnit(subjectAlias) : null;
+        if (files.Count == 0 && deployed is not null && !string.Equals(deployed.SourceKey, subjectAlias, StringComparison.Ordinal))
+        {
+            files = await FilesAsync(deployed.SourceKey);
+        }
+
+        var matchedSynapse = _synapses.FirstOrDefault(s =>
+            string.Equals(s.Name, subjectAlias ?? flow.Type, StringComparison.Ordinal)
+            || string.Equals(s.Id, $"flow:{flow.Type}", StringComparison.Ordinal));
+        var passRate = flow.Status switch
+        {
+            FlowStatus.Completed => 1.0,
+            FlowStatus.Failed or FlowStatus.Cancelled => 0.0,
+            _ => Math.Clamp(flow.Fraction, 0.0, 1.0),
+        };
+
+        return new Inspection(Selection.Node, flow.FlowId)
+        {
+            Alias = subjectAlias ?? flow.Type,
+            Files = files,
+            Synapse = matchedSynapse,
+            DeployedUnit = deployed,
+            ScenarioPassRate = passRate,
+        };
+    }
+
     private async Task<Inspection> NodeAsync(string id)
     {
-        var alias = UnitAlias(id);
+        var matchedSynapse = FindSynapseDefinition(id);
+        var alias = UnitAlias(id) ?? matchedSynapse?.Name;
         if (alias is null)
         {
+            var isApp = AppRef.TryParse(id, out var compiledApp);
+            var appGraph = isApp ? await TryExploreGraphAsync($"app.{compiledApp.Name}") : null;
             return new Inspection(Selection.Node, id)
             {
-                Notice = AppRef.TryParse(id, out _) ? "A compiled app." : "A kernel neuron.",
+                Notice = isApp ? "A compiled app." : "A kernel neuron.",
+                IntrospectedGraph = appGraph,
+                ScenarioPassRate = appGraph is null ? null : (appGraph.IsHealthy ? 1.0 : 0.0),
             };
         }
 
-        var reads = Get<IDebuggerReads>(IDebuggerReads.DefaultKey);
+        var isSynapseSelection = id.StartsWith(Selection.SynapsePrefix, StringComparison.Ordinal);
+        var isWorkflowOrFlowOnly = matchedSynapse?.Form is IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow
+            or IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Flow;
+
         string? state = null, view = null, notice = null;
-        if (!id.StartsWith("draft:", StringComparison.Ordinal))
+        if (!id.StartsWith("draft:", StringComparison.Ordinal) && !isWorkflowOrFlowOnly)
         {
             try
             {
+                var reads = Get<IDebuggerReads>(IDebuggerReads.DefaultKey);
                 state = await reads.State(alias);
                 view = await reads.View(alias);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 Log.LogDebug(error, "State read is optional.");
-                notice = $"state unavailable: {error.Message}";
+                if (!isSynapseSelection)
+                {
+                    notice = $"state unavailable: {error.Message}";
+                }
             }
         }
+
+        var deployed = FindDeployedUnit(alias);
+        var files = await FilesAsync(alias);
+        if (files.Count == 0 && deployed is not null && !string.Equals(deployed.SourceKey, alias, StringComparison.Ordinal))
+        {
+            files = await FilesAsync(deployed.SourceKey);
+        }
+
+        string? failureSummary = null;
+        try
+        {
+            if (TryGetOptional<ISynapseStudio>(SynapsesKey) is { } studio)
+            {
+                var failures = await studio.Failures(alias);
+                failureSummary = failures.Text;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "Failure summary read is optional.");
+        }
+
+        var introspected = files.Count == 0 ? await TryExploreGraphAsync(alias) : null;
+        var passRate = CreatorStateSpaceInspector.ComputeTranscriptPassRate(State.Transcript)
+            ?? ComputeUnitPassRate(deployed, matchedSynapse, failureSummary, introspected, id.StartsWith("draft:", StringComparison.Ordinal));
 
         return new Inspection(Selection.Node, id)
         {
             Alias = alias,
             State = state,
             View = view,
-            Files = await FilesAsync(alias),
+            Files = files,
             Notice = notice,
+            Synapse = matchedSynapse,
+            DeployedUnit = deployed,
+            IntrospectedGraph = introspected,
+            ScenarioPassRate = passRate,
+            FailureSummary = failureSummary,
         };
     }
+
+    private async Task<IntoChat.OS.Modules.AI.Agents.Context.UiStateGraphSnapshot?> TryExploreGraphAsync(string targetName)
+    {
+        try
+        {
+            if (TryGetOptional<IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector>(
+                IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector.DefaultKey) is { } introspector)
+            {
+                var snapshot = await introspector.ExploreStateGraph(targetName, maxStates: 24);
+                return snapshot is { States.Length: > 0 } ? snapshot : null;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "Optional IUiIntrospector state graph exploration skipped for {Target}.", targetName);
+        }
+
+        return null;
+    }
+
+    private static double? ComputeUnitPassRate(
+        DigitalBrain.Units.DeployedSource? deployed,
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition? synapse,
+        string? failureSummary,
+        IntoChat.OS.Modules.AI.Agents.Context.UiStateGraphSnapshot? introspected,
+        bool isDraft)
+    {
+        if (isDraft) { return 0.5; }
+        if (deployed is not null)
+        {
+            if (deployed.Status == DigitalBrain.Units.DeployStatus.Failed) { return 0.0; }
+            if (deployed.Status == DigitalBrain.Units.DeployStatus.Staged) { return 0.75; }
+            if (!string.IsNullOrWhiteSpace(failureSummary)
+                && !failureSummary.Contains("no recorded failures", StringComparison.OrdinalIgnoreCase))
+            {
+                return 0.5;
+            }
+
+            return 1.0;
+        }
+
+        if (synapse is not null)
+        {
+            if (string.Equals(synapse.LastRun, "Failed", StringComparison.OrdinalIgnoreCase))
+            {
+                return synapse.Runs > 1 ? 0.5 : 0.0;
+            }
+
+            if (string.Equals(synapse.LastRun, "Succeeded", StringComparison.OrdinalIgnoreCase))
+            {
+                return 1.0;
+            }
+
+            return synapse.Runs > 0 ? 0.75 : 1.0;
+        }
+
+        if (introspected is not null)
+        {
+            return introspected.IsHealthy ? 1.0 : 0.0;
+        }
+
+        return null;
+    }
+
+    private IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition? FindSynapseDefinition(string id)
+    {
+        if (id.StartsWith(Selection.SynapsePrefix, StringComparison.Ordinal))
+        {
+            var synId = id[Selection.SynapsePrefix.Length..];
+            return _synapses.FirstOrDefault(s =>
+                string.Equals(s.Id, synId, StringComparison.Ordinal)
+                || string.Equals(s.Name, synId, StringComparison.Ordinal));
+        }
+
+        var alias = BrainGraph.AliasOf(id);
+        return alias is null
+            ? null
+            : _synapses.FirstOrDefault(s => string.Equals(s.Name, alias, StringComparison.Ordinal));
+    }
+
+    private DigitalBrain.Units.DeployedSource? FindDeployedUnit(string alias)
+        => _deployedUnits.FirstOrDefault(u =>
+            string.Equals(u.SourceKey, alias, StringComparison.Ordinal)
+            || u.Aliases.Contains(alias, StringComparer.Ordinal));
 
     private async Task<Inspection> EdgeAsync(string key)
     {
@@ -913,13 +1087,39 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
         Selection.Pulse => true,
         Selection.Edge => _topology.Edges.Any(e => BrainGraph.EdgeKey(e.SourceId, e.TargetId, BrainGraph.EdgeLabel(e.SignalType, e.Kind)) == selection.Id),
         _ when selection.Id.StartsWith("draft:", StringComparison.Ordinal) => _flows.Any(f => f.Type == BuildFlow.Alias && f.Subject == selection.Id["draft:".Length..]),
-        _ => _topology.Nodes.Any(n => n.Id == selection.Id),
+        _ when selection.Id.StartsWith(Selection.SynapsePrefix, StringComparison.Ordinal) =>
+            FindSynapseDefinition(selection.Id) is not null
+            || (UnitAlias(selection.Id) is { } synAlias && FindDeployedUnit(synAlias) is not null),
+        _ => _topology.Nodes.Any(n => n.Id == selection.Id)
+            || (UnitAlias(selection.Id) is { } unitAlias
+                && (FindDeployedUnit(unitAlias) is not null
+                    || _synapses.Any(s => string.Equals(s.Name, unitAlias, StringComparison.Ordinal)))),
     };
 
     private string? SelectedAlias() => State.Selected is { Kind: Selection.Node } node ? UnitAlias(node.Id) : null;
 
     public static string? UnitAlias(string id)
-        => id.StartsWith("draft:", StringComparison.Ordinal) ? id["draft:".Length..] : BrainGraph.AliasOf(id);
+    {
+        if (string.IsNullOrWhiteSpace(id)) { return null; }
+        if (id.StartsWith("draft:", StringComparison.Ordinal)) { return id["draft:".Length..]; }
+        if (id.StartsWith(Selection.SynapsePrefix, StringComparison.Ordinal))
+        {
+            var body = id[Selection.SynapsePrefix.Length..];
+            var colon = body.IndexOf(':', StringComparison.Ordinal);
+            if (colon > 0 && colon + 1 < body.Length)
+            {
+                var formPrefix = body[..colon];
+                if (formPrefix is "reaction" or "app" or "flow" or "workflow" or "agent" or "codeblock")
+                {
+                    return body[(colon + 1)..];
+                }
+            }
+
+            return body.Length > 0 ? body : null;
+        }
+
+        return BrainGraph.AliasOf(id);
+    }
 
     private T? TryGetOptional<T>(string key) where T : class
     {

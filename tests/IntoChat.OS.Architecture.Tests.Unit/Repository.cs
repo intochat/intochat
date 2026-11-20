@@ -77,7 +77,8 @@ internal static class Repository
 
     internal static IEnumerable<string> SourceFiles(string directory, string pattern, Func<string, bool>? predicate = null)
         => (Directory.Exists(directory) ? Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories) : [])
-            .Where(path => !path.Split(System.IO.Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
+            // Relative to the root: a worktree checkout itself lives under .claude/worktrees, and only nested ones are skipped.
+            .Where(path => !System.IO.Path.GetRelativePath(Root, path).Split(System.IO.Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin" or ".claude"))
             .Where(path => predicate is null || predicate(path));
 
     internal static IEnumerable<Project> TestProjects()

@@ -24,10 +24,29 @@ public sealed record EngineerTaskSlice(
     [property: Id(5)] int Percent = 0,
     [property: Id(6)] string AssignedAgentKey = "ino.slice-1",
     [property: Id(7)] string Language = "csharp",
-    [property: Id(8)] string Instructions = "")
+    [property: Id(8)] string Instructions = "",
+    [property: Id(9)] int SelfRepairAttempts = 0)
 {
     public EngineerTaskSlice()
-        : this("", "", [], [], "pending", 0, "ino.slice-1", "csharp", "")
+        : this("", "", [], [], "pending", 0, "ino.slice-1", "csharp", "", 0)
+    {
+    }
+}
+
+[GenerateSerializer, Alias("engineer.code-graph-digest")]
+public sealed record RepositoryCodeGraphDigest(
+    [property: Id(0)] string RepositoryId,
+    [property: Id(1)] string CompactDigest,
+    [property: Id(2)] int ByteCount,
+    [property: Id(3)] string? MatchedBriefKey = null,
+    [property: Id(4)] string[]? GroundedFiles = null,
+    [property: Id(5)] string[]? PotentialCleanupTargets = null,
+    [property: Id(6)] string[]? DuplicateSymbols = null)
+{
+    public const int MaxBytes = 2_048;
+
+    public RepositoryCodeGraphDigest()
+        : this("", "", 0, null, null, null, null)
     {
     }
 }
@@ -276,10 +295,11 @@ public sealed record RatifiedPlan(
     [property: Id(4)] bool Ratified = true,
     [property: Id(5)] string? RatifiedBy = null,
     [property: Id(6)] DateTimeOffset? RatifiedAt = null,
-    [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative)
+    [property: Id(7)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
+    [property: Id(8)] string? CodeGraphDigest = null)
 {
     public RatifiedPlan()
-        : this("", "", [], [], true, null, null, EngineeringHarnessKind.InoNative)
+        : this("", "", [], [], true, null, null, EngineeringHarnessKind.InoNative, null)
     {
     }
 
@@ -634,9 +654,26 @@ public sealed record EngineerTaskPlan(
     [property: Id(3)] EngineerBrainstormTurn[] Transcript,
     [property: Id(4)] EngineerTaskItem[] Tasks,
     [property: Id(5)] string[]? CleanupTargets = null,
-    [property: Id(6)] EngineerTaskSlice[]? Slices = null)
+    [property: Id(6)] EngineerTaskSlice[]? Slices = null,
+    [property: Id(7)] string? CodeGraphDigest = null)
 {
     public EngineerTaskPlan() : this("", "", "", [], []) { }
+
+    public RatifiedPlan ToRatifiedPlan(
+        EngineeringHarnessKind harness = EngineeringHarnessKind.InoNative,
+        bool ratified = true,
+        string? ratifiedBy = "auto",
+        DateTimeOffset? ratifiedAt = null)
+        => new(
+            Goal: Goal,
+            ArchitectureSummary: ArchitectureSummary,
+            CleanupTargets: CleanupTargets ?? [],
+            Slices: Slices is { Length: > 0 } ? Slices : EngineerTaskSlices.FromTaskPlan(this),
+            Ratified: ratified,
+            RatifiedBy: ratifiedBy,
+            RatifiedAt: ratifiedAt,
+            Harness: harness,
+            CodeGraphDigest: CodeGraphDigest);
 
     public string? Validate(int maxChangedFiles = 5)
     {
@@ -660,12 +697,15 @@ public sealed record EngineerTaskPlan(
             }
 
             var clean = rawCleanup.Trim().Replace('\\', '/');
-            if (clean.StartsWith('/') || Path.IsPathRooted(clean) || clean.Split('/').Any(static seg => seg.Length == 0 || seg.StartsWith('.')))
+            var hashIdx = clean.IndexOf('#', StringComparison.Ordinal);
+            var colonIdx = hashIdx < 0 ? clean.IndexOf("::", StringComparison.Ordinal) : -1;
+            var fileOnly = hashIdx > 0 ? clean[..hashIdx] : (colonIdx > 0 ? clean[..colonIdx] : clean);
+            if (fileOnly.StartsWith('/') || Path.IsPathRooted(fileOnly) || fileOnly.Split('/').Any(static seg => seg.Length == 0 || seg.StartsWith('.')))
             {
                 return $"EngineerTaskPlan contains invalid or hidden cleanup target path '{rawCleanup}'.";
             }
 
-            distinctTargets.Add(clean);
+            distinctTargets.Add(fileOnly);
         }
 
         if (Tasks is { Length: > 0 })
@@ -914,7 +954,8 @@ public sealed record EngineeringHarnessResult(
     bool UiStateGraphsHealthy = true,
     int SemanticErrorCount = 0,
     string? HydratedContextSummary = null,
-    string? FailureDetail = null);
+    string? FailureDetail = null,
+    int SelfRepairAttempts = 0);
 
 public interface IEngineeringHarness
 {

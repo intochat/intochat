@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Net;
 using System.Security;
+using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
@@ -8,14 +10,18 @@ using DigitalBrain.Flows;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
+using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Tests;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Flows;
@@ -1286,6 +1292,411 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.Single(captured, static c => c.Executable == "claude" && c.Arguments.Contains("stream-json", StringComparer.Ordinal));
     }
 
+    [Fact]
+    public async Task EngineerPlannerHydratesRoslynCodeGraphAndWorkingMemoryBriefIntoDisjointRatifiedPlanSlices()
+    {
+        var (_, checkout, home) = CreateBareOriginAndCheckout("planner-codegraph");
+        await File.WriteAllTextAsync(
+            Path.Combine(checkout, "code", "Vector2Int.cs"),
+            """
+            namespace Demo;
+
+            public readonly record struct Vector2Int(int X, int Y);
+            """,
+            Ct);
+        await File.WriteAllTextAsync(
+            Path.Combine(checkout, "code", "LegacyObsoleteMath.cs"),
+            """
+            namespace Demo;
+
+            public static class LegacyObsoleteMath
+            {
+                public static int Obsolete() => -1;
+            }
+            """,
+            Ct);
+        await File.WriteAllTextAsync(
+            Path.Combine(checkout, "code", "DuplicateCalculatorMirror.cs"),
+            """
+            namespace DemoMirror;
+
+            public static class Calculator
+            {
+                public static int Add(int a, int b) => a + b;
+            }
+            """,
+            Ct);
+
+        var workTree = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home,
+            VerifyFormatting = false,
+        });
+        workTree.RegisterRepository(new RegisteredRepository("os", checkout, DefaultBaseBranch: "main"));
+
+        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var repoBriefMemory = new RepoBriefWorkingMemory(
+            "repo:os",
+            "Delete LegacyObsoleteMath.cs and keep Calculator and Vector2Int pure value helpers.");
+
+        // Part 1: Deterministic synthesis (without IModelInference) embeds <= 2 KB CodeGraphDigest, grounded CleanupTargets, and disjoint Wave-0 slices!
+        await using var deterministicSp = new ServiceCollection()
+            .AddSingleton<IWorkTree>(workTree)
+            .AddSingleton(roslyn)
+            .AddSingleton<IWorkingMemory>(repoBriefMemory)
+            .BuildServiceProvider();
+
+        var deterministicPlanner = new EngineerPlanner(deterministicSp);
+        var deterministicPlan = await deterministicPlanner.PlanAsync(
+            "os",
+            "Delete LegacyObsoleteMath and add Subtract to Calculator plus Dot to Vector2Int",
+            [".cs"],
+            maxChangedFiles: 5,
+            Ct);
+
+        Assert.Null(deterministicPlan.Validate(5));
+        Assert.False(string.IsNullOrWhiteSpace(deterministicPlan.CodeGraphDigest));
+        Assert.True(Encoding.UTF8.GetByteCount(deterministicPlan.CodeGraphDigest!) <= RepositoryCodeGraphDigest.MaxBytes);
+        Assert.Contains("BRIEF[repo:os]: Delete LegacyObsoleteMath.cs", deterministicPlan.CodeGraphDigest!, StringComparison.Ordinal);
+        Assert.Contains("CLEANUP_CANDIDATES:", deterministicPlan.CodeGraphDigest!, StringComparison.Ordinal);
+        Assert.Contains("DUPLICATE_SYMBOLS: Calculator", deterministicPlan.CodeGraphDigest!, StringComparison.Ordinal);
+        Assert.Contains("code/Calculator.cs", deterministicPlan.CodeGraphDigest!, StringComparison.Ordinal);
+        Assert.Contains("code/Vector2Int.cs", deterministicPlan.CodeGraphDigest!, StringComparison.Ordinal);
+
+        var ratified = deterministicPlan.ToRatifiedPlan();
+        Assert.Contains("code/LegacyObsoleteMath.cs", ratified.CleanupTargets);
+        Assert.False(ratified.DisjointSlicesRule().Broken, ratified.DisjointSlicesRule().Message);
+        Assert.Contains(ratified.Slices, static s => s.OwnedPaths.Contains("code/Calculator.cs", StringComparer.OrdinalIgnoreCase));
+        Assert.Contains(ratified.Slices, static s => s.OwnedPaths.Contains("code/Vector2Int.cs", StringComparer.OrdinalIgnoreCase));
+        Assert.Single(ratified.TopologicalWaves());
+        Assert.True(ratified.TopologicalWaves()[0].Length >= 2);
+
+        // Part 2: Multi-agent Architect + Critic prompts receive the compact <= 2 KB RepositoryCodeGraphDigest and normalize overlapping slices!
+        var seenPrompts = new List<string>();
+        var turns = new Queue<Func<InferenceRequest, AiMessage>>(
+        [
+            req =>
+            {
+                var prompt = string.Join("\n", req.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text));
+                seenPrompts.Add(prompt);
+                return new AiMessage("assistant",
+                [
+                    new AiText("""
+                        {
+                          "goal": "Delete LegacyObsoleteMath and update Calculator & Vector2Int",
+                          "architectureSummary": "Grounded CodeGraph plan across Calculator.cs and Vector2Int.cs.",
+                          "cleanupTargets": ["code/LegacyObsoleteMath.cs"],
+                          "tasks": [
+                            { "id": "s-calc", "title": "Add Subtract", "language": "csharp", "targetFiles": ["code/Calculator.cs"], "dependsOn": [], "instructions": "Add Subtract" },
+                            { "id": "s-vec", "title": "Add Dot", "language": "csharp", "targetFiles": ["code/Vector2Int.cs"], "dependsOn": [], "instructions": "Add Dot" }
+                          ]
+                        }
+                        """),
+                ]);
+            },
+            req =>
+            {
+                var prompt = string.Join("\n", req.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text));
+                seenPrompts.Add(prompt);
+                return new AiMessage("assistant",
+                [
+                    new AiText("""
+                        {
+                          "goal": "Delete LegacyObsoleteMath and update Calculator & Vector2Int",
+                          "architectureSummary": "Grounded CodeGraph plan with disjoint Wave-0 slices.",
+                          "criticReview": "Verified NoOverlappingFileSlices and LegacyObsoleteMath cleanup.",
+                          "cleanupTargets": ["code/LegacyObsoleteMath.cs"],
+                          "tasks": [
+                            { "id": "s-calc", "title": "Add Subtract", "language": "csharp", "targetFiles": ["code/Calculator.cs"], "dependsOn": [], "instructions": "Add Subtract" },
+                            { "id": "s-vec", "title": "Add Dot", "language": "csharp", "targetFiles": ["code/Vector2Int.cs"], "dependsOn": [], "instructions": "Add Dot" }
+                          ],
+                          "slices": [
+                            { "sliceId": "s-calc", "title": "Add Subtract", "ownedPaths": ["code/Calculator.cs"], "dependsOnSliceIds": [], "assignedAgentKey": "ino.slice-1", "language": "csharp", "instructions": "Add Subtract" },
+                            { "sliceId": "s-vec", "title": "Add Dot", "ownedPaths": ["code/Vector2Int.cs"], "dependsOnSliceIds": [], "assignedAgentKey": "ino.slice-2", "language": "csharp", "instructions": "Add Dot" }
+                          ]
+                        }
+                        """),
+                ]);
+            },
+        ]);
+
+        await using var llmSp = new ServiceCollection()
+            .AddSingleton<IWorkTree>(workTree)
+            .AddSingleton(roslyn)
+            .AddSingleton<IWorkingMemory>(repoBriefMemory)
+            .AddSingleton<IModelInference>(new QueueInference(turns))
+            .BuildServiceProvider();
+
+        var llmPlanner = new EngineerPlanner(llmSp);
+        var llmPlan = await llmPlanner.PlanAsync("os", "Delete LegacyObsoleteMath and update Calculator & Vector2Int", [".cs"], 5, Ct);
+
+        Assert.Equal(2, seenPrompts.Count);
+        Assert.All(seenPrompts, static p =>
+        {
+            Assert.Contains("[Repository CodeGraphDigest (<=2KB)]", p, StringComparison.Ordinal);
+            Assert.Contains("BRIEF[repo:os]:", p, StringComparison.Ordinal);
+            Assert.Contains("CODEGRAPH_OUTLINES:", p, StringComparison.Ordinal);
+        });
+
+        var llmRatified = llmPlan.ToRatifiedPlan();
+        Assert.Equal(["code/LegacyObsoleteMath.cs"], llmRatified.CleanupTargets);
+        Assert.False(llmRatified.DisjointSlicesRule().Broken);
+        Assert.Equal(2, llmRatified.Slices.Length);
+    }
+
+    [Fact]
+    public async Task InoNativeHarnessCatchesTurnOneCSharpDiagnosticRepairsViaBoundedSelfRepairAndEnforcesTwoTurnCap()
+    {
+        var wtDir = Path.Combine(_root, "self-repair-wt");
+        Directory.CreateDirectory(Path.Combine(wtDir, "code"));
+        await File.WriteAllTextAsync(Path.Combine(wtDir, ".git"), "gitdir: C:/fake/wt\n", Ct);
+        await File.WriteAllTextAsync(
+            Path.Combine(wtDir, "code", "Calculator.cs"),
+            """
+            namespace Demo;
+
+            public static class Calculator
+            {
+                public static int Add(int a, int b) => a + b;
+            }
+            """,
+            Ct);
+
+        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var observedPrompts = new List<string>();
+        var repairingCoder = new TurnOneErrorTurnTwoRepairCoder(observedPrompts);
+        var progressEvents = new List<OperationProgressed>();
+
+        var harness = InoNativeHarness.CreateDefault(coder: repairingCoder, roslyn: roslyn);
+        var slice = new EngineerTaskSlice(
+            SliceId: "slice-sub",
+            Title: "Add Subtract to Calculator",
+            OwnedPaths: ["code/Calculator.cs"],
+            DependsOnSliceIds: [],
+            AssignedAgentKey: "ino.slice-sub",
+            Language: "csharp",
+            Instructions: "Add Subtract(int a, int b)");
+        var request = new EngineeringHarnessRequest(
+            FlowId: "owner/flow.engineer/repair1",
+            RunId: "repair1",
+            RepositoryId: "os",
+            Goal: "Add Subtract to Calculator",
+            WorktreeId: "wt-0",
+            WorktreePath: wtDir,
+            InstanceIndex: 0,
+            TotalInstances: 1,
+            Strategy: "surgical-patch",
+            StrategyLabel: "Minimal Surgical Patch",
+            StrategyPromptLens: "Minimal diff.",
+            Harness: EngineeringHarnessKind.InoNative,
+            RatifiedPlan: new RatifiedPlan("Add Subtract to Calculator", "Single slice", [], [slice]));
+
+        var result = await harness.ExecuteAsync(
+            request,
+            onProgress: sig =>
+            {
+                lock (progressEvents)
+                {
+                    progressEvents.Add(sig);
+                }
+
+                return Task.CompletedTask;
+            },
+            ct: Ct);
+
+        Assert.True(result.Succeeded, result.FailureDetail);
+        Assert.Equal(0, result.SemanticErrorCount);
+        Assert.Equal(1, result.SelfRepairAttempts);
+        var completedSlice = Assert.Single(result.CompletedSlices);
+        Assert.Equal("completed", completedSlice.Status);
+        Assert.Equal(1, completedSlice.SelfRepairAttempts);
+
+        // Turn 1 injected CS0029; Turn 2 received compiler diagnostic + line snippet and repaired it!
+        Assert.Equal(2, observedPrompts.Count);
+        Assert.Contains("[Intra-Slice Roslyn Self-Repair — Attempt 1/2]", observedPrompts[1], StringComparison.Ordinal);
+        Assert.Contains("CS0029", observedPrompts[1], StringComparison.Ordinal);
+        Assert.Contains("not_an_int", observedPrompts[1], StringComparison.Ordinal);
+
+        var repairSignal = Assert.Single(progressEvents, static p => p.Phase == "self-repair");
+        Assert.Equal("Repairing CS0029 in code/Calculator.cs (attempt 1/2)", repairSignal.Detail);
+
+        var finalSource = await File.ReadAllTextAsync(Path.Combine(wtDir, "code", "Calculator.cs"), Ct);
+        Assert.Contains("public static int Subtract(int a, int b) => a - b;", finalSource, StringComparison.Ordinal);
+
+        // Part 2: Persistent syntax error stops strictly at MaxSelfRepairTurns == 2 (1 initial + 2 repair turns = 3 invocations)
+        var brokenWtDir = Path.Combine(_root, "self-repair-cap-wt");
+        Directory.CreateDirectory(Path.Combine(brokenWtDir, "code"));
+        await File.WriteAllTextAsync(Path.Combine(brokenWtDir, ".git"), "gitdir: C:/fake/wt\n", Ct);
+        await File.WriteAllTextAsync(Path.Combine(brokenWtDir, "code", "Calculator.cs"), "namespace Demo;\npublic static class Calculator {}\n", Ct);
+
+        var capCoder = new AlwaysSyntaxBrokenCoder();
+        var capProgress = new List<OperationProgressed>();
+        var capHarness = InoNativeHarness.CreateDefault(coder: capCoder, roslyn: roslyn);
+        var capResult = await capHarness.ExecuteAsync(
+            request with { WorktreePath = brokenWtDir, RunId = "repaircap" },
+            onProgress: sig =>
+            {
+                lock (capProgress)
+                {
+                    capProgress.Add(sig);
+                }
+
+                return Task.CompletedTask;
+            },
+            ct: Ct);
+
+        Assert.False(capResult.Succeeded);
+        Assert.Equal(1 + InoNativeHarness.MaxSelfRepairTurns, capCoder.Invocations);
+        Assert.Equal(InoNativeHarness.MaxSelfRepairTurns, capResult.SelfRepairAttempts);
+        Assert.Equal(InoNativeHarness.MaxSelfRepairTurns, Assert.Single(capResult.CompletedSlices).SelfRepairAttempts);
+        Assert.Equal(
+            [
+                "Repairing CS1002 in code/Calculator.cs (attempt 1/2)",
+                "Repairing CS1002 in code/Calculator.cs (attempt 2/2)",
+            ],
+            capProgress.Where(static p => p.Phase == "self-repair").Select(static p => p.Detail).ToArray());
+    }
+
+    [Fact]
+    public async Task EngineerLiveVerifierValidatesLiveAggregateScreenViewsPlaywrightProbesAndCatchesBrokenUiState()
+    {
+        var treeDir = Path.Combine(_root, "live-ui-gate-wt");
+        Directory.CreateDirectory(treeDir);
+        var srcRoot = "s" + "rc";
+        string[] uiTouchedFiles =
+        [
+            $"{srcRoot}/IntoChat.OS.Apps/Engineer/EngineerApp.cs",
+            "ui/lib/desktop/live_desktop_shell.dart",
+        ];
+
+        Assert.True(EngineerLiveVerifier.TouchesUiSurface(uiTouchedFiles));
+        Assert.False(EngineerLiveVerifier.TouchesUiSurface([$"{srcRoot}/Modules/Catalog/Flows/EngineerFlow.cs"]));
+
+        // Host the real EngineerApp AggregateScreen on TestOS to verify valid live View tree + AppShellNode + AutomationName invariants!
+        await using var os = TestOS.Local();
+        var brain = new BrainId("owner");
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+
+        var liveEngineerScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
+        var openedEngineerView = await liveEngineerScreen.Open();
+        Assert.NotNull(openedEngineerView);
+
+        var healthyConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["IntoChatOS:Engineer:LiveBaseUrl"] = "http://127.0.0.1:19876",
+            })
+            .Build();
+        var healthyHttpFactory = new StubHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"status\":\"Healthy\"}", Encoding.UTF8, "application/json"),
+        });
+        var healthyPageSession = new FakeBrowserPageSession(
+            connected: true,
+            new BrowserObservation("http://127.0.0.1:19876/engineer", "IntoChat Studio", "Engineer shell ready", []));
+
+        await using var healthySp = new ServiceCollection()
+            .AddSingleton<IConfiguration>(healthyConfig)
+            .AddSingleton<IHttpClientFactory>(healthyHttpFactory)
+            .AddSingleton<IBrowserPageSession>(healthyPageSession)
+            .BuildServiceProvider();
+
+        using var healthyVerifier = new EngineerLiveVerifier(services: healthySp);
+        var passingReport = await healthyVerifier.VerifyLiveAsync(
+            treeDir,
+            "Verify valid AggregateScreen view, Playwright DOM session, and loopback health",
+            uiTouchedFiles,
+            new EngineerLiveContext("trace-ui-ok", null, [("app.engineer", liveEngineerScreen)]),
+            Ct);
+
+        Assert.True(passingReport.Succeeded, passingReport.Summary);
+        Assert.True(passingReport.HostHealthy);
+        Assert.True(passingReport.McpProbesPassed);
+        Assert.True(passingReport.PlaywrightPassed);
+        Assert.Equal(0, passingReport.Http4xxCount);
+        Assert.Equal(0, passingReport.Http5xxCount);
+        Assert.Equal(0, passingReport.ErrorSpanCount);
+        Assert.Contains(passingReport.Probes, static p => p.Name == "ui-view-tree-gate" && p.Passed);
+        Assert.Contains(passingReport.Probes, static p => p.Name == "ui-loopback-http-gate" && p.Passed);
+        Assert.Contains(passingReport.Probes, static p => p.Name == "playwright-page-session" && p.Passed);
+
+        var passingScore = EngineerCandidateScore.Compute(
+            new string('a', 40),
+            "--- a/ui/lib/src/nodes/app_shell.dart\n+++ b/ui/lib/src/nodes/app_shell.dart\n@@ -1 +1 @@\n-// old\n+// new\n",
+            changedLines: 2,
+            new EngineerBuildReport(true, true, true, true, 10, 0, 0, 0, [], 50, "OK"),
+            passingReport);
+        Assert.True(passingScore.LiveVerifyPassed);
+        Assert.True(passingScore.AllGatesPassed);
+
+        // Broken UI Case 1: Broken AppShellNode layout (empty key/automationName & empty Column body) + duplicate button keys!
+        var brokenShellJson = JsonDocument.Parse(
+            """
+            {
+              "title": "Broken Studio",
+              "root": {
+                "kind": "appShell",
+                "key": "",
+                "automationName": "",
+                "body": { "kind": "column", "children": [] },
+                "toolbar": {
+                  "kind": "row",
+                  "children": [
+                    { "kind": "button", "key": "dup-btn", "label": "One", "automationName": "One" },
+                    { "kind": "button", "key": "dup-btn", "label": "Two", "automationName": "" }
+                  ]
+                }
+              }
+            }
+            """).RootElement.Clone();
+        var brokenShellScreen = new FakeVerifyScreen(brokenShellJson);
+
+        var brokenShellReport = await healthyVerifier.VerifyLiveAsync(
+            treeDir,
+            "Detect broken AppShellNode and missing AutomationName/duplicate key invariants",
+            uiTouchedFiles,
+            new EngineerLiveContext("trace-ui-broken-shell", null, [("app.engineer", brokenShellScreen)]),
+            Ct);
+
+        Assert.False(brokenShellReport.Succeeded);
+        Assert.False(brokenShellReport.McpProbesPassed);
+        Assert.False(brokenShellReport.PlaywrightPassed);
+        Assert.Contains(brokenShellReport.Probes, static p => p.Name == "ui-view-tree-gate" && !p.Passed);
+        var failedScreenProbe = Assert.Single(brokenShellReport.Probes, static p => p.Name == "mcp-screen-app.engineer");
+        Assert.False(failedScreenProbe.Passed);
+        Assert.Contains("AppShellNode", failedScreenProbe.Detail, StringComparison.Ordinal);
+        Assert.Contains("dup-btn", failedScreenProbe.Detail, StringComparison.Ordinal);
+
+        // Broken UI Case 2: HTTP 503 loopback failure prevents LiveVerifyPassed = true!
+        var failingHttpFactory = new StubHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        await using var failingHttpSp = new ServiceCollection()
+            .AddSingleton<IConfiguration>(healthyConfig)
+            .AddSingleton<IHttpClientFactory>(failingHttpFactory)
+            .BuildServiceProvider();
+        using var failingHttpVerifier = new EngineerLiveVerifier(services: failingHttpSp);
+
+        var http503Report = await failingHttpVerifier.VerifyLiveAsync(
+            treeDir,
+            "Detect HTTP 503 loopback failure",
+            uiTouchedFiles,
+            new EngineerLiveContext("trace-ui-503", null, [("app.engineer", liveEngineerScreen)]),
+            Ct);
+
+        Assert.False(http503Report.Succeeded);
+        Assert.True(http503Report.Http5xxCount >= 1);
+        var failingScore = EngineerCandidateScore.Compute(
+            new string('b', 40),
+            "+// change\n",
+            changedLines: 1,
+            new EngineerBuildReport(true, true, true, true, 10, 0, 0, 0, [], 50, "OK"),
+            http503Report);
+        Assert.False(failingScore.LiveVerifyPassed);
+        Assert.False(failingScore.ZeroTelemetryErrors);
+    }
+
     private sealed class FakeTraceReader(TraceEntry[] entries) : ITraceReader
     {
         public Task<TracePage> ReadTrace(string traceId, long since, int limit)
@@ -1671,6 +2082,153 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         public Task<SessionReturningView> ReadReturningView(string? todayDate = null) => Task.FromResult(new SessionReturningView());
 
         public Task<string[]> ListDates() => Task.FromResult<string[]>([]);
+    }
+
+    private sealed class RepoBriefWorkingMemory(string briefKey, string briefContent) : IWorkingMemory
+    {
+        public Task<WorkingMemorySnapshot> Read() => Task.FromResult(new WorkingMemorySnapshot());
+
+        public Task<WorkingMemoryStartupPack> ReadStartupPack()
+            => Task.FromResult(new WorkingMemoryStartupPack
+            {
+                Revision = 1,
+                Project = "IntoChat OS Repository",
+                AvailableBriefs = [new ContextBriefSummary(briefKey, "Repository Brief", "project", briefContent.Length, DateTimeOffset.UtcNow)],
+            });
+
+        public Task<WorkingMemoryStartupPack> FreezeSession(string sessionId) => ReadStartupPack();
+
+        public Task<WorkingMemoryScratchpad> UpsertScratchpad(WorkingMemorySection section, string entry, string? replaceMatching = null)
+            => Task.FromResult(new WorkingMemoryScratchpad());
+
+        public Task<WorkingMemoryScratchpad> RemoveScratchpad(WorkingMemorySection section, string match)
+            => Task.FromResult(new WorkingMemoryScratchpad());
+
+        public Task<WorkingMemoryScratchpad> SetScratchpad(WorkingMemoryScratchpad scratchpad)
+            => Task.FromResult(scratchpad);
+
+        public Task<WorkingMemorySlice> SetSlice(WorkingMemorySliceKind kind, string content)
+            => Task.FromResult(new WorkingMemorySlice(kind, content, DateTimeOffset.UtcNow));
+
+        public Task<WorkingMemorySlice?> GetSlice(WorkingMemorySliceKind kind)
+            => Task.FromResult<WorkingMemorySlice?>(null);
+
+        public Task<ContextBriefSummary> PutBrief(string key, string title, string category, string content)
+            => Task.FromResult(new ContextBriefSummary(key, title, category, content.Length, DateTimeOffset.UtcNow));
+
+        public Task<bool> RemoveBrief(string key) => Task.FromResult(true);
+
+        public Task<ContextBrief?> GetBrief(string key)
+            => Task.FromResult<ContextBrief?>(string.Equals(key, briefKey, StringComparison.OrdinalIgnoreCase)
+                ? new ContextBrief(briefKey, "Repository Brief", "project", briefContent, DateTimeOffset.UtcNow)
+                : null);
+
+        public Task<ContextBriefSummary[]> ListBriefs(string? category = null)
+            => Task.FromResult<ContextBriefSummary[]>([new ContextBriefSummary(briefKey, "Repository Brief", "project", briefContent.Length, DateTimeOffset.UtcNow)]);
+    }
+
+    private sealed class TurnOneErrorTurnTwoRepairCoder(List<string> observedPrompts) : ICoder
+    {
+        private int _turn;
+
+        public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
+        {
+            var currentTurn = Interlocked.Increment(ref _turn);
+            lock (observedPrompts)
+            {
+                observedPrompts.Add(goal);
+            }
+
+            var targetFile = Path.Combine(lease.TreePath, "code", "Calculator.cs");
+            if (currentTurn == 1)
+            {
+                await File.WriteAllTextAsync(
+                    targetFile,
+                    """
+                    namespace Demo;
+
+                    public static class Calculator
+                    {
+                        public static int Add(int a, int b) => a + b;
+                        public static int Subtract(int a, int b) => "not_an_int";
+                    }
+                    """,
+                    ct);
+                return new CoderEditResult("Drafted Subtract (with accidental string return).", ["code/Calculator.cs"], "ino-repair-test");
+            }
+
+            await File.WriteAllTextAsync(
+                targetFile,
+                """
+                namespace Demo;
+
+                public static class Calculator
+                {
+                    public static int Add(int a, int b) => a + b;
+                    public static int Subtract(int a, int b) => a - b;
+                }
+                """,
+                ct);
+            return new CoderEditResult("Repaired CS0029 return type on Subtract.", ["code/Calculator.cs"], "ino-repair-test");
+        }
+    }
+
+    private sealed class AlwaysSyntaxBrokenCoder : ICoder
+    {
+        private int _invocations;
+
+        public int Invocations => Volatile.Read(ref _invocations);
+
+        public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref _invocations);
+            var targetFile = Path.Combine(lease.TreePath, "code", "Calculator.cs");
+            await File.WriteAllTextAsync(
+                targetFile,
+                """
+                namespace Demo;
+
+                public static class Calculator
+                {
+                    public static int Broken() => 42
+                }
+                """,
+                ct);
+            return new CoderEditResult("Still missing semicolon.", ["code/Calculator.cs"], "ino-broken-test");
+        }
+    }
+
+    private sealed class StubHttpClientFactory(Func<HttpRequestMessage, HttpResponseMessage> responder) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+            => new(new DelegatingStubHandler(responder));
+
+        private sealed class DelegatingStubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                => Task.FromResult(responder(request));
+        }
+    }
+
+    private sealed class FakeBrowserPageSession(bool connected, BrowserObservation observation) : IBrowserPageSession
+    {
+        public bool Connected => connected;
+
+        public string? Url => observation.Url;
+
+        public string? Title => observation.Title;
+
+        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) => Task.FromResult(observation);
+
+        public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(observation);
+
+        public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => Task.FromResult(observation);
+
+        public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => Task.FromResult(observation);
+
+        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult("{}");
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static string RunGit(string workingDirectory, IReadOnlyList<string> args)

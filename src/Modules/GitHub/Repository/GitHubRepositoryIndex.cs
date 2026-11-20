@@ -16,6 +16,8 @@ internal interface IGitHubRepositoryIndex
 
     static string Key(long installationId) => $"{SystemBrain}/installation/{installationId}";
 
+    static string RepositoryKey(long repositoryId) => Key(-repositoryId);
+
     const string SystemBrain = "system";
 }
 
