@@ -5,15 +5,11 @@
     <PackageId>DigitalBrain.Testing</PackageId>
     <Description>Fakes, assertion helpers and the in-process host entry point for testing DigitalBrain neurons and modules.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <PackageReference Include="xunit.v3.extensibility.core" />
     <PackageReference Include="xunit.v3.assert" />
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

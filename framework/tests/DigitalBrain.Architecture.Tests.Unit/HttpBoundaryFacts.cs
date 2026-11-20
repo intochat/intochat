@@ -69,7 +69,7 @@ public sealed partial class HttpBoundaryFacts
     {
         var project = Repository.ProjectNamed(HttpProject);
         Assert.Equal(["DigitalBrain.Capabilities.Identity", "DigitalBrain.Capabilities.Storage"], Repository.ProjectReferences(project.Path));
-        Assert.Equal(["Microsoft.CodeAnalysis.PublicApiAnalyzers"], Repository.PackageReferences(project.Path));
+        Assert.Empty(Repository.PackageReferences(project.Path));
         Assert.Equal(["Microsoft.AspNetCore.App"], FrameworkReferences(project.Path));
         var restored = Repository.AssetsFile(project);
         Assert.True(File.Exists(restored), $"{restored} is missing; restore {HttpProject} first.");

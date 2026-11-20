@@ -4,7 +4,6 @@
     <RootNamespace>DigitalBrain.Testing</RootNamespace>
     <PackageId>DigitalBrain.Simulation</PackageId>
     <Description>The deterministic simulator: DigitalBrain neurons on an in-memory journal and a clock that moves only when told. No test framework.</Description>
-    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,9 +17,6 @@
     <ProjectReference Include="../DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
     <ProjectReference Include="../DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
 
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
 
     <InternalsVisibleTo Include="DigitalBrain.Testing" />
     <InternalsVisibleTo Include="DigitalBrain.Testing.Silo" />

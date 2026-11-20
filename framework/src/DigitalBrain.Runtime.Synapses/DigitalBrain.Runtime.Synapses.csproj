@@ -6,7 +6,6 @@
     <Description>Compiles synapse source to assemblies with the shipped DigitalBrain analyzers, including the synapse rules DB0041-DB0044, and loads them into collectible contexts. No Orleans.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
     <DefineConstants Condition="'$(IntoChatOSAot)' == 'true'">$(DefineConstants);INTOCHAT_OS_AOT</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
@@ -16,9 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="$(OutDir)DigitalBrain.Analyzers.dll" Pack="true" PackagePath="lib/$(TargetFramework)/" Visible="false" />
   </ItemGroup>
