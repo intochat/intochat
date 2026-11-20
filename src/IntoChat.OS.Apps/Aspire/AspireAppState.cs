@@ -202,21 +202,26 @@ public sealed record AspireAppState(
             rules.Add(ValidBaseUrlRule(args.BaseUrl));
         }
 
-        var routeSection = !string.IsNullOrWhiteSpace(args.Section)
-            ? args.Section
-            : ExtractSectionFromRoute(args.Route, out _);
-        var effectiveTraceId = !string.IsNullOrWhiteSpace(args.TraceId)
-            ? args.TraceId
-            : (!string.IsNullOrWhiteSpace(args.Section) ? null : ExtractTraceFromRoute(args.Route));
+        string? routeSection = null;
+        string? effectiveTraceId = null;
 
-        if (!string.IsNullOrWhiteSpace(routeSection))
+        if (!string.IsNullOrWhiteSpace(args.Section))
         {
+            routeSection = args.Section;
             rules.Add(SupportedSectionRule(routeSection));
+            if (!string.IsNullOrWhiteSpace(args.TraceId))
+            {
+                effectiveTraceId = args.TraceId.Trim();
+                rules.Add(ValidTraceIdRule(effectiveTraceId));
+            }
         }
-
-        if (!string.IsNullOrWhiteSpace(effectiveTraceId))
+        else if (!string.IsNullOrWhiteSpace(args.TraceId))
         {
-            rules.Add(ValidTraceIdRule(effectiveTraceId));
+            ClassifyTraceOrFlowId(args.TraceId, out routeSection, out effectiveTraceId, rules);
+        }
+        else if (!string.IsNullOrWhiteSpace(args.Route))
+        {
+            ClassifyRouteOrInput(args.Route, out routeSection, out effectiveTraceId, rules);
         }
 
         if (rules.Count > 0 && Decision.Check("navigate-to", [.. rules]) is { } refused)
@@ -236,9 +241,11 @@ public sealed record AspireAppState(
             ? "traces"
             : (!string.IsNullOrWhiteSpace(routeSection) ? ResolveCanonicalSection(routeSection)! : Section);
 
-        var nextTrace = !string.IsNullOrWhiteSpace(effectiveTraceId)
-            ? effectiveTraceId!.Trim()
-            : (string.Equals(nextSection, "traces", StringComparison.Ordinal) && string.IsNullOrWhiteSpace(routeSection) ? TraceId : null);
+        var nextTrace = string.Equals(nextSection, "traces", StringComparison.Ordinal)
+            ? (!string.IsNullOrWhiteSpace(effectiveTraceId)
+                ? effectiveTraceId!.Trim()
+                : (string.IsNullOrWhiteSpace(routeSection) ? TraceId : null))
+            : null;
 
         var detail = nextTrace is not null ? $"Trace {ShortTrace(nextTrace)}" : FormatSectionLabel(nextSection);
         return Decision.Accept(this with
@@ -354,41 +361,178 @@ public sealed record AspireAppState(
         return hasNonZero;
     }
 
+    public static bool IsHexTraceId(string? traceId)
+    {
+        if (string.IsNullOrWhiteSpace(traceId))
+        {
+            return false;
+        }
+
+        var trimmed = traceId.Trim();
+        if (trimmed.Length is < 8 or > 64)
+        {
+            return false;
+        }
+
+        var hasNonZero = false;
+        foreach (var ch in trimmed)
+        {
+            if (!Uri.IsHexDigit(ch))
+            {
+                return false;
+            }
+
+            if (ch != '0')
+            {
+                hasNonZero = true;
+            }
+        }
+
+        return hasNonZero;
+    }
+
     private static string NormalizeBaseUrlOrFallback(string? raw)
         => TryNormalizeBaseUrl(raw, out var normalized) ? normalized! : DefaultBaseUrl;
 
     private static string? TryExtractAuthority(string? url)
         => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Authority : null;
 
-    private static string? ExtractSectionFromRoute(string? route, out string? traceId)
+    private static void ClassifyRouteOrInput(
+        string rawRoute,
+        out string? routeSection,
+        out string? effectiveTraceId,
+        List<Rule> rules)
     {
-        traceId = null;
-        if (string.IsNullOrWhiteSpace(route))
+        routeSection = null;
+        effectiveTraceId = null;
+
+        var trimmed = rawRoute.Trim();
+        if (trimmed.Length == 0)
         {
-            return null;
+            return;
         }
 
-        var clean = route.Trim().TrimStart('#').Trim('/');
-        if (clean.Length == 0)
+        if (ResolveCanonicalSection(trimmed) is { } canonical)
         {
-            return null;
+            routeSection = canonical;
+            return;
+        }
+
+        var stripped = trimmed.TrimStart('#');
+        if (stripped.StartsWith('/'))
+        {
+            stripped = stripped[1..];
         }
 
         const string detailPrefix = "traces/detail/";
-        if (clean.StartsWith(detailPrefix, StringComparison.OrdinalIgnoreCase))
+        if (stripped.StartsWith(detailPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            traceId = clean[detailPrefix.Length..].Trim('/');
-            return "traces";
+            var tail = stripped[detailPrefix.Length..].Trim('/');
+            ClassifyTraceOrFlowId(tail, out routeSection, out effectiveTraceId, rules);
+            return;
         }
 
-        var slash = clean.IndexOf('/', StringComparison.Ordinal);
-        return slash > 0 ? clean[..slash] : clean;
+        if (stripped.StartsWith("trace/", StringComparison.OrdinalIgnoreCase)
+            || stripped.StartsWith("trace:", StringComparison.OrdinalIgnoreCase))
+        {
+            var tail = stripped[6..].Trim();
+            ClassifyTraceOrFlowId(tail, out routeSection, out effectiveTraceId, rules);
+            return;
+        }
+
+        ClassifyTraceOrFlowId(trimmed, out routeSection, out effectiveTraceId, rules);
     }
 
-    private static string? ExtractTraceFromRoute(string? route)
+    private static void ClassifyTraceOrFlowId(
+        string rawCandidate,
+        out string? routeSection,
+        out string? effectiveTraceId,
+        List<Rule> rules)
     {
-        _ = ExtractSectionFromRoute(route, out var traceId);
-        return traceId;
+        routeSection = null;
+        effectiveTraceId = null;
+
+        var clean = rawCandidate.Trim();
+        if (clean.StartsWith("trace:", StringComparison.OrdinalIgnoreCase)
+            || clean.StartsWith("trace/", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = clean[6..].Trim();
+        }
+
+        if (IsHexTraceId(clean))
+        {
+            routeSection = "traces";
+            effectiveTraceId = clean;
+            return;
+        }
+
+        if (IsSafeFlowIdentifier(clean, out var trailingKey))
+        {
+            routeSection = "traces";
+            effectiveTraceId = trailingKey is not null && IsHexTraceId(trailingKey) ? trailingKey : null;
+            return;
+        }
+
+        rules.Add(ValidTraceIdRule(rawCandidate));
+    }
+
+    private static bool IsSafeFlowIdentifier(string? candidate, out string? trailingKey)
+    {
+        trailingKey = null;
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        var trimmed = candidate.Trim();
+        if (trimmed.Length is < 2 or > 128
+            || trimmed.Contains("..", StringComparison.Ordinal)
+            || trimmed.Contains(':', StringComparison.Ordinal)
+            || trimmed.Contains('?', StringComparison.Ordinal)
+            || trimmed.Contains('#', StringComparison.Ordinal)
+            || trimmed.Contains('\\', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (trimmed.Contains('/', StringComparison.Ordinal))
+        {
+            var segments = trimmed.Split('/');
+            if (segments.Length != 3
+                || segments.Any(string.IsNullOrWhiteSpace)
+                || !segments[1].StartsWith("flow.", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            foreach (var seg in segments)
+            {
+                if (!seg.All(static ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_' or '.'))
+                {
+                    return false;
+                }
+            }
+
+            trailingKey = segments[2];
+            return true;
+        }
+
+        var hasLetterOrDigit = false;
+        foreach (var ch in trimmed)
+        {
+            if (char.IsAsciiLetterOrDigit(ch))
+            {
+                hasLetterOrDigit = true;
+                continue;
+            }
+
+            if (ch is not ('-' or '_' or '.'))
+            {
+                return false;
+            }
+        }
+
+        return hasLetterOrDigit;
     }
 
     public override string ToString()

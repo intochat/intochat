@@ -6,6 +6,8 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
+using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Aspire;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Orleans;
@@ -231,12 +233,24 @@ public sealed class AspireAndOrleansAppsFacts
         await screen.Request(UiCommand.SignalAlias, lockCmd);
         await os.Idle();
 
-        await screen.Request(new UiNavigateFrom(ToNeuron: "app.engineer", Force: false));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
+            screen.Dispatch(new Command(
+                ".",
+                UiNavigateFrom.SignalAlias,
+                RuntimeProtocol.SerializeToElement(
+                    new UiNavigateFrom(ToNeuron: "app.engineer", Force: false),
+                    typeof(UiNavigateFrom)))));
+        Assert.Contains("Rule:navigation_locked:", refused.Reason, StringComparison.Ordinal);
         await os.Idle();
         var lockedWire = (await screen.Open())!.View.GetRawText();
         Assert.Contains("navigation_locked", lockedWire, StringComparison.Ordinal);
 
-        await screen.Request(new UiNavigateFrom(ToNeuron: "app.engineer", Force: true));
+        await screen.Dispatch(new Command(
+            ".",
+            UiNavigateFrom.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateFrom(ToNeuron: "app.engineer", Force: true),
+                typeof(UiNavigateFrom))));
         await os.Idle();
         var forcedWire = (await screen.Open())!.View.GetRawText();
         Assert.DoesNotContain("navigation_locked", forcedWire, StringComparison.Ordinal);
@@ -327,5 +341,140 @@ public sealed class AspireAndOrleansAppsFacts
         Assert.Contains(orleansGraph.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_section"));
         Assert.Contains(orleansGraph.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_grain_filter"));
         Assert.Contains("digraph OrleansAppState", orleansGraph.Dot, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CrossWindowOpenAppIntents_PlainInputsAndTypedQueryParameters_DeepLinkAspireAndOrleans_AndEnforceDepartureRules()
+    {
+        using var person = EnterPerson();
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(AspireApp).Assembly);
+
+        var aspire = os.Get<IScreen>(new NeuronId(TestBrain, "app.aspire", "default"));
+        var orleans = os.Get<IScreen>(new NeuronId(TestBrain, "app.orleans", "default"));
+        _ = await aspire.Open();
+        _ = await orleans.Open();
+
+        // 1. Plain hex trace input via os://window/open?app=aspire&input=<hexTraceId> -> traces/detail/{traceId}
+        var aspireHexIntent = AppSignals.OpenApp("aspire", "4bf92f3577b34da6a3ce929d0e0e4736");
+        var aspireHexQuery = ParseQuery(new Uri(aspireHexIntent.Arg!).Query);
+        await aspire.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    FromNeuron: "infra-test/apps/engineer",
+                    Transition: ViewTransition.FadeThrough,
+                    Input: aspireHexQuery["input"]),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+        var aspireHexWire = (await aspire.Open())!.View.GetRawText();
+        Assert.Contains("http://localhost:18888/traces/detail/4bf92f3577b34da6a3ce929d0e0e4736", aspireHexWire, StringComparison.Ordinal);
+        Assert.Contains("\"transition\":\"fade-through\"", aspireHexWire, StringComparison.Ordinal);
+
+        // 2. General flow id via os://window/open?app=aspire&input=flow-mission-7 -> traces section overview
+        var aspireFlowIntent = AppSignals.OpenApp("aspire", "flow-mission-7");
+        var aspireFlowQuery = ParseQuery(new Uri(aspireFlowIntent.Arg!).Query);
+        await aspire.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    FromNeuron: "infra-test/apps/engineer",
+                    Transition: ViewTransition.SharedAxisX,
+                    Input: aspireFlowQuery["input"]),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+        var aspireFlowWire = (await aspire.Open())!.View.GetRawText();
+        Assert.Contains("\"url\":\"http://localhost:18888/traces\"", aspireFlowWire, StringComparison.Ordinal);
+        Assert.DoesNotContain("traces/detail/", aspireFlowWire, StringComparison.Ordinal);
+        Assert.Contains("\"transition\":\"shared-axis-x\"", aspireFlowWire, StringComparison.Ordinal);
+
+        // Also verify AspireOpen(Input: ...) from /apps/aspire/request forwarding
+        await aspire.Request(new AspireOpen(Input: "00f067aa0ba902b7"));
+        await os.Idle();
+        Assert.Contains("http://localhost:18888/traces/detail/00f067aa0ba902b7", (await aspire.Open())!.View.GetRawText(), StringComparison.Ordinal);
+
+        // 3. Plain input via os://window/open?app=orleans&input=EngineerFlow -> /orleans#/grains/EngineerFlow
+        var orleansPlainIntent = AppSignals.OpenApp("orleans", "EngineerFlow");
+        var orleansPlainQuery = ParseQuery(new Uri(orleansPlainIntent.Arg!).Query);
+        await orleans.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    FromNeuron: "infra-test/apps/engineer",
+                    Transition: ViewTransition.FadeThrough,
+                    Input: orleansPlainQuery["input"]),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+        var orleansWire = (await orleans.Open())!.View.GetRawText();
+        Assert.Contains("/orleans#/grains/EngineerFlow", orleansWire, StringComparison.Ordinal);
+        Assert.Contains("Grain: EngineerFlow", orleansWire, StringComparison.Ordinal);
+
+        // Also verify typed OpenApp<BrowserNavArgs> & OrleansOpen(Input: ...) + Orleans departure lock guard
+        var orleansTypedIntent = AppSignals.OpenApp(
+            "orleans",
+            new BrowserNavArgs(GrainFilter: "AgentNeuron"),
+            transition: ViewTransition.SharedAxisZ,
+            fromNeuron: "app.creator");
+        var orleansTypedQuery = ParseQuery(new Uri(orleansTypedIntent.Arg!).Query);
+        await orleans.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    ArgsJson: orleansTypedQuery["args"],
+                    FromNeuron: orleansTypedQuery["from"],
+                    Transition: orleansTypedQuery["transition"]),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+        var orleansTypedWire = (await orleans.Open())!.View.GetRawText();
+        Assert.Contains("/orleans#/grains/AgentNeuron", orleansTypedWire, StringComparison.Ordinal);
+        Assert.Contains("\"transition\":\"shared-axis-z\"", orleansTypedWire, StringComparison.Ordinal);
+
+        await orleans.Request(new OrleansOpen(Input: "EngineerFlow"));
+        await os.Idle();
+        Assert.Contains("/orleans#/grains/EngineerFlow", (await orleans.Open())!.View.GetRawText(), StringComparison.Ordinal);
+
+        var lockOrleans = RuntimeProtocol.SerializeToElement(
+            new UiCommand("state", nameof(OrleansAppState.SetNavigationLock), [JsonSerializer.SerializeToElement(true)]),
+            typeof(UiCommand));
+        await orleans.Request(UiCommand.SignalAlias, lockOrleans);
+        await os.Idle();
+
+        var orleansRefused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
+            orleans.Dispatch(new Command(
+                ".",
+                UiNavigateFrom.SignalAlias,
+                RuntimeProtocol.SerializeToElement(
+                    new UiNavigateFrom(ToNeuron: "infra-test/apps/engineer", Force: false),
+                    typeof(UiNavigateFrom)))));
+        Assert.Contains("Rule:navigation_locked:", orleansRefused.Reason, StringComparison.Ordinal);
+
+        await orleans.Dispatch(new Command(
+            ".",
+            UiNavigateFrom.SignalAlias,
+            RuntimeProtocol.SerializeToElement(
+                new UiNavigateFrom(ToNeuron: "infra-test/apps/engineer", Force: true),
+                typeof(UiNavigateFrom))));
+        await os.Idle();
+        Assert.DoesNotContain("navigation_locked", (await orleans.Open())!.View.GetRawText(), StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, string> ParseQuery(string rawQuery)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in rawQuery.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=', StringComparison.Ordinal);
+            if (eq > 0)
+            {
+                result[Uri.UnescapeDataString(pair[..eq])] = Uri.UnescapeDataString(pair[(eq + 1)..]);
+            }
+        }
+
+        return result;
     }
 }

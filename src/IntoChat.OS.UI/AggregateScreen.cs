@@ -103,7 +103,8 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
             var fromNeuron = args.Length > 1 && args[1].ValueKind == JsonValueKind.String ? args[1].GetString() : null;
             var transition = args.Length > 2 && args[2].ValueKind == JsonValueKind.String ? args[2].GetString() ?? ViewTransition.FadeThrough : ViewTransition.FadeThrough;
             var correlationId = args.Length > 3 && args[3].ValueKind == JsonValueKind.String ? args[3].GetString() : null;
-            await HandleUiNavigateTo(new UiNavigateTo(argsJson, fromNeuron, transition, correlationId), cancellationToken).ConfigureAwait(true);
+            var input = args.Length > 4 && args[4].ValueKind == JsonValueKind.String ? args[4].GetString() : null;
+            await HandleUiNavigateTo(new UiNavigateTo(argsJson, fromNeuron, transition, correlationId, input), cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -113,7 +114,7 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
             var toNeuron = args.Length > 0 && args[0].ValueKind == JsonValueKind.String ? args[0].GetString() : null;
             var route = args.Length > 1 && args[1].ValueKind == JsonValueKind.String ? args[1].GetString() : null;
             var force = args.Length > 2 && args[2].ValueKind is JsonValueKind.True or JsonValueKind.False && args[2].GetBoolean();
-            await HandleUiNavigateFrom(new UiNavigateFrom(toNeuron, route, force), cancellationToken).ConfigureAwait(true);
+            _ = await TryNavigateFromAsync(new NavigationDeparture(toNeuron, route, force), cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -221,18 +222,34 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
             return;
         }
 
-        await navTable.InvokeJsonAsync(this, signal.ArgsJson, signal.FromNeuron, normalizedTransition, signal.CorrelationId, cancellationToken)
+        await navTable.InvokeJsonAsync(this, signal.ArgsJson, signal.FromNeuron, normalizedTransition, signal.CorrelationId, cancellationToken, signal.Input)
             .ConfigureAwait(true);
     }
 
     /// <summary>
     /// Built-in <c>[On]</c> signal handler for <see cref="UiNavigateFrom"/> (`ui.navigate-from`), enforcing <see cref="INavigatedFrom.CanNavigateFrom"/>.
+    /// Throws <see cref="DigitalBrain.Units.ActivationRefusedException"/> with a <c>Rule:&lt;code&gt;: &lt;message&gt;</c> reason when departure is refused so <c>/act</c> surfaces domain rule rejections cleanly.
     /// </summary>
     [On]
-    internal Task HandleUiNavigateFrom(UiNavigateFrom signal, CancellationToken cancellationToken)
+    internal async Task HandleUiNavigateFrom(UiNavigateFrom signal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(signal);
-        return TryNavigateFromAsync(new NavigationDeparture(signal.ToNeuron, signal.Route, signal.Force), cancellationToken);
+        var allowed = await TryNavigateFromAsync(new NavigationDeparture(signal.ToNeuron, signal.Route, signal.Force), cancellationToken).ConfigureAwait(true);
+        if (!allowed)
+        {
+            throw new DigitalBrain.Units.ActivationRefusedException(FormatDepartureRejectionReason(LastRejection));
+        }
+    }
+
+    private static string FormatDepartureRejectionReason(Rejected? rejection)
+    {
+        var rule = rejection?.Rules is { Length: > 0 } rules && !string.IsNullOrWhiteSpace(rules[0])
+            ? rules[0]
+            : "departure_refused";
+        var message = rejection?.Messages is { Length: > 0 } messages && !string.IsNullOrWhiteSpace(messages[0])
+            ? messages[0]
+            : "Navigation departure refused by domain rule.";
+        return $"Rule:{rule}: {message}";
     }
 
     /// <summary>
@@ -589,10 +606,11 @@ internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntr
         string? fromNeuron,
         string transition,
         string? correlationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? input = null)
     {
         var entry = Targets[0];
-        var argsValue = DeserializeArgs(argsJson, entry);
+        var argsValue = DeserializeArgs(argsJson, input, entry);
         var arrival = Activator.CreateInstance(entry.ArrivalType, argsValue, fromNeuron, transition, correlationId)!;
         object? rawTask;
         try
@@ -611,23 +629,232 @@ internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntr
         }
     }
 
-    private static object? DeserializeArgs(string? argsJson, TargetEntry entry)
+    private static object? DeserializeArgs(string? argsJson, string? input, TargetEntry entry)
     {
         if (entry.ArgsType == typeof(string))
         {
-            if (string.IsNullOrEmpty(argsJson))
+            if (!string.IsNullOrEmpty(argsJson))
             {
-                return string.Empty;
+                return ExtractScalarString(argsJson.Trim(), entry.JsonOptions);
             }
 
-            return argsJson.StartsWith('"')
-                ? JsonSerializer.Deserialize<string>(argsJson, entry.JsonOptions) ?? string.Empty
-                : argsJson;
+            return input ?? string.Empty;
         }
 
-        var json = string.IsNullOrWhiteSpace(argsJson) ? "{}" : argsJson;
-        return JsonSerializer.Deserialize(json, entry.ArgsType, entry.JsonOptions);
+        var trimmedJson = argsJson?.Trim();
+        if (!string.IsNullOrEmpty(trimmedJson))
+        {
+            if (trimmedJson.StartsWith('{'))
+            {
+                if (string.Equals(trimmedJson, "{}", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(input))
+                {
+                    return CoercePlainInput(input.Trim(), entry);
+                }
+
+                var parsed = JsonSerializer.Deserialize(trimmedJson, entry.ArgsType, entry.JsonOptions);
+                return !string.IsNullOrWhiteSpace(input)
+                    ? MergeFallbackInput(parsed, input.Trim(), entry)
+                    : parsed;
+            }
+
+            var scalar = ExtractScalarString(trimmedJson, entry.JsonOptions);
+            if (!string.IsNullOrWhiteSpace(scalar))
+            {
+                return CoercePlainInput(scalar, entry);
+            }
+
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                return CoercePlainInput(input.Trim(), entry);
+            }
+
+            return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
+        }
+
+        if (!string.IsNullOrWhiteSpace(input))
+        {
+            return CoercePlainInput(input.Trim(), entry);
+        }
+
+        return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
     }
+
+    private static string ExtractScalarString(string trimmed, JsonSerializerOptions options)
+    {
+        if (string.Equals(trimmed, "null", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        if (trimmed.StartsWith('"'))
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<string>(trimmed, options) ?? string.Empty;
+            }
+            catch (JsonException)
+            {
+                return trimmed.Trim('"');
+            }
+        }
+
+        return trimmed;
+    }
+
+    private static object? CoercePlainInput(string rawInput, TargetEntry entry)
+    {
+        var clean = rawInput.Trim();
+        if (clean.Length == 0)
+        {
+            return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
+        }
+
+        if (entry.ArgsType == typeof(BrowserNavArgs))
+        {
+            if ((clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                    || clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                && Uri.TryCreate(clean, UriKind.Absolute, out var uri)
+                && string.IsNullOrEmpty(uri.AbsolutePath.Trim('/'))
+                && string.IsNullOrEmpty(uri.Fragment))
+            {
+                return new BrowserNavArgs(BaseUrl: clean);
+            }
+
+            return new BrowserNavArgs(Route: clean);
+        }
+
+        if (entry.ArgsType == typeof(StudioNavArgs))
+        {
+            if (IsCandidateToken(clean))
+            {
+                return new StudioNavArgs(CandidateId: clean);
+            }
+
+            if (IsStudioLensKeyword(clean))
+            {
+                return new StudioNavArgs(Lens: clean, Mode: clean);
+            }
+
+            if (IsExplicitStudioTarget(clean))
+            {
+                return new StudioNavArgs(TargetId: clean);
+            }
+
+            return new StudioNavArgs(TargetId: clean, FlowId: clean);
+        }
+
+        if (entry.ArgsType == typeof(TasksNavArgs))
+        {
+            var lower = clean.ToLowerInvariant();
+            if (lower is "board" or "kanban" or "table" or "list" or "approvals" or "confirmations")
+            {
+                var tab = lower switch
+                {
+                    "kanban" => "board",
+                    "list" => "table",
+                    "confirmations" => "approvals",
+                    _ => lower,
+                };
+                return new TasksNavArgs(Tab: tab);
+            }
+
+            if (clean.StartsWith("confirm:", StringComparison.OrdinalIgnoreCase)
+                || clean.StartsWith("confirmation:", StringComparison.OrdinalIgnoreCase))
+            {
+                var id = clean[(clean.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
+                return new TasksNavArgs(Tab: "approvals", ConfirmationId: id.Length > 0 ? id : null);
+            }
+
+            if (clean.StartsWith("draft:", StringComparison.OrdinalIgnoreCase))
+            {
+                var id = clean["draft:".Length..].Trim();
+                return new TasksNavArgs(Tab: "approvals", DraftPreviewId: id.Length > 0 ? id : null);
+            }
+
+            return new TasksNavArgs(FlowId: clean);
+        }
+
+        if (entry.ArgsType == typeof(InoNavArgs))
+        {
+            if (clean.StartsWith("conversation:", StringComparison.OrdinalIgnoreCase)
+                || clean.StartsWith("chat:", StringComparison.OrdinalIgnoreCase))
+            {
+                var id = clean[(clean.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
+                return new InoNavArgs(ConversationId: id.Length > 0 ? id : null);
+            }
+
+            if (clean.StartsWith("focus:", StringComparison.OrdinalIgnoreCase)
+                || clean.StartsWith("node:", StringComparison.OrdinalIgnoreCase))
+            {
+                return new InoNavArgs(FocusTarget: clean);
+            }
+
+            return new InoNavArgs(Prompt: clean);
+        }
+
+        var ctors = entry.ArgsType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+        if (ctors.Length > 0)
+        {
+            var parameters = ctors[0].GetParameters();
+            if (parameters.Length > 0
+                && parameters[0].ParameterType == typeof(string)
+                && parameters.Skip(1).All(p => p.HasDefaultValue))
+            {
+                var ctorArgs = new object?[parameters.Length];
+                ctorArgs[0] = clean;
+                for (var i = 1; i < parameters.Length; i++)
+                {
+                    ctorArgs[i] = parameters[i].DefaultValue;
+                }
+
+                return ctors[0].Invoke(ctorArgs);
+            }
+        }
+
+        return JsonSerializer.Deserialize("{}", entry.ArgsType, entry.JsonOptions);
+    }
+
+    private static object? MergeFallbackInput(object? parsed, string cleanInput, TargetEntry entry)
+    {
+        return parsed switch
+        {
+            BrowserNavArgs { Section: null, TraceId: null, GrainFilter: null, Route: null, BaseUrl: null } => CoercePlainInput(cleanInput, entry),
+            StudioNavArgs { TargetId: null, Lens: null, FlowId: null, CandidateId: null, FilePath: null, Mode: null } => CoercePlainInput(cleanInput, entry),
+            TasksNavArgs { FlowId: null, Tab: null, ConfirmationId: null, DraftPreviewId: null } => CoercePlainInput(cleanInput, entry),
+            InoNavArgs { Prompt: null, ConversationId: null, FocusTarget: null } => CoercePlainInput(cleanInput, entry),
+            _ => parsed,
+        };
+    }
+
+    private static bool IsCandidateToken(string candidate)
+    {
+        if (candidate.Length is < 2 or > 5 || candidate[0] is not ('w' or 'W'))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < candidate.Length; i++)
+        {
+            if (!char.IsAsciiDigit(candidate[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsStudioLensKeyword(string candidate)
+        => candidate.ToLowerInvariant() is "flow" or "plan" or "code" or "changes" or "verify" or "pr" or "brain" or "state" or "source" or "signals";
+
+    private static bool IsExplicitStudioTarget(string candidate)
+        => candidate.StartsWith("trace/", StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith("trace:", StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith("node:", StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith("unit:", StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith("pulse:", StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith("edge:", StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith("app.", StringComparison.OrdinalIgnoreCase);
 
     public sealed record TargetEntry(Type ArgsType, Type ArrivalType, MethodInfo Method, JsonSerializerOptions JsonOptions);
 }

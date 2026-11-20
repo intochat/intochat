@@ -12,6 +12,7 @@ import '../desktop/command_palette.dart';
 import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
 import 'apps/app_activations.dart';
+import 'cross_window_router.dart';
 import 'width_hint.dart';
 import 'known_apps.dart';
 import 'workspace_store.dart';
@@ -105,6 +106,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
   }
 
   final _navigator = GlobalKey<NavigatorState>();
+  final _intentTracker = PendingOpenWindowIntentTracker();
   String? _rootName;
   String? _activationApp;
   String _renderKind = 'layout';
@@ -117,6 +119,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
   bool _paletteOpen = false;
   BarLayout _barLayout = BarLayout.floatingGlass;
   Uri? _pendingLocation;
+  String? _departureRefusal;
+  int _surfaceReloadEpoch = 0;
 
   String? get currentBrain => _brain;
   WorkspaceSnapshot? get workspaceSnapshot => _workspaceSnapshot;
@@ -333,9 +337,58 @@ class WorkspaceAppState extends State<WorkspaceApp>
     if (overlay != null) showKitToast(overlay, message, tone: tone);
   }
 
+  static String? _nonEmptyField(Object? value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : value;
+  }
+
   Future<void> _activate(Map<String, dynamic> action) async {
     final client = widget.programmingClient;
     if (client == null) return;
+    if (action['kind'] == 'os_uri') {
+      final uriStr = '${action['uri'] ?? ''}';
+      final currentScreen = screenNeuronFromViewName(
+        _rootName ?? _focusedNeuron,
+        brain: _brain,
+      );
+      final openRoute = _intentTracker.consumeUri(
+        uriStr,
+        fallbackFromNeuron: currentScreen,
+      );
+      if (openRoute != null) {
+        if (openRoute.app == 'settings') {
+          action = {
+            'kind': 'settings',
+            if (action['brainId'] case final String b) 'brainId': b,
+            if (openRoute.section case final String sec) 'tab': sec,
+          };
+        } else {
+          action = {
+            if (action['brainId'] case final String b) 'brainId': b,
+            'kind': 'workspace',
+            'application': openRoute.app,
+            'operation': 'open',
+            if (openRoute.input != null) 'input': openRoute.input,
+            if (openRoute.argsJson != null) 'argsJson': openRoute.argsJson,
+            if (openRoute.hasExplicitTransition)
+              'transition': openRoute.transition,
+            if (openRoute.fromNeuron != null)
+              'fromNeuron': openRoute.fromNeuron,
+            if (openRoute.hasNavigationPayload) 'hasNavigationPayload': true,
+          };
+        }
+      } else if (uriStr.contains('settings')) {
+        final uri = Uri.tryParse(uriStr);
+        action = {
+          'kind': 'settings',
+          if (action['brainId'] case final String b) 'brainId': b,
+          if (uri?.queryParameters['section'] case final String sec) 'tab': sec,
+        };
+      } else {
+        return;
+      }
+    }
     // A legacy settings activation is the Settings app's workspace activation.
     if (action['kind'] == 'settings') action = settingsActivation(action);
     // An app's configuration is the Apps app's detail for it.
@@ -366,6 +419,17 @@ class WorkspaceAppState extends State<WorkspaceApp>
           action['neuron'] as String? ??
           (app == null ? null : '$brain/apps/$app');
       final changingBrain = brain != _brain;
+      final navInput = _nonEmptyField(action['input']);
+      final navArgsJson = _nonEmptyField(action['argsJson'] ?? action['args']);
+      final rawTransition = _nonEmptyField(action['transition']);
+      final navTransition = normalizeViewTransition(rawTransition);
+      final fromNeuron = _nonEmptyField(action['fromNeuron']);
+      final hasNavPayload =
+          action['hasNavigationPayload'] == true ||
+          navInput != null ||
+          navArgsJson != null ||
+          rawTransition != null;
+      final alreadyNavigatedTo = action['navigatedTo'] == true;
       // Install, update and remove run over the person's own session in a brain they belong to; the space
       // stays where it is, and an install then opens the app.
       if (const {'install', 'update', 'remove'}.contains(action['kind'])) {
@@ -451,7 +515,65 @@ class WorkspaceAppState extends State<WorkspaceApp>
       if (_hasExplicitRoot) {
         final receiver = _activationApp;
         if (receiver == null && !_isDesktopRoot) {
-          throw StateError('This root has no navigation receiver.');
+          if (app == null || neuron == null) {
+            throw StateError('This root has no navigation receiver.');
+          }
+          final currentScreen = screenNeuronFromViewName(
+            _rootName,
+            brain: brain,
+          );
+          if (!changingBrain &&
+              currentScreen != null &&
+              currentScreen != neuron) {
+            final refusal = await checkDepartureGuard(
+              sendAct: (event) => client.uiEvent(brain, event),
+              fromNeuron: currentScreen,
+              toNeuron: neuron,
+              route: navArgsJson ?? navInput,
+            );
+            if (refusal != null) {
+              if (mounted) {
+                setState(() {
+                  _departureRefusal = refusal;
+                  _surfaceReloadEpoch++;
+                });
+                _toast(refusal, tone: UiTone.error);
+              }
+              return;
+            }
+          }
+          if (hasNavPayload && !alreadyNavigatedTo && app != 'settings') {
+            await dispatchNavigateTo(
+              sendAct: (event) => client.uiEvent(brain, event),
+              targetNeuron: neuron,
+              fromNeuron: fromNeuron ?? currentScreen,
+              argsJson: navArgsJson,
+              transition: navTransition,
+              input: navInput,
+            );
+          }
+          if (action['operation'] case final String operation) {
+            unawaited(
+              client
+                  .requestApp(
+                    brain,
+                    app,
+                    operation,
+                    action['input'] as String? ?? '',
+                  )
+                  .then<void>((_) {}, onError: (Object _) {}),
+            );
+          }
+          if (mounted) {
+            setState(() {
+              _departureRefusal = null;
+              _rootName = '$brain/apps/$app/view';
+              _renderKind = 'view';
+              _focusedNeuron = neuron;
+              _surfaceReloadEpoch++;
+            });
+          }
+          return;
         }
         if (receiver != null) {
           await client.requestApp(
@@ -462,6 +584,19 @@ class WorkspaceAppState extends State<WorkspaceApp>
           );
         }
         if (_isDesktopRoot) {
+          if (neuron != null &&
+              app != 'settings' &&
+              hasNavPayload &&
+              !alreadyNavigatedTo) {
+            await dispatchNavigateTo(
+              sendAct: (event) => client.uiEvent(brain, event),
+              targetNeuron: neuron,
+              fromNeuron: fromNeuron,
+              argsJson: navArgsJson,
+              transition: navTransition,
+              input: navInput,
+            );
+          }
           if (action['operation'] case final String operation
               when app != null && app != receiver) {
             await client.requestApp(
@@ -474,6 +609,32 @@ class WorkspaceAppState extends State<WorkspaceApp>
         }
         return;
       }
+      final previousScreen = screenNeuronFromViewName(
+        _focusedNeuron,
+        brain: brain,
+      );
+      if (!_isDesktopRoot &&
+          neuron != null &&
+          !changingBrain &&
+          previousScreen != null &&
+          previousScreen != neuron) {
+        final refusal = await checkDepartureGuard(
+          sendAct: (event) => client.uiEvent(brain, event),
+          fromNeuron: previousScreen,
+          toNeuron: neuron,
+          route: navArgsJson ?? navInput,
+        );
+        if (refusal != null) {
+          if (mounted) {
+            setState(() {
+              _departureRefusal = refusal;
+              _surfaceReloadEpoch++;
+            });
+            _toast(refusal, tone: UiTone.error);
+          }
+          return;
+        }
+      }
       if (neuron != null && !changingBrain) {
         final snap = await client.showNeuron(
           brain,
@@ -483,10 +644,24 @@ class WorkspaceAppState extends State<WorkspaceApp>
         );
         if (mounted) {
           setState(() {
+            _departureRefusal = null;
             _workspaceSnapshot = snap;
             _focusedNeuron = snap.path.isNotEmpty ? snap.path.last : neuron;
           });
         }
+      }
+      if (neuron != null &&
+          app != 'settings' &&
+          hasNavPayload &&
+          !alreadyNavigatedTo) {
+        await dispatchNavigateTo(
+          sendAct: (event) => client.uiEvent(brain, event),
+          targetNeuron: neuron,
+          fromNeuron: fromNeuron ?? previousScreen,
+          argsJson: navArgsJson,
+          transition: navTransition,
+          input: navInput,
+        );
       }
       if (action['operation'] case final String operation) {
         if (app != null) {
@@ -767,7 +942,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     ),
                               )
                             : ViewHost(
-                                key: ValueKey(_rootName),
+                                key: ValueKey(
+                                  '$_rootName:$_surfaceReloadEpoch',
+                                ),
                                 kind: _renderKind,
                                 name: _rootName!,
                                 load: (kind, name) =>
@@ -789,13 +966,24 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                       method,
                                       args,
                                     ),
-                                onAction: (event) => widget.programmingClient!
-                                    .uiEvent(_brain!, event),
+                                onAction: (event) => _intentTracker.wrapAction(
+                                  event,
+                                  (e) => widget.programmingClient!.uiEvent(
+                                    _brain!,
+                                    e,
+                                  ),
+                                  fallbackFromNeuron: screenNeuronFromViewName(
+                                    _rootName,
+                                    brain: _brain,
+                                  ),
+                                ),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 transcribe:
                                     widget.programmingClient!.transcribe,
-                                knowsApp: (app) => _knownApps.contains(app),
+                                knowsApp: (app) =>
+                                    _knownApps.contains(app) ||
+                                    _knownApps.contains(app.toLowerCase()),
                               ),
                       ),
                     )
@@ -806,6 +994,71 @@ class WorkspaceAppState extends State<WorkspaceApp>
                             'Connect to your brain to begin.',
                       ),
                     ),
+              if (_departureRefusal case final String refusalMessage)
+                Positioned(
+                  top: 12,
+                  left: 16,
+                  right: 16,
+                  child: SafeArea(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 640),
+                        child: Material(
+                          key: const ValueKey(
+                            'workspace-departure-refusal-banner',
+                          ),
+                          elevation: 4,
+                          borderRadius: BorderRadius.circular(10),
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 18,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onErrorContainer,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    refusalMessage,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onErrorContainer,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  key: const ValueKey(
+                                    'workspace-departure-refusal-dismiss',
+                                  ),
+                                  tooltip: 'Dismiss',
+                                  icon: Icon(
+                                    Icons.close,
+                                    size: 18,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onErrorContainer,
+                                  ),
+                                  onPressed: () =>
+                                      setState(() => _departureRefusal = null),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (_paletteOpen)
                 CommandPalette(
                   apps: _paletteApps(),
