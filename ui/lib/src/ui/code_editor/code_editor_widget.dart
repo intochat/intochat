@@ -250,121 +250,152 @@ class _CodeEditorNeuronWidgetState extends State<CodeEditorNeuronWidget> {
         final spanCount = _countHighlightSpans(resolvedSyntax, content);
         final highlightKey = resolvedSyntax ?? 'plain';
 
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
-            border: Border.all(color: c.borderHairline),
+        final editorBoxDecoration = BoxDecoration(
+          color: c.surfaceSunk,
+          borderRadius: BorderRadius.circular(IcRadius.sm),
+          border: Border.all(color: c.borderHairline),
+        );
+
+        final editorCore = CodeEditor(
+          controller: _controller,
+          readOnly: readOnly,
+          wordWrap: wordWrap,
+          style: CodeEditorStyle(
+            fontFamily: 'JetBrains Mono',
+            fontFamilyFallback: const ['monospace'],
+            fontSize: 12.5,
+            fontHeight: 1.45,
+            textColor: c.textStrong,
+            backgroundColor: c.surfaceSunk,
+            cursorColor: c.accent,
+            selectionColor: c.accent.withValues(alpha: 0.22),
+            codeTheme: highlightTheme,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.code, size: 15, color: c.accent),
-                  const SizedBox(width: 6),
-                  Text(
-                    dirty ? '$title •' : title,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: c.textStrong,
+          indicatorBuilder:
+              (context, editingController, chunkController, notifier) {
+                return Row(
+                  children: [
+                    DefaultCodeLineNumber(
+                      controller: editingController,
+                      notifier: notifier,
+                      textStyle: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 11,
+                        color: c.textMuted,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Semantics(
-                    identifier: 'key:code-highlight:$highlightKey',
-                    label: 'Syntax highlight: $highlightKey ($spanCount spans)',
-                    container: true,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: resolvedSyntax != null
-                            ? c.accentTint
-                            : c.surfaceSunk,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        highlightKey.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: resolvedSyntax != null
-                              ? c.accent
-                              : c.textMuted,
+                    const SizedBox(width: 8),
+                  ],
+                );
+              },
+          onChanged: (value) {
+            if (readOnly) return;
+            final text = _controller.text;
+            _debounce?.cancel();
+            _debounce = Timer(const Duration(milliseconds: 220), () {
+              unawaited(invoke('SetContent', [text]));
+            });
+          },
+        );
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final stretch =
+                constraints.hasBoundedHeight &&
+                constraints.maxHeight.isFinite &&
+                constraints.maxHeight >= 160;
+            return Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: c.surfaceCard,
+                borderRadius: BorderRadius.circular(IcRadius.card),
+                border: Border.all(color: c.borderHairline),
+              ),
+              child: Column(
+                mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.code, size: 15, color: c.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          dirty ? '$title •' : title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: c.textStrong,
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Semantics(
+                        identifier: 'key:code-highlight:$highlightKey',
+                        label:
+                            'Syntax highlight: $highlightKey ($spanCount spans)',
+                        container: true,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: resolvedSyntax != null
+                                ? c.accentTint
+                                : c.surfaceSunk,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            highlightKey.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: resolvedSyntax != null
+                                  ? c.accent
+                                  : c.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!readOnly) ...[
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () {
+                            _debounce?.cancel();
+                            unawaited(invoke('SaveContent', const []));
+                          },
+                          icon: const Icon(Icons.save_outlined, size: 14),
+                          label: const Text(
+                            'Save',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const Spacer(),
-                  if (!readOnly)
-                    TextButton.icon(
-                      onPressed: () {
-                        _debounce?.cancel();
-                        unawaited(invoke('SaveContent', const []));
-                      },
-                      icon: const Icon(Icons.save_outlined, size: 14),
-                      label: const Text('Save', style: TextStyle(fontSize: 12)),
+                  const SizedBox(height: 8),
+                  if (stretch)
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: editorBoxDecoration,
+                        child: editorCore,
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 200,
+                      padding: const EdgeInsets.all(8),
+                      decoration: editorBoxDecoration,
+                      child: editorCore,
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Container(
-                height: 200,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: c.surfaceSunk,
-                  borderRadius: BorderRadius.circular(IcRadius.sm),
-                  border: Border.all(color: c.borderHairline),
-                ),
-                child: CodeEditor(
-                  controller: _controller,
-                  readOnly: readOnly,
-                  wordWrap: wordWrap,
-                  style: CodeEditorStyle(
-                    fontFamily: 'JetBrains Mono',
-                    fontFamilyFallback: const ['monospace'],
-                    fontSize: 12.5,
-                    fontHeight: 1.45,
-                    textColor: c.textStrong,
-                    backgroundColor: c.surfaceSunk,
-                    cursorColor: c.accent,
-                    selectionColor: c.accent.withValues(alpha: 0.22),
-                    codeTheme: highlightTheme,
-                  ),
-                  indicatorBuilder:
-                      (context, editingController, chunkController, notifier) {
-                        return Row(
-                          children: [
-                            DefaultCodeLineNumber(
-                              controller: editingController,
-                              notifier: notifier,
-                              textStyle: TextStyle(
-                                fontFamily: 'JetBrains Mono',
-                                fontSize: 11,
-                                color: c.textMuted,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                        );
-                      },
-                  onChanged: (value) {
-                    if (readOnly) return;
-                    final text = _controller.text;
-                    _debounce?.cancel();
-                    _debounce = Timer(const Duration(milliseconds: 220), () {
-                      unawaited(invoke('SetContent', [text]));
-                    });
-                  },
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

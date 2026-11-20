@@ -875,7 +875,8 @@ public sealed record AppShellNode(
     Node Body,
     Node? Toolbar = null,
     Node? Inspector = null,
-    string AutomationName = "") : Node
+    string AutomationName = "",
+    string Transition = "") : Node
 {
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
     public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : Key ?? "";
@@ -1146,8 +1147,9 @@ public static class Ui
         Node body,
         Node? toolbar = null,
         Node? inspector = null,
-        string automationName = "") =>
-        new(key, sidebar, body, toolbar, inspector, automationName);
+        string automationName = "",
+        string transition = "") =>
+        new(key, sidebar, body, toolbar, inspector, automationName, transition);
 
     /// <summary>Creates a sidebar navigation item with a Lucide icon key, operation name, selection state, and optional badge.</summary>
     public static NavItemNode NavItem(

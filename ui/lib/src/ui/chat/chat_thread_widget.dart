@@ -76,258 +76,282 @@ class _ChatThreadWidgetState extends State<ChatThreadWidget> {
             ? state['availableModels'] as List
             : const <dynamic>[];
 
-        return Container(
-          decoration: BoxDecoration(
-            color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
-            border: Border.all(color: c.borderHairline),
-          ),
+        final messagesBody = Padding(
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
+            spacing: 12,
             children: [
-              // DevUI Telemetry & Context Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: c.textStrong,
-                      ),
+              if (rawMessages.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'Ask Ino anything — tool calls, reasoning, and live charts appear inline.',
+                      style: TextStyle(fontSize: 13, color: c.textMuted),
                     ),
-                    if (activeModel.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.accent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          activeModel,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: c.accent,
-                          ),
-                        ),
-                      ),
-                    Text(
-                      '${totalIn + totalOut} / $budget tok (${(usedRatio * 100).round()}%)',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: c.textMuted,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => setState(
-                        () => _showContextInspector = !_showContextInspector,
-                      ),
-                      icon: Icon(
-                        LucideIcons.layers,
-                        size: 14,
-                        color: _showContextInspector ? c.accent : c.textMuted,
-                      ),
-                      label: Text(
-                        'Context (${rawContexts.length})',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _showContextInspector ? c.accent : c.textBody,
-                        ),
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => unawaited(invoke('Compact')),
-                      icon: Icon(
-                        LucideIcons.minimize2,
-                        size: 14,
-                        color: c.textMuted,
-                      ),
-                      label: Text(
-                        'Compact',
-                        style: TextStyle(fontSize: 12, color: c.textBody),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_showContextInspector) ...[
-                Divider(height: 1, color: c.borderHairline),
-                Container(
-                  color: c.surfaceSunk,
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 6,
-                    children: [
-                      Text(
-                        'PROVISIONED CONTEXTS & MEMORY',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.7,
-                          color: c.textMuted,
-                        ),
-                      ),
-                      if (summary != null && summary.isNotEmpty)
-                        Text(
-                          'Summary: $summary',
-                          style: TextStyle(fontSize: 12, color: c.textBody),
-                        ),
-                      for (final ctxItem in rawContexts)
-                        if (ctxItem is Map)
-                          Row(
-                            children: [
-                              Icon(
-                                LucideIcons.database,
-                                size: 13,
-                                color: c.accent,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${ctxItem['name'] ?? ''}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: c.textStrong,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${ctxItem['summary'] ?? ''}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: c.textMuted,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                    ],
                   ),
                 ),
-              ],
-              Divider(height: 1, color: c.borderHairline),
-              // Messages
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 12,
-                  children: [
-                    if (rawMessages.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: Text(
-                            'Ask Ino anything — tool calls, reasoning, and live charts appear inline.',
-                            style: TextStyle(fontSize: 13, color: c.textMuted),
-                          ),
-                        ),
-                      ),
-                    for (final raw in rawMessages)
-                      if (raw is Map) _buildMessage(context, c, raw, invoke),
-                    if (error != null && error.isNotEmpty)
-                      Text(
-                        error,
-                        style: TextStyle(fontSize: 12.5, color: c.error),
-                      ),
-                  ],
-                ),
+              for (final raw in rawMessages)
+                if (raw is Map) _buildMessage(context, c, raw, invoke),
+              if (error != null && error.isNotEmpty)
+                Text(error, style: TextStyle(fontSize: 12.5, color: c.error)),
+            ],
+          ),
+        );
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final stretch =
+                constraints.hasBoundedHeight &&
+                constraints.maxHeight.isFinite &&
+                constraints.maxHeight >= 220;
+            return Container(
+              decoration: BoxDecoration(
+                color: c.surfaceCard,
+                borderRadius: BorderRadius.circular(IcRadius.card),
+                border: Border.all(color: c.borderHairline),
               ),
-              Divider(height: 1, color: c.borderHairline),
-              // Rich Composer
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 8,
-                  children: [
-                    Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  // DevUI Telemetry & Context Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _composer,
-                            enabled: canSend,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: c.textStrong,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: working
-                                  ? 'Ino is thinking…'
-                                  : 'Message Ino… (/compact, @neuron)',
-                              hintStyle: TextStyle(
-                                fontSize: 13,
-                                color: c.textMuted,
-                              ),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  IcRadius.sm,
-                                ),
-                                borderSide: BorderSide(color: c.borderInput),
-                              ),
-                            ),
-                            onSubmitted: (_) => _submit(invoke),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: c.textStrong,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        if (working)
-                          FilledButton.icon(
-                            onPressed: () => unawaited(invoke('Stop')),
-                            icon: const Icon(LucideIcons.square, size: 14),
-                            label: const Text('Stop'),
-                          )
-                        else
-                          FilledButton.icon(
-                            onPressed: canSend ? () => _submit(invoke) : null,
-                            icon: const Icon(LucideIcons.send, size: 14),
-                            label: const Text('Send'),
+                        if (activeModel.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: c.accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              activeModel,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: c.accent,
+                              ),
+                            ),
                           ),
+                        Text(
+                          '${totalIn + totalOut} / $budget tok (${(usedRatio * 100).round()}%)',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: c.textMuted,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => setState(
+                            () =>
+                                _showContextInspector = !_showContextInspector,
+                          ),
+                          icon: Icon(
+                            LucideIcons.layers,
+                            size: 14,
+                            color: _showContextInspector
+                                ? c.accent
+                                : c.textMuted,
+                          ),
+                          label: Text(
+                            'Context (${rawContexts.length})',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _showContextInspector
+                                  ? c.accent
+                                  : c.textBody,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => unawaited(invoke('Compact')),
+                          icon: Icon(
+                            LucideIcons.minimize2,
+                            size: 14,
+                            color: c.textMuted,
+                          ),
+                          label: Text(
+                            'Compact',
+                            style: TextStyle(fontSize: 12, color: c.textBody),
+                          ),
+                        ),
                       ],
                     ),
-                    if (rawModels.isNotEmpty)
-                      Wrap(
+                  ),
+                  if (_showContextInspector) ...[
+                    Divider(height: 1, color: c.borderHairline),
+                    Container(
+                      color: c.surfaceSunk,
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         spacing: 6,
-                        runSpacing: 4,
                         children: [
-                          for (final m in rawModels)
-                            if (m is Map)
-                              ChoiceChip(
-                                label: Text(
-                                  '${m['label'] ?? m['id'] ?? ''}',
-                                  style: const TextStyle(fontSize: 11.5),
-                                ),
-                                selected: '${m['id']}' == activeModel,
-                                onSelected: (_) => unawaited(
-                                  invoke('SelectModel', ['${m['id']}']),
-                                ),
+                          Text(
+                            'PROVISIONED CONTEXTS & MEMORY',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.7,
+                              color: c.textMuted,
+                            ),
+                          ),
+                          if (summary != null && summary.isNotEmpty)
+                            Text(
+                              'Summary: $summary',
+                              style: TextStyle(fontSize: 12, color: c.textBody),
+                            ),
+                          for (final ctxItem in rawContexts)
+                            if (ctxItem is Map)
+                              Row(
+                                children: [
+                                  Icon(
+                                    LucideIcons.database,
+                                    size: 13,
+                                    color: c.accent,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${ctxItem['name'] ?? ''}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: c.textStrong,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${ctxItem['summary'] ?? ''}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: c.textMuted,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                         ],
                       ),
+                    ),
                   ],
-                ),
+                  Divider(height: 1, color: c.borderHairline),
+                  if (stretch)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        primary: false,
+                        child: messagesBody,
+                      ),
+                    )
+                  else
+                    messagesBody,
+                  Divider(height: 1, color: c.borderHairline),
+                  // Rich Composer
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: 8,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _composer,
+                                enabled: canSend,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  color: c.textStrong,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: working
+                                      ? 'Ino is thinking…'
+                                      : 'Message Ino… (/compact, @neuron)',
+                                  hintStyle: TextStyle(
+                                    fontSize: 13,
+                                    color: c.textMuted,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      IcRadius.sm,
+                                    ),
+                                    borderSide: BorderSide(
+                                      color: c.borderInput,
+                                    ),
+                                  ),
+                                ),
+                                onSubmitted: (_) => _submit(invoke),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (working)
+                              FilledButton.icon(
+                                onPressed: () => unawaited(invoke('Stop')),
+                                icon: const Icon(LucideIcons.square, size: 14),
+                                label: const Text('Stop'),
+                              )
+                            else
+                              FilledButton.icon(
+                                onPressed: canSend
+                                    ? () => _submit(invoke)
+                                    : null,
+                                icon: const Icon(LucideIcons.send, size: 14),
+                                label: const Text('Send'),
+                              ),
+                          ],
+                        ),
+                        if (rawModels.isNotEmpty)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              for (final m in rawModels)
+                                if (m is Map)
+                                  ChoiceChip(
+                                    label: Text(
+                                      '${m['label'] ?? m['id'] ?? ''}',
+                                      style: const TextStyle(fontSize: 11.5),
+                                    ),
+                                    selected: '${m['id']}' == activeModel,
+                                    onSelected: (_) => unawaited(
+                                      invoke('SelectModel', ['${m['id']}']),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

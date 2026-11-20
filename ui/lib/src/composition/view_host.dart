@@ -356,9 +356,12 @@ class _ViewHostState extends State<ViewHost> {
 
     if (_referable.contains(kind)) {
       if (NodeContracts.tryResolve(kind) == null) return null;
-      return SizedBox(
-        height: 480,
-        child: _child({'kind': kind, 'name': rawName}),
+      final childHost = _child({'kind': kind, 'name': rawName});
+      return LayoutBuilder(
+        builder: (context, constraints) =>
+            constraints.hasBoundedHeight && constraints.maxHeight.isFinite
+            ? SizedBox.expand(child: childHost)
+            : SizedBox(height: 480, child: childHost),
       );
     }
 

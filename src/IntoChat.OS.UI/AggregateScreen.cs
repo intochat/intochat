@@ -35,12 +35,27 @@ public sealed class ScreenAttribute(string? alias = null) : Attribute
 public abstract class AggregateScreenBase<TState> : Screen<TState> where TState : class, new()
 {
     private static readonly ConditionalWeakTable<Type, CommandDispatchTable> DispatchTables = new();
+    private static readonly ConditionalWeakTable<Type, NavigationDispatchTable> NavigationTables = new();
+
+    /// <summary>Frozen signal aliases handled natively by every <see cref="AggregateScreenBase{TState}"/>.</summary>
+    public static IReadOnlyList<string> BuiltInSignalAliases { get; } =
+    [
+        UiCommand.SignalAlias,
+        UiNavigateTo.SignalAlias,
+        UiNavigateFrom.SignalAlias,
+    ];
 
     /// <summary>
-    /// Transient record of the most recent <see cref="Rejected"/> outcome produced when a command was refused.
-    /// Cleared automatically when a subsequent command is accepted.
+    /// Transient record of the most recent <see cref="Rejected"/> outcome produced when a command or departure was refused.
+    /// Cleared automatically when a subsequent command or departure is accepted.
     /// </summary>
     public Rejected? LastRejection { get; private set; }
+
+    /// <summary>
+    /// Active <see cref="ViewTransition"/> token established by the most recent <see cref="NavigateToAsync{TArgs}(NavigationArrival{TArgs}, CancellationToken)"/>
+    /// or <see cref="UiNavigateTo"/> signal (empty prior to navigation).
+    /// </summary>
+    public string ActiveTransition { get; protected set; } = string.Empty;
 
     /// <summary>Title written to <see cref="View.Title"/>; defaults to <see cref="ScreenAttribute.Title"/> or the humanized class name.</summary>
     protected virtual string Title => ResolveDefaultTitle(GetType());
@@ -53,6 +68,11 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
         using var scope = CommandBinding.PushOwner(owner);
         var root = RenderNodeCore(state);
         var normalized = NodeOwnerNormalizer.Normalize(root, owner);
+        if (normalized is AppShellNode { Transition.Length: 0 } shell && !string.IsNullOrEmpty(ActiveTransition))
+        {
+            normalized = shell with { Transition = ActiveTransition };
+        }
+
         return new View(Title, normalized);
     }
 
@@ -76,6 +96,27 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
     internal async Task HandleUiCommand(UiCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (string.Equals(command.Target, "navigate-to", StringComparison.OrdinalIgnoreCase))
+        {
+            var args = command.Args ?? [];
+            var argsJson = args.Length > 0 && args[0].ValueKind == JsonValueKind.String ? args[0].GetString() : (args.Length > 0 && args[0].ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? args[0].GetRawText() : command.Value);
+            var fromNeuron = args.Length > 1 && args[1].ValueKind == JsonValueKind.String ? args[1].GetString() : null;
+            var transition = args.Length > 2 && args[2].ValueKind == JsonValueKind.String ? args[2].GetString() ?? ViewTransition.FadeThrough : ViewTransition.FadeThrough;
+            var correlationId = args.Length > 3 && args[3].ValueKind == JsonValueKind.String ? args[3].GetString() : null;
+            await HandleUiNavigateTo(new UiNavigateTo(argsJson, fromNeuron, transition, correlationId), cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        if (string.Equals(command.Target, "navigate-from", StringComparison.OrdinalIgnoreCase))
+        {
+            var args = command.Args ?? [];
+            var toNeuron = args.Length > 0 && args[0].ValueKind == JsonValueKind.String ? args[0].GetString() : null;
+            var route = args.Length > 1 && args[1].ValueKind == JsonValueKind.String ? args[1].GetString() : null;
+            var force = args.Length > 2 && args[2].ValueKind is JsonValueKind.True or JsonValueKind.False && args[2].GetBoolean();
+            await HandleUiNavigateFrom(new UiNavigateFrom(toNeuron, route, force), cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(command.Method))
         {
             return;
@@ -154,6 +195,121 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
             await Store(decision.Next).ConfigureAwait(true);
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Built-in <c>[On]</c> signal handler for <see cref="UiNavigateTo"/> (`ui.navigate-to`), deserializing <see cref="UiNavigateTo.ArgsJson"/>
+    /// into every implemented <see cref="INavigatedTo{TArgs}"/> contract on this screen.
+    /// </summary>
+    [On]
+    internal async Task HandleUiNavigateTo(UiNavigateTo signal, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        var normalizedTransition = ViewTransition.Normalize(signal.Transition);
+        ActiveTransition = normalizedTransition;
+        LastRejection = null;
+
+        var navTable = NavigationTables.GetValue(GetType(), NavigationDispatchTable.Build);
+        if (navTable.Targets.Length == 0)
+        {
+            if (_attached)
+            {
+                await Store(State).ConfigureAwait(true);
+            }
+
+            return;
+        }
+
+        await navTable.InvokeJsonAsync(this, signal.ArgsJson, signal.FromNeuron, normalizedTransition, signal.CorrelationId, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Built-in <c>[On]</c> signal handler for <see cref="UiNavigateFrom"/> (`ui.navigate-from`), enforcing <see cref="INavigatedFrom.CanNavigateFrom"/>.
+    /// </summary>
+    [On]
+    internal Task HandleUiNavigateFrom(UiNavigateFrom signal, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return TryNavigateFromAsync(new NavigationDeparture(signal.ToNeuron, signal.Route, signal.Force), cancellationToken);
+    }
+
+    /// <summary>
+    /// Dispatches a strongly-typed <see cref="NavigationArrival{TArgs}"/> to this screen's <see cref="INavigatedTo{TArgs}"/> implementation.
+    /// </summary>
+    public async Task NavigateToAsync<TArgs>(NavigationArrival<TArgs> arrival, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arrival);
+        var normalizedTransition = ViewTransition.Normalize(arrival.Transition);
+        var normalizedArrival = arrival with { Transition = normalizedTransition };
+        ActiveTransition = normalizedTransition;
+        LastRejection = null;
+
+        if (this is INavigatedTo<TArgs> typedTarget)
+        {
+            await typedTarget.OnNavigatedTo(normalizedArrival, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        var navTable = NavigationTables.GetValue(GetType(), NavigationDispatchTable.Build);
+        if (navTable.Targets.Length > 0)
+        {
+            var argsJson = arrival.Args is null
+                ? null
+                : RuntimeProtocol.SerializeToElement(arrival.Args, typeof(TArgs)).GetRawText();
+            await navTable.InvokeJsonAsync(this, argsJson, arrival.FromNeuron, normalizedTransition, arrival.CorrelationId, cancellationToken)
+                .ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// Convenience overload constructing a <see cref="NavigationArrival{TArgs}"/> and dispatching it to <see cref="NavigateToAsync{TArgs}(NavigationArrival{TArgs}, CancellationToken)"/>.
+    /// </summary>
+    public Task NavigateToAsync<TArgs>(
+        TArgs args,
+        string? fromNeuron = null,
+        string transition = ViewTransition.FadeThrough,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default)
+        => NavigateToAsync(new NavigationArrival<TArgs>(args, fromNeuron, transition, correlationId), cancellationToken);
+
+    /// <summary>
+    /// Evaluates <see cref="INavigatedFrom.CanNavigateFrom"/> against <paramref name="departure"/>.
+    /// When violated and <see cref="NavigationDeparture.Force"/> is <c>false</c>, records <see cref="LastRejection"/> and returns <c>false</c>;
+    /// otherwise clears <see cref="LastRejection"/>, awaits <see cref="INavigatedFrom.OnNavigatedFrom"/>, and returns <c>true</c>.
+    /// </summary>
+    public async Task<bool> TryNavigateFromAsync(NavigationDeparture departure, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        if (this is not INavigatedFrom navigableFrom)
+        {
+            LastRejection = null;
+            return true;
+        }
+
+        if (!departure.Force)
+        {
+            var guardRule = navigableFrom.CanNavigateFrom(departure);
+            if (guardRule is not null)
+            {
+                var rejected = Rules.Judge("navigate-from", guardRule);
+                if (rejected is not null)
+                {
+                    LastRejection = rejected;
+                    if (_attached)
+                    {
+                        await PublishEphemeral(rejected).ConfigureAwait(true);
+                        await RefreshIfRejectionRenderedAsync().ConfigureAwait(true);
+                    }
+
+                    return false;
+                }
+            }
+        }
+
+        LastRejection = null;
+        await navigableFrom.OnNavigatedFrom(departure, cancellationToken).ConfigureAwait(true);
         return true;
     }
 
@@ -353,6 +509,8 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
                     && m.DeclaringType != typeof(AggregateScreenBase<TState>)
                     && m.DeclaringType != typeof(AggregateScreen<TState>)
                     && m.Name != nameof(HandleUiCommand)
+                    && m.Name != nameof(HandleUiNavigateTo)
+                    && m.Name != nameof(HandleUiNavigateFrom)
                     && (m.ReturnType == typeof(Task) || m.ReturnType == typeof(ValueTask)))
                 .ToArray();
 
@@ -398,6 +556,80 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
         private static int NonCancellationCount(MethodInfo method)
             => method.GetParameters().Count(p => p.ParameterType != typeof(CancellationToken));
     }
+}
+
+internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntry[] targets)
+{
+    public TargetEntry[] Targets { get; } = targets;
+
+    public static NavigationDispatchTable Build(Type screenType)
+    {
+        var entries = screenType
+            .GetInterfaces()
+            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INavigatedTo<>))
+            .Select(iface =>
+            {
+                var argsType = iface.GetGenericArguments()[0];
+                var arrivalType = typeof(NavigationArrival<>).MakeGenericType(argsType);
+                var map = screenType.GetInterfaceMap(iface);
+                var method = map.TargetMethods[0];
+                var options = new JsonSerializerOptions(RuntimeProtocol.OptionsFor(argsType))
+                {
+                    PropertyNameCaseInsensitive = true,
+                };
+                return new TargetEntry(argsType, arrivalType, method, options);
+            })
+            .ToArray();
+        return new NavigationDispatchTable(entries);
+    }
+
+    public async Task InvokeJsonAsync(
+        object screen,
+        string? argsJson,
+        string? fromNeuron,
+        string transition,
+        string? correlationId,
+        CancellationToken cancellationToken)
+    {
+        var entry = Targets[0];
+        var argsValue = DeserializeArgs(argsJson, entry);
+        var arrival = Activator.CreateInstance(entry.ArrivalType, argsValue, fromNeuron, transition, correlationId)!;
+        object? rawTask;
+        try
+        {
+            rawTask = entry.Method.Invoke(screen, [arrival, cancellationToken]);
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            throw;
+        }
+
+        if (rawTask is Task task)
+        {
+            await task.ConfigureAwait(true);
+        }
+    }
+
+    private static object? DeserializeArgs(string? argsJson, TargetEntry entry)
+    {
+        if (entry.ArgsType == typeof(string))
+        {
+            if (string.IsNullOrEmpty(argsJson))
+            {
+                return string.Empty;
+            }
+
+            return argsJson.StartsWith('"')
+                ? JsonSerializer.Deserialize<string>(argsJson, entry.JsonOptions) ?? string.Empty
+                : argsJson;
+        }
+
+        var json = string.IsNullOrWhiteSpace(argsJson) ? "{}" : argsJson;
+        return JsonSerializer.Deserialize(json, entry.ArgsType, entry.JsonOptions);
+    }
+
+    public sealed record TargetEntry(Type ArgsType, Type ArrivalType, MethodInfo Method, JsonSerializerOptions JsonOptions);
 }
 
 /// <summary>

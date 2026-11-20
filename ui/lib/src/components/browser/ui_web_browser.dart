@@ -49,11 +49,17 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
         ? widget.actualUrl
         : widget.part.uri;
     if (kIsWeb) {
+      final baseOrigin = IntoChatOSHostEnv.resolveUiBaseRaw();
       url = IcAppIcon.resolveArtCraftWebUrl(
         url,
         hint: '${widget.part.name} ${widget.part.title}',
         isWeb: kIsWeb,
-        uiBaseOrigin: IntoChatOSHostEnv.resolveUiBaseRaw(),
+        uiBaseOrigin: baseOrigin,
+      );
+      url = resolveEmbeddedBrowserWebUrl(
+        url,
+        uiBaseOrigin: baseOrigin,
+        fallbackBase: Uri.base,
       );
     }
     final placeholder = kIsWeb
@@ -185,4 +191,33 @@ final class UiWebBrowserPart {
     'uri': uri,
     'title': title,
   };
+}
+
+/// Resolves same-origin root-relative paths (such as `/orleans#/overview`) to an
+/// absolute HTTP/HTTPS URL when hosted in a web browser frame so `EmbeddedBrowser`
+/// passes authority validation cleanly while continuing to reject non-HTTP schemes
+/// and protocol-relative `//` URLs.
+String resolveEmbeddedBrowserWebUrl(
+  String rawUrl, {
+  String? uiBaseOrigin,
+  Uri? fallbackBase,
+}) {
+  final trimmed = rawUrl.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return rawUrl;
+  }
+  for (final candidate in <Uri?>[
+    if (uiBaseOrigin != null && uiBaseOrigin.trim().isNotEmpty)
+      Uri.tryParse(uiBaseOrigin.trim()),
+    fallbackBase,
+  ]) {
+    if (candidate != null &&
+        candidate.hasAuthority &&
+        candidate.host.isNotEmpty &&
+        (candidate.scheme == 'http' || candidate.scheme == 'https')) {
+      final portSuffix = candidate.hasPort ? ':${candidate.port}' : '';
+      return '${candidate.scheme}://${candidate.host}$portSuffix$trimmed';
+    }
+  }
+  return rawUrl;
 }

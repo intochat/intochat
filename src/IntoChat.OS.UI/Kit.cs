@@ -283,8 +283,58 @@ public static class Kit
         Node body,
         Node? toolbar = null,
         Node? inspector = null,
-        string automationName = "")
-        => Ui.AppShell(key, sidebar, body, toolbar, inspector, automationName);
+        string automationName = "",
+        string transition = "")
+        => Ui.AppShell(key, sidebar, body, toolbar, inspector, automationName, transition);
+
+    /// <summary>Builds a <see cref="Command"/> dispatching typed <see cref="UiNavigateTo"/> arrival arguments to <paramref name="target"/> (via <see cref="UiCommand"/> for universal manifest compatibility).</summary>
+    public static Command NavigateToCommand<TArgs>(
+        TArgs args,
+        string? fromNeuron = null,
+        string transition = ViewTransition.FadeThrough,
+        string? correlationId = null,
+        string target = ".")
+    {
+        var argsJson = args is null
+            ? null
+            : DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args, typeof(TArgs)).GetRawText();
+        var navPayload = new UiCommand(
+            Target: "navigate-to",
+            Method: UiNavigateTo.SignalAlias,
+            Args:
+            [
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(argsJson, typeof(string)),
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(fromNeuron, typeof(string)),
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(transition, typeof(string)),
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(correlationId, typeof(string)),
+            ]);
+        return new Command(
+            string.IsNullOrWhiteSpace(target) ? "." : target,
+            UiCommand.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(navPayload, typeof(UiCommand)));
+    }
+
+    /// <summary>Builds a <see cref="Command"/> dispatching <see cref="UiNavigateFrom"/> departure checks to <paramref name="target"/> (via <see cref="UiCommand"/> for universal manifest compatibility).</summary>
+    public static Command NavigateFromCommand(
+        string? toNeuron = null,
+        string? route = null,
+        bool force = false,
+        string target = ".")
+    {
+        var navPayload = new UiCommand(
+            Target: "navigate-from",
+            Method: UiNavigateFrom.SignalAlias,
+            Args:
+            [
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(toNeuron, typeof(string)),
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(route, typeof(string)),
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(force, typeof(bool)),
+            ]);
+        return new Command(
+            string.IsNullOrWhiteSpace(target) ? "." : target,
+            UiCommand.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(navPayload, typeof(UiCommand)));
+    }
 
     /// <summary>Creates a sidebar navigation item (forwards to <see cref="DigitalBrain.UI.Ui.NavItem"/>).</summary>
     [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]

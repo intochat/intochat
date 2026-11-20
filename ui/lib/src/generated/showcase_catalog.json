@@ -29,6 +29,11 @@
         "default": null
       },
       {
+        "name": "transition",
+        "type": "String",
+        "default": ""
+      },
+      {
         "name": "automationName",
         "type": "String",
         "default": ""

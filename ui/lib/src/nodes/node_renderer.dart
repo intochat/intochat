@@ -56,6 +56,7 @@ import 'text.dart';
 import 'toggle_switch_view.dart';
 import 'toast.dart';
 import 'web_browser.dart';
+import '../theme/wire_node_values.dart';
 
 /// The one renderer: a published `DigitalBrain.UI.View` node tree to widgets.
 abstract final class NodeRenderer {
@@ -66,9 +67,20 @@ abstract final class NodeRenderer {
     ConversationNode() => true,
     SplitPaneNode() => true,
     AppShellNode() => true,
+    BrainSceneNode() => true,
+    WebBrowserNode() => true,
+    NeuronRefNode(:final refKind) => isFillingNeuronRefKind(refKind),
     CollectionNode(:final entries) =>
       entries.length >= kVirtualizedCollectionThreshold,
     RowNode(:final children) => children.any(fills),
+    ColumnNode(:final children, :final extents) =>
+      (extents != null && extents.any((e) => e > 0 && e <= 1)) ||
+          (children.length <= 4 && children.where(fills).length == 1),
+    SurfaceNode(:final surfaceKind, :final children) =>
+      children.length == 1 &&
+          isContainerSurfaceFillable(surfaceKind) &&
+          fills(children.single),
+    CardNode(:final children) => children.length == 1 && fills(children.single),
     _ => false,
   };
 

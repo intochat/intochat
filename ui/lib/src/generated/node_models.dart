@@ -163,6 +163,7 @@ final class AppShellNode extends Node {
     required this.body,
     required this.toolbar,
     required this.inspector,
+    required this.transition,
     required this.automationName,
   });
 
@@ -174,6 +175,7 @@ final class AppShellNode extends Node {
   final Node body;
   final Node? toolbar;
   final Node? inspector;
+  final String transition;
   final String automationName;
 
   factory AppShellNode.fromJson(Map<String, dynamic> json) => AppShellNode(
@@ -188,6 +190,7 @@ final class AppShellNode extends Node {
     inspector: json['inspector'] is Map
         ? Node.fromJson(_map(json['inspector']))
         : null,
+    transition: _string(json['transition']),
     automationName: _string(json['automationName']),
   );
 }

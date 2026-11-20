@@ -74,12 +74,12 @@ DigitalBrain.UI.ApprovalRowNode.OldValue.init -> void
 DigitalBrain.UI.ApprovalRowNode.Warn.get -> bool
 DigitalBrain.UI.ApprovalRowNode.Warn.init -> void
 DigitalBrain.UI.AppShellNode
-DigitalBrain.UI.AppShellNode.AppShellNode(string! Key, DigitalBrain.UI.Node? Sidebar, DigitalBrain.UI.Node! Body, DigitalBrain.UI.Node? Toolbar = null, DigitalBrain.UI.Node? Inspector = null, string! AutomationName = "") -> void
+DigitalBrain.UI.AppShellNode.AppShellNode(string! Key, DigitalBrain.UI.Node? Sidebar, DigitalBrain.UI.Node! Body, DigitalBrain.UI.Node? Toolbar = null, DigitalBrain.UI.Node? Inspector = null, string! AutomationName = "", string! Transition = "") -> void
 DigitalBrain.UI.AppShellNode.AutomationName.get -> string!
 DigitalBrain.UI.AppShellNode.AutomationName.init -> void
 DigitalBrain.UI.AppShellNode.Body.get -> DigitalBrain.UI.Node!
 DigitalBrain.UI.AppShellNode.Body.init -> void
-DigitalBrain.UI.AppShellNode.Deconstruct(out string! Key, out DigitalBrain.UI.Node? Sidebar, out DigitalBrain.UI.Node! Body, out DigitalBrain.UI.Node? Toolbar, out DigitalBrain.UI.Node? Inspector, out string! AutomationName) -> void
+DigitalBrain.UI.AppShellNode.Deconstruct(out string! Key, out DigitalBrain.UI.Node? Sidebar, out DigitalBrain.UI.Node! Body, out DigitalBrain.UI.Node? Toolbar, out DigitalBrain.UI.Node? Inspector, out string! AutomationName, out string! Transition) -> void
 DigitalBrain.UI.AppShellNode.Equals(DigitalBrain.UI.AppShellNode? other) -> bool
 DigitalBrain.UI.AppShellNode.Inspector.get -> DigitalBrain.UI.Node?
 DigitalBrain.UI.AppShellNode.Inspector.init -> void
@@ -89,6 +89,8 @@ DigitalBrain.UI.AppShellNode.Sidebar.get -> DigitalBrain.UI.Node?
 DigitalBrain.UI.AppShellNode.Sidebar.init -> void
 DigitalBrain.UI.AppShellNode.Toolbar.get -> DigitalBrain.UI.Node?
 DigitalBrain.UI.AppShellNode.Toolbar.init -> void
+DigitalBrain.UI.AppShellNode.Transition.get -> string!
+DigitalBrain.UI.AppShellNode.Transition.init -> void
 DigitalBrain.UI.Badge
 DigitalBrain.UI.Badge.Badge(string! Label, string! Tone = "neutral", string? Icon = null) -> void
 DigitalBrain.UI.Badge.Deconstruct(out string! Label, out string! Tone, out string? Icon) -> void
@@ -1240,7 +1242,7 @@ static DigitalBrain.UI.Text.operator !=(DigitalBrain.UI.Text? left, DigitalBrain
 static DigitalBrain.UI.Text.operator ==(DigitalBrain.UI.Text? left, DigitalBrain.UI.Text? right) -> bool
 static DigitalBrain.UI.Toast.operator !=(DigitalBrain.UI.Toast? left, DigitalBrain.UI.Toast? right) -> bool
 static DigitalBrain.UI.Toast.operator ==(DigitalBrain.UI.Toast? left, DigitalBrain.UI.Toast? right) -> bool
-static DigitalBrain.UI.Ui.AppShell(string! key, DigitalBrain.UI.Node? sidebar, DigitalBrain.UI.Node! body, DigitalBrain.UI.Node? toolbar = null, DigitalBrain.UI.Node? inspector = null, string! automationName = "") -> DigitalBrain.UI.AppShellNode!
+static DigitalBrain.UI.Ui.AppShell(string! key, DigitalBrain.UI.Node? sidebar, DigitalBrain.UI.Node! body, DigitalBrain.UI.Node? toolbar = null, DigitalBrain.UI.Node? inspector = null, string! automationName = "", string! transition = "") -> DigitalBrain.UI.AppShellNode!
 static DigitalBrain.UI.Ui.DiffCard(string! id, string! repo, string! targetBranch, string! headSha, int filesChanged, int additions, int deletions, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.DiffFileNode!>! files) -> DigitalBrain.UI.DiffCardNode!
 static DigitalBrain.UI.Ui.MetricTile(string! id, string! appId, string! title, string! value, string? delta = null, string! deltaTone = "neutral", string? statusLabel = null, string! statusTone = "neutral", System.Collections.Generic.IReadOnlyList<double>? sparkline = null, double? threshold = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Button!>? actions = null) -> DigitalBrain.UI.MetricTileNode!
 static DigitalBrain.UI.Ui.NavItem(string! key, string! label, string! icon, string! action, bool selected = false, string? badge = null, DigitalBrain.UI.Command? command = null, string! automationName = "") -> DigitalBrain.UI.NavItemNode!

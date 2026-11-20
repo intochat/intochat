@@ -19,6 +19,9 @@ public sealed record PredicateRule<TValue>(
 
     /// <inheritdoc />
     public override string Message => FormatMessage(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Broken ? $"{Name}: broken ({Message})" : $"{Name}: ok";
 }
 
 /// <summary>
