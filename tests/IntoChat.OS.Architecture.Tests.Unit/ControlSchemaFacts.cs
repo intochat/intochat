@@ -5,10 +5,8 @@ using IntoChat.OS.UI;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // The control schema rules (model D): controls with state are control neurons (state, commands, Render); a view node carries no
-// Emit outside the shrinking legacy list, an interactive node is addressable (Key + AutomationName), every node has a Kit factory,
-// and text controls speak Submit, not Changed.
-// Today's offenders are listed per rule; each fact fails on a new offender and on a listed one that is now fixed, so the lists
-// only shrink. Whoever fixes a node removes its entry.
+// Emit, an interactive node is addressable (Key + AutomationName), every non-structural node has a Kit factory, and text controls
+// speak Submit, not Changed.
 public sealed class ControlSchemaFacts
 {
     private static readonly Type[] Nodes = [.. ViewNodeAttribute.DiscoverAll().Values.OrderBy(type => type.Name, StringComparer.Ordinal)];
@@ -24,16 +22,11 @@ public sealed class ControlSchemaFacts
         "Column", // built by Kit.VStack (a StackBuilder), a name the kind match cannot see
     };
 
-    private static readonly HashSet<string> InteractiveControlOffenders = new(StringComparer.Ordinal) { };
-    private static readonly HashSet<string> KitFactoryOffenders = new(StringComparer.Ordinal) { };
-    // Node kinds that still activate through a legacy Emit rather than a Command to a neuron address (POST /brains/{brainId}/act).
-    // Shrink-only: a kind that moves to commands (or becomes a control neuron) leaves this list.
-    private static readonly HashSet<string> LegacyEmitKinds = new(StringComparer.Ordinal) { };
-    private static readonly HashSet<string> TextControlOffenders = new(StringComparer.Ordinal) { };
-
     [Fact]
     public void No_view_node_carries_an_Emit_except_LegacyEmitKinds()
-        => Check(LegacyEmitKinds, Nodes.Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType))).Select(type => type.Name));
+        => Assert.Empty(Nodes
+            .Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType)))
+            .Select(type => type.Name));
 
     // Holds vacuously until the first control neuron lands under src/IntoChat.OS.Apps/Controls; DartCommandsFacts' samples prove the check.
     [Fact]
@@ -53,7 +46,8 @@ public sealed class ControlSchemaFacts
 
     [Fact]
     public void Every_interactive_node_has_Key_and_AutomationName()
-        => Check(InteractiveControlOffenders, Nodes.Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType) || IsCommand(parameter.ParameterType)))
+        => Assert.Empty(Nodes
+            .Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType) || IsCommand(parameter.ParameterType)))
             .SelectMany(type => new[] { ("Key", typeof(string)), ("AutomationName", typeof(string)) }
                 .Where(required => !ConstructorParameters(type).Any(parameter => parameter.Name == required.Item1 && parameter.ParameterType == required.Item2))
                 .Select(required => $"{type.Name}.{required.Item1}")));
@@ -62,14 +56,15 @@ public sealed class ControlSchemaFacts
     public void Every_view_node_has_a_Kit_factory()
     {
         var factories = typeof(Kit).GetMethods(BindingFlags.Public | BindingFlags.Static).ToArray();
-        Check(KitFactoryOffenders, ViewNodeAttribute.DiscoverAll()
+        Assert.Empty(ViewNodeAttribute.DiscoverAll()
             .Where(entry => !StructuralNodes.Contains(entry.Value.Name) && !IsDrawnByANeuron(entry.Value) && !factories.Any(method => Builds(method, entry.Key, entry.Value)))
             .Select(entry => entry.Value.Name));
     }
 
     [Fact]
     public void No_text_control_has_OnChanged()
-        => Check(TextControlOffenders, Nodes.Where(type => ConstructorParameters(type).Any(parameter => parameter.Name == "Placeholder"))
+        => Assert.Empty(Nodes
+            .Where(type => ConstructorParameters(type).Any(parameter => parameter.Name == "Placeholder"))
             .SelectMany(type => ConstructorParameters(type).Where(parameter => parameter.Name == "OnChanged").Select(parameter => $"{type.Name}.{parameter.Name}")));
 
     [Fact]
@@ -80,15 +75,6 @@ public sealed class ControlSchemaFacts
         var stale = StructuralNodes.Where(name => !names.Contains(name)
             || ViewNodeAttribute.DiscoverAll().Any(entry => entry.Value.Name == name && factories.Any(method => Builds(method, entry.Key, entry.Value)))).ToArray();
         Assert.True(stale.Length == 0, "Remove from the structural allow-list (unknown node or it now has a Kit factory): " + string.Join(", ", stale));
-    }
-
-    private static void Check(HashSet<string> known, IEnumerable<string> found)
-    {
-        var offenders = found.ToHashSet(StringComparer.Ordinal);
-        var added = offenders.Except(known).Order(StringComparer.Ordinal).ToArray();
-        var fixedOnes = known.Except(offenders).Order(StringComparer.Ordinal).ToArray();
-        Assert.True(added.Length == 0, "New offenders (fix them, do not list them): " + string.Join(", ", added));
-        Assert.True(fixedOnes.Length == 0, "Fixed, so remove from the known offenders: " + string.Join(", ", fixedOnes));
     }
 
     // A node in DigitalBrain.UI.Controls is what a control neuron draws: apps slot the neuron, they never build its node.

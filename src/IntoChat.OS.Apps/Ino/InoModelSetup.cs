@@ -210,11 +210,16 @@ internal static class InoModelSetup
         return canDictate;
     }
 
+    private static string FullAgentKey(BrainId brain, string agentKey)
+        => brain.Value is { Length: > 0 }
+            ? new NeuronId(brain, AgentSignals.NeuronType, agentKey).FullKey()
+            : $"/{agentKey}";
+
     public static async Task<bool> EnsureChatAsync(InoSetupHost host, string agentKey)
     {
         var state = host.GetState();
         var chatKey = InoModel.ChatKeyOf(state.ConversationId);
-        var fullAgentKey = $"{host.GetBrain().Value}/{agentKey}";
+        var fullAgentKey = FullAgentKey(host.GetBrain(), agentKey);
         try
         {
             var chat = host.GetChat(chatKey);
@@ -238,7 +243,7 @@ internal static class InoModelSetup
         var state = host.GetState();
         var chatState = await host.ReadChatOptional("chat-read", null, () => host.GetChat(InoModel.ChatKeyOf(state.ConversationId)).Read()!);
         if (chatState is null) { return; }
-        var next = InoModel.Projected(state, chatState, $"{host.GetBrain().Value}/{agentKey}");
+        var next = InoModel.Projected(state, chatState, FullAgentKey(host.GetBrain(), agentKey));
         if (next.Error?.Code == "provider-unavailable" && await IsMissingLocalOllamaAsync(host, null))
         {
             next = next with { Error = new InoError("no-provider") };
@@ -513,6 +518,7 @@ internal static class InoModelSetup
                 new("toggle-devui", "Toggle native Modules.UI DevUI chat view."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
                 new("link", "Post a pasted workspace link: its app, opaque input and text."),
+                new(IntoChat.OS.UI.UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
             ],
             Settings: [],
             Slots: [],

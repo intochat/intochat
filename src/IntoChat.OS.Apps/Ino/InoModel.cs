@@ -230,6 +230,9 @@ public static class InoModel
     public static Rule NotBlockedRule(InoSession session)
         => Decision.Rule("not_blocked", session, static s => s.Blocked, "Ino is paused until the pending interrupt is resolved.");
 
+    public static Rule NotBlockedRule(InoAppState state)
+        => Decision.Rule("not_blocked", state, static s => s.Blocked, "Ino is paused until the pending interrupt is resolved.");
+
     public static Rule NonEmptyPromptRule(string? text)
         => Decision.Rule("non_empty_prompt", text, static t => string.IsNullOrWhiteSpace(t), "Enter a message to send.");
 
@@ -239,11 +242,12 @@ public static class InoModel
     public static Decision<InoAppState> DecideSend(InoAppState s, string? text, string pendingId, DateTimeOffset at)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var refusal = Decision.Check("send", IdleRule(s), NonEmptyPromptRule(text), WithinLimitRule(text));
+        var refusal = Decision.Check("send", NotBlockedRule(s), IdleRule(s), NonEmptyPromptRule(text), WithinLimitRule(text));
         if (refusal is not null)
         {
             return refusal.Rejection.Rules.Contains("within_max_chars", StringComparer.Ordinal)
                 && !refusal.Rejection.Rules.Contains("not_busy", StringComparer.Ordinal)
+                && !refusal.Rejection.Rules.Contains("not_blocked", StringComparer.Ordinal)
                 ? Decision.Accept(s with { Error = new InoError("too-long"), Status = Failed })
                 : refusal;
         }

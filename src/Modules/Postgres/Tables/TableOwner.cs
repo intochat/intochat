@@ -11,7 +11,10 @@ internal readonly record struct TableOwner(string BrainId, string AppId)
 {
     private const string Segment = "tables";
 
-    public string Key => $"{BrainId}/{Segment}/{Uri.EscapeDataString(AppId)}";
+    public string Key => new DigitalBrain.NeuronId(
+        BrainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(BrainId),
+        Segment,
+        Uri.EscapeDataString(AppId)).ToString();
 
     public static TableOwner Parse(string key)
     {

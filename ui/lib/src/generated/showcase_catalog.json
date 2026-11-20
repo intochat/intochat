@@ -27,6 +27,11 @@
         "name": "inspector",
         "type": "Node?",
         "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       }
     ],
     "state": [],
@@ -97,6 +102,11 @@
         "name": "capabilityLabel",
         "type": "String?",
         "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       }
     ],
     "state": [],
@@ -980,6 +990,11 @@
         "name": "empty",
         "type": "EmptyStateNode?",
         "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       }
     ],
     "state": [],
@@ -2649,6 +2664,11 @@
         "name": "icon",
         "type": "String?",
         "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       }
     ],
     "state": [],
@@ -3081,6 +3101,11 @@
         "name": "executionMode",
         "type": "String",
         "default": "wasm-ui"
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       }
     ],
     "state": [],

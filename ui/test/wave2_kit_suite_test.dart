@@ -302,6 +302,7 @@ void main() {
                   delta: '+4%',
                   tone: BadgeTone.done,
                   icon: 'bar-chart-2',
+                  automationName: 'Metric $i',
                 ),
             ],
           );

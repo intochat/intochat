@@ -73,7 +73,7 @@ internal sealed class WorkspaceWarmup(
         }
 
         // The workspace is a cluster-scoped plain neuron in the system brain (06-06a, R4-19).
-        var neuron = SiloNeurons.Get<IRoslyn>(plain, $"{RoslynNeuron.SystemBrain}/{key}");
+        var neuron = SiloNeurons.Get<IRoslyn>(plain, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(RoslynNeuron.SystemBrain), RoslynNeuron.Type, key).FullKey());
         for (var attempt = 0; attempt < 30; attempt++)
         {
             try

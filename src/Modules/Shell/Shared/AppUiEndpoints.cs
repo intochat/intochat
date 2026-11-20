@@ -178,7 +178,7 @@ internal static class AppUiEndpoints
                 {
                     Revision = unitView?.Generation ?? 0L,
                     Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
-                    Root = unitView is null ? null : new ViewRef(UIVocabulary.ViewType, $"{scope}/{unit}"),
+                    Root = unitView is null ? null : new ViewRef(UIVocabulary.ViewType, new NeuronId(new BrainId(scope), unit, unit).FullKey()),
                     Error = UnitError(unitView, failing),
                 });
             }
@@ -277,7 +277,7 @@ internal static class AppUiEndpoints
                         {
                             viewport.Revision,
                             viewport.Target,
-                            Root = new ViewRef(UIVocabulary.ViewType, $"{scope}/{appName}"),
+                            Root = new ViewRef(UIVocabulary.ViewType, new NeuronId(brainId, "unit", appName).FullKey()),
                             Error = (string?)null,
                         });
                     }

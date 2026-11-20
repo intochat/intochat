@@ -29,10 +29,12 @@ DigitalBrain.UI.ActivityNode.Status.init -> void
 DigitalBrain.UI.ActivityNode.Title.get -> string!
 DigitalBrain.UI.ActivityNode.Title.init -> void
 DigitalBrain.UI.ApprovalCardNode
-DigitalBrain.UI.ApprovalCardNode.ApprovalCardNode(string! Key, string! Id, string! Title, string! Summary, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ApprovalRowNode!>! Rows, string! ValueLabel = "Value", string! SystemName = "DigitalBrain", string! Status = "pending", DigitalBrain.UI.Resolve? Resolve = null, string? SourceNeuronUri = null, string? Icon = null, string? CapabilityLabel = null) -> void
+DigitalBrain.UI.ApprovalCardNode.ApprovalCardNode(string! Key, string! Id, string! Title, string! Summary, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ApprovalRowNode!>! Rows, string! ValueLabel = "Value", string! SystemName = "DigitalBrain", string! Status = "pending", DigitalBrain.UI.Resolve? Resolve = null, string? SourceNeuronUri = null, string? Icon = null, string? CapabilityLabel = null, string! AutomationName = "") -> void
+DigitalBrain.UI.ApprovalCardNode.AutomationName.get -> string!
+DigitalBrain.UI.ApprovalCardNode.AutomationName.init -> void
 DigitalBrain.UI.ApprovalCardNode.CapabilityLabel.get -> string?
 DigitalBrain.UI.ApprovalCardNode.CapabilityLabel.init -> void
-DigitalBrain.UI.ApprovalCardNode.Deconstruct(out string! Key, out string! Id, out string! Title, out string! Summary, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ApprovalRowNode!>! Rows, out string! ValueLabel, out string! SystemName, out string! Status, out DigitalBrain.UI.Resolve? Resolve, out string? SourceNeuronUri, out string? Icon, out string? CapabilityLabel) -> void
+DigitalBrain.UI.ApprovalCardNode.Deconstruct(out string! Key, out string! Id, out string! Title, out string! Summary, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ApprovalRowNode!>! Rows, out string! ValueLabel, out string! SystemName, out string! Status, out DigitalBrain.UI.Resolve? Resolve, out string? SourceNeuronUri, out string? Icon, out string? CapabilityLabel, out string! AutomationName) -> void
 DigitalBrain.UI.ApprovalCardNode.Equals(DigitalBrain.UI.ApprovalCardNode? other) -> bool
 DigitalBrain.UI.ApprovalCardNode.Icon.get -> string?
 DigitalBrain.UI.ApprovalCardNode.Icon.init -> void
@@ -72,10 +74,12 @@ DigitalBrain.UI.ApprovalRowNode.OldValue.init -> void
 DigitalBrain.UI.ApprovalRowNode.Warn.get -> bool
 DigitalBrain.UI.ApprovalRowNode.Warn.init -> void
 DigitalBrain.UI.AppShellNode
-DigitalBrain.UI.AppShellNode.AppShellNode(string! Key, DigitalBrain.UI.Node? Sidebar, DigitalBrain.UI.Node! Body, DigitalBrain.UI.Node? Toolbar = null, DigitalBrain.UI.Node? Inspector = null) -> void
+DigitalBrain.UI.AppShellNode.AppShellNode(string! Key, DigitalBrain.UI.Node? Sidebar, DigitalBrain.UI.Node! Body, DigitalBrain.UI.Node? Toolbar = null, DigitalBrain.UI.Node? Inspector = null, string! AutomationName = "") -> void
+DigitalBrain.UI.AppShellNode.AutomationName.get -> string!
+DigitalBrain.UI.AppShellNode.AutomationName.init -> void
 DigitalBrain.UI.AppShellNode.Body.get -> DigitalBrain.UI.Node!
 DigitalBrain.UI.AppShellNode.Body.init -> void
-DigitalBrain.UI.AppShellNode.Deconstruct(out string! Key, out DigitalBrain.UI.Node? Sidebar, out DigitalBrain.UI.Node! Body, out DigitalBrain.UI.Node? Toolbar, out DigitalBrain.UI.Node? Inspector) -> void
+DigitalBrain.UI.AppShellNode.Deconstruct(out string! Key, out DigitalBrain.UI.Node? Sidebar, out DigitalBrain.UI.Node! Body, out DigitalBrain.UI.Node? Toolbar, out DigitalBrain.UI.Node? Inspector, out string! AutomationName) -> void
 DigitalBrain.UI.AppShellNode.Equals(DigitalBrain.UI.AppShellNode? other) -> bool
 DigitalBrain.UI.AppShellNode.Inspector.get -> DigitalBrain.UI.Node?
 DigitalBrain.UI.AppShellNode.Inspector.init -> void
@@ -293,10 +297,12 @@ DigitalBrain.UI.ComposerNode.Placeholder.get -> string!
 DigitalBrain.UI.ComposerNode.Placeholder.init -> void
 DigitalBrain.UI.Confirmation.ConfirmView
 DigitalBrain.UI.Conversation
+DigitalBrain.UI.Conversation.AutomationName.get -> string!
+DigitalBrain.UI.Conversation.AutomationName.init -> void
 DigitalBrain.UI.Conversation.Composer.get -> DigitalBrain.UI.ComposerNode!
 DigitalBrain.UI.Conversation.Composer.init -> void
-DigitalBrain.UI.Conversation.Conversation(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, DigitalBrain.UI.ComposerNode! Composer, DigitalBrain.UI.Node? Waiting = null, string! Status = "ready", DigitalBrain.UI.ErrorLineNode? Error = null, DigitalBrain.UI.Button? Stop = null, DigitalBrain.UI.EmptyStateNode? Empty = null) -> void
-DigitalBrain.UI.Conversation.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, out DigitalBrain.UI.ComposerNode! Composer, out DigitalBrain.UI.Node? Waiting, out string! Status, out DigitalBrain.UI.ErrorLineNode? Error, out DigitalBrain.UI.Button? Stop, out DigitalBrain.UI.EmptyStateNode? Empty) -> void
+DigitalBrain.UI.Conversation.Conversation(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, DigitalBrain.UI.ComposerNode! Composer, DigitalBrain.UI.Node? Waiting = null, string! Status = "ready", DigitalBrain.UI.ErrorLineNode? Error = null, DigitalBrain.UI.Button? Stop = null, DigitalBrain.UI.EmptyStateNode? Empty = null, string! AutomationName = "") -> void
+DigitalBrain.UI.Conversation.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, out DigitalBrain.UI.ComposerNode! Composer, out DigitalBrain.UI.Node? Waiting, out string! Status, out DigitalBrain.UI.ErrorLineNode? Error, out DigitalBrain.UI.Button? Stop, out DigitalBrain.UI.EmptyStateNode? Empty, out string! AutomationName) -> void
 DigitalBrain.UI.Conversation.Empty.get -> DigitalBrain.UI.EmptyStateNode?
 DigitalBrain.UI.Conversation.Empty.init -> void
 DigitalBrain.UI.Conversation.Equals(DigitalBrain.UI.Conversation? other) -> bool
@@ -725,7 +731,9 @@ DigitalBrain.UI.SplitPane.SplitPane(DigitalBrain.UI.Node! Leading, DigitalBrain.
 DigitalBrain.UI.SplitPane.Trailing.get -> DigitalBrain.UI.Node!
 DigitalBrain.UI.SplitPane.Trailing.init -> void
 DigitalBrain.UI.StatCardNode
-DigitalBrain.UI.StatCardNode.Deconstruct(out string! Key, out string! Label, out string! Value, out string? Delta, out DigitalBrain.UI.BadgeTone Tone, out string? Icon) -> void
+DigitalBrain.UI.StatCardNode.AutomationName.get -> string!
+DigitalBrain.UI.StatCardNode.AutomationName.init -> void
+DigitalBrain.UI.StatCardNode.Deconstruct(out string! Key, out string! Label, out string! Value, out string? Delta, out DigitalBrain.UI.BadgeTone Tone, out string? Icon, out string! AutomationName) -> void
 DigitalBrain.UI.StatCardNode.Delta.get -> string?
 DigitalBrain.UI.StatCardNode.Delta.init -> void
 DigitalBrain.UI.StatCardNode.Equals(DigitalBrain.UI.StatCardNode? other) -> bool
@@ -735,7 +743,7 @@ DigitalBrain.UI.StatCardNode.Key.get -> string!
 DigitalBrain.UI.StatCardNode.Key.init -> void
 DigitalBrain.UI.StatCardNode.Label.get -> string!
 DigitalBrain.UI.StatCardNode.Label.init -> void
-DigitalBrain.UI.StatCardNode.StatCardNode(string! Key, string! Label, string! Value, string? Delta = null, DigitalBrain.UI.BadgeTone Tone = DigitalBrain.UI.BadgeTone.Neutral, string? Icon = null) -> void
+DigitalBrain.UI.StatCardNode.StatCardNode(string! Key, string! Label, string! Value, string? Delta = null, DigitalBrain.UI.BadgeTone Tone = DigitalBrain.UI.BadgeTone.Neutral, string? Icon = null, string! AutomationName = "") -> void
 DigitalBrain.UI.StatCardNode.Tone.get -> DigitalBrain.UI.BadgeTone
 DigitalBrain.UI.StatCardNode.Tone.init -> void
 DigitalBrain.UI.StatCardNode.Value.get -> string!
@@ -838,7 +846,9 @@ DigitalBrain.UI.ViewNodeAttribute
 DigitalBrain.UI.ViewNodeAttribute.Kind.get -> string!
 DigitalBrain.UI.ViewNodeAttribute.ViewNodeAttribute(string! kind) -> void
 DigitalBrain.UI.WebBrowser
-DigitalBrain.UI.WebBrowser.Deconstruct(out string! Key, out string! Url, out string? Title, out double Height, out string! ExecutionMode) -> void
+DigitalBrain.UI.WebBrowser.AutomationName.get -> string!
+DigitalBrain.UI.WebBrowser.AutomationName.init -> void
+DigitalBrain.UI.WebBrowser.Deconstruct(out string! Key, out string! Url, out string? Title, out double Height, out string! ExecutionMode, out string! AutomationName) -> void
 DigitalBrain.UI.WebBrowser.Equals(DigitalBrain.UI.WebBrowser? other) -> bool
 DigitalBrain.UI.WebBrowser.ExecutionMode.get -> string!
 DigitalBrain.UI.WebBrowser.ExecutionMode.init -> void
@@ -850,7 +860,7 @@ DigitalBrain.UI.WebBrowser.Title.get -> string?
 DigitalBrain.UI.WebBrowser.Title.init -> void
 DigitalBrain.UI.WebBrowser.Url.get -> string!
 DigitalBrain.UI.WebBrowser.Url.init -> void
-DigitalBrain.UI.WebBrowser.WebBrowser(string! Key, string! Url, string? Title = null, double Height = 520, string! ExecutionMode = "wasm-ui") -> void
+DigitalBrain.UI.WebBrowser.WebBrowser(string! Key, string! Url, string? Title = null, double Height = 520, string! ExecutionMode = "wasm-ui", string! AutomationName = "") -> void
 override DigitalBrain.UI.ActivityNode.Equals(object? obj) -> bool
 override DigitalBrain.UI.ActivityNode.GetHashCode() -> int
 override DigitalBrain.UI.ActivityNode.ToString() -> string!
@@ -1230,12 +1240,12 @@ static DigitalBrain.UI.Text.operator !=(DigitalBrain.UI.Text? left, DigitalBrain
 static DigitalBrain.UI.Text.operator ==(DigitalBrain.UI.Text? left, DigitalBrain.UI.Text? right) -> bool
 static DigitalBrain.UI.Toast.operator !=(DigitalBrain.UI.Toast? left, DigitalBrain.UI.Toast? right) -> bool
 static DigitalBrain.UI.Toast.operator ==(DigitalBrain.UI.Toast? left, DigitalBrain.UI.Toast? right) -> bool
-static DigitalBrain.UI.Ui.AppShell(string! key, DigitalBrain.UI.Node? sidebar, DigitalBrain.UI.Node! body, DigitalBrain.UI.Node? toolbar = null, DigitalBrain.UI.Node? inspector = null) -> DigitalBrain.UI.AppShellNode!
+static DigitalBrain.UI.Ui.AppShell(string! key, DigitalBrain.UI.Node? sidebar, DigitalBrain.UI.Node! body, DigitalBrain.UI.Node? toolbar = null, DigitalBrain.UI.Node? inspector = null, string! automationName = "") -> DigitalBrain.UI.AppShellNode!
 static DigitalBrain.UI.Ui.DiffCard(string! id, string! repo, string! targetBranch, string! headSha, int filesChanged, int additions, int deletions, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.DiffFileNode!>! files) -> DigitalBrain.UI.DiffCardNode!
 static DigitalBrain.UI.Ui.MetricTile(string! id, string! appId, string! title, string! value, string? delta = null, string! deltaTone = "neutral", string? statusLabel = null, string! statusTone = "neutral", System.Collections.Generic.IReadOnlyList<double>? sparkline = null, double? threshold = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Button!>? actions = null) -> DigitalBrain.UI.MetricTileNode!
 static DigitalBrain.UI.Ui.NavItem(string! key, string! label, string! icon, string! action, bool selected = false, string? badge = null, DigitalBrain.UI.Command? command = null, string! automationName = "") -> DigitalBrain.UI.NavItemNode!
-static DigitalBrain.UI.Ui.StatCard(string! key, string! label, string! value, string? delta = null, DigitalBrain.UI.BadgeTone tone = DigitalBrain.UI.BadgeTone.Neutral, string? icon = null) -> DigitalBrain.UI.StatCardNode!
-static DigitalBrain.UI.Ui.WebBrowser(string! url, string? title = null, string! key = "web-browser", double height = 520, string! executionMode = "wasm-ui") -> DigitalBrain.UI.WebBrowser!
+static DigitalBrain.UI.Ui.StatCard(string! key, string! label, string! value, string? delta = null, DigitalBrain.UI.BadgeTone tone = DigitalBrain.UI.BadgeTone.Neutral, string? icon = null, string! automationName = "") -> DigitalBrain.UI.StatCardNode!
+static DigitalBrain.UI.Ui.WebBrowser(string! url, string? title = null, string! key = "web-browser", double height = 520, string! executionMode = "wasm-ui", string! automationName = "") -> DigitalBrain.UI.WebBrowser!
 static DigitalBrain.UI.View.operator !=(DigitalBrain.UI.View? left, DigitalBrain.UI.View? right) -> bool
 static DigitalBrain.UI.View.operator ==(DigitalBrain.UI.View? left, DigitalBrain.UI.View? right) -> bool
 static DigitalBrain.UI.ViewNodeAttribute.DiscoverAll() -> System.Collections.Generic.IReadOnlyDictionary<string!, System.Type!>!

@@ -12,7 +12,7 @@ internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.N
     private CandidateQueueState Snapshot => State;
     private string BrainId => Id.Brain.Value;
     private T Peer<T>(string relative) where T : class
-        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), $"{BrainId}/{relative}"));
+        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), new DigitalBrain.NeuronId(Id.Brain, Id.Type, relative).FullKey()));
 
     public async Task<string> Propose(CandidateProposal proposal)
     {

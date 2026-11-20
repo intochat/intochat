@@ -519,7 +519,8 @@ public sealed partial class AppSandboxHost
         }
     }
 
-    private static string DeploymentKey(string brainId, string appKey) => $"{brainId}/{appKey}";
+    private static string DeploymentKey(string brainId, string appKey)
+        => new DigitalBrain.NeuronId(brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId), "app", appKey).FullKey();
 
     private static Uri ResolveConfiguredKernelUri(IConfiguration configuration)
         => ResolveKernelUri(configuration["SANDBOX_KERNEL_URL"], FallbackKernelUri);

@@ -1,3 +1,4 @@
+using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -30,7 +31,9 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Primitives;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -811,6 +814,102 @@ public sealed class InoAppFacts
             BackgroundAgent.Reset();
             BackgroundChat.Reset();
         }
+    }
+
+    [Fact]
+    public void InoAppState_AggregateExplorer_UnfoldsHealthyStateGraphAndRuleGuards()
+    {
+        var instanceFields = typeof(InoApp)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Where(f => !f.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false))
+            .ToArray();
+        Assert.Empty(instanceFields);
+
+        var graph = AggregateExplorer<InoAppState>.ExploreScreen<InoApp>(maxStates: 48).EnsureHealthy();
+
+        Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
+        Assert.Empty(graph.Violations);
+        Assert.Contains(graph.States, s => s.State.ActiveSection == "approvals");
+        Assert.Contains(graph.States, s => s.State.ConversationId == "c-0123456789abcdef0123456789abcdef");
+        Assert.Contains(graph.States, s => s.State.Pending is not null && s.State.Status == InoModel.Working);
+        Assert.Contains(graph.States, s => s.State.SelectedModel == "qwen2.5-coder:14b");
+        Assert.Contains(graph.States, s => s.State.Approvals.Any(a => a.PlanId == "plan-1"));
+        Assert.Contains(graph.States, s => s.State.DevUiMode);
+
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_section", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_thread_id", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("already_on_thread", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("non_empty_prompt", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("not_busy", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_model", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("unsupported_provider", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_provider_credential", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_approval_plan", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("approval_not_found", StringComparer.Ordinal));
+
+        var oversizedHistory = Enumerable.Range(1, 80).Select(i => $"ino/conversations/c-{i:D4}").ToArray();
+        var boundedState = new InoAppState() with { RecentConversations = oversizedHistory };
+        Assert.Equal(InoAppState.MaxRecentConversations, boundedState.RecentConversations.Length);
+        Assert.True(boundedState.BoundedThreadHistoryInvariant);
+        Assert.True(boundedState.NonNullCollectionsInvariant);
+
+        var engineerState = new InoAppState() with
+        {
+            Cards =
+            [
+                new InoCard("flow-eng-1", "engineer", "Add Clamp helper", "2 worktrees verified", "neuron://local/apps/engineer#flow-eng-1", "waiting-approval", Columns: ["os", "2x LocalGit", "approval-gate"]),
+            ],
+        };
+        var engineerPreview = AggregateExplorer<InoAppState>.PreviewNode<InoApp>(engineerState);
+        var engineerWire = System.Text.Json.JsonSerializer.Serialize(engineerPreview);
+        Assert.Contains("Open Engineer Workbench", engineerWire, StringComparison.Ordinal);
+
+        Assert.Contains("digraph InoAppState", graph.ToDot(), StringComparison.Ordinal);
+        Assert.Contains(InoApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
+    }
+
+    [Fact]
+    public async Task InoApp_DomainRules_AndUiIntrospector_UnfoldCleanAccordantStateGraphAndDot()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
+        await using var os = BackgroundOs();
+        os.Register(typeof(UiModule).Assembly);
+        os.Register<AgentContextNeuron>();
+        os.Register<UiIntrospectorNeuron>();
+
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("switch-conversation", new InoSwitchConversation(""));
+        Assert.Contains("invalid_thread_id", ino.App.LastRejection!.Rules);
+
+        await ino.Request("switch-conversation", new InoSwitchConversation("main"));
+        Assert.Contains("already_on_thread", ino.App.LastRejection!.Rules);
+
+        await ino.Request("send", new InoSend("   "));
+        Assert.Contains("non_empty_prompt", ino.App.LastRejection!.Rules);
+
+        await ino.Request("use-local", new InoUseLocalModel(Model: "bad model name"));
+        Assert.Contains("invalid_model", ino.App.LastRejection!.Rules);
+
+        await ino.Request("save-provider", new InoSaveProvider(Value: "bad", Provider: "openai"));
+        Assert.Contains("invalid_provider_credential", ino.App.LastRejection!.Rules);
+
+        await ino.Request("save-provider", new InoSaveProvider(Value: "sk-valid-secret-1234", Provider: "unknown"));
+        Assert.Contains("unsupported_provider", ino.App.LastRejection!.Rules);
+
+        var introspector = os.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(Brain));
+        var snapshot = await introspector.ExploreStateGraph(typeof(InoApp).FullName!, maxStates: 48);
+
+        Assert.True(snapshot.IsHealthy, string.Join("\n", snapshot.Violations));
+        Assert.Empty(snapshot.Violations);
+        Assert.True(snapshot.States.Length >= 6);
+        Assert.Contains(snapshot.Transitions, t => t.Accepted);
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("non_empty_prompt", StringComparer.Ordinal));
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("already_on_thread", StringComparer.Ordinal));
+        Assert.Contains("digraph InoAppState", snapshot.Dot, StringComparison.Ordinal);
+
+        var report = await introspector.SyncContext();
+        Assert.Contains("InoApp", report.ContextSummary, StringComparison.Ordinal);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

@@ -242,7 +242,8 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
     private static bool IsInoOwned(FlowView flow) => flow.App == AssistantApp;
 
     // The agent's conversation id is its key, or its key under the brain.
-    private bool IsCurrentConversation(FlowView flow) => _agent is not null && (flow.Conversation == _agent || flow.Conversation == $"{Id.Brain.Value}/{_agent}");
+    private bool IsCurrentConversation(FlowView flow)
+        => !string.IsNullOrEmpty(_agent) && (flow.Conversation == _agent || flow.Conversation == new DigitalBrain.NeuronId(Id.Brain, "agent", _agent).FullKey());
 
     // Reads every entry of a context of this brain (keys "{brain}/{key}").
     private async Task ReadContextEntries(string contextId)

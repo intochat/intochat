@@ -31,7 +31,7 @@ internal sealed class McpToolConnection(
 
     private IMcpServer Server => underlyingServer
         ?? (Context is not null
-            ? Context.Get<IMcpServer>(NeuronId.Parse($"{Id.Brain.Value}/mcp.server/{Id.Key}"))
+            ? Context.Get<IMcpServer>(new NeuronId(Id.Brain, "mcp.server", Id.Key))
             : throw new InvalidOperationException("No MCP server or neuron context configured for this connection."));
 
     public Task<IReadOnlyList<string>> List()

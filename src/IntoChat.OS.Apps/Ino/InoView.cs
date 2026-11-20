@@ -86,6 +86,10 @@ public static partial class InoView
     /// (approvals, model setup, cards no message carries).
     /// </summary>
     public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null)
+        => new("Ino", ScreenNode(s, dictation, thread, threadFailure));
+
+    /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
+    public static Node ScreenNode(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
@@ -101,11 +105,11 @@ public static partial class InoView
         {
             Node[] above = [.. s.ActiveCards.SelectMany(RenderCardNodes)];
             Node[] below = [.. approvals, .. setup];
-            return new View("Ino", Filling(above, conversation, below));
+            return Filling(above, conversation, below);
         }
 
         Node[] under = [.. approvals, .. loose, .. setup];
-        return new View("Ino", under.Length == 0 ? conversation : Filling([], conversation, under));
+        return under.Length == 0 ? conversation : Filling([], conversation, under);
     }
 
     // The thread fills the height a bounded parent gives (extent 1); what sits above and below it stretches to the width (extent -1).

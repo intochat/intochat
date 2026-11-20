@@ -44,6 +44,7 @@ Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
         empty: node.messages.isEmpty && empty != null
             ? EmptyStateNode(title: empty, body: null, suggestions: null)
             : null,
+        automationName: props.automationName ?? node.key,
       ),
       ctx: ctx,
       // A retry is the thread's own node; a window to open is the parent's

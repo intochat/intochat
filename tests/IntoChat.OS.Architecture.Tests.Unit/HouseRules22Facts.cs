@@ -465,7 +465,7 @@ public sealed class HouseRules22Facts
     }
 
     // Rule #6: No /apps/, /settings, or /{alias}/default neuron-key string concatenation or splitting;
-    // tightly ratchet ad-hoc $"{brain}/..." key interpolations outside typed Contract/primitive helpers.
+    // zero ad-hoc $"{brain}/..." key interpolations outside typed Contract/primitive helpers.
     [Fact]
     public void HouseRule06_NoAppsNeuronKeyStringSplittingOutsideAppRef()
     {
@@ -512,7 +512,7 @@ public sealed class HouseRules22Facts
         Assert.True(settingsOffenders.Count == 0, "Manual `$\"{...}/settings\"` key strings outside IUserSettings.Key:\n" + string.Join('\n', settingsOffenders));
         Assert.True(unitDefaultOffenders.Count == 0, "Manual `$\"{...}/{...}/default\"` unit state key strings outside UnitAlias:\n" + string.Join('\n', unitDefaultOffenders));
 
-        const int RatchetCap = 28;
+        const int RatchetCap = 0;
         Assert.True(
             brainKeyOffenders.Count <= RatchetCap,
             $"Ad-hoc brain-key string interpolations regressed to {brainKeyOffenders.Count} (ratchet cap {RatchetCap}):\n" + string.Join('\n', brainKeyOffenders));

@@ -1,7 +1,12 @@
+using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Testing;
+using DigitalBrain.UI;
 using IntoChat.OS.Apps.Desktop;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.UI;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -137,6 +142,108 @@ public sealed class DesktopAppFacts
         Assert.Contains(logger.Entries, e =>
             e.Level == LogLevel.Warning
             && e.Message.Contains("Id.Brain is unassigned in standalone tests", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DesktopAppState_AggregateExplorer_UnfoldsHealthyStateGraphAndRuleGuards()
+    {
+        var instanceFields = typeof(DesktopApp)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Where(f => !f.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false))
+            .ToArray();
+        Assert.Empty(instanceFields);
+
+        var graph = AggregateExplorer<DesktopAppState>.ExploreScreen<DesktopApp>(maxStates: 48).EnsureHealthy();
+
+        Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
+        Assert.Empty(graph.Violations);
+        Assert.Contains(graph.States, s => s.State.LayoutMode == "smart-desktop");
+        Assert.Contains(graph.States, s => s.State.LayoutMode == "spatial-grid");
+        Assert.Contains(graph.States, s => s.State.LayoutMode == "whiteboard-auto-arranged");
+        Assert.Contains(graph.States, s => s.State.Windows.Any(w => w.Id == "w-1"));
+        Assert.Contains(graph.States, s => s.State.PinnedApps.Contains("photocraft", StringComparer.OrdinalIgnoreCase));
+        Assert.Contains(graph.States, s => s.State.WidgetsText == "clock");
+
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_layout", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_app", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("window_not_found", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("tab_not_found", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("core_dock_app", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_widget", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("widget_not_open", StringComparer.Ordinal));
+
+        Assert.Contains("digraph DesktopAppState", graph.ToDot(), StringComparison.Ordinal);
+        Assert.Contains(DesktopApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
+    }
+
+    [Fact]
+    public async Task DesktopApp_DomainRules_AndUiIntrospector_UnfoldCleanAccordantStateGraphAndDot()
+    {
+        var state = new DesktopAppState();
+        string[] eightApps = ["ino", "calculator", "creator", "tasks", "gallery", "markdraw", "friends", "settings"];
+        foreach (var app in eightApps)
+        {
+            var opened = state.OpenWindow(app);
+            Assert.True(opened.IsAccepted);
+            state = opened.Next;
+        }
+
+        var ninthWin = state.OpenWindow("photocraft");
+        Assert.True(ninthWin.IsRefused);
+        Assert.Contains("max_windows", ninthWin.Rejection!.Rules);
+
+        var tabState = new DesktopAppState().OpenWindow("calculator").Next!;
+        for (var i = 0; i < 7; i++)
+        {
+            var added = tabState.AddWindowTab("w-1", "ino");
+            Assert.True(added.IsAccepted);
+            tabState = added.Next!;
+        }
+
+        var ninthTab = tabState.AddWindowTab("w-1", "ino");
+        Assert.True(ninthTab.IsRefused);
+        Assert.Contains("max_tabs_per_window", ninthTab.Rejection!.Rules);
+
+        using var person = Edge.AsPerson();
+        await using var os = TestOS.Local();
+        os.Register<DesktopRecordsNeuron>();
+        os.Register<TestViewportNeuron>();
+        os.Register<TestWorkspaceNeuron>();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(DesktopApp).Assembly);
+        os.Register<AgentContextNeuron>();
+        os.Register<UiIntrospectorNeuron>();
+
+        var desktop = await os.Install<DesktopApp>();
+        await desktop.Request("open", new DesktopOpen("desktop"));
+        Assert.Contains("invalid_app", desktop.App.LastRejection!.Rules);
+
+        await desktop.Request("focus", new DesktopFocus("w-missing"));
+        Assert.Contains("window_not_found", desktop.App.LastRejection!.Rules);
+
+        await desktop.Request("tab", new DesktopTab("w-missing/0"));
+        Assert.Contains("tab_not_found", desktop.App.LastRejection!.Rules);
+
+        await desktop.Request("unpin", new DesktopUnpinApp("ino"));
+        Assert.Contains("core_dock_app", desktop.App.LastRejection!.Rules);
+
+        await desktop.Request("widget-close", new DesktopWidgetClose("missing"));
+        Assert.Contains("widget_not_open", desktop.App.LastRejection!.Rules);
+
+        var introspector = os.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(new BrainId("local")));
+        var snapshot = await introspector.ExploreStateGraph(typeof(DesktopApp).FullName!, maxStates: 48);
+
+        Assert.True(snapshot.IsHealthy, string.Join("\n", snapshot.Violations));
+        Assert.Empty(snapshot.Violations);
+        Assert.True(snapshot.States.Length >= 6);
+        Assert.Contains(snapshot.Transitions, t => t.Accepted);
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("core_dock_app", StringComparer.Ordinal));
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("window_not_found", StringComparer.Ordinal));
+        Assert.Contains("digraph DesktopAppState", snapshot.Dot, StringComparison.Ordinal);
+
+        var report = await introspector.SyncContext();
+        Assert.Contains("DesktopApp", report.ContextSummary, StringComparison.Ordinal);
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

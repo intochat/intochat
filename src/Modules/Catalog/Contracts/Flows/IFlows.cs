@@ -50,4 +50,8 @@ public interface IFlows
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<EngineerRunSummary> InspectEngineerRun(string? flowId = null, CancellationToken ct = default)
         => throw new NotSupportedException("InspectEngineerRun is not supported by this IFlows implementation.");
+
+    [DigitalBrain.Contracts.Interleaves]
+    Task<EngineerRunSummary> SelectEngineerCandidate(string flowId, int candidateIndex, CancellationToken ct = default)
+        => throw new NotSupportedException("SelectEngineerCandidate is not supported by this IFlows implementation.");
 }

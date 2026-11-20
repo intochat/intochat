@@ -86,19 +86,25 @@ internal static class EngineerDelegationSummaries
 
         var winner = run.SelectedInstance;
         var winningSha = winner?.Commit?.Commit.Value;
-        var confirmationPlanId = view?.ConfirmationPlanId ?? run.Approval?.PlanId;
+        var confirmationPlanId = status == FlowStatus.Waiting
+            ? (run.Approval?.PlanId ?? view?.ConfirmationPlanId)
+            : (view?.ConfirmationPlanId ?? run.Approval?.PlanId);
         var traceId = !string.IsNullOrWhiteSpace(view?.TraceId) ? view!.TraceId : head.TraceId;
 
         var engineerUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "engineer").Key}#{flowId}";
         var tasksUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "tasks").Key}#{flowId}";
 
+        var candidates = run.RankCandidates();
+        var candidateByIndex = candidates.ToDictionary(static c => c.InstanceIndex);
         var instanceSummaries = run.Instances
-            .Select(static inst =>
+            .Select(inst =>
             {
                 var lease = inst.Lease;
                 var changed = inst.Commit?.ChangedFiles.Select(static f => f.Value).ToArray()
                     ?? inst.Edit?.TouchedFiles.Select(static f => f.Value).ToArray()
                     ?? [];
+                var ranked = candidateByIndex.GetValueOrDefault(inst.InstanceIndex);
+                var score = ranked?.Score ?? inst.EffectiveScore;
                 return new EngineerInstanceSummary(
                     InstanceIndex: inst.InstanceIndex,
                     LeaseId: lease?.EffectiveLeaseId ?? string.Create(CultureInfo.InvariantCulture, $"wt-{inst.InstanceIndex}"),
@@ -110,11 +116,17 @@ internal static class EngineerDelegationSummaries
                     CommitSha: inst.Commit?.Commit.Value,
                     BuildSucceeded: inst.Build?.Succeeded == true,
                     LiveSucceeded: inst.Live?.Succeeded == true,
-                    FailureDetail: inst.FailureDetail);
+                    FailureDetail: inst.FailureDetail,
+                    Strategy: inst.EffectiveStrategy,
+                    TotalScore: score.TotalScore,
+                    ChangedLines: score.ChangedLines,
+                    UnifiedDiff: score.UnifiedDiff,
+                    Rank: ranked?.Rank ?? (inst.InstanceIndex + 1),
+                    IsSelected: inst.InstanceIndex == run.SelectedCandidateIndex);
             })
             .ToArray();
 
-        var traces = CollectDiagnosticsAndTraces(run, winner, view);
+        var traces = CollectDiagnosticsAndTraces(run, winner, candidates, view);
         var (ok, summaryText, card) = FormatSummaryAndCard(
             brain,
             flowId,
@@ -154,12 +166,15 @@ internal static class EngineerDelegationSummaries
             Instances: instanceSummaries,
             DiagnosticsAndTraces: traces,
             SummaryText: summaryText,
-            Card: card);
+            Card: card,
+            SelectedCandidateIndex: run.SelectedCandidateIndex,
+            Candidates: candidates);
     }
 
     private static string[] CollectDiagnosticsAndTraces(
         EngineerRun run,
         EngineerInstance? winner,
+        EngineerCandidateResult[] candidates,
         FlowView? view)
     {
         var lines = new List<string>();
@@ -168,6 +183,16 @@ internal static class EngineerDelegationSummaries
             lines.Add(string.Create(
                 CultureInfo.InvariantCulture,
                 $"plan.multi-agent · {plan.Tasks.Length} task(s), {plan.Transcript.Length} brainstorm turn(s) (Architect + Critic verified)"));
+        }
+
+        if (candidates.Length > 1)
+        {
+            foreach (var c in candidates.OrderBy(static c => c.Rank))
+            {
+                lines.Add(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"tournament.rank#{c.Rank} · w{c.InstanceIndex + 1} ({c.Strategy}) · {c.Score.Summary}{(c.IsSelected ? " [SELECTED]" : string.Empty)}"));
+            }
         }
 
         if (winner?.RoslynDiagnostics is { } roslynDiags)

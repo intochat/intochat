@@ -15,9 +15,23 @@ public sealed record EngineerCandidateSummary(
     [property: Id(3)] string BranchName,
     [property: Id(4)] string Status,
     [property: Id(5)] string[] ChangedFiles,
-    [property: Id(6)] string? CommitSha = null)
+    [property: Id(6)] string? CommitSha = null,
+    [property: Id(7)] string Strategy = "surgical-patch",
+    [property: Id(8)] string StrategyLabel = "Minimal Surgical Patch",
+    [property: Id(9)] int TotalScore = 0,
+    [property: Id(10)] int ChangedLines = 0,
+    [property: Id(11)] bool BuildPassed = false,
+    [property: Id(12)] bool TestsPassed = false,
+    [property: Id(13)] bool LiveVerifyPassed = false,
+    [property: Id(14)] bool ZeroTelemetryErrors = false,
+    [property: Id(15)] string UnifiedDiff = "",
+    [property: Id(16)] string Summary = "",
+    [property: Id(17)] int Rank = 1)
 {
-    public EngineerCandidateSummary() : this(0, "os-run-0", "LocalGit", "ino/feature-run-w1", "prepared", [], null) { }
+    public EngineerCandidateSummary()
+        : this(0, "os-run-0", "LocalGit", "ino/feature-run-w1", "prepared", [], null)
+    {
+    }
 }
 
 [GenerateSerializer, Alias("os.engineer.workspace")]
@@ -43,7 +57,8 @@ public sealed record EngineerWorkspaceState(
     [property: Id(18)] EngineerCandidateSummary[] Candidates,
     [property: Id(19)] string[] DiagnosticsAndTraces,
     [property: Id(20)] string? ActiveFlowId = null,
-    [property: Id(21)] string? PullRequestUrl = null)
+    [property: Id(21)] string? PullRequestUrl = null,
+    [property: Id(22)] string? ConfirmationPlanId = null)
 {
     public static readonly string[] PipelineStageIds =
     [
@@ -90,6 +105,11 @@ public sealed record EngineerWorkspaceState(
     [Invariant("Parallel worktree InstanceCount stays within 1..8."), JsonIgnore]
     public bool ValidInstanceCount => InstanceCount is >= 1 and <= 8;
 
+    [Invariant("SelectedInstanceIndex always points to a valid candidate slot."), JsonIgnore]
+    public bool ValidSelectedCandidate => Candidates.Length == 0
+        ? SelectedInstanceIndex == 0
+        : SelectedInstanceIndex >= 0 && SelectedInstanceIndex < Candidates.Length;
+
     public Rule PlanReadyToApprove() => Decision.Rule(
         "plan_not_ready",
         (HasPlan, PlanApproved),
@@ -113,6 +133,22 @@ public sealed record EngineerWorkspaceState(
         WorktreesCleaned,
         static cleaned => cleaned,
         "All isolated worktree leases are already cleaned up.");
+
+    public Rule ValidCandidateSelection(int candidateIndex) => Decision.Rule(
+        "invalid_candidate_selection",
+        (Candidates, candidateIndex, PrPublished, WorktreesCleaned),
+        static x =>
+            x.PrPublished
+            || x.WorktreesCleaned
+            || x.candidateIndex < 0
+            || x.candidateIndex >= x.Candidates.Length
+            || x.Candidates[x.candidateIndex].Status is "failed" or "refused" or "error",
+        static x =>
+            x.PrPublished ? "Draft PR has already been published; winning candidate is locked."
+            : x.WorktreesCleaned ? "All isolated worktree leases are already cleaned up."
+            : x.candidateIndex < 0 || x.candidateIndex >= x.Candidates.Length
+                ? string.Create(CultureInfo.InvariantCulture, $"Candidate index {x.candidateIndex} is outside the active tournament range (0..{Math.Max(0, x.Candidates.Length - 1)}).")
+                : string.Create(CultureInfo.InvariantCulture, $"Candidate w{x.candidateIndex + 1} failed verification gates and cannot be promoted."));
 
     public EngineerWorkspaceState SelectTab([Sample("plan", "code", "verify", "pr")] string? tabId)
     {
@@ -150,27 +186,34 @@ public sealed record EngineerWorkspaceState(
             : string.IsNullOrWhiteSpace(backend) ? BackendMode : "LocalGit";
 
         var candidates = Enumerable.Range(0, clamped)
-            .Select(i => new EngineerCandidateSummary(
-                InstanceIndex: i,
-                LeaseId: string.Create(CultureInfo.InvariantCulture, $"{RepositoryId}-{ActiveRunId}-{i}"),
-                Backend: i % 2 == 1 && mode == "ContainerVolume" ? "ContainerVolume" : mode,
-                BranchName: clamped == 1
-                    ? $"ino/engineer-{ActiveRunId}"
-                    : string.Create(CultureInfo.InvariantCulture, $"ino/engineer-{ActiveRunId}-w{i + 1}"),
-                Status: PlanApproved ? "prepared" : "pending",
-                ChangedFiles:
-                [
-                    "src/Modules/Catalog/Flows/EngineerFlow.cs",
-                    "src/Modules/Roslyn/Editing/WorktreeRoslynAnalyzer.cs",
-                    "ui/lib/src/ui/stepper/stepper_widget.dart",
-                ]))
+            .Select(i =>
+            {
+                var (strategyId, strategyLabel, _) = EngineerCandidateStrategies.ForCandidate(i);
+                return new EngineerCandidateSummary(
+                    InstanceIndex: i,
+                    LeaseId: string.Create(CultureInfo.InvariantCulture, $"{RepositoryId}-{ActiveRunId}-{i}"),
+                    Backend: mode,
+                    BranchName: clamped == 1
+                        ? $"ino/engineer-{ActiveRunId}"
+                        : string.Create(CultureInfo.InvariantCulture, $"ino/engineer-{ActiveRunId}-w{i + 1}"),
+                    Status: PlanApproved ? "prepared" : "pending",
+                    ChangedFiles:
+                    [
+                        "src/Modules/Catalog/Flows/EngineerFlow.cs",
+                        "src/Modules/Roslyn/Editing/WorktreeRoslynAnalyzer.cs",
+                        "ui/lib/src/ui/stepper/stepper_widget.dart",
+                    ],
+                    Strategy: strategyId,
+                    StrategyLabel: strategyLabel,
+                    Rank: i + 1);
+            })
             .ToArray();
 
         return this with
         {
             InstanceCount = clamped,
             BackendMode = mode,
-            SelectedInstanceIndex = Math.Min(SelectedInstanceIndex, clamped - 1),
+            SelectedInstanceIndex = Math.Clamp(SelectedInstanceIndex, 0, clamped - 1),
             Candidates = candidates,
             StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Configured {clamped} parallel {mode} worktree instance(s)."),
         };
@@ -207,6 +250,44 @@ public sealed record EngineerWorkspaceState(
         return reset.SetParallelInstances(count, BackendMode);
     }
 
+    public Decision<EngineerWorkspaceState> PromoteCandidate([Sample(0, 1, 9)] int candidateIndex)
+        => PromoteCandidateCore(candidateIndex, filePath: null);
+
+    internal Decision<EngineerWorkspaceState> PromoteCandidateCore(int candidateIndex, string? filePath)
+    {
+        if (Decision.Check("select-candidate", ValidCandidateSelection(candidateIndex)) is { } rejected)
+        {
+            return rejected;
+        }
+
+        var candidate = Candidates[candidateIndex];
+        var nextFile = !string.IsNullOrWhiteSpace(filePath)
+            ? filePath.Trim()
+            : candidate.ChangedFiles.Contains(SelectedFilePath, StringComparer.Ordinal)
+                ? SelectedFilePath
+                : candidate.ChangedFiles.FirstOrDefault() ?? SelectedFilePath;
+        var nextLang = nextFile.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
+        var nextTab = ActiveTab is "code" or "verify" or "pr"
+            ? ActiveTab
+            : VerificationPassed ? "pr" : "code";
+        var nextPlanId = VerificationPassed && !string.IsNullOrWhiteSpace(candidate.CommitSha)
+            ? string.Create(CultureInfo.InvariantCulture, $"app:engineer:{ActiveRunId}:{candidate.CommitSha}")
+            : ConfirmationPlanId;
+        var shortSha = candidate.CommitSha is { Length: >= 8 } sha ? sha[..8] : "pending";
+
+        return Decision.Accept(this with
+        {
+            SelectedInstanceIndex = candidateIndex,
+            SelectedFilePath = nextFile,
+            SelectedLanguage = nextLang,
+            ActiveTab = nextTab,
+            ConfirmationPlanId = nextPlanId,
+            StatusBanner = string.Create(
+                CultureInfo.InvariantCulture,
+                $"Promoted candidate w{candidateIndex + 1} ({candidate.StrategyLabel}) · Score {candidate.TotalScore} · Commit {shortSha} ({nextFile})"),
+        });
+    }
+
     public Decision<EngineerWorkspaceState> ApprovePlan() =>
         Decision.Check("approve-plan", PlanReadyToApprove())
         ?? Decision.Accept(this with
@@ -217,26 +298,79 @@ public sealed record EngineerWorkspaceState(
             ActiveTab = "code",
             Candidates =
             [
-                .. Candidates.Select((c, idx) => c with
+                .. Candidates.Select((c, idx) =>
                 {
-                    Status = "implemented",
-                    CommitSha = new string((char)('a' + (idx % 6)), 40),
+                    var sha = new string((char)('a' + (idx % 6)), 40);
+                    var diff = BuildSeedCandidateDiff(idx, c.StrategyLabel, Goal);
+                    var lines = EngineerCandidateScore.CountUnifiedDiffLines(diff);
+                    return c with
+                    {
+                        Status = "implemented",
+                        CommitSha = sha,
+                        UnifiedDiff = diff,
+                        ChangedLines = lines,
+                    };
                 }),
             ],
             StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Plan approved · Prepared {InstanceCount} isolated worktree(s) and checkpointed {Tasks.Length} task(s)."),
         });
 
-    public Decision<EngineerWorkspaceState> CompleteVerification() =>
-        Decision.Check("run-verify", ReadyForVerification())
-        ?? Decision.Accept(this with
+    public Decision<EngineerWorkspaceState> CompleteVerification()
+    {
+        if (Decision.Check("run-verify", ReadyForVerification()) is { } rejected)
+        {
+            return rejected;
+        }
+
+        var scoredCandidates = Candidates
+            .Select((c, idx) =>
+            {
+                var sha = string.IsNullOrWhiteSpace(c.CommitSha) ? new string((char)('a' + (idx % 6)), 40) : c.CommitSha!;
+                var diff = string.IsNullOrWhiteSpace(c.UnifiedDiff) ? BuildSeedCandidateDiff(idx, c.StrategyLabel, Goal) : c.UnifiedDiff;
+                var changedLines = c.ChangedLines > 0 ? c.ChangedLines : EngineerCandidateScore.CountUnifiedDiffLines(diff);
+                var build = new EngineerBuildReport(true, true, true, true, 24, 0, 0, 0, [], 1420, "Build=True, Tests=True (0 warnings)");
+                var live = new EngineerLiveReport(true, true, true, true, 0, 0, 0, 0, [], [], "LiveVerify=True (0 errors)");
+                var score = EngineerCandidateScore.Compute(sha, diff, changedLines, build, live);
+                return c with
+                {
+                    Status = "verified",
+                    CommitSha = sha,
+                    UnifiedDiff = diff,
+                    ChangedLines = score.ChangedLines,
+                    TotalScore = score.TotalScore,
+                    BuildPassed = score.BuildPassed,
+                    TestsPassed = score.TestsPassed,
+                    LiveVerifyPassed = score.LiveVerifyPassed,
+                    ZeroTelemetryErrors = score.ZeroTelemetryErrors,
+                    Summary = score.Summary,
+                    Rank = idx + 1,
+                };
+            })
+            .ToArray();
+
+        var ordered = scoredCandidates
+            .OrderByDescending(static c => c.TotalScore)
+            .ThenBy(static c => c.ChangedLines)
+            .ThenBy(static c => c.InstanceIndex)
+            .ToArray();
+        var rankMap = ordered
+            .Select((c, r) => (c.InstanceIndex, Rank: r + 1))
+            .ToDictionary(static p => p.InstanceIndex, static p => p.Rank);
+        var rankedCandidates = scoredCandidates
+            .Select(c => c with { Rank = rankMap.GetValueOrDefault(c.InstanceIndex, c.InstanceIndex + 1) })
+            .ToArray();
+
+        var winningIdx = ordered.FirstOrDefault()?.InstanceIndex ?? 0;
+        var winningSha = rankedCandidates.ElementAtOrDefault(winningIdx)?.CommitSha ?? new string('a', 40);
+
+        return Decision.Accept(this with
         {
             VerificationPassed = true,
             CurrentStage = "review-and-pr",
             ActiveTab = "verify",
-            Candidates =
-            [
-                .. Candidates.Select(static c => c with { Status = "verified" }),
-            ],
+            SelectedInstanceIndex = winningIdx,
+            Candidates = rankedCandidates,
+            ConfirmationPlanId = string.Create(CultureInfo.InvariantCulture, $"app:engineer:{ActiveRunId}:{winningSha}"),
             DiagnosticsAndTraces =
             [
                 "dotnet build -c Release · 0 warnings, 0 errors (1,420 ms)",
@@ -244,8 +378,11 @@ public sealed record EngineerWorkspaceState(
                 "dotnet test -c Release · Passed: 24, Failed: 0 (1,950 ms)",
                 "ILiveVerifier · Host=Healthy, MCP=200 OK, Playwright=UiNeuronPlaywrightExtensions passed, 4xx=0, 5xx=0, ErrorSpans=0",
             ],
-            StatusBanner = "Build, Tests & Live Behavioral Verification PASSED (0 warnings, 0 errors, 0 4xx/5xx) · Awaiting human PR approval.",
+            StatusBanner = string.Create(
+                CultureInfo.InvariantCulture,
+                $"Build, Tests & Live Behavioral Verification PASSED · Candidate w{winningIdx + 1} ranked #1 (score {rankedCandidates.ElementAtOrDefault(winningIdx)?.TotalScore ?? 0}) · Awaiting human PR approval."),
         });
+    }
 
     public Decision<EngineerWorkspaceState> ApproveAndPublishPr() =>
         Decision.Check("approve-pr", ReadyForPrApproval())
@@ -260,7 +397,7 @@ public sealed record EngineerWorkspaceState(
             [
                 .. Candidates.Select((c, idx) => c with { Status = idx == SelectedInstanceIndex ? "published" : "cleaned" }),
             ],
-            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Approved by Person · Pushed branch & opened Draft PR https://github.com/intochat/{RepositoryId}/pull/204 · Cleaned {InstanceCount} worktree(s)."),
+            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Approved by Person · Pushed candidate w{SelectedInstanceIndex + 1} & opened Draft PR https://github.com/intochat/{RepositoryId}/pull/204 · Cleaned {InstanceCount} worktree(s)."),
         });
 
     public Decision<EngineerWorkspaceState> CleanWorktrees() =>
@@ -322,6 +459,38 @@ public sealed record EngineerWorkspaceState(
         _ => "Brainstorm & Plan",
     };
 
+    private static string BuildSeedCandidateDiff(int index, string strategyLabel, string goal)
+        => index == 0
+            ? $$"""
+                diff --git a/src/Modules/Catalog/Flows/EngineerFlow.cs b/src/Modules/Catalog/Flows/EngineerFlow.cs
+                --- a/src/Modules/Catalog/Flows/EngineerFlow.cs
+                +++ b/src/Modules/Catalog/Flows/EngineerFlow.cs
+                @@ -19,3 +19,7 @@ namespace IntoChat.OS.Modules.Apps.Flows;
+                 internal sealed class EngineerFlow : Flow<EngineerRun>, IFlowStarter
+                 {
+                +    // Candidate w1 ({{strategyLabel}}): {{goal}}
+                +    public const string DefaultStrategy = "surgical-patch";
+                +    public bool SupportsParallelTournament => true;
+                 }
+                """
+            : $$"""
+                diff --git a/src/Modules/Catalog/Flows/EngineerFlow.cs b/src/Modules/Catalog/Flows/EngineerFlow.cs
+                --- a/src/Modules/Catalog/Flows/EngineerFlow.cs
+                +++ b/src/Modules/Catalog/Flows/EngineerFlow.cs
+                @@ -19,3 +19,12 @@ namespace IntoChat.OS.Modules.Apps.Flows;
+                 internal sealed class EngineerFlow : Flow<EngineerRun>, IFlowStarter
+                 {
+                +    // Candidate w{{index + 1}} ({{strategyLabel}}): {{goal}}
+                +    public static EngineerCandidateScore RankVariant(EngineerBuildReport build, EngineerLiveReport live, int changedLines)
+                +        => EngineerCandidateScore.Compute(
+                +            commitSha: null,
+                +            unifiedDiff: string.Empty,
+                +            changedLines: changedLines,
+                +            build: build,
+                +            live: live);
+                 }
+                """;
+
     private static EngineerTaskItem[] DefaultSeedTasks() =>
     [
         new(
@@ -349,8 +518,26 @@ public sealed record EngineerWorkspaceState(
 
     private static EngineerCandidateSummary[] DefaultSeedCandidates() =>
     [
-        new(0, "os-eng-01-0", "LocalGit", "ino/engineer-eng-01-w1", "prepared", ["src/Modules/Catalog/Flows/EngineerFlow.cs", "src/Modules/Roslyn/Editing/WorktreeRoslynAnalyzer.cs"]),
-        new(1, "os-eng-01-1", "ContainerVolume", "ino/engineer-eng-01-w2", "prepared", ["src/Modules/Catalog/Flows/EngineerFlow.cs", "ui/lib/src/ui/stepper/stepper_widget.dart"]),
+        new(
+            InstanceIndex: 0,
+            LeaseId: "os-eng-01-0",
+            Backend: "LocalGit",
+            BranchName: "ino/engineer-eng-01-w1",
+            Status: "prepared",
+            ChangedFiles: ["src/Modules/Catalog/Flows/EngineerFlow.cs", "src/Modules/Roslyn/Editing/WorktreeRoslynAnalyzer.cs"],
+            Strategy: "surgical-patch",
+            StrategyLabel: "Minimal Surgical Patch",
+            Rank: 1),
+        new(
+            InstanceIndex: 1,
+            LeaseId: "os-eng-01-1",
+            Backend: "ContainerVolume",
+            BranchName: "ino/engineer-eng-01-w2",
+            Status: "prepared",
+            ChangedFiles: ["src/Modules/Catalog/Flows/EngineerFlow.cs", "ui/lib/src/ui/stepper/stepper_widget.dart"],
+            Strategy: "clean-refactor",
+            StrategyLabel: "Alternative Strategy & Refactor",
+            Rank: 2),
     ];
 
     private static string[] DefaultSeedTraces() =>

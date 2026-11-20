@@ -362,6 +362,57 @@ internal sealed class FlowsNeuron(
         }
     }
 
+    public async Task<EngineerRunSummary> SelectEngineerCandidate(string flowId, int candidateIndex, CancellationToken ct = default)
+    {
+        var resolvedFlowId = ResolveEngineerFlowId(flowId);
+        if (string.IsNullOrWhiteSpace(resolvedFlowId))
+        {
+            throw new KeyNotFoundException("No IntoChat-Engineer (flow.engineer) run was found in this brain.");
+        }
+
+        var starter = Flow(resolvedFlowId);
+        await starter.SelectCandidate(candidateIndex).ConfigureAwait(true);
+
+        var head = await starter.Head().ConfigureAwait(true);
+        var run = string.IsNullOrWhiteSpace(head.InnerJson)
+            ? null
+            : System.Text.Json.JsonSerializer.Deserialize<EngineerRun>(head.InnerJson, EngineerFlow.Json);
+        var updatedPlanId = run?.Approval?.PlanId;
+        var updatedSubject = run?.SelectedInstance?.Lease is { } lease
+            ? $"{lease.RepositoryId}:{lease.BranchName}"
+            : null;
+
+        await Fold(
+            resolvedFlowId,
+            entry =>
+            {
+                var nextEntry = entry;
+                if (updatedSubject is not null && nextEntry.Subject != updatedSubject)
+                {
+                    nextEntry = nextEntry with { Subject = updatedSubject };
+                }
+
+                if (head.Status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(updatedPlanId))
+                {
+                    var nextWait = new Waiting("approval-gate", WaitReason.Approval, nextEntry.Waiting?.Expires, updatedPlanId);
+                    if (nextEntry.Waiting != nextWait || nextEntry.Status != FlowStatus.Waiting)
+                    {
+                        nextEntry = nextEntry with
+                        {
+                            Status = FlowStatus.Waiting,
+                            Current = "approval-gate",
+                            Waiting = nextWait,
+                        };
+                    }
+                }
+
+                return nextEntry;
+            },
+            readHead: true).ConfigureAwait(true);
+
+        return await InspectEngineerRun(resolvedFlowId, ct).ConfigureAwait(true);
+    }
+
     private string? ResolveEngineerFlowId(string? rawFlowId)
     {
         if (string.IsNullOrWhiteSpace(rawFlowId))

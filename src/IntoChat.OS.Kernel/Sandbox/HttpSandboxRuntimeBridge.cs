@@ -672,6 +672,7 @@ internal sealed partial class HttpSandboxRuntimeBridge(
 
     private static string NewFrameId() => Guid.NewGuid().ToString("N");
 
-    private static string DeploymentKey(string brainId, string appKey) => $"{brainId}/{appKey}";
+    private static string DeploymentKey(string brainId, string appKey)
+        => new DigitalBrain.NeuronId(brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId), "app", appKey).FullKey();
 
 }

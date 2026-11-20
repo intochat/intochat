@@ -2,16 +2,16 @@
 # Desktop
 Role: Shell
 Shipped: true
-Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, focus, tab, newtab, unpin, favourite, widget-open, widget-close, settings
+Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, focus, tab, newtab, unpin, favourite, widget-open, widget-close, settings, ui.command
 
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
 using System.Reflection;
-using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
@@ -75,17 +75,19 @@ public sealed record DesktopWidgetClose(string? Widget = null) : Signal;
 public sealed record DesktopSettings : Signal;
 
 [Neuron("app.desktop")]
-public sealed class DesktopApp : Screen<DesktopAppState>
+[Screen("app.desktop", Title = "Desktop", Icon = Icons.LayoutGrid)]
+public sealed class DesktopApp : AggregateScreen<DesktopAppState>
 {
     private static readonly ILogger ConsoleLog = IntoChat.OS.Framework.Logging.OsConsoleLog.For<DesktopApp>();
-    private readonly ILogger<DesktopApp>? _logger;
+    private ILogger<DesktopApp>? InjectedLogger { get; }
+    private Rejected? RecordedRejection { get; set; }
 
     public DesktopApp() : this(null) { }
 
     [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-    public DesktopApp(ILogger<DesktopApp>? logger = null) => _logger = logger;
+    public DesktopApp(ILogger<DesktopApp>? logger = null) => InjectedLogger = logger;
 
-    private ILogger Log => _logger ?? ConsoleLog;
+    private ILogger Log => InjectedLogger ?? ConsoleLog;
 
     public const string AppName = "desktop";
 
@@ -116,6 +118,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 new("widget-open", "Open the widget named by Input."),
                 new("widget-close", "Close the widget named by Input."),
                 new("settings", "Open the settings."),
+                new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
             ],
             Settings: [],
             Slots: [],
@@ -240,7 +243,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         try
         {
             var records = await Records.Read();
-            if (records.Layout is { Length: > 0 }) { layout = records.Layout; }
+            if (records.Layout is { Length: > 0 }) { layout = DesktopAppState.NormalizeLayoutMode(records.Layout); }
             if (!records.Greeted)
             {
                 try
@@ -267,10 +270,17 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public async Task WidgetOpen(DesktopWidgetOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (Decision.Check("widget-open", DesktopAppState.ValidWidgetRule(request.Widget)) is { } refused)
+        {
+            await RecordRejectionAsync(refused.Rejection);
+            return;
+        }
+
+        var id = DesktopAppState.NormalizeWidgetId(request.Widget)!;
         try
         {
             var records = await Records.Read();
-            if (WidgetId(request.Widget) is { } id && !records.Widgets.Contains(id, StringComparer.Ordinal))
+            if (!records.Widgets.Contains(id, StringComparer.Ordinal))
             {
                 await Records.Write(records with { Widgets = [.. records.Widgets, id] });
             }
@@ -286,22 +296,35 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public async Task WidgetClose(DesktopWidgetClose request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (Decision.Check("widget-close", DesktopAppState.ValidWidgetRule(request.Widget)) is { } invalid)
+        {
+            await RecordRejectionAsync(invalid.Rejection);
+            return;
+        }
+
+        var id = DesktopAppState.NormalizeWidgetId(request.Widget)!;
         try
         {
             var records = await Records.Read();
-            if (WidgetId(request.Widget) is { } id && records.Widgets.Contains(id, StringComparer.Ordinal))
+            if (Decision.Check("widget-close", DesktopAppState.WidgetOpenInRule(records.Widgets, id)) is { } missing)
             {
-                await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] });
+                await RecordRejectionAsync(missing.Rejection);
+                return;
             }
+
+            await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            if (Decision.Check("widget-close", State.WidgetOpenRule(id)) is { } fallbackMissing)
+            {
+                await RecordRejectionAsync(fallbackMissing.Rejection);
+                return;
+            }
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
-
-    private static string? WidgetId(string? widget) => string.IsNullOrWhiteSpace(widget) ? null : widget.Trim().ToLowerInvariant();
 
     [On]
     public async Task Layout(DesktopLayoutChoice request)
@@ -325,29 +348,47 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public async Task Open(DesktopOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var app = string.IsNullOrWhiteSpace(request.App) ? null : request.App.Trim().ToLowerInvariant();
-        if (app is not null)
-        {
-            if (request.View is { } view)
-            {
-                try
-                {
-                    try { await Get<IApp>($"apps/{app}").Request("open", view.Trim()); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
-                    {
-                        Log.LogSwallowed(fallbackEx, $"Falling back to app.{app} screen for open view.");
-                        await Get<IScreen>("app." + app).Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()), typeof(DesktopOpenViewArgs)));
-                    }
-                }
-                catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
-            }
-            var brain = TryCurrentBrain();
-            await ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, app, brain: brain));
-        }
-        else
+        if (request.App is null)
         {
             await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
+            return;
         }
+
+        if (Decision.Check("open", DesktopAppState.OpenableAppRule(request.App)) is { } refused)
+        {
+            await RecordRejectionAsync(refused.Rejection);
+            return;
+        }
+
+        var app = request.App.Trim().ToLowerInvariant();
+        if (request.View is { } view)
+        {
+            try
+            {
+                try { await Get<IApp>($"apps/{app}").Request("open", view.Trim()); }
+                catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                {
+                    Log.LogSwallowed(fallbackEx, $"Falling back to app.{app} screen for open view.");
+                    await Get<IScreen>("app." + app).Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()), typeof(DesktopOpenViewArgs)));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
+        }
+
+        var brain = TryCurrentBrain();
+        await ApplyDesktopWorkspaceChangeAsync(
+            s => DesktopAppState.OpenWorkspaceApp(s, app, brain: brain),
+            ws =>
+            {
+                if (BrainId.IsValid(brain)
+                    && IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), app, out var appRef)
+                    && ws.Windows.Any(w => w.Tabs is { Length: > 0 } && w.Tabs.Any(t => string.Equals(t.App, appRef.Key, StringComparison.OrdinalIgnoreCase))))
+                {
+                    return null;
+                }
+
+                return Decision.Check("open", DesktopAppState.WindowLimitInRule(ws.Windows))?.Rejection;
+            });
     }
 
     [On]
@@ -361,6 +402,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public Task AutoArrange(DesktopAutoArrange request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        RecordedRejection = null;
         return Show(State.AutoArrange());
     }
 
@@ -370,8 +412,13 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         ArgumentNullException.ThrowIfNull(request);
         var appId = string.IsNullOrWhiteSpace(request.AppId) ? "photocraft" : request.AppId.Trim().ToLowerInvariant();
         var decision = State.PinOrUnpin(appId, request.Pinned);
-        if (!decision.IsAccepted) { return; }
+        if (!decision.IsAccepted)
+        {
+            await RecordRejectionAsync(decision.Rejection);
+            return;
+        }
 
+        RecordedRejection = null;
         await Show(decision.Next);
         if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
         var isPin = request.Pinned;
@@ -390,48 +437,57 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public Task Unpin(DesktopUnpinApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return string.IsNullOrWhiteSpace(request.AppId)
-            ? Task.CompletedTask
-            : Pin(new DesktopPinApp(request.AppId, Pinned: false));
+        if (Decision.Check("unpin", DesktopAppState.UnpinnableAppRule(request.AppId)) is { } refused)
+        {
+            return RecordRejectionAsync(refused.Rejection);
+        }
+
+        return Pin(new DesktopPinApp(request.AppId, Pinned: false));
     }
 
     [On]
     public Task Close(DesktopClose request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return string.IsNullOrWhiteSpace(request.Target)
-            ? Task.CompletedTask
-            : ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceTarget(s, request.Target));
+        return ApplyDesktopWorkspaceChangeAsync(
+            s => DesktopAppState.CloseWorkspaceTarget(s, request.Target!),
+            ws => Decision.Check("close", DesktopAppState.CloseTargetExistsInRule(ws.Windows, request.Target))?.Rejection,
+            () => Decision.Check("close", State.CloseTargetExistsRule(request.Target))?.Rejection);
     }
 
     [On]
     public Task CloseApp(DesktopCloseApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.App)) { return Task.CompletedTask; }
+        if (Decision.Check("close-app", DesktopAppState.OpenableAppRule(request.App)) is { } refused)
+        {
+            return RecordRejectionAsync(refused.Rejection);
+        }
+
         var brain = TryCurrentBrain();
-        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceApp(s, request.App, brain));
+        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceApp(s, request.App!, brain));
     }
 
     [On]
     public Task Focus(DesktopFocus request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return string.IsNullOrWhiteSpace(request.WindowId)
-            ? Task.CompletedTask
-            : ApplyDesktopWorkspaceChangeAsync(s =>
-                s.Windows.FirstOrDefault(win => win.Id == request.WindowId) is { } w && s.FocusedViewId != w.ActiveTabId
-                    ? (DesktopAppState.BuildUpdate(s, s.Windows, w.ActiveTabId), [])
-                    : (null, []));
+        return ApplyDesktopWorkspaceChangeAsync(
+            s => s.Windows.FirstOrDefault(win => win.Id == request.WindowId) is { } w && s.FocusedViewId != w.ActiveTabId
+                ? (DesktopAppState.BuildUpdate(s, s.Windows, w.ActiveTabId), [])
+                : (null, []),
+            ws => Decision.Check("focus", DesktopAppState.WindowExistsInRule(ws.Windows, request.WindowId))?.Rejection,
+            () => Decision.Check("focus", State.WindowExistsRule(request.WindowId))?.Rejection);
     }
 
     [On]
     public Task Tab(DesktopTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return string.IsNullOrWhiteSpace(request.Target)
-            ? Task.CompletedTask
-            : ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.SelectWorkspaceTab(s, request.Target));
+        return ApplyDesktopWorkspaceChangeAsync(
+            s => DesktopAppState.SelectWorkspaceTab(s, request.Target!),
+            ws => Decision.Check("tab", DesktopAppState.TabTargetExistsInRule(ws.Windows, request.Target))?.Rejection,
+            () => Decision.Check("tab", State.TabTargetExistsRule(request.Target))?.Rejection);
     }
 
     [On]
@@ -439,16 +495,35 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var brain = TryCurrentBrain();
-        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, "ino", request.WindowId, asNewTab: true, brain: brain));
+        return ApplyDesktopWorkspaceChangeAsync(
+            s => DesktopAppState.OpenWorkspaceApp(s, "ino", request.WindowId, asNewTab: true, brain: brain),
+            ws =>
+            {
+                var openWins = ws.Windows.Where(static w => w.Tabs is { Length: > 0 }).ToArray();
+                if (request.WindowId is { Length: > 0 })
+                {
+                    return Decision.Check(
+                        "newtab",
+                        DesktopAppState.WindowExistsInRule(openWins, request.WindowId),
+                        DesktopAppState.TabLimitInRule(openWins, request.WindowId))?.Rejection;
+                }
+
+                var fallbackWin = openWins.FirstOrDefault(w => w.Tabs.Any(t => t.Id == ws.FocusedViewId)) ?? openWins.LastOrDefault();
+                return fallbackWin is not null
+                    ? Decision.Check("newtab", DesktopAppState.TabLimitInRule(openWins, fallbackWin.Id))?.Rejection
+                    : Decision.Check("newtab", DesktopAppState.WindowLimitInRule(openWins))?.Rejection;
+            });
     }
 
     [On]
     public Task Favourite(DesktopFavourite request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.WindowId)) { return Task.CompletedTask; }
         var brain = TryCurrentBrain();
-        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.ToggleWorkspaceFavourite(s, request.WindowId, brain));
+        return ApplyDesktopWorkspaceChangeAsync(
+            s => DesktopAppState.ToggleWorkspaceFavourite(s, request.WindowId!, brain),
+            ws => Decision.Check("favourite", DesktopAppState.WindowExistsInRule(ws.Windows, request.WindowId))?.Rejection,
+            () => Decision.Check("favourite", State.WindowExistsRule(request.WindowId))?.Rejection);
     }
 
     [On]
@@ -459,8 +534,15 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     }
 
     public new DesktopAppState State => base.State;
-    public View Render() => Render(State);
+    public new Rejected? LastRejection => RecordedRejection ?? base.LastRejection;
+    public View Render() => PreviewView(State);
     public Exception? RecordedError => null;
+
+    private Task RecordRejectionAsync(Rejected rejection)
+    {
+        RecordedRejection = rejection;
+        return PublishEphemeral(rejection);
+    }
 
     private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
     {
@@ -469,8 +551,9 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         return new Emit("app.desktop", alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, typeof(TSignal)));
     }
 
-    protected override View Render(DesktopAppState state)
+    protected override Node Render(DesktopAppState state)
     {
+        ArgumentNullException.ThrowIfNull(state);
         var brain = TryCurrentBrain();
         var activeWindows = (state.Windows ?? []).Where(w => w.Tabs is { Length: > 0 }).ToArray();
 
@@ -574,11 +657,12 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             ]
         ]).Extents(0, 360);
 
-        return new View("Desktop", VStack([windows, dock]).Extents(0, 68));
+        return VStack([windows, dock]).Extents(0, 68);
     }
 
     private async Task SyncSmartDesktopAsync(string layoutMode, bool narrow)
     {
+        var normalizedLayout = DesktopAppState.NormalizeLayoutMode(layoutMode);
         var preset = State.StylePreset;
         var barLayout = State.BarLayout;
         if (TryGetOptional<IUserSettings>("settings") is { } settings)
@@ -621,10 +705,17 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         try
         {
             var ws = await Get<IWorkspace>("main").Read();
-            windows = ws.Windows;
-            pins = ws.Pins;
-            favs = ws.Favourites;
-            focusedViewId = ws.FocusedViewId;
+            windows = ws.Windows.Take(DesktopAppState.MaxWindows).ToArray();
+            pins = ws.Pins
+                .Where(static p => !string.Equals(p.Id, "desktop", StringComparison.OrdinalIgnoreCase))
+                .Take(DesktopAppState.MaxPins)
+                .ToArray();
+            favs = ws.Favourites.Take(DesktopAppState.MaxFavourites).ToArray();
+            focusedViewId = windows.Length == 0
+                ? null
+                : windows.Any(w => (w.Tabs ?? []).Any(t => string.Equals(t.Id, ws.FocusedViewId, StringComparison.Ordinal)))
+                    ? ws.FocusedViewId
+                    : windows[^1].ActiveTabId;
         }
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Workspace is optional."); }
 
@@ -639,17 +730,22 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Records is optional."); }
 
         var pinnedApps = pins.Length > 0
-            ? pins.Select(p => p.Id).Where(id => id is not ("ino" or "desktop")).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            ? pins.Select(p => p.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id) && id is not ("ino" or "desktop"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(DesktopAppState.MaxPins)
+                .ToArray()
             : (State.PinnedApps ?? ["ino", "creator"]);
 
+        RecordedRejection = null;
         await Show(State with
         {
-            LayoutMode = layoutMode,
+            LayoutMode = normalizedLayout,
             IsNarrow = narrow,
             StylePreset = preset,
             BarLayout = barLayout,
             ActiveNeurons = activeNeurons,
-            Status = narrow ? "Smart Desktop (Compact)" : $"Smart Desktop ({layoutMode})",
+            Status = narrow ? "Smart Desktop (Compact)" : $"Smart Desktop ({normalizedLayout})",
             Windows = windows,
             FocusedViewId = focusedViewId,
             Pins = pins,
@@ -661,15 +757,26 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     }
 
     private async Task ApplyDesktopWorkspaceChangeAsync(
-        Func<WorkspaceState, (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds)> change)
+        Func<WorkspaceState, (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds)> change,
+        Func<WorkspaceState, Rejected?>? validateWorkspace = null,
+        Func<Rejected?>? validateStandalone = null)
     {
         IReadOnlyList<string> closedWindowIds = [];
+        Rejected? rejected = null;
+        var workspaceAvailable = false;
         try
         {
             var workspace = Get<IWorkspace>("main");
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 var wsState = await workspace.Read();
+                workspaceAvailable = true;
+                if (validateWorkspace?.Invoke(wsState) is { } wsRejection)
+                {
+                    rejected = wsRejection;
+                    break;
+                }
+
                 var (update, closed) = change(wsState);
                 closedWindowIds = closed;
                 if (update is null) { break; }
@@ -687,6 +794,16 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Log.LogSwallowed(error, "Workspace is optional.");
+            if (!workspaceAvailable && validateStandalone is not null)
+            {
+                rejected = validateStandalone();
+            }
+        }
+
+        if (rejected is not null)
+        {
+            await RecordRejectionAsync(rejected);
+            return;
         }
 
         await ClearViewportsAsync(closedWindowIds);
