@@ -2,6 +2,7 @@
 #pragma warning disable CA1068, xUnit1051, CA1861
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Invocation;
 
 namespace DigitalBrain.Tests.Unit.Invocation;
@@ -10,6 +11,8 @@ public sealed class NeuronBinderFacts
 {
     public sealed record Item(string Name, int Count);
     public enum Tone { Info, Warning }
+    [JsonConverter(typeof(JsonStringEnumConverter<StringTone>))]
+    public enum StringTone { Info, Warning }
     public sealed record Action(string Kind, string Argument);
 
     public interface IProbe : IDisposable
@@ -32,6 +35,7 @@ public sealed class NeuronBinderFacts
         Task<string> Make(string goal);
         Task<string> Make(string? alias, string? title, string goal);
         Task<int> List(int limit = 10);
+        Task<string> DefaultedTone(StringTone? tone = StringTone.Warning);
     }
 
     public sealed class Probe : IProbe
@@ -64,6 +68,7 @@ public sealed class NeuronBinderFacts
         public Task<string> Make(string goal) => Task.FromResult(goal);
         public Task<string> Make(string? alias, string? title, string goal) => Task.FromResult($"{alias}:{title}:{goal}");
         public Task<int> List(int limit = 10) => Task.FromResult(limit);
+        public Task<string> DefaultedTone(StringTone? tone = StringTone.Warning) => Task.FromResult(tone?.ToString() ?? "none");
         public void Dispose() { }
     }
 
@@ -258,5 +263,15 @@ public sealed class NeuronBinderFacts
     public void DuplicateNormalizedNamedArgumentsAreRefused()
     {
         Assert.Throws<BindingException>(() => NeuronBinder.Arrange(typeof(IProbe), "Make", J("""{"goal":"a","Goal":"b"}""")));
+    }
+
+    [Fact]
+    public void NullableEnumDefaultSerializesAsEnum()
+    {
+        var named = NeuronBinder.Arrange(typeof(IProbe), "DefaultedTone", J("{}"));
+        Assert.Equal(["\"Warning\""], named.Arguments.Select(a => a.GetRawText()));
+
+        var positional = NeuronBinder.Arrange(typeof(IProbe), "DefaultedTone", J("[]"));
+        Assert.Equal(["\"Warning\""], positional.Arguments.Select(a => a.GetRawText()));
     }
 }

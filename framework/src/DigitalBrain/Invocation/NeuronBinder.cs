@@ -239,9 +239,10 @@ public sealed class NeuronBinder(int maximumArgumentBytes = NeuronBinder.Default
         }
 
         var value = parameter.DefaultValue is DBNull ? null : parameter.DefaultValue;
-        if (value is not null && parameter.ParameterType.IsEnum && value.GetType() != parameter.ParameterType)
+        var targetType = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;
+        if (value is not null && targetType.IsEnum && value.GetType() != targetType)
         {
-            value = Enum.ToObject(parameter.ParameterType, value);
+            value = Enum.ToObject(targetType, value);
         }
         return RuntimeProtocol.SerializeToElement(value, parameter.ParameterType);
     }
