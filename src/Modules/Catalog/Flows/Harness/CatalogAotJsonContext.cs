@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
@@ -35,4 +36,10 @@ internal sealed record FileActionPayload(bool Ok, string Path, string Action);
 [JsonSerializable(typeof(RoslynDiagnosticsPayload))]
 [JsonSerializable(typeof(RoslynEditResultPayload))]
 [JsonSerializable(typeof(FileActionPayload))]
-internal sealed partial class CatalogAotJsonContext : JsonSerializerContext;
+internal sealed partial class CatalogAotJsonContext : JsonSerializerContext
+{
+    public static CatalogAotJsonContext Relaxed { get; } = new(new JsonSerializerOptions(JsonSerializerDefaults.Web)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    });
+}

@@ -242,11 +242,11 @@ internal sealed class LocalLlmCoder : ICoder
             }
             catch (JsonException)
             {
-                return JsonSerializer.Serialize(new ToolContentPayload(true, output), CatalogAotJsonContext.Default.ToolContentPayload);
+                return JsonSerializer.Serialize(new ToolContentPayload(true, output), CatalogAotJsonContext.Relaxed.ToolContentPayload);
             }
         }
 
-        return JsonSerializer.Serialize(new ToolContentPayload(true, output ?? string.Empty), CatalogAotJsonContext.Default.ToolContentPayload);
+        return JsonSerializer.Serialize(new ToolContentPayload(true, output ?? string.Empty), CatalogAotJsonContext.Relaxed.ToolContentPayload);
     }
 
     private async Task<IModelTurnRunner> ResolveModelRunnerAsync(CancellationToken ct)
@@ -406,20 +406,20 @@ internal sealed class LocalLlmCoder : ICoder
                         GetOptionalString(args, "path"),
                         ct).ConfigureAwait(false),
                     "roslyn_edit_member" => await ApplyRoslynEditAsync(args, ct).ConfigureAwait(false),
-                    _ => JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, $"Unknown tool '{name}'."), CatalogAotJsonContext.Default.RoslynBatchErrorPayload),
+                    _ => JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, $"Unknown tool '{name}'."), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload),
                 };
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, $"sandbox tool '{name}' failed");
-                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Default.RoslynBatchErrorPayload);
+                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload);
             }
         }
 
         private async Task<string> InspectRoslynSymbolsAsync(string? filter, CancellationToken ct)
         {
             var symbols = await _roslyn.InspectSymbolsAsync(_root, filter, ct).ConfigureAwait(false);
-            return JsonSerializer.Serialize(new RoslynSymbolsPayload(true, symbols.Count, symbols), CatalogAotJsonContext.Default.RoslynSymbolsPayload);
+            return JsonSerializer.Serialize(new RoslynSymbolsPayload(true, symbols.Count, symbols), CatalogAotJsonContext.Relaxed.RoslynSymbolsPayload);
         }
 
         private async Task<string> InspectRoslynDiagnosticsAsync(string? path, CancellationToken ct)
@@ -432,7 +432,7 @@ internal sealed class LocalLlmCoder : ICoder
             }
 
             var diagnostics = await _roslyn.AnalyzeAsync(_root, paths, ct).ConfigureAwait(false);
-            return JsonSerializer.Serialize(new RoslynDiagnosticsPayload(true, diagnostics.Count, diagnostics), CatalogAotJsonContext.Default.RoslynDiagnosticsPayload);
+            return JsonSerializer.Serialize(new RoslynDiagnosticsPayload(true, diagnostics.Count, diagnostics), CatalogAotJsonContext.Relaxed.RoslynDiagnosticsPayload);
         }
 
         private async Task<string> ApplyRoslynEditAsync(JsonElement args, CancellationToken ct)
@@ -469,7 +469,7 @@ internal sealed class LocalLlmCoder : ICoder
 
             return JsonSerializer.Serialize(
                 new RoslynEditResultPayload(summary.Succeeded, summary.TouchedFiles, summary.Diagnostics, summary.Diff, summary.Detail),
-                CatalogAotJsonContext.Default.RoslynEditResultPayload);
+                CatalogAotJsonContext.Relaxed.RoslynEditResultPayload);
         }
 
         public string ListFiles(string? relativeDir, string? filter, int maxItems = MaxListedFiles)
@@ -510,7 +510,7 @@ internal sealed class LocalLlmCoder : ICoder
             var (rel, full) = ResolveConfinedPath(relativePath, requireWriteAllowed: false, allowDirectory: false);
             if (!File.Exists(full))
             {
-                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, $"File '{rel}' does not exist."), CatalogAotJsonContext.Default.RoslynBatchErrorPayload);
+                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, $"File '{rel}' does not exist."), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload);
             }
 
             var text = await File.ReadAllTextAsync(full, Encoding.UTF8, ct).ConfigureAwait(false);
@@ -558,7 +558,7 @@ internal sealed class LocalLlmCoder : ICoder
             var updated = string.Concat(normalizedContent.AsSpan(0, idx), newText, normalizedContent.AsSpan(idx + target.Length));
             await File.WriteAllTextAsync(full, updated, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct).ConfigureAwait(false);
             _touched.Add(rel);
-            return JsonSerializer.Serialize(new FileActionPayload(true, rel, "replaced"), CatalogAotJsonContext.Default.FileActionPayload);
+            return JsonSerializer.Serialize(new FileActionPayload(true, rel, "replaced"), CatalogAotJsonContext.Relaxed.FileActionPayload);
         }
 
         public async Task<string> WriteFileAsync(string relativePath, string content, CancellationToken ct)
@@ -574,7 +574,7 @@ internal sealed class LocalLlmCoder : ICoder
 
             await File.WriteAllTextAsync(full, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct).ConfigureAwait(false);
             _touched.Add(rel);
-            return JsonSerializer.Serialize(new FileActionPayload(true, rel, "written"), CatalogAotJsonContext.Default.FileActionPayload);
+            return JsonSerializer.Serialize(new FileActionPayload(true, rel, "written"), CatalogAotJsonContext.Relaxed.FileActionPayload);
         }
 
         private void EnforceMaxTouchedBudget(string rel)

@@ -184,7 +184,7 @@ internal sealed partial class InoNativeHarness
                 using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson);
                 if (!doc.RootElement.TryGetProperty("edits", out var editsEl) || editsEl.ValueKind != JsonValueKind.Array)
                 {
-                    return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, "roslyn_batch_edit requires an 'edits' array."), CatalogAotJsonContext.Default.RoslynBatchErrorPayload);
+                    return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, "roslyn_batch_edit requires an 'edits' array."), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload);
                 }
 
                 var edits = new List<WorktreeCSharpEdit>();
@@ -217,12 +217,12 @@ internal sealed partial class InoNativeHarness
 
                 return JsonSerializer.Serialize(
                     new RoslynBatchResultPayload(summary.Succeeded, summary.TouchedFiles, summary.Diagnostics, summary.Detail),
-                    CatalogAotJsonContext.Default.RoslynBatchResultPayload);
+                    CatalogAotJsonContext.Relaxed.RoslynBatchResultPayload);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogSwallowed(ex, "roslyn_batch_edit failed");
-                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Default.RoslynBatchErrorPayload);
+                return JsonSerializer.Serialize(new RoslynBatchErrorPayload(false, ex.Message), CatalogAotJsonContext.Relaxed.RoslynBatchErrorPayload);
             }
         }
 
