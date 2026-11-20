@@ -1289,9 +1289,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       setState(() => _systemSheet = DesktopSystemSheetKind.profile);
       return;
     }
-    if (appId == 'settings') {
-      _navigateSettingsSection(settingsSection);
-    }
     final effectiveInput =
         openRoute?.input ??
         (openInput != null && openInput.isNotEmpty ? openInput : null);
@@ -1299,10 +1296,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final transition = openRoute?.transition ?? 'fade-through';
     final fromNeuron = openRoute?.fromNeuron;
     final shouldNavigateTo =
-        appId != 'settings' &&
-        (effectiveInput != null ||
-            argsJson != null ||
-            (openRoute?.hasExplicitTransition ?? false));
+        effectiveInput != null ||
+        argsJson != null ||
+        (openRoute?.hasExplicitTransition ?? false);
+    if (appId == 'settings' && !shouldNavigateTo) {
+      _navigateSettingsSection(settingsSection);
+    }
 
     for (final w in windows.reversed) {
       if (w.appId == appId) {
@@ -1357,7 +1356,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     } else {
       _shellGesture('desktop', 'open', appId);
     }
-    if (appId == 'settings') {
+    if (appId == 'settings' && !shouldNavigateTo) {
       widget.onActivate({
         'kind': 'settings',
         'brainId': widget.brain,

@@ -178,3 +178,16 @@ public sealed record InoNavArgs(
     string? Prompt = null,
     string? ConversationId = null,
     string? FocusTarget = null);
+
+/// <summary>
+/// Standard route deep-link payload for <c>SettingsApp</c> (<c>app.settings</c>).
+/// </summary>
+/// <param name="Section">Optional Settings section identifier (e.g. <c>connections</c>, <c>keys</c>, <c>billing</c>).</param>
+/// <param name="SubPage">Optional Settings sub-page identifier (e.g. <c>github</c>, <c>local-server</c>).</param>
+/// <param name="Sheet">Optional modal sheet identifier.</param>
+/// <param name="SearchQuery">Optional search query text.</param>
+public sealed record SettingsNavArgs(
+    string? Section = null,
+    string? SubPage = null,
+    string? Sheet = null,
+    string? SearchQuery = null);

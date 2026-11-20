@@ -142,6 +142,9 @@ public sealed record InoAppState(
     public string? ContextSummary { get; init; }
     public bool DevUiMode { get; init; }
     public string ActiveSection { get; init; } = "chat";
+    public string? ActiveFocusTarget { get; init; }
+    public string? DraftPrompt { get; init; }
+    public bool HasUnsavedProviderDraft { get; init; }
 
     // ── Domain Invariants ────────────────────────────────────────────────────
 
@@ -243,6 +246,12 @@ public sealed record InoAppState(
         static x => string.IsNullOrEmpty(x.PlanId) || !x.Approvals.Any(a => string.Equals(a.PlanId, x.PlanId, StringComparison.Ordinal)),
         "Pending approval plan was not found.");
 
+    public Rule CanDepart(bool force = false) => Decision.Require(
+        "ino_setup_unsaved",
+        (Force: force, HasUnsavedDraft: HasUnsavedProviderDraft),
+        static x => x.Force || !x.HasUnsavedDraft,
+        "Finish or discard provider credential setup before leaving.");
+
     // ── Aggregate Commands & Transitions ─────────────────────────────────────
 
     public Decision<InoAppState> SelectSection(
@@ -271,12 +280,20 @@ public sealed record InoAppState(
         var normalized = InoModel.ConversationIdOf(conversationId);
         var updatedRecents = NormalizeRecentConversations(
             [InoModel.AgentKeyOf(ConversationId), .. RecentConversations]);
-        return Decision.Accept(InoModel.SwitchConversation(this, normalized, updatedRecents));
+        return Decision.Accept(InoModel.SwitchConversation(this, normalized, updatedRecents) with
+        {
+            DraftPrompt = null,
+        });
     }
 
     public Decision<InoAppState> SubmitPrompt(
-        [Sample("Summarize Q4 renewals", "")] string prompt) =>
-        InoModel.DecideSend(this, prompt, "p-1", DateTimeOffset.UnixEpoch);
+        [Sample("Summarize Q4 renewals", "")] string prompt)
+    {
+        var decision = InoModel.DecideSend(this, prompt, "p-1", DateTimeOffset.UnixEpoch);
+        return decision.IsAccepted
+            ? Decision.Accept(decision.Next with { DraftPrompt = null })
+            : decision;
+    }
 
     public Decision<InoAppState> ConfigureModel(
         [Sample("qwen2.5-coder:14b", "")] string model)
@@ -297,6 +314,7 @@ public sealed record InoAppState(
         {
             SelectedModel = trimmed,
             Error = nextError,
+            HasUnsavedProviderDraft = false,
             Status = nextStatus,
         });
     }
@@ -319,6 +337,7 @@ public sealed record InoAppState(
         {
             SelectedModel = defaultModel,
             Error = null,
+            HasUnsavedProviderDraft = false,
             ActiveSection = "chat",
             Status = $"Saved {cleanProvider} credential · Ready on {defaultModel}",
         });
@@ -373,6 +392,70 @@ public sealed record InoAppState(
     }
 
     public InoAppState ToggleDevUi() => this with { DevUiMode = !DevUiMode };
+
+    public InoAppState SetProviderSetupDraft([Sample(true, false)] bool hasDraft) => this with
+    {
+        HasUnsavedProviderDraft = hasDraft,
+        ActiveSection = hasDraft ? "setup" : (ActiveSection == "setup" ? "chat" : ActiveSection),
+    };
+
+    public Decision<InoAppState> StageNavigationPrompt(
+        [Sample("Triage GitHub issue #42", "")] string prompt,
+        [Sample("tasks/approvals")] string? focusTarget = null)
+    {
+        if (Decision.Check(
+                "stage-navigation-prompt",
+                InoModel.NonEmptyPromptRule(prompt),
+                InoModel.WithinLimitRule(prompt)) is { } refused)
+        {
+            return refused;
+        }
+
+        return Decision.Accept(this with
+        {
+            DraftPrompt = prompt.Trim(),
+            ActiveFocusTarget = string.IsNullOrWhiteSpace(focusTarget) ? ActiveFocusTarget : focusTarget.Trim(),
+            ActiveSection = "chat",
+        });
+    }
+
+    public InoAppState DismissNavigationSeed() => this with
+    {
+        DraftPrompt = null,
+        ActiveFocusTarget = null,
+    };
+
+    [IgnoreExplore]
+    public InoAppState ApplyNavigation(InoNavArgs? args)
+    {
+        if (args is null)
+        {
+            return this;
+        }
+
+        var next = this;
+        if (!string.IsNullOrWhiteSpace(args.FocusTarget))
+        {
+            next = next with { ActiveFocusTarget = args.FocusTarget.Trim() };
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.Prompt))
+        {
+            var cleanPrompt = args.Prompt.Trim();
+            if (cleanPrompt.Length > InoModel.MaxMessageChars)
+            {
+                cleanPrompt = cleanPrompt[..InoModel.MaxMessageChars];
+            }
+
+            next = next with
+            {
+                DraftPrompt = cleanPrompt,
+                ActiveSection = "chat",
+            };
+        }
+
+        return next;
+    }
 
     public static string[] NormalizeRecentConversations(IEnumerable<string>? source) =>
         source is null

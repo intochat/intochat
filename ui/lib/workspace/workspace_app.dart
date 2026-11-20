@@ -357,7 +357,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
         fallbackFromNeuron: currentScreen,
       );
       if (openRoute != null) {
-        if (openRoute.app == 'settings') {
+        if (openRoute.app == 'settings' && !openRoute.hasNavigationPayload) {
           action = {
             'kind': 'settings',
             if (action['brainId'] case final String b) 'brainId': b,
@@ -390,7 +390,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
       }
     }
     // A legacy settings activation is the Settings app's workspace activation.
-    if (action['kind'] == 'settings') action = settingsActivation(action);
+    final isLegacySettings = action['kind'] == 'settings';
+    if (isLegacySettings) action = settingsActivation(action);
     // An app's configuration is the Apps app's detail for it.
     if (action['view'] == 'configuration' && action['application'] is String) {
       action = configurationActivation(action);
@@ -542,8 +543,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
               return;
             }
           }
-          if (hasNavPayload && !alreadyNavigatedTo && app != 'settings') {
-            await dispatchNavigateTo(
+          var navDelivered = alreadyNavigatedTo;
+          if (!isLegacySettings && hasNavPayload && !alreadyNavigatedTo) {
+            navDelivered = await dispatchNavigateTo(
               sendAct: (event) => client.uiEvent(brain, event),
               targetNeuron: neuron,
               fromNeuron: fromNeuron ?? currentScreen,
@@ -552,7 +554,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
               input: navInput,
             );
           }
-          if (action['operation'] case final String operation) {
+          if (action['operation'] case final String operation
+              when !navDelivered) {
             unawaited(
               client
                   .requestApp(
@@ -584,11 +587,12 @@ class WorkspaceAppState extends State<WorkspaceApp>
           );
         }
         if (_isDesktopRoot) {
+          var navDelivered = alreadyNavigatedTo;
           if (neuron != null &&
-              app != 'settings' &&
+              !isLegacySettings &&
               hasNavPayload &&
               !alreadyNavigatedTo) {
-            await dispatchNavigateTo(
+            navDelivered = await dispatchNavigateTo(
               sendAct: (event) => client.uiEvent(brain, event),
               targetNeuron: neuron,
               fromNeuron: fromNeuron,
@@ -598,7 +602,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
             );
           }
           if (action['operation'] case final String operation
-              when app != null && app != receiver) {
+              when !navDelivered && app != null && app != receiver) {
             await client.requestApp(
               brain,
               app,
@@ -650,11 +654,12 @@ class WorkspaceAppState extends State<WorkspaceApp>
           });
         }
       }
+      var navDelivered = alreadyNavigatedTo;
       if (neuron != null &&
-          app != 'settings' &&
+          !isLegacySettings &&
           hasNavPayload &&
           !alreadyNavigatedTo) {
-        await dispatchNavigateTo(
+        navDelivered = await dispatchNavigateTo(
           sendAct: (event) => client.uiEvent(brain, event),
           targetNeuron: neuron,
           fromNeuron: fromNeuron ?? previousScreen,
@@ -663,7 +668,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
           input: navInput,
         );
       }
-      if (action['operation'] case final String operation) {
+      if (action['operation'] case final String operation when !navDelivered) {
         if (app != null) {
           await client.requestApp(
             brain,

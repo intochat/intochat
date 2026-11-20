@@ -488,12 +488,73 @@ void main() {
       await fixture.dispose();
     },
   );
+
+  testWidgets(
+    'WorkspaceApp routes Engineer -> Settings Connections/github and Engineer -> Ask Ino via ui.navigate-to without overwriting Settings via /request',
+    (tester) async {
+      final server = _SingleSurfaceCrossNavServer()
+        ..navigateFromUnsupported = true;
+      final fixture = await ApplicationFixture.start(tester, server: server);
+
+      expect(find.text('Engineer Workbench Active'), findsOneWidget);
+
+      // 1. Tap Configure GitHub -> dispatches ui.navigate-to (input: connections/github) to brain-1/apps/settings and skips /apps/settings/request
+      await tester.tap(find.text('Configure GitHub'));
+      await tester.pumpAndSettle();
+
+      final settingsNav = server.actCalls
+          .where(
+            (c) =>
+                c['signal'] == 'ui.navigate-to' &&
+                c['neuron'] == 'brain-1/apps/settings',
+          )
+          .toList();
+      expect(settingsNav, hasLength(1));
+      expect(
+        (settingsNav.single['args'] as Map<String, dynamic>)['input'],
+        'connections/github',
+      );
+      expect(
+        server.requestsTo('/brains/brain-1/apps/settings/request'),
+        isEmpty,
+      );
+      expect(find.text('Settings Hub: connections/github'), findsOneWidget);
+
+      // 2. Tap Ask Ino from Settings -> preserves stashed argsJson across EventQueue microtask hops into brain-1/apps/ino
+      await tester.tap(find.text('Ask Ino From Settings'));
+      await tester.pumpAndSettle();
+
+      final inoNav = server.actCalls
+          .where(
+            (c) =>
+                c['signal'] == 'ui.navigate-to' &&
+                c['neuron'] == 'brain-1/apps/ino',
+          )
+          .toList();
+      expect(inoNav, hasLength(1));
+      final inoArgs = inoNav.single['args'] as Map<String, dynamic>;
+      expect(inoArgs['fromNeuron'], 'app.settings');
+      expect(jsonDecode(inoArgs['argsJson'] as String), {
+        'prompt': 'Audit GitHub webhook rules',
+        'focusTarget': 'focus:github/main',
+      });
+      expect(server.requestsTo('/brains/brain-1/apps/ino/request'), isEmpty);
+      expect(
+        find.text('Ino Draft: Audit GitHub webhook rules'),
+        findsOneWidget,
+      );
+
+      await fixture.dispose();
+    },
+  );
 }
 
 class _SingleSurfaceCrossNavServer extends ApplicationServer {
   bool blockDepartureWithRule = false;
   bool navigateFromUnsupported = false;
   String aspireTrace = 'none';
+  String settingsRoute = 'general';
+  String inoDraft = 'none';
   final actCalls = <Map<String, dynamic>>[];
 
   @override
@@ -524,6 +585,29 @@ class _SingleSurfaceCrossNavServer extends ApplicationServer {
           },
         });
       }
+      if (reqBody['key'] == 'engineer:open-github-settings') {
+        return json({
+          'intent': {
+            'intentKind': 'OpenWindow',
+            'arg': 'os://window/open?app=settings&input=connections%2Fgithub',
+          },
+        });
+      }
+      if (reqBody['key'] == 'settings:ask-ino') {
+        final argsJson = jsonEncode({
+          'prompt': 'Audit GitHub webhook rules',
+          'focusTarget': 'focus:github/main',
+        });
+        return json({
+          'intent': {
+            'intentKind': 'OpenWindow',
+            'arg':
+                'os://window/open?app=ino'
+                '&args=${Uri.encodeQueryComponent(argsJson)}'
+                '&from=app.settings',
+          },
+        });
+      }
       return json({'delivered': true});
     }
 
@@ -547,6 +631,17 @@ class _SingleSurfaceCrossNavServer extends ApplicationServer {
       }
       if (reqBody['signal'] == 'ui.navigate-to') {
         final args = reqBody['args'] as Map<String, dynamic>? ?? {};
+        if (reqBody['neuron'] == '$brainId/apps/settings') {
+          settingsRoute = '${args['input'] ?? 'general'}';
+          return json({'delivered': true});
+        }
+        if (reqBody['neuron'] == '$brainId/apps/ino') {
+          if (args['argsJson'] is String) {
+            final parsed = jsonDecode(args['argsJson'] as String) as Map;
+            inoDraft = '${parsed['prompt']}';
+          }
+          return json({'delivered': true});
+        }
         if (args['argsJson'] is String) {
           final parsed = jsonDecode(args['argsJson'] as String) as Map;
           aspireTrace = '${parsed['traceId']}';
@@ -578,8 +673,47 @@ class _SingleSurfaceCrossNavServer extends ApplicationServer {
                   'intent': {'intentKind': 'OpenWindow', 'arg': ''},
                   'enabled': true,
                 },
+                {
+                  'kind': 'button',
+                  'key': 'engineer:open-github-settings',
+                  'label': 'Configure GitHub',
+                  'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                  'enabled': true,
+                },
               ],
             },
+          },
+        });
+      }
+      if (viewName == '$brainId/apps/settings/view') {
+        return json({
+          'generation': 2,
+          'view': {
+            'title': 'Settings',
+            'acts': 'act',
+            'root': {
+              'kind': 'column',
+              'children': [
+                {'kind': 'text', 'value': 'Settings Hub: $settingsRoute'},
+                {
+                  'kind': 'button',
+                  'key': 'settings:ask-ino',
+                  'label': 'Ask Ino From Settings',
+                  'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                  'enabled': true,
+                },
+              ],
+            },
+          },
+        });
+      }
+      if (viewName == '$brainId/apps/ino/view') {
+        return json({
+          'generation': 2,
+          'view': {
+            'title': 'Ino',
+            'acts': 'act',
+            'root': {'kind': 'text', 'value': 'Ino Draft: $inoDraft'},
           },
         });
       }

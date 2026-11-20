@@ -34,7 +34,7 @@ namespace IntoChat.OS.Apps.Ino;
 
 [Neuron("app.ino")]
 [Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles)]
-public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
+public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavigatedTo<InoNavArgs>, INavigatedFrom
 {
     private const string ApprovalsKey = "approvals/index", DataKey = "ino/data", ModelsKey = "main";
 
@@ -78,7 +78,72 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
             state.Messages is null && HeldMessages is { } held ? state with { Messages = held } : state,
             CanDictate,
             props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
-            ThreadFailureText);
+            ThreadFailureText,
+            base.LastRejection);
+
+    public Rule CanNavigateFrom(NavigationDeparture departure)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return State.CanDepart(departure.Force);
+    }
+
+    public async Task OnNavigatedFrom(NavigationDeparture departure, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        RecordedRejection = null;
+        if (CurrentBrain.Value is { Length: > 0 } && State.HasUnsavedProviderDraft)
+        {
+            await Commit(Current with { HasUnsavedProviderDraft = false });
+        }
+    }
+
+    public async Task OnNavigatedTo(NavigationArrival<InoNavArgs> arrival, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arrival);
+        ActiveTransition = ViewTransition.Normalize(arrival.Transition);
+        RecordedRejection = null;
+
+        var attached = CurrentBrain.Value is { Length: > 0 };
+        var args = arrival.Args ?? new InoNavArgs();
+        if (!string.IsNullOrWhiteSpace(args.ConversationId))
+        {
+            var targetConversationId = InoModel.ConversationIdOf(args.ConversationId);
+            if (!string.Equals(targetConversationId, Current.ConversationId, StringComparison.Ordinal))
+            {
+                var agentKey = InoModel.AgentKeyOf(targetConversationId);
+                ThreadKnown = false;
+                SyncedThread = null;
+                SyncedProps = null;
+                if (attached)
+                {
+                    await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
+                }
+
+                var recents = attached
+                    ? await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations)
+                    : Current.RecentConversations;
+                var switched = (InoModel.SwitchConversation(Current, targetConversationId, recents) with { DraftPrompt = null })
+                    .ApplyNavigation(args);
+                if (attached)
+                {
+                    await Commit(switched);
+                    await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(targetConversationId)));
+                    if (await InoModelSetup.EnsureChatAsync(Setup, agentKey))
+                    {
+                        await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey);
+                    }
+                }
+
+                return;
+            }
+        }
+
+        var next = Current.ApplyNavigation(args);
+        if (attached)
+        {
+            await Commit(next);
+        }
+    }
 
     // Model decisions read the messages last projected; until a projection after activation, the chat revision reads 0 so the next
     // projection runs even when the chat has not changed since the messages were last projected.
@@ -283,7 +348,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
             return;
         }
         if (decision.Next.Pending is not { } pending) { return; }
-        await Commit(decision.Next);
+        await Commit(decision.Next with { DraftPrompt = null });
         await InoModelSetup.ExecuteTurnAsync(Setup, settings, pending);
     }
 
@@ -323,6 +388,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
             return;
         }
         if (await InoModelSetup.SaveProviderAsync(Setup, request)) { await Retry(new InoRetry()); }
+        if (State.HasUnsavedProviderDraft) { await Commit(Current with { HasUnsavedProviderDraft = false }); }
     }
 
     [On]
@@ -451,7 +517,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         SyncedProps = null;
         await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
-        await Commit(InoModel.SwitchConversation(Current, conversationId, recents));
+        await Commit(InoModel.SwitchConversation(Current, conversationId, recents) with { DraftPrompt = null });
         await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(conversationId)));
         if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
