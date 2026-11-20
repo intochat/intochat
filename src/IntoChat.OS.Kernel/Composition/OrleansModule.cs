@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Cluster;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Kernel.Composition;
 

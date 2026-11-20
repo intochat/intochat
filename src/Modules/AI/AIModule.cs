@@ -13,9 +13,7 @@ using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents;
@@ -35,6 +33,8 @@ using Microsoft.Extensions.Logging;
 using Orleans.Hosting;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Surface;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.AI;
 

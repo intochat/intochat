@@ -2,14 +2,13 @@ using DigitalBrain.Brains;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Brains;
 
-namespace IntoChat.OS.Connections;
+namespace IntoChat.OS.Host.Http;
 
 // The HTTP edge of the brain membership rule. Routes that address a brain by path apply
 // this filter so a principal cannot reach a brain it does not belong to, even though the route

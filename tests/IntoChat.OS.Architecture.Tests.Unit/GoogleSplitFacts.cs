@@ -6,6 +6,7 @@ using IntoChat.OS.Modules.Google.Drive;
 using IntoChat.OS.Modules.Google.Gmail;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

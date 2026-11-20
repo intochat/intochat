@@ -5,7 +5,7 @@ using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Signals.Watch;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Client.Orleans;
+namespace IntoChat.OS.Host.Client;
 
 // In-process brain.On<T> of a plain neuron (06-07, R4-15): one session on the runtime's session synapse neuron (04-13) per
 // subscription. The synapse is registered before onSubscribed runs; a batch is acknowledged by the next Next only once the

@@ -335,7 +335,7 @@ public static class ShellHostingExtensions
             }
 
             builder.WithEnvironment(PresenceProofValidator.TokenHashEnvironmentVariable, PresenceTokenHash);
-            var corsOrigin = ModuleConfiguration.EnvironmentName(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
+            var corsOrigin = ModuleConfiguration.EnvironmentName(IntoChat.OS.Host.Http.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Host.Http.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)
             {

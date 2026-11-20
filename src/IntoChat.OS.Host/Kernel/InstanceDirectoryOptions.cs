@@ -1,7 +1,6 @@
 // os-only: os kernel instance directory compaction (ledger 38).
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Kernel;
 
 // Ledger 38: the kernel instance directory is a durable catalog (a deactivated app/file stays listed until
 // deleted), so a brain's core can grow with every neuron ever written. Compaction keeps each "{brain}/{type}"

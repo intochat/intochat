@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Visuals;
+using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Framework.Tests.Unit.Visuals;
 

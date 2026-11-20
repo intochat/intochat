@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Connections.Identity.Configuration;
+namespace IntoChat.OS.Host.Http;
 
 public sealed class KernelCorsOptions
 {

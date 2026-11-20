@@ -15,6 +15,7 @@ using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 using CompositionKernel = IntoChat.OS.Kernel.Composition.Kernel.OsKernel;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Callers;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Kernel.Composition;
 

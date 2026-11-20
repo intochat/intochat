@@ -4,7 +4,7 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS;
 
-namespace IntoChat.OS.Client.Orleans;
+namespace IntoChat.OS.Host.Client;
 
 // One brain over the cluster client: neurons by full key, the brain neuron at {brain}/main.
 internal sealed class OrleansBrain(BrainClient client, string brainId) : ISignalWatch

@@ -1,7 +1,6 @@
 // os-only: os per-person brain membership seam answered by Identity.
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Brains;
 
 // The brains a person is a member of, read by Kernel.Brains(). The identity directory answers it (Connections);
 // a host with no membership source refuses to list brains rather than listing every brain.

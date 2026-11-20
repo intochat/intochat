@@ -1,10 +1,9 @@
 using DigitalBrain.Brains;
-using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace IntoChat.OS.Connections;
+namespace IntoChat.OS.Host.Http;
 
 public static class OsBrainRoutes
 {

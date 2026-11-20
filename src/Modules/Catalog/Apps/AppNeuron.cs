@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PresentationCollaborator = IntoChat.OS.Modules.Apps.Presentations.AppPresentation;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +11,8 @@ using Orleans.Serialization.Cloning;
 using Orleans.Serialization.Codecs;
 using Orleans.Serialization.Invocation;
 using Orleans.Serialization.Serializers;
+using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Surface;
 
 #nullable disable
 
@@ -28,7 +29,7 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.Sdk.NotificationPriority>(services);
         AddEnum<IntoChat.OS.Authority.Identity.InvitationKind>(services);
         AddEnum<EntryKind>(services);
-        AddEnum<IntoChat.OS.Framework.Modules.ModuleState>(services);
+        AddEnum<IntoChat.OS.Host.Modules.ModuleState>(services);
         AddEnum<IntoChat.OS.Host.ServiceDefaults.BindKind>(services);
         AddEnum<IntoChat.OS.Kernel.Composition.Registry.RegistryTier>(services);
         AddEnum<IntoChat.OS.UI.StatusKind>(services);

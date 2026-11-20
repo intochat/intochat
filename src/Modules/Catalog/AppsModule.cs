@@ -26,6 +26,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps;
 

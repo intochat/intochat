@@ -6,13 +6,13 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

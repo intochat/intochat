@@ -8,12 +8,12 @@ using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Kernel.Mcp;
 

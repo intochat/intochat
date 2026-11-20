@@ -132,7 +132,7 @@ public sealed class SlotReadEndpointFacts
         Assert.DoesNotContain("Panel text", body, StringComparison.Ordinal);
     }
 
-    private sealed class Unloaded : IntoChat.OS.Framework.IHostedAppTypes
+    private sealed class Unloaded : IntoChat.OS.Host.Kernel.IHostedAppTypes
     {
         public bool IsHostLoaded(string appKey) => false;
     }

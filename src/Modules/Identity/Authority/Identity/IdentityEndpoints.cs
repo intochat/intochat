@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Authority.Identity;
 

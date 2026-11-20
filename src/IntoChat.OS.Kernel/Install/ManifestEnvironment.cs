@@ -15,7 +15,7 @@ namespace IntoChat.OS.Kernel.Install;
 public static class ManifestEnvironment
 {
     // The static ModuleManifest of every composed module that declares one (a public static Manifest property), with the module's id.
-    public static IReadOnlyList<DigitalBrain.Modules.ModuleManifest> ManifestsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules)
+    public static IReadOnlyList<DigitalBrain.Modules.ModuleManifest> ManifestsOf(IEnumerable<IntoChat.OS.Host.Modules.OsModule> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
         return [.. modules.GroupBy(module => module.Type).Select(group => group.First())
@@ -40,7 +40,7 @@ public static class ManifestEnvironment
         => ConfigurationKeyGrammar.EnvironmentName(IntegrationSchema.Key(integrationId, field));
 
     // Every integration secret declared across composed modules' IntegrationSchemas.
-    public static IReadOnlyList<KeyVaultSecretRef> IntegrationSecretsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules, string vaultName)
+    public static IReadOnlyList<KeyVaultSecretRef> IntegrationSecretsOf(IEnumerable<IntoChat.OS.Host.Modules.OsModule> modules, string vaultName)
     {
         ArgumentNullException.ThrowIfNull(modules);
         ArgumentException.ThrowIfNullOrWhiteSpace(vaultName);

@@ -1,6 +1,6 @@
 using DigitalBrain.Signals.Watch;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Brains;
 
 // A silo or a cluster client opens a brain. Get addresses an os full key. Open is the session watch.
 public interface IIntoChatOSBrains

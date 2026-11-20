@@ -4,10 +4,10 @@ using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Kernel;
 
 // The kernel's compiled type layer: every neuron contract, signal and connector the composed modules
 // bring, built once per host. Kernel grains are not neurons, so they never enter it. A brain client has no layer of its own: it asks the kernel over the wire.
@@ -24,7 +24,7 @@ public sealed class CompiledTypes
     // Without a module composition an assembly names itself and no connectors are declared.
     public CompiledTypes(IEnumerable<Assembly> assemblies) : this(assemblies, assembly => assembly.GetName().Name!, [], []) { }
 
-    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<IntoChat.OS.Framework.Modules.OsModule> modules,
+    private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<IntoChat.OS.Host.Modules.OsModule> modules,
         IEnumerable<IModuleTypeSource> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);

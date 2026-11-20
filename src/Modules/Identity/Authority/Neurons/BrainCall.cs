@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Authority.Neurons;
 

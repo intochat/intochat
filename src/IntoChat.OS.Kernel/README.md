@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Host` (`IClusterMembershipFeed`, `ICluster`, `IConfinedProcessRunner`).
+Contracts: assembly `IntoChat.OS.Host` (`IBrainMembership`, `IClusterMembershipFeed`, `ICluster`, `IConfinedProcessRunner`, `IHostedAppTypes`, `IIntoChatOSBrains`, `IKernel`, `ILicenseCheck`, `IModuleTypeSource`, `ITopologyModule`).
 Hosting: runs in process.
 <!-- END GENERATED -->

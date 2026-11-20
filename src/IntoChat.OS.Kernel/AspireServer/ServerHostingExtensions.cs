@@ -7,7 +7,6 @@ using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
@@ -31,6 +30,8 @@ using Orleans.Serialization;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.ServiceDefaults;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Host.Client;
 
 namespace IntoChat.OS.Kernel.AspireServer;
 

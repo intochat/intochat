@@ -1,8 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Kernel;
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Kernel;
 
 // The kernel as neurons and module code reach it: the runtime observer plus the acts only the
 // platform side may take. Not a neuron: nothing here is addressable through MCP.

@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using DigitalBrain.Runtime.Orleans.Access;
-using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Workflows;
 using IntoChat.OS.Modules.Apps.AppRuns;
@@ -8,6 +7,8 @@ using IntoChat.OS.Modules.Apps.Runs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Brains;
+using IntoChat.OS.Host.Client;
 
 // A first-party host over the cluster client: it joins the local brain's gateway and acts as the app "cli" on behalf of a person.
 //   runs                          list the runs index

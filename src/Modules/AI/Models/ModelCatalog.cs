@@ -4,7 +4,6 @@ using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using Microsoft.Extensions.AI;
@@ -13,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Modules.AI.Models;
 

@@ -6,7 +6,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
@@ -15,6 +14,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using Microsoft.Extensions.AI;
 using AiChatRole = Microsoft.Extensions.AI.ChatRole;
 using ShellChatRole = IntoChat.OS.Modules.Flutter.Chat.ChatRole;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 

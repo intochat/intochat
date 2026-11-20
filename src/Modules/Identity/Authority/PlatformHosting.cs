@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Authority;
 
@@ -73,7 +74,7 @@ public static class PlatformHosting
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         services.AddGrpc();
-        services.TryAddSingleton<IntoChat.OS.Connections.Surface.OsNeuronSurface>();
+        services.TryAddSingleton<IntoChat.OS.Host.Surface.OsNeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();

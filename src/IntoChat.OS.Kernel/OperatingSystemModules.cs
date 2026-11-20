@@ -3,6 +3,7 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Http;
 using Microsoft.Extensions.DependencyModel;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Kernel;
 

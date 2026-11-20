@@ -60,7 +60,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     public TimeSpan StartupDuration { get; private set; }
 
     [System.Runtime.CompilerServices.ModuleInitializer]
-    internal static void InitializeConfigurationRoot() => IntoChat.OS.Framework.Modules.OsModule.InitializeConfigurationRoot();
+    internal static void InitializeConfigurationRoot() => IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
 
     public async ValueTask InitializeAsync()
     {

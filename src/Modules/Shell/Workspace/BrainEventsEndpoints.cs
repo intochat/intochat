@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 

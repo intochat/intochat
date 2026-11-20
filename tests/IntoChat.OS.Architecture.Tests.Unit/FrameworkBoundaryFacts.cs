@@ -119,7 +119,8 @@ public sealed partial class FrameworkBoundaryFacts
         => new[]
             {
                 Path.Combine(ContractsDirectory, "Runtime"),
-                Path.Combine(Repository.ProjectNamed("IntoChat.OS.Modules.Identity").Directory, "Core"),
+                Path.Combine(Repository.ProjectNamed("IntoChat.OS.Host").Directory, "Kernel"),
+                Path.Combine(Repository.ProjectNamed("IntoChat.OS.Host").Directory, "Brains"),
             }
             .Where(Directory.Exists)
             .SelectMany(folder => FilesUnder(folder, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))

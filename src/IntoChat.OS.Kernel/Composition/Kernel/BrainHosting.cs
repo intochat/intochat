@@ -15,6 +15,8 @@ using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Kernel.Composition.Kernel;
 

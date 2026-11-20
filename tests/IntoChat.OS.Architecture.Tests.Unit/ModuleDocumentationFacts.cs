@@ -7,6 +7,7 @@ using DigitalBrain.Modules.Options;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

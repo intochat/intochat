@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Authority.Integrations;
 

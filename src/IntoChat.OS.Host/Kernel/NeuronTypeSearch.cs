@@ -1,14 +1,14 @@
+// os-only: searches the OS kernel's compiled types and the brain's live capability sources for the OS tool surface.
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Connections.Contracts;
+namespace IntoChat.OS.Host.Kernel;
 
 // What the caller's brain can search and call: the kernel's neuron types plus the live capabilities
 // each source reports, ranked by meaning when an embedding model is composed, by words otherwise.

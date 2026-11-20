@@ -61,7 +61,7 @@ public sealed class ShippedPresentationFacts
         AppsModule.ConfigureServices(services, new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
         using var provider = global::Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
 
-        var hosted = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Framework.IHostedAppTypes>(provider);
+        var hosted = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Host.Kernel.IHostedAppTypes>(provider);
         Assert.True(hosted.IsHostLoaded("owner/apps/ino"));
         Assert.True(hosted.IsHostLoaded("local/apps/settings"));
         Assert.True(hosted.IsHostLoaded("ino"));

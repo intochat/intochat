@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Authority.Hosting;
 

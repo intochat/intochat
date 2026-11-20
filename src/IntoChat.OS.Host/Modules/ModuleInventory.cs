@@ -1,8 +1,7 @@
 using System.Reflection;
 using DigitalBrain.Brains;
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Host.Modules;
 
 // The modules selected for this host, available to modules without coupling hosting to their consumers.
 public sealed class ModuleInventory

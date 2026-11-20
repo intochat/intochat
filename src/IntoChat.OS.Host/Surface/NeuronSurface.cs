@@ -8,11 +8,10 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Contracts;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
+using IntoChat.OS.Host.Kernel;
 
-namespace IntoChat.OS.Connections.Surface;
+namespace IntoChat.OS.Host.Surface;
 
 // One set of names and descriptions for the neuron tools, so the assistant and intochat-os-mcp cannot drift.
 public static class NeuronSurfaceTools

@@ -1,7 +1,6 @@
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS;
-using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.AspNetCore.Builder;
@@ -11,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.ServiceDefaults;
+using IntoChat.OS.Host.Client;
 
 namespace IntoChat.OS.Kernel.AspireClient;
 

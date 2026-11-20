@@ -1,14 +1,13 @@
-using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.OS.Authority.Identity;
+namespace IntoChat.OS.Host.Http;
 
 // The shell may have a separate web origin. An explicitly configured loopback origin
 // also admits its localhost/127.0.0.1 aliases at the same port for local browser hosting.
-internal static class KernelCors
+public static class KernelCors
 {
     public const string AllowedOriginConfigurationKey =
         KernelCorsOptions.SectionName + ":" + nameof(KernelCorsOptions.AllowedOrigin);

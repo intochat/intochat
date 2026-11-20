@@ -7,8 +7,6 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Contracts;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
@@ -21,6 +19,8 @@ using IntoChat.OS.Modules.AI.Routing;
 using DigitalBrain.Access;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Modules.Apps.Routing;
 

@@ -12,10 +12,10 @@ public sealed class KernelLayoutFacts
         => Path.Combine(Repository.ProjectNamed("IntoChat.OS.AppHost").Directory, "Hosting", "Modules", "AI", "Configuration", "SystemOneHostingState.cs");
 
     private static string ClientOrleansCsprojPath()
-        => Repository.ProjectNamed("IntoChat.OS.Modules.Identity").Path;
+        => Repository.ProjectNamed("IntoChat.OS.Host").Path;
 
     private static string ClientOrleansDirectory()
-        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Modules.Identity").Directory, "ClientOrleans");
+        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Host").Directory, "Client");
 
     private static string ContractManifestPath()
         => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "ContractManifest.json");

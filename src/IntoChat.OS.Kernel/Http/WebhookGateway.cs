@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Kernel.Http;
 

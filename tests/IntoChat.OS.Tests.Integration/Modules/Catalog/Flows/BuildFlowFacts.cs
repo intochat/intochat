@@ -149,7 +149,7 @@ public sealed class BuildFlowFacts
             services.AddSingleton<IConnectionHosts>(connections);
             services.TryAddSingleton(TimeProvider.System);
             services.AddSingleton<IDrafter>(drafter);
-            services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
+            services.TryAddSingleton(IntoChat.OS.Host.Kernel.NeuronTypeSearch.Create);
         }
     }
 

@@ -3,7 +3,6 @@ using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents.Context;
@@ -14,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 

@@ -53,7 +53,7 @@ public sealed class WebShellHost : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
-        IntoChat.OS.Framework.Modules.OsModule.InitializeConfigurationRoot();
+        IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
         var originPort = FreePort();
         Origin = $"http://127.0.0.1:{originPort}";
         var aspireDashboardUrl = $"{Origin}/aspire-dashboard-stub";

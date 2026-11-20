@@ -267,7 +267,7 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(appHostDir, "Hosting", "Modules", "AI"),
             localSetupDir,
             Path.Combine(hostDir, "Configuration"),
-            Path.Combine(frameworkDir, "Visuals"),
+            Path.Combine(hostDir, "Visuals"),
         ];
 
         // Two homes, proven equal below: the hosting default (IntoChatOSNames) and the model's own identity in the AI contracts,

@@ -6,7 +6,7 @@ using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Host.Modules;
 
 // The host's view of one composed module: a Framework module instance, or a [Module] DigitalBrain module.
 // Callers read id, contracts and topology from here. The module class itself is not a service locator.

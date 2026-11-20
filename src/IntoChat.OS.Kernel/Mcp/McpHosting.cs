@@ -5,11 +5,13 @@ using DigitalBrain.Access;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IntoChat.OS.Host.Brains;
+using IntoChat.OS.Host.Surface;
+using IntoChat.OS.Host.Http;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Kernel.Mcp;
 

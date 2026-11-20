@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps;
 

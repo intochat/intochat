@@ -5,6 +5,8 @@ using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Connections.Hosting;
 

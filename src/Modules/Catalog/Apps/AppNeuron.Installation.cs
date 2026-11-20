@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps;
 

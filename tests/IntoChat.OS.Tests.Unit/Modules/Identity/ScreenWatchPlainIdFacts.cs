@@ -1,8 +1,9 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Kernel;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Authority;
 

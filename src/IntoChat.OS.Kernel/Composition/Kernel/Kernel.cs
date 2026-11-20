@@ -9,6 +9,8 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel.Testing;
+using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Brains;
 
 namespace IntoChat.OS.Kernel.Composition.Kernel;
 

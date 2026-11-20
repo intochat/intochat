@@ -124,7 +124,7 @@ public sealed class XWatchEndToEndFacts
             services.AddSingleton<IConnectionHosts>(connection);
             services.TryAddSingleton(TimeProvider.System);
             services.AddSingleton<IDrafter>(new ScriptedDrafter());
-            services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
+            services.TryAddSingleton(IntoChat.OS.Host.Kernel.NeuronTypeSearch.Create);
         }
     }
 

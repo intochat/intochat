@@ -8,6 +8,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.AspNetCore.Http;
 using Xunit;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.UI;
 

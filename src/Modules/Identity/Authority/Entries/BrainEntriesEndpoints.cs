@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Authority.Entries;
 

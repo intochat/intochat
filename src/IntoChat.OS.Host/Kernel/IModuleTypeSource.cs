@@ -1,8 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Kernel;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Kernel;
 
 // Type entries a composed module declares outside its contract assemblies, such as its connectors. CompiledTypes adds
 // them after the module's neurons and signals; a host without a source compiles neurons and signals alone.

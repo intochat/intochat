@@ -25,6 +25,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using MicrosoftSdk = Microsoft;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Flutter;
 

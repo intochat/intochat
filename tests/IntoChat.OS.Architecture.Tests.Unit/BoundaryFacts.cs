@@ -113,7 +113,7 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(IIdentityDirectory).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(IIdentityDirectory).Assembly, typeof(IntoChat.OS.Host.Modules.OsModule).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }

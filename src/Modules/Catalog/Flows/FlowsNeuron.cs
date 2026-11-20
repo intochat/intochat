@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Callers;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

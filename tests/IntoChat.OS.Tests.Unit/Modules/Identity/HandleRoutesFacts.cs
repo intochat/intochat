@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using BrainRoutes = IntoChat.OS.Connections.OsBrainRoutes;
+using BrainRoutes = IntoChat.OS.Host.Http.OsBrainRoutes;
 
 namespace IntoChat.OS.Authority;
 

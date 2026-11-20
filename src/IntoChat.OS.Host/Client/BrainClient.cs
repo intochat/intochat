@@ -3,11 +3,11 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Signals.Watch;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Brains;
 
-namespace IntoChat.OS.Client.Orleans;
+namespace IntoChat.OS.Host.Client;
 
 // The cluster as a whole: opens brains, resolves neurons for hosts and harnesses, and owns every subscription it handed out
 // through their streams. Neurons are DigitalBrain plain neurons, reached through the silo's host grains.

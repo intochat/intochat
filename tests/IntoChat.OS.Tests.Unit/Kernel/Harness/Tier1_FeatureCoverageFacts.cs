@@ -589,7 +589,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_05_CleanNamespaceIsolation_NoObsoleteShims()
     {
-        var types = typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly.GetTypes();
+        var types = typeof(IntoChat.OS.Host.Modules.OsModule).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("NamesForward", StringComparison.OrdinalIgnoreCase));
     }
 

@@ -4,10 +4,10 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Markdraw;
-using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Ino;

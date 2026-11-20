@@ -8,6 +8,7 @@ using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Callers;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Authority.Integrations;
 

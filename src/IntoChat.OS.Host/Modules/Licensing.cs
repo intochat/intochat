@@ -2,7 +2,7 @@
 using DigitalBrain.Modules.Options;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Framework.Modules;
+namespace IntoChat.OS.Host.Modules;
 
 // Decides whether a module that declares a LicenseProduct may run. The check is cooperative: it runs in the
 // open composition root and gates start-up only. Distribution of the paid packages is what enforces the licence.

@@ -1,8 +1,8 @@
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
-using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Settings;

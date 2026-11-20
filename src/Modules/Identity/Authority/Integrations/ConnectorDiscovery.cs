@@ -3,6 +3,7 @@ using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Authority.Integrations;
 

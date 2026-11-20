@@ -8,7 +8,6 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Builder;
@@ -18,6 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Surface;
 
 namespace IntoChat.OS.Tests.Unit.Authority;
 

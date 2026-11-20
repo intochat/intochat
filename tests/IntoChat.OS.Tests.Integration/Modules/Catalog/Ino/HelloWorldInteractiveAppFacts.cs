@@ -47,7 +47,7 @@ public sealed class HelloWorldInteractiveAppFacts
             services.AddJournalPayloads(typeof(FlowStarted).Assembly);
             services.AddSingleton<ICapabilityConnections>(new SynapseStudioFacts.EmptyCapabilityConnections());
             services.TryAddSingleton(TimeProvider.System);
-            services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
+            services.TryAddSingleton(IntoChat.OS.Host.Kernel.NeuronTypeSearch.Create);
 
             // Configure AIModule + a test-only IModelInference backed by OfflineUnitSynthesizer so
             // Creator exercises the real ModelCatalog -> IModelInference -> BuildFlow -> Silo deploy pipeline

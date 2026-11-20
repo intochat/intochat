@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 
-namespace IntoChat.OS.Framework.Visuals;
+namespace IntoChat.OS.Host.Visuals;
 
 /// <summary>
 /// Immutable visual identity metadata shared across C# views, model catalogs, and shell projections.

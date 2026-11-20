@@ -1,7 +1,6 @@
 using DigitalBrain.Kernel;
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Kernel;
 
 // A feature loaded into a brain: an app's program, from the shipped catalog, the Marketplace or the
 // Creator. Owner is the publisher it came from, or the brain itself for one authored in place.

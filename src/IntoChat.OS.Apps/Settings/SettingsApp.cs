@@ -15,7 +15,6 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using IntoChat.OS.Apps.Controls;
-using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -26,6 +25,7 @@ using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Apps.Settings;
 

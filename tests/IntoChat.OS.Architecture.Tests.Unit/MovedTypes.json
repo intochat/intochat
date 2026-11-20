@@ -607,7 +607,7 @@
       "persisted": false
     },
     {
-      "old": "IntoChat.OS.Framework.Modules.OsModule",
+      "old": "IntoChat.OS.Host.Modules.OsModule",
       "alias": null,
       "persisted": false
     },

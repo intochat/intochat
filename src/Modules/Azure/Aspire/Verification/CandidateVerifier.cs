@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Brains;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 

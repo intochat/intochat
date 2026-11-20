@@ -1,6 +1,6 @@
 using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Tests.Unit.Framework.Visuals;
 

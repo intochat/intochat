@@ -1,4 +1,5 @@
 using IntoChat.OS.Framework;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps;
 

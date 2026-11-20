@@ -6,6 +6,7 @@ using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

@@ -41,6 +41,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Modules;
 
 namespace IntoChat.OS.Tests.Integration.Sandbox;
 

@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Identity.Local.Machine;
+using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Apps.Routing;
 

@@ -21,6 +21,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Identity` (`IBrainBirths`, `IBrainEntries`, `IBrainMembership`, `IBrainProviderKeys`, `ICallFilterStage`, `IContactsNeuron`, `IEdgeGrantsCache`, `IGrantsNeuron`, `IHandleDirectory`, `IHostedAppTypes`, `IIdentityClient`, `IIdentityDirectory`, `IIntegration`, `IIntoChatOSBrains`, `IKernel`, `IKeyWrapper`, `ILicenseCheck`, `IModuleTypeSource`, `IPresenceProof`, `ITopologyModule`).
+Contracts: assembly `IntoChat.OS.Modules.Identity` (`IBrainBirths`, `IBrainEntries`, `IBrainProviderKeys`, `ICallFilterStage`, `IContactsNeuron`, `IEdgeGrantsCache`, `IGrantsNeuron`, `IHandleDirectory`, `IIdentityClient`, `IIdentityDirectory`, `IIntegration`, `IKeyWrapper`, `IPresenceProof`).
 Hosting: runs in process.
 <!-- END GENERATED -->

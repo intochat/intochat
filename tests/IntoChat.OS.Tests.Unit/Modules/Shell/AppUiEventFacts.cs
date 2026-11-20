@@ -27,7 +27,7 @@ public sealed class AppUiEventFacts
     // The OS's own apps, loaded by the host; any other app here is model-authored.
     private static readonly HostedTypes Hosted = new("owner/apps/ino", "owner/apps/tasks");
 
-    private sealed class HostedTypes(params string[] loaded) : IntoChat.OS.Framework.IHostedAppTypes
+    private sealed class HostedTypes(params string[] loaded) : IntoChat.OS.Host.Kernel.IHostedAppTypes
     {
         public bool IsHostLoaded(string appKey) => loaded.Contains(appKey);
     }

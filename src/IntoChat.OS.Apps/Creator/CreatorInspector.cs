@@ -1,11 +1,11 @@
 using System.Globalization;
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
-using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Creator;

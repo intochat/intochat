@@ -46,7 +46,7 @@ public sealed class KernelBoundaryFacts
     [Fact]
     public void EveryContractTheKernelCompilesForEdgesDerivesINeuron()
     {
-        var types = new IntoChat.OS.Framework.CompiledTypes(ProductionArchitecture.Assemblies);
+        var types = new IntoChat.OS.Host.Kernel.CompiledTypes(ProductionArchitecture.Assemblies);
 
         Assert.All(types.Entries.Where(entry => entry.Kind == DigitalBrain.Kernel.TypeKind.Neuron),
             // Transitional (06-03/06-07, deleted in 06-08): a migrated plain contract is a [DefaultNeuronType] interface instead.

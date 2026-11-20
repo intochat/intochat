@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.AspNetCore.Http;
 using Xunit;
+using IntoChat.OS.Host.Kernel;
 
 namespace IntoChat.OS.Modules.Flutter;
 
