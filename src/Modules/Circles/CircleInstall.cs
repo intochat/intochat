@@ -20,6 +20,6 @@ internal static class CircleInstall
         var outcome = await installer.Install(request, CancellationToken.None, publication.Source);
         if (outcome.Status != AppInstallStatus.Ok)
         { throw new InvalidOperationException(outcome.Status == AppInstallStatus.NeedsConsent ? AppInstaller.ReviewInApps : outcome.Message); }
-        return await brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), targetName).Key).Read();
+        return await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), targetName).Key).Read();
     }
 }

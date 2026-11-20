@@ -103,7 +103,7 @@ public static class CreatorInspector
             }
             else
             {
-                var isApp = IntoChat.OS.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
+                var isApp = IntoChat.OS.Host.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
                 yield return HStack(Space.Xs)[
                     StatusPill(StatusKind.Idle, isApp ? appRef.Name : inspection.Id),
                     MutedText(isApp ? "Compiled App" : "Kernel Neuron")

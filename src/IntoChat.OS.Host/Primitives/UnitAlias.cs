@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using DigitalBrain;
 
-namespace IntoChat.OS.Primitives;
+namespace IntoChat.OS.Host.Primitives;
 
 /// <summary>
 /// Canonical identifier for a deployed standalone micro-app unit inside a brain.

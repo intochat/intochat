@@ -5,8 +5,9 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.UI;
-using AppRef = IntoChat.OS.Primitives.AppRef;
+using AppRef = IntoChat.OS.Host.Primitives.AppRef;
 using IntoChat.OS.Host.Visuals;
+using IntoChat.OS.Host.Primitives;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Creator;

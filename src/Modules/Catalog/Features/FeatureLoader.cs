@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -11,7 +10,7 @@ namespace IntoChat.OS.Modules.Apps;
 public sealed class FeatureLoader(IServiceProvider plain)
 {
     public Task<AppSnapshot> Create(string brain, string name, AppBundle bundle, AppOrigin origin, AppInstallReceipt installation, CancellationToken ct)
-        => SiloNeurons.Get<IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), name).Key).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
+        => SiloNeurons.Get<IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), name).Key).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
 
     public async Task<AppSnapshot> Load(string brain, string name, AppBundle bundle, AppOrigin origin, CancellationToken ct)
     {
@@ -22,7 +21,7 @@ public sealed class FeatureLoader(IServiceProvider plain)
         span?.SetTag("feature.owner", origin.Publisher);
         span?.SetTag("feature.name", name);
         span?.SetTag("feature.version", bundle.Version);
-        var target = SiloNeurons.Get<IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), name).Key);
+        var target = SiloNeurons.Get<IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), name).Key);
         var named = bundle with { Name = name };
         // The origin travels with the program in one write: a deploy that fails or outlasts this
         // call still leaves a copy that knows where it came from, and the next load finishes it.

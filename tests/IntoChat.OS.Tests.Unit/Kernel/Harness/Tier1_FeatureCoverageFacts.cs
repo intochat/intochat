@@ -21,7 +21,6 @@ using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Primitives;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using IntoChat.OS.Host.ServiceDefaults;
 
@@ -108,7 +107,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F2")]
     public void F2_01_AppRef_KeyFormatting_ConformsToCanonicalPattern()
     {
-        var key = IntoChat.OS.Primitives.AppRef.Of(new BrainId("brain-alpha"), "summarizer").Key;
+        var key = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId("brain-alpha"), "summarizer").Key;
         Assert.Equal("brain-alpha/apps/summarizer", key);
     }
 
@@ -117,10 +116,10 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F2")]
     public void F2_02_IApp_NameOf_ExtractsValidAppSlug()
     {
-        var name = IntoChat.OS.Primitives.AppRef.NameOf("brain-alpha", "brain-alpha/apps/summarizer");
+        var name = IntoChat.OS.Host.Primitives.AppRef.NameOf("brain-alpha", "brain-alpha/apps/summarizer");
         Assert.Equal("summarizer", name);
 
-        var foreign = IntoChat.OS.Primitives.AppRef.NameOf("brain-beta", "brain-alpha/apps/summarizer");
+        var foreign = IntoChat.OS.Host.Primitives.AppRef.NameOf("brain-beta", "brain-alpha/apps/summarizer");
         Assert.Null(foreign);
     }
 

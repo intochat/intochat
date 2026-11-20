@@ -14,7 +14,7 @@ internal sealed class CatalogHostedAppTypes(FeatureCatalog catalog) : IHostedApp
             return false;
         }
 
-        var name = IntoChat.OS.Primitives.AppRef.TryParse(appKey, out var app)
+        var name = IntoChat.OS.Host.Primitives.AppRef.TryParse(appKey, out var app)
             ? app.Name
             : !appKey.Contains('/') ? appKey : null;
         return name is not null && catalog.IsCompiledHostApp(name);

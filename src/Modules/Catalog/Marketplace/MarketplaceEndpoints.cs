@@ -52,7 +52,7 @@ internal static class MarketplaceEndpoints
         var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);
         return outcome.Status switch
         {
-            AppInstallStatus.Ok => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), outcome.InstalledName!).Key).Read().WaitAsync(ct))),
+            AppInstallStatus.Ok => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), outcome.InstalledName!).Key).Read().WaitAsync(ct))),
             AppInstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
             _ => AppsEndpoints.Refused(outcome),
         };

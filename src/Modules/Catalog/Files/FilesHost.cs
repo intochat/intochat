@@ -50,7 +50,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
                 var brainId = new BrainId(brain);
                 using var module = edge?.Enter(edge.Module("apps.files", brainId));
                 await EnsureDefaultLocalRootsAsync(services, brain);
-                var filesApp = IntoChat.OS.Primitives.AppRef.Of(brainId, "files");
+                var filesApp = IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "files");
                 var key = filesApp.Key;
                 var app = SiloNeurons.Get<IApp>(services, key);
                 var snapshot = await app.Read();
@@ -116,7 +116,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
             var brainId = new BrainId(brain);
             using var module = edge?.Enter(edge.Module("apps.files", brainId));
             await EnsureDefaultLocalRootsAsync(services, brain);
-            var filesApp = IntoChat.OS.Primitives.AppRef.Of(brainId, "files");
+            var filesApp = IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "files");
             var key = filesApp.Key;
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));

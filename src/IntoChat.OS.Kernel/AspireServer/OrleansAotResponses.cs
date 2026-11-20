@@ -56,10 +56,10 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.Modules.Google.Gmail.GmailAccountingStatus>(services);
         AddEnum<IntoChat.OS.Modules.Postgres.PostgresIsolation>(services);
 
-        AddValue<IntoChat.OS.Primitives.ConversationId>(services);
-        AddNullableValue<IntoChat.OS.Primitives.ConversationId>(services);
-        AddValue<IntoChat.OS.Primitives.SafeRelativePath>(services);
-        AddNullableValue<IntoChat.OS.Primitives.SafeRelativePath>(services);
+        AddValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
+        AddNullableValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
+        AddValue<IntoChat.OS.Host.Primitives.SafeRelativePath>(services);
+        AddNullableValue<IntoChat.OS.Host.Primitives.SafeRelativePath>(services);
 
         Add<NeuronInstance[]>(services);
         Add<NeuronTypeHit[]>(services);

@@ -22,7 +22,7 @@ namespace IntoChat.OS.Modules.Apps;
 // its results back in.
 // A plain neuron (06-08) with the persisted AppState ("app2", clean break R4-24). Delete clears the record; until the next save
 // the app then reads as never created (the DigitalBrain base keeps the last state in memory, so the cleared view is held here).
-[DigitalBrain.Neurons.Neuron(IntoChat.OS.Connections.AppGrainType.Name, State = "app2")]
+[DigitalBrain.Neurons.Neuron(IntoChat.OS.Host.Primitives.AppGrainType.Name, State = "app2")]
 internal sealed partial class AppNeuron(
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppStorageHook> storageHooks,
@@ -396,9 +396,9 @@ internal sealed partial class AppNeuron(
         => Check(operation, new AppExists(Name(), State.Manifest));
 
     private string Name()
-        => IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, Key, out var app)
+        => IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, Key, out var app)
             ? app.Name
-            : IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, Id.Key, out var alt)
+            : IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, Id.Key, out var alt)
                 ? alt.Name
                 : Id.Key;
 

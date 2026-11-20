@@ -6,10 +6,10 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.LocalDisk;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Primitives;
 using DigitalBrain.Log;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -539,14 +539,14 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private async Task TryRefreshFilesWorkspaceAsync(CancellationToken ct)
     {
         if (_services is null) { return; }
-        try { await SiloNeurons.Get<IFilesWorkspace>(_services, IntoChat.OS.Primitives.AppRef.Of(new(BrainId), "files").ChildKey("workspace")).Open(ct).ConfigureAwait(false); }
+        try { await SiloNeurons.Get<IFilesWorkspace>(_services, IntoChat.OS.Host.Primitives.AppRef.Of(new(BrainId), "files").ChildKey("workspace")).Open(ct).ConfigureAwait(false); }
         catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
     }
 
     private async Task<T> WithCallerAsync<T>(Func<ICapabilityBroker?, Task<T>> action)
     {
         var resolvedBroker = _broker ?? _services?.GetService<ICapabilityBroker>();
-        var filesAppKey = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainId), "files").Key;
+        var filesAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainId), "files").Key;
         var effectiveBroker = resolvedBroker is CapabilityBroker cb ? cb.ForApp(filesAppKey) : resolvedBroker;
 
         var edge = _services?.GetService<DigitalBrain.Access.EdgeAuthority>();

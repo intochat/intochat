@@ -12,7 +12,7 @@ public static class ShippedGrants
 
     public static Grant[] ForAssistant(string brain)
     {
-        var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), CallerApps.Assistant).Key;
+        var assistantKey = IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), CallerApps.Assistant).Key;
         return
         [
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", "*", "*"),

@@ -17,6 +17,7 @@ using IntoChat.OS.Modules.Circles.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.ServiceDefaults;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -187,7 +188,7 @@ internal sealed class CircleNeuron(
                     {
                         await grantsNeuron.Revoke($"circle:{CircleBrain}:conn:{binding.ConnectionKey}");
                     });
-                    var app = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(CircleBrain), binding.AppName).Key;
+                    var app = IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(CircleBrain), binding.AppName).Key;
                     await plain.GetConnection(binding.ConnectionKey).UnshareFrom(CircleBrain, app);
                 }
             }
@@ -289,7 +290,7 @@ internal sealed class CircleNeuron(
         {
             // Import persists its receipt before deployment; a failed deploy is still an installed copy.
             if (!string.IsNullOrWhiteSpace(targetName) && targetName.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-'))
-            { await IndexInstallation(await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(Id.Brain, targetName).Key).Read()); }
+            { await IndexInstallation(await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, targetName).Key).Read()); }
             throw;
         }
 
@@ -309,7 +310,7 @@ internal sealed class CircleNeuron(
         var caller = RequireCaller();
         var account = CallerAccount();
         var source = await SharerBrain(caller, appName);
-        var sourceApp = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(source), appName);
+        var sourceApp = IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(source), appName);
         var app = SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, sourceApp.Key);
         var shared = await BrainActs.In(broker, plain, source, app.Read);
 
@@ -377,7 +378,7 @@ internal sealed class CircleNeuron(
         foreach (var brain in (await (await broker.Identity()).BrainsOf(personId)).Where(entry => entry.Kind == BrainKind.Personal))
         {
             var installed = await BrainActs.In(broker, plain, brain.Id, async () =>
-                (await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain.Id), appName).Key).Read()).Manifest.Title.Length > 0);
+                (await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain.Id), appName).Key).Read()).Manifest.Title.Length > 0);
             if (installed) { holding.Add(brain.Id); }
         }
         await Check("Share", new SharerHasAppToShare(account, appName, holding.Count, string.Join(", ", holding)));

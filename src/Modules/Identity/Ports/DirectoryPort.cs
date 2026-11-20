@@ -1,6 +1,7 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Authority;
 
@@ -109,7 +110,7 @@ public sealed class DirectoryPort(
         {
             var owner = grant.WorkspaceId.Length > 0 ? grant.WorkspaceId : brain.Value;
             var target = string.IsNullOrEmpty(grant.TargetNeuronKey)
-                ? IntoChat.OS.Primitives.AppRef.Of(brain, grant.AppId).Key
+                ? IntoChat.OS.Host.Primitives.AppRef.Of(brain, grant.AppId).Key
                 : grant.TargetNeuronKey;
             var tuple = Grant.Tuple($"brain:{owner}", $"app:{grant.AppId}", target, grant.SemanticTypeId);
             return ToGrant(await identity.GrantAsOwner(owner, tuple).WaitAsync(cancellationToken).ConfigureAwait(false));

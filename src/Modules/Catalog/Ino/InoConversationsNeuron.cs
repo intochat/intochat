@@ -1,5 +1,5 @@
 using DigitalBrain.Brains;
-using IntoChat.OS.Primitives;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 

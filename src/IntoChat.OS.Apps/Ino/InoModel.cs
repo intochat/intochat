@@ -9,8 +9,8 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -527,7 +527,7 @@ public static class InoModel
         return s with
         {
             Status = $"Applied '{sentence}' to {target}",
-            Cards = [.. s.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), target).Key}", "running", $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), "ino").Key}#{cardId}")],
+            Cards = [.. s.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), target).Key}", "running", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), "ino").Key}#{cardId}")],
         };
     }
 

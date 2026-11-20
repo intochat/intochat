@@ -629,9 +629,9 @@ internal sealed partial class HttpSandboxRuntimeBridge(
         {
             var generation = entry.NextViewGeneration();
             var brainId = new BrainId(entry.BrainId);
-            var appRef = IntoChat.OS.Primitives.AppRef.TryParse(brainId, entry.AppKey, out var parsed)
+            var appRef = IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, entry.AppKey, out var parsed)
                 ? parsed
-                : IntoChat.OS.Primitives.AppRef.Of(brainId, entry.AppKey);
+                : IntoChat.OS.Host.Primitives.AppRef.Of(brainId, entry.AppKey);
             var identityClient = services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
             var owner = identityClient is not null
                 ? await identityClient.OwnerOfBrain(brainId.Value).ConfigureAwait(false)

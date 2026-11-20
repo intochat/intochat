@@ -11,12 +11,12 @@ using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -184,7 +184,7 @@ internal sealed partial class FilesWorkspaceNeuron(
                         var edge = services.GetService<EdgeAuthority>();
                         using (edge?.EnterInProcess())
                         {
-                            await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(services, IntoChat.OS.Primitives.AppRef.Of(Id.Brain, ShippedApps.Ino).Key).Request("send", enrichedPrompt);
+                            await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(services, IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, ShippedApps.Ino).Key).Request("send", enrichedPrompt);
                         }
                     }
                     catch (Exception error) when (error is not OperationCanceledException)

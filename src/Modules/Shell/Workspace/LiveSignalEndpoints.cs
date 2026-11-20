@@ -57,7 +57,7 @@ internal static class LiveSignalEndpoints
         // Apps are plain neurons (06-08): their activity is watched on the session synapse neuron.
         Feed<AppActivity>(Apps),
         // R126: asked of a circle brain's own /live; the shell watches each circle the person is in. Circles are plain (06-08).
-        Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
+        Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Host.Primitives.CircleGrainType.Name, "circle"))),
         Feed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
         Feed<ProfileChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "os.profile", "profile"))),
     ];
@@ -102,7 +102,7 @@ internal static class LiveSignalEndpoints
         {
             if (key is not null) { lock (queued) { queued.Remove(key); } }
             if (key is null) { listed(); }
-            else if (IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brainId), key, out var appRef) && seen.Add(key))
+            else if (IntoChat.OS.Host.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brainId), key, out var appRef) && seen.Add(key))
             { yield return appRef.Neuron; }
         }
     }

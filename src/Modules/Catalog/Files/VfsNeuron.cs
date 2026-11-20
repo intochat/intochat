@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -22,7 +22,7 @@ internal sealed class ViewportNeuron
         var afterApps = Id.Key["apps/".Length..];
         var appSegmentEnd = afterApps.IndexOf('/');
         var appSegment = appSegmentEnd < 0 ? afterApps : afterApps[..appSegmentEnd];
-        if (!IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, appSegment, out var ownerRef))
+        if (!IntoChat.OS.Host.Primitives.AppRef.TryOf(Id.Brain, appSegment, out var ownerRef))
         { throw new ArgumentException("A viewport belongs to an app."); }
         var owner = ownerRef.Key;
         RequireOwner(ownerRef);
@@ -40,7 +40,7 @@ internal sealed class ViewportNeuron
         await Save(next, new ViewportChanged(name, next.Revision));
     }
 
-    private void RequireOwner(IntoChat.OS.Primitives.AppRef ownerRef)
+    private void RequireOwner(IntoChat.OS.Host.Primitives.AppRef ownerRef)
     {
         var contextCaller = Context.Caller;
         if (contextCaller is not null)
@@ -69,10 +69,10 @@ internal sealed class ViewportNeuron
 
     private static bool IsSupportedTarget(BrainId brainId, string app)
     {
-        if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, app, out _)) { return true; }
+        if (IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, app, out _)) { return true; }
         if (app.StartsWith(brainId.Value + "/units/", StringComparison.Ordinal))
         {
-            return IntoChat.OS.Primitives.UnitAlias.TryFromAddress(brainId, app, out _);
+            return IntoChat.OS.Host.Primitives.UnitAlias.TryFromAddress(brainId, app, out _);
         }
         return AppUiEndpoints.UnitAlias(brainId.Value, app) is { } alias
             && alias is not ("." or ".." or "units" or "profile" or "posts" or "main" or "confirmations");

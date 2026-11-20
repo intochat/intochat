@@ -24,7 +24,7 @@ public sealed class AppOriginWriterFacts
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<AppNeuron>();
-        var app = os.Get<IApp>(new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes"));
+        var app = os.Get<IApp>(new NeuronId(new BrainId("owner"), IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/notes"));
         if (call == "replace")
         {
             try { await app.Import(Bundle()); }

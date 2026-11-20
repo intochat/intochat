@@ -20,7 +20,7 @@ internal sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetti
         var label = string.IsNullOrWhiteSpace(item) ? section : $"{section} / {item}";
         try
         {
-            await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/settings")).Request("navigate", route);
+            await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/settings")).Request("navigate", route);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -34,9 +34,9 @@ internal sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetti
             "settings",
             $"Settings · {label}",
             $"Autonomous Settings co-pilot navigated to {route}.",
-            $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "settings").Key}",
+            $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "settings").Key}",
             "ready",
-            $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "ino").Key}#settings-{route}");
+            $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "ino").Key}#settings-{route}");
         return new InoToolResult($"Navigated Settings to {label}.", card);
     }
 

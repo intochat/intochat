@@ -10,7 +10,6 @@ using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
-using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities.Secrets;
@@ -556,7 +555,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     private IApp App(BuildInner inner)
     {
         var key = inner.AppKey ?? throw new FlowFailed("install", "the build names no app");
-        if (!IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, key, out var appRef)) { throw new FlowFailed("install", $"{key} is not an app key"); }
+        if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, key, out var appRef)) { throw new FlowFailed("install", $"{key} is not an app key"); }
         return Context.Get<IApp>(appRef.Neuron);
     }
 

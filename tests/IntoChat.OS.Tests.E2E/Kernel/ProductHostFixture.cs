@@ -24,7 +24,6 @@ using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Kernel.Tests.E2E.Policies;
 using IntoChat.OS.Modules.AI;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
@@ -236,7 +235,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
     public async Task PublishAppViewToSiloAsync(string brain, string appName, View? side, View main)
     {
         ArgumentNullException.ThrowIfNull(main);
-        var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), appName).Key;
+        var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), appName).Key;
         if (side is not null)
         {
             var sideNeuron = SiloNeurons.Get<IView>(Services, appKey + "/side");

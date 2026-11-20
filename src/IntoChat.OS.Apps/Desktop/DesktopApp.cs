@@ -19,7 +19,6 @@ using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -383,7 +382,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
             ws =>
             {
                 if (BrainId.IsValid(brain)
-                    && IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), app, out var appRef)
+                    && IntoChat.OS.Host.Primitives.AppRef.TryOf(new BrainId(brain), app, out var appRef)
                     && ws.Windows.Any(w => w.Tabs is { Length: > 0 } && w.Tabs.Any(t => string.Equals(t.App, appRef.Key, StringComparison.OrdinalIgnoreCase))))
                 {
                     return null;
@@ -427,7 +426,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             if (s.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
-            var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), appId).Key;
+            var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), appId).Key;
             WorkspaceViewRef[] nextPins = isPin
                 ? [.. s.Pins, new WorkspaceViewRef(appId, appKey, "full", string.Empty)]
                 : [.. s.Pins.Where(p => !string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase))];
@@ -564,7 +563,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
             var winId = window.Id;
             var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
             var activeTab = window.Tabs[activeIndex];
-            var appId = brain is { Length: > 0 } b ? IntoChat.OS.Primitives.AppRef.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
+            var appId = brain is { Length: > 0 } b ? IntoChat.OS.Host.Primitives.AppRef.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
             var title = char.ToUpperInvariant(appId[0]) + appId[1..];
             var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
             var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
@@ -591,7 +590,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
             return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
                 Tabs($"{winId}/{activeIndex}", tabItems),
-                Kit.Slot(brain is { Length: > 0 } ? IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
+                Kit.Slot(brain is { Length: > 0 } ? IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }
 
@@ -839,7 +838,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         try
         {
             var viewport = Get<IViewport>(
-                IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}"));
+                IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}"));
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 var currentVp = await viewport.Read();

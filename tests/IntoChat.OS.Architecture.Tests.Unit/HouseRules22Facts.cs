@@ -3,12 +3,12 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DigitalBrain.Modules;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -476,7 +476,7 @@ public sealed class HouseRules22Facts
 
         foreach (var src in ProductionSources.Value)
         {
-            if (src.ProjectName == "IntoChat.OS.Modules.Identity" && src.FileName == "AppRef.cs")
+            if (src.ProjectName == "IntoChat.OS.Host" && src.FileName == "AppRef.cs")
             {
                 continue;
             }
@@ -492,7 +492,7 @@ public sealed class HouseRules22Facts
                     settingsOffenders.Add($"{DisplayPath(src)}:{line}");
                 }
             }
-            if (!(src.ProjectName == "IntoChat.OS.Modules.Identity" && src.FileName == "UnitAlias.cs"))
+            if (!(src.ProjectName == "IntoChat.OS.Host" && src.FileName == "UnitAlias.cs"))
             {
                 foreach (var line in FindUnitDefaultKeyInterpolations(src.Root))
                 {
@@ -544,7 +544,7 @@ public sealed class HouseRules22Facts
         => src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
             || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
             || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase)
-            || (src.ProjectName == "IntoChat.OS.Modules.Identity" && src.FileName is "AppRef.cs" or "UnitAlias.cs")
+            || (src.ProjectName == "IntoChat.OS.Host" && src.FileName is "AppRef.cs" or "UnitAlias.cs")
             || (src.ProjectName == "IntoChat.OS" && src.FileName == "NeuronKeys.cs");
 
     private static List<int> FindSettingsKeyInterpolations(CompilationUnitSyntax root) =>
@@ -697,8 +697,8 @@ public sealed class HouseRules22Facts
         // Closed set of non-OS-filesystem single-segment identifier/blob/unit-token guards:
         var nonRelativePathTokenGuards = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.OS.Modules.Identity", "AppRef.cs"),
-            ("IntoChat.OS.Modules.Identity", "SafeRelativePath.cs"),
+            ("IntoChat.OS.Host", "AppRef.cs"),
+            ("IntoChat.OS.Host", "SafeRelativePath.cs"),
             ("IntoChat.OS.Modules.Catalog", "SlotNamesABrainNeuron.cs"),
             ("IntoChat.OS.Modules.Roslyn", "CodeGraphService.cs"),
             ("IntoChat.OS.Modules.Shell", "ViewportNeuron.cs"),
@@ -784,7 +784,7 @@ public sealed class HouseRules22Facts
     [Fact]
     public void HouseRule10_DomainPrimitivesExposePrivateConstructorsOnly()
     {
-        var primitivesDir = Path.Combine(ProjectDirs.Value["IntoChat.OS.Modules.Identity"], "Primitives");
+        var primitivesDir = Path.Combine(ProjectDirs.Value["IntoChat.OS.Host"], "Primitives");
         var frameworkAssembly = typeof(AppRef).Assembly;
         var discoveredTypes = new List<Type>();
         var bad = new List<string>();
@@ -1138,6 +1138,7 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron",
             "IntoChat.OS.Modules.Apps.AppState",
             "IntoChat.OS.Modules.Apps.AppVersionRecord",
+            "IntoChat.OS.Modules.Apps.StringEntry",
             "IntoChat.OS.Modules.Apps.AppReleaseRecord",
             "IntoChat.OS.Modules.Apps.DeadLetterEntry",
             "IntoChat.OS.Modules.Apps.RetainedRequest",

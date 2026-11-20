@@ -2,7 +2,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Primitives;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Kernel;
@@ -29,16 +28,16 @@ internal sealed class FeatureReconciler(
         if (directory is null || await (await directory.Identity(ct)).KindOf(brainId, ct) != BrainKind.Circle)
         {
             await ShippedInstall.Missing(catalog, loader, brainId, async name =>
-                await Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(ct),
+                await Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(ct),
                 (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId), ct);
         }
         // Reconciling runs on the brain's activation, with no caller: it names its own brain.
         List<string> names = [];
-        await foreach (var instance in kernel.InstancesIn(brainId, kernel.TypeOf(typeof(IApp)), ct)) { if (IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, instance.Key, out var app)) { names.Add(app.Name); } }
+        await foreach (var instance in kernel.InstancesIn(brainId, kernel.TypeOf(typeof(IApp)), ct)) { if (IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, instance.Key, out var app)) { names.Add(app.Name); } }
         foreach (var name in names)
         {
             AppSnapshot snapshot;
-            try { snapshot = await Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(ct); }
+            try { snapshot = await Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
             if (snapshot.Origin is not { Source: AppSource.Shipped } origin) { continue; }

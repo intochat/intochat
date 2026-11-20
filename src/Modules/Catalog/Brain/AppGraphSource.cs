@@ -4,7 +4,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -31,7 +30,7 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
             {
                 await foreach (var instance in kernel.Instances<IApp>(cancellationToken).ConfigureAwait(false))
                 {
-                    if (!IntoChat.OS.Primitives.AppRef.TryParse(brain, instance.Key, out var appRef) || sink.IndexOf(instance.Key) < 0) { continue; }
+                    if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(brain, instance.Key, out var appRef) || sink.IndexOf(instance.Key) < 0) { continue; }
                     var name = appRef.Name;
                     var appProxy = proxies is not null
                         ? proxies.Get<IApp>(instance.Key)
@@ -52,7 +51,7 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
             foreach (var compiled in CompiledApps.Of(assembly))
             {
                 var name = compiled.Bundle.Name;
-                var appRef = IntoChat.OS.Primitives.AppRef.Of(brain, name);
+                var appRef = IntoChat.OS.Host.Primitives.AppRef.Of(brain, name);
                 var key = appRef.Key;
                 if (sink.IndexOf(key) < 0)
                 {
@@ -83,7 +82,7 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
     {
         foreach (var (name, snapshot) in apps)
         {
-            var key = IntoChat.OS.Primitives.AppRef.Of(brain, name).Key;
+            var key = IntoChat.OS.Host.Primitives.AppRef.Of(brain, name).Key;
             var app = sink.IndexOf(key);
             if (app < 0) { continue; }
             foreach (var operation in snapshot.Manifest.Operations)

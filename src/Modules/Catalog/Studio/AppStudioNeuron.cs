@@ -24,7 +24,7 @@ internal sealed class AppStudioNeuron(Creator creator, INeuronProxies proxies) :
     public async Task<AppSnapshot> Build(string request, CancellationToken ct)
     {
         var authored = await Author(request, ct);
-        var appRef = IntoChat.OS.Primitives.AppRef.Of(Id.Brain, authored.Name);
+        var appRef = IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, authored.Name);
         await creator.Implement(proxies, appRef.Key, null, ct);
         var app = Get<IApp>(appRef.Neuron);
         var deadline = Context.Time.GetUtcNow() + BuildTimeout;

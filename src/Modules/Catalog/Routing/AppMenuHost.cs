@@ -47,7 +47,7 @@ internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listener
     // Both happen as apps are installed, not when a person asks to route a message.
     private async Task Refresh(string key, string version, CancellationToken cancellationToken)
     {
-        if (!IntoChat.OS.Primitives.AppRef.TryParse(key, out var appRef)) { return; }
+        if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(key, out var appRef)) { return; }
         var brain = appRef.Brain.Value;
         // The menu is the module's own read of the brain's apps, made under an internal module caller for that brain.
         var edge = plain.GetService<DigitalBrain.Access.EdgeAuthority>();
@@ -82,7 +82,7 @@ internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listener
         keys.Add(changed);
         foreach (var key in keys)
         {
-            if (!IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brain), key, out var appRef)) { continue; }
+            if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brain), key, out var appRef)) { continue; }
             var name = appRef.Name;
             if (await Operations(key, name, key == changed ? version : null, cancellationToken) is not { } operations) { return; }
             apps.Add((name, operations));

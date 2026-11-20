@@ -195,7 +195,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
                 TemplateSource: $"[App(\"post.{newPostId.Trim()}\")] public sealed class PostTemplateApp : App<PostState> {{ }}",
                 EmbeddedApps:
                 [
-                    new("canvas", "markdraw", "Markdraw Canvas", IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "markdraw").Key),
+                    new("canvas", "markdraw", "Markdraw Canvas", IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "markdraw").Key),
                 ],
                 AuthorBrainId: brainId);
 
@@ -216,7 +216,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
                 try
                 {
                     var remixed = pkg with { Key = newPostId.Trim() };
-                    await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, $"apps/{newPostId.Trim()}")).Import(remixed.ToAppBundle());
+                    await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, $"apps/{newPostId.Trim()}")).Import(remixed.ToAppBundle());
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
@@ -272,7 +272,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         {
             try
             {
-                var exported = await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, $"apps/{alias}")).Export();
+                var exported = await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, $"apps/{alias}")).Export();
                 if (exported?.Files is { Count: > 0 })
                 {
                     foreach (var (path, text) in exported.Files)

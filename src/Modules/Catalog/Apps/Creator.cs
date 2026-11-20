@@ -47,7 +47,7 @@ internal sealed class Creator(
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
-        var target = name is null ? null : brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name).Key);
+        var target = name is null ? null : brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name).Key);
         var existing = target is null ? null : await target.Read();
         var exists = existing is { Manifest.Title.Length: > 0 };
         IApp? reporting = null;
@@ -69,7 +69,7 @@ internal sealed class Creator(
                         Capabilities = Merged(requires.Capabilities, (authored.Slots ?? []).Select(slot => slot.Capability).OfType<string>()),
                     }
                     : null);
-            var app = brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name ?? authored.Name).Key);
+            var app = brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name ?? authored.Name).Key);
             if (name is null)
             {
                 ValidateName(authored.Name);

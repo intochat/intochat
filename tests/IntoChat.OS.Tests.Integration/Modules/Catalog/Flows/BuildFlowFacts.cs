@@ -15,7 +15,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -375,10 +374,10 @@ public sealed class BuildFlowFacts
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/xwatch"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/xwatch"));
         await app.Create(new AppManifest("X watch", "Watches X", [], [], [], Headless: true), "Count the mentions of elonmusk.");
 
-        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IntoChat.OS.Primitives.AppRef.Of(runtime.Brain, "xwatch").Key, null, Ct);
+        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IntoChat.OS.Host.Primitives.AppRef.Of(runtime.Brain, "xwatch").Key, null, Ct);
         var id = Assert.IsType<string>(await app.BuildFlow());
         await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install");
         var building = await app.Read();
@@ -570,7 +569,7 @@ public sealed class BuildFlowFacts
         await using var fixture = Fixture(OneCovering(), Red);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/broken"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/broken"));
         await app.Create(new AppManifest("Broken", "Never builds", [], [], []), "spec");
         await app.BeginBuild(null);
         var flows = Flows(runtime);
@@ -591,7 +590,7 @@ public sealed class BuildFlowFacts
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/failing"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/failing"));
         await app.Create(new AppManifest("Failing", "Fails", [], [], []), "spec");
         await app.BeginBuild(null);
         var flowId = Assert.IsType<string>(await app.BuildFlow());
@@ -609,7 +608,7 @@ public sealed class BuildFlowFacts
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/retried"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/retried"));
         await app.Create(new AppManifest("Retried", "Fails once", [], [], []), "spec");
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
         await app.BeginBuild(null);
@@ -635,10 +634,10 @@ public sealed class BuildFlowFacts
         await using var fixture = Fixture(OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/doomed"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/doomed"));
         await app.Create(new AppManifest("Doomed", "Never drafts", [], [], []), "spec");
 
-        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IntoChat.OS.Primitives.AppRef.Of(runtime.Brain, "doomed").Key, null, Ct);
+        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IntoChat.OS.Host.Primitives.AppRef.Of(runtime.Brain, "doomed").Key, null, Ct);
 
         var snapshot = await SettledApp(app);
         Assert.Equal(AppStatus.Failed, snapshot.Status);

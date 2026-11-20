@@ -18,7 +18,7 @@ public sealed record CircleState(
 // T26-1: a circle is a brain of kind Circle; this is its core neuron `{circle}/circle`. Members are accounts, recorded
 // as memberships of the circle brain. Invite
 // and Accept are a person's, on the /brains/{circle} route; a script is refused them (R126).
-// The alias and neuron type literals must equal IntoChat.OS.Connections.CircleGrainType.Name (a Circles fact asserts it).
+// The alias and neuron type literals must equal IntoChat.OS.Host.Primitives.CircleGrainType.Name (a Circles fact asserts it).
 // A plain neuron (06-08).
 [DigitalBrain.Contracts.NeuronAlias("circles.circle"), DigitalBrain.Contracts.DefaultNeuronType("circles.circle")]
 public interface ICircle

@@ -6,11 +6,11 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Postgres.Tables;
-using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Modules;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Kernel.Sandbox;
 

@@ -21,7 +21,6 @@ using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Primitives;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using IntoChat.OS.Host.ServiceDefaults;
 
@@ -105,7 +104,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F2_B01_AppRef_SpecialCharactersInBrain_HandlesVerbatim()
     {
         Assert.False(BrainId.IsValid("brain:alpha-01.test"));
-        var key = IntoChat.OS.Primitives.AppRef.Of(new BrainId("brain.alpha-01.test"), "my_app-v2").Key;
+        var key = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId("brain.alpha-01.test"), "my_app-v2").Key;
         Assert.Equal("brain.alpha-01.test/apps/my_app-v2", key);
     }
 
@@ -114,7 +113,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F2")]
     public void F2_B02_IApp_NameOf_PathTraversalPattern_ReturnsNull()
     {
-        var result = IntoChat.OS.Primitives.AppRef.NameOf("brain-1", "brain-1/apps/../../root");
+        var result = IntoChat.OS.Host.Primitives.AppRef.NameOf("brain-1", "brain-1/apps/../../root");
         Assert.Null(result);
     }
 
@@ -123,7 +122,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F2")]
     public void F2_B03_IApp_NameOf_TrailingSlash_ReturnsNull()
     {
-        var result = IntoChat.OS.Primitives.AppRef.NameOf("brain-1", "brain-1/apps/calc/");
+        var result = IntoChat.OS.Host.Primitives.AppRef.NameOf("brain-1", "brain-1/apps/calc/");
         Assert.Null(result);
     }
 

@@ -4,7 +4,6 @@ using DigitalBrain;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Workspace;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Desktop;
@@ -595,7 +594,7 @@ public sealed record DesktopAppState(
         string? brain = null)
     {
         var appName = rawAppName.Trim().ToLowerInvariant();
-        if (!BrainId.IsValid(brain) || appName == "desktop" || !IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), appName, out var appRef)) { return (null, []); }
+        if (!BrainId.IsValid(brain) || appName == "desktop" || !IntoChat.OS.Host.Primitives.AppRef.TryOf(new BrainId(brain), appName, out var appRef)) { return (null, []); }
         var appKey = appRef.Key;
         var windows = s.Windows.Where(w => w.Tabs is { Length: > 0 }).ToList();
 
@@ -670,7 +669,7 @@ public sealed record DesktopAppState(
     {
         if (!BrainId.IsValid(brain)) { return (null, []); }
         var normalized = rawAppName.Trim().ToLowerInvariant();
-        if (!IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), normalized, out var appRef)) { return (null, []); }
+        if (!IntoChat.OS.Host.Primitives.AppRef.TryOf(new BrainId(brain), normalized, out var appRef)) { return (null, []); }
         var appKey = appRef.Key;
         var closedIds = new List<string>();
         var nextWindows = new List<WorkspaceWindow>();
@@ -719,7 +718,7 @@ public sealed record DesktopAppState(
         var activeTab = w?.Tabs.FirstOrDefault(t => t.Id == w.ActiveTabId) ?? w?.Tabs.LastOrDefault();
         if (activeTab is null) { return (null, []); }
 
-        var appId = IntoChat.OS.Primitives.AppRef.NameOf(brain, activeTab.App)
+        var appId = IntoChat.OS.Host.Primitives.AppRef.NameOf(brain, activeTab.App)
             ?? activeTab.Id;
         var exists = s.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
         WorkspaceViewRef[] nextFavs = exists

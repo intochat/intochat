@@ -25,7 +25,7 @@ public sealed class CircleRoomInstallFacts
         public IInstalls Installs => Runtime.Get<IInstalls>(new NeuronId(Runtime.Brain, "synapse.installs", "default"));
         public NeuronId Confirmations => new(Runtime.Brain, "runtime.confirmations", "confirmations");
         public IConfirmationInbox Inbox => Runtime.Get<IConfirmationInbox>(Confirmations);
-        public IApp App => Runtime.Get<IApp>(Runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
+        public IApp App => Runtime.Get<IApp>(Runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias));
         public IApprovals Approvals => Runtime.Get<IApprovals>(IApprovals.Key(Runtime.Brain.Value));
 
         // What birth and every later connect do.

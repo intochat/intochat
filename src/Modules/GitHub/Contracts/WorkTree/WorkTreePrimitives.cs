@@ -3,7 +3,7 @@ using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Primitives;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 

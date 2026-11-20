@@ -4,7 +4,6 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Host.Configuration;
 
@@ -18,10 +17,10 @@ internal static class InstalledApps
     {
         var brainId = new BrainId(scope);
         List<string> names = [];
-        await foreach (var instance in kernel.Instances<IApp>(ct)) { if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, instance.Key, out var app)) { names.Add(app.Name); } }
+        await foreach (var instance in kernel.Instances<IApp>(ct)) { if (IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, instance.Key, out var app)) { names.Add(app.Name); } }
         names.Sort(StringComparer.Ordinal);
         var snapshots = new List<(string, AppSnapshot)>(names.Count);
-        foreach (var name in names) { snapshots.Add((name, await brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(brainId, name).Key).Read().WaitAsync(ct))); }
+        foreach (var name in names) { snapshots.Add((name, await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(brainId, name).Key).Read().WaitAsync(ct))); }
         return snapshots;
     }
 

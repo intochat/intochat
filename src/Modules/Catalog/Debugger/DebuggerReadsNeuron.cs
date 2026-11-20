@@ -146,7 +146,7 @@ internal sealed class DebuggerReadsNeuron(
             {
                 var name = compiled.Bundle.Name;
                 if (ShippedApps.Services.Contains(name)) { continue; }
-                nodes.Add(new BrainTopologyNode(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), name).Key, compiled.Bundle.Manifest.Title is { Length: > 0 } title ? title : name, BrainGraph.App));
+                nodes.Add(new BrainTopologyNode(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), name).Key, compiled.Bundle.Manifest.Title is { Length: > 0 } title ? title : name, BrainGraph.App));
             }
         }
         return Task.FromResult(new BrainTopology(nodes, [.. edges.Distinct()]));

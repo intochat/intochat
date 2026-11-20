@@ -102,7 +102,7 @@ internal sealed class InstalledModulesNeuron(IIdentityClient? identity = null) :
     private async Task<bool> IsAppGrantedAsync(string brain, string appId)
     {
         var brainId = new DigitalBrain.BrainId(brain);
-        var defaultSettingsKey = IntoChat.OS.Primitives.AppRef.Of(brainId, ShippedApps.Settings).Key;
+        var defaultSettingsKey = IntoChat.OS.Host.Primitives.AppRef.Of(brainId, ShippedApps.Settings).Key;
         if (identity is null)
         {
             return string.Equals(appId, ShippedApps.Settings, StringComparison.Ordinal)
@@ -118,10 +118,10 @@ internal sealed class InstalledModulesNeuron(IIdentityClient? identity = null) :
 
         var targetPrefix = $"apps.installed-modules/{brain}/";
         var fullTarget = $"apps.installed-modules/{brain}/{Id.Key}";
-        var shortAppId = IntoChat.OS.Primitives.AppRef.TryParse(brainId, appId, out var parsedApp)
+        var shortAppId = IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, appId, out var parsedApp)
             ? parsedApp.Name
             : appId;
-        var fullAppKey = IntoChat.OS.Primitives.AppRef.TryOf(brainId, shortAppId, out var appRef) ? appRef.Key : null;
+        var fullAppKey = IntoChat.OS.Host.Primitives.AppRef.TryOf(brainId, shortAppId, out var appRef) ? appRef.Key : null;
         var appGrantees = new HashSet<string>(StringComparer.Ordinal)
         {
             $"app:{appId}",

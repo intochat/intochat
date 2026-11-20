@@ -29,7 +29,7 @@ public sealed class InoToolNeuronFacts
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services.AddSingleton(TimeProvider.System).BuildServiceProvider();
         await using var os = NewOs(services);
-        await os.Get<IApp>(new NeuronId(Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/settings"))
+        await os.Get<IApp>(new NeuronId(Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/settings"))
             .Create(new AppManifest("Settings", "Settings", [new AppOperation("navigate", "Open a settings page")], [], []), "spec");
         var result = await Settings(os).Navigate("models", "local-server");
         Assert.True(result.Card is not null, result.Text);

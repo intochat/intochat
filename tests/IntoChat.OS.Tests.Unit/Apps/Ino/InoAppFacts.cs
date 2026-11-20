@@ -31,11 +31,11 @@ using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities.Secrets;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 

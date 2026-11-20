@@ -35,7 +35,8 @@ using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using AppRef = IntoChat.OS.Primitives.AppRef;
+using AppRef = IntoChat.OS.Host.Primitives.AppRef;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Apps.Creator;
 
@@ -497,7 +498,7 @@ public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INaviga
                 && nodeId.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash
                 ? nodeId[..slash]
                 : TryBrainIdValue();
-            var embeddedTarget = BrainId.IsValid(brainId) && IntoChat.OS.Primitives.UnitAlias.TryParse(alias, out var parsedAlias)
+            var embeddedTarget = BrainId.IsValid(brainId) && IntoChat.OS.Host.Primitives.UnitAlias.TryParse(alias, out var parsedAlias)
                 ? parsedAlias.StateNeuron(new BrainId(brainId)).ToString()
                 : alias;
             var post = new ProfilePostItem(

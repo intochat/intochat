@@ -149,7 +149,7 @@ public sealed class SynapseStudioFacts
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
 
         await app.BeginBuild(null);
@@ -279,7 +279,7 @@ public sealed class SynapseStudioFacts
         await conversations.Use("ino/conversations/c-resilience-1");
 
         // 3. Create and configure an app snapshot on the silo
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/resilience-probe"));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/resilience-probe"));
         await app.Create(new AppManifest("Resilience Probe", "Verifies state across restart", [], [], [], Headless: true), "probe-spec");
 
         // 4. Simulate host/silo restart
@@ -294,7 +294,7 @@ public sealed class SynapseStudioFacts
         var currentAgents = await runtime.Get<IInoConversations>(runtime.Id("ino.conversations", IInoConversations.DefaultKey)).Current();
         Assert.Equal(["ino/conversations/c-resilience-1"], currentAgents);
 
-        var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/resilience-probe")).Read();
+        var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/resilience-probe")).Read();
         Assert.Equal("Resilience Probe", appAfter.Manifest.Title);
         Assert.Equal("probe-spec", appAfter.Spec);
     }
@@ -306,7 +306,7 @@ public sealed class SynapseStudioFacts
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
 
-        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
         await app.BeginBuild(null);
         var attempt = await app.CurrentBuildAttempt();
@@ -331,7 +331,7 @@ public sealed class SynapseStudioFacts
         var stagedConsentAfter = Assert.Single(approvalsAfter, a => a.Kind == IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.SynapseStaged);
         Assert.Equal((stagedConsentBefore.PlanId, stagedConsentBefore.Subject), (stagedConsentAfter.PlanId, stagedConsentAfter.Subject));
 
-        var snapshotAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias)).Read();
+        var snapshotAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/" + Alias)).Read();
         Assert.Equal(AppStatus.Building, snapshotAfter.Status);
         Assert.StartsWith("waiting for approval: ", snapshotAfter.Activity[^1], StringComparison.Ordinal);
     }

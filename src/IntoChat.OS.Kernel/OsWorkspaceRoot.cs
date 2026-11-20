@@ -8,7 +8,6 @@ using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
@@ -39,7 +38,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
         // Explicitly preserve personal programs. The common updater preserves settings and connections.
         await foreach (var instance in kernel.Instances<IApp>(cancellationToken))
         {
-            if (!IntoChat.OS.Primitives.AppRef.TryParse(brainId, instance.Key, out var appRef)) { continue; }
+            if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, instance.Key, out var appRef)) { continue; }
             var name = appRef.Name;
             var app = await Neuron<IApp>(appRef.RelativePath).Read();
             if (app.Edited || app.Origin is not { Source: AppSource.Shipped } origin || !options.Value.TrustedPublishers.Contains(origin.Publisher)) { continue; }
@@ -62,6 +61,6 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             throw new UnauthorizedAccessException($"The app named desktop in {scope} is not the shipped desktop.");
         }
         await desktop.Request("start", "");
-        return new(UIVocabulary.ViewType, IntoChat.OS.Primitives.AppRef.Of(brainId, "desktop").ViewKey);
+        return new(UIVocabulary.ViewType, IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "desktop").ViewKey);
     }
 }

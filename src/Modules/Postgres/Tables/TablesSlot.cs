@@ -30,7 +30,7 @@ internal sealed class AppTablesSlot(IServiceProvider services) : ITablesSlot
 
     public async Task<string?> BoundConnection(TableOwner owner)
     {
-        if (!IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(owner.BrainId), owner.AppId, out _)) { return null; } // a bare behavior owns no slots
+        if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(owner.BrainId), owner.AppId, out _)) { return null; } // a bare behavior owns no slots
         var app = await SiloNeurons.Get<IApp>(services, owner.AppId).Read();
         return app.Manifest.Slots.Any(slot => slot.Name == Name && slot.Connector == "postgres")
             && app.Connections.TryGetValue(Name, out var id)

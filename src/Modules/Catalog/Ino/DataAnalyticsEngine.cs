@@ -107,7 +107,7 @@ public static partial class DataAnalyticsEngine
         => brain is { } scoped ? $"neuron://{scoped.Value}/files{vfsPath}#dataset" : $"neuron:///files{vfsPath}#dataset";
 
     private static string BuildInlineChartUri(DigitalBrain.BrainId? brain)
-        => brain is { } scoped ? $"neuron://{IntoChat.OS.Primitives.AppRef.Of(scoped, "ino").Key}/chart#inline" : "neuron:///apps/ino/chart#inline";
+        => brain is { } scoped ? $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(scoped, "ino").Key}/chart#inline" : "neuron:///apps/ino/chart#inline";
 
     private static DatasetRecord? TryParseInlinePromptDataset(string prompt)
     {

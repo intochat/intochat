@@ -67,7 +67,7 @@ internal static class BrainPreferenceStore
         var found = new List<Choice>();
         await foreach (var instance in kernel.Instances<IApp>(ct))
         {
-            if (!IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(scope), instance.Key, out var appRef) || Hidden.Contains(appRef.Name)) { continue; }
+            if (!IntoChat.OS.Host.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(scope), instance.Key, out var appRef) || Hidden.Contains(appRef.Name)) { continue; }
             var name = appRef.Name;
             var app = await brain.Get<IApp>(instance.Key).Read().WaitAsync(ct);
             if (!string.IsNullOrWhiteSpace(app.Manifest.Title)) { found.Add(new(name, app.Manifest.Title)); }

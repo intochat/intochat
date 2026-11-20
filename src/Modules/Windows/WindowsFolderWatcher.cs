@@ -3,11 +3,11 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Primitives;
 using IntoChat.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 

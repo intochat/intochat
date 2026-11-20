@@ -349,7 +349,7 @@ public sealed class ShellAppsScreenBaselineFacts
 
         var calcWin = desktop.App.State.Windows.First(w => w.Tabs.Any(t => t.Id == "calculator"));
         var winId = calcWin.Id;
-        var vpId = IntoChat.OS.Primitives.AppRef.Of(new BrainId("local"), DesktopApp.AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}");
+        var vpId = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId("local"), DesktopApp.AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}");
 
         // Manually assign a non-null target to the viewport of window winId
         var viewport = os.Get<IViewport>(vpId);
@@ -389,7 +389,7 @@ public sealed class ShellAppsScreenBaselineFacts
 
         var tasksWin = desktop.App.State.Windows.First(w => w.Tabs.Any(t => t.Id == "tasks"));
         var winId = tasksWin.Id;
-        var vpId = IntoChat.OS.Primitives.AppRef.Of(new BrainId("local"), DesktopApp.AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}");
+        var vpId = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId("local"), DesktopApp.AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}");
 
         // Assign a non-null target
         var viewport = os.Get<IViewport>(vpId);

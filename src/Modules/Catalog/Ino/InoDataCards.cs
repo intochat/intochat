@@ -12,7 +12,7 @@ public static class InoDataCards
         ArgumentNullException.ThrowIfNull(result);
         var scope = ResolveScope(brain);
         var inoKey = scope is not null
-            ? IntoChat.OS.Primitives.AppRef.Of(scope.Value, "ino").Key
+            ? IntoChat.OS.Host.Primitives.AppRef.Of(scope.Value, "ino").Key
             : "apps/ino";
         var uriPrefix = $"neuron://{inoKey}";
         var table = new InoCard(

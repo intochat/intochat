@@ -64,6 +64,7 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.StaleActionException", typeof(DigitalBrain.Errors.StaleActionException), "ui.stale-action"),
         ("IntoChat.OS.State", typeof(DigitalBrain.Brains.BrainState), null),
         ("IntoChat.OS.Trace", typeof(DigitalBrain.Capabilities.Compute.Trace), null),
+        ("IntoChat.OS.Connections.StringEntry", typeof(IntoChat.OS.Modules.Apps.StringEntry), "framework.string-entry"),
         ("IntoChat.OS.Framework.Feature", typeof(IntoChat.OS.Host.Kernel.Feature), "kernel.feature"),
         ("IntoChat.OS.Modules.AI.Routing.RouteRecord", typeof(IntoChat.OS.Modules.Apps.Routing.RouteRecord), "ai.router.record"),
         ("IntoChat.OS.Modules.AI.Routing.RouterStorage", typeof(IntoChat.OS.Modules.Apps.Routing.RouterStorage), "ai.router.storage"),

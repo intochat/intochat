@@ -343,11 +343,11 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         foreach (var grant in grants)
         {
             var normalized = Grant.Normalize(grant);
-            var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainScopeId), CallerApps.Assistant).Key;
+            var assistantKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainScopeId), CallerApps.Assistant).Key;
             var isAssistantGrantee = string.Equals(normalized.Grantee, $"app:{CallerApps.Assistant}", StringComparison.Ordinal)
                 || string.Equals(normalized.Grantee, $"app:{assistantKey}", StringComparison.Ordinal);
             var isAppGrantee = normalized.Grantee.StartsWith("app:", StringComparison.Ordinal)
-                && IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainScopeId), normalized.Grantee["app:".Length..], out _);
+                && IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brainScopeId), normalized.Grantee["app:".Length..], out _);
             if ((!isAppGrantee && !isAssistantGrantee) || (!string.Equals(normalized.Target, "*", StringComparison.Ordinal) && !InBrain(normalized.Target, brainScopeId)))
             { throw new UnauthorizedAccessException("A shipped app is granted only neurons of the brain it is installed in."); }
             if (brain.Grants.Concat(added).Select(Grant.Normalize).Any(held => !held.Revoked

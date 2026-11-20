@@ -31,7 +31,7 @@ public sealed class AppStateV1MigrationFacts
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<AppNeuron>();
-        var id = new NeuronId(Owner, IntoChat.OS.Connections.AppGrainType.Name, IntoChat.OS.Primitives.AppRef.Of(Owner, "demo").Key);
+        var id = new NeuronId(Owner, IntoChat.OS.Host.Primitives.AppGrainType.Name, IntoChat.OS.Host.Primitives.AppRef.Of(Owner, "demo").Key);
         os.SeedStoredState(id, System.Text.Encoding.UTF8.GetString(Sample()));
 
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", Owner)))

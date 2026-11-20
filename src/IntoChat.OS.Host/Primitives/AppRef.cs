@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using DigitalBrain;
-using IntoChat.OS.Connections;
 
-namespace IntoChat.OS.Primitives;
+namespace IntoChat.OS.Host.Primitives;
 
 /// <summary>
 /// Canonical reference to an app scoped within a <see cref="BrainId"/>,

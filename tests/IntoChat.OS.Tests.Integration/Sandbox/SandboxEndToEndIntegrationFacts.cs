@@ -527,7 +527,7 @@ public sealed class SandboxEndToEndIntegrationFacts
             }
 
             // Reading via /apps/node?kind=view returns the sandbox view without hitting Orleans screen/unit BindingException noise.
-            var viewKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "view.guard").ViewKey;
+            var viewKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "view.guard").ViewKey;
             using (var nodeViewResponse = await harness.KernelClient.GetAsync($"/brains/{harness.Scope}/apps/node?kind=view&name={Uri.EscapeDataString(viewKey)}", Ct))
             {
                 Assert.Equal(HttpStatusCode.OK, nodeViewResponse.StatusCode);
@@ -537,8 +537,8 @@ public sealed class SandboxEndToEndIntegrationFacts
 
             // Reading via /apps/node?kind=viewport resolves the sandbox view when a Desktop window targets view.guard.
             var viewGuardBrainId = new BrainId(harness.Scope);
-            var viewGuardAppKey = IntoChat.OS.Primitives.AppRef.Of(viewGuardBrainId, "view.guard").Key;
-            var desktopVpId = IntoChat.OS.Primitives.AppRef.Of(viewGuardBrainId, "desktop").ChildNeuron("viewport", "window/w-sandbox");
+            var viewGuardAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(viewGuardBrainId, "view.guard").Key;
+            var desktopVpId = IntoChat.OS.Host.Primitives.AppRef.Of(viewGuardBrainId, "desktop").ChildNeuron("viewport", "window/w-sandbox");
             var edgeAuth = harness.KernelServices.GetRequiredService<EdgeAuthority>();
             using (edgeAuth.Enter(edgeAuth.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, viewGuardBrainId)))
             {
@@ -546,7 +546,7 @@ public sealed class SandboxEndToEndIntegrationFacts
                 var vpState = await vp.Read();
                 await vp.Set(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef("view.guard", viewGuardAppKey, "full", ""), vpState.Revision);
             }
-            var desktopVpKey = IntoChat.OS.Primitives.AppRef.Of(viewGuardBrainId, "desktop").ChildKey("window/w-sandbox");
+            var desktopVpKey = IntoChat.OS.Host.Primitives.AppRef.Of(viewGuardBrainId, "desktop").ChildKey("window/w-sandbox");
             using (var nodeVpResponse = await harness.KernelClient.GetAsync($"/brains/{harness.Scope}/apps/node?kind=viewport&name={Uri.EscapeDataString(desktopVpKey)}", Ct))
             {
                 Assert.Equal(HttpStatusCode.OK, nodeVpResponse.StatusCode);
@@ -557,8 +557,8 @@ public sealed class SandboxEndToEndIntegrationFacts
             // Unauthorized app cannot publish over view.guard's ViewNeuron even inside the same brain.
             var brainId = new BrainId(harness.Scope);
             var edge = harness.KernelServices.GetRequiredService<EdgeAuthority>();
-            var otherAppKey = IntoChat.OS.Primitives.AppRef.Of(brainId, "other-app").Key;
-            var viewId = new NeuronId(brainId, UIVocabulary.ViewType, IntoChat.OS.Primitives.AppRef.Of(brainId, "view.guard").ViewPath);
+            var otherAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "other-app").Key;
+            var viewId = new NeuronId(brainId, UIVocabulary.ViewType, IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "view.guard").ViewPath);
             using (edge.Enter(edge.App(otherAppKey, new Actor.Person(AppPrincipal.Id(otherAppKey), AccountSession.DefaultLogin), brainId)))
             {
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>

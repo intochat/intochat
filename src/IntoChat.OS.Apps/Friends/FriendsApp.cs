@@ -399,7 +399,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     }
 
     private static string AppUri(BrainId brain, string appId)
-        => IntoChat.OS.Primitives.AppRef.TryOf(brain, appId, out var appRef) ? appRef.Key : $"apps/{appId}";
+        => IntoChat.OS.Host.Primitives.AppRef.TryOf(brain, appId, out var appRef) ? appRef.Key : $"apps/{appId}";
 
     private static PostEmbeddedApp[] ParseEmbeddedApps(string? rawEmbeddedApps, BrainId brain) =>
         string.IsNullOrWhiteSpace(rawEmbeddedApps)

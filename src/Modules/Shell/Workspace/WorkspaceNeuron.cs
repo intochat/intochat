@@ -92,19 +92,19 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         if (contextCaller is { Actor: DigitalBrain.Access.Actor.App appActor }
             && contextCaller.Brain == Id.Brain)
         {
-            matchedName = names.FirstOrDefault(name => appActor.Key == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
+            matchedName = names.FirstOrDefault(name => appActor.Key == IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Key);
         }
         else if (contextCaller is { Inside: true, Via: { } via }
             && via.Brain == Id.Brain
             && contextCaller.Brain == Id.Brain
             && contextCaller.Actor is not DigitalBrain.Access.Actor.App)
         {
-            matchedName = names.FirstOrDefault(name => via == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).ScreenNeuron);
+            matchedName = names.FirstOrDefault(name => via == IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).ScreenNeuron);
         }
 
         if (matchedName is null) { return false; }
 
-        var appKey = IntoChat.OS.Primitives.AppRef.Of(Id.Brain, matchedName).Key;
+        var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, matchedName).Key;
         return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(appKey) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), appKey))).Read(), matchedName);
     }
 
@@ -145,7 +145,7 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         { throw new ArgumentException("Provide at most 64 uniquely identified views of apps in this brain."); }
     }
     private WorkspaceStorage Seed(WorkspaceStorage state) => state.Path.Length == 0
-        ? state with { Path = [Brain, IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "ino").Key], Open = [IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "ino").Key] } : state;
+        ? state with { Path = [Brain, IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "ino").Key], Open = [IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "ino").Key] } : state;
 
     public Task<WorkspaceState> Show(string app, string operationId, long expectedRevision)
     {
@@ -161,8 +161,8 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
             if (IsApp(app))
             {
                 var existing = openViews.FirstOrDefault(v => v.App == app
-                    || (IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, v.App, out var existingRef) && existingRef.Name == app)
-                    || (IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, app, out var matched) && v.App == matched.Key));
+                    || (IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, v.App, out var existingRef) && existingRef.Name == app)
+                    || (IntoChat.OS.Host.Primitives.AppRef.TryOf(Id.Brain, app, out var matched) && v.App == matched.Key));
                 if (existing is not null)
                 {
                     focusedViewId = existing.Id;
@@ -170,7 +170,7 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
                 }
                 else
                 {
-                    var appName = IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, app, out var appRef)
+                    var appName = IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, app, out var appRef)
                         ? appRef.Name
                         : (AppUiEndpoints.UnitAlias(Brain, app) ?? app);
                     var viewId = appName;
@@ -267,8 +267,8 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
     }
 
     private bool IsApp(string key) =>
-        IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, key, out _)
-        || (IntoChat.OS.Primitives.UnitAlias.TryFromAddress(Id.Brain, key, out var unit) && key.StartsWith(Brain + "/", StringComparison.Ordinal)
+        IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, key, out _)
+        || (IntoChat.OS.Host.Primitives.UnitAlias.TryFromAddress(Id.Brain, key, out var unit) && key.StartsWith(Brain + "/", StringComparison.Ordinal)
             && unit.Value is not ("units" or "profile" or "posts" or "main" or "confirmations"));
 
     private void ValidateKey(string key)

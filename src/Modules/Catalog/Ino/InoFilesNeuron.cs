@@ -134,8 +134,8 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         => string.IsNullOrWhiteSpace(text) ? null : text.Length <= 180 ? text : text[..180] + "…";
 
     private static InoCard FileCard(WorkspaceFileEntry file, string summary, DigitalBrain.BrainId brain)
-        => new($"file-{file.Name}", "file", file.Name, summary, file.NeuronUri, "ready", $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "ino").Key}#file-{file.Name}");
+        => new($"file-{file.Name}", "file", file.Name, summary, file.NeuronUri, "ready", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "ino").Key}#file-{file.Name}");
 
     private static InoCard FilesCard(string title, string summary, DigitalBrain.BrainId brain)
-        => new("files-find", "file", title, summary, $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key}", "ready", $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "ino").Key}#files-find");
+        => new("files-find", "file", title, summary, $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "files").Key}", "ready", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "ino").Key}#files-find");
 }

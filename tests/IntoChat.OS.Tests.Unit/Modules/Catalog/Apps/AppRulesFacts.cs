@@ -41,7 +41,7 @@ public sealed class AppRulesFacts
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var brain = new BrainId("owner");
-        var id = new NeuronId(brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var id = new NeuronId(brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
         var manifest = new AppManifest("Notes", "Keep notes", [], [], []);
         await app.Create(manifest, "spec");
@@ -55,7 +55,7 @@ public sealed class AppRulesFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
-        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
         await app.Create(new AppManifest("Notes", "Keep notes", [], [], []), "spec");
 
@@ -69,7 +69,7 @@ public sealed class AppRulesFacts
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var brain = new BrainId("owner");
-        var id = new NeuronId(brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var id = new NeuronId(brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
         var manifest = new AppManifest("Notes", "Keep notes", [], [], []);
         var created = await app.Create(manifest, "initial spec");
@@ -103,7 +103,7 @@ public sealed class AppRulesFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
-        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
         await app.Create(new AppManifest("Notes", "Keep notes", [new("add", "Add a note.")], [], []), "spec");
 
@@ -117,7 +117,7 @@ public sealed class AppRulesFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
-        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
         await app.Create(new AppManifest("Notes", "Keep notes", [new("add", "Add a note.")], [], []), "spec");
         var oversized = new string('x', 1_000_000);

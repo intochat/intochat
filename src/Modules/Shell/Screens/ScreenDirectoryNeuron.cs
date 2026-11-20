@@ -252,7 +252,7 @@ internal sealed partial class ScreenDirectoryNeuron(
             // Try IView: {brainId}/apps/{normalizedApp}/view or appId
             try
             {
-                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
+                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
                 var pub = await ResolveNeuron<IView>(viewName).Read();
                 if (pub is not null)
                 {
@@ -331,7 +331,7 @@ internal sealed partial class ScreenDirectoryNeuron(
             // Fallback: check if IApp exists and auto-open it on first screen read
             try
             {
-                var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).Key;
+                var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).Key;
                 var appNeuron = ResolveNeuron<IApp>(appKey);
                 var app = await appNeuron.Read();
                 if (app is not null && !string.IsNullOrWhiteSpace(app.Manifest.Title))
@@ -339,7 +339,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                     try
                     {
                         await appNeuron.Request("open", "{}");
-                        var viewName = appId.Contains('/') ? appId : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
+                        var viewName = appId.Contains('/') ? appId : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
                         var pub = await ResolveNeuron<IView>(viewName).Read();
                         if (pub is not null)
                         {
@@ -482,7 +482,7 @@ internal sealed partial class ScreenDirectoryNeuron(
         {
             try
             {
-                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
+                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
                 var viewNeuron = ResolveNeuron<IView>(viewName);
                 if (await viewNeuron.Read() is not null)
                 {
@@ -492,9 +492,9 @@ internal sealed partial class ScreenDirectoryNeuron(
                     {
                         case ViewActivationKind.Emit:
                             var emit = activation.Emit!;
-                            var appKey = IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainId), emit.Owner, out var emitRef)
+                            var appKey = IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brainId), emit.Owner, out var emitRef)
                                 ? emitRef.Key
-                                : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), emit.Owner).Key;
+                                : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), emit.Owner).Key;
                             var args = value is null ? emit.Args : ViewArgs.WithValue(emit.Args, value);
                             await ResolveNeuron<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "");
                             break;

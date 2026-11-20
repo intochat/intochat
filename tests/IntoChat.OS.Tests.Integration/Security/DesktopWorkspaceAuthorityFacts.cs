@@ -36,7 +36,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
         var desktopViewResponse = await SendAsync(
             harness,
             HttpMethod.Get,
-            $"/apps/node?kind=view&name={Uri.EscapeDataString(IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ViewKey)}");
+            $"/apps/node?kind=view&name={Uri.EscapeDataString(IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ViewKey)}");
         Assert.Equal(HttpStatusCode.OK, desktopViewResponse.Status);
 
         using var initialViewDoc = JsonDocument.Parse(desktopViewResponse.Body);
@@ -45,7 +45,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
         Assert.Contains("dock-files", desktopViewResponse.Body, StringComparison.Ordinal);
 
         // 1. Activate "dock-ino" -> opens Ino in real WorkspaceNeuron AND populates real ViewportNeuron.
-        var desktopViewKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ViewKey;
+        var desktopViewKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ViewKey;
         var inoEventResponse = await SendAsync(
             harness,
             HttpMethod.Post,
@@ -59,14 +59,14 @@ public sealed class DesktopWorkspaceAuthorityFacts
             });
         Assert.Equal(HttpStatusCode.OK, inoEventResponse.Status);
 
-        var inoAppKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "ino").Key;
+        var inoAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "ino").Key;
         var inoWsResponse = await SendAsync(harness, HttpMethod.Get, "");
         Assert.Equal(HttpStatusCode.OK, inoWsResponse.Status);
         var inoWs = JsonSerializer.Deserialize<WorkspaceState>(inoWsResponse.Body, JsonSerializerOptions.Web);
         Assert.NotNull(inoWs);
         var inoWindow = Assert.Single(inoWs!.Windows, w => w.ActiveTabId == "ino" && w.Tabs.Any(t => t.App == inoAppKey));
 
-        var inoViewportKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ChildKey($"window/{inoWindow.Id}");
+        var inoViewportKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ChildKey($"window/{inoWindow.Id}");
         var inoViewportResponse = await SendAsync(
             harness,
             HttpMethod.Get,
@@ -79,7 +79,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
                 $"Expected live viewport root for Ino window, got: {inoViewportResponse.Body}");
             Assert.Equal("view", rootElem.GetProperty("kind").GetString());
             Assert.Equal(
-                IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "ino").ViewKey,
+                IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "ino").ViewKey,
                 rootElem.GetProperty("name").GetString());
         }
 
@@ -105,7 +105,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
             });
         Assert.Equal(HttpStatusCode.OK, eventResponse.Status);
 
-        var filesAppKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "files").Key;
+        var filesAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "files").Key;
         var wsResponse = await SendAsync(harness, HttpMethod.Get, "");
         Assert.Equal(HttpStatusCode.OK, wsResponse.Status);
 
@@ -115,7 +115,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
         Assert.Equal("files", ws.FocusedViewId);
         var filesWindow = Assert.Single(ws.Windows, w => w.ActiveTabId == "files" && w.Tabs.Any(t => t.App == filesAppKey));
 
-        var filesViewportKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ChildKey($"window/{filesWindow.Id}");
+        var filesViewportKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ChildKey($"window/{filesWindow.Id}");
         var filesViewportResponse = await SendAsync(
             harness,
             HttpMethod.Get,
@@ -128,7 +128,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
                 $"Expected live viewport root for Files window, got: {filesViewportResponse.Body}");
             Assert.Equal("view", rootElem.GetProperty("kind").GetString());
             Assert.Equal(
-                IntoChat.OS.Primitives.AppRef.Of(new BrainId(harness.Scope), "files").ViewKey,
+                IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "files").ViewKey,
                 rootElem.GetProperty("name").GetString());
         }
 
@@ -184,7 +184,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
         }
 
         var update = new WorkspaceUpdate(
-            [new WorkspaceViewRef("files", IntoChat.OS.Primitives.AppRef.Of(brainId, "files").Key, "full", "")],
+            [new WorkspaceViewRef("files", IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "files").Key, "full", "")],
             "files",
             []);
 
@@ -196,10 +196,10 @@ public sealed class DesktopWorkspaceAuthorityFacts
         }
 
         // 2. Non-desktop app caller cannot call IWorkspace.Apply.
-        var foreignAppKey = IntoChat.OS.Primitives.AppRef.Of(brainId, "calculator").Key;
+        var foreignAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "calculator").Key;
         var desktopViewport = SiloNeurons.Get<IViewport>(
             harness.Services,
-            IntoChat.OS.Primitives.AppRef.Of(brainId, "desktop").ChildNeuron(UIVocabulary.ViewportType, "window/w-1"));
+            IntoChat.OS.Host.Primitives.AppRef.Of(brainId, "desktop").ChildNeuron(UIVocabulary.ViewportType, "window/w-1"));
         ViewportState currentVp;
         using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, brainId)))
         {

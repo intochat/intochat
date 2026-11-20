@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Primitives;
+namespace IntoChat.OS.Host.Primitives;
 
 /// <summary>
 /// Validated forward-slash relative path that cannot escape a storage or workspace root.

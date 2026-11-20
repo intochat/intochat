@@ -172,9 +172,9 @@ public static class GrantRules
             target = target["neuron://".Length..];
         }
         var app = AppOf(caller)!;
-        var appKey = IntoChat.OS.Primitives.AppRef.TryParse(caller.Brain, app, out var parsed)
+        var appKey = IntoChat.OS.Host.Primitives.AppRef.TryParse(caller.Brain, app, out var parsed)
             ? parsed.Key
-            : IntoChat.OS.Primitives.AppRef.TryOf(caller.Brain, app, out var named) ? named.Key : app;
+            : IntoChat.OS.Host.Primitives.AppRef.TryOf(caller.Brain, app, out var named) ? named.Key : app;
 
         bool IsOwn(string path) => string.Equals(path, appKey, StringComparison.Ordinal)
             || path.StartsWith(appKey + "/", StringComparison.Ordinal)

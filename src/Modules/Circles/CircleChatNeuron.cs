@@ -8,6 +8,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Signals;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -62,7 +63,7 @@ internal sealed class CircleChatNeuron(ICapabilityBroker broker)
         var brain = caller.Brain.Value;
         var prefix = brain + "/posts/";
         if (caller.Actor is not DigitalBrain.Access.Actor.App { For: var author } app
-            || app.Key != IntoChat.OS.Primitives.AppRef.Of(caller.Brain, "friends").Key
+            || app.Key != IntoChat.OS.Host.Primitives.AppRef.Of(caller.Brain, "friends").Key
             || !postKey.StartsWith(prefix, StringComparison.Ordinal)
             || postKey.Length == prefix.Length
             || !postKey[prefix.Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))

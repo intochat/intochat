@@ -30,7 +30,7 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog) : IIncomingG
     private static void Require(IIncomingGrainCallContext context, string? owner)
     {
         if (owner is not null
-            && (SourceOf(context.SourceId) is not { } source || source.Type != IntoChat.OS.Connections.AppGrainType.Name || source.Key != owner))
+            && (SourceOf(context.SourceId) is not { } source || source.Type != IntoChat.OS.Host.Primitives.AppGrainType.Name || source.Key != owner))
         { throw new UnauthorizedAccessException("Only the app that owns a Marketplace listing may change it."); }
     }
 

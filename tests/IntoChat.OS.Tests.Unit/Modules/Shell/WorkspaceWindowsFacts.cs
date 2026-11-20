@@ -165,7 +165,7 @@ public sealed class WorkspaceWindowsFacts
         os.Register(typeof(DesktopApp).Assembly);
 
         var brain = new BrainId("owner");
-        var desktopAppRef = IntoChat.OS.Primitives.AppRef.Of(brain, "desktop");
+        var desktopAppRef = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "desktop");
         var desktopAppNeuron = os.Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), desktopAppRef.Key));
         await desktopAppNeuron.Import(
             DesktopApp.Bundle,
@@ -183,14 +183,14 @@ public sealed class WorkspaceWindowsFacts
             await os.Idle();
 
             var updated = await ws.Read();
-            Assert.Contains(updated.OpenViews, v => v.App == IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key);
+            Assert.Contains(updated.OpenViews, v => v.App == IntoChat.OS.Host.Primitives.AppRef.Of(brain, "files").Key);
             Assert.Equal("files", updated.FocusedViewId);
 
             var filesWin = Assert.Single(updated.Windows, w => w.ActiveTabId == "files");
             var vp = os.Get<IViewport>(desktopAppRef.ChildNeuron(UIVocabulary.ViewportType, $"window/{filesWin.Id}"));
             var vpState = await vp.Read();
             Assert.NotNull(vpState.Target);
-            Assert.Equal(IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key, vpState.Target!.App);
+            Assert.Equal(IntoChat.OS.Host.Primitives.AppRef.Of(brain, "files").Key, vpState.Target!.App);
 
             // Direct person call to IWorkspace.Apply is still refused.
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
@@ -198,7 +198,7 @@ public sealed class WorkspaceWindowsFacts
         }
 
         // Foreign app caller is still refused for both WorkspaceNeuron and ViewportNeuron.
-        var foreignKey = IntoChat.OS.Primitives.AppRef.Of(brain, "other").Key;
+        var foreignKey = IntoChat.OS.Host.Primitives.AppRef.Of(brain, "other").Key;
         using (os.Edge.Enter(os.Edge.App(foreignKey, new DigitalBrain.Access.Actor.Person("alice", "acct"), brain)))
         {
             var current = await ws.Read();
@@ -220,7 +220,7 @@ public sealed class WorkspaceWindowsFacts
             await desktopScreen.Activate("app.desktop", latestDesktopView!.Generation, "dock-settings", by: "alice");
             await os.Idle();
             var afterEditedActivate = await ws.Read();
-            Assert.DoesNotContain(afterEditedActivate.OpenViews, v => v.App == IntoChat.OS.Primitives.AppRef.Of(brain, "settings").Key);
+            Assert.DoesNotContain(afterEditedActivate.OpenViews, v => v.App == IntoChat.OS.Host.Primitives.AppRef.Of(brain, "settings").Key);
         }
 
         using (os.Edge.Enter(os.Edge.App(desktopAppRef.Key, new DigitalBrain.Access.Actor.Person("alice", "acct"), brain)))

@@ -57,7 +57,7 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
             return new InoToolResult($"Could not start '{title}': {error.Message}");
         }
 
-        var tasks = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "tasks").Key}#{flowId}";
+        var tasks = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "tasks").Key}#{flowId}";
         if (NeuronId.TryParse(flowId, out var flowNeuronId))
         {
             var deadline = Context.Time.GetUtcNow() + MakePollBudget;
@@ -152,7 +152,7 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
                             : settled.Status.ToString();
                     if (IsMissingModelFailure(detail))
                     {
-                        var settingsUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
+                        var settingsUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
                         var setupCard = new InoCard(
                             "setup-model",
                             "settings",
@@ -185,7 +185,7 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
 
         if (services.GetService<IDrafter>() is null)
         {
-            var settingsUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
+            var settingsUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
             var setupCard = new InoCard(
                 "setup-model",
                 "settings",
@@ -230,7 +230,7 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
 
         try
         {
-            await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, $"apps/{app}")).Request("open", "");
+            await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, $"apps/{app}")).Request("open", "");
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -420,7 +420,7 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
 
         var change = JsonSerializer.Deserialize<Change>(head.InnerJson, FeatureToPrFlow.Json) ?? new Change();
         var status = view?.Status ?? head.Status;
-        var tasksUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), "tasks").Key}#{flowId}";
+        var tasksUri = $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), "tasks").Key}#{flowId}";
 
         if (status == FlowStatus.Waiting && change.Approval is { PlanId.Length: > 0 } approval && change.Commit is { } commit)
         {

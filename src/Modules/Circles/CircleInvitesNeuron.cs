@@ -7,6 +7,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Circles.Rules;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Circles;
 

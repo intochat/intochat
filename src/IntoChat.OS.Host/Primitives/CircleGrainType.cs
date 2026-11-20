@@ -1,7 +1,5 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Connections;
+namespace IntoChat.OS.Host.Primitives;
 
 // The circle neuron's grain type. The Circles module declares it and the kernel's compute-share guard
 // compares the calling grain's type to it.

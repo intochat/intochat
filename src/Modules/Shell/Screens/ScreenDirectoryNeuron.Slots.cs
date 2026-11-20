@@ -273,7 +273,7 @@ internal sealed partial class ScreenDirectoryNeuron
 
     private static string NormalizeAppId(string brain, string app)
     {
-        if (BrainId.IsValid(brain) && IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brain), app, out var appRef))
+        if (BrainId.IsValid(brain) && IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brain), app, out var appRef))
         {
             return appRef.Name;
         }
