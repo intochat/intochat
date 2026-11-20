@@ -24,9 +24,9 @@ public static class NeuronSurfaceTools
     public const string ContextName = "neurons_context";
 
     public const string ListDescription = "List the neurons that exist in your brain: each one's contract (a full type name for neurons_get and neurons_call), key, creation time and creator. Pass contract to list one type only. To find contracts by what they do, use neurons_search.";
-    public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, and methods.";
+    public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, methods, and makes its typed tools available.";
     public const string GetDescription = "Resolve a neuron. contract is a full type name from neurons_list; key is the grain key: an app is {brainScope}/apps/{name}, a connection is {brain}/connection/{connector}/{id}.";
-    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. To use an app: IApp.Request with [operation, input]; then read the neuron the app's spec names for the result.";
+    public const string CallDescription = "Call a neuron method. arguments is a JSON object of named arguments (or, for old clients, an array), omitting CancellationToken. To use an app: IApp.Request with {\"operation\":...,\"input\":...}; then read the neuron the app's spec names for the result.";
     public const string ContextDescription = "Read who you are acting as, the current brain id and scope for forming neuron keys, and the brains you are a member of.";
 }
 

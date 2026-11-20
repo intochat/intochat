@@ -8,6 +8,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -100,8 +101,8 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
         var brain = fixture.NewBrain("b06sec");
         using var _ = fixture.AsPerson(brain);
 
-        // 1. Prove ContractActions.Marked catches DigitalBrain.Rules.RuleViolationException and returns { isError = true, message }
-        var violationResult = await ContractActions.Marked(
+        // 1. Prove AgentTools.Marked catches DigitalBrain.Rules.RuleViolationException and returns { isError = true, message }
+        var violationResult = await AgentTools.Marked(
             fixture.Edge,
             $"{brain}/ino/conversations/b06",
             () => throw new RuleViolationException(new Rejected("PromoteNote", ["owner-only"], ["Only a person may promote a memory note."])));
@@ -120,22 +121,17 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
             .Set(new ContextEntry("untrusted", "Context note", [injectedContract]));
 
         var callAttempted = 0;
+        string[]? advertisedTools = null;
         fixture.Model.Respond((messages, options, _) =>
         {
             var step = Interlocked.Increment(ref callAttempted);
             if (step == 1)
             {
-                // The LLM tries to call the injected IUserSettings contract that was NOT in AgentDefinition.Contracts!
-                var callArgs = new Dictionary<string, object?>
-                {
-                    ["contract"] = injectedContract,
-                    ["key"] = $"{brain}/settings",
-                    ["method"] = nameof(IUserSettings.Read),
-                    ["arguments"] = "[]",
-                };
+                advertisedTools = [.. options?.Tools?.OfType<AIFunction>().Select(static t => t.Name) ?? []];
+                // The LLM tries to call the injected IUserSettings tool that was NOT in AgentDefinition.Contracts!
                 var contents = new List<AIContent>
                 {
-                    new FunctionCallContent("call-1", NeuronSurfaceTools.CallName, callArgs),
+                    new FunctionCallContent("call-1", "os_settings_read", new Dictionary<string, object?>()),
                 };
                 return Task.FromResult(new ChatResponse(new ChatMessage(AiChatRole.Assistant, contents)));
             }
@@ -162,13 +158,15 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
         var completedRun = Assert.Single(finished.Runs, r => r.RunId == runId);
 
         Assert.Equal(AgentRunStatus.Completed, completedRun.Status);
+        Assert.NotNull(advertisedTools);
+        Assert.DoesNotContain("os_settings_read", advertisedTools!);
         var recordedToolCall = Assert.Single(completedRun.ToolCalls);
         Assert.NotNull(recordedToolCall.Error);
-        Assert.Contains("not a contract this app composes", recordedToolCall.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not available in this turn", recordedToolCall.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task NeuronsCallAcceptsNativeJsonArrayAndOptionalDefaultParametersOnIMemory()
+    public async Task TypedMemoryToolAcceptsNamedArgumentsAndOptionalDefaultParametersOnIMemory()
     {
         var brain = fixture.NewBrain("memargs");
         using var _ = fixture.AsPerson(brain);
@@ -179,17 +177,15 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
         {
             if (Interlocked.Increment(ref stepCount) == 1)
             {
-                var nativeArrayArgs = JsonDocument.Parse("""["owner","testing","Always use xUnit v3"]""").RootElement.Clone();
                 var callArgs = new Dictionary<string, object?>
                 {
-                    ["contract"] = memoryContract,
-                    ["key"] = $"{brain}/memory",
-                    ["method"] = nameof(IntoChat.OS.Modules.AI.Memory.IMemory.RememberPreference),
-                    ["arguments"] = nativeArrayArgs,
+                    ["scope"] = "owner",
+                    ["subject"] = "testing",
+                    ["body"] = "Always use xUnit v3",
                 };
                 return Task.FromResult(new ChatResponse(new ChatMessage(
                     AiChatRole.Assistant,
-                    [new FunctionCallContent("call-mem", NeuronSurfaceTools.CallName, callArgs)])));
+                    [new FunctionCallContent("call-mem", "ai_memory_remember_preference", callArgs)])));
             }
 
             return Task.FromResult(new ChatResponse(new ChatMessage(AiChatRole.Assistant, "Saved preference.")));

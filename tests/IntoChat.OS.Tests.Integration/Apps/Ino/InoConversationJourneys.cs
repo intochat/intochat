@@ -149,19 +149,13 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         var model = host.Ollama.Models[0];
 
         host.Ollama.EnqueueToolCall(
-            "neurons_call",
+            "ai_memory_remember_preference",
             new
             {
-                contract = typeof(IMemory).FullName,
-                key = $"{host.Scope}/memory",
-                method = nameof(IMemory.RememberPreference),
-                arguments = new object[]
-                {
-                    "owner",
-                    "indentation-style",
-                    "Always format C# files with 4 spaces indentation and no tabs.",
-                    9,
-                },
+                scope = "owner",
+                subject = "indentation-style",
+                body = "Always format C# files with 4 spaces indentation and no tabs.",
+                importance = 9,
             },
             model: model);
         host.Ollama.EnqueueReply("Saved your 4-space C# indentation preference to durable memory.", model);
@@ -243,13 +237,13 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
                     var args = JsonSerializer.SerializeToElement(
                         new
                         {
-                            contract = typeof(IFlows).FullName,
-                            key = $"{host.Scope}/flows",
-                            method = nameof(IFlows.Start),
-                            arguments = new object?[] { PlanFlow.Alias, "Release Checklist", null, innerJson },
+                            type = PlanFlow.Alias,
+                            title = "Release Checklist",
+                            parentFlowId = (string?)null,
+                            innerJson,
                         },
                         JsonSerializerOptions.Web);
-                    return new ScriptedOllamaOutcome.ToolCall("neurons_call", args, Model: model);
+                    return new ScriptedOllamaOutcome.ToolCall("flows_start", args, Model: model);
                 }
 
                 return new ScriptedOllamaOutcome.Reply("Release Checklist plan started; review the pending approval.", model);

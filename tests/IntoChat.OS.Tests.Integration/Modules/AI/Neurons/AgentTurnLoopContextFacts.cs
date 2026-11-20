@@ -4,12 +4,17 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Runs;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Surface;
@@ -234,6 +239,88 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         Assert.Contains("\"gemma4:e2b\"", (await gemmaReply).Body);
     }
 
+    [Fact]
+    public async Task NoContractsMeansToolModeNone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Capturing(out var options);
+        await using var runtime = await Start(client, ct);
+
+        var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct);
+
+        Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
+        Assert.Empty(options()!.Tools!);
+        Assert.Equal(ChatToolMode.None, options()!.ToolMode);
+    }
+
+    [Fact]
+    public async Task TheModelSeesTypedToolsAndNoNeuronsCall()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Capturing(out var options);
+        var compiled = new CompiledTypes([typeof(IFocus).Assembly]);
+        var observer = new StubBrainObserver(compiled.Entries);
+        var surface = new OsNeuronSurface(null!, observer, new NeuronTypeSearch(observer, [], null));
+        await using var runtime = await Start(client, ct, surface: surface);
+        using var person = runtime.As(Who.Person);
+
+        var events = await TurnLoops.Collect(runtime.Services, "point me at settings", [typeof(IFocus).FullName!], ct);
+
+        Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
+        var toolNames = options()!.Tools!.OfType<AIFunction>().Select(static t => t.Name).ToArray();
+        Assert.Contains("focus_point", toolNames);
+        Assert.Contains("neurons_search", toolNames);
+        Assert.DoesNotContain("neurons_call", toolNames);
+        Assert.DoesNotContain("neurons_get", toolNames);
+        Assert.Equal(ChatToolMode.Auto, options()!.ToolMode);
+    }
+
+    [Fact]
+    public async Task ASearchHitWidensTheNextStepsTools()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seenToolsPerStep = new List<string[]>();
+        var step = 0;
+        var client = new StubChatClient((_, chat, _) =>
+        {
+            seenToolsPerStep.Add([.. chat?.Tools?.OfType<AIFunction>().Select(static t => t.Name) ?? []]);
+            if (step++ == 0)
+            {
+                return Task.FromResult(new ChatResponse(new ChatMessage(
+                    ChatRole.Assistant,
+                    [new FunctionCallContent("call-search", "neurons_search", new Dictionary<string, object?> { ["query"] = "files" })])));
+            }
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")));
+        });
+
+        var compiled = new CompiledTypes([typeof(IFocus).Assembly, typeof(IntoChat.OS.Modules.AI.Memory.IMemory).Assembly]);
+        var observer = new StubBrainObserver(compiled.Entries);
+        var surface = new OsNeuronSurface(null!, observer, new NeuronTypeSearch(observer, [], null));
+        await using var runtime = await Start(client, ct, surface: surface);
+        using var person = runtime.As(Who.Person);
+
+        // Compose enough contracts (> 16 tools) so routing activates and drops unrelated contracts on step 0,
+        // then search for "files" so step 1 widens to include IFiles tools.
+        string[] contracts =
+        [
+            typeof(IStudio).FullName!,
+            typeof(IFlows).FullName!,
+            typeof(ISynapseStudio).FullName!,
+            typeof(IUserSettings).FullName!,
+            typeof(IRuns).FullName!,
+            typeof(IFocus).FullName!,
+            typeof(IFiles).FullName!,
+        ];
+
+        var events = await TurnLoops.Collect(runtime.Services, "inspect studio pipeline flows and engineer runs", contracts, ct);
+
+        Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
+        Assert.Equal(2, seenToolsPerStep.Count);
+        Assert.DoesNotContain("files_write", seenToolsPerStep[0]);
+        Assert.Contains("files_write", seenToolsPerStep[1]);
+        Assert.Contains("files_open", seenToolsPerStep[1]);
+    }
+
     // A stub that answers "ok" and keeps the options of its last request.
     private static StubChatClient Capturing(out Func<ChatOptions?> options)
     {
@@ -246,12 +333,12 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         });
     }
 
-    private async Task<INeuronRuntime> Start(StubChatClient client, CancellationToken ct, Action<AIOptions>? configure = null)
+    private async Task<INeuronRuntime> Start(StubChatClient client, CancellationToken ct, Action<AIOptions>? configure = null, OsNeuronSurface? surface = null)
         => await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(client);
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton(surface ?? new OsNeuronSurface(null!, null!, null!));
             // No provider is provisioned, so an unpinned turn runs on the host client, which is the stub.
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddOptions<AIOptions>();
@@ -282,5 +369,29 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         public Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class StubBrainObserver(BrainType[] types) : IBrainObserver
+    {
+        public IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken) where T : class
+            => AsyncEnumerable.Empty<BrainInstance>();
+
+        public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default)
+            => AsyncEnumerable.Empty<BrainInstance>();
+
+        public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
+            => Task.FromResult(types);
+
+        public Task<string[]> Brains(CancellationToken cancellationToken = default)
+            => Task.FromResult<string[]>([]);
+
+        public Task<ObservedWire[]> Wires(CancellationToken cancellationToken = default)
+            => Task.FromResult<ObservedWire[]>([]);
+
+        public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)
+            => AsyncEnumerable.Empty<SignalDelivery>();
+
+        public Task<JsonElement?> State(NeuronId id, CancellationToken cancellationToken = default)
+            => Task.FromResult<JsonElement?>(null);
     }
 }
