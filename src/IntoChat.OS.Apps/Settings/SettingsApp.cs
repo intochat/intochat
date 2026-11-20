@@ -434,5 +434,5 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     }
 
     private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, error => Log.LogDebug(error, "{Contract} is optional when running in isolated unit tests.", typeof(T).Name));
+        => GetOptional<T>(key, Log);
 }

@@ -8,6 +8,7 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.UI.Dispatch;
 
 namespace IntoChat.OS.UI;
 

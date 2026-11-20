@@ -858,7 +858,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     }
 
     private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, ex => _logger.LogDebug(ex, "{Service} is optional when EngineerApp runs in standalone tests.", typeof(T).Name));
+        => GetOptional<T>(key, _logger);
 
     private static string Truncate(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength].TrimEnd() + "...";

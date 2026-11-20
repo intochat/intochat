@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.UI;
 
-namespace IntoChat.OS.UI;
+namespace IntoChat.OS.UI.Dispatch;
 
 internal static class NodeOwnerNormalizer
 {

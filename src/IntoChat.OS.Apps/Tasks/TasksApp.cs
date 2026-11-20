@@ -904,12 +904,12 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     private DateTimeOffset NowUtc() => CurrentUtcNow(Time ?? _injectedTime);
 
     private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, error => _logger.LogDebug(error, "{Service} is optional when TasksApp runs in minimal test hosts.", typeof(T).Name));
+        => GetOptional<T>(key, _logger);
 
     private Task TryFollowOptionalAsync<TNeuron, TSignal>(string key)
         where TNeuron : class
         where TSignal : Signal
-        => FollowOptionalAsync<TNeuron, TSignal>(key, error => _logger.LogDebug(error, "Following {Neuron} ({Key}) is optional.", typeof(TNeuron).Name, key));
+        => FollowOptionalAsync<TNeuron, TSignal>(key, _logger);
 
     private static Node UiNeuron(string kind, string key) => new NeuronRef(kind, key);
 

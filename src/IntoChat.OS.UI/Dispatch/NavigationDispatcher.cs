@@ -2,7 +2,8 @@ using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Invocation;
 
-namespace IntoChat.OS.UI;
+namespace IntoChat.OS.UI.Dispatch;
+
 internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntry[] targets)
 {
     public TargetEntry[] Targets { get; } = targets;

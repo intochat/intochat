@@ -7,6 +7,8 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.UI.Dispatch;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.UI;
 
@@ -506,26 +508,28 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
     }
 
     /// <summary>Resolves an optional collaborator neuron, returning <c>null</c> in minimal test hosts where the service is unavailable.</summary>
-    protected T? GetOptional<T>(string key, Action<Exception>? onError = null) where T : class
+    protected T? GetOptional<T>(string key, ILogger logger) where T : class
     {
+        ArgumentNullException.ThrowIfNull(logger);
         try
         {
             return Get<T>(key);
         }
 #pragma warning disable CA1031
-        catch (Exception error)
+        catch (Exception error) when (error is not OperationCanceledException)
 #pragma warning restore CA1031
         {
-            onError?.Invoke(error);
+            logger.LogDebug(error, "{Contract} ({Key}) is optional in standalone hosts.", typeof(T).Name, key);
             return null;
         }
     }
 
-    /// <summary>Follows an optional signal stream, invoking <paramref name="onError"/> on non-cancellation failures.</summary>
-    protected async Task FollowOptionalAsync<TNeuron, TSignal>(string key, Action<Exception>? onError = null)
+    /// <summary>Follows an optional signal stream, logging at Debug on non-cancellation failures.</summary>
+    protected async Task FollowOptionalAsync<TNeuron, TSignal>(string key, ILogger logger)
         where TNeuron : class
         where TSignal : Signal
     {
+        ArgumentNullException.ThrowIfNull(logger);
         try
         {
             await Follow<TNeuron, TSignal>(key);
@@ -534,7 +538,7 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
         catch (Exception error) when (error is not OperationCanceledException)
 #pragma warning restore CA1031
         {
-            onError?.Invoke(error);
+            logger.LogDebug(error, "Following {Neuron} ({Key}) is optional in standalone hosts.", typeof(TNeuron).Name, key);
         }
     }
 

@@ -915,7 +915,7 @@ public sealed class HouseRules22Facts
             "InoApp",
             "FriendsApp",
             "CreatorApp",
-            "TasksApp",
+            "AggregateScreenBase",
             "CircleInvitesNeuron",
             "IdentityDirectoryNeuron",
             "LocalCloudNeuron",

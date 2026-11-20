@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
+
 [ViewNode("collection")]
 public sealed record Collection(IReadOnlyList<Entry> Entries) : Node
 {

@@ -655,12 +655,12 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     }
 
     private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, error => Log.LogDebug(error, "{Service} is optional when CreatorApp runs in minimal test hosts.", typeof(T).Name));
+        => GetOptional<T>(key, Log);
 
     private Task TryFollowOptionalAsync<TNeuron, TSignal>(string key)
         where TNeuron : class
         where TSignal : DigitalBrain.Signal
-        => FollowOptionalAsync<TNeuron, TSignal>(key, error => Log.LogDebug(error, "Following {Neuron} ({Key}) is optional.", typeof(TNeuron).Name, key));
+        => FollowOptionalAsync<TNeuron, TSignal>(key, Log);
 
     private static bool MatchesNeuronKey(string sourceId, string expectedKey) => MatchesNeuronSourceKey(sourceId, expectedKey);
 

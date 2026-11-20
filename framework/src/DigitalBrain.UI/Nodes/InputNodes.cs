@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
+
 [JsonConverter(typeof(JsonStringEnumConverter<FieldKind>))]
 public enum FieldKind
 {
