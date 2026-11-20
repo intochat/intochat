@@ -4,7 +4,7 @@ identity@1 and secrets@1: accounts, brains, grants, sessions and the vault. Inva
 
 Module id: `identity`.
 
-Other projects use the module through its contracts in `Contracts/` (`IntoChat.OS.Modules.Identity.Contracts`): grain interfaces, `IdentityHostOptions`, the grant vocabulary, `GuestSurface` and the presence-proof protocol (`PresenceProof`). Only the kernel and three hosts that read `AuthOptions` reference the implementation.
+Other projects use the module through its contracts in `Contracts/` (`IntoChat.OS.Modules.Identity.Contracts`): grain interfaces, `IdentityHostOptions`, the grant vocabulary, `GuestSurface`, the presence-proof protocol (`PresenceProof`) and the sign-in configuration keys (`AuthKeys`). Only the kernel references the implementation.
 
 How to test: this module has no tests project yet.
 

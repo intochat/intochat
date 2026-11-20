@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
@@ -11,14 +11,14 @@ namespace IntoChat.OS.Aspire.Hosting;
 // to Open; publish carries no default. Bootstrap passwords remain secret parameter references.
 internal static class AuthPosture
 {
-    private const string Key = AuthOptions.PostureKey;
+    private const string Key = AuthKeys.Posture;
     private const string PasswordParameterName = "intochat-os-bootstrap-password";
 
     public static IntoChatOSModuleProjection? Provision(IDistributedApplicationBuilder builder)
     {
         var posture = builder.Configuration[Key] ?? (builder.ExecutionContext.IsRunMode ? "Open" : null);
-        var username = builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))];
-        var password = builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))];
+        var username = builder.Configuration[AuthKeys.Username];
+        var password = builder.Configuration[AuthKeys.Password];
         if (string.IsNullOrEmpty(username) != string.IsNullOrEmpty(password))
         { throw new InvalidOperationException("A Basic bootstrap credential needs both IntoChatOS:Auth:Username and IntoChatOS:Auth:Password, or neither."); }
         if (posture is null) { return null; }
@@ -48,8 +48,8 @@ internal static class AuthPosture
             }
             if (password is not null)
             {
-                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username);
-                builder.WithEnvironment(context => context.EnvironmentVariables[ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password)))] = password);
+                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AuthKeys.Username), username);
+                builder.WithEnvironment(context => context.EnvironmentVariables[ModuleConfiguration.EnvironmentName(AuthKeys.Password)] = password);
             }
         }
     }

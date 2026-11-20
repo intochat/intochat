@@ -37,6 +37,7 @@ using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Modules;
 using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Tests.Integration.Sandbox;
 
@@ -681,7 +682,7 @@ public sealed class SandboxEndToEndIntegrationFacts
                     [IntoChatOSNames.HomeKey] = homeDir,
                     [IntoChatOSNames.ShellEnabledKey] = "false",
                     [IntoChatOSNames.FrontEnabledKey] = "false",
-                    [AuthOptions.PostureKey] = "Open",
+                    [AuthKeys.Posture] = "Open",
                     [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
                     [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
                     [$"{sandboxOptionsPrefix}:EnrollKey"] = enrollKey,

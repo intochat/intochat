@@ -97,13 +97,13 @@ public sealed class EdgeStampFacts
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [AuthOptions.PostureKey] = posture.ToString(),
-            [AuthOptions.Key(nameof(AuthOptions.Username))] = username,
-            [AuthOptions.Key(nameof(AuthOptions.Password))] = password,
+            [AuthKeys.Posture] = posture.ToString(),
+            [AuthKeys.Username] = username,
+            [AuthKeys.Password] = password,
         });
         builder.Services.AddSingleton(os.Edge);
         builder.Services.AddSingleton(os.Callers);
-        builder.Services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName);
+        builder.Services.AddOptions<AuthOptions>().BindConfiguration(AuthKeys.SectionName);
 
         var app = builder.Build();
         app.UseAccountSession();

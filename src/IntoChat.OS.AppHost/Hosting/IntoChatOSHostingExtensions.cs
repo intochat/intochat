@@ -8,7 +8,7 @@ using IntoChat.OS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
@@ -208,8 +208,8 @@ public static class IntoChatOSHostingExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
         return builder
-            .WithEnvironment(ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username)
-            .WithEnvironment(ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password))), password);
+            .WithEnvironment(ModuleConfiguration.EnvironmentName(AuthKeys.Username), username)
+            .WithEnvironment(ModuleConfiguration.EnvironmentName(AuthKeys.Password), password);
     }
 
     public static IResourceBuilder<ContainerResource> WithTopology(

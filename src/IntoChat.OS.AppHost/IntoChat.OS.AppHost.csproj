@@ -24,7 +24,6 @@
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../Modules/Identity/IntoChat.OS.Modules.Identity.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" IsAspireProjectResource="false" />

@@ -272,7 +272,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [AuthOptions.PostureKey] = posture.ToString(),
+            [AuthKeys.Posture] = posture.ToString(),
         });
         builder.Services.AddSingleton<IPresenceProof>(proof);
         builder.Services.AddSingleton<IIdentityClient>(new StubIdentityClient());

@@ -144,7 +144,7 @@ public sealed class EdgePresenceSecurityFacts
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
+            [AuthKeys.Posture] = nameof(IdentityPosture.Open),
             [PresenceProof.TokenHashConfigurationKey] = hash,
         });
         builder.Services.AddSingleton<IIdentityClient>(new AllowIdentityClient());
