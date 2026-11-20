@@ -469,6 +469,7 @@ class _ConversationViewState extends State<ConversationView> {
                           ],
                           const SizedBox(width: 8),
                           _SendIconButton(
+                            key: const ValueKey('composer-send'),
                             enabled: canSend,
                             busy: _submitting,
                             onTap: _submit,
@@ -833,6 +834,7 @@ class _StopHintBar extends StatelessWidget {
 
 class _SendIconButton extends StatelessWidget {
   const _SendIconButton({
+    super.key,
     required this.enabled,
     required this.busy,
     required this.onTap,
