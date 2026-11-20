@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
     <PackageId>DigitalBrain.UI</PackageId>
     <Description>Renderer-neutral view model for DigitalBrain apps.</Description>
   </PropertyGroup>
