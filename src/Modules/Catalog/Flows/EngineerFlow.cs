@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
@@ -13,8 +14,9 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
 /// Autonomous multi-stage engineering durable flow (<c>flow.engineer</c>) orchestrating 1..N isolated worktrees
-/// across brainstorm/plan, worktree preparation, Roslyn + Dart checkpointed task execution, build/test,
-/// live verification, and SHA-bound human approval before branch push, draft PR, and worktree cleanup.
+/// across brainstorm/plan, worktree preparation, parallel strategy tournament execution, build/test,
+/// live verification, deterministic candidate scoring/ranking, human candidate promotion, and SHA-bound human approval
+/// before branch push, draft PR, and worktree cleanup.
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
 internal sealed class EngineerFlow(
@@ -96,6 +98,91 @@ internal sealed class EngineerFlow(
         State.Done,
         State.Ended));
 
+    public async Task SelectCandidate(int candidateIndex)
+    {
+        if (State.IsOver)
+        {
+            throw new InvalidOperationException($"Cannot select a candidate on finished flow '{Id}' ({State.Status}).");
+        }
+
+        var currentInner = State.Inner;
+        var nextInner = currentInner.SelectCandidate(candidateIndex);
+        var winner = nextInner.SelectedInstance
+            ?? throw new InvalidOperationException($"Candidate index {candidateIndex} is unavailable.");
+
+        if (State is { Status: FlowStatus.Waiting, Waiting: { Step: "approval-gate", Reason: WaitReason.Approval } waiting })
+        {
+            var verifiedCommit = winner.Commit
+                ?? throw new InvalidOperationException($"Candidate w{candidateIndex + 1} has no verified CommitSha.");
+
+            var previousPlanId = waiting.ConfirmationPlanId ?? currentInner.Approval?.PlanId;
+            if (currentInner.SelectedInstanceIndex == candidateIndex
+                && !string.IsNullOrWhiteSpace(previousPlanId)
+                && previousPlanId.EndsWith(":" + verifiedCommit.Commit.Value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            EngineerPipelineStages.EnsureCardAcceptsDiff(
+                nextInner.ToSelectedChange,
+                verifiedCommit,
+                "approval-gate");
+
+            var now = Context.Time.GetUtcNow();
+            var expires = waiting.Expires ?? now.Add(ApprovalWindow);
+            var runId = EffectiveRunId(nextInner);
+            var basePlanId = BuildPlanId(runId, verifiedCommit.Commit.Value);
+            var requests = ConfirmationRequests;
+            var existingOutcome = await requests.Outcome(basePlanId).ConfigureAwait(true);
+
+            var newPlanId = existingOutcome is null && !string.Equals(basePlanId, previousPlanId, StringComparison.Ordinal)
+                ? basePlanId
+                : EngineerPipelineStages.BuildPlanId(
+                    string.Create(CultureInfo.InvariantCulture, $"{PlanPrefix}:r{Math.Max(1, nextInner.ApprovalRevision)}"),
+                    runId,
+                    verifiedCommit.Commit.Value);
+
+            nextInner = nextInner.WithApprovalPending(newPlanId, expires);
+            var nextWaiting = waiting with { ConfirmationPlanId = newPlanId, Expires = expires };
+            var signals = new List<Signal>
+            {
+                new FlowWaiting(Id.ToString(), "approval-gate", WaitReason.Approval, newPlanId),
+            };
+            if (winner.Lease is { } winnerLease)
+            {
+                signals.Add(new FlowSubject(Id.ToString(), $"{winnerLease.RepositoryId}:{winnerLease.BranchName}"));
+            }
+
+            await Save(State with { Waiting = nextWaiting, Inner = nextInner }, signals).ConfigureAwait(true);
+
+            if (!string.IsNullOrWhiteSpace(previousPlanId)
+                && !string.Equals(previousPlanId, newPlanId, StringComparison.Ordinal))
+            {
+                await requests.Withdraw(previousPlanId).ConfigureAwait(true);
+            }
+
+            var remainingWindow = expires > now ? expires - now : TimeSpan.FromSeconds(1);
+            var remintedPlan = PlanFor("approval-gate", nextInner) with
+            {
+                Id = newPlanId,
+                Expiry = remainingWindow,
+            };
+            await requests.Request(remintedPlan).ConfigureAwait(true);
+            return;
+        }
+
+        if (ReferenceEquals(nextInner, currentInner) || nextInner == currentInner)
+        {
+            return;
+        }
+
+        Signal updateSignal = winner.Lease is { } selectedLease
+            ? new FlowSubject(Id.ToString(), $"{selectedLease.RepositoryId}:{selectedLease.BranchName}")
+            : new FlowStep(Id.ToString(), State.Current ?? "implement-tasks", StepOutcome.Started, string.Create(CultureInfo.InvariantCulture, $"Selected candidate w{candidateIndex + 1}."));
+
+        await Save(State with { Inner = nextInner }, updateSignal).ConfigureAwait(true);
+    }
+
     protected override async Task<StepResult<EngineerRun>> Run(string step, EngineerRun inner, CancellationToken ct)
     {
         try
@@ -141,7 +228,9 @@ internal sealed class EngineerFlow(
             ?? throw new InvalidOperationException("Cannot raise Engineer confirmation plan without a verified candidate instance.");
         var verifiedCommit = winner.Commit?.Commit
             ?? throw new InvalidOperationException("Cannot raise Engineer confirmation plan without a verified CommitSha.");
-        var planId = BuildPlanId(EffectiveRunId(inner), verifiedCommit.Value);
+        var planId = inner.Approval?.PlanId is { Length: > 0 } existing && existing.EndsWith(":" + verifiedCommit.Value, StringComparison.Ordinal)
+            ? existing
+            : BuildPlanId(EffectiveRunId(inner), verifiedCommit.Value);
 
         return EngineerPipelineStages.BuildConfirmationPlan(
             planId,
@@ -223,20 +312,33 @@ internal sealed class EngineerFlow(
         var wt = WorkTree;
         var activeCoder = Coder;
         var activeRoslyn = Roslyn;
+        var totalInstances = inner.Instances.Length;
 
         var instanceRuns = inner.Instances.Select(instance => Task.Run(
-            () => ImplementSingleInstanceAsync(instance, inner.Goal, plan, orderedTasks, wt, activeCoder, activeRoslyn, ct),
+            () => ImplementSingleInstanceAsync(
+                instance,
+                inner.Repository,
+                inner.RunId,
+                inner.Goal,
+                inner.RequestedBaseBranch,
+                totalInstances,
+                plan,
+                orderedTasks,
+                wt,
+                activeCoder,
+                activeRoslyn,
+                ct),
             ct)).ToArray();
 
         var completedInstances = await Task.WhenAll(instanceRuns).ConfigureAwait(true);
-        if (completedInstances.All(static i => i.Commit is null))
+        if (completedInstances.All(static i => i.Commit is null || string.Equals(i.Status, "failed", StringComparison.Ordinal)))
         {
             var reason = completedInstances.Select(static i => i.FailureDetail).FirstOrDefault(static d => !string.IsNullOrWhiteSpace(d))
                 ?? "All worktree instances failed during implement-tasks.";
             throw new FlowFailed("implement-tasks", reason);
         }
 
-        var nextSelected = completedInstances.FirstOrDefault(static i => i.Commit is not null)?.InstanceIndex ?? 0;
+        var nextSelected = EngineerRun.SelectDefaultWinnerIndex(completedInstances);
         var updated = inner.WithUpdatedInstances(completedInstances, nextSelected);
 
         if (updated.SelectedInstance?.Commit is { } selectedCommit)
@@ -252,7 +354,11 @@ internal sealed class EngineerFlow(
 
     private static async Task<EngineerInstance> ImplementSingleInstanceAsync(
         EngineerInstance instance,
+        RepositoryId? repository,
+        string runId,
         string goal,
+        BranchName? requestedBaseBranch,
+        int totalInstances,
         EngineerTaskPlan plan,
         EngineerTaskItem[] orderedTasks,
         IWorkTree wt,
@@ -265,9 +371,11 @@ internal sealed class EngineerFlow(
 
         if (instance.Commit is not null)
         {
-            return instance;
+            return instance.WithComputedScore();
         }
 
+        var (strategyId, strategyLabel, strategyLens) = EngineerCandidateStrategies.ForCandidate(instance.InstanceIndex);
+        var effectiveStrategy = string.IsNullOrWhiteSpace(instance.Strategy) ? strategyId : instance.Strategy!;
         var completedIds = instance.CompletedTaskIds.ToHashSet(StringComparer.Ordinal);
         var touchedAll = new HashSet<RepoPath>();
         if (instance.Edit is not null)
@@ -306,9 +414,17 @@ internal sealed class EngineerFlow(
                     }
                 }
 
-                var taskGoal = orderedTasks.Length == 1
+                var strategyDirective = totalInstances >= 2
+                    ? string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"\n[Candidate w{instance.InstanceIndex + 1} Strategy — {strategyLabel} ({effectiveStrategy})]: {strategyLens}")
+                    : string.Empty;
+
+                var taskGoal = orderedTasks.Length == 1 && totalInstances == 1
                     ? goal
-                    : $"{goal}\n\n[Task {task.Id}: {task.Title}]\n{task.Instructions}\nArchitect note: {plan.ArchitectureSummary}{symbolHint}";
+                    : orderedTasks.Length == 1
+                        ? $"{goal}{strategyDirective}"
+                        : $"{goal}\n\n[Task {task.Id}: {task.Title}]\n{task.Instructions}\nArchitect note: {plan.ArchitectureSummary}{symbolHint}{strategyDirective}";
 
                 var editResult = await activeCoder.EditAsync(lease, taskGoal, ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(editResult.Summary))
@@ -339,21 +455,51 @@ internal sealed class EngineerFlow(
             var firstRoslynError = roslynDiagnostics.FirstOrDefault(static d => d.Severity == "Error");
             if (firstRoslynError is not null)
             {
-                return instance with
+                return (instance with
                 {
+                    Strategy = effectiveStrategy,
                     CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
                     RoslynDiagnostics = roslynDiagnostics,
                     Status = "failed",
                     FailureDetail = $"Roslyn error {firstRoslynError.Id} in {firstRoslynError.FilePath}:{firstRoslynError.Line}: {firstRoslynError.Message}",
-                };
+                }).WithComputedScore();
             }
 
             var combinedSummary = string.Join(" ", summaries.Where(static s => !string.IsNullOrWhiteSpace(s)));
             var commitMessage = ChangePolicy.BuildCommitMessage(goal, combinedSummary);
             var committed = await wt.VerifyAndCommitAsync(lease, commitMessage, ct).ConfigureAwait(false);
 
-            return instance with
+            if (repository is not null)
             {
+                var metadataWithoutDiff = ChangeSet.Create(
+                    committed.Commit,
+                    committed.ChangedFiles,
+                    string.Empty,
+                    committed.Additions,
+                    committed.Deletions);
+                var previewChange = Change.Start(runId, repository, goal, requestedBaseBranch)
+                    .WithWorkTree(string.IsNullOrWhiteSpace(runId) ? lease.RunId : runId, lease)
+                    .WithCoderEdit(new CoderEditResult(
+                        combinedSummary,
+                        [.. touchedAll.Select(static p => p.Value)],
+                        modelId))
+                    .WithCommit(metadataWithoutDiff);
+                if (ChangeCard.Refusal(previewChange, committed.HostRenderedDiff) is { } cardRefusal)
+                {
+                    return (instance with
+                    {
+                        Strategy = effectiveStrategy,
+                        CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
+                        RoslynDiagnostics = roslynDiagnostics,
+                        Status = "failed",
+                        FailureDetail = cardRefusal,
+                    }).WithComputedScore();
+                }
+            }
+
+            return (instance with
+            {
+                Strategy = effectiveStrategy,
                 CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
                 Edit = new CoderEdit(
                     combinedSummary,
@@ -363,17 +509,18 @@ internal sealed class EngineerFlow(
                 Commit = committed,
                 Status = "implemented",
                 FailureDetail = null,
-            };
+            }).WithComputedScore();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             ConsoleLogger.LogSwallowed(ex, $"engineer worktree instance #{instance.InstanceIndex} implementation failed");
-            return instance with
+            return (instance with
             {
+                Strategy = effectiveStrategy,
                 CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
                 Status = "failed",
                 FailureDetail = ex.Message,
-            };
+            }).WithComputedScore();
         }
     }
 
@@ -384,12 +531,12 @@ internal sealed class EngineerFlow(
         {
             if (instance.Commit is null || instance.Lease is null)
             {
-                return instance;
+                return instance.WithComputedScore();
             }
 
             if (instance.Build is { Succeeded: true })
             {
-                return instance;
+                return instance.WithComputedScore();
             }
 
             var changedPaths = instance.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
@@ -397,16 +544,16 @@ internal sealed class EngineerFlow(
             var report = verifier is EngineerBuildVerifier stageVerifier
                 ? await Task.Run(() => stageVerifier.VerifyAsync(lease, changedPaths, ct), ct).ConfigureAwait(false)
                 : await Task.Run(() => verifier.VerifyAsync(lease.TreePath, changedPaths, ct), ct).ConfigureAwait(false);
-            return instance with
+            return (instance with
             {
                 Build = report,
                 Status = report.Succeeded ? "built" : "failed",
                 FailureDetail = report.Succeeded ? null : report.Summary,
-            };
+            }).WithComputedScore();
         }).ToArray();
 
         var results = await Task.WhenAll(tasks).ConfigureAwait(true);
-        var passing = results.Where(static i => i.Build is { Succeeded: true }).ToArray();
+        var passing = results.Where(static i => i.Build is { Succeeded: true } && i.Commit is not null).ToArray();
         if (passing.Length == 0)
         {
             var detail = results.Select(static i => i.FailureDetail).FirstOrDefault(static d => !string.IsNullOrWhiteSpace(d))
@@ -414,27 +561,24 @@ internal sealed class EngineerFlow(
             throw new FlowFailed("build-and-test", detail);
         }
 
-        return inner.WithUpdatedInstances(results, passing[0].InstanceIndex).Advance();
+        var nextWinner = EngineerRun.SelectDefaultWinnerIndex(results);
+        return inner.WithUpdatedInstances(results, nextWinner).Advance();
     }
 
     private async Task<StepResult<EngineerRun>> LiveVerifyStepAsync(EngineerRun inner, CancellationToken ct)
     {
         var verifier = LiveVerifier;
         var liveContext = BuildLiveVerificationContext();
-        var results = new EngineerInstance[inner.Instances.Length];
-        for (var idx = 0; idx < inner.Instances.Length; idx++)
+        var liveTasks = inner.Instances.Select(async instance =>
         {
-            var instance = inner.Instances[idx];
             if (instance.Build is not { Succeeded: true } || instance.Commit is null || instance.Lease is null)
             {
-                results[idx] = instance;
-                continue;
+                return instance.WithComputedScore();
             }
 
             if (instance.Live is { Succeeded: true })
             {
-                results[idx] = instance;
-                continue;
+                return instance.WithComputedScore();
             }
 
             var changedPaths = instance.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
@@ -443,18 +587,17 @@ internal sealed class EngineerFlow(
                 : await Task.Run(
                     () => verifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, ct),
                     ct).ConfigureAwait(true);
-            results[idx] = instance with
+            return (instance with
             {
                 Live = report,
                 Status = report.Succeeded ? "verified" : "failed",
                 FailureDetail = report.Succeeded ? null : report.Summary,
-            };
-        }
+            }).WithComputedScore();
+        }).ToArray();
 
+        var results = await Task.WhenAll(liveTasks).ConfigureAwait(true);
         var verified = results
             .Where(static i => i.Live is { Succeeded: true } && i.Build is { Succeeded: true } && i.Commit is not null)
-            .OrderBy(static i => i.Build!.WarningCount)
-            .ThenBy(static i => i.InstanceIndex)
             .ToArray();
 
         if (verified.Length == 0)
@@ -464,7 +607,14 @@ internal sealed class EngineerFlow(
             throw new FlowFailed("live-verify", detail);
         }
 
-        return inner.WithUpdatedInstances(results, verified[0].InstanceIndex).Advance();
+        var winningCandidateIndex = EngineerRun.SelectDefaultWinnerIndex(results);
+        var updated = inner.WithUpdatedInstances(results, winningCandidateIndex);
+        if (updated.SelectedInstance?.Lease is { } winningLease)
+        {
+            return updated.Advance(new FlowSubject(Id.ToString(), $"{winningLease.RepositoryId}:{winningLease.BranchName}"));
+        }
+
+        return updated.Advance();
     }
 
     private EngineerLiveContext BuildLiveVerificationContext()
@@ -550,7 +700,7 @@ internal sealed class EngineerFlow(
             inner.Goal,
             winner.Edit?.Summary,
             winner.Edit?.ModelId,
-            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner),
+            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner, inner.RankCandidates()),
             ct).ConfigureAwait(true);
 
         return inner.WithPullRequest(prUrl).Advance();

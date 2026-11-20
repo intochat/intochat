@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,12 +18,48 @@ internal sealed record EngineerInstance(
     EngineerBuildReport? Build = null,
     EngineerLiveReport? Live = null,
     string Status = "pending",
-    string? FailureDetail = null);
+    string? FailureDetail = null,
+    string? Strategy = null,
+    EngineerCandidateScore? Score = null)
+{
+    [JsonIgnore]
+    public string EffectiveStrategy => string.IsNullOrWhiteSpace(Strategy)
+        ? EngineerCandidateStrategies.ForCandidate(InstanceIndex).Id
+        : Strategy!;
+
+    [JsonIgnore]
+    public string StrategyLabel => EngineerCandidateStrategies.LabelFor(EffectiveStrategy, InstanceIndex);
+
+    [JsonIgnore]
+    public EngineerCandidateScore EffectiveScore => Score ?? ComputeScore();
+
+    [JsonIgnore]
+    public bool IsPublishEligible =>
+        Commit is not null
+        && Build is { Succeeded: true }
+        && Live is { Succeeded: true }
+        && EffectiveScore.AllGatesPassed;
+
+    public EngineerCandidateScore ComputeScore()
+    {
+        var roslynErrors = RoslynDiagnostics?.Count(static d => string.Equals(d.Severity, "Error", StringComparison.OrdinalIgnoreCase)) ?? 0;
+        var changedLines = Commit is not null ? Commit.Additions + Commit.Deletions : 0;
+        return EngineerCandidateScore.Compute(
+            Commit?.Commit.Value,
+            Commit?.HostRenderedDiff,
+            changedLines,
+            Build,
+            Live,
+            roslynErrors);
+    }
+
+    public EngineerInstance WithComputedScore() => this with { Score = ComputeScore() };
+}
 
 /// <summary>
 /// Immutable IntoChat-Engineer pipeline aggregate (<c>flow.engineer</c>) orchestrating 1..N isolated worktree instances
-/// across planning, Roslyn/Dart implementation with per-task checkpoints, build/test, live behavioral verification,
-/// and SHA-bound human PR publication.
+/// across planning, parallel strategy tournament implementation, build/test, live behavioral verification,
+/// deterministic candidate scoring/ranking, human candidate promotion, and SHA-bound human PR publication.
 /// </summary>
 internal sealed record EngineerRun
 {
@@ -44,7 +81,8 @@ internal sealed record EngineerRun
         int selectedInstanceIndex,
         ChangeApproval? approval,
         ChangePublication? publication,
-        string? requestedBackend = null)
+        string? requestedBackend = null,
+        int approvalRevision = 0)
     {
         RunId = runId ?? string.Empty;
         Repository = repository;
@@ -57,6 +95,7 @@ internal sealed record EngineerRun
         Approval = approval;
         Publication = publication;
         RequestedBackend = NormalizeBackend(requestedBackend);
+        ApprovalRevision = Math.Max(0, approvalRevision);
     }
 
     public string RunId { get; private init; } = string.Empty;
@@ -80,6 +119,11 @@ internal sealed record EngineerRun
     public ChangeApproval? Approval { get; private init; }
 
     public ChangePublication? Publication { get; private init; }
+
+    public int ApprovalRevision { get; private init; }
+
+    [JsonIgnore]
+    public int SelectedCandidateIndex => SelectedInstanceIndex;
 
     [JsonIgnore]
     public bool IsInitialized => Repository is not null && !string.IsNullOrWhiteSpace(Goal);
@@ -131,6 +175,32 @@ internal sealed record EngineerRun
         return Start(untrusted.RunId, repository, untrusted.Goal ?? string.Empty, requestedBase, count, backend);
     }
 
+    public static IReadOnlyList<EngineerInstance> OrderByTournamentRank(IEnumerable<EngineerInstance> instances)
+    {
+        ArgumentNullException.ThrowIfNull(instances);
+        return
+        [
+            .. instances
+                .OrderByDescending(static i => i.IsPublishEligible)
+                .ThenByDescending(static i => i.Build is { Succeeded: true } && i.Commit is not null)
+                .ThenByDescending(static i => i.Commit is not null)
+                .ThenByDescending(static i => i.EffectiveScore.TotalScore)
+                .ThenBy(static i => i.Build?.WarningCount ?? int.MaxValue)
+                .ThenBy(static i => i.EffectiveScore.ChangedLines > 0 ? i.EffectiveScore.ChangedLines : int.MaxValue)
+                .ThenBy(static i => i.InstanceIndex),
+        ];
+    }
+
+    public static int SelectDefaultWinnerIndex(IReadOnlyList<EngineerInstance> instances)
+    {
+        if (instances is null || instances.Count == 0)
+        {
+            return 0;
+        }
+
+        return OrderByTournamentRank(instances)[0].InstanceIndex;
+    }
+
     internal static string? NormalizeBackend(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -147,6 +217,51 @@ internal sealed record EngineerRun
         }
 
         return nameof(WorkTreeBackendKind.LocalGit);
+    }
+
+    public EngineerCandidateResult[] RankCandidates()
+    {
+        if (Instances.Length == 0)
+        {
+            return [];
+        }
+
+        var rankedOrder = OrderByTournamentRank(Instances);
+        var rankByInstance = new Dictionary<int, int>(Instances.Length);
+        for (var r = 0; r < rankedOrder.Count; r++)
+        {
+            rankByInstance[rankedOrder[r].InstanceIndex] = r + 1;
+        }
+
+        return
+        [
+            .. Instances
+                .OrderBy(static i => i.InstanceIndex)
+                .Select(inst =>
+                {
+                    var lease = inst.Lease;
+                    var changed = inst.Commit?.ChangedFiles.Select(static f => f.Value).ToArray()
+                        ?? inst.Edit?.TouchedFiles.Select(static f => f.Value).ToArray()
+                        ?? [];
+                    var score = inst.EffectiveScore;
+                    return new EngineerCandidateResult(
+                        InstanceIndex: inst.InstanceIndex,
+                        Strategy: inst.EffectiveStrategy,
+                        StrategyLabel: inst.StrategyLabel,
+                        LeaseId: lease?.EffectiveLeaseId ?? string.Create(CultureInfo.InvariantCulture, $"wt-{inst.InstanceIndex}"),
+                        Backend: lease?.Backend.ToString() ?? RequestedBackend ?? nameof(WorkTreeBackendKind.LocalGit),
+                        BranchName: lease?.BranchName ?? string.Create(CultureInfo.InvariantCulture, $"ino/engineer-w{inst.InstanceIndex + 1}"),
+                        Status: inst.Status,
+                        CompletedTaskIds: inst.CompletedTaskIds ?? [],
+                        ChangedFiles: changed,
+                        Rank: rankByInstance.GetValueOrDefault(inst.InstanceIndex, inst.InstanceIndex + 1),
+                        IsSelected: inst.InstanceIndex == SelectedInstanceIndex,
+                        Score: score,
+                        Build: inst.Build,
+                        Live: inst.Live,
+                        FailureDetail: inst.FailureDetail);
+                }),
+        ];
     }
 
     public EngineerRun WithPlan(EngineerTaskPlan plan)
@@ -179,10 +294,16 @@ internal sealed record EngineerRun
         {
             var lease = leases[i];
             var idx = lease.InstanceIndex;
+            var strategy = EngineerCandidateStrategies.ForCandidate(idx).Id;
             var prior = Instances.FirstOrDefault(inst => inst.InstanceIndex == idx);
             updated[i] = prior is not null
-                ? prior with { Lease = lease, Status = prior.Commit is not null ? prior.Status : "prepared" }
-                : new EngineerInstance(idx, lease, [], Status: "prepared");
+                ? prior with
+                {
+                    Lease = lease,
+                    Strategy = string.IsNullOrWhiteSpace(prior.Strategy) ? strategy : prior.Strategy,
+                    Status = prior.Commit is not null ? prior.Status : "prepared",
+                }
+                : new EngineerInstance(idx, lease, [], Status: "prepared", Strategy: strategy);
         }
 
         return this with
@@ -195,10 +316,62 @@ internal sealed record EngineerRun
     public EngineerRun WithUpdatedInstances(IReadOnlyList<EngineerInstance> instances, int? selectedIndex = null)
     {
         ArgumentNullException.ThrowIfNull(instances);
+        var normalized = instances
+            .OrderBy(static i => i.InstanceIndex)
+            .Select(static i => i.Commit is not null || i.Build is not null || i.Live is not null ? i.WithComputedScore() : i)
+            .ToArray();
+
         return this with
         {
-            Instances = [.. instances.OrderBy(static i => i.InstanceIndex)],
-            SelectedInstanceIndex = selectedIndex ?? SelectedInstanceIndex,
+            Instances = normalized,
+            SelectedInstanceIndex = selectedIndex ?? SelectDefaultWinnerIndex(normalized),
+        };
+    }
+
+    public EngineerRun SelectCandidate(int candidateIndex)
+    {
+        if (!string.IsNullOrWhiteSpace(Publication?.PushedRef))
+        {
+            throw new InvalidOperationException("Cannot switch winning candidate after branch push has already completed.");
+        }
+
+        var candidate = Instances.FirstOrDefault(i => i.InstanceIndex == candidateIndex)
+            ?? throw new ArgumentOutOfRangeException(
+                nameof(candidateIndex),
+                $"Candidate index {candidateIndex} does not exist in this run.");
+
+        var anyImplemented = Instances.Any(static i => i.Commit is not null);
+        var anyBuilt = Instances.Any(static i => i.Build is not null);
+        var anyVerified = Instances.Any(static i => i.Live is not null);
+
+        if (anyImplemented && candidate.Commit is null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot promote candidate w{candidateIndex + 1}: candidate did not produce a verified commit ({candidate.FailureDetail ?? candidate.Status}).");
+        }
+
+        if (anyBuilt && candidate.Build is not { Succeeded: true })
+        {
+            throw new InvalidOperationException(
+                $"Cannot promote candidate w{candidateIndex + 1}: build-and-test verification failed ({candidate.FailureDetail ?? candidate.Build?.Summary ?? "not built"}).");
+        }
+
+        if (anyVerified && candidate.Live is not { Succeeded: true })
+        {
+            throw new InvalidOperationException(
+                $"Cannot promote candidate w{candidateIndex + 1}: live behavioral verification failed ({candidate.FailureDetail ?? candidate.Live?.Summary ?? "not verified"}).");
+        }
+
+        if (SelectedInstanceIndex == candidateIndex)
+        {
+            return this;
+        }
+
+        return this with
+        {
+            SelectedInstanceIndex = candidateIndex,
+            Approval = null,
+            ApprovalRevision = ApprovalRevision + 1,
         };
     }
 
@@ -260,10 +433,18 @@ internal sealed record EngineerRun
             throw new SecurityException("Refusing to publish: live behavioral verification has not succeeded.");
         }
 
-        var change = ToSelectedChange();
-        if (Approval is { } approval)
+        if (Approval is { PlanId.Length: > 0 } approval
+            && approval.PlanId.Contains(':', StringComparison.Ordinal)
+            && !approval.PlanId.EndsWith(":" + headSha.Value, StringComparison.Ordinal))
         {
-            change = change.WithApprovalPending(approval.PlanId, approval.Expires);
+            throw new SecurityException(
+                $"Refusing to publish: approval plan '{approval.PlanId}' is not bound to verified commit SHA '{headSha.Value}'.");
+        }
+
+        var change = ToSelectedChange();
+        if (Approval is { } currentApproval)
+        {
+            change = change.WithApprovalPending(currentApproval.PlanId, currentApproval.Expires);
         }
 
         return change.EnsureCanPublish(outcome, headSha);

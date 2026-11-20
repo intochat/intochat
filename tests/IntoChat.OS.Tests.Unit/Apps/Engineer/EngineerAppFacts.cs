@@ -44,17 +44,28 @@ public sealed class EngineerAppFacts
             .ForParameter("stageId", "brainstorm-and-plan", "implement-tasks", "live-verify", "review-and-pr")
             .ForParameter("count", 1, 2)
             .ForParameter("backend", "LocalGit", "ContainerVolume")
+            .ForParameter("candidateIndex", 0, 1, 9)
             .ForParameter("goal", "Upgrade worktree orchestration");
 
-        var graph = AggregateExplorer<EngineerWorkspaceState>.Explore(choices: choices, maxStates: 32);
+        var graph = AggregateExplorer<EngineerWorkspaceState>.Explore(choices: choices, maxStates: 48);
         Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
         Assert.NotEmpty(graph.AcceptedTransitions);
         Assert.NotEmpty(graph.RejectedTransitions);
+
+        var screenGraph = AggregateExplorer<EngineerWorkspaceState>.ExploreScreen<EngineerApp>(choices: choices, maxStates: 32);
+        Assert.True(screenGraph.IsHealthy, string.Join("\n", screenGraph.Violations));
+        Assert.Contains("digraph", screenGraph.ToDot(), StringComparison.Ordinal);
 
         var initial = new EngineerWorkspaceState();
         Assert.False(initial.PlanReadyToApprove().Broken);
         Assert.True(initial.ReadyForVerification().Broken);
         Assert.True(initial.ReadyForPrApproval().Broken);
+        Assert.False(initial.ValidCandidateSelection(0).Broken);
+        Assert.False(initial.ValidCandidateSelection(1).Broken);
+        Assert.True(initial.ValidCandidateSelection(9).Broken);
+
+        var rejectedOutOfBounds = initial.PromoteCandidate(9);
+        Assert.False(rejectedOutOfBounds.IsAccepted);
 
         var approvedPlan = initial.ApprovePlan();
         Assert.True(approvedPlan.IsAccepted);
@@ -64,12 +75,29 @@ public sealed class EngineerAppFacts
         var verified = approvedPlan.Next.CompleteVerification();
         Assert.True(verified.IsAccepted);
         Assert.False(verified.Next.ReadyForPrApproval().Broken);
+        Assert.Equal(0, verified.Next.SelectedInstanceIndex);
+        Assert.True(verified.Next.Candidates[0].TotalScore > verified.Next.Candidates[1].TotalScore);
 
-        var published = verified.Next.ApproveAndPublishPr();
+        // Promoting candidate w2 (index 1) switches SelectedInstanceIndex and re-binds ConfirmationPlanId to w2's SHA!
+        var promotedW2 = verified.Next.PromoteCandidate(1);
+        Assert.True(promotedW2.IsAccepted);
+        Assert.Equal(1, promotedW2.Next.SelectedInstanceIndex);
+        Assert.EndsWith(":" + verified.Next.Candidates[1].CommitSha, promotedW2.Next.ConfirmationPlanId!, StringComparison.Ordinal);
+
+        // Failed candidates are rejected by ValidCandidateSelection rule!
+        var withFailedW1 = promotedW2.Next with
+        {
+            Candidates = [promotedW2.Next.Candidates[0] with { Status = "failed" }, promotedW2.Next.Candidates[1]],
+        };
+        Assert.True(withFailedW1.ValidCandidateSelection(0).Broken);
+        Assert.False(withFailedW1.PromoteCandidate(0).IsAccepted);
+
+        var published = promotedW2.Next.ApproveAndPublishPr();
         Assert.True(published.IsAccepted);
         Assert.True(published.Next.PrPublished);
         Assert.True(published.Next.WorktreesCleaned);
         Assert.True(published.Next.HasActiveWorktrees().Broken);
+        Assert.True(published.Next.ValidCandidateSelection(0).Broken);
     }
 
     [Fact]
@@ -206,6 +234,8 @@ public sealed class EngineerAppFacts
             var tree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
             var kanban = os.Get<IKanbanBoard>(new NeuronId(brain, "ui.kanban", EngineerApp.KanbanKey));
             var tabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
+            var editor = os.Get<ICodeEditor>(new NeuronId(brain, "ui.code-editor", EngineerApp.CodeEditorKey));
+            var table = os.Get<ITable>(new NeuronId(brain, "ui.table", EngineerApp.TasksTableKey));
 
             Assert.Equal("review-and-pr", (await stepper.Read()).ActiveStepId);
             Assert.Equal("pr", (await tabs.Read()).SelectedId);
@@ -213,6 +243,38 @@ public sealed class EngineerAppFacts
             Assert.Contains(treeNodes, static n => n.Id == "wt-0" && n.Label.Contains("verified", StringComparison.Ordinal));
             Assert.Contains(treeNodes, static n => n.Id == "wt-1" && n.Label.Contains("verified", StringComparison.Ordinal));
             Assert.All((await kanban.Read()).Cards, static c => Assert.Equal("verified", c.ColumnId));
+
+            // Candidate w1 (#0) is initially selected in ICodeEditor and ITable scoreboard!
+            var beforeSwitchSummary = await flows.InspectEngineerRun(delegated.FlowId, Ct);
+            var sha0 = beforeSwitchSummary.Instances.Single(static i => i.InstanceIndex == 0).CommitSha!;
+            var sha1 = beforeSwitchSummary.Instances.Single(static i => i.InstanceIndex == 1).CommitSha!;
+            Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
+            var initialPrTable = await table.Read();
+            Assert.Contains(initialPrTable.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
+            Assert.Contains(initialPrTable.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
+
+            // Promote Candidate w2 via ITreeView ('wt-1') -> switches ICodeEditor diff, ITable scoreboard, and SHA-bound confirmation plan!
+            await tree.Select("wt-1");
+            await os.Idle();
+            Assert.Contains("Sub1", (await editor.Read()).Content, StringComparison.Ordinal);
+            var updatedPrTable = await table.Read();
+            Assert.Contains(updatedPrTable.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
+            Assert.Contains(updatedPrTable.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
+
+            var afterTreePromote = await flows.InspectEngineerRun(delegated.FlowId, Ct);
+            Assert.Equal(1, afterTreePromote.SelectedCandidateIndex);
+            Assert.Equal(sha1, afterTreePromote.WinningCommitSha);
+            Assert.EndsWith(":" + sha1, afterTreePromote.ConfirmationPlanId!, StringComparison.Ordinal);
+
+            // Switch back to Candidate w1 via rendered UI button 'engineer:candidate:select:1'!
+            var renderedView = (await screen.Read())!;
+            await screen.Activate(renderedView.Alias, renderedView.Generation, EngineerApp.CandidateSelectKey(0));
+            await os.Idle();
+            Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
+            var afterBtnPromote = await flows.InspectEngineerRun(delegated.FlowId, Ct);
+            Assert.Equal(0, afterBtnPromote.SelectedCandidateIndex);
+            Assert.Equal(sha0, afterBtnPromote.WinningCommitSha);
+            Assert.EndsWith(":" + sha0, afterBtnPromote.ConfirmationPlanId!, StringComparison.Ordinal);
 
             await flows.Cancel(delegated.FlowId, "cleanup", Ct);
             await os.Idle();

@@ -707,6 +707,221 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await os.Idle();
     }
 
+    [Fact]
+    public void EngineerCandidateScoreAndTournamentRankingSelectHighestPassingCleanCandidateAndTieBreakBySmallestDiff()
+    {
+        var shaFail = CommitSha.Parse(new string('1', 40));
+        var shaLarge = CommitSha.Parse(new string('2', 40));
+        var shaCleanSmall = CommitSha.Parse(new string('3', 40));
+
+        var lease0 = new WorkTreeLease("run-t", "os", "/repo", "/wt/0", "/repo/.git/wt/0", new string('a', 64), "main", new string('0', 40), "ino/os-runt-w1", InstanceIndex: 0);
+        var lease1 = new WorkTreeLease("run-t", "os", "/repo", "/wt/1", "/repo/.git/wt/1", new string('b', 64), "main", new string('0', 40), "ino/os-runt-w2", InstanceIndex: 1);
+        var lease2 = new WorkTreeLease("run-t", "os", "/repo", "/wt/2", "/repo/.git/wt/2", new string('c', 64), "main", new string('0', 40), "ino/os-runt-w3", InstanceIndex: 2);
+
+        var file = RepoPath.Parse("code/Calculator.cs");
+        var diffTiny = "--- a/code/Calculator.cs\n+++ b/code/Calculator.cs\n@@ -1 +1,2 @@\n public static class Calculator {}\n+// broken\n";
+        var diffLarge = string.Join('\n', ["--- a/code/Calculator.cs", "+++ b/code/Calculator.cs", "@@ -1 +1,18 @@", .. Enumerable.Range(1, 18).Select(static n => $"+public static int M{n}() => {n};")]);
+        var diffSmall = "--- a/code/Calculator.cs\n+++ b/code/Calculator.cs\n@@ -1 +1,4 @@\n+public static int Sub(int a, int b) => a - b;\n+public static int Abs(int x) => x < 0 ? -x : x;\n+public static int Sign(int x) => Math.Sign(x);\n";
+
+        var commit0 = ChangeSet.FromDiff(shaFail, [file], diffTiny);
+        var commit1 = ChangeSet.FromDiff(shaLarge, [file], diffLarge);
+        var commit2 = ChangeSet.FromDiff(shaCleanSmall, [file], diffSmall);
+
+        var buildFail = new EngineerBuildReport(false, false, true, false, 0, 1, 0, 2, ["CS1002: ; expected"], 40, "Build failed");
+        var buildPass = new EngineerBuildReport(true, true, true, true, 14, 0, 0, 0, [], 80, "Build & tests green");
+        var livePass = new EngineerLiveReport(true, true, true, true, 0, 0, 0, 0, [], [], "Live verify green");
+
+        var c0 = new EngineerInstance(0, lease0, ["t1"], new CoderEdit("Attempt 0", "m", [file]), [], commit0, buildFail, null, "failed", "Build failed").WithComputedScore();
+        var c1 = new EngineerInstance(1, lease1, ["t1"], new CoderEdit("Attempt 1", "m", [file]), [], commit1, buildPass, livePass, "verified").WithComputedScore();
+        var c2 = new EngineerInstance(2, lease2, ["t1"], new CoderEdit("Attempt 2", "m", [file]), [], commit2, buildPass, livePass, "verified").WithComputedScore();
+
+        Assert.False(c0.EffectiveScore.AllGatesPassed);
+        Assert.True(c1.EffectiveScore.AllGatesPassed);
+        Assert.True(c2.EffectiveScore.AllGatesPassed);
+        Assert.True(c2.EffectiveScore.TotalScore > c1.EffectiveScore.TotalScore);
+        Assert.True(c1.EffectiveScore.TotalScore > c0.EffectiveScore.TotalScore);
+
+        var plan = new EngineerTaskPlan("Goal", "Arch", "Critic", [], [new("t1", "Task", "csharp", ["code/Calculator.cs"], [], "Do")]);
+        var run = EngineerRun.Start("run-t", RepositoryId.Parse("os"), "Goal", instanceCount: 3)
+            .WithPlan(plan)
+            .WithLeases("run-t", [lease0, lease1, lease2])
+            .WithUpdatedInstances([c0, c1, c2]);
+
+        // Candidate 2 (w3) has highest passing score & smallest clean diff -> automatically selected!
+        Assert.Equal(2, run.SelectedCandidateIndex);
+        var ranked = run.RankCandidates();
+        Assert.Equal(3, ranked.Length);
+        Assert.Equal(3, ranked.Single(static r => r.InstanceIndex == 0).Rank);
+        Assert.Equal(2, ranked.Single(static r => r.InstanceIndex == 1).Rank);
+        Assert.Equal(1, ranked.Single(static r => r.InstanceIndex == 2).Rank);
+        Assert.True(ranked.Single(static r => r.InstanceIndex == 2).IsSelected);
+
+        // Promoting failed candidate 0 is refused; promoting passing candidate 1 succeeds!
+        Assert.Throws<InvalidOperationException>(() => run.SelectCandidate(0));
+        var promoted1 = run.SelectCandidate(1);
+        Assert.Equal(1, promoted1.SelectedCandidateIndex);
+        Assert.Equal(shaLarge, promoted1.SelectedInstance!.Commit!.Commit);
+    }
+
+    [Fact]
+    public async Task EngineerFlowTournamentAutomaticallyPromotesPassingCandidateWhenSiblingFailsAndRebindsConfirmationShaOnSwitch()
+    {
+        // Part 1: Candidate w1 (0) fails build, Candidate w2 (1) passes -> flow automatically promotes w2!
+        var (bare1, checkout1, home1) = CreateBareOriginAndCheckout("tournament-failover");
+        var wt1 = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home1,
+            VerifyFormatting = false,
+        });
+        wt1.RegisterRepository(new RegisteredRepository("os", checkout1, DefaultBaseBranch: "main"));
+
+        var sp1 = new ServiceCollection()
+            .AddSingleton<IWorkTree>(wt1)
+            .AddSingleton<ICoder>(new TournamentVariantCoder())
+            .AddSingleton<IEngineerPlanner>(new SingleStepPlanner())
+            .AddSingleton<IEngineerBuildVerifier>(new FailFirstInstanceBuildVerifier())
+            .AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier())
+            .AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault())
+            .BuildServiceProvider();
+
+        await using (var os1 = TestOS.Local(o => o.Services = sp1))
+        {
+            var brain = new BrainId("owner");
+            using var person = os1.Edge.Enter(os1.Edge.Person("owner", "owner", brain));
+            os1.Register(typeof(AppsModule).Assembly);
+
+            var flows1 = os1.Get<IFlows>(IFlows.Key(brain.Value));
+            var started1 = await flows1.StartEngineerRun(
+                new EngineerDelegationRequest("os", "Add Subtract variant", ParallelInstances: 2, Backend: "LocalGit", RunId: "tournfail1"),
+                Ct);
+
+            EngineerRunSummary? waiting1 = null;
+            for (var i = 0; i < 60; i++)
+            {
+                await os1.Idle();
+                var snap = await flows1.InspectEngineerRun(started1.FlowId, Ct);
+                if (snap.Status is FlowStatus.Waiting or FlowStatus.Failed)
+                {
+                    waiting1 = snap;
+                    break;
+                }
+
+                await Task.Delay(40, Ct);
+            }
+
+            Assert.NotNull(waiting1);
+            Assert.Equal(FlowStatus.Waiting, waiting1!.Status);
+            Assert.Equal(1, waiting1.SelectedCandidateIndex);
+            var winnerW2Sha = waiting1.Instances.Single(static i => i.InstanceIndex == 1).CommitSha!;
+            Assert.Equal(winnerW2Sha, waiting1.WinningCommitSha);
+            Assert.EndsWith(":" + winnerW2Sha, waiting1.ConfirmationPlanId!, StringComparison.Ordinal);
+
+            // Attempting to switch to failed candidate w1 (0) at approval-gate is refused!
+            await Assert.ThrowsAsync<InvalidOperationException>(() => flows1.SelectEngineerCandidate(started1.FlowId, 0, Ct));
+
+            await flows1.Cancel(started1.FlowId, "cleanup", Ct);
+            await os1.Idle();
+        }
+
+        await sp1.DisposeAsync();
+
+        // Part 2: Both w1 (0) and w2 (1) pass; human switches w1 -> w2 -> w1 -> w2 at approval-gate and publishes w2!
+        var (bare2, checkout2, home2) = CreateBareOriginAndCheckout("tournament-switch");
+        var wt2 = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home2,
+            VerifyFormatting = false,
+        });
+        wt2.RegisterRepository(new RegisteredRepository("os", checkout2, DefaultBaseBranch: "main"));
+
+        await using var sp2 = new ServiceCollection()
+            .AddSingleton<IWorkTree>(wt2)
+            .AddSingleton<ICoder>(new TournamentVariantCoder())
+            .AddSingleton<IEngineerPlanner>(new SingleStepPlanner())
+            .AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier())
+            .AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier())
+            .AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault())
+            .BuildServiceProvider();
+
+        await using var os2 = TestOS.Local(o => o.Services = sp2);
+        var brain2 = new BrainId("owner");
+        using var owner2 = os2.Edge.Enter(os2.Edge.Person("owner", "owner", brain2));
+        os2.Register(typeof(AppsModule).Assembly);
+
+        var flows2 = os2.Get<IFlows>(IFlows.Key(brain2.Value));
+        var started2 = await flows2.StartEngineerRun(
+            new EngineerDelegationRequest("os", "Add Subtract tournament variants", ParallelInstances: 2, Backend: "LocalGit", RunId: "tournswitch1"),
+            Ct);
+
+        EngineerRunSummary? waiting2 = null;
+        for (var i = 0; i < 60; i++)
+        {
+            await os2.Idle();
+            var snap = await flows2.InspectEngineerRun(started2.FlowId, Ct);
+            if (snap.Status is FlowStatus.Waiting or FlowStatus.Failed)
+            {
+                waiting2 = snap;
+                break;
+            }
+
+            await Task.Delay(40, Ct);
+        }
+
+        Assert.NotNull(waiting2);
+        Assert.Equal(FlowStatus.Waiting, waiting2!.Status);
+        Assert.Equal(0, waiting2.SelectedCandidateIndex);
+
+        var sha0 = waiting2.Instances.Single(static i => i.InstanceIndex == 0).CommitSha!;
+        var sha1 = waiting2.Instances.Single(static i => i.InstanceIndex == 1).CommitSha!;
+        Assert.NotEqual(sha0, sha1);
+        Assert.EndsWith(":" + sha0, waiting2.ConfirmationPlanId!, StringComparison.Ordinal);
+
+        // Switch 0 -> 1 -> 0 -> 1 while parked at approval-gate: each switch withdraws the prior plan and mints a fresh SHA-bound plan!
+        var switchedTo1 = await flows2.SelectEngineerCandidate(started2.FlowId, 1, Ct);
+        await os2.Idle();
+        Assert.Equal(1, switchedTo1.SelectedCandidateIndex);
+        Assert.Equal(sha1, switchedTo1.WinningCommitSha);
+        Assert.EndsWith(":" + sha1, switchedTo1.ConfirmationPlanId!, StringComparison.Ordinal);
+        Assert.NotEqual(waiting2.ConfirmationPlanId, switchedTo1.ConfirmationPlanId);
+
+        var switchedBackTo0 = await flows2.SelectEngineerCandidate(started2.FlowId, 0, Ct);
+        await os2.Idle();
+        Assert.Equal(0, switchedBackTo0.SelectedCandidateIndex);
+        Assert.Equal(sha0, switchedBackTo0.WinningCommitSha);
+        Assert.EndsWith(":" + sha0, switchedBackTo0.ConfirmationPlanId!, StringComparison.Ordinal);
+
+        var finalPromoted1 = await flows2.SelectEngineerCandidate(started2.FlowId, 1, Ct);
+        await os2.Idle();
+        Assert.Equal(1, finalPromoted1.SelectedCandidateIndex);
+        Assert.Equal(sha1, finalPromoted1.WinningCommitSha);
+        Assert.EndsWith(":" + sha1, finalPromoted1.ConfirmationPlanId!, StringComparison.Ordinal);
+
+        var inbox = os2.Get<IConfirmationInbox>(new NeuronId(brain2, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
+        var pendingOnly = Assert.Single((await inbox.Read()).Pending);
+        Assert.Equal(finalPromoted1.ConfirmationPlanId, pendingOnly.PlanId);
+        Assert.Equal(sha1, pendingOnly.Plan.Subject);
+
+        await inbox.Resolve(finalPromoted1.ConfirmationPlanId!, approve: true);
+        EngineerRunSummary? done2 = null;
+        for (var i = 0; i < 60; i++)
+        {
+            await os2.Idle();
+            var snap = await flows2.InspectEngineerRun(started2.FlowId, Ct);
+            if (snap.Status is FlowStatus.Completed or FlowStatus.Failed)
+            {
+                done2 = snap;
+                break;
+            }
+
+            await Task.Delay(40, Ct);
+        }
+
+        Assert.NotNull(done2);
+        Assert.Equal(FlowStatus.Completed, done2!.Status);
+        Assert.Equal(sha1, done2.WinningCommitSha);
+        Assert.Equal(sha1, RunGit(bare2, ["rev-parse", done2.PushedRef!]).Trim());
+    }
+
     private sealed class FakeTraceReader(TraceEntry[] entries) : ITraceReader
     {
         public Task<TracePage> ReadTrace(string traceId, long since, int limit)
@@ -824,6 +1039,68 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
             Assert.True(edit.Succeeded, edit.Detail);
             return new CoderEditResult($"Added {memberName} via Roslyn.", edit.TouchedFiles, "qwen2.5-coder:14b");
+        }
+    }
+
+    private sealed class SingleStepPlanner : IEngineerPlanner
+    {
+        public Task<EngineerTaskPlan> PlanAsync(string repositoryId, string goal, IReadOnlyList<string> allowedExtensions, int maxChangedFiles, CancellationToken ct = default)
+            => Task.FromResult(new EngineerTaskPlan(
+                Goal: goal,
+                ArchitectureSummary: "Single-step candidate tournament on Calculator",
+                CriticReview: "Verify deterministic candidate scoring and SHA-bound promotion",
+                Transcript: [new("User", "user", "Goal", goal)],
+                Tasks: [new("t1-variant", "Implement Calculator variant", "csharp", ["code/Calculator.cs"], [], goal)]));
+    }
+
+    private sealed class TournamentVariantCoder : ICoder
+    {
+        private readonly IWorktreeRoslyn _roslyn = IWorktreeRoslyn.CreateDefault();
+
+        public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
+        {
+            // Assert strategy variant prompt is injected when running parallel tournament instances
+            Assert.Contains($"Candidate w{lease.InstanceIndex + 1} Strategy", goal, StringComparison.Ordinal);
+
+            WorktreeCSharpEdit[] edits = lease.InstanceIndex == 0
+                ? [
+                    new(
+                        WorktreeCSharpEditKind.AddOrReplaceMember,
+                        "code/Calculator.cs",
+                        TypeName: "Calculator",
+                        MemberName: "Subtract",
+                        Source: "public static int Subtract(int a, int b) => a - b;"),
+                ]
+                : [
+                    new(
+                        WorktreeCSharpEditKind.AddOrReplaceMember,
+                        "code/Calculator.cs",
+                        TypeName: "Calculator",
+                        MemberName: "Subtract",
+                        Source: "public static int Subtract(int a, int b) => checked(a - b);"),
+                    new(
+                        WorktreeCSharpEditKind.AddOrReplaceMember,
+                        "code/Calculator.cs",
+                        TypeName: "Calculator",
+                        MemberName: "AbsDifference",
+                        Source: "public static int AbsDifference(int a, int b) => a >= b ? a - b : b - a;"),
+                ];
+
+            var result = await _roslyn.ApplyEditsAsync(lease.TreePath, edits, ct);
+            Assert.True(result.Succeeded, result.Detail);
+            return new CoderEditResult($"Candidate w{lease.InstanceIndex + 1} applied {edits.Length} member(s).", result.TouchedFiles, "tournament-coder");
+        }
+    }
+
+    private sealed class FailFirstInstanceBuildVerifier : IEngineerBuildVerifier
+    {
+        public Task<EngineerBuildReport> VerifyAsync(string worktreePath, IReadOnlyList<string> changedFiles, CancellationToken ct = default)
+        {
+            var calcSource = File.ReadAllText(Path.Combine(worktreePath, "code", "Calculator.cs"));
+            var isFirst = !calcSource.Contains("AbsDifference", StringComparison.Ordinal);
+            return Task.FromResult(isFirst
+                ? new EngineerBuildReport(false, false, true, false, 0, 1, 0, 1, ["Simulated w1 build failure"], 30, "Candidate w1 build failed")
+                : new EngineerBuildReport(true, true, true, true, 8, 0, 0, 0, [], 45, "Candidate w2 build & tests passed"));
         }
     }
 

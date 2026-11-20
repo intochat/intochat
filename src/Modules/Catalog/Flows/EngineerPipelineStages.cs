@@ -12,7 +12,8 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 internal sealed record EngineerPullRequestContext(
     EngineerTaskPlan? Plan,
     int TotalInstances,
-    EngineerInstance Winner);
+    EngineerInstance Winner,
+    EngineerCandidateResult[]? TournamentCandidates = null);
 
 /// <summary>
 /// Shared durable pipeline stage execution helpers backing both <see cref="EngineerFlow"/> (<c>flow.engineer</c>)
@@ -44,9 +45,9 @@ internal static class EngineerPipelineStages
     internal static string BuildPlanId(string prefix, string runId, string commitSha)
     {
         var cleanRun = string.IsNullOrWhiteSpace(runId) ? "run" : runId.Trim();
-        if (cleanRun.Length > 48)
+        if (cleanRun.Length > 40)
         {
-            cleanRun = cleanRun[..48];
+            cleanRun = cleanRun[..40];
         }
 
         return $"{prefix}:{cleanRun}:{commitSha.Trim()}";
@@ -342,9 +343,22 @@ internal static class EngineerPipelineStages
 
         if (engineerContext is { } ctx)
         {
+            var winnerScore = ctx.Winner.EffectiveScore;
             sb.AppendLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"- **Parallel Candidates:** `{ctx.TotalInstances}` (selected instance `#{ctx.Winner.InstanceIndex}`, lease `{ctx.Winner.Lease?.EffectiveLeaseId}`, backend `{ctx.Winner.Lease?.Backend}`)"));
+                $"- **Parallel Candidates:** `{ctx.TotalInstances}` (selected candidate `w{ctx.Winner.InstanceIndex + 1}` / `#{ctx.Winner.InstanceIndex}`, strategy `{ctx.Winner.EffectiveStrategy}`, score `{winnerScore.TotalScore}`, lease `{ctx.Winner.Lease?.EffectiveLeaseId}`, backend `{ctx.Winner.Lease?.Backend}`)"));
+
+            if (ctx.TournamentCandidates is { Length: > 1 } ranked)
+            {
+                sb.AppendLine("- **Candidate Tournament Scoreboard:**");
+                foreach (var c in ranked.OrderBy(static c => c.Rank))
+                {
+                    var shortSha = c.Score.CommitSha is { Length: >= 8 } sha ? sha[..8] : "none";
+                    sb.AppendLine(string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"  - Rank #{c.Rank}: `w{c.InstanceIndex + 1}` (`{c.Strategy}`) — Score `{c.Score.TotalScore}`, Δ`{c.Score.ChangedLines}` lines, `{shortSha}`{(c.IsSelected ? " **[SELECTED]**" : string.Empty)}"));
+                }
+            }
         }
 
         var files = verifiedCommit.ChangedFiles;

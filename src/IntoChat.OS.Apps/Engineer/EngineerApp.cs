@@ -2,11 +2,11 @@
 # IntoChat Engineer
 Role: Studio
 Shipped: true
-Operations: open, new-run, brainstorm, approve-plan, run-verify, approve-pr, clean-worktree, select-tab, select-instance, ui.command
+Operations: open, new-run, brainstorm, approve-plan, run-verify, approve-pr, clean-worktree, select-tab, select-instance, select-candidate, ui.command
 
 Autonomous multi-worktree engineering workbench (`app.engineer`) orchestrating `flow.engineer` across 1..N isolated
 local git worktrees or cloud sandbox volumes with User + Architect + Critic brainstorming, Roslyn C# + Dart code edits,
-Release build/test + live Playwright/MCP verification, and SHA-bound human PR approval.
+Release build/test + live Playwright/MCP verification, parallel candidate tournament scoring, and SHA-bound human PR approval.
 */
 using System.Globalization;
 using DigitalBrain;
@@ -64,6 +64,9 @@ public sealed record EngineerSelectTab(string? Tab = null) : Signal;
 [Signal("engineer.select-instance")]
 public sealed record EngineerSelectInstance(int InstanceIndex = 0, string? FilePath = null) : Signal;
 
+[Signal("engineer.select-candidate")]
+public sealed record EngineerSelectCandidate(int CandidateIndex = 0, string? FilePath = null) : Signal;
+
 [Neuron("app.engineer")]
 [Screen("app.engineer", Title = "IntoChat Engineer", Icon = "workflow")]
 public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
@@ -103,7 +106,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
         "1.0.0",
         new AppManifest(
             Title: "IntoChat Engineer",
-            Description: "Autonomous multi-worktree engineering workbench: brainstorm, plan, Roslyn/Dart code, live verify, and PR review.",
+            Description: "Autonomous multi-worktree engineering workbench: brainstorm, plan, Roslyn/Dart code, live verify, candidate tournament, and PR review.",
             Operations:
             [
                 new("open", "Open the IntoChat Engineer workbench."),
@@ -115,6 +118,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
                 new("clean-worktree", "Clean up all isolated worktree leases idempotently."),
                 new("select-tab", "Switch between Plan, Code, Verification & Traces, and PR Review tabs."),
                 new("select-instance", "Focus a parallel worktree instance or changed file."),
+                new("select-candidate", "Promote a verified candidate worktree diff for PR approval."),
                 new(UiCommand.SignalAlias, "Dispatch a typed Engineer aggregate command."),
             ],
             Settings: [],
@@ -131,6 +135,9 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     {
         CompiledType = typeof(EngineerApp).AssemblyQualifiedName,
     };
+
+    public static string CandidateSelectKey(int instanceIndex)
+        => string.Create(CultureInfo.InvariantCulture, $"engineer:candidate:select:{instanceIndex + 1}");
 
     public new EngineerWorkspaceState State => base.State;
 
@@ -272,6 +279,9 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     public Task SetInstancesCommand(int count, string backend)
         => ShowAndSyncAsync(State.SetParallelInstances(count, backend));
 
+    public Task SelectCandidateCommand(int candidateIndex)
+        => SelectCandidate(new EngineerSelectCandidate(candidateIndex));
+
     [On]
     public async Task SelectTab(EngineerSelectTab request)
     {
@@ -280,10 +290,46 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     }
 
     [On]
+    public async Task SelectCandidate(EngineerSelectCandidate request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var decision = State.PromoteCandidateCore(request.CandidateIndex, request.FilePath);
+        await ApplyDecisionAsync(decision);
+        if (decision.IsAccepted
+            && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
+            && TryGetOptional<IFlows>(FlowsKey) is { } flows)
+        {
+            try
+            {
+                var summary = await flows.SelectEngineerCandidate(State.ActiveFlowId!, request.CandidateIndex);
+                if (!string.IsNullOrWhiteSpace(summary.FlowId))
+                {
+                    var synced = ApplyLiveSummary(State, summary, preserveActiveTab: true, preferredFilePath: request.FilePath);
+                    await Show(synced);
+                }
+            }
+#pragma warning disable CA1031
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(ex, "Live SelectEngineerCandidate skipped or unavailable for {FlowId}.", State.ActiveFlowId);
+            }
+        }
+
+        await SyncUiNeuronsAsync(State);
+    }
+
+    [On]
     public async Task SelectInstance(EngineerSelectInstance request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var idx = Math.Clamp(request.InstanceIndex, 0, Math.Max(0, State.Candidates.Length - 1));
+        if (!State.ValidCandidateSelection(idx).Broken)
+        {
+            await SelectCandidate(new EngineerSelectCandidate(idx, request.FilePath));
+            return;
+        }
+
         var file = string.IsNullOrWhiteSpace(request.FilePath) ? State.SelectedFilePath : request.FilePath.Trim();
         var lang = file.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
         await ShowAndSyncAsync(State with
@@ -291,8 +337,8 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
             SelectedInstanceIndex = idx,
             SelectedFilePath = file,
             SelectedLanguage = lang,
-            ActiveTab = "code",
-            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Inspecting worktree instance #{idx} · {file}"),
+            ActiveTab = State.ActiveTab is "code" or "verify" or "pr" ? State.ActiveTab : "code",
+            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Inspecting worktree instance w{idx + 1} (#{idx}) · {file}"),
         });
     }
 
@@ -517,73 +563,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
             var summary = await flows.InspectEngineerRun(flowId);
             if (!string.IsNullOrWhiteSpace(summary.FlowId) && (summary.Ok || summary.Instances.Length > 0 || summary.Plan is not null))
             {
-                var stage = EngineerWorkspaceState.NormalizeStage(summary.CurrentStage);
-                var plannedTargets = summary.Plan?.Tasks
-                    .SelectMany(static t => t.TargetFiles ?? [])
-                    .Where(static f => !string.IsNullOrWhiteSpace(f))
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray() ?? [];
-
-                var candidates = summary.Instances.Length > 0
-                    ? summary.Instances.Select(inst =>
-                    {
-                        var files = inst.ChangedFiles is { Length: > 0 } cf
-                            ? cf
-                            : plannedTargets.Length > 0
-                                ? plannedTargets
-                                : [basis.SelectedFilePath];
-                        return new EngineerCandidateSummary(
-                            InstanceIndex: inst.InstanceIndex,
-                            LeaseId: inst.LeaseId,
-                            Backend: inst.Backend,
-                            BranchName: inst.BranchName,
-                            Status: inst.Status,
-                            ChangedFiles: files,
-                            CommitSha: inst.CommitSha);
-                    }).ToArray()
-                    : basis.Candidates;
-
-                var clampedCount = Math.Clamp(summary.ParallelInstances, 1, 8);
-                var selectedIdx = Math.Clamp(basis.SelectedInstanceIndex, 0, Math.Max(0, candidates.Length - 1));
-                var selectedFile = candidates.ElementAtOrDefault(selectedIdx)?.ChangedFiles.FirstOrDefault() ?? basis.SelectedFilePath;
-                var selectedLang = selectedFile.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
-                var mappedTab = stage switch
-                {
-                    "brainstorm-and-plan" => "plan",
-                    "prepare-worktree" or "implement-tasks" => "code",
-                    "build-and-test" or "live-verify" => "verify",
-                    _ => "pr",
-                };
-                var activeTab = !string.Equals(basis.ActiveFlowId, summary.FlowId, StringComparison.Ordinal)
-                    || !string.Equals(basis.CurrentStage, stage, StringComparison.Ordinal)
-                    ? mappedTab
-                    : basis.ActiveTab;
-
-                return basis with
-                {
-                    ActiveFlowId = summary.FlowId,
-                    ActiveRunId = string.IsNullOrWhiteSpace(summary.RunId) ? basis.ActiveRunId : summary.RunId,
-                    RepositoryId = string.IsNullOrWhiteSpace(summary.RepoSlug) ? basis.RepositoryId : summary.RepoSlug,
-                    Goal = string.IsNullOrWhiteSpace(summary.Goal) ? basis.Goal : summary.Goal,
-                    InstanceCount = clampedCount,
-                    BackendMode = EngineerWorkspaceState.NormalizeBackendMode(summary.Backend, basis.BackendMode),
-                    CurrentStage = stage,
-                    ActiveTab = activeTab,
-                    SelectedInstanceIndex = selectedIdx,
-                    SelectedFilePath = selectedFile,
-                    SelectedLanguage = selectedLang,
-                    HasPlan = summary.Plan is not null || basis.HasPlan,
-                    PlanApproved = summary.CompletedStages.Contains("prepare-worktree", StringComparer.Ordinal) || basis.PlanApproved,
-                    VerificationPassed = summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) || basis.VerificationPassed,
-                    PrPublished = summary.Status == FlowStatus.Completed || !string.IsNullOrWhiteSpace(summary.PushedRef),
-                    WorktreesCleaned = summary.CompletedStages.Contains("clean", StringComparer.Ordinal),
-                    Tasks = summary.Plan?.Tasks is { Length: > 0 } planTasks ? planTasks : basis.Tasks,
-                    BrainstormTurns = summary.Plan?.Transcript is { Length: > 0 } turns ? turns : basis.BrainstormTurns,
-                    Candidates = candidates,
-                    DiagnosticsAndTraces = summary.DiagnosticsAndTraces is { Length: > 0 } traces ? traces : basis.DiagnosticsAndTraces,
-                    PullRequestUrl = summary.PullRequestUrl ?? basis.PullRequestUrl,
-                    StatusBanner = $"Live flow {summary.FlowId} · {summary.Status} ({stage})",
-                };
+                return ApplyLiveSummary(basis, summary, preserveActiveTab: false, preferredFilePath: null);
             }
         }
 #pragma warning disable CA1031
@@ -606,6 +586,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
             {
                 ActiveFlowId = flowId,
                 CurrentStage = stage,
+                ConfirmationPlanId = view.ConfirmationPlanId ?? basis.ConfirmationPlanId,
                 PlanApproved = view.Done.Contains("prepare-worktree", StringComparer.Ordinal) || basis.PlanApproved,
                 VerificationPassed = view.Done.Contains("live-verify", StringComparer.Ordinal) || basis.VerificationPassed,
                 PrPublished = view.Status == FlowStatus.Completed || basis.PrPublished,
@@ -620,6 +601,135 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
             _logger.LogDebug(ex, "Could not sync flow {FlowId} into EngineerApp.", flowId);
             return basis;
         }
+    }
+
+    private static EngineerWorkspaceState ApplyLiveSummary(
+        EngineerWorkspaceState basis,
+        EngineerRunSummary summary,
+        bool preserveActiveTab,
+        string? preferredFilePath)
+    {
+        var stage = EngineerWorkspaceState.NormalizeStage(summary.CurrentStage);
+        var plannedTargets = summary.Plan?.Tasks
+            .SelectMany(static t => t.TargetFiles ?? [])
+            .Where(static f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
+
+        var candidates = summary.Candidates is { Length: > 0 } liveCandidates
+            ? liveCandidates.Select(c =>
+            {
+                var files = c.ChangedFiles is { Length: > 0 } cf
+                    ? cf
+                    : plannedTargets.Length > 0
+                        ? plannedTargets
+                        : [basis.SelectedFilePath];
+                return new EngineerCandidateSummary(
+                    InstanceIndex: c.InstanceIndex,
+                    LeaseId: c.LeaseId,
+                    Backend: c.Backend,
+                    BranchName: c.BranchName,
+                    Status: c.Status,
+                    ChangedFiles: files,
+                    CommitSha: c.Score.CommitSha,
+                    Strategy: c.Strategy,
+                    StrategyLabel: c.StrategyLabel,
+                    TotalScore: c.Score.TotalScore,
+                    ChangedLines: c.Score.ChangedLines,
+                    BuildPassed: c.Score.BuildPassed,
+                    TestsPassed: c.Score.TestsPassed,
+                    LiveVerifyPassed: c.Score.LiveVerifyPassed,
+                    ZeroTelemetryErrors: c.Score.ZeroTelemetryErrors,
+                    UnifiedDiff: c.Score.UnifiedDiff,
+                    Summary: c.Score.Summary,
+                    Rank: c.Rank);
+            }).ToArray()
+            : summary.Instances.Length > 0
+                ? summary.Instances.Select(inst =>
+                {
+                    var files = inst.ChangedFiles is { Length: > 0 } cf
+                        ? cf
+                        : plannedTargets.Length > 0
+                            ? plannedTargets
+                            : [basis.SelectedFilePath];
+                    return new EngineerCandidateSummary(
+                        InstanceIndex: inst.InstanceIndex,
+                        LeaseId: inst.LeaseId,
+                        Backend: inst.Backend,
+                        BranchName: inst.BranchName,
+                        Status: inst.Status,
+                        ChangedFiles: files,
+                        CommitSha: inst.CommitSha,
+                        Strategy: inst.Strategy,
+                        StrategyLabel: EngineerCandidateStrategies.LabelFor(inst.Strategy, inst.InstanceIndex),
+                        TotalScore: inst.TotalScore,
+                        ChangedLines: inst.ChangedLines,
+                        BuildPassed: inst.BuildSucceeded,
+                        TestsPassed: inst.BuildSucceeded,
+                        LiveVerifyPassed: inst.LiveSucceeded,
+                        ZeroTelemetryErrors: inst.LiveSucceeded,
+                        UnifiedDiff: inst.UnifiedDiff,
+                        Summary: inst.FailureDetail ?? string.Empty,
+                        Rank: inst.Rank);
+                }).ToArray()
+                : basis.Candidates;
+
+        var clampedCount = Math.Clamp(summary.ParallelInstances, 1, 8);
+        var selectedIdx = Math.Clamp(summary.SelectedCandidateIndex, 0, Math.Max(0, candidates.Length - 1));
+        var activeCandidate = candidates.ElementAtOrDefault(selectedIdx);
+        var selectedFile = !string.IsNullOrWhiteSpace(preferredFilePath)
+            ? preferredFilePath!.Trim()
+            : activeCandidate?.ChangedFiles.Contains(basis.SelectedFilePath, StringComparer.Ordinal) == true
+                ? basis.SelectedFilePath
+                : activeCandidate?.ChangedFiles.FirstOrDefault() ?? basis.SelectedFilePath;
+        var selectedLang = selectedFile.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
+        var mappedTab = stage switch
+        {
+            "brainstorm-and-plan" => "plan",
+            "prepare-worktree" or "implement-tasks" => "code",
+            "build-and-test" or "live-verify" => "verify",
+            _ => "pr",
+        };
+        var activeTab = preserveActiveTab
+            ? basis.ActiveTab
+            : (!string.Equals(basis.ActiveFlowId, summary.FlowId, StringComparison.Ordinal)
+                || !string.Equals(basis.CurrentStage, stage, StringComparison.Ordinal)
+                ? mappedTab
+                : basis.ActiveTab);
+
+        var shortSha = activeCandidate?.CommitSha is { Length: >= 8 } sha ? sha[..8] : "pending";
+        var banner = preserveActiveTab && activeCandidate is not null
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"Promoted candidate w{selectedIdx + 1} ({activeCandidate.StrategyLabel}) · Score {activeCandidate.TotalScore} · Commit {shortSha} · Plan {summary.ConfirmationPlanId ?? "pending"}")
+            : $"Live flow {summary.FlowId} · {summary.Status} ({stage}) · Candidate w{selectedIdx + 1}";
+
+        return basis with
+        {
+            ActiveFlowId = summary.FlowId,
+            ActiveRunId = string.IsNullOrWhiteSpace(summary.RunId) ? basis.ActiveRunId : summary.RunId,
+            RepositoryId = string.IsNullOrWhiteSpace(summary.RepoSlug) ? basis.RepositoryId : summary.RepoSlug,
+            Goal = string.IsNullOrWhiteSpace(summary.Goal) ? basis.Goal : summary.Goal,
+            InstanceCount = clampedCount,
+            BackendMode = EngineerWorkspaceState.NormalizeBackendMode(summary.Backend, basis.BackendMode),
+            CurrentStage = stage,
+            ActiveTab = activeTab,
+            SelectedInstanceIndex = selectedIdx,
+            SelectedFilePath = selectedFile,
+            SelectedLanguage = selectedLang,
+            HasPlan = summary.Plan is not null || basis.HasPlan,
+            PlanApproved = summary.CompletedStages.Contains("prepare-worktree", StringComparer.Ordinal) || basis.PlanApproved,
+            VerificationPassed = summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) || basis.VerificationPassed,
+            PrPublished = summary.Status == FlowStatus.Completed || !string.IsNullOrWhiteSpace(summary.PushedRef),
+            WorktreesCleaned = summary.CompletedStages.Contains("clean", StringComparer.Ordinal),
+            Tasks = summary.Plan?.Tasks is { Length: > 0 } planTasks ? planTasks : basis.Tasks,
+            BrainstormTurns = summary.Plan?.Transcript is { Length: > 0 } turns ? turns : basis.BrainstormTurns,
+            Candidates = candidates,
+            DiagnosticsAndTraces = summary.DiagnosticsAndTraces is { Length: > 0 } traces ? traces : basis.DiagnosticsAndTraces,
+            PullRequestUrl = summary.PullRequestUrl ?? basis.PullRequestUrl,
+            ConfirmationPlanId = summary.ConfirmationPlanId ?? basis.ConfirmationPlanId,
+            StatusBanner = banner,
+        };
     }
 
     private async Task SyncUiNeuronsAsync(EngineerWorkspaceState state)
@@ -665,7 +775,15 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
                 {
                     var folderId = string.Create(CultureInfo.InvariantCulture, $"wt-{c.InstanceIndex}");
                     expanded.Add(folderId);
-                    nodes.Add(new TreeNode(folderId, $"#{c.InstanceIndex} · {c.Backend} ({c.Status})", IsFolder: true));
+                    var scoreTag = c.TotalScore > 0
+                        ? string.Create(
+                            CultureInfo.InvariantCulture,
+                            $" · {c.TotalScore} pts{(c.InstanceIndex == state.SelectedInstanceIndex ? " [SELECTED]" : string.Empty)}")
+                        : c.InstanceIndex == state.SelectedInstanceIndex ? " [SELECTED]" : string.Empty;
+                    nodes.Add(new TreeNode(
+                        folderId,
+                        string.Create(CultureInfo.InvariantCulture, $"w{c.InstanceIndex + 1} #{c.InstanceIndex} · {c.Backend} ({c.Status}){scoreTag}"),
+                        IsFolder: true));
                     foreach (var file in c.ChangedFiles)
                     {
                         var fileId = string.Create(CultureInfo.InvariantCulture, $"file-{c.InstanceIndex}:{file}");
@@ -708,21 +826,83 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
 
             if (TryGetOptional<ITable>(TasksTableKey) is { } table)
             {
-                if (state.ActiveTab == "verify")
+                if (state.ActiveTab == "pr")
                 {
+                    var scoreboardRows = state.Candidates
+                        .Select(c =>
+                        {
+                            var shortSha = c.CommitSha is { Length: >= 8 } sha ? sha[..8] : "pending";
+                            var isSelected = c.InstanceIndex == state.SelectedInstanceIndex;
+                            var failed = c.Status is "failed" or "refused" or "error";
+                            var promotion = failed
+                                ? "FAILED"
+                                : isSelected
+                                    ? string.Create(CultureInfo.InvariantCulture, $"{c.TotalScore} · SELECTED (Rank #{c.Rank})")
+                                    : string.Create(CultureInfo.InvariantCulture, $"{c.TotalScore} · STANDBY (Rank #{c.Rank})");
+                            var gateDetail = c.TotalScore > 0 || failed
+                                ? string.Create(
+                                    CultureInfo.InvariantCulture,
+                                    $"Build={(c.BuildPassed ? "PASS" : "FAIL")} · Tests={(c.TestsPassed ? "PASS" : "FAIL")} · Live={(c.LiveVerifyPassed ? "PASS" : "FAIL")} · Δ{c.ChangedLines} lines")
+                                : string.Create(CultureInfo.InvariantCulture, $"{c.Status} · {c.ChangedFiles.Length} file(s)");
+                            return (IReadOnlyList<string>)
+                            [
+                                string.Create(CultureInfo.InvariantCulture, $"w{c.InstanceIndex + 1} (#{c.InstanceIndex})"),
+                                c.StrategyLabel,
+                                $"{c.BranchName} @ {shortSha}",
+                                gateDetail,
+                                promotion,
+                            ];
+                        })
+                        .ToArray();
+
                     await table.Render(
-                        "Verification & Telemetry Spans",
+                        "Parallel Candidate Tournament Scoreboard",
                         [
-                            new TableColumn("step", "Gate / Span"),
+                            new TableColumn("candidate", "Candidate"),
+                            new TableColumn("strategy", "Strategy"),
+                            new TableColumn("branch", "Branch & Commit"),
+                            new TableColumn("gates", "Gates & Diff"),
+                            new TableColumn("score", "Score / Promotion"),
+                        ],
+                        scoreboardRows);
+                }
+                else if (state.ActiveTab == "verify")
+                {
+                    var candidateRows = state.Candidates.Select(c =>
+                    {
+                        var shortSha = c.CommitSha is { Length: >= 8 } sha ? sha[..8] : "pending";
+                        var isSelected = c.InstanceIndex == state.SelectedInstanceIndex;
+                        var failed = c.Status is "failed" or "refused" or "error";
+                        var rowStatus = failed
+                            ? "FAIL"
+                            : state.VerificationPassed
+                                ? (isSelected ? "PASS · SELECTED" : "PASS")
+                                : (isSelected ? "READY · SELECTED" : "READY");
+                        return (IReadOnlyList<string>)
+                        [
+                            string.Create(CultureInfo.InvariantCulture, $"candidate-w{c.InstanceIndex + 1}"),
+                            string.Create(
+                                CultureInfo.InvariantCulture,
+                                $"w{c.InstanceIndex + 1} ({c.StrategyLabel}) · Score={c.TotalScore} · Δ={c.ChangedLines} lines · {c.BranchName}@{shortSha}"),
+                            rowStatus,
+                        ];
+                    });
+
+                    var traceRows = state.DiagnosticsAndTraces.Select((line, idx) => (IReadOnlyList<string>)
+                    [
+                        string.Create(CultureInfo.InvariantCulture, $"gate-{idx + 1}"),
+                        line,
+                        state.VerificationPassed ? "PASS" : "READY",
+                    ]);
+
+                    await table.Render(
+                        "Candidate Scoreboard & Verification Spans",
+                        [
+                            new TableColumn("step", "Candidate / Span"),
                             new TableColumn("detail", "Observed Outcome"),
                             new TableColumn("status", "Status"),
                         ],
-                        state.DiagnosticsAndTraces.Select((line, idx) => (IReadOnlyList<string>)
-                        [
-                            string.Create(CultureInfo.InvariantCulture, $"gate-{idx + 1}"),
-                            line,
-                            state.VerificationPassed ? "PASS" : "READY",
-                        ]).ToArray());
+                        [.. candidateRows, .. traceRows]);
                 }
                 else
                 {
@@ -814,10 +994,28 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
 
     private static string BuildCodePreview(EngineerWorkspaceState state)
     {
+        var active = state.Candidates.ElementAtOrDefault(state.SelectedInstanceIndex)
+            ?? state.Candidates.FirstOrDefault();
+        var candidateLabel = string.Create(CultureInfo.InvariantCulture, $"w{state.SelectedInstanceIndex + 1}");
+        var commitSha = active?.CommitSha ?? "pending";
+        var strategy = active?.StrategyLabel ?? "Minimal Surgical Patch";
+        var branch = active?.BranchName ?? "ino/feature";
+        var score = active?.TotalScore ?? 0;
+        var changedLines = active?.ChangedLines ?? 0;
+
+        if (!string.IsNullOrWhiteSpace(active?.UnifiedDiff))
+        {
+            return $$"""
+                // Candidate {{candidateLabel}} (#{{state.SelectedInstanceIndex}} · {{strategy}})
+                // Branch: {{branch}} · Commit: {{commitSha}} · Score: {{score}} (Δ{{changedLines}} lines) · File: {{state.SelectedFilePath}}
+                {{active.UnifiedDiff}}
+                """;
+        }
+
         if (state.SelectedLanguage == "dart")
         {
-            return """
-                // Aligned Flutter semantics widget inside isolated worktree
+            return $$"""
+                // Candidate {{candidateLabel}} ({{strategy}}) · {{branch}} · {{state.SelectedFilePath}}
                 class StepperStageBadge extends StatelessWidget {
                   const StepperStageBadge({super.key, required this.stage, required this.status});
 
@@ -837,14 +1035,14 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
         }
 
         return $$"""
-            // Worktree #{{state.SelectedInstanceIndex}} ({{state.BackendMode}}) · {{state.SelectedFilePath}}
+            // Candidate {{candidateLabel}} (#{{state.SelectedInstanceIndex}} · {{strategy}}) · {{branch}} · {{state.SelectedFilePath}}
             namespace IntoChat.OS.Modules.Apps.Flows;
 
             [DigitalBrain.Neurons.Neuron(IFlows.EngineerFlow)]
             internal sealed class EngineerFlow : Flow<EngineerRun>, IFlowStarter
             {
                 // Goal: {{state.Goal}}
-                // Parallel worktrees: {{state.InstanceCount}} · Verified: {{state.VerificationPassed}}
+                // Parallel worktrees: {{state.InstanceCount}} · Verified: {{state.VerificationPassed}} · Commit: {{commitSha}}
             }
             """;
     }

@@ -19,7 +19,7 @@ internal static class EngineerViewRenderer
         var stageStatus = state.PrPublished
             ? StatusPill(StatusKind.Done, "PR Published")
             : state.VerificationPassed
-                ? StatusPill(StatusKind.NeedsYou, "Awaiting PR Approval")
+                ? StatusPill(StatusKind.NeedsYou, string.Create(CultureInfo.InvariantCulture, $"Awaiting PR Approval (w{state.SelectedInstanceIndex + 1})"))
                 : state.PlanApproved
                     ? StatusPill(StatusKind.Working, $"{state.InstanceCount} Worktree(s) Active")
                     : StatusPill(StatusKind.Idle, "Planning");
@@ -52,6 +52,21 @@ internal static class EngineerViewRenderer
             UiNeuron("ui.stepper", EngineerApp.StepperKey)
         ];
 
+        var candidateButtons = state.Candidates
+            .Select(c =>
+            {
+                var label = string.Create(CultureInfo.InvariantCulture, $"Select Candidate w{c.InstanceIndex + 1}");
+                var btn = c.InstanceIndex == state.SelectedInstanceIndex
+                    ? PrimaryButton(label)
+                    : GhostButton(label);
+                return (Node)btn
+                    .Key(EngineerApp.CandidateSelectKey(c.InstanceIndex))
+                    .Small()
+                    .Guard(state.ValidCandidateSelection(c.InstanceIndex))
+                    .OnClickAsync<EngineerApp>(app => app.SelectCandidateCommand(c.InstanceIndex));
+            })
+            .ToArray();
+
         var sidebar = VStack(Space.Md)[
             Surface(SurfaceKind.Subtle, "Parallel Worktrees", $"{state.InstanceCount} isolated lease(s) · {state.BackendMode}")[
                 VStack(Space.Sm)[
@@ -79,6 +94,7 @@ internal static class EngineerViewRenderer
                             .Small()
                             .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(state.InstanceCount, "ContainerVolume"))
                     ],
+                    candidateButtons.Length > 0 ? (Node)VStack(Space.Xs)[candidateButtons] : null,
                     UiNeuron("ui.tree-view", EngineerApp.WorktreeTreeKey)
                 ]
             ]
@@ -126,10 +142,13 @@ internal static class EngineerViewRenderer
     {
         var activeCandidate = state.Candidates.ElementAtOrDefault(state.SelectedInstanceIndex)
             ?? state.Candidates.FirstOrDefault();
+        var candidateTag = string.Create(
+            CultureInfo.InvariantCulture,
+            $"Candidate w{state.SelectedInstanceIndex + 1} (#{state.SelectedInstanceIndex} · {activeCandidate?.StrategyLabel ?? "Surgical Patch"})");
 
         return VStack(Space.Md)[
             HStack(Space.Sm)[
-                StatusPill(StatusKind.Working, $"Instance #{state.SelectedInstanceIndex} ({activeCandidate?.LeaseId ?? "wt-0"})"),
+                StatusPill(StatusKind.Working, candidateTag),
                 StatusPill(StatusKind.Idle, $"Branch: {activeCandidate?.BranchName ?? "ino/feature"}"),
                 StatusPill(StatusKind.Done, $"File: {state.SelectedFilePath} ({state.SelectedLanguage})")
             ],
@@ -149,7 +168,7 @@ internal static class EngineerViewRenderer
             StatCard("kpi-eng-live", "MCP & Playwright", state.VerificationPassed ? "200 OK" : "Pending", "0 4xx · 0 5xx", state.VerificationPassed ? BadgeTone.Done : BadgeTone.Accent, "globe"),
             StatCard("kpi-eng-traces", "OTel Spans", state.VerificationPassed ? "0 Errors" : "Ready", string.Create(CultureInfo.InvariantCulture, $"{state.DiagnosticsAndTraces.Length} trace entries"), BadgeTone.Accent, "activity")
         ],
-        Card("Verification Matrix, Compiler Diagnostics & Live Traces", "dotnet build -c Release · flutter analyze · dotnet test · ILiveVerifier")[
+        Card("Candidate Tournament Scoreboard, Compiler Diagnostics & Live Traces", "dotnet build -c Release · flutter analyze · dotnet test · ILiveVerifier")[
             UiNeuron("ui.table", EngineerApp.TasksTableKey)
         ]
     ];
@@ -158,6 +177,8 @@ internal static class EngineerViewRenderer
     {
         var winner = state.Candidates.ElementAtOrDefault(state.SelectedInstanceIndex)
             ?? state.Candidates.FirstOrDefault();
+        var shortSha = winner?.CommitSha is { Length: >= 8 } sha ? sha[..8] : "pending";
+        var planNote = string.IsNullOrWhiteSpace(state.ConfirmationPlanId) ? string.Empty : $" · Plan: {state.ConfirmationPlanId}";
 
         return VStack(Space.Md)[
             Surface(
@@ -165,9 +186,11 @@ internal static class EngineerViewRenderer
                 state.PrPublished
                     ? $"Draft PR Published · {state.PullRequestUrl}"
                     : "SHA-Bound Human Approval Gate (IConfirmationRequests)",
-                $"Winning candidate: #{state.SelectedInstanceIndex} ({winner?.BranchName ?? "ino/feature"}) · Commit: {winner?.CommitSha?[..Math.Min(8, winner.CommitSha.Length)] ?? "pending"}")[
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Winning candidate: w{state.SelectedInstanceIndex + 1} (#{state.SelectedInstanceIndex} · {winner?.StrategyLabel ?? "Surgical Patch"} · Score {winner?.TotalScore ?? 0}) · Branch: {winner?.BranchName ?? "ino/feature"} · Commit: {shortSha}{planNote}"))[
                 VStack(Space.Sm)[
-                    MutedText("Only a human Person can approve pushing the verified commit SHA and opening the GitHub Draft Pull Request."),
+                    MutedText("Only a human Person can approve pushing the verified commit SHA and opening the GitHub Draft Pull Request. Select any passing candidate w1..wN to switch the promoted diff & SHA-bound confirmation gate."),
                     HStack(Space.Sm)[
                         PrimaryButton("Approve & Open Draft PR", "git-pull-request")
                             .Key("engineer:pr:approve")
@@ -182,7 +205,14 @@ internal static class EngineerViewRenderer
                     ]
                 ]
             ],
-            Card("Host-Rendered Unified Diff Preview", $"Repository: {state.RepositoryId} · Changed files: {winner?.ChangedFiles.Length ?? 0}")[
+            Card(
+                "Parallel Candidate Tournament Scoreboard",
+                string.Create(CultureInfo.InvariantCulture, $"{state.Candidates.Length} candidate worktree(s) · Active winner: w{state.SelectedInstanceIndex + 1} ({shortSha})"))[
+                UiNeuron("ui.table", EngineerApp.TasksTableKey)
+            ],
+            Card(
+                string.Create(CultureInfo.InvariantCulture, $"Host-Rendered Unified Diff Preview · Candidate w{state.SelectedInstanceIndex + 1} ({shortSha})"),
+                $"Repository: {state.RepositoryId} · Strategy: {winner?.StrategyLabel ?? "Surgical Patch"} · Changed files: {winner?.ChangedFiles.Length ?? 0}")[
                 UiNeuron("ui.code-editor", EngineerApp.CodeEditorKey)
             ]
         ];
