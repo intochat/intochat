@@ -8,6 +8,13 @@ using System.Text.Json;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
+internal enum GitHubWriteScope
+{
+    IssuesWrite = 0,
+    PullRequestsWrite = 1,
+    ContentsWrite = 2,
+}
+
 internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, IDisposable
 {
     private readonly HttpClient _http;
@@ -25,7 +32,7 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
         _registration = registration;
         _capacity = capacity;
-        _http = new HttpClient(handler ?? CreateDefaultHandler())
+        _http = new HttpClient(handler ?? CreateDefaultHandler(), disposeHandler: handler is null)
         { Timeout = TimeSpan.FromSeconds(20), MaxResponseContentBufferSize = 65536 };
         _time = time ?? TimeProvider.System;
     }
@@ -60,52 +67,137 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
             request.Content = JsonContent.Create(new
             {
                 repository_ids = new[] { repository.RepositoryId },
-                permissions = new { contents = "read", pull_requests = "read", checks = "read", statuses = "read", metadata = "read", administration = "read" },
+                permissions = new
+                {
+                    contents = "read",
+                    pull_requests = "read",
+                    issues = "read",
+                    checks = "read",
+                    statuses = "read",
+                    metadata = "read",
+                    administration = "read",
+                },
             });
             // This authentication POST is never retried; a later independent read can request a new token.
-            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            // A rate limit answers 403 or 429; it is transient and must not read as a denied App.
-            if (response.StatusCode == HttpStatusCode.TooManyRequests
-                || response.StatusCode == HttpStatusCode.Forbidden && (response.Headers.RetryAfter is not null
-                    || response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.Contains("0")))
-            {
-                throw new GitHubUnavailableException("GitHub App authentication is rate limited. Retry later.");
-            }
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
-            {
-                throw new GitHubAccessDeniedException("GitHub App authentication was refused. Verify the installation, repository access and App permissions.");
-            }
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new GitHubUnavailableException("GitHub App authentication is temporarily unavailable.");
-            }
-            using var document = JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false));
-            var json = document.RootElement;
-            var token = json.GetProperty("token").GetString();
-            if (string.IsNullOrWhiteSpace(token) || token.Length > 4096 || token.Any(char.IsControl)
-                || !json.GetProperty("expires_at").TryGetDateTimeOffset(out var expiry) || expiry <= _time.GetUtcNow().AddMinutes(2))
-            {
-                throw new GitHubAccessDeniedException("GitHub returned invalid installation credentials.");
-            }
-            if (json.TryGetProperty("repositories", out var repositories)
-                && (repositories.ValueKind != JsonValueKind.Array || repositories.GetArrayLength() != 1
-                    || repositories[0].GetProperty("id").GetInt64() != repository.RepositoryId))
-            {
-                throw new GitHubAccessDeniedException("GitHub did not scope the installation token to the configured repository.");
-            }
-            if (!json.TryGetProperty("permissions", out var permissions) || permissions.ValueKind != JsonValueKind.Object
-                || permissions.EnumerateObject().Any(static permission => permission.Value.GetString() != "read"))
+            var (token, expiry, permissions) = await SendInstallationTokenRequestAsync(request, repository, cancellationToken).ConfigureAwait(false);
+            if (permissions.EnumerateObject().Any(static permission => permission.Value.GetString() != "read"))
             {
                 throw new GitHubAccessDeniedException("GitHub did not grant a read-only installation token.");
             }
             slot.Token = token; slot.Expiry = expiry; slot.Repository = repository;
             return token;
         }
-        catch (Exception error) when (error is not GitHubAccessDeniedException && (error is HttpRequestException or JsonException or CryptographicException or InvalidOperationException or KeyNotFoundException or ArgumentException))
+        catch (Exception error) when (error is not GitHubAccessDeniedException and not GitHubUnavailableException
+            && (error is HttpRequestException or JsonException or CryptographicException or InvalidOperationException or KeyNotFoundException or ArgumentException))
         {
             throw new GitHubUnavailableException("GitHub App authentication could not be completed. Check the configured App key and connection.");
         }
         finally { slot.Gate.Release(); }
+    }
+
+    // Narrow single-repository write token minted on-demand for one write operation and never stored in the read-only cache.
+    internal async Task<string> GetWriteTokenAsync(GitHubRepository repository, GitHubWriteScope scope, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repository.Key);
+        var expectedPermission = ScopePermissionName(scope);
+        object requestedPermissions = scope switch
+        {
+            GitHubWriteScope.IssuesWrite => new { issues = "write", metadata = "read" },
+            GitHubWriteScope.PullRequestsWrite => new { pull_requests = "write", metadata = "read" },
+            GitHubWriteScope.ContentsWrite => new { contents = "write", metadata = "read" },
+            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown GitHub write scope."),
+        };
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(repository.ApiHost,
+                $"app/installations/{repository.InstallationId}/access_tokens"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await CreateAppJwtAsync(repository, cancellationToken).ConfigureAwait(false));
+            AddHeaders(request);
+            request.Content = JsonContent.Create(new
+            {
+                repository_ids = new[] { repository.RepositoryId },
+                permissions = requestedPermissions,
+            });
+
+            var (token, _, permissions) = await SendInstallationTokenRequestAsync(request, repository, cancellationToken).ConfigureAwait(false);
+            var grantedWrite = false;
+            foreach (var permission in permissions.EnumerateObject())
+            {
+                var level = permission.Value.GetString();
+                if (string.Equals(permission.Name, expectedPermission, StringComparison.Ordinal))
+                {
+                    grantedWrite = string.Equals(level, "write", StringComparison.Ordinal);
+                }
+                else if (!string.Equals(level, "read", StringComparison.Ordinal))
+                {
+                    throw new GitHubAccessDeniedException($"GitHub granted unexpected '{permission.Name}: {level}' on a narrow '{expectedPermission}' installation token.");
+                }
+            }
+
+            if (!grantedWrite)
+            {
+                throw new GitHubAccessDeniedException($"GitHub did not grant '{expectedPermission}: write' on the installation token.");
+            }
+
+            return token;
+        }
+        catch (Exception error) when (error is not GitHubAccessDeniedException and not GitHubUnavailableException
+            && (error is HttpRequestException or JsonException or CryptographicException or InvalidOperationException or KeyNotFoundException or ArgumentException))
+        {
+            throw new GitHubUnavailableException("GitHub App write authentication could not be completed. Check the configured App key and permissions.");
+        }
+    }
+
+    internal static string ScopePermissionName(GitHubWriteScope scope) => scope switch
+    {
+        GitHubWriteScope.IssuesWrite => "issues",
+        GitHubWriteScope.PullRequestsWrite => "pull_requests",
+        GitHubWriteScope.ContentsWrite => "contents",
+        _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown GitHub write scope."),
+    };
+
+    private async Task<(string Token, DateTimeOffset Expiry, JsonElement Permissions)> SendInstallationTokenRequestAsync(
+        HttpRequestMessage request,
+        GitHubRepository repository,
+        CancellationToken cancellationToken)
+    {
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        // A rate limit answers 403 or 429; it is transient and must not read as a denied App.
+        if (response.StatusCode == HttpStatusCode.TooManyRequests
+            || response.StatusCode == HttpStatusCode.Forbidden && (response.Headers.RetryAfter is not null
+                || response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.Contains("0")))
+        {
+            throw new GitHubUnavailableException("GitHub App authentication is rate limited. Retry later.");
+        }
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+        {
+            throw new GitHubAccessDeniedException("GitHub App authentication was refused. Verify the installation, repository access and App permissions.");
+        }
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new GitHubUnavailableException("GitHub App authentication is temporarily unavailable.");
+        }
+        using var document = JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false));
+        var json = document.RootElement;
+        var token = json.GetProperty("token").GetString();
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 4096 || token.Any(char.IsControl)
+            || !json.GetProperty("expires_at").TryGetDateTimeOffset(out var expiry) || expiry <= _time.GetUtcNow().AddMinutes(2))
+        {
+            throw new GitHubAccessDeniedException("GitHub returned invalid installation credentials.");
+        }
+        if (json.TryGetProperty("repositories", out var repositories)
+            && (repositories.ValueKind != JsonValueKind.Array || repositories.GetArrayLength() != 1
+                || repositories[0].GetProperty("id").GetInt64() != repository.RepositoryId))
+        {
+            throw new GitHubAccessDeniedException("GitHub did not scope the installation token to the configured repository.");
+        }
+        if (!json.TryGetProperty("permissions", out var permissions) || permissions.ValueKind != JsonValueKind.Object)
+        {
+            throw new GitHubAccessDeniedException("GitHub did not grant valid installation token permissions.");
+        }
+
+        return (token, expiry, permissions.Clone());
     }
 
     // At capacity the cache evicts, it never refuses: expired or never-minted slots first, then the
@@ -158,7 +250,10 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
     public async Task VerifyAsync(GitHubRepository repository, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(repository.ApiHost, repository.RepositoryPath));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetTokenAsync(repository, false, ct).ConfigureAwait(false));
+        var bearer = repository.IsPersonalAccessToken
+            ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
+            : await GetTokenAsync(repository, false, ct).ConfigureAwait(false);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
         AddHeaders(request);
         try
         {

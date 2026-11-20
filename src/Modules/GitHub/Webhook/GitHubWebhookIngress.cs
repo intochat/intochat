@@ -41,7 +41,7 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             {
                 return GitHubWebhookAcceptance.Unauthorized;
             }
-            if (installation is null)
+            if (installation is null && repository is not > 0)
             {
                 // An App-level ping proves the signed delivery path; no connection is addressed.
                 if (eventName != "ping") { return GitHubWebhookAcceptance.Ignored; }
@@ -55,13 +55,26 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             }
             var hash = Convert.ToHexStringLower(SHA256.HashData(body.Span));
             var results = new List<GitHubWebhookAcceptance>();
-            // Every connection of every brain on this installation; one target's failure never stops the rest.
+            // Every connection of every brain on this installation (or repository index in PAT mode); one target's failure never stops the rest.
             // A signed delivery has no person behind it: the GitHub module reads its index and delivers to each brain as itself.
             var edge = plain.GetRequiredService<EdgeAuthority>();
+            HashSet<string> installationKeys;
             string[] keys;
             using (edge.Enter(edge.Module(GitHubModule.ManifestName, new BrainId("system"))))
             {
-                keys = await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.Key(installation.Value)).Read();
+                var byInstallation = installation is { } instId
+                    ? await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.Key(instId)).Read()
+                    : [];
+                var byRepository = repository is > 0
+                    ? await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.RepositoryKey(repository.Value)).Read()
+                    : [];
+                installationKeys = [.. byInstallation];
+                keys = [.. byInstallation.Concat(byRepository).Distinct(StringComparer.Ordinal)];
+            }
+            if (installation is null && keys.Length == 0 && eventName == "ping")
+            {
+                return app is null || app == await registration.ReadAppIdAsync(cancellationToken)
+                    ? GitHubWebhookAcceptance.Accepted : GitHubWebhookAcceptance.Unauthorized;
             }
             foreach (var key in keys)
             {
@@ -72,6 +85,10 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                     var target = SiloNeurons.Get<IGitHubInbound>(plain, key);
                     if (await target.Coordinates().ConfigureAwait(false) is not { } coordinates
                         || repository is not null && coordinates.RepositoryId != repository)
+                    {
+                        continue;
+                    }
+                    if (!installationKeys.Contains(key) && !coordinates.IsPersonalAccessToken)
                     {
                         continue;
                     }

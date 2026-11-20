@@ -4,11 +4,14 @@ using System.Text.Json;
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // The user's token proves the intersection of user access and App installation access, once, while
-// the grant is accepted; ongoing observation uses repository-scoped installation tokens.
+// the grant is accepted; ongoing observation uses repository-scoped installation tokens (or sealed fine-grained PAT).
 internal interface IGitHubUserAccess
 {
     // The returned coordinates carry an empty Key; the connection neuron fills in its own.
     Task<GitHubRepository> ResolveAsync(string userToken, long appId, string repositoryUrl, CancellationToken ct);
+
+    Task<GitHubRepository> ResolvePersonalAccessTokenAsync(string personalAccessToken, string repositoryTarget, CancellationToken ct)
+        => throw new NotSupportedException("Personal access token resolution is not supported by this access source.");
 }
 
 internal interface IGitHubInstallationVerifier
@@ -66,6 +69,47 @@ internal sealed class GitHubUserAccess(IHttpClientFactory clients) : IGitHubUser
         throw new GitHubUnavailableException("The user and GitHub App must both have access to the requested repository. Install or configure the App, then connect again.");
     }
 
+    public async Task<GitHubRepository> ResolvePersonalAccessTokenAsync(string personalAccessToken, string repositoryTarget, CancellationToken ct)
+    {
+        var coordinates = ParseTarget(repositoryTarget);
+        using var client = clients.CreateClient(HttpClientName);
+        using var document = await Read(client, personalAccessToken, $"repos/{Uri.EscapeDataString(coordinates.Owner)}/{Uri.EscapeDataString(coordinates.Name)}", ct).ConfigureAwait(false);
+        var repo = document.RootElement;
+        var repositoryId = repo.GetProperty("id").GetInt64();
+        var owner = repo.GetProperty("owner").GetProperty("login").GetString();
+        var name = repo.GetProperty("name").GetString();
+        if (repositoryId <= 0
+            || string.IsNullOrWhiteSpace(owner)
+            || string.IsNullOrWhiteSpace(name)
+            || !string.Equals(owner, coordinates.Owner, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(name, coordinates.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new GitHubAccessDeniedException("GitHub repository coordinates did not match the requested Personal Access Token target.");
+        }
+
+        return new GitHubRepository("", 0, 0, repositoryId, owner, name, "pat");
+    }
+
+    internal static (string Owner, string Name) ParseTarget(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        var trimmed = value.Trim();
+        if (!trimmed.Contains("://", StringComparison.Ordinal))
+        {
+            var parts = trimmed.Trim('/').Split('/');
+            if (parts.Length == 2 && parts.All(IsValidCoordinateSegment))
+            {
+                var repoName = parts[1].EndsWith(".git", StringComparison.Ordinal) ? parts[1][..^4] : parts[1];
+                if (repoName.Length > 0)
+                {
+                    return (parts[0], repoName);
+                }
+            }
+        }
+
+        return ParseUrl(trimmed);
+    }
+
     internal static (string Owner, string Name) ParseUrl(string value)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "github.com"
@@ -75,14 +119,16 @@ internal sealed class GitHubUserAccess(IHttpClientFactory clients) : IGitHubUser
         }
 
         var parts = uri.AbsolutePath.Trim('/').Split('/');
-        if (parts.Length != 2 || parts.Any(part => part.Length == 0
-            || part.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_' and not '.')))
+        if (parts.Length != 2 || !parts.All(IsValidCoordinateSegment))
         {
             throw new GitHubUnavailableException("Choose one GitHub repository: a URL with an owner and repository name.");
         }
 
         return (parts[0], parts[1].EndsWith(".git", StringComparison.Ordinal) ? parts[1][..^4] : parts[1]);
     }
+
+    private static bool IsValidCoordinateSegment(string part)
+        => part.Length > 0 && part.All(static character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.');
 
     private static async Task<JsonDocument> Read(HttpClient client, string token, string path, CancellationToken ct)
     {

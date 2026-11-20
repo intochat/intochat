@@ -36,6 +36,34 @@ public sealed record EngineerCandidateSummary(
     }
 }
 
+[GenerateSerializer, Alias("os.engineer.pr-check-item")]
+public sealed record EngineerPrCheckItem(
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Status,
+    [property: Id(2)] string? Conclusion = null,
+    [property: Id(3)] bool IsRequired = false)
+{
+    public EngineerPrCheckItem()
+        : this("build", "completed", "success", true)
+    {
+    }
+}
+
+[GenerateSerializer, Alias("os.engineer.pr-review-thread")]
+public sealed record EngineerPrReviewThread(
+    [property: Id(0)] long CommentId,
+    [property: Id(1)] string Author,
+    [property: Id(2)] string Body,
+    [property: Id(3)] string? FilePath = null,
+    [property: Id(4)] bool Replied = false,
+    [property: Id(5)] string? ReplyBody = null)
+{
+    public EngineerPrReviewThread()
+        : this(0, "reviewer", string.Empty, null, false, null)
+    {
+    }
+}
+
 [GenerateSerializer, Alias("os.engineer.workspace")]
 public sealed record EngineerWorkspaceState(
     [property: Id(0)] string ActiveRunId,
@@ -66,7 +94,13 @@ public sealed record EngineerWorkspaceState(
     [property: Id(25)] EngineerTaskSlice[]? Slices = null,
     [property: Id(26)] MissionCollaborator[]? Collaborators = null,
     [property: Id(27)] bool AwaitingPlanRatification = false,
-    [property: Id(28)] bool LiveViewportPeek = false)
+    [property: Id(28)] bool LiveViewportPeek = false,
+    [property: Id(29)] string? ActiveTraceId = null,
+    [property: Id(30)] int? LivePullRequestNumber = null,
+    [property: Id(31)] EngineerPrCheckItem[]? LivePrChecks = null,
+    [property: Id(32)] EngineerPrReviewThread[]? LivePrReviewThreads = null,
+    [property: Id(33)] string? LivePrReviewSummary = null,
+    [property: Id(34)] bool LiveRepositoryConnected = false)
 {
     public static readonly string[] PipelineStageIds =
     [
@@ -116,6 +150,12 @@ public sealed record EngineerWorkspaceState(
 
     [JsonIgnore]
     public MissionCollaborator[] EffectiveCollaborators => Collaborators is { Length: > 0 } c ? c : DefaultSeedCollaborators();
+
+    [JsonIgnore]
+    public EngineerPrCheckItem[] EffectiveLivePrChecks => LivePrChecks ?? [];
+
+    [JsonIgnore]
+    public EngineerPrReviewThread[] EffectiveLivePrReviewThreads => LivePrReviewThreads ?? [];
 
     [Invariant("ActiveTab is always plan, code, verify, or pr."), JsonIgnore]
     public bool ValidTab => TabIds.Contains(ActiveTab, StringComparer.Ordinal);
@@ -563,6 +603,38 @@ public sealed record EngineerWorkspaceState(
         }
 
         return next;
+    }
+
+    [IgnoreExplore]
+    public EngineerWorkspaceState ApplyLivePullRequestReview(
+        int? prNumber,
+        string? prUrl,
+        EngineerPrCheckItem[] checks,
+        EngineerPrReviewThread[] threads,
+        string? summary)
+        => this with
+        {
+            LiveRepositoryConnected = true,
+            LivePullRequestNumber = prNumber ?? LivePullRequestNumber,
+            PullRequestUrl = string.IsNullOrWhiteSpace(prUrl) ? PullRequestUrl : prUrl,
+            LivePrChecks = checks,
+            LivePrReviewThreads = threads,
+            LivePrReviewSummary = summary,
+        };
+
+    [IgnoreExplore]
+    public EngineerWorkspaceState MarkReviewCommentReplied(long commentId, string replyBody)
+    {
+        var updated = EffectiveLivePrReviewThreads
+            .Select(thread => thread.CommentId == commentId
+                ? thread with { Replied = true, ReplyBody = replyBody }
+                : thread)
+            .ToArray();
+        return this with
+        {
+            LivePrReviewThreads = updated,
+            StatusBanner = string.Create(CultureInfo.InvariantCulture, $"Replied to GitHub review comment #{commentId}."),
+        };
     }
 
     public static string NormalizeTab(string? tab) => (tab ?? "plan").Trim().ToLowerInvariant() switch

@@ -13,24 +13,34 @@ internal static class GitHubWebhookHandler
 
         if (eventName == "ping")
         {
+            if (repository.IsPersonalAccessToken)
+            {
+                var pingRepoId = Number(payload, "repository", "id");
+                return pingRepoId is null || pingRepoId == repository.RepositoryId
+                    ? (null, false, null)
+                    : (null, false, GitHubWebhookAcceptance.Unauthorized);
+            }
+
             var appId = Number(payload, "hook", "app_id");
             return appId is null || appId == repository.AppId ? (null, false, null) : (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
 
-        if (Number(payload, "installation", "id") != repository.InstallationId)
+        if (!repository.IsPersonalAccessToken && Number(payload, "installation", "id") != repository.InstallationId)
         {
             return (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
 
         var action = String(payload, "action");
-        if (eventName == "installation" && action is "deleted" or "suspend")
+        if (!repository.IsPersonalAccessToken && eventName == "installation" && action is "deleted" or "suspend")
         {
             return (null, true, null);
         }
 
-        if (eventName == "installation_repositories")
+        if (!repository.IsPersonalAccessToken && eventName == "installation_repositories")
         {
-            var removed = payload.TryGetProperty("repositories_removed", out var repositories) && repositories.ValueKind == JsonValueKind.Array && repositories.EnumerateArray().Any(removed => Number(removed, "id") == repository.RepositoryId);
+            var removed = payload.TryGetProperty("repositories_removed", out var repositories)
+                && repositories.ValueKind == JsonValueKind.Array
+                && repositories.EnumerateArray().Any(removed => Number(removed, "id") == repository.RepositoryId);
             return removed ? (null, true, null) : (null, false, GitHubWebhookAcceptance.Ignored);
         }
 
@@ -44,7 +54,8 @@ internal static class GitHubWebhookHandler
             return (null, true, null);
         }
 
-        if (!string.Equals(String(payload, "repository", "name"), repository.Name, StringComparison.OrdinalIgnoreCase) || !string.Equals(String(payload, "repository", "owner", "login"), repository.Owner, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(String(payload, "repository", "name"), repository.Name, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(String(payload, "repository", "owner", "login"), repository.Owner, StringComparison.OrdinalIgnoreCase))
         {
             // A trusted rename/transfer requires explicit reauthorization of the coordinates.
             return (null, true, null);
@@ -58,6 +69,38 @@ internal static class GitHubWebhookHandler
             }
 
             var number = Number(payload, "number");
+            return number is > 0 and <= int.MaxValue ? ((int)number.Value, false, null) : (null, false, GitHubWebhookAcceptance.BadRequest);
+        }
+
+        if (eventName == "issues")
+        {
+            if (action is not ("opened" or "reopened" or "edited" or "labeled" or "closed"))
+            {
+                return (null, false, GitHubWebhookAcceptance.Ignored);
+            }
+
+            var number = Number(payload, "issue", "number");
+            return number is > 0 and <= int.MaxValue ? ((int)number.Value, false, null) : (null, false, GitHubWebhookAcceptance.BadRequest);
+        }
+
+        if (eventName == "issue_comment")
+        {
+            if (action != "created")
+            {
+                return (null, false, GitHubWebhookAcceptance.Ignored);
+            }
+
+            if (!TryProperty(payload, ["issue"], out var issue) || issue.ValueKind != JsonValueKind.Object)
+            {
+                return (null, false, GitHubWebhookAcceptance.BadRequest);
+            }
+
+            if (issue.TryGetProperty("pull_request", out _))
+            {
+                return (null, false, GitHubWebhookAcceptance.Ignored);
+            }
+
+            var number = Number(issue, "number");
             return number is > 0 and <= int.MaxValue ? ((int)number.Value, false, null) : (null, false, GitHubWebhookAcceptance.BadRequest);
         }
 

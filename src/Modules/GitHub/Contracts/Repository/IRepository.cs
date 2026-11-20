@@ -31,4 +31,17 @@ public interface IRepository
     Task ReplyToReviewComment(ReplyReviewComment request);
 
     Task MergePullRequest(MergePullRequest request);
+
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    Task<IssueRead> ReadIssue(ReadIssue query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    Task<IssuesRead> ReadIssues() => throw new NotSupportedException();
+
+    Task<IssueCommentPreview> PreviewIssueComment(PreviewIssueCommentRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<IssueCommentResult> CommentOnIssue(CommentOnIssueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    Task<IssueCommentPreview[]> ReadPendingIssueDrafts() => throw new NotSupportedException();
 }
