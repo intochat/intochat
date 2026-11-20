@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
@@ -22,6 +23,8 @@ public static partial class InoView
     public const string UseLocalKey = "use-local-model";
     public const string StopKey = ChatThreadNeuron.StopKey;
     public const string NewKey = "new-conversation";
+    public const string SendDraftKey = "ino:send-draft";
+    public const string DismissDraftKey = "ino:dismiss-draft";
     public const int MaxRenderedMessages = 100;
     public const int MaxRenderedChars = 1_000_000;
 
@@ -69,15 +72,22 @@ public static partial class InoView
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
         var activeModelVisual = ResolveModelVisual(s.SelectedModel);
+        var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
+        var placeholder = hasDraft
+            ? $"Ask Ino: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 96)}"
+            : "Ask anything.";
+        var emptyText = shown.Count == 0
+            ? (hasDraft ? $"Ready to ask: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 120)}" : "What do you need?")
+            : null;
         return new ChatThreadProps(
-            Placeholder: "Ask anything.",
+            Placeholder: placeholder,
             CanSend: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
             ActiveModelLabel: activeModelVisual?.Label,
             ActiveProviderIcon: activeModelVisual?.IconKey,
             Dictation: dictation,
             Status: ConversationStatusOf(s),
             Working: s.ActiveRunId is not null,
-            EmptyText: shown.Count == 0 ? "What do you need?" : null,
+            EmptyText: emptyText,
             Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown));
     }
 
@@ -85,11 +95,11 @@ public static partial class InoView
     /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
     /// (approvals, model setup, cards no message carries).
     /// </summary>
-    public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null)
-        => new("Ino", ScreenNode(s, dictation, thread, threadFailure));
+    public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null, Rejected? departureRejection = null)
+        => new("Ino", ScreenNode(s, dictation, thread, threadFailure, departureRejection));
 
     /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
-    public static Node ScreenNode(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null)
+    public static Node ScreenNode(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null, Rejected? departureRejection = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
@@ -98,18 +108,113 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
+        Node[] navAbove = RenderNavigationSeedNodes(s, departureRejection);
         var conversation = s.DevUiMode
             ? new NeuronRef("ui.chat", InoModel.UiChatKeyOf(s.ConversationId))
             : thread(ThreadProps(s, dictation, threadFailure));
         if (HasUnprojectedVaultSecretPrompt(s))
         {
-            Node[] above = [.. s.ActiveCards.SelectMany(RenderCardNodes)];
+            Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];
             Node[] below = [.. approvals, .. setup];
             return Filling(above, conversation, below);
         }
 
         Node[] under = [.. approvals, .. loose, .. setup];
-        return under.Length == 0 ? conversation : Filling([], conversation, under);
+        return navAbove.Length == 0 && under.Length == 0 ? conversation : Filling(navAbove, conversation, under);
+    }
+
+    private static Node[] RenderNavigationSeedNodes(InoAppState s, Rejected? departureRejection)
+    {
+        var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
+        var hasFocus = !string.IsNullOrWhiteSpace(s.ActiveFocusTarget);
+        if (departureRejection is null && !hasDraft && !hasFocus)
+        {
+            return [];
+        }
+
+        var nodes = new List<Node>(2);
+        if (departureRejection is not null)
+        {
+            var message = departureRejection.Messages is { Length: > 0 } msgs && !string.IsNullOrWhiteSpace(msgs[0])
+                ? msgs[0]
+                : "Finish or discard provider credential setup before leaving.";
+            nodes.Add(Banner("Provider setup unsaved", message, tone: "warning"));
+        }
+
+        if (hasDraft || hasFocus)
+        {
+            var canSend = s.ActiveRunId is null && s.Pending is null && !s.Blocked;
+            var focusLabel = FormatFocusTargetLabel(s.ActiveFocusTarget);
+            List<Node?> headerItems =
+            [
+                StatusPill(StatusKind.NeedsYou, "Ask Ino"),
+                focusLabel is { Length: > 0 } ? StatusPill(StatusKind.Idle, $"Context · {focusLabel}") : null,
+                hasDraft
+                    ? PrimaryButton("Send Prompt", Icons.Sparkles)
+                        .Small()
+                        .Key(SendDraftKey)
+                        .Disabled(!canSend)
+                        .Emits(AppSignals.Emits("ino", new InoSend(Message: s.DraftPrompt)))
+                        .ToNode()
+                    : null,
+                GhostButton("Dismiss")
+                    .Small()
+                    .Key(DismissDraftKey)
+                    .OnClick<InoAppState>(x => x.DismissNavigationSeed())
+                    .ToNode(),
+            ];
+
+            nodes.Add(Surface(SurfaceKind.Acrylic)[
+                VStack(Space.Xs)[
+                    HStack(Space.Xs, [.. headerItems]),
+                    hasDraft ? Text(SanitizePersonVisibleText(s.DraftPrompt!)).ToNode() : null
+                ]
+            ]);
+        }
+
+        return [.. nodes];
+    }
+
+    private static string CompactSingleLine(string raw, int maxChars)
+    {
+        var single = raw.ReplaceLineEndings(" ").Trim();
+        return single.Length <= maxChars ? single : single[..(maxChars - 1)] + "…";
+    }
+
+    private static string SanitizePersonVisibleText(string raw)
+    {
+        var clean = StripNeuronUri(raw);
+        clean = clean.Replace("app.ino", "Ino", StringComparison.OrdinalIgnoreCase)
+            .Replace("ino.send", "send", StringComparison.OrdinalIgnoreCase)
+            .Replace("InoApp", "Ino", StringComparison.Ordinal)
+            .Replace("IntoChat.", string.Empty, StringComparison.Ordinal);
+        return clean.Trim();
+    }
+
+    internal static string FormatFocusTargetLabel(string? rawFocus)
+    {
+        if (string.IsNullOrWhiteSpace(rawFocus))
+        {
+            return string.Empty;
+        }
+
+        var clean = StripNeuronUri(rawFocus);
+        foreach (var prefix in new[] { "focus:", "node:", "window:" })
+        {
+            if (clean.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[prefix.Length..].Trim();
+                break;
+            }
+        }
+
+        if (clean.StartsWith("app.", StringComparison.OrdinalIgnoreCase) && clean.Length > 4)
+        {
+            var slug = clean[4..];
+            clean = char.ToUpperInvariant(slug[0]) + slug[1..];
+        }
+
+        return SanitizePersonVisibleText(clean);
     }
 
     // The thread fills the height a bounded parent gives (extent 1); what sits above and below it stretches to the width (extent -1).

@@ -44,4 +44,6 @@ public interface IRepository
 
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<IssueCommentPreview[]> ReadPendingIssueDrafts() => throw new NotSupportedException();
+
+    Task<bool> DismissIssueDraft(string previewId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }

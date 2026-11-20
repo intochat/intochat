@@ -38,6 +38,19 @@ public sealed record TimelineBar(string FlowId, string Title, DateTimeOffset Sta
 public sealed record BoardColumn(string Id, string Title, TaskWorkItem[] Items);
 
 /// <summary>
+/// Tracks a GitHub issue escalated from <see cref="TasksApp"/> into an <c>Engineer</c> studio run.
+/// </summary>
+public sealed record EscalatedIssueLink(
+    string PreviewId,
+    string Repository,
+    int IssueNumber,
+    string FlowId,
+    string Title)
+{
+    public EscalatedIssueLink() : this("", "os", 0, "", "") { }
+}
+
+/// <summary>
 /// Immutable DDD Aggregate state for <see cref="TasksApp"/> (<c>app.tasks</c>).
 /// </summary>
 public sealed record TasksWorkspaceState(
@@ -47,6 +60,8 @@ public sealed record TasksWorkspaceState(
     TaskWorkItem[] Tasks)
 {
     public const int MaxWorkspaceTasks = 24;
+
+    public const int MaxEscalatedIssues = 16;
 
     public static readonly string[] StageIds = ["backlog", "in-progress", "review", "done"];
 
@@ -75,6 +90,8 @@ public sealed record TasksWorkspaceState(
     public string? FocusedConfirmationId { get; init; }
 
     public string? FocusedDraftPreviewId { get; init; }
+
+    public EscalatedIssueLink[] EscalatedIssues { get; init; } = [];
 
     [JsonIgnore]
     public string View => ActiveTab;
@@ -308,16 +325,17 @@ public sealed record TasksWorkspaceState(
     }
 
     [IgnoreExplore]
-    public TasksWorkspaceState MarkStarted(string flowId, string title, string description = "", string stage = "backlog")
+    public TasksWorkspaceState MarkStarted(string flowId, string title, string description = "", string stage = "backlog", string tag = "Plan")
     {
         var normalizedStage = TryNormalizeStage(stage) ?? "backlog";
+        var effectiveTag = string.IsNullOrWhiteSpace(tag) ? "Plan" : tag.Trim();
         var item = new TaskWorkItem(
             Id: flowId,
             Title: title,
             Stage: normalizedStage,
             Owner: "owner",
             Description: description,
-            Tag: "Plan",
+            Tag: effectiveTag,
             FlowId: flowId);
 
         var existingIdx = Array.FindIndex(Tasks, t => string.Equals(t.Id, flowId, StringComparison.Ordinal));
@@ -341,6 +359,58 @@ public sealed record TasksWorkspaceState(
             Source = null,
             Status = $"Started {title}",
             Draft = Draft with { Title = "", Description = "" },
+        };
+    }
+
+    [IgnoreExplore]
+    public string? FindEscalatedFlowId(string? previewId, string? repository, int issueNumber)
+    {
+        if (!string.IsNullOrWhiteSpace(previewId)
+            && EscalatedIssues.FirstOrDefault(e => string.Equals(e.PreviewId, previewId.Trim(), StringComparison.Ordinal)) is { } byPreview)
+        {
+            return byPreview.FlowId;
+        }
+
+        if (issueNumber > 0
+            && EscalatedIssues.FirstOrDefault(e =>
+                e.IssueNumber == issueNumber
+                && (string.IsNullOrWhiteSpace(repository) || string.Equals(e.Repository, repository.Trim(), StringComparison.OrdinalIgnoreCase))) is { } byIssue)
+        {
+            return byIssue.FlowId;
+        }
+
+        return null;
+    }
+
+    [IgnoreExplore]
+    public TasksWorkspaceState RecordEscalatedIssue(
+        string previewId,
+        string repository,
+        int issueNumber,
+        string flowId,
+        string title,
+        string description)
+    {
+        var started = MarkStarted(flowId, title, description, stage: "in-progress", tag: "Engineer");
+        var normalizedPreview = string.IsNullOrWhiteSpace(previewId)
+            ? string.Create(CultureInfo.InvariantCulture, $"issue-{issueNumber}")
+            : previewId.Trim();
+        var normalizedRepo = string.IsNullOrWhiteSpace(repository) ? "os" : repository.Trim();
+        var retained = EscalatedIssues
+            .Where(e => !string.Equals(e.PreviewId, normalizedPreview, StringComparison.Ordinal)
+                && !(e.IssueNumber == issueNumber && string.Equals(e.Repository, normalizedRepo, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+        var link = new EscalatedIssueLink(normalizedPreview, normalizedRepo, issueNumber, flowId, title);
+        var nextLinks = retained.Append(link).TakeLast(MaxEscalatedIssues).ToArray();
+        var nextFocused = string.Equals(started.FocusedDraftPreviewId, normalizedPreview, StringComparison.Ordinal)
+            ? null
+            : started.FocusedDraftPreviewId;
+
+        return started with
+        {
+            EscalatedIssues = nextLinks,
+            FocusedDraftPreviewId = nextFocused,
+            Status = string.Create(CultureInfo.InvariantCulture, $"Escalated {normalizedRepo} #{issueNumber} to Engineer Studio ({flowId})."),
         };
     }
 

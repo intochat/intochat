@@ -93,6 +93,8 @@ public sealed class InoAppFacts
         Assert.Contains("ProposeChange", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("StartEngineerRun", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("InspectEngineerRun", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("CreateIssueTriageSynapse", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("DismissIssueDraft", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("RememberPreference", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("GetTracesAsync", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
@@ -910,6 +912,118 @@ public sealed class InoAppFacts
 
         var report = await introspector.SyncContext();
         Assert.Contains("InoApp", report.ContextSummary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InoApp_HandlesINavigatedTo_Prompt_ConversationId_FocusTarget_AndEnforcesINavigatedFromRuleGuard()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        var screen = os.Get<IScreen>(new NeuronId(Brain, "app.ino", "default"));
+
+        // 1. Typed INavigatedTo<InoNavArgs> switches conversation, records ActiveFocusTarget, seeds DraftPrompt + ChatThreadProps, and stamps ActiveTransition
+        var navPayload = System.Text.Json.JsonSerializer.Serialize(
+            new InoNavArgs(
+                Prompt: "Triage GitHub issue #42",
+                ConversationId: "conv-triage-42",
+                FocusTarget: "node:app.tasks"),
+            System.Text.Json.JsonSerializerOptions.Web);
+        await screen.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    ArgsJson: navPayload,
+                    FromNeuron: "app.tasks",
+                    Transition: ViewTransition.SharedAxisX),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+
+        Assert.Equal(ViewTransition.SharedAxisX, ino.App.ActiveTransition);
+        Assert.Equal("conv-triage-42", ino.App.State.ConversationId);
+        Assert.Equal("Triage GitHub issue #42", ino.App.State.DraftPrompt);
+        Assert.Equal("node:app.tasks", ino.App.State.ActiveFocusTarget);
+
+        var threadProps = InoDrawing.PropsOf(ino.App.Render());
+        Assert.Equal("Ask Ino: Triage GitHub issue #42", threadProps.Placeholder);
+        Assert.Equal("Ready to ask: Triage GitHub issue #42", threadProps.EmptyText);
+
+        var arrivedView = (await screen.Open())!;
+        var arrivedRaw = arrivedView.View.GetRawText();
+        Assert.Contains("Ask Ino", arrivedRaw, StringComparison.Ordinal);
+        Assert.Contains("Tasks", arrivedRaw, StringComparison.Ordinal);
+        Assert.Contains(new PresentedView("main", ino.App.Render()).Nodes.OfType<TagPill>(), static p => p.Label == "Context · Tasks");
+        Assert.Contains("Triage GitHub issue #42", arrivedRaw, StringComparison.Ordinal);
+        Assert.Contains(InoView.SendDraftKey, arrivedRaw, StringComparison.Ordinal);
+        Assert.Contains(InoView.DismissDraftKey, arrivedRaw, StringComparison.Ordinal);
+
+        // 2. Clicking Send Prompt dispatches the seeded prompt and clears DraftPrompt
+        await screen.Activate("app.ino", arrivedView.Generation, InoView.SendDraftKey);
+        await os.Idle();
+        Assert.Equal(1, BackgroundAgent.Starts);
+        Assert.Equal("run-1", ino.App.State.ActiveRunId);
+        Assert.Null(ino.App.State.DraftPrompt);
+
+        // 3. Normal multitasking departure while Ino works in the background is never blocked
+        await screen.Dispatch(new Command(
+            ".",
+            UiNavigateFrom.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+                new UiNavigateFrom(ToNeuron: "app.tasks", Route: "approvals", Force: false),
+                typeof(UiNavigateFrom))));
+        await os.Idle();
+        Assert.Null(ino.App.LastRejection);
+
+        // 4. Unsaved provider credential setup draft blocks unforced departure with Rule:ino_setup_unsaved, while Force=true bypasses and clears it
+        await screen.Dispatch(new Command(
+            ".",
+            UiCommand.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+                new UiCommand("state", nameof(InoAppState.SetProviderSetupDraft), [System.Text.Json.JsonSerializer.SerializeToElement(true)]),
+                typeof(UiCommand))));
+        await os.Idle();
+        Assert.True(ino.App.State.HasUnsavedProviderDraft);
+
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
+            screen.Dispatch(new Command(
+                ".",
+                UiNavigateFrom.SignalAlias,
+                DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+                    new UiNavigateFrom(ToNeuron: "app.settings", Route: "connections/github", Force: false),
+                    typeof(UiNavigateFrom)))));
+        Assert.StartsWith("Rule:ino_setup_unsaved:", refused.Reason, StringComparison.Ordinal);
+        Assert.Contains("Finish or discard provider credential setup before leaving.", refused.Reason, StringComparison.Ordinal);
+        Assert.Contains("Finish or discard provider credential setup before leaving.", (await screen.Open())!.View.GetRawText(), StringComparison.Ordinal);
+
+        await screen.Dispatch(new Command(
+            ".",
+            UiNavigateFrom.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+                new UiNavigateFrom(ToNeuron: "app.settings", Route: "connections/github", Force: true),
+                typeof(UiNavigateFrom))));
+        await os.Idle();
+        Assert.False(ino.App.State.HasUnsavedProviderDraft);
+        Assert.Null(ino.App.LastRejection);
+
+        // 5. Plain input coercion via UiNavigateTo.Input seeds DraftPrompt, and Dismiss clears DraftPrompt & ActiveFocusTarget
+        await screen.Dispatch(new Command(
+            ".",
+            UiNavigateTo.SignalAlias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(
+                new UiNavigateTo(
+                    FromNeuron: "app.engineer",
+                    Transition: ViewTransition.FadeThrough,
+                    Input: "Explain failing PR check"),
+                typeof(UiNavigateTo))));
+        await os.Idle();
+        Assert.Equal("Explain failing PR check", ino.App.State.DraftPrompt);
+
+        var seededAgain = (await screen.Open())!;
+        await screen.Activate("app.ino", seededAgain.Generation, InoView.DismissDraftKey);
+        await os.Idle();
+        Assert.Null(ino.App.State.DraftPrompt);
+        Assert.Null(ino.App.State.ActiveFocusTarget);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

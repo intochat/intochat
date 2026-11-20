@@ -338,7 +338,7 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
             return;
         }
 
-        var candidate = RuntimeProtocol.SerializeToElement(Render(State), typeof(View));
+        var candidate = RuntimeProtocol.SerializeToElement(RenderDetached(State), typeof(View));
         if (candidate.GetRawText() != published.View.GetRawText())
         {
             // State stays identical (SameState); only refresh the published view when Render(State) projects LastRejection.
@@ -792,6 +792,19 @@ internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntr
             return new InoNavArgs(Prompt: clean);
         }
 
+        if (entry.ArgsType == typeof(SettingsNavArgs))
+        {
+            if (clean.Contains('/', StringComparison.Ordinal))
+            {
+                var parts = clean.Split('/', 2, StringSplitOptions.TrimEntries);
+                var section = parts.Length > 0 && parts[0].Length > 0 ? parts[0] : null;
+                var subPage = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
+                return new SettingsNavArgs(Section: section, SubPage: subPage);
+            }
+
+            return new SettingsNavArgs(Section: clean);
+        }
+
         var ctors = entry.ArgsType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
         if (ctors.Length > 0)
         {
@@ -822,6 +835,7 @@ internal sealed class NavigationDispatchTable(NavigationDispatchTable.TargetEntr
             StudioNavArgs { TargetId: null, Lens: null, FlowId: null, CandidateId: null, FilePath: null, Mode: null } => CoercePlainInput(cleanInput, entry),
             TasksNavArgs { FlowId: null, Tab: null, ConfirmationId: null, DraftPreviewId: null } => CoercePlainInput(cleanInput, entry),
             InoNavArgs { Prompt: null, ConversationId: null, FocusTarget: null } => CoercePlainInput(cleanInput, entry),
+            SettingsNavArgs { Section: null, SubPage: null, Sheet: null, SearchQuery: null } => CoercePlainInput(cleanInput, entry),
             _ => parsed,
         };
     }

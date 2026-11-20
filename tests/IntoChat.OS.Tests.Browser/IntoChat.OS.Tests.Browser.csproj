@@ -9,8 +9,16 @@
     <PackageReference Include="Yarp.ReverseProxy" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+    <ProjectReference Include="../../src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../../src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
     <ProjectReference Include="../IntoChat.OS.Tests.Support/IntoChat.OS.Tests.Support.csproj" />
   </ItemGroup>

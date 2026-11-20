@@ -418,6 +418,26 @@ internal static class EngineerViewRenderer
                     .Guard(state.HasActiveWorktrees())
                     .OnClickAsync<EngineerApp>(app => app.CleanWorktreeCommand())
             ],
+            HStack(Space.Xs)[
+                new Button("engineer:open-github-settings", "Configure GitHub ↗", Intent: AppSignals.OpenApp("settings", "connections/github"))
+                {
+                    Small = true,
+                    Icon = "settings",
+                },
+                new Button(
+                    "engineer:ask-ino",
+                    "Ask Ino ↗",
+                    Intent: AppSignals.OpenApp(
+                        "ino",
+                        new InoNavArgs(
+                            Prompt: $"Review mission '{state.Goal}' on {state.RepositoryId}",
+                            FocusTarget: $"focus:engineer/{state.ActiveFlowId ?? state.ActiveRunId}"),
+                        fromNeuron: AppOwner))
+                {
+                    Small = true,
+                    Icon = Icons.Sparkles,
+                }
+            ],
             .. livePrNodes,
             UiNeuron("ui.table", EngineerApp.TasksTableKey)
         ]);

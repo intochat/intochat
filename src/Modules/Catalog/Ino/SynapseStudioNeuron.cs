@@ -23,14 +23,14 @@ internal sealed partial class SynapseStudioNeuron(
 
     private ISynapseHost? Host => host;
 
-    public Task<InoToolResult> Check(string source)
+    public async Task<InoToolResult> Check(string source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (compiler is not { } c) { return Task.FromResult(new InoToolResult(Unavailable, Ok: false)); }
-        var build = c.Compile(new SynapseSource("check", new Dictionary<string, string> { ["unit.cs"] = source }, null));
-        return Task.FromResult(new InoToolResult(build.Diagnostics.Count == 0
+        if (compiler is not { } c) { return new InoToolResult(Unavailable, Ok: false); }
+        var build = await Task.Run(() => c.Compile(new SynapseSource("check", new Dictionary<string, string> { ["unit.cs"] = source }, null))).ConfigureAwait(true);
+        return new InoToolResult(build.Diagnostics.Count == 0
             ? "No diagnostics; the unit compiles."
-            : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics), Ok: build.Success));
+            : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics), Ok: build.Success);
     }
 
     public async Task<InoToolResult> Deploy(string alias, string source)
@@ -68,7 +68,17 @@ internal sealed partial class SynapseStudioNeuron(
             {
                 [alias] = new Dictionary<string, string>(bindings, StringComparer.Ordinal),
             };
-            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string>(code, StringComparer.Ordinal), null, bound),
+            var synapseSource = new SynapseSource(alias, new Dictionary<string, string>(code, StringComparer.Ordinal), null, bound);
+            if (compiler is { } c)
+            {
+                _ = await Task.Run(() => c.Compile(synapseSource)).ConfigureAwait(true);
+            }
+            else if (host is UnitDeployer deployer)
+            {
+                _ = await Task.Run(() => deployer.Compiler.Compile(synapseSource)).ConfigureAwait(true);
+            }
+
+            outcome = await host.Deploy(Id.Brain, synapseSource,
                 new Dictionary<string, IReadOnlyDictionary<string, string>>(), CancellationToken.None);
         }
         catch (Exception error) when (error is not OperationCanceledException)

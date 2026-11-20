@@ -133,11 +133,20 @@ final class PendingOpenWindowIntentTracker {
   OpenWindowRoute? _pending;
   int _seq = 0;
 
+  void _clearAfterMicrotasks(int seq, int remainingHops) {
+    if (remainingHops <= 0) {
+      if (_seq == seq) _pending = null;
+      return;
+    }
+    scheduleMicrotask(() => _clearAfterMicrotasks(seq, remainingHops - 1));
+  }
+
   Future<Object?> wrapAction(
     Map<String, dynamic> event,
     Future<Object?> Function(Map<String, dynamic> event) inner, {
     String? fallbackFromNeuron,
   }) async {
+    _pending = null;
     final sourceFromEvent =
         screenNeuronFromViewName(event['name'] as String?) ??
         fallbackFromNeuron;
@@ -155,9 +164,9 @@ final class PendingOpenWindowIntentTracker {
         if (parsed != null) {
           final seq = ++_seq;
           _pending = parsed;
-          scheduleMicrotask(() {
-            if (_seq == seq) _pending = null;
-          });
+          // Outlive EventQueue.dispatch -> NodeContext.activateReporting ->
+          // perform -> onActivate microtask hops without creating FakeAsync Timers.
+          _clearAfterMicrotasks(seq, 4);
         }
       }
     }
@@ -314,7 +323,7 @@ Future<bool> dispatchNavigateTo({
   String? correlationId,
 }) async {
   try {
-    await sendAct(
+    final response = await sendAct(
       buildNavigateToActEvent(
         targetNeuron: targetNeuron,
         fromNeuron: fromNeuron,
@@ -324,7 +333,7 @@ Future<bool> dispatchNavigateTo({
         correlationId: correlationId,
       ),
     );
-    return true;
+    return response is Map && response['delivered'] == true;
   } catch (_) {
     return false;
   }

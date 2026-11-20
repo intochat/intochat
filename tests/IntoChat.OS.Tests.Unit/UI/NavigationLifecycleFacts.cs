@@ -461,6 +461,88 @@ public sealed class NavigationLifecycleFacts
         Assert.Contains("test/apps/aspire", (await guarded.Open())!.View.GetRawText(), StringComparison.Ordinal);
     }
 
+    private sealed class SettingsProbeScreen : AggregateScreen<NavSampleState>, INavigatedTo<SettingsNavArgs>
+    {
+        public NavigationArrival<SettingsNavArgs>? Received { get; private set; }
+
+        public Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
+        {
+            Received = arrival;
+            return Task.CompletedTask;
+        }
+
+        protected override Node Render(NavSampleState state) => Text("SettingsProbe");
+    }
+
+    [Fact]
+    public async Task SettingsNavArgs_CoercesPlainSectionAndSubPage_AndEngineerRendersConfigureGitHubAndAskInoDeepLinks()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var settingsTable = NavigationDispatchTable.Build(typeof(SettingsProbeScreen));
+        var probe = new SettingsProbeScreen();
+
+        // 1. Plain input "connections/github" -> Section: "connections", SubPage: "github"
+        var ghIntent = AppSignals.OpenApp("settings", "connections/github");
+        var ghQuery = ParseQuery(new Uri(ghIntent.Arg!).Query);
+        Assert.Equal("settings", ghQuery["app"]);
+        Assert.Equal("connections/github", ghQuery["input"]);
+
+        await settingsTable.InvokeJsonAsync(
+            probe,
+            argsJson: null,
+            fromNeuron: "app.engineer",
+            transition: ViewTransition.SharedAxisX,
+            correlationId: null,
+            cancellationToken: ct,
+            input: ghQuery["input"]);
+        Assert.Equal("connections", probe.Received?.Args.Section);
+        Assert.Equal("github", probe.Received?.Args.SubPage);
+        Assert.Null(probe.Received?.Args.Sheet);
+        Assert.Null(probe.Received?.Args.SearchQuery);
+
+        // 2. Plain input "models/local-server" and single-segment "keys" / "billing"
+        await settingsTable.InvokeJsonAsync(probe, "\"models/local-server\"", "app.ino", ViewTransition.FadeThrough, null, ct);
+        Assert.Equal("models", probe.Received?.Args.Section);
+        Assert.Equal("local-server", probe.Received?.Args.SubPage);
+
+        await settingsTable.InvokeJsonAsync(probe, argsJson: "{}", fromNeuron: "app.desktop", transition: ViewTransition.FadeThrough, correlationId: null, cancellationToken: ct, input: "keys");
+        Assert.Equal("keys", probe.Received?.Args.Section);
+        Assert.Null(probe.Received?.Args.SubPage);
+
+        await settingsTable.InvokeJsonAsync(probe, argsJson: null, fromNeuron: "app.ino", transition: ViewTransition.FadeThrough, correlationId: null, cancellationToken: ct, input: "billing");
+        Assert.Equal("billing", probe.Received?.Args.Section);
+        Assert.Null(probe.Received?.Args.SubPage);
+
+        // 3. Typed OpenApp<SettingsNavArgs> round-trip
+        var typedSettingsIntent = AppSignals.OpenApp(
+            "settings",
+            new SettingsNavArgs(Section: "connections", SubPage: "github", Sheet: "pat", SearchQuery: "webhook"),
+            transition: ViewTransition.SharedAxisZ,
+            fromNeuron: "app.engineer");
+        var typedSettingsQuery = ParseQuery(new Uri(typedSettingsIntent.Arg!).Query);
+        await settingsTable.InvokeJsonAsync(
+            probe,
+            argsJson: typedSettingsQuery["args"],
+            fromNeuron: typedSettingsQuery["from"],
+            transition: typedSettingsQuery["transition"],
+            correlationId: null,
+            cancellationToken: ct);
+        Assert.Equal("connections", probe.Received?.Args.Section);
+        Assert.Equal("github", probe.Received?.Args.SubPage);
+        Assert.Equal("pat", probe.Received?.Args.Sheet);
+        Assert.Equal("webhook", probe.Received?.Args.SearchQuery);
+
+        // 4. EngineerViewRenderer renders compact Configure GitHub ↗ and Ask Ino ↗ deep-links in PR Review header area
+        var engineerRoot = EngineerViewRenderer.RenderRoot(new EngineerWorkspaceState(), lastRejection: null);
+        var engineerWire = JsonSerializer.Serialize(engineerRoot, RuntimeProtocol.OptionsFor(typeof(Node)));
+        Assert.Contains("engineer:open-github-settings", engineerWire, StringComparison.Ordinal);
+        Assert.Contains("Configure GitHub", engineerWire, StringComparison.Ordinal);
+        Assert.Contains("os://window/open?app=settings", engineerWire, StringComparison.Ordinal);
+        Assert.Contains("connections%2Fgithub", engineerWire, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("engineer:ask-ino", engineerWire, StringComparison.Ordinal);
+        Assert.Contains("Ask Ino", engineerWire, StringComparison.Ordinal);
+    }
+
     private static Dictionary<string, string> ParseQuery(string rawQuery)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);

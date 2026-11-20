@@ -53,4 +53,12 @@ public interface IInoStudio
     [ReadOnlyCall, Interleaves]
     Task<InoToolResult> Repositories(CancellationToken ct = default)
         => Task.FromResult(new InoToolResult("Repository allowlist is not available in this studio instance.", Ok: false));
+
+    /// <summary>
+    /// Deterministically generates, verifies, compiles, and deploys a GitHub Issue Triage <c>Synapse</c> reaction unit
+    /// bound to <paramref name="connectionKey"/> in <c>"DraftForApproval"</c> or <c>"AutoComment"</c> <paramref name="mode"/>.
+    /// </summary>
+    [Interleaves]
+    Task<InoToolResult> CreateIssueTriageSynapse(string connectionKey, string mode = "DraftForApproval", CancellationToken ct = default)
+        => Task.FromResult(new InoToolResult("Issue triage synapse installer is not available in this studio instance.", Ok: false));
 }

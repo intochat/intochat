@@ -321,6 +321,28 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         return Task.FromResult(pending);
     }
 
+    public async Task<bool> DismissIssueDraft(string previewId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireAvailable();
+        if (string.IsNullOrWhiteSpace(previewId))
+        {
+            return false;
+        }
+
+        var normalizedId = previewId.Trim();
+        var nextPreviews = Snapshot.DraftPreviews
+            .Where(draft => !string.Equals(draft.PreviewId, normalizedId, StringComparison.Ordinal))
+            .ToArray();
+        if (nextPreviews.Length == Snapshot.DraftPreviews.Length)
+        {
+            return false;
+        }
+
+        await SaveQuietly(Snapshot with { DraftPreviews = nextPreviews });
+        return true;
+    }
+
     public async Task<IssueCommentPreview> PreviewIssueComment(PreviewIssueCommentRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

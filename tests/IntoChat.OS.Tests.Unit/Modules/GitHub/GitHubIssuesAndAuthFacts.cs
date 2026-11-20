@@ -269,6 +269,60 @@ public sealed class GitHubIssuesAndAuthFacts
     }
 
     [Fact]
+    public async Task DismissIssueDraftRemovesMatchingPreviewWithoutPostingToGitHubAndReturnsFalseWhenAbsent()
+    {
+        var brain = new BrainId("triage-dismiss");
+        var source = new RecordingIssueSource();
+        var services = new ServiceCollection();
+        GitHubModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+        services.AddSingleton<IModuleIntegrations<GitHubModule>>(new StubIntegrations(IntegrationStatus.Unconfigured, [], []));
+        services.AddSingleton<IGitHubRepositorySource>(source);
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
+            .Register(typeof(GitHubModule).Assembly);
+
+        var connId = new NeuronId(brain, "github", "connection/github/main");
+        os.SeedStoredState(
+            connId,
+            JsonSerializer.Serialize(
+                new GitHubRepositoryState
+                {
+                    Status = ConnectionStatus.Connected,
+                    AppId = 77,
+                    InstallationId = 9001,
+                    RepositoryId = 12345,
+                    Owner = "intochat",
+                    Name = "os",
+                    Account = "intochat/os",
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GitHubRepositoryState))));
+
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        var repo = os.Get<IRepository>(connId);
+
+        var draft1 = await repo.PreviewIssueComment(
+            new PreviewIssueCommentRequest(21, "First triage draft to dismiss.", ["triage"]),
+            Ct);
+        var draft2 = await repo.PreviewIssueComment(
+            new PreviewIssueCommentRequest(22, "Second triage draft to keep.", ["bug"]),
+            Ct);
+        Assert.Equal(2, (await repo.ReadPendingIssueDrafts()).Length);
+        Assert.Equal(0, source.CommentCalls);
+
+        Assert.True(await repo.DismissIssueDraft(draft1.PreviewId, Ct));
+        Assert.False(await repo.DismissIssueDraft(draft1.PreviewId, Ct));
+        Assert.False(await repo.DismissIssueDraft("missing-preview-id", Ct));
+        Assert.False(await repo.DismissIssueDraft("   ", Ct));
+        Assert.Equal(0, source.CommentCalls);
+
+        var remaining = Assert.Single(await repo.ReadPendingIssueDrafts());
+        Assert.Equal(draft2.PreviewId, remaining.PreviewId);
+        Assert.Equal(22, remaining.IssueNumber);
+
+        var disconnectedRepo = os.Get<IRepository>(new NeuronId(brain, "github", "connection/github/unconnected"));
+        await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => disconnectedRepo.DismissIssueDraft("any", Ct));
+    }
+
+    [Fact]
     public async Task FineGrainedPatModeSealsCredentialWithoutPlaintextStateAndExecutesOctokitReadsAndComments()
     {
         var brain = new BrainId("patbrain");
