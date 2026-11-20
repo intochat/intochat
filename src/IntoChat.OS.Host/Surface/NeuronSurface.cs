@@ -44,11 +44,14 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
     public async Task<OsNeuronSurface> Restrict(IReadOnlyCollection<string> names, CancellationToken ct)
     {
         var neurons = await Neurons(ct).ConfigureAwait(false);
-        foreach (var name in names)
+        var resolved = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var raw in names)
         {
-            if (!neurons.ContainsKey(name)) { throw new ArgumentException($"{name} is not a neuron type of this brain. Pass the full type name from neurons_list."); }
+            var name = LoadedContracts.CurrentName(raw, ContractAssemblyPrefixes);
+            if (!neurons.ContainsKey(name)) { throw new ArgumentException($"{raw} is not a neuron type of this brain. Pass the full type name from neurons_list."); }
+            resolved.Add(name);
         }
-        return new(brain, kernel, search, names.ToHashSet(StringComparer.Ordinal), plain);
+        return new(brain, kernel, search, resolved, plain);
     }
 
     public async Task<IReadOnlyList<string>> Contracts(CancellationToken ct)
@@ -183,7 +186,8 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
 
     private BrainType Entry(IReadOnlyDictionary<string, BrainType> neurons, string name)
     {
-        if (neurons.TryGetValue(name, out var exact))
+        var canonical = LoadedContracts.CurrentName(name, ContractAssemblyPrefixes);
+        if (neurons.TryGetValue(canonical, out var exact))
         {
             if (!Allowed(exact.Name)) { throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list."); }
             return exact;
@@ -191,6 +195,7 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
 
         var match = neurons.Values.FirstOrDefault(entry =>
             string.Equals(entry.Alias, name, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(entry.Name, canonical, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase) ||
             entry.Name.EndsWith("." + name, StringComparison.OrdinalIgnoreCase) ||
             (entry.Name.StartsWith("I", StringComparison.Ordinal) && entry.Name[1..].Equals(name, StringComparison.OrdinalIgnoreCase)));

@@ -85,7 +85,8 @@ public sealed class KernelInvocationSink(
         var found = assemblies.Select(assembly => assembly.GetType(name, throwOnError: false)).FirstOrDefault(type => type is { IsInterface: true })
             ?? assemblies.Where(References)
                 .SelectMany(Loadable).FirstOrDefault(type => type.IsInterface
-                    && type.GetCustomAttribute<DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false)?.Alias == name);
+                    && type.GetCustomAttribute<DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false) is { } alias
+                    && (alias.Alias == name || alias.Formerly.Contains(name, StringComparer.Ordinal)));
         if (found is not null) { Contracts.TryAdd(name, found); }
         return found;
     }
