@@ -2,10 +2,10 @@ using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 [DigitalBrain.Neurons.Neuron("aspire.deployment")]
 internal sealed class DeploymentNeuron(
     IClusterHost host,
-    IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
+    IntoChat.OS.Host.Cluster.IClusterMembershipFeed membership,
     ILogger<DeploymentNeuron> log)
     : DigitalBrain.Neurons.Neuron<AspireDeploymentState>, IDeployment, IDeploymentDriver
 {
@@ -239,7 +239,7 @@ internal sealed class DeploymentNeuron(
 
     // Membership enters on the grain scheduler only when Orleans reports a change.
     // An old callback queued during deactivation cannot overwrite the next activation.
-    public async Task MembershipChanged(Guid expectedActivation, IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? membershipSnapshot)
+    public async Task MembershipChanged(Guid expectedActivation, IntoChat.OS.Host.Cluster.ClusterSnapshot? membershipSnapshot)
     {
         if (expectedActivation != activation) { return; }
         if (membershipSnapshot is not null && membershipSnapshot.Version < membershipVersion) { return; }

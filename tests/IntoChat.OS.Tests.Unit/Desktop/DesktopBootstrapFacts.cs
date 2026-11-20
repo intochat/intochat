@@ -3,8 +3,8 @@ using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 

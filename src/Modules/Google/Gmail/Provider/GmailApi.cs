@@ -2,9 +2,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Compute;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Google.Auth;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 

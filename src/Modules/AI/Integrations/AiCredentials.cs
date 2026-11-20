@@ -4,9 +4,9 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 

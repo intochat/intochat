@@ -5,10 +5,10 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Units;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;
 

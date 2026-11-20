@@ -1,6 +1,4 @@
 using Aspire.Hosting;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
@@ -17,6 +15,8 @@ using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Modules.Microsoft.Playwright;
 using IntoChat.OS.Modules.Postgres;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Cluster;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

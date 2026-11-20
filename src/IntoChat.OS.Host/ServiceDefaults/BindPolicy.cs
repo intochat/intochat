@@ -1,8 +1,8 @@
 using System.Net;
-using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Host.Configuration;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 public enum BindKind
 {

@@ -1,8 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 

@@ -29,7 +29,7 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.Authority.Identity.InvitationKind>(services);
         AddEnum<EntryKind>(services);
         AddEnum<IntoChat.OS.Framework.Modules.ModuleState>(services);
-        AddEnum<IntoChat.OS.ServiceDefaults.BindKind>(services);
+        AddEnum<IntoChat.OS.Host.ServiceDefaults.BindKind>(services);
         AddEnum<IntoChat.OS.Kernel.Composition.Registry.RegistryTier>(services);
         AddEnum<IntoChat.OS.UI.StatusKind>(services);
         AddEnum<IntoChat.OS.Modules.AI.Agents.AgentFailure>(services);

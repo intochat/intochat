@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.LocalSetup;
 

@@ -4,8 +4,8 @@ using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Framework;
 

@@ -2,9 +2,9 @@ using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Kernel;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Connections.Hosting;
 

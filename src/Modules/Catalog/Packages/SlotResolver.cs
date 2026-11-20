@@ -1,8 +1,8 @@
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.Sdk;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

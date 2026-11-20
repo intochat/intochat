@@ -3,10 +3,10 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Dotnet;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

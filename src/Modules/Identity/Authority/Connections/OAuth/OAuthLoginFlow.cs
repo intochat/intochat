@@ -3,11 +3,11 @@ using System.Text;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;
 

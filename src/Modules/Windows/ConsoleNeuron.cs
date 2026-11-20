@@ -5,9 +5,9 @@ using DigitalBrain.Log;
 using DigitalBrain.Errors;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
-using IntoChat.OS.Framework.Execution;
-using IntoChat.OS.Framework.Logging;
 using DigitalBrain.Identity.Local.Machine;
+using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 

@@ -2,9 +2,9 @@ using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Graph;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

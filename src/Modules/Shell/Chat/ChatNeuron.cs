@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 

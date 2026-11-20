@@ -78,7 +78,7 @@ public sealed record DesktopSettings : Signal;
 [Screen("app.desktop", Title = "Desktop", Icon = Icons.LayoutGrid)]
 public sealed class DesktopApp : AggregateScreen<DesktopAppState>
 {
-    private static readonly ILogger ConsoleLog = IntoChat.OS.Framework.Logging.OsConsoleLog.For<DesktopApp>();
+    private static readonly ILogger ConsoleLog = IntoChat.OS.Host.Logging.OsConsoleLog.For<DesktopApp>();
     private ILogger<DesktopApp>? InjectedLogger { get; }
     private Rejected? RecordedRejection { get; set; }
 

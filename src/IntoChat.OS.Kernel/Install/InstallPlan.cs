@@ -1,8 +1,8 @@
 using System.Globalization;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Azure;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel.Install;
 

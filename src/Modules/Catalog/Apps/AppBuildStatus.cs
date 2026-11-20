@@ -1,7 +1,7 @@
 using DigitalBrain.Log;
 using DigitalBrain.Flows;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

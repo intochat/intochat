@@ -6,5 +6,5 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 internal interface IDeploymentDriver
 {
     [DigitalBrain.Contracts.Interleaves]
-    Task MembershipChanged(Guid activation, IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? snapshot);
+    Task MembershipChanged(Guid activation, IntoChat.OS.Host.Cluster.ClusterSnapshot? snapshot);
 }

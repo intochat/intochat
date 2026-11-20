@@ -9,9 +9,9 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.State;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 

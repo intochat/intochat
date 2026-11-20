@@ -1,6 +1,6 @@
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps;
 

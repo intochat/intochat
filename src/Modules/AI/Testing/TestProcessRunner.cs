@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.AI.Testing;
 

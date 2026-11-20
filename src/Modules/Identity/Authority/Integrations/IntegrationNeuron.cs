@@ -7,10 +7,10 @@ using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Integrations;
 

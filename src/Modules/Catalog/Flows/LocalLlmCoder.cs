@@ -4,7 +4,6 @@ using System.Security;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -14,6 +13,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

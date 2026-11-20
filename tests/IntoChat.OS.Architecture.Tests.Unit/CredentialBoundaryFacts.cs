@@ -5,9 +5,9 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

@@ -5,13 +5,13 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Integrations;
 

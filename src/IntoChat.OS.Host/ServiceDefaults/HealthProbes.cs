@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 // The three probes every IntoChat.OS host answers, and which checks each one runs:
 //   /health  everything but the drain: the orchestrator's view, dependencies included.
@@ -16,9 +16,9 @@ namespace IntoChat.OS.ServiceDefaults;
 // direct local caller may drain: a request through the front carries X-Forwarded-For and is refused.
 public static class HealthProbes
 {
-    public const string HealthPath = IntoChat.OS.Contracts.Configuration.HostProbePaths.Health;
-    public const string ReadyPath = IntoChat.OS.Contracts.Configuration.HostProbePaths.Ready;
-    public const string AlivePath = IntoChat.OS.Contracts.Configuration.HostProbePaths.Alive;
+    public const string HealthPath = IntoChat.OS.Host.Configuration.HostProbePaths.Health;
+    public const string ReadyPath = IntoChat.OS.Host.Configuration.HostProbePaths.Ready;
+    public const string AlivePath = IntoChat.OS.Host.Configuration.HostProbePaths.Alive;
     public const string DrainPath = "/drain";
     public const string LiveTag = "live";
     public const string DrainTag = "drain";

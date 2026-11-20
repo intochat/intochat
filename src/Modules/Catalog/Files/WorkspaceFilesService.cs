@@ -6,10 +6,10 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.LocalDisk;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using DigitalBrain.Log;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

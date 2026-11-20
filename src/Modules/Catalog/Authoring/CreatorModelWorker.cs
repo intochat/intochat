@@ -1,12 +1,12 @@
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

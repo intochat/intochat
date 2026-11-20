@@ -3,10 +3,10 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChatOSConfiguration = DigitalBrain.Modules.Configuration.ModuleConfiguration;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 

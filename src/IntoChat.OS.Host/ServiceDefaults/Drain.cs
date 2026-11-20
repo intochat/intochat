@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 // An instance behind a load balancer drains before it stops: /ready turns Unhealthy and the host keeps serving,
 // so the balancer's probe takes the instance out before anything shuts down. A roll begins the drain from outside

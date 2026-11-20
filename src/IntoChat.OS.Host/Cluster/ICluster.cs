@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts;
 
-namespace IntoChat.OS.Modules.Microsoft.Orleans;
+namespace IntoChat.OS.Host.Cluster;
 
 public sealed record SiloView(
     string Name,

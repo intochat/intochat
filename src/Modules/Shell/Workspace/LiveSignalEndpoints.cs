@@ -10,7 +10,6 @@ using DigitalBrain.Signals;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
@@ -22,6 +21,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 

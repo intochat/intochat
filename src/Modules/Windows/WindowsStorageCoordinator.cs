@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 

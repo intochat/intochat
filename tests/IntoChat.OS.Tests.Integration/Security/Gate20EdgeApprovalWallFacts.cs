@@ -12,9 +12,7 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Mcp;
@@ -25,6 +23,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Tests.Integration.Security;
 

@@ -5,10 +5,10 @@ using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Connections;
 

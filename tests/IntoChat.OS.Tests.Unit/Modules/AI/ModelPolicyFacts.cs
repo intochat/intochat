@@ -4,7 +4,6 @@ using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Testing;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.LocalSetup;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -14,6 +13,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
@@ -248,6 +248,7 @@ public sealed partial class ModelPolicyFacts
         var catalogDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Catalog", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Catalog", StringComparison.OrdinalIgnoreCase));
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
         var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
+        var hostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Host", StringComparison.OrdinalIgnoreCase));
         var frameworkDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Identity", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Identity", StringComparison.OrdinalIgnoreCase));
 
         string[] ownedDirectories =
@@ -265,7 +266,7 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(appHostDir, "Hosting", "Composition", "DeploymentProfile.cs"),
             Path.Combine(appHostDir, "Hosting", "Modules", "AI"),
             localSetupDir,
-            Path.Combine(frameworkDir, "Configuration"),
+            Path.Combine(hostDir, "Configuration"),
             Path.Combine(frameworkDir, "Visuals"),
         ];
 
@@ -273,7 +274,7 @@ public sealed partial class ModelPolicyFacts
         // which may not depend on hosting code.
         string[] expectedSources =
         [
-            Path.GetFullPath(Path.Combine(frameworkDir, "Configuration", "IntoChatOSNames.cs")),
+            Path.GetFullPath(Path.Combine(hostDir, "Configuration", "IntoChatOSNames.cs")),
             Path.GetFullPath(Path.Combine(aiDir, "Contracts", "Models", "Ollama", "IQwen35.cs")),
         ];
         var literalHits = new List<string>();
@@ -295,7 +296,7 @@ public sealed partial class ModelPolicyFacts
 
     [Fact]
     public void TheLocalDefaultChatModelIsTheQwen35Model()
-        => Assert.Equal(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.LocalDefaultChatModel, new IntoChat.OS.Modules.AI.Models.Ollama.Qwen35().Id);
+        => Assert.Equal(IntoChat.OS.Host.Configuration.IntoChatOSNames.LocalDefaultChatModel, new IntoChat.OS.Modules.AI.Models.Ollama.Qwen35().Id);
 
     private static string FindSolutionFile()
     {

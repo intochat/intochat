@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Postgres;
 

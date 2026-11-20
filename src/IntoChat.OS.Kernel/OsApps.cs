@@ -4,7 +4,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Neurons;
 using DigitalBrain.Signals;
 using IntoChat.OS.Apps.Settings;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Primitives;
@@ -12,6 +11,8 @@ using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Kernel;
 

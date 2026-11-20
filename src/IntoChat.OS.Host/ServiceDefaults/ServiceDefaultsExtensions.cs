@@ -12,7 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 public static class ServiceDefaultsExtensions
 {

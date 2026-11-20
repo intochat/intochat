@@ -4,9 +4,9 @@ using System.Xml.Linq;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

@@ -8,12 +8,12 @@ using DigitalBrain.Units;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 using Idn = DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Identity;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps;
 

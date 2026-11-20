@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.Flutter;
 /// </summary>
 internal static class ShellConsoleLog
 {
-    public static ILogger For<T>() => IntoChat.OS.Framework.Logging.OsConsoleLog.For<T>();
+    public static ILogger For<T>() => IntoChat.OS.Host.Logging.OsConsoleLog.For<T>();
 
-    public static ILogger For(Type owner) => IntoChat.OS.Framework.Logging.OsConsoleLog.For(owner);
+    public static ILogger For(Type owner) => IntoChat.OS.Host.Logging.OsConsoleLog.For(owner);
 }

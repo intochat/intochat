@@ -11,7 +11,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32.SafeHandles;
 
-namespace IntoChat.OS.Framework.Execution;
+namespace IntoChat.OS.Host.Execution;
 
 /// <summary>
 /// Confines Windows child processes inside a Job Object (<c>KILL_ON_JOB_CLOSE</c> + active process cap + RAM cap +

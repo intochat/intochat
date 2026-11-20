@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Framework.Logging;
+namespace IntoChat.OS.Host.Logging;
 
 /// <summary>
 /// Shared Debug-level console logger factory used only when no DI <see cref="ILogger"/> or

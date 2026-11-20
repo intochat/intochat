@@ -9,12 +9,12 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Units;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -8,9 +8,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Synapses;
 using IntoChat.OS.Connections.Contracts;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
@@ -18,6 +16,8 @@ using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps;
 

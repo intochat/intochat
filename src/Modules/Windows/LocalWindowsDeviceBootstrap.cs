@@ -4,13 +4,13 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Identity.Local.Machine;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 

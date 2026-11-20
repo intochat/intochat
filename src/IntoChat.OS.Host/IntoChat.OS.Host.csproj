@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <RootNamespace>IntoChat.OS.Host</RootNamespace>
+    <Description>The OS host layer: service defaults, configuration names, logging, confined process execution, cluster contracts and the other host pieces every OS process and module stands on.</Description>
+    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005;CA1812</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Browser" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Support" />
+    <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
+  </ItemGroup>
+</Project>

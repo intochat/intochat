@@ -16,9 +16,7 @@ using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Media;
@@ -35,6 +33,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Orleans.Hosting;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 

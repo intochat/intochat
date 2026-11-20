@@ -5,8 +5,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Execution;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -15,6 +13,8 @@ using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

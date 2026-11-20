@@ -89,6 +89,7 @@ internal sealed record ContractManifest(
         ("IntoChat.Files.FilesPreview", typeof(IntoChat.OS.Modules.Apps.FilesPreview)),
         ("IntoChat.Files.FilesSearch", typeof(IntoChat.OS.Modules.Apps.FilesSearch)),
         ("IntoChat.Files.FilesSelected", typeof(IntoChat.OS.Modules.Apps.FilesSelected)),
+        ("IntoChat.OS.Modules.Microsoft.Orleans.ClusterChanged", typeof(IntoChat.OS.Host.Cluster.ClusterChanged)),
     ];
 
     internal static string BaselinePath => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, FileName);

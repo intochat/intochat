@@ -1,11 +1,10 @@
 using System.Reflection;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.DevUI;
 using IntoChat.OS.Kernel.Install;
 using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Modules.Microsoft.Azure;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel;
 

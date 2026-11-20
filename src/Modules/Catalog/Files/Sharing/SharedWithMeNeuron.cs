@@ -1,8 +1,8 @@
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Logging;
 using DigitalBrain.State;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

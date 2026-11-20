@@ -3,9 +3,10 @@ using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Authority.Entries;
 

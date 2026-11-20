@@ -4,11 +4,11 @@ using DigitalBrain.Identity.Local.Vault;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Secrets;
 

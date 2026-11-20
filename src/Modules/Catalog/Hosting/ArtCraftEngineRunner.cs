@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

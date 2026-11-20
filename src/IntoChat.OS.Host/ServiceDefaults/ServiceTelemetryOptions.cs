@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 public sealed class ServiceTelemetryOptions
 {

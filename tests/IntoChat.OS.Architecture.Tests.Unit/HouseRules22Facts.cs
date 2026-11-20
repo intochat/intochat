@@ -117,7 +117,7 @@ public sealed class HouseRules22Facts
     {
         var allowedLogFiles = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.OS.Modules.Identity", "OsConsoleLog.cs"),
+            ("IntoChat.OS.Host", "OsConsoleLog.cs"),
             ("IntoChat.OS.Sandbox", "SandboxConsoleLog.cs"),
         };
         var registeredServices = DiscoverRegisteredServiceTypes(ProductionSources.Value.Select(s => s.Root));
@@ -403,7 +403,7 @@ public sealed class HouseRules22Facts
         {
             ("IntoChat.OS.Kernel", "Kernel.cs"),
             // The one place os platform code releases a credential to module code as the kernel.
-            ("IntoChat.OS.Modules.Identity", "PlatformCall.cs"),
+            ("IntoChat.OS.Host", "PlatformCall.cs"),
         };
         var offenders = new List<string>();
         foreach (var src in ProductionSources.Value)

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Contracts.Configuration;
+namespace IntoChat.OS.Host.Configuration;
 
 // The probes every IntoChat.OS host answers (HealthProbes maps them): /health with dependencies,
 // /ready the process plus the drain, /alive the process alone.

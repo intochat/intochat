@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.AI.Metering;
 

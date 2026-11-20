@@ -19,8 +19,8 @@ using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 

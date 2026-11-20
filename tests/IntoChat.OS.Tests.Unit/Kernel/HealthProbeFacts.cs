@@ -1,5 +1,5 @@
-using IntoChat.OS.ServiceDefaults;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 

@@ -1,11 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 

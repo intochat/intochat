@@ -4,11 +4,11 @@ using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Capabilities.Secrets;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

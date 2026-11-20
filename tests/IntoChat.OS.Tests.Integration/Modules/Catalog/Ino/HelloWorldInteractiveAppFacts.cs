@@ -11,7 +11,6 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -22,6 +21,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 

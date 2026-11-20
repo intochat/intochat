@@ -1,6 +1,5 @@
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Authority.Identity;
 

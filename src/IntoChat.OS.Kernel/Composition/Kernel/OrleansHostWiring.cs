@@ -2,10 +2,10 @@ using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Cluster;
-using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IntoChat.OS.Host.Cluster;
 
 namespace IntoChat.OS.Kernel.Composition.Kernel;
 

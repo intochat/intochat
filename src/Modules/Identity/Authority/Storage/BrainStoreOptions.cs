@@ -5,7 +5,7 @@ namespace IntoChat.OS.Authority.Storage;
 // owns the log, its format and its writer ownership (the cloud profile's blob lease); Ownership:* keys are no longer read here.
 public sealed class OsBrainStoreOptions
 {
-    public const string Key = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.BrainStorageConfigurationKey;
+    public const string Key = IntoChat.OS.Host.Configuration.IntoChatOSNames.BrainStorageConfigurationKey;
     // <Home>/state: the hosting registrations set it from IntoChatOS:Home (StateHome); it is not a configuration key.
     public string Directory { get; set; } = DigitalBrain.Runtime.Orleans.StateHome.Default().State;
     public DigitalBrain.Identity.Local.Custody.MasterKeyCustodyKind Custody { get; set; }

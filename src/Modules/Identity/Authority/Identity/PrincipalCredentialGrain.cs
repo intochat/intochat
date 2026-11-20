@@ -1,5 +1,5 @@
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Identity;
 

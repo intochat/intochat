@@ -12,6 +12,7 @@ using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Authority.Identity.Authority;
 

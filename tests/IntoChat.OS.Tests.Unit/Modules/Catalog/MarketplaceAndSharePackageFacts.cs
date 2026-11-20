@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Tests.Unit.Modules.Catalog;
 

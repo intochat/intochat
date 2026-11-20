@@ -2,12 +2,12 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition.Kernel;
-using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Cluster;
 
 namespace IntoChat.OS.Kernel.Composition;
 

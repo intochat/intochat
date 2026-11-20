@@ -11,11 +11,9 @@ using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
-using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -31,6 +29,8 @@ using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Serialization;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Kernel.AspireServer;
 

@@ -11,9 +11,10 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;
 

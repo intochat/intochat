@@ -10,11 +10,11 @@ using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities.Secrets;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace IntoChat.OS.Framework.Execution;
+namespace IntoChat.OS.Host.Execution;
 
 /// <summary>
 /// Centralized child-process environment scrubbing policy shared across desktop, kernel,

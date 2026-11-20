@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Capabilities.Secrets;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Authority.Secrets;
 

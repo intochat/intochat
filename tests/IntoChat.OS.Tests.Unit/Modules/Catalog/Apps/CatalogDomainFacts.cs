@@ -1,9 +1,9 @@
 using DigitalBrain.Brains;
 using DigitalBrain.UI;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Flutter;
 using Xunit;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Apps;
 

@@ -15,7 +15,6 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using IntoChat.OS.Apps.Controls;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
@@ -26,6 +25,7 @@ using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Apps.Settings;
 
@@ -118,7 +118,7 @@ public sealed class SettingsApp : AggregateScreen<SettingsAppState>
 #pragma warning disable CA1031 // Optional UI module in minimal test hosts.
         catch (Exception ex)
         {
-            IntoChat.OS.Framework.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping API keys IForm seeding in minimal test host.");
+            IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping API keys IForm seeding in minimal test host.");
         }
 #pragma warning restore CA1031
     }
@@ -143,7 +143,7 @@ public sealed class SettingsApp : AggregateScreen<SettingsAppState>
 #pragma warning disable CA1031 // Best-effort persistence when settings neuron is absent in unit tests.
         catch (Exception ex)
         {
-            IntoChat.OS.Framework.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping toggle persistence in minimal test host.");
+            IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping toggle persistence in minimal test host.");
         }
 #pragma warning restore CA1031
         await UpdateAsync(toggle.Set(State, toggled.IsOn));

@@ -72,7 +72,7 @@ public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Sig
 [Neuron("app.creator"), Screen("app.creator", Title = "Creator")]
 public sealed class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
 {
-    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<CreatorApp>();
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Host.Logging.OsConsoleLog.For<CreatorApp>();
 
     private readonly ILogger _logger;
     private readonly TimeProvider? _time;

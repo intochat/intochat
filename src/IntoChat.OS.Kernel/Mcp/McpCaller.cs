@@ -9,11 +9,11 @@ using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel.Mcp;
 

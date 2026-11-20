@@ -2,8 +2,8 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.Log;
 using DigitalBrain.State;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Tools;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 

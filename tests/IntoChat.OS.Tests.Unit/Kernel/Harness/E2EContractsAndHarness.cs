@@ -8,12 +8,12 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.AI.Testing;
-using IntoChat.OS.ServiceDefaults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 

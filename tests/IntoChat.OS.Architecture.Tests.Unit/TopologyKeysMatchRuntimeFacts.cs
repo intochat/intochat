@@ -1,5 +1,5 @@
 using DigitalBrain.Runtime.Orleans;
-using OsNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
+using OsNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

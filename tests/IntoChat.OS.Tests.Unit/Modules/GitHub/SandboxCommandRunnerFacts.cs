@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security;
 using System.Text;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Host.Execution;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit;
 

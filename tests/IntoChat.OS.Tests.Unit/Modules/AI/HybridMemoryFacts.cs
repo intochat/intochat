@@ -5,10 +5,10 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

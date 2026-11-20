@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.AI.Testing;
 

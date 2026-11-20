@@ -7,10 +7,10 @@ using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

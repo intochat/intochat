@@ -1,6 +1,6 @@
 using DigitalBrain.Neurons;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Modules.Microsoft.Orleans;
+using IntoChat.OS.Host.Cluster;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel.Composition.Cluster;
 

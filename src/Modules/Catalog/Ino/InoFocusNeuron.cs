@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

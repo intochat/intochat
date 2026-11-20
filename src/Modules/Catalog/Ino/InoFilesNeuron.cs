@@ -19,7 +19,7 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
 
     private ILogger Logger =>
         (ILogger?)(services?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger<InoFilesNeuron>()
-        ?? global::IntoChat.OS.Framework.Logging.OsConsoleLog.For<InoFilesNeuron>();
+        ?? global::IntoChat.OS.Host.Logging.OsConsoleLog.For<InoFilesNeuron>();
 
     private IFilesVfsService? _vfs;
 

@@ -1,3 +1,5 @@
+using IntoChat.OS.Host.Cluster;
+
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit;
 
 public sealed class OrleansContractsFacts

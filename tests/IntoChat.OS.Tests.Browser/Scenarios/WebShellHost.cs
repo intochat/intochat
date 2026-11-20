@@ -20,7 +20,8 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Transforms;
-using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
+using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Tests.Browser.Scenarios;
 

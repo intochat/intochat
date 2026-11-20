@@ -16,9 +16,9 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Apps.Data;
 

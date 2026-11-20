@@ -10,11 +10,11 @@ using Google.Protobuf;
 using Grpc.Core;
 using IntoChat.OS.Authority.Neurons.Proto;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Neurons;
 

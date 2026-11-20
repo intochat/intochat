@@ -5,8 +5,8 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Log;
 using DigitalBrain.Operations;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 

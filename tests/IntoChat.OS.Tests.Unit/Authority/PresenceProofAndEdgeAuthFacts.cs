@@ -15,7 +15,6 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Mcp;
@@ -28,6 +27,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using DbIdentity = DigitalBrain.Capabilities.Identity;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Tests.Unit.Authority;
 

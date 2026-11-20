@@ -16,6 +16,7 @@ using IntoChat.OS.Modules.Circles.Rules;
 using IntoChat.OS.Modules.Circles.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Modules.Circles;
 

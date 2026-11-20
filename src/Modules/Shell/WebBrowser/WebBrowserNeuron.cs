@@ -4,12 +4,12 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
 using IntoChat.OS.Modules.Microsoft.Playwright;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 

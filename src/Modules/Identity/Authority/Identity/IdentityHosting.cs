@@ -41,7 +41,7 @@ public static class IdentityHosting
             .ValidateOnStart();
         // Beyond loopback, in every topology: no start without a sign-in module, the bootstrap credential or the opt-in, and no
         // built-in registration (NetworkSignIn). The exit is replaceable so a test host does not end the test process.
-        services.TryAddSingleton<IntoChat.OS.ServiceDefaults.OpenPostureLoopback.OpenPostureExit>();
+        services.TryAddSingleton<IntoChat.OS.Host.ServiceDefaults.OpenPostureLoopback.OpenPostureExit>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, NetworkSignInGuard>());
         services.AddDataProtection();
         services.AddOptions<Microsoft.AspNetCore.DataProtection.DataProtectionOptions>()

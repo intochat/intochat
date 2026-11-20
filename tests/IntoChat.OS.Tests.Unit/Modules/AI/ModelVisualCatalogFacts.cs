@@ -1,13 +1,13 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Testing;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Anthropic;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Pricing;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

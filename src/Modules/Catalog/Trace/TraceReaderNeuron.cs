@@ -6,7 +6,7 @@ using DigitalBrain.Log;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Signals;
-using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Trace;
 

@@ -1,10 +1,10 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.ServiceDefaults;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
@@ -15,7 +15,7 @@ public sealed class DrainOrderFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var events = new List<string>();
-        var builder = Host.CreateApplicationBuilder();
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [IntoChatOSNames.HomeKey] = Path.GetTempPath(),

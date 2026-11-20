@@ -4,7 +4,6 @@ using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.UI.BreadcrumbBar;
 using IntoChat.OS.Modules.UI.CodeEditor;
 using IntoChat.OS.Modules.UI.ContextMenu;
@@ -13,6 +12,7 @@ using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Modules.Apps;

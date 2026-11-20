@@ -320,7 +320,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string IconSuggestKey = "gallery/icons/suggest";
     public const string IconGridKey = "gallery/icons/grid";
 
-    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Host.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
     private bool _seeded;
 

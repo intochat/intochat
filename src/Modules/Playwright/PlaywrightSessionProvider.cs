@@ -2,9 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using MicrosoftSdk = Microsoft;
 using PlaywrightSdk = Microsoft.Playwright;
+using IntoChat.OS.Host.Logging;
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.

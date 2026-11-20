@@ -3,9 +3,9 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Flutter.Viewport;
 

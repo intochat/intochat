@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Execution;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 

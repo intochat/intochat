@@ -3,13 +3,13 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Kernel.Sandbox;
 

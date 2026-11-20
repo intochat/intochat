@@ -8,8 +8,8 @@ using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
-using IntoChat.OS.ServiceDefaults;
 using AspireSdk = Aspire;
+using IntoChat.OS.Host.ServiceDefaults;
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 // Candidates work in {repository}/.intochat-os (gitignored): worktrees, builds and the candidate Dockerfile.

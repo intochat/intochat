@@ -1,7 +1,7 @@
 using IntoChat.OS.Kernel.AspireServer;
-using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
@@ -14,7 +14,7 @@ public sealed class ConfigurationFileFacts
         File.WriteAllText(path, """{ "IntoChatOS": { "Probe": "from-file" } }""");
         try
         {
-            var builder = Host.CreateApplicationBuilder();
+            var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [IntoChatOSNames.HomeKey] = Path.GetTempPath(),

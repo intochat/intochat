@@ -1,5 +1,5 @@
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.Apps.Routing;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps;
 

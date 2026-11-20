@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Host.Callers;
 
 // The one place os platform code acts as the kernel: releasing a provider credential or registration to module code. A
 // callee that serves only the kernel (IBrainEntries.Release, IIntegration.Release) then reads the stamped caller, never an argument.

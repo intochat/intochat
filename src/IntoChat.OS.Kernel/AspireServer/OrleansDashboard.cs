@@ -1,9 +1,9 @@
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel.AspireServer;
 

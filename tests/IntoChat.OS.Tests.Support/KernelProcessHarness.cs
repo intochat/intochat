@@ -10,9 +10,9 @@ using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Execution;
 
 namespace IntoChat.OS.Tests.Support;
 

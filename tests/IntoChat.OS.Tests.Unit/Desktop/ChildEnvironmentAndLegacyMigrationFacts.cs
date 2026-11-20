@@ -5,8 +5,6 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
@@ -16,6 +14,8 @@ using IntoChat.OS.Kernel.Install;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using System.Net;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Execution;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 

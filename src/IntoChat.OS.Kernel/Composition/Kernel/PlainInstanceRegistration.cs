@@ -7,12 +7,12 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
-using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
+using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel.Composition.Kernel;
 

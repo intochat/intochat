@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.CodeBlocks;
 

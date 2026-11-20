@@ -5,10 +5,10 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.ClickHouse;
 using IntoChat.OS.Modules.Postgres;
 using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

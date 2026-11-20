@@ -1,7 +1,6 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 

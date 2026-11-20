@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;
 using SecretRef = DigitalBrain.Capabilities.Secrets.SecretRef;
 using SecretStatus = DigitalBrain.Capabilities.Secrets.SecretStatus;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Authority;
 

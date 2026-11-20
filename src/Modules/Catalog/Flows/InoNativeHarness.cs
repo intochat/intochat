@@ -6,7 +6,6 @@ using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Inference;
@@ -17,6 +16,7 @@ using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

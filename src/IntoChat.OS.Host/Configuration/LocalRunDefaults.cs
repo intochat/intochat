@@ -1,9 +1,8 @@
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 
-namespace IntoChat.OS.Framework.Configuration;
+namespace IntoChat.OS.Host.Configuration;
 
 // The module defaults of a topology: local and local+cloud have no containers, so IntoChatOSNames.LocalDisabledModules
 // default to off; cloud keeps every module on. Every process that reads module configuration (kernel, MCP, AppHost) applies

@@ -1,5 +1,5 @@
 // os-only: OS process confinement contracts for Tier 2 tool and coder execution.
-namespace IntoChat.OS.Framework.Execution;
+namespace IntoChat.OS.Host.Execution;
 
 /// <summary>Outbound network posture applied to a confined OS child process.</summary>
 public enum NetworkPolicy

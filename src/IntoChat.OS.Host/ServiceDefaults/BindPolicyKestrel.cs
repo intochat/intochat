@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 // Applies the bind policy to the listeners Kestrel reads from configuration (urls, ASPNETCORE_URLS, DOTNET_URLS,
 // Kestrel:Endpoints) before anything binds. On local and local+cloud a listener beyond loopback needs IntoChatOS:Bind to name

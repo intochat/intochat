@@ -1,13 +1,13 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Apps.Settings;
 

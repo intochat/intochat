@@ -10,8 +10,6 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Modules.AI.Models.FoundryLocal;
@@ -23,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

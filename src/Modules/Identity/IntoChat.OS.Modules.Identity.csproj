@@ -31,6 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Protobuf Include="Authority/Neurons/neurons.proto" GrpcServices="Both" />

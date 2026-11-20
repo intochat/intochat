@@ -36,7 +36,6 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.AI;
@@ -54,6 +53,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 

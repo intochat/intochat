@@ -9,11 +9,11 @@ using DigitalBrain.Signals;
 using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 

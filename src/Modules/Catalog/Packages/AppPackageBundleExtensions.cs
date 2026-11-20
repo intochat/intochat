@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.Sdk;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

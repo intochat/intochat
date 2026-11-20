@@ -4,7 +4,7 @@ using System.Runtime.Versioning;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
-namespace IntoChat.OS.Framework.Execution;
+namespace IntoChat.OS.Host.Execution;
 
 [SupportedOSPlatform("windows")]
 public sealed partial class WindowsAppContainerRunner

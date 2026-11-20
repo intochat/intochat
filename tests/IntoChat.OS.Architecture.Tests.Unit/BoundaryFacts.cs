@@ -13,11 +13,13 @@ public sealed class BoundaryFacts
     // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "IntoChat.OS", "IntoChat.OS.Modules.Identity"
+        "DigitalBrain", "IntoChat.OS", "IntoChat.OS.Host", "IntoChat.OS.Modules.Identity"
     ];
 
     [Theory]
     [InlineData("DigitalBrain", "IntoChat.OS")]
+    [InlineData("IntoChat.OS", "IntoChat.OS.Host")]
+    [InlineData("IntoChat.OS.Host", "IntoChat.OS.Modules.Identity")]
     [InlineData("IntoChat.OS", "IntoChat.OS.Modules.Identity")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))

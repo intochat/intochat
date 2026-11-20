@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 

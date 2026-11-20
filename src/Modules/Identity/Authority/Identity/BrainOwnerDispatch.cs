@@ -5,9 +5,9 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Identity;
 

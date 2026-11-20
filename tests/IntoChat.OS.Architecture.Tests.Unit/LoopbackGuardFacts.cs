@@ -8,9 +8,9 @@ public sealed class LoopbackGuardFacts
     [Fact]
     public void TheTopologyAndBindKeysKeepTheirLiterals()
     {
-        Assert.Equal("IntoChatOS:Topology", IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey);
-        Assert.Equal("IntoChatOS:Bind", IntoChat.OS.Contracts.Configuration.IntoChatOSNames.BindKey);
-        Assert.Equal("local", IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal);
+        Assert.Equal("IntoChatOS:Topology", IntoChat.OS.Host.Configuration.IntoChatOSNames.TopologyKey);
+        Assert.Equal("IntoChatOS:Bind", IntoChat.OS.Host.Configuration.IntoChatOSNames.BindKey);
+        Assert.Equal("local", IntoChat.OS.Host.Configuration.IntoChatOSNames.TopologyLocal);
     }
 
     [Fact]

@@ -11,10 +11,10 @@ using DigitalBrain.Units;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 

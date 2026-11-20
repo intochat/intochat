@@ -5,14 +5,14 @@ using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 using IntoChat.OS.Kernel.Mcp;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Kernel.Mcp.Tools;
 

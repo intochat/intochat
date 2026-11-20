@@ -8,5 +8,5 @@ namespace IntoChat.OS.Modules.Mcp;
 /// </summary>
 internal static class McpConsoleLog
 {
-    public static ILogger For<T>() => IntoChat.OS.Framework.Logging.OsConsoleLog.For<T>();
+    public static ILogger For<T>() => IntoChat.OS.Host.Logging.OsConsoleLog.For<T>();
 }

@@ -13,6 +13,7 @@ using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 

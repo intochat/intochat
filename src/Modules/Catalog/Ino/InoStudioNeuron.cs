@@ -5,12 +5,12 @@ using DigitalBrain.Brains;
 using DigitalBrain.Log;
 using DigitalBrain.Flows;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -1,3 +1,5 @@
+using IntoChat.OS.Host.Cluster;
+
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
 
 public static class OrleansModuleOptionsExtensions

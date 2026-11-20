@@ -43,7 +43,7 @@ internal sealed class NotificationsSlotConnection : ConnectionNeuron<Notificatio
 {
     public const string TypeName = "notifications.connection";
 
-    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<NotificationsSlotConnection>();
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Host.Logging.OsConsoleLog.For<NotificationsSlotConnection>();
 
     private readonly ILogger _logger;
 

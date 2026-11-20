@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 // Open posture resolves every anonymous caller as the owner, so on IntoChatOS:Topology local or local+cloud (unset means local)
 // on the host it may listen on loopback only (D-21; this replaced the retired run-mode marker). Cloud and containers are out of

@@ -2,10 +2,10 @@ using System.Diagnostics;
 using System.Security;
 using System.Text;
 using DigitalBrain.Log;
-using IntoChat.OS.Framework.Execution;
-using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 

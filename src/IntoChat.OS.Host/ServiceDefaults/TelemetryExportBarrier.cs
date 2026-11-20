@@ -10,7 +10,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 // A process-local exporter barrier, enabled only by the test host's private capability.
 // Callers must establish domain completion first; this does not wait for running work.

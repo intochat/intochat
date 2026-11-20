@@ -7,10 +7,10 @@ using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Mcp;
 

@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Contracts.Configuration;
+namespace IntoChat.OS.Host.Configuration;
 
 public static class IntoChatOSNames
 {

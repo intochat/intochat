@@ -1,6 +1,6 @@
-using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
+using IntoChat.OS.Host.Cluster;
 
 namespace IntoChat.OS.Kernel.Composition.Cluster;
 

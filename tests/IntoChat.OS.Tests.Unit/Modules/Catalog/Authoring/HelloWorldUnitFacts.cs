@@ -5,7 +5,6 @@ using DigitalBrain.Testing;
 using DigitalBrain.Testing.Synapses;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -13,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Authoring;
 

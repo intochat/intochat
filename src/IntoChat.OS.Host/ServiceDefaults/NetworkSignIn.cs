@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.ServiceDefaults;
+namespace IntoChat.OS.Host.ServiceDefaults;
 
 // Sign-in on a kernel that listens beyond loopback. Unlike the Open-posture check (OpenPostureLoopback), this holds in every
 // topology and in a container: the storage a brain runs on says nothing about who can reach it.

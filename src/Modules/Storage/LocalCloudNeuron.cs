@@ -8,7 +8,7 @@ using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
-using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 

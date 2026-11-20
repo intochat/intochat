@@ -1,7 +1,6 @@
 using DigitalBrain.Capabilities.Compute;
 using IntoChat.OS;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Media;
@@ -20,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 

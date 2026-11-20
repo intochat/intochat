@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Contracts.Configuration;
+namespace IntoChat.OS.Host.Configuration;
 
 // The orleans module's id and its grain-state container option. Clustering, grain state and reminders are no longer
 // integration fields: IntoChatOS:Topology selects them, and IntoChatOS:Cloud:Storage names the cloud account (03-12).

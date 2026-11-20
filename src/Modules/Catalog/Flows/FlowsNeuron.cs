@@ -5,7 +5,6 @@ using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
@@ -13,6 +12,8 @@ using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps.Flows.Rules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

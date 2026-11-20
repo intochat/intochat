@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 
-namespace IntoChat.OS.Framework.Execution;
+namespace IntoChat.OS.Host.Execution;
 
 /// <summary>
 /// Builds deterministic Linux <c>bwrap</c> arguments and macOS <c>sandbox-exec</c> Seatbelt profiles,

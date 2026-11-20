@@ -6,9 +6,9 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 

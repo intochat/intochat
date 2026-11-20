@@ -2,9 +2,9 @@ using System.ComponentModel;
 using System.Security;
 using System.Text.Json;
 using DigitalBrain.Operations;
-using IntoChat.OS.Framework.Logging;
 using DigitalBrain.Identity.Local.Machine;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 

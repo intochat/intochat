@@ -6,6 +6,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Host.Cluster;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit;
 

@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using IntoChat.OS.Kernel.Composition.Cluster;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Runtime;
+using IntoChat.OS.Host.Cluster;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration;
 

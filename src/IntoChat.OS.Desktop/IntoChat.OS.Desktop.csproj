@@ -11,6 +11,6 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);IntoChat.OS.Desktop.Tests.Unit\**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\Modules\Identity\Execution\ChildEnvironmentPolicy.cs" Link="Execution\ChildEnvironmentPolicy.cs" />
+    <Compile Include="..\IntoChat.OS.Host\Execution\ChildEnvironmentPolicy.cs" Link="Execution\ChildEnvironmentPolicy.cs" />
   </ItemGroup>
 </Project>

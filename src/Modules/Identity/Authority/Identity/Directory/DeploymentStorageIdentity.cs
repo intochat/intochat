@@ -5,11 +5,11 @@ using Azure.Storage.Blobs.Models;
 using IntoChat.OS;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
+using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Authority.Identity.Directory;
 
