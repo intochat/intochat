@@ -5,18 +5,22 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Primitives;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
 /// Autonomous multi-stage engineering durable flow (<c>flow.engineer</c>) orchestrating 1..N isolated worktrees
-/// across brainstorm/plan, worktree preparation, parallel strategy tournament execution, build/test,
-/// live verification, deterministic candidate scoring/ranking, human candidate promotion, and SHA-bound human approval
-/// before branch push, draft PR, and worktree cleanup.
+/// across brainstorm/plan, optional human plan ratification, worktree preparation, 2-level parallel InoNative
+/// (or optional CLI) slice execution, build/test, live verification, deterministic candidate scoring/ranking,
+/// human candidate promotion, SessionJournal writeback, and SHA-bound human approval before branch push, draft PR, and cleanup.
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
 internal sealed class EngineerFlow(
@@ -27,6 +31,7 @@ internal sealed class EngineerFlow(
     ILiveVerifier? liveVerifier = null,
     IWorktreeRoslyn? roslyn = null,
     IConfirmationRequests? confirmationRequests = null,
+    IEngineeringHarness? engineeringHarness = null,
     IServiceProvider? services = null) : Flow<EngineerRun>, IFlowStarter
 {
     public const string Alias = IFlows.EngineerFlow;
@@ -58,9 +63,8 @@ internal sealed class EngineerFlow(
         ?? services?.GetService(typeof(IWorkTree)) as IWorkTree
         ?? throw new InvalidOperationException("IWorkTree service is not registered.");
 
-    private ICoder Coder => coder
-        ?? services?.GetService(typeof(ICoder)) as ICoder
-        ?? throw new InvalidOperationException("ICoder service is not registered.");
+    private ICoder? OptionalCoder => coder
+        ?? services?.GetService(typeof(ICoder)) as ICoder;
 
     private IEngineerPlanner Planner => planner
         ?? services?.GetService(typeof(IEngineerPlanner)) as IEngineerPlanner
@@ -97,6 +101,71 @@ internal sealed class EngineerFlow(
         State.Status,
         State.Done,
         State.Ended));
+
+    public async Task RatifyPlan(
+        string[]? approvedCleanupTargets = null,
+        EngineerTaskSlice[]? slices = null,
+        string? ratifiedBy = null)
+    {
+        if (State.IsOver)
+        {
+            throw new InvalidOperationException($"Cannot ratify plan on finished flow '{Id}' ({State.Status}).");
+        }
+
+        var currentInner = State.Inner;
+        var basePlan = currentInner.Plan
+            ?? throw new InvalidOperationException($"Flow '{Id}' does not have a drafted EngineerTaskPlan to ratify yet.");
+
+        var effectiveCleanup = approvedCleanupTargets
+            ?? currentInner.RatifiedPlan?.CleanupTargets
+            ?? basePlan.CleanupTargets
+            ?? currentInner.RequestedCleanupTargets
+            ?? [];
+        var effectiveSlices = slices is { Length: > 0 }
+            ? slices
+            : currentInner.RatifiedPlan?.Slices is { Length: > 0 } existingSlices
+                ? existingSlices
+                : EngineerTaskSlices.FromTaskPlan(basePlan);
+
+        await Check("RatifyPlan", new NoOverlappingFileSlices(effectiveSlices)).ConfigureAwait(true);
+
+        var candidatePlan = basePlan with
+        {
+            CleanupTargets = effectiveCleanup,
+            Slices = effectiveSlices,
+        };
+        var maxFiles = Math.Max(
+            ChangePolicy.Default.MaxChangedFiles,
+            effectiveCleanup.Length + effectiveSlices.SelectMany(static s => s.OwnedPaths ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        if (candidatePlan.Validate(maxFiles) is { } validationError)
+        {
+            throw new ArgumentException(validationError, nameof(slices));
+        }
+
+        var ratified = new RatifiedPlan(
+            Goal: currentInner.Goal,
+            ArchitectureSummary: candidatePlan.ArchitectureSummary,
+            CleanupTargets: effectiveCleanup,
+            Slices: effectiveSlices,
+            Ratified: true,
+            RatifiedBy: string.IsNullOrWhiteSpace(ratifiedBy) ? "owner" : ratifiedBy.Trim(),
+            RatifiedAt: Context.Time.GetUtcNow(),
+            Harness: currentInner.Harness);
+
+        var nextInner = currentInner.WithPlan(candidatePlan).WithRatifiedPlan(ratified);
+        await Save(
+            State with { Inner = nextInner },
+            new FlowStep(
+                Id.ToString(),
+                "brainstorm-and-plan",
+                StepOutcome.Started,
+                string.Create(CultureInfo.InvariantCulture, $"Ratified plan ({effectiveSlices.Length} slice(s), {effectiveCleanup.Length} cleanup target(s))."))).ConfigureAwait(true);
+
+        if (State is { Status: FlowStatus.Waiting, Waiting: { Step: "brainstorm-and-plan", Reason: WaitReason.External } })
+        {
+            await Resume("brainstorm-and-plan", WaitOutcome.Approved, ratified.RatifiedBy).ConfigureAwait(true);
+        }
+    }
 
     public async Task SelectCandidate(int candidateIndex)
     {
@@ -194,7 +263,7 @@ internal sealed class EngineerFlow(
                 "implement-tasks" => await ImplementTasksStepAsync(inner, ct).ConfigureAwait(true),
                 "build-and-test" => await BuildAndTestStepAsync(inner, ct).ConfigureAwait(true),
                 "live-verify" => await LiveVerifyStepAsync(inner, ct).ConfigureAwait(true),
-                "approval-gate" => ApprovalGateStep(step, inner),
+                "approval-gate" => await ApprovalGateStepAsync(step, inner).ConfigureAwait(true),
                 "push" => await PushStepAsync(inner, ct).ConfigureAwait(true),
                 "pr" => await PullRequestStepAsync(inner, ct).ConfigureAwait(true),
                 "clean" => await CleanStepAsync(inner, ct).ConfigureAwait(true),
@@ -256,23 +325,80 @@ internal sealed class EngineerFlow(
             throw new FlowFailed("brainstorm-and-plan", "Goal description is required.");
         }
 
-        if (inner.Plan is not null && inner.Plan.Validate(ChangePolicy.Default.MaxChangedFiles) is null)
+        if (inner.Plan is not null && inner.RatifiedPlan is { Ratified: true } && inner.Plan.Validate(ChangePolicy.Default.MaxChangedFiles) is null)
         {
             return inner.Advance();
         }
 
-        var activePlanner = Planner;
-        var allowed = ChangePolicy.Default.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        var plan = await Task.Run(
-            () => activePlanner.PlanAsync(inner.Repository.Value, inner.Goal, allowed, ChangePolicy.Default.MaxChangedFiles, ct),
-            ct).ConfigureAwait(true);
+        EngineerTaskPlan plan;
+        if (inner.Plan is not null && inner.Plan.Validate(ChangePolicy.Default.MaxChangedFiles) is null)
+        {
+            plan = inner.Plan;
+        }
+        else
+        {
+            var activePlanner = Planner;
+            var allowed = ChangePolicy.Default.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+            plan = await Task.Run(
+                () => activePlanner.PlanAsync(inner.Repository.Value, inner.Goal, allowed, ChangePolicy.Default.MaxChangedFiles, ct),
+                ct).ConfigureAwait(true);
+        }
 
-        if (plan.Validate(ChangePolicy.Default.MaxChangedFiles) is { } validationError)
+        var cleanupTargets = plan.CleanupTargets is { Length: > 0 }
+            ? plan.CleanupTargets
+            : inner.RequestedCleanupTargets ?? [];
+        var slices = plan.Slices is { Length: > 0 }
+            ? plan.Slices
+            : inner.RequestedSlices is { Length: > 0 }
+                ? inner.RequestedSlices
+                : EngineerTaskSlices.FromTaskPlan(plan);
+
+        var disjointRule = new NoOverlappingFileSlices(slices);
+        if (disjointRule.Broken)
+        {
+            throw new FlowFailed("brainstorm-and-plan", $"{disjointRule.Name}: {disjointRule.Message}");
+        }
+
+        var enrichedPlan = plan with
+        {
+            CleanupTargets = cleanupTargets,
+            Slices = slices,
+        };
+        if (enrichedPlan.Validate(ChangePolicy.Default.MaxChangedFiles) is { } validationError)
         {
             throw new FlowFailed("brainstorm-and-plan", validationError);
         }
 
-        return inner.WithPlan(plan).Advance();
+        if (inner.RequirePlanRatification && inner.RatifiedPlan is not { Ratified: true })
+        {
+            var draft = new RatifiedPlan(
+                Goal: inner.Goal,
+                ArchitectureSummary: enrichedPlan.ArchitectureSummary,
+                CleanupTargets: cleanupTargets,
+                Slices: slices,
+                Ratified: false,
+                RatifiedBy: null,
+                RatifiedAt: null,
+                Harness: inner.Harness);
+            var waitingInner = inner.WithPlan(enrichedPlan).WithDraftPlan(draft);
+            var ratifyWaitId = $"plan:ratify:{EffectiveRunId(waitingInner)}";
+            return new StepResult<EngineerRun>(
+                waitingInner,
+                new Waiting("brainstorm-and-plan", WaitReason.External, null, ratifyWaitId),
+                Disposition: StepDisposition.Wait);
+        }
+
+        var autoRatified = new RatifiedPlan(
+            Goal: inner.Goal,
+            ArchitectureSummary: enrichedPlan.ArchitectureSummary,
+            CleanupTargets: cleanupTargets,
+            Slices: slices,
+            Ratified: true,
+            RatifiedBy: "auto",
+            RatifiedAt: Context.Time.GetUtcNow(),
+            Harness: inner.Harness);
+
+        return inner.WithPlan(enrichedPlan).WithRatifiedPlan(autoRatified).Advance();
     }
 
     private async Task<StepResult<EngineerRun>> PrepareWorktreeStepAsync(EngineerRun inner, CancellationToken ct)
@@ -308,25 +434,70 @@ internal sealed class EngineerFlow(
             throw new FlowFailed("implement-tasks", "No prepared worktree instances available.");
         }
 
-        var orderedTasks = plan.TopologicalOrder();
+        var ratifiedPlan = inner.RatifiedPlan ?? new RatifiedPlan(
+            Goal: inner.Goal,
+            ArchitectureSummary: plan.ArchitectureSummary,
+            CleanupTargets: plan.CleanupTargets ?? [],
+            Slices: EngineerTaskSlices.FromTaskPlan(plan),
+            Ratified: true,
+            RatifiedBy: "auto",
+            RatifiedAt: Context.Time.GetUtcNow(),
+            Harness: inner.Harness);
+
+        var disjointRule = new NoOverlappingFileSlices(ratifiedPlan.Slices);
+        if (disjointRule.Broken)
+        {
+            throw new FlowFailed("implement-tasks", $"{disjointRule.Name}: {disjointRule.Message}");
+        }
+
+        // Pre-Flight Brain Hydration ONCE per mission on the grain turn, shared across all worktrees & slices!
+        var hydratedSnapshot = await HydrateMissionBrainSnapshotAsync(
+            inner.Repository?.Value ?? "os",
+            inner.Goal,
+            ct).ConfigureAwait(true);
+
         var wt = WorkTree;
-        var activeCoder = Coder;
         var activeRoslyn = Roslyn;
+        var harness = ResolveHarness(inner.Harness);
         var totalInstances = inner.Instances.Length;
+        var flowId = Id.ToString();
+        var brainId = Id.Brain;
+        var grainScheduler = TaskScheduler.Current;
+
+        Task PublishProgressLive(OperationProgressed signal) =>
+            Task.Factory.StartNew(
+                async () =>
+                {
+                    try
+                    {
+                        await Publish(signal).ConfigureAwait(true);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        ConsoleLogger.LogDebug(ex, "Skipping live OperationProgressed publish on stopping grain.");
+                    }
+                },
+                CancellationToken.None,
+                TaskCreationOptions.None,
+                grainScheduler).Unwrap();
 
         var instanceRuns = inner.Instances.Select(instance => Task.Run(
             () => ImplementSingleInstanceAsync(
                 instance,
+                brainId,
+                flowId,
                 inner.Repository,
-                inner.RunId,
+                EffectiveRunId(inner),
                 inner.Goal,
                 inner.RequestedBaseBranch,
+                inner.Harness,
                 totalInstances,
-                plan,
-                orderedTasks,
+                ratifiedPlan,
+                hydratedSnapshot,
                 wt,
-                activeCoder,
+                harness,
                 activeRoslyn,
+                PublishProgressLive,
                 ct),
             ct)).ToArray();
 
@@ -339,7 +510,9 @@ internal sealed class EngineerFlow(
         }
 
         var nextSelected = EngineerRun.SelectDefaultWinnerIndex(completedInstances);
-        var updated = inner.WithUpdatedInstances(completedInstances, nextSelected);
+        var updated = inner
+            .WithMatchedProjectBrief(hydratedSnapshot.MatchedProjectBriefKey)
+            .WithUpdatedInstances(completedInstances, nextSelected);
 
         if (updated.SelectedInstance?.Commit is { } selectedCommit)
         {
@@ -354,16 +527,20 @@ internal sealed class EngineerFlow(
 
     private static async Task<EngineerInstance> ImplementSingleInstanceAsync(
         EngineerInstance instance,
+        BrainId brainId,
+        string flowId,
         RepositoryId? repository,
         string runId,
         string goal,
         BranchName? requestedBaseBranch,
+        EngineeringHarnessKind harnessKind,
         int totalInstances,
-        EngineerTaskPlan plan,
-        EngineerTaskItem[] orderedTasks,
+        RatifiedPlan ratifiedPlan,
+        InoHydratedBrainSnapshot hydratedSnapshot,
         IWorkTree wt,
-        ICoder activeCoder,
+        IEngineeringHarness harness,
         IWorktreeRoslyn activeRoslyn,
+        Func<OperationProgressed, Task> onProgress,
         CancellationToken ct)
     {
         var lease = instance.Lease ?? throw new InvalidOperationException($"WorkTreeLease missing on instance {instance.InstanceIndex}.");
@@ -376,97 +553,72 @@ internal sealed class EngineerFlow(
 
         var (strategyId, strategyLabel, strategyLens) = EngineerCandidateStrategies.ForCandidate(instance.InstanceIndex);
         var effectiveStrategy = string.IsNullOrWhiteSpace(instance.Strategy) ? strategyId : instance.Strategy!;
-        var completedIds = instance.CompletedTaskIds.ToHashSet(StringComparer.Ordinal);
-        var touchedAll = new HashSet<RepoPath>();
-        if (instance.Edit is not null)
-        {
-            foreach (var path in instance.Edit.TouchedFiles)
-            {
-                touchedAll.Add(path);
-            }
-        }
-
-        var summaries = new List<string>();
-        if (!string.IsNullOrWhiteSpace(instance.Edit?.Summary))
-        {
-            summaries.Add(instance.Edit.Summary);
-        }
-
-        var modelId = instance.Edit?.ModelId ?? string.Empty;
 
         try
         {
-            foreach (var task in orderedTasks)
-            {
-                if (completedIds.Contains(task.Id))
-                {
-                    continue;
-                }
+            var request = new EngineeringHarnessRequest(
+                FlowId: flowId,
+                RunId: runId,
+                RepositoryId: repository?.Value ?? lease.RepositoryId,
+                Goal: goal,
+                WorktreeId: lease.EffectiveLeaseId,
+                WorktreePath: lease.TreePath,
+                InstanceIndex: instance.InstanceIndex,
+                TotalInstances: totalInstances,
+                Strategy: effectiveStrategy,
+                StrategyLabel: strategyLabel,
+                StrategyPromptLens: strategyLens,
+                Harness: harnessKind,
+                RatifiedPlan: ratifiedPlan,
+                Brain: brainId,
+                BaseBranch: lease.BaseBranch,
+                SourceRepositoryPath: lease.SourceRepoPath);
 
-                var symbolHint = string.Empty;
-                if (task.Language is "csharp" or "mixed")
-                {
-                    var symbols = await activeRoslyn.InspectSymbolsAsync(lease.TreePath, null, ct).ConfigureAwait(false);
-                    if (symbols.Count > 0)
-                    {
-                        var topSymbols = string.Join(", ", symbols.Take(12).Select(static s => $"{s.Kind} {s.Name} ({s.FilePath})"));
-                        symbolHint = $"\nRoslyn worktree symbols: {topSymbols}";
-                    }
-                }
+            var harnessResult = harness is InoNativeHarness inoNative
+                ? await inoNative.ExecuteWithContextAsync(
+                    request,
+                    preHydrated: hydratedSnapshot,
+                    recordJournalMilestone: false,
+                    onProgress: onProgress,
+                    ct: ct).ConfigureAwait(false)
+                : await harness.ExecuteAsync(request, onProgress, ct).ConfigureAwait(false);
 
-                var strategyDirective = totalInstances >= 2
-                    ? string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"\n[Candidate w{instance.InstanceIndex + 1} Strategy — {strategyLabel} ({effectiveStrategy})]: {strategyLens}")
-                    : string.Empty;
+            var completedIds = harnessResult.CompletedSlices
+                .Where(static s => string.Equals(s.Status, "completed", StringComparison.OrdinalIgnoreCase))
+                .Select(static s => s.SliceId)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
 
-                var taskGoal = orderedTasks.Length == 1 && totalInstances == 1
-                    ? goal
-                    : orderedTasks.Length == 1
-                        ? $"{goal}{strategyDirective}"
-                        : $"{goal}\n\n[Task {task.Id}: {task.Title}]\n{task.Instructions}\nArchitect note: {plan.ArchitectureSummary}{symbolHint}{strategyDirective}";
-
-                var editResult = await activeCoder.EditAsync(lease, taskGoal, ct).ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(editResult.Summary))
-                {
-                    summaries.Add(editResult.Summary);
-                }
-
-                if (!string.IsNullOrWhiteSpace(editResult.ModelId))
-                {
-                    modelId = editResult.ModelId;
-                }
-
-                foreach (var rawPath in editResult.TouchedFiles)
-                {
-                    if (RepoPath.TryParse(rawPath, out var parsed))
-                    {
-                        touchedAll.Add(parsed!);
-                    }
-                }
-
-                completedIds.Add(task.Id);
-            }
-
-            var csTouched = touchedAll.Where(static p => p.IsCSharp).Select(static p => p.Value).ToArray();
-            var roslynDiagnostics = csTouched.Length > 0
-                ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, csTouched, ct).ConfigureAwait(false)).ToArray()
-                : [];
-            var firstRoslynError = roslynDiagnostics.FirstOrDefault(static d => d.Severity == "Error");
-            if (firstRoslynError is not null)
+            if (!harnessResult.Succeeded)
             {
                 return (instance with
                 {
+                    Harness = harnessKind,
                     Strategy = effectiveStrategy,
-                    CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
-                    RoslynDiagnostics = roslynDiagnostics,
+                    CompletedTaskIds = completedIds,
+                    Slices = harnessResult.CompletedSlices,
+                    DeletedFiles = harnessResult.DeletedFiles,
                     Status = "failed",
-                    FailureDetail = $"Roslyn error {firstRoslynError.Id} in {firstRoslynError.FilePath}:{firstRoslynError.Line}: {firstRoslynError.Message}",
+                    FailureDetail = harnessResult.FailureDetail ?? "Engineering harness execution failed.",
                 }).WithComputedScore();
             }
 
-            var combinedSummary = string.Join(" ", summaries.Where(static s => !string.IsNullOrWhiteSpace(s)));
-            var commitMessage = ChangePolicy.BuildCommitMessage(goal, combinedSummary);
+            var touchedRepoPaths = harnessResult.TouchedFiles
+                .Select(static raw => RepoPath.TryParse(raw, out var parsed) ? parsed : null)
+                .OfType<RepoPath>()
+                .Distinct()
+                .OrderBy(static p => p.Value, StringComparer.Ordinal)
+                .ToArray();
+
+            var liveCsPaths = touchedRepoPaths
+                .Where(p => p.IsCSharp && !(harnessResult.DeletedFiles ?? []).Contains(p.Value, StringComparer.OrdinalIgnoreCase))
+                .Select(static p => p.Value)
+                .ToArray();
+            var roslynDiagnostics = liveCsPaths.Length > 0
+                ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct).ConfigureAwait(false)).ToArray()
+                : [];
+
+            var commitMessage = ChangePolicy.BuildCommitMessage(goal, harnessResult.Summary);
             var committed = await wt.VerifyAndCommitAsync(lease, commitMessage, ct).ConfigureAwait(false);
 
             if (repository is not null)
@@ -480,16 +632,19 @@ internal sealed class EngineerFlow(
                 var previewChange = Change.Start(runId, repository, goal, requestedBaseBranch)
                     .WithWorkTree(string.IsNullOrWhiteSpace(runId) ? lease.RunId : runId, lease)
                     .WithCoderEdit(new CoderEditResult(
-                        combinedSummary,
-                        [.. touchedAll.Select(static p => p.Value)],
-                        modelId))
+                        harnessResult.Summary,
+                        harnessResult.TouchedFiles,
+                        harnessResult.ModelId))
                     .WithCommit(metadataWithoutDiff);
                 if (ChangeCard.Refusal(previewChange, committed.HostRenderedDiff) is { } cardRefusal)
                 {
                     return (instance with
                     {
+                        Harness = harnessKind,
                         Strategy = effectiveStrategy,
-                        CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
+                        CompletedTaskIds = completedIds,
+                        Slices = harnessResult.CompletedSlices,
+                        DeletedFiles = harnessResult.DeletedFiles,
                         RoslynDiagnostics = roslynDiagnostics,
                         Status = "failed",
                         FailureDetail = cardRefusal,
@@ -499,12 +654,15 @@ internal sealed class EngineerFlow(
 
             return (instance with
             {
+                Harness = harnessKind,
                 Strategy = effectiveStrategy,
-                CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
+                CompletedTaskIds = completedIds,
+                Slices = harnessResult.CompletedSlices,
+                DeletedFiles = harnessResult.DeletedFiles,
                 Edit = new CoderEdit(
-                    combinedSummary,
-                    modelId,
-                    [.. touchedAll.OrderBy(static p => p.Value, StringComparer.Ordinal)]),
+                    harnessResult.Summary,
+                    harnessResult.ModelId,
+                    touchedRepoPaths),
                 RoslynDiagnostics = roslynDiagnostics,
                 Commit = committed,
                 Status = "implemented",
@@ -516,12 +674,121 @@ internal sealed class EngineerFlow(
             ConsoleLogger.LogSwallowed(ex, $"engineer worktree instance #{instance.InstanceIndex} implementation failed");
             return (instance with
             {
+                Harness = harnessKind,
                 Strategy = effectiveStrategy,
-                CompletedTaskIds = [.. completedIds.Order(StringComparer.Ordinal)],
                 Status = "failed",
                 FailureDetail = ex.Message,
             }).WithComputedScore();
         }
+    }
+
+    private IEngineeringHarness ResolveHarness(EngineeringHarnessKind kind)
+    {
+        if (engineeringHarness is not null && engineeringHarness.Kind == kind)
+        {
+            return engineeringHarness;
+        }
+
+        if (services?.GetService(typeof(IEngineeringHarness)) is IEngineeringHarness registered && registered.Kind == kind)
+        {
+            return registered;
+        }
+
+        if (kind is EngineeringHarnessKind.ClaudeCli or EngineeringHarnessKind.CodexCli)
+        {
+            return new ExternalCliHarness(
+                kind,
+                sandboxRunner: services?.GetService<ISandboxCommandRunner>(),
+                roslyn: Roslyn,
+                policy: services?.GetService<ChangePolicy>() ?? ChangePolicy.Default,
+                configuration: services?.GetService<IConfiguration>());
+        }
+
+        return InoNativeHarness.CreateDefault(
+            services: services,
+            coder: OptionalCoder,
+            roslyn: Roslyn,
+            policy: services?.GetService<ChangePolicy>() ?? ChangePolicy.Default);
+    }
+
+    private async Task<InoHydratedBrainSnapshot> HydrateMissionBrainSnapshotAsync(
+        string repositoryId,
+        string goal,
+        CancellationToken ct)
+    {
+        IWorkingMemory? wm = services?.GetService<IWorkingMemory>();
+        if (wm is null)
+        {
+            var wmId = IWorkingMemory.NeuronIdOf(Id.Brain);
+            if (Implements<IWorkingMemory>(wmId))
+            {
+                wm = Context.Get<IWorkingMemory>(wmId);
+            }
+        }
+
+        IUiIntrospector? introspector = services?.GetService<IUiIntrospector>();
+        if (introspector is null)
+        {
+            var uiId = IUiIntrospector.NeuronIdOf(Id.Brain);
+            if (Implements<IUiIntrospector>(uiId))
+            {
+                introspector = Context.Get<IUiIntrospector>(uiId);
+            }
+        }
+
+        IKnowledgeStore? ks = services?.GetService<IKnowledgeStore>();
+        if (ks is null)
+        {
+            var ksId = new NeuronId(Id.Brain, "ai.knowledge-store", InoNativeHarness.KnowledgeStoreKey);
+            if (Implements<IKnowledgeStore>(ksId))
+            {
+                ks = Context.Get<IKnowledgeStore>(ksId);
+            }
+        }
+
+        return await InoNativeHarness.HydrateBrainContextAsync(
+            Id.Brain,
+            repositoryId,
+            goal,
+            wm,
+            introspector,
+            ks,
+            ConsoleLogger,
+            ct).ConfigureAwait(true);
+    }
+
+    private async Task TryRecordSessionMilestoneOnGrainTurnAsync(
+        EngineerRun inner,
+        string[] deliverables,
+        string[] decisions,
+        string[]? openThreads,
+        string[]? resolvedThreads)
+    {
+        ISessionJournal? journal = services?.GetService<ISessionJournal>();
+        if (journal is null)
+        {
+            var journalId = ISessionJournal.NeuronIdOf(Id.Brain);
+            if (Implements<ISessionJournal>(journalId))
+            {
+                journal = Context.Get<ISessionJournal>(journalId);
+            }
+        }
+
+        if (journal is null)
+        {
+            return;
+        }
+
+        await InoNativeHarness.RecordMilestoneBestEffortAsync(
+            journal,
+            Id.ToString(),
+            inner.Goal,
+            inner.MatchedProjectBriefKey,
+            deliverables,
+            decisions,
+            openThreads,
+            resolvedThreads,
+            ConsoleLogger).ConfigureAwait(true);
     }
 
     private async Task<StepResult<EngineerRun>> BuildAndTestStepAsync(EngineerRun inner, CancellationToken ct)
@@ -646,7 +913,7 @@ internal sealed class EngineerFlow(
         return new EngineerLiveContext(State.TraceId, traceReader, screens);
     }
 
-    private StepResult<EngineerRun> ApprovalGateStep(string step, EngineerRun inner)
+    private async Task<StepResult<EngineerRun>> ApprovalGateStepAsync(string step, EngineerRun inner)
     {
         var winner = inner.SelectedInstance ?? throw new FlowFailed(step, "No verified candidate instance available.");
         var (planId, expires) = EngineerPipelineStages.PrepareApprovalGate(
@@ -658,7 +925,25 @@ internal sealed class EngineerFlow(
             ApprovalWindow,
             step);
 
-        return inner.WithApprovalPending(planId, expires).WaitApproval(step, expires);
+        var nextInner = inner.WithApprovalPending(planId, expires);
+        var changedFiles = winner.Commit?.ChangedFiles.Select(static f => f.Value).ToArray() ?? [];
+        var deletedFiles = winner.DeletedFiles ?? [];
+        await TryRecordSessionMilestoneOnGrainTurnAsync(
+            nextInner,
+            deliverables:
+            [
+                $"Verified commit {winner.Commit?.Commit.Value} on branch {winner.Lease?.BranchName} ({changedFiles.Length} changed file(s))",
+                .. (winner.Slices ?? []).Select(static s => $"Slice {s.SliceId} ({s.AssignedAgentKey}): {s.Title}"),
+                .. deletedFiles.Select(static d => $"Deleted dead target: {d}"),
+            ],
+            decisions:
+            [
+                string.Create(CultureInfo.InvariantCulture, $"Selected candidate w{winner.InstanceIndex + 1} ({winner.EffectiveStrategy}, score={winner.EffectiveScore.TotalScore}) using {inner.Harness}."),
+            ],
+            openThreads: [$"Human approval pending on confirmation plan {planId}"],
+            resolvedThreads: null).ConfigureAwait(true);
+
+        return nextInner.WaitApproval(step, expires);
     }
 
     private async Task<StepResult<EngineerRun>> PushStepAsync(EngineerRun inner, CancellationToken ct)
@@ -715,7 +1000,20 @@ internal sealed class EngineerFlow(
 
         var activeLeases = inner.Instances.Select(static i => i.Lease).OfType<WorkTreeLease>().ToArray();
         await EngineerPipelineStages.ExecuteCleanupAsync(WorkTree, activeLeases, ct).ConfigureAwait(true);
-        return inner.WithCleaned().Advance();
+        var cleaned = inner.WithCleaned();
+
+        var pushedRef = cleaned.Publication?.PushedRef ?? "origin";
+        var prPart = !string.IsNullOrWhiteSpace(cleaned.Publication?.PullRequestUrl)
+            ? $" · Draft PR {cleaned.Publication!.PullRequestUrl}"
+            : string.Empty;
+        await TryRecordSessionMilestoneOnGrainTurnAsync(
+            cleaned,
+            deliverables: [$"Published {pushedRef}{prPart} and cleaned {activeLeases.Length} worktree lease(s)."],
+            decisions: [$"Approved by human Person '{cleaned.Approval?.ApprovedBy ?? "owner"}'."],
+            openThreads: null,
+            resolvedThreads: cleaned.Approval?.PlanId is { Length: > 0 } pid ? [pid] : null).ConfigureAwait(true);
+
+        return cleaned.Advance();
     }
 
     private string EffectiveRunId(EngineerRun inner)

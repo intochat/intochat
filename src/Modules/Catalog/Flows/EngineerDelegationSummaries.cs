@@ -16,7 +16,8 @@ internal static class EngineerDelegationSummaries
         int parallelInstances,
         string backend,
         string errorMessage,
-        string? flowId = null)
+        string? flowId = null,
+        EngineeringHarnessKind harness = EngineeringHarnessKind.InoNative)
     {
         var resolvedFlowId = flowId ?? string.Empty;
         var appKey = IntoChat.OS.Primitives.AppRef.Of(brain, "engineer").Key;
@@ -49,14 +50,26 @@ internal static class EngineerDelegationSummaries
             Plan: null,
             Instances: [],
             DiagnosticsAndTraces: [errorMessage],
-            SummaryText: errorMessage);
+            SummaryText: errorMessage,
+            Harness: harness);
     }
 
-    public static EngineerRunSummary Build(
+    public static Task<EngineerRunSummary> BuildAsync(
         BrainId brain,
         string flowId,
         FlowView? view,
-        FlowHead head)
+        FlowHead head,
+        IServiceProvider? services = null,
+        CancellationToken ct = default)
+        => BuildCoreAsync(brain, flowId, view, head, services, ct);
+
+    private static async Task<EngineerRunSummary> BuildCoreAsync(
+        BrainId brain,
+        string flowId,
+        FlowView? view,
+        FlowHead head,
+        IServiceProvider? services,
+        CancellationToken ct)
     {
         var run = string.IsNullOrWhiteSpace(head.InnerJson)
             ? new EngineerRun()
@@ -84,11 +97,18 @@ internal static class EngineerDelegationSummaries
             ? run.RunId
             : NeuronId.TryParse(flowId, out var parsedFlowId) ? parsedFlowId.Key : flowId;
 
+        var awaitingRatification = status == FlowStatus.Waiting
+            && string.Equals(currentStage, "brainstorm-and-plan", StringComparison.Ordinal)
+            && run.RequirePlanRatification
+            && run.RatifiedPlan is not { Ratified: true };
+
         var winner = run.SelectedInstance;
         var winningSha = winner?.Commit?.Commit.Value;
-        var confirmationPlanId = status == FlowStatus.Waiting
-            ? (run.Approval?.PlanId ?? view?.ConfirmationPlanId)
-            : (view?.ConfirmationPlanId ?? run.Approval?.PlanId);
+        var confirmationPlanId = awaitingRatification
+            ? view?.ConfirmationPlanId
+            : status == FlowStatus.Waiting
+                ? (run.Approval?.PlanId ?? view?.ConfirmationPlanId)
+                : (view?.ConfirmationPlanId ?? run.Approval?.PlanId);
         var traceId = !string.IsNullOrWhiteSpace(view?.TraceId) ? view!.TraceId : head.TraceId;
 
         var engineerUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "engineer").Key}#{flowId}";
@@ -122,11 +142,31 @@ internal static class EngineerDelegationSummaries
                     ChangedLines: score.ChangedLines,
                     UnifiedDiff: score.UnifiedDiff,
                     Rank: ranked?.Rank ?? (inst.InstanceIndex + 1),
-                    IsSelected: inst.InstanceIndex == run.SelectedCandidateIndex);
+                    IsSelected: inst.InstanceIndex == run.SelectedCandidateIndex,
+                    Harness: inst.Harness,
+                    Slices: inst.Slices,
+                    DeletedFiles: inst.DeletedFiles);
             })
             .ToArray();
 
-        var traces = CollectDiagnosticsAndTraces(run, winner, candidates, view);
+        var effectiveCleanup = run.RatifiedPlan?.CleanupTargets
+            ?? run.Plan?.CleanupTargets
+            ?? run.RequestedCleanupTargets
+            ?? [];
+        var effectiveSlices = winner?.Slices
+            ?? run.RatifiedPlan?.Slices
+            ?? (run.Plan is not null ? EngineerTaskSlices.FromTaskPlan(run.Plan) : []);
+
+        var collaborators = await MissionCollaboratorResolver.ResolveAsync(
+            brain,
+            run,
+            status,
+            currentStage,
+            head.Owner,
+            services,
+            ct).ConfigureAwait(false);
+
+        var traces = CollectDiagnosticsAndTraces(run, winner, candidates, effectiveSlices, effectiveCleanup, view);
         var (ok, summaryText, card) = FormatSummaryAndCard(
             brain,
             flowId,
@@ -141,6 +181,7 @@ internal static class EngineerDelegationSummaries
             parallelInstances,
             winningSha,
             confirmationPlanId,
+            awaitingRatification,
             engineerUri,
             view?.Detail);
 
@@ -168,13 +209,21 @@ internal static class EngineerDelegationSummaries
             SummaryText: summaryText,
             Card: card,
             SelectedCandidateIndex: run.SelectedCandidateIndex,
-            Candidates: candidates);
+            Candidates: candidates,
+            Harness: run.Harness,
+            AwaitingPlanRatification: awaitingRatification,
+            RatifiedPlan: run.RatifiedPlan,
+            CleanupTargets: effectiveCleanup,
+            Slices: effectiveSlices,
+            Collaborators: collaborators);
     }
 
     private static string[] CollectDiagnosticsAndTraces(
         EngineerRun run,
         EngineerInstance? winner,
         EngineerCandidateResult[] candidates,
+        EngineerTaskSlice[] slices,
+        string[] cleanupTargets,
         FlowView? view)
     {
         var lines = new List<string>();
@@ -182,7 +231,7 @@ internal static class EngineerDelegationSummaries
         {
             lines.Add(string.Create(
                 CultureInfo.InvariantCulture,
-                $"plan.multi-agent · {plan.Tasks.Length} task(s), {plan.Transcript.Length} brainstorm turn(s) (Architect + Critic verified)"));
+                $"plan.multi-agent · {plan.Tasks.Length} task(s), {slices.Length} slice(s), {cleanupTargets.Length} cleanup target(s), harness={run.Harness}"));
         }
 
         if (candidates.Length > 1)
@@ -246,11 +295,32 @@ internal static class EngineerDelegationSummaries
         int parallelInstances,
         string? winningSha,
         string? confirmationPlanId,
+        bool awaitingRatification,
         string engineerUri,
         string? viewDetail)
     {
         var shortSha = winningSha is { Length: >= 8 } sha ? sha[..8] : "pending";
         var taskCount = run.Plan?.Tasks.Length ?? 0;
+
+        if (awaitingRatification)
+        {
+            var sliceCount = run.RatifiedPlan?.Slices.Length ?? taskCount;
+            var cleanupCount = run.RatifiedPlan?.CleanupTargets.Length ?? 0;
+            var text = string.Create(
+                CultureInfo.InvariantCulture,
+                $"IntoChat-Engineer run `{flowId}` drafted a mission plan ({sliceCount} disjoint slice(s), {cleanupCount} cleanup target(s)) and is waiting for plan ratification (`RatifyEngineerPlan`) before executing `{run.Harness}` worktrees. Workbench: `{engineerUri}`.");
+            var ratifyCard = new InoCard(
+                Id: flowId,
+                Kind: "engineer",
+                Title: $"Ratify Mission Plan: {head.Title}",
+                Summary: string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{sliceCount} parallel slice(s) · {cleanupCount} cleanup target(s) · {parallelInstances}x {backend}. Ratify in Studio ({engineerUri})."),
+                SourceNeuronUri: engineerUri,
+                Status: "pending",
+                SurfaceScopeUri: engineerUri);
+            return (true, text, ratifyCard);
+        }
 
         if (status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(confirmationPlanId))
         {
@@ -259,7 +329,7 @@ internal static class EngineerDelegationSummaries
             var sb = new StringBuilder();
             sb.Append(string.Create(
                 CultureInfo.InvariantCulture,
-                $"IntoChat-Engineer run `{flowId}` completed {taskCount} Architect+Critic task(s) across {parallelInstances} parallel `{backend}` worktree(s) and is waiting for your approval at `approval-gate`.\n"));
+                $"IntoChat-Engineer run `{flowId}` completed {taskCount} Architect+Critic task(s) across {parallelInstances} parallel `{backend}` worktree(s) (`{run.Harness}`) and is waiting for your approval at `approval-gate`.\n"));
             sb.Append(string.Create(
                 CultureInfo.InvariantCulture,
                 $"- Repository: `{repoSlug}` · Winning branch: `{branch}` · Verified commit: `{winningSha}` ({filesCount} file(s))\n"));

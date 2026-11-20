@@ -9,6 +9,7 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
@@ -922,6 +923,369 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.Equal(sha1, RunGit(bare2, ["rev-parse", done2.PushedRef!]).Trim());
     }
 
+    [Fact]
+    public async Task NoOverlappingFileSlicesRuleRefusesParallelOverlapAndAllowsSequentialWaveDependencies()
+    {
+        var overlappingSameWave = new[]
+        {
+            new EngineerTaskSlice("s1", "Edit Calculator A", ["code/Calculator.cs"], [], AssignedAgentKey: "ino.slice-1"),
+            new EngineerTaskSlice("s2", "Edit Calculator B", ["code/Calculator.cs"], [], AssignedAgentKey: "ino.slice-2"),
+        };
+
+        var rule = new NoOverlappingFileSlices(overlappingSameWave);
+        Assert.Equal("overlapping_file_slices", rule.Name);
+        Assert.True(rule.Broken);
+        Assert.Contains("s1", rule.Message, StringComparison.Ordinal);
+        Assert.Contains("s2", rule.Message, StringComparison.Ordinal);
+
+        // Directory prefix overlap in same wave is also caught!
+        var prefixOverlap = new[]
+        {
+            new EngineerTaskSlice("s-dir", "Own directory", ["code/math"], []),
+            new EngineerTaskSlice("s-file", "Own nested file", ["code/math/Adder.cs"], []),
+        };
+        Assert.True(new NoOverlappingFileSlices(prefixOverlap).Broken);
+
+        // Sequential dependency across Wave 0 -> Wave 1 on the same file is valid!
+        var sequentialWaves = new[]
+        {
+            new EngineerTaskSlice("w0", "Foundation", ["code/Calculator.cs"], []),
+            new EngineerTaskSlice("w1", "Refinement", ["code/Calculator.cs"], ["w0"]),
+        };
+        var seqRule = new NoOverlappingFileSlices(sequentialWaves);
+        Assert.False(seqRule.Broken);
+        var waves = EngineerTaskSlices.ComputeWaves(sequentialWaves);
+        Assert.Equal(2, waves.Length);
+
+        // InoNativeHarness refuses overlapping parallel slices with RuleViolationException ('overlapping_file_slices')!
+        var wtDir = Path.Combine(_root, "overlap-refuse-wt");
+        Directory.CreateDirectory(wtDir);
+        var harness = InoNativeHarness.CreateDefault();
+        var badRequest = new EngineeringHarnessRequest(
+            FlowId: "owner/flow.engineer/overlap1",
+            RunId: "overlap1",
+            RepositoryId: "os",
+            Goal: "Attempt overlapping parallel slices",
+            WorktreeId: "wt-0",
+            WorktreePath: wtDir,
+            InstanceIndex: 0,
+            TotalInstances: 1,
+            Strategy: "surgical-patch",
+            StrategyLabel: "Minimal Surgical Patch",
+            StrategyPromptLens: "Minimal diff.",
+            Harness: EngineeringHarnessKind.InoNative,
+            RatifiedPlan: new RatifiedPlan("Overlap", "Arch", [], overlappingSameWave));
+
+        var ex = await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(() => harness.ExecuteAsync(badRequest, ct: Ct));
+        Assert.Contains("overlapping_file_slices", ex.Rejected.Rules);
+    }
+
+    [Fact]
+    public async Task InoNativeHarnessExecutesThreeDisjointSlicesInParallelDeletesCleanupTargetsStreamsProgressAndWritesSessionJournal()
+    {
+        var wtDir = Path.Combine(_root, "ino-native-3slice-wt");
+        Directory.CreateDirectory(Path.Combine(wtDir, "code"));
+        await File.WriteAllTextAsync(Path.Combine(wtDir, ".git"), "gitdir: C:/fake/wt\n", Ct);
+        await File.WriteAllTextAsync(Path.Combine(wtDir, "code", "LegacyTrash.cs"), "namespace Demo; public static class LegacyTrash {}\n", Ct);
+        await File.WriteAllTextAsync(Path.Combine(wtDir, "code", "Existing.cs"), """
+            namespace Demo;
+
+            public static class Existing
+            {
+                public static int KeepMe() => 1;
+                public static int DeadMethod() => 999;
+            }
+            """, Ct);
+
+        var activeConcurrentSlices = 0;
+        var peakConcurrentSlices = 0;
+        var allThreeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hydratedPrompts = new List<string>();
+        var roslyn = IWorktreeRoslyn.CreateDefault();
+
+        var parallelCoder = new BarrierParallelSliceCoder(
+            roslyn,
+            expectedParticipants: 3,
+            onEnter: prompt =>
+            {
+                lock (hydratedPrompts)
+                {
+                    hydratedPrompts.Add(prompt);
+                }
+
+                var nowActive = Interlocked.Increment(ref activeConcurrentSlices);
+                int initial;
+                do
+                {
+                    initial = Volatile.Read(ref peakConcurrentSlices);
+                    if (nowActive <= initial) { break; }
+                }
+                while (Interlocked.CompareExchange(ref peakConcurrentSlices, nowActive, initial) != initial);
+
+                if (nowActive >= 3)
+                {
+                    allThreeEntered.TrySetResult();
+                }
+            },
+            onExit: () => Interlocked.Decrement(ref activeConcurrentSlices),
+            barrier: allThreeEntered.Task);
+
+        var fakeMemory = new FakeWorkingMemory();
+        var fakeJournal = new FakeSessionJournal();
+        var progressSignals = new List<OperationProgressed>();
+
+        var harness = InoNativeHarness.CreateDefault(
+            coder: parallelCoder,
+            roslyn: roslyn,
+            workingMemory: fakeMemory,
+            sessionJournal: fakeJournal);
+
+        EngineerTaskSlice[] threeDisjointSlices =
+        [
+            new("slice-add", "Create Adder helper", ["code/Adder.cs"], [], AssignedAgentKey: "ino.slice-1", Language: "csharp", Instructions: "Create Adder"),
+            new("slice-mul", "Create Multiplier helper", ["code/Multiplier.cs"], [], AssignedAgentKey: "ino.slice-2", Language: "csharp", Instructions: "Create Multiplier"),
+            new("slice-clamp", "Create Clamper helper", ["code/Clamper.cs"], [], AssignedAgentKey: "ino.slice-3", Language: "csharp", Instructions: "Create Clamper"),
+        ];
+
+        var ratified = new RatifiedPlan(
+            Goal: "Clean up legacy trash and create three math helpers concurrently",
+            ArchitectureSummary: "3 parallel Wave-0 AgentNeuron slices over disjoint files",
+            CleanupTargets: ["code/LegacyTrash.cs", "code/Existing.cs#Existing.DeadMethod"],
+            Slices: threeDisjointSlices);
+
+        var request = new EngineeringHarnessRequest(
+            FlowId: "owner/flow.engineer/parallel3",
+            RunId: "parallel3",
+            RepositoryId: "os",
+            Goal: ratified.Goal,
+            WorktreeId: "wt-0",
+            WorktreePath: wtDir,
+            InstanceIndex: 0,
+            TotalInstances: 1,
+            Strategy: "surgical-patch",
+            StrategyLabel: "Minimal Surgical Patch",
+            StrategyPromptLens: "Minimal diff.",
+            Harness: EngineeringHarnessKind.InoNative,
+            RatifiedPlan: ratified,
+            Brain: new BrainId("owner"));
+
+        var result = await harness.ExecuteAsync(
+            request,
+            onProgress: sig =>
+            {
+                lock (progressSignals)
+                {
+                    progressSignals.Add(sig);
+                }
+
+                return Task.CompletedTask;
+            },
+            ct: Ct);
+
+        Assert.True(result.Succeeded, result.FailureDetail);
+        Assert.Equal(3, peakConcurrentSlices);
+        Assert.Equal(1, fakeMemory.StartupPackReadCount);
+        Assert.Equal(1, fakeMemory.BriefReadCount);
+        Assert.All(hydratedPrompts, static p => Assert.Contains("BRIEF[os-conventions]: Prefer pure static methods", p, StringComparison.Ordinal));
+
+        // CleanupTargets verified: LegacyTrash.cs deleted on disk AND Existing.DeadMethod removed via AST!
+        Assert.False(File.Exists(Path.Combine(wtDir, "code", "LegacyTrash.cs")));
+        Assert.Contains("code/LegacyTrash.cs", result.DeletedFiles);
+        var existingUpdated = await File.ReadAllTextAsync(Path.Combine(wtDir, "code", "Existing.cs"), Ct);
+        Assert.Contains("KeepMe", existingUpdated, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeadMethod", existingUpdated, StringComparison.Ordinal);
+
+        // All 3 disjoint slice files created and verified with 0 Roslyn semantic errors!
+        Assert.True(File.Exists(Path.Combine(wtDir, "code", "Adder.cs")));
+        Assert.True(File.Exists(Path.Combine(wtDir, "code", "Multiplier.cs")));
+        Assert.True(File.Exists(Path.Combine(wtDir, "code", "Clamper.cs")));
+        Assert.Equal(0, result.SemanticErrorCount);
+        Assert.Equal(3, result.CompletedSlices.Length);
+        Assert.All(result.CompletedSlices, static s =>
+        {
+            Assert.Equal("completed", s.Status);
+            Assert.Equal(100, s.Percent);
+        });
+
+        // Verify 0% -> 25% -> 60% -> 90% -> 100% OperationProgressed signal stream for each of the 3 slices!
+        foreach (var sliceId in new[] { "slice-add", "slice-mul", "slice-clamp" })
+        {
+            var percents = progressSignals
+                .Where(p => p.SliceId == sliceId)
+                .Select(static p => p.Percent)
+                .ToArray();
+            Assert.Equal([0, 25, 60, 90, 100], percents);
+        }
+
+        // Verify post-mission SessionMilestone writeback to ISessionJournal!
+        var milestone = Assert.Single(fakeJournal.Milestones);
+        Assert.Equal(ratified.Goal, milestone.Goal);
+        Assert.Equal("os-conventions", milestone.ProjectBrief);
+        Assert.Contains(milestone.Deliverables!, static d => d.Contains("slice-add", StringComparison.Ordinal));
+        Assert.Contains(milestone.Decisions!, static d => d.Contains("Deleted 1 dead cleanup target", StringComparison.Ordinal));
+        Assert.NotEmpty(milestone.OpenThreads!);
+    }
+
+    [Fact]
+    public async Task RatifyEngineerPlanPausesAtBrainstormRefusesOverlappingSlicesAndResumesPipelineOnDisjointApproval()
+    {
+        var (bareOrigin, checkout, home) = CreateBareOriginAndCheckout("ratify-lifecycle");
+        await File.WriteAllTextAsync(Path.Combine(checkout, "code", "DeadHelper.cs"), "namespace Demo; public static class DeadHelper {}\n", Ct);
+        RunGit(checkout, ["add", "."]);
+        RunGit(checkout, ["commit", "-m", "Seed DeadHelper for cleanup"]);
+        RunGit(checkout, ["push", "origin", "main"]);
+
+        var workTree = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home,
+            VerifyFormatting = false,
+        });
+        workTree.RegisterRepository(new RegisteredRepository("os", checkout, DefaultBaseBranch: "main"));
+
+        await using var sp = new ServiceCollection()
+            .AddSingleton<IWorkTree>(workTree)
+            .AddSingleton<ICoder>(new SingleFileRoslynCoder())
+            .AddSingleton<IEngineerPlanner>(new SingleStepPlanner())
+            .AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier())
+            .AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier())
+            .AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault())
+            .BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = sp);
+        var brain = new BrainId("owner");
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        os.Register(typeof(AppsModule).Assembly);
+
+        var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
+        var started = await flows.StartEngineerRun(
+            new EngineerDelegationRequest(
+                RepoSlug: "os",
+                Goal: "Delete DeadHelper and add Multiply to Calculator",
+                ParallelInstances: 1,
+                Backend: "LocalGit",
+                RunId: "ratify01",
+                RequirePlanRatification: true,
+                Harness: EngineeringHarnessKind.InoNative,
+                CleanupTargets: ["code/DeadHelper.cs"]),
+            Ct);
+
+        EngineerRunSummary? pausedAtPlan = null;
+        for (var i = 0; i < 40; i++)
+        {
+            await os.Idle();
+            var snap = await flows.InspectEngineerRun(started.FlowId, Ct);
+            if (snap.AwaitingPlanRatification)
+            {
+                pausedAtPlan = snap;
+                break;
+            }
+
+            await Task.Delay(30, Ct);
+        }
+
+        Assert.NotNull(pausedAtPlan);
+        Assert.Equal(FlowStatus.Waiting, pausedAtPlan!.Status);
+        Assert.Equal("brainstorm-and-plan", pausedAtPlan.CurrentStage);
+        Assert.True(pausedAtPlan.AwaitingPlanRatification);
+        Assert.NotNull(pausedAtPlan.Collaborators);
+        Assert.Contains(pausedAtPlan.Collaborators!, static c => c.Kind == "person" && c.FocusNodeId == "brainstorm-and-plan");
+        Assert.Contains(pausedAtPlan.Collaborators!, static c => c.Kind == "ino-agent");
+
+        // Attempting to ratify overlapping parallel slices is refused by NoOverlappingFileSlices!
+        var badSlices = new[]
+        {
+            new EngineerTaskSlice("s1", "A", ["code/Calculator.cs"], []),
+            new EngineerTaskSlice("s2", "B", ["code/Calculator.cs"], []),
+        };
+        var overlapEx = await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(
+            () => flows.RatifyEngineerPlan(started.FlowId, ["code/DeadHelper.cs"], badSlices, Ct));
+        Assert.Contains("overlapping_file_slices", overlapEx.Rejected.Rules);
+
+        // Ratify with clean disjoint slice + approved CleanupTargets -> advances to approval-gate!
+        var validSlices = new[]
+        {
+            new EngineerTaskSlice("s1-mul", "Add Multiply", ["code/Calculator.cs"], [], AssignedAgentKey: "ino.slice-1"),
+        };
+        _ = await flows.RatifyEngineerPlan(started.FlowId, ["code/DeadHelper.cs"], validSlices, Ct);
+
+        EngineerRunSummary? atApprovalGate = null;
+        for (var i = 0; i < 60; i++)
+        {
+            await os.Idle();
+            var snap = await flows.InspectEngineerRun(started.FlowId, Ct);
+            if (snap.Status == FlowStatus.Waiting && snap.CurrentStage == "approval-gate")
+            {
+                atApprovalGate = snap;
+                break;
+            }
+
+            await Task.Delay(40, Ct);
+        }
+
+        Assert.NotNull(atApprovalGate);
+        Assert.False(atApprovalGate!.AwaitingPlanRatification);
+        Assert.True(atApprovalGate.RatifiedPlan?.Ratified);
+        Assert.Equal(["code/DeadHelper.cs"], atApprovalGate.Instances[0].DeletedFiles!);
+        Assert.Contains("code/DeadHelper.cs", atApprovalGate.Instances[0].ChangedFiles);
+        Assert.Contains("code/Calculator.cs", atApprovalGate.Instances[0].ChangedFiles);
+
+        await flows.Cancel(started.FlowId, "test cleanup", Ct);
+        await os.Idle();
+    }
+
+    [Fact]
+    public async Task ExternalCliHarnessMapsClaudeAndCodexArgumentsSyncsWorktreeIncludeAndStreamsProgress()
+    {
+        var sourceRepo = Path.Combine(_root, "cli-src-repo");
+        var wtDir = Path.Combine(_root, "cli-wt-dir");
+        Directory.CreateDirectory(Path.Combine(sourceRepo, "config"));
+        Directory.CreateDirectory(Path.Combine(wtDir, "code"));
+
+        await File.WriteAllTextAsync(Path.Combine(sourceRepo, ".worktreeinclude"), "# copy local dev config\nconfig/local.settings.txt\n", Ct);
+        await File.WriteAllTextAsync(Path.Combine(sourceRepo, "config", "local.settings.txt"), "MODE=test\n", Ct);
+        await File.WriteAllTextAsync(Path.Combine(wtDir, "code", "Calculator.cs"), "namespace Demo;\npublic static class Calculator { public static int Add(int a, int b) => a + b; }\n", Ct);
+
+        var captured = new List<SandboxCommandRequest>();
+        var fakeCliSandbox = new MutatingCliSandboxRunner(captured);
+
+        var claude = new ExternalCliHarness(EngineeringHarnessKind.ClaudeCli, sandboxRunner: fakeCliSandbox);
+        var codex = new ExternalCliHarness(EngineeringHarnessKind.CodexCli, sandboxRunner: fakeCliSandbox);
+
+        Assert.Equal(["-p", "Fix bug", "--output-format", "stream-json", "--verbose"], claude.BuildCliArguments("Fix bug"));
+        Assert.Equal(["exec", "--json", "Fix bug"], codex.BuildCliArguments("Fix bug"));
+        _ = await claude.IsAvailableAsync(Ct);
+
+        var claudeProgress = new List<OperationProgressed>();
+        var req = new EngineeringHarnessRequest(
+            FlowId: "owner/flow.engineer/cli1",
+            RunId: "cli1",
+            RepositoryId: "os",
+            Goal: "Add Subtract via CLI benchmark",
+            WorktreeId: "wt-0",
+            WorktreePath: wtDir,
+            InstanceIndex: 0,
+            TotalInstances: 1,
+            Strategy: "surgical-patch",
+            StrategyLabel: "Minimal Surgical Patch",
+            StrategyPromptLens: "Minimal diff.",
+            Harness: EngineeringHarnessKind.ClaudeCli,
+            RatifiedPlan: new RatifiedPlan("Add Subtract via CLI benchmark", "CLI adapter", [], []),
+            SourceRepositoryPath: sourceRepo);
+
+        var res = await claude.ExecuteAsync(req, sig =>
+        {
+            claudeProgress.Add(sig);
+            return Task.CompletedTask;
+        }, Ct);
+
+        Assert.True(res.Succeeded, res.FailureDetail);
+        Assert.True(File.Exists(Path.Combine(wtDir, "config", "local.settings.txt")));
+        Assert.Contains("code/Calculator.cs", res.TouchedFiles);
+        Assert.Equal("Applied Subtract via stream-json.", res.Summary);
+        Assert.Equal([0, 25, 60, 90, 100], claudeProgress.Select(static p => p.Percent).ToArray());
+        Assert.Single(captured, static c => c.Executable == "claude" && c.Arguments.Contains("stream-json", StringComparer.Ordinal));
+    }
+
     private sealed class FakeTraceReader(TraceEntry[] entries) : ITraceReader
     {
         public Task<TracePage> ReadTrace(string traceId, long since, int limit)
@@ -1139,6 +1503,174 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
             => throw new NotSupportedException();
+    }
+
+    private sealed class BarrierParallelSliceCoder(
+        IWorktreeRoslyn roslyn,
+        int expectedParticipants,
+        Action<string> onEnter,
+        Action onExit,
+        Task barrier) : ICoder
+    {
+        public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
+        {
+            onEnter(goal);
+            try
+            {
+                if (expectedParticipants > 1)
+                {
+                    await barrier.WaitAsync(TimeSpan.FromSeconds(10), ct);
+                }
+
+                var (relPath, typeName, memberSource) = goal.Contains("slice-add", StringComparison.Ordinal)
+                    ? ("code/Adder.cs", "Adder", "public static int Add(int a, int b) => a + b;")
+                    : goal.Contains("slice-mul", StringComparison.Ordinal)
+                        ? ("code/Multiplier.cs", "Multiplier", "public static int Multiply(int a, int b) => a * b;")
+                        : ("code/Clamper.cs", "Clamper", "public static int Clamp(int v, int min, int max) => v < min ? min : (v > max ? max : v);");
+
+                var summary = await roslyn.ApplyEditsAsync(
+                    lease.TreePath,
+                    [
+                        new WorktreeCSharpEdit(
+                            WorktreeCSharpEditKind.CreateTypeFile,
+                            relPath,
+                            TypeName: typeName,
+                            NamespaceName: "Demo",
+                            Source: memberSource,
+                            TypeKind: "class"),
+                    ],
+                    ct);
+
+                Assert.True(summary.Succeeded, summary.Detail);
+                return new CoderEditResult($"Created {typeName}.", summary.TouchedFiles, "ino-native-slice");
+            }
+            finally
+            {
+                onExit();
+            }
+        }
+    }
+
+    private sealed class MutatingCliSandboxRunner(List<SandboxCommandRequest> sink) : ISandboxCommandRunner
+    {
+        public IReadOnlyList<string> BuildContainerArguments(WorkTreeLease lease, SandboxCommandRequest request)
+            => ["run", "--rm", request.Executable, .. request.Arguments];
+
+        public async Task<SandboxCommandResult> ExecuteAsync(WorkTreeLease lease, SandboxCommandRequest request, CancellationToken ct = default)
+        {
+            lock (sink)
+            {
+                sink.Add(request);
+            }
+
+            var calcPath = Path.Combine(lease.TreePath, "code", "Calculator.cs");
+            await File.WriteAllTextAsync(
+                calcPath,
+                "namespace Demo;\npublic static class Calculator { public static int Add(int a, int b) => a + b; public static int Subtract(int a, int b) => a - b; }\n",
+                ct);
+
+            var jsonOut = """
+                {"type":"progress","message":"Inspecting worktree"}
+                {"type":"result","result":"Applied Subtract via stream-json."}
+                """;
+            return new SandboxCommandResult(0, jsonOut, string.Empty, SandboxExecutionMode.ConfinedHost, [request.Executable, .. request.Arguments], 18);
+        }
+    }
+
+    private sealed class FakeWorkingMemory : IWorkingMemory
+    {
+        public int StartupPackReadCount { get; private set; }
+
+        public int BriefReadCount { get; private set; }
+
+        public Task<WorkingMemorySnapshot> Read() => Task.FromResult(new WorkingMemorySnapshot());
+
+        public Task<WorkingMemoryStartupPack> ReadStartupPack()
+        {
+            StartupPackReadCount++;
+            return Task.FromResult(new WorkingMemoryStartupPack
+            {
+                Revision = 1,
+                Soul = "Ino surgical engineering persona.",
+                User = "Prefers zero-bloat DDD records.",
+                Project = "IntoChat OS repository",
+                Scratchpad = new WorkingMemoryScratchpad(["Wave 5 InoNativeHarness"], ["Windows net11.0"], []),
+                AvailableBriefs = [new ContextBriefSummary("os-conventions", "os Coding Conventions", "project", 64, DateTimeOffset.UtcNow)],
+            });
+        }
+
+        public Task<WorkingMemoryStartupPack> FreezeSession(string sessionId) => ReadStartupPack();
+
+        public Task<WorkingMemoryScratchpad> UpsertScratchpad(WorkingMemorySection section, string entry, string? replaceMatching = null)
+            => Task.FromResult(new WorkingMemoryScratchpad());
+
+        public Task<WorkingMemoryScratchpad> RemoveScratchpad(WorkingMemorySection section, string match)
+            => Task.FromResult(new WorkingMemoryScratchpad());
+
+        public Task<WorkingMemoryScratchpad> SetScratchpad(WorkingMemoryScratchpad scratchpad)
+            => Task.FromResult(scratchpad);
+
+        public Task<WorkingMemorySlice> SetSlice(WorkingMemorySliceKind kind, string content)
+            => Task.FromResult(new WorkingMemorySlice(kind, content, DateTimeOffset.UtcNow));
+
+        public Task<WorkingMemorySlice?> GetSlice(WorkingMemorySliceKind kind)
+            => Task.FromResult<WorkingMemorySlice?>(null);
+
+        public Task<ContextBriefSummary> PutBrief(string key, string title, string category, string content)
+            => Task.FromResult(new ContextBriefSummary(key, title, category, content.Length, DateTimeOffset.UtcNow));
+
+        public Task<bool> RemoveBrief(string key) => Task.FromResult(true);
+
+        public Task<ContextBrief?> GetBrief(string key)
+        {
+            BriefReadCount++;
+            return Task.FromResult<ContextBrief?>(new ContextBrief(
+                key,
+                "os Coding Conventions",
+                "project",
+                "Prefer pure static methods and zero compiler warnings.",
+                DateTimeOffset.UtcNow));
+        }
+
+        public Task<ContextBriefSummary[]> ListBriefs(string? category = null)
+            => Task.FromResult<ContextBriefSummary[]>([]);
+    }
+
+    private sealed class FakeSessionJournal : ISessionJournal
+    {
+        public List<SessionMilestone> Milestones { get; } = [];
+
+        public Task<SessionJournalBlock> OpenSession(string? conversationId = null, string? goal = null, string? projectBrief = null, string? date = null)
+            => Task.FromResult(new SessionJournalBlock { SessionNumber = 1, Goal = goal ?? "" });
+
+        public Task<SessionJournalBlock> RecordMilestone(SessionMilestone milestone)
+        {
+            lock (Milestones)
+            {
+                Milestones.Add(milestone);
+            }
+
+            return Task.FromResult(new SessionJournalBlock
+            {
+                SessionNumber = 1,
+                Goal = milestone.Goal ?? "",
+                ProjectBrief = milestone.ProjectBrief,
+                Deliverables = milestone.Deliverables ?? [],
+                Decisions = milestone.Decisions ?? [],
+                OpenThreads = milestone.OpenThreads ?? [],
+            });
+        }
+
+        public Task<SessionJournalBlock> FinalizeSession(int? sessionNumber = null, string? date = null, string[]? openThreads = null)
+            => Task.FromResult(new SessionJournalBlock { SessionNumber = sessionNumber ?? 1, Status = SessionBlockStatus.Finalized });
+
+        public Task FollowAgent(string agentKey) => Task.CompletedTask;
+
+        public Task<SessionJournalDay?> ReadDay(string? date = null) => Task.FromResult<SessionJournalDay?>(null);
+
+        public Task<SessionReturningView> ReadReturningView(string? todayDate = null) => Task.FromResult(new SessionReturningView());
+
+        public Task<string[]> ListDates() => Task.FromResult<string[]>([]);
     }
 
     private static string RunGit(string workingDirectory, IReadOnlyList<string> args)

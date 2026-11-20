@@ -371,6 +371,17 @@ internal sealed class LocalLlmCoder : ICoder
 
         public IReadOnlyList<string> TouchedFiles => [.. _touched.OrderBy(p => p, StringComparer.Ordinal)];
 
+        internal void RecordTouchedFiles(IEnumerable<string> relativePaths)
+        {
+            foreach (var rel in relativePaths)
+            {
+                if (!string.IsNullOrWhiteSpace(rel))
+                {
+                    _touched.Add(rel);
+                }
+            }
+        }
+
         public async Task<string> ExecuteToolAsync(string name, string argumentsJson, CancellationToken ct)
         {
             try
