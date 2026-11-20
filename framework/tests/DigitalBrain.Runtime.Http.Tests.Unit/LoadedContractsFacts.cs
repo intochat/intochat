@@ -35,7 +35,11 @@ public sealed class LoadedContractsFacts
         Assert.Equal(typeof(IFormerProbe), LoadedContracts.Find("probe.old"));
         Assert.Equal(typeof(IFormerProbe).FullName, LoadedContracts.CurrentName("probe.old"));
         Assert.Equal(typeof(IFormerProbe).FullName, LoadedContracts.CurrentName("Old.Ns.IProbe"));
+        Assert.Equal(typeof(IFormerProbe).FullName, LoadedContracts.CurrentName("Old.Ns.IProbe", ["CustomPrefix", "DigitalBrain"]));
         Assert.Equal(typeof(IFormerProbe).FullName, LoadedContracts.CurrentName(typeof(IFormerProbe).FullName!));
         Assert.Equal("Unknown.Ns.IContract", LoadedContracts.CurrentName("Unknown.Ns.IContract"));
+        Assert.Equal("Unknown.Ns.IContract", LoadedContracts.CurrentName("Unknown.Ns.IContract", ["CustomPrefix"]));
+        string[] inputs = ["probe.old"];
+        Assert.Equal([typeof(IFormerProbe).FullName], inputs.Select(LoadedContracts.CurrentName));
     }
 }

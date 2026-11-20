@@ -21,21 +21,24 @@ public static class LoadedContracts
     public static Type Find(string name, string[]? allowedPrefixes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var prefixes = NormalizePrefixes(allowedPrefixes);
-        var cacheKey = string.Join('\0', prefixes);
-        var cache = Found.GetOrAdd(cacheKey, static _ => new ConcurrentDictionary<string, Type?>(StringComparer.Ordinal));
-        return cache.GetOrAdd(name, static (typeName, p) => Search(typeName, p), prefixes)
+        return Resolve(name, allowedPrefixes)
             ?? throw new TypeLoadException($"{name} is a neuron type of this brain, but this host does not carry its contract.");
     }
 
     /// <summary>Maps a contract's former alias or full type name to its current full type name, or returns <paramref name="name"/> unchanged.</summary>
     public static string CurrentName(string name)
+        => CurrentName(name, allowedPrefixes: null);
+
+    /// <summary>Maps a contract's former alias or full type name to its current full type name using <paramref name="allowedPrefixes"/>, or returns <paramref name="name"/> unchanged.</summary>
+    public static string CurrentName(string name, string[]? allowedPrefixes)
+        => string.IsNullOrWhiteSpace(name) ? name : Resolve(name, allowedPrefixes)?.FullName ?? name;
+
+    private static Type? Resolve(string name, string[]? allowedPrefixes)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return name;
-        }
-        return Search(name, DefaultPrefixes)?.FullName ?? name;
+        var prefixes = NormalizePrefixes(allowedPrefixes);
+        var cacheKey = string.Join('\0', prefixes);
+        var cache = Found.GetOrAdd(cacheKey, static _ => new ConcurrentDictionary<string, Type?>(StringComparer.Ordinal));
+        return cache.GetOrAdd(name, static (typeName, p) => Search(typeName, p), prefixes);
     }
 
     private static string[] NormalizePrefixes(string[]? allowedPrefixes)
