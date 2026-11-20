@@ -2,7 +2,7 @@
 # Tasks
 Role: Default
 Shipped: true
-Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, ui.command
+Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-source, ask-ino, move, advance, complete, clear-done, approve-issue-draft, dismiss-issue-draft, escalate-issue, ui.command
 
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
 and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, `ITable`, `ICommandBar`).
@@ -94,6 +94,15 @@ public sealed record TasksComplete : Signal;
 [Signal("tasks.clear-done")]
 public sealed record TasksClearDone : Signal;
 
+[Signal("tasks.approve-issue-draft")]
+public sealed record TasksApproveIssueDraft(string? ConnectionKey = null, int IssueNumber = 0, string? PreviewId = null) : Signal;
+
+[Signal("tasks.dismiss-issue-draft")]
+public sealed record TasksDismissIssueDraft(string? ConnectionKey = null, string? PreviewId = null) : Signal;
+
+[Signal("tasks.escalate-issue")]
+public sealed record TasksEscalateIssue(string? ConnectionKey = null, string? Repository = null, int IssueNumber = 0, string? PreviewId = null) : Signal;
+
 [Neuron("app.tasks")]
 [Screen("app.tasks", Title = "Tasks", Icon = "tasks")]
 public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INavigatedTo<TasksNavArgs>, INavigatedFrom
@@ -156,6 +165,9 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
                 new("advance", "Advance the selected task to the next lifecycle stage."),
                 new("complete", "Mark the selected task Done."),
                 new("clear-done", "Clear all completed tasks from the board."),
+                new("approve-issue-draft", "Approve and post a pending GitHub issue triage comment draft."),
+                new("dismiss-issue-draft", "Dismiss a pending GitHub issue triage comment draft."),
+                new("escalate-issue", "Escalate a GitHub issue into an Engineer Studio run."),
                 new(UiCommand.SignalAlias, "Dispatch a typed Tasks aggregate command."),
             ],
             Settings: [],
@@ -407,6 +419,158 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         await SyncUiNeuronsAsync();
     }
 
+    [On]
+    public async Task ApproveIssueDraft(TasksApproveIssueDraft request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if ((Blank(request.PreviewId) ?? Blank(State.FocusedDraftPreviewId)) is not { } previewId)
+        {
+            await Show(State.WithStatus("Select a pending issue triage draft to approve."));
+            await SyncUiNeuronsAsync();
+            return;
+        }
+
+        var matchingDraft = _issueDrafts.FirstOrDefault(d => string.Equals(d.PreviewId, previewId, StringComparison.Ordinal));
+        var connKey = NormalizeGitHubConnectionKey(Blank(request.ConnectionKey) ?? matchingDraft?.ConnectionKey);
+        var issueNumber = request.IssueNumber > 0 ? request.IssueNumber : (matchingDraft?.IssueNumber ?? 0);
+
+        try
+        {
+            var repo = Context.Get<IRepository>(new NeuronId(Id.Brain, "github", connKey));
+            var result = await repo.CommentOnIssue(new CommentOnIssueRequest(
+                IssueNumber: issueNumber,
+                RequestId: string.Concat("tasks-approve:", previewId),
+                PreviewId: previewId));
+            var labelsSummary = result.AppliedLabels is { Length: > 0 }
+                ? $" (labels: {string.Join(", ", result.AppliedLabels)})"
+                : string.Empty;
+            var nextState = State.WithStatus(
+                string.Create(CultureInfo.InvariantCulture, $"Approved & posted triage comment on issue #{result.IssueNumber}{labelsSummary}."));
+            if (string.Equals(nextState.FocusedDraftPreviewId, previewId, StringComparison.Ordinal))
+            {
+                nextState = nextState with { FocusedDraftPreviewId = null };
+            }
+
+            await Show(nextState);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(error, "The issue triage draft approval failed; the status line reports why.");
+            await Show(State.WithStatus($"Could not approve draft: {error.Message}"));
+        }
+
+        await RefreshFlowsAndSyncAsync();
+    }
+
+    [On]
+    public async Task DismissIssueDraft(TasksDismissIssueDraft request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if ((Blank(request.PreviewId) ?? Blank(State.FocusedDraftPreviewId)) is not { } previewId)
+        {
+            await Show(State.WithStatus("Select a pending issue triage draft to dismiss."));
+            await SyncUiNeuronsAsync();
+            return;
+        }
+
+        var matchingDraft = _issueDrafts.FirstOrDefault(d => string.Equals(d.PreviewId, previewId, StringComparison.Ordinal));
+        var connKey = NormalizeGitHubConnectionKey(Blank(request.ConnectionKey) ?? matchingDraft?.ConnectionKey);
+
+        try
+        {
+            var repo = Context.Get<IRepository>(new NeuronId(Id.Brain, "github", connKey));
+            var dismissed = await repo.DismissIssueDraft(previewId);
+            var statusMessage = dismissed
+                ? $"Dismissed issue triage draft '{previewId}'."
+                : $"Issue triage draft '{previewId}' was already cleared.";
+            var nextState = State.WithStatus(statusMessage);
+            if (string.Equals(nextState.FocusedDraftPreviewId, previewId, StringComparison.Ordinal))
+            {
+                nextState = nextState with { FocusedDraftPreviewId = null };
+            }
+
+            await Show(nextState);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(error, "Dismissing the issue triage draft failed; the status line reports why.");
+            await Show(State.WithStatus($"Could not dismiss draft: {error.Message}"));
+        }
+
+        await RefreshFlowsAndSyncAsync();
+    }
+
+    [On]
+    public async Task EscalateIssue(TasksEscalateIssue request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var previewId = Blank(request.PreviewId) ?? Blank(State.FocusedDraftPreviewId);
+        var matchingDraft = previewId is not null
+            ? _issueDrafts.FirstOrDefault(d => string.Equals(d.PreviewId, previewId, StringComparison.Ordinal))
+            : null;
+        var connKey = NormalizeGitHubConnectionKey(Blank(request.ConnectionKey) ?? matchingDraft?.ConnectionKey);
+        var issueNumber = request.IssueNumber > 0 ? request.IssueNumber : (matchingDraft?.IssueNumber ?? 0);
+        var repoLabel = Blank(request.Repository) ?? Blank(matchingDraft?.Repository) ?? "os";
+        if (issueNumber <= 0)
+        {
+            await Show(State.WithStatus("Select a GitHub issue with a valid number to escalate to Engineer Studio."));
+            await SyncUiNeuronsAsync();
+            return;
+        }
+
+        var effectivePreviewId = previewId ?? string.Create(CultureInfo.InvariantCulture, $"issue-{issueNumber}");
+        var issueTitle = string.Create(CultureInfo.InvariantCulture, $"Issue #{issueNumber}");
+        var issueContext = matchingDraft?.Body ?? string.Empty;
+
+        try
+        {
+            var repo = Context.Get<IRepository>(new NeuronId(Id.Brain, "github", connKey));
+            var issueRead = await repo.ReadIssue(new ReadIssue(issueNumber));
+            if (!string.IsNullOrWhiteSpace(issueRead.Snapshot.Title))
+            {
+                issueTitle = issueRead.Snapshot.Title.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(issueRead.Body))
+            {
+                issueContext = issueRead.Body.Trim();
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(error, "Reading live GitHub issue details failed; escalating with cached draft summary.");
+        }
+
+        var taskTitle = string.Create(CultureInfo.InvariantCulture, $"Fix #{issueNumber}: {issueTitle}");
+        var boundedEvidence = issueContext.Length > 1200 ? issueContext[..1200] : issueContext;
+        var goal = string.IsNullOrWhiteSpace(boundedEvidence)
+            ? string.Create(CultureInfo.InvariantCulture, $"Fix GitHub issue #{issueNumber} in {repoLabel}: {issueTitle}")
+            : string.Create(CultureInfo.InvariantCulture, $"Fix GitHub issue #{issueNumber} in {repoLabel}: {issueTitle}\n\n{boundedEvidence}");
+
+        string escalatedFlowId;
+        if (TryGetOptional<IFlows>(FlowsKey) is { } flows)
+        {
+            try
+            {
+                escalatedFlowId = await StartEngineerFlowForIssueAsync(flows, repoLabel, taskTitle, goal);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "The Engineer flow could not start; recording status on TasksWorkspaceState.");
+                await Show(State.WithStatus($"Could not escalate issue: {error.Message}"));
+                await SyncUiNeuronsAsync();
+                return;
+            }
+        }
+        else
+        {
+            escalatedFlowId = string.Create(CultureInfo.InvariantCulture, $"issue-{issueNumber}");
+        }
+
+        await Show(State.RecordEscalatedIssue(effectivePreviewId, repoLabel, issueNumber, escalatedFlowId, taskTitle, goal));
+        await RefreshFlowsAndSyncAsync();
+    }
+
     // ── Screen Commands (Bound to Kit Buttons) ───────────────────────────────
 
     public async Task AddTaskCommand()
@@ -439,6 +603,15 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     public Task ShowSourceCommand(string flowId) => ShowSource(new TasksShowSource(flowId));
 
     public Task AskInoCommand(string flowId) => AskIno(new TasksAskIno(flowId));
+
+    public Task ApproveIssueDraftCommand(string connectionKey, int issueNumber, string previewId)
+        => ApproveIssueDraft(new TasksApproveIssueDraft(connectionKey, issueNumber, previewId));
+
+    public Task DismissIssueDraftCommand(string connectionKey, string previewId)
+        => DismissIssueDraft(new TasksDismissIssueDraft(connectionKey, previewId));
+
+    public Task EscalateIssueCommand(string connectionKey, string repository, int issueNumber, string previewId)
+        => EscalateIssue(new TasksEscalateIssue(connectionKey, repository, issueNumber, previewId));
 
     public Task ClearFilterCommand() => Filter(new TasksFilter());
 
@@ -929,6 +1102,20 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
     public static Intent OpenTrace(string traceId) => AppSignals.OpenApp("creator", $"trace/{traceId}");
 
+    public static Intent BuildEngineerIssueIntent(string repository, int issueNumber, string? escalatedFlowId = null)
+    {
+        var repo = string.IsNullOrWhiteSpace(repository) ? "os" : repository.Trim();
+        var targetId = issueNumber > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{repo}#{issueNumber}")
+            : repo;
+        return AppSignals.OpenApp(
+            "engineer",
+            new StudioNavArgs(
+                TargetId: targetId,
+                Lens: "plan",
+                FlowId: Blank(escalatedFlowId)));
+    }
+
     private static Node RenderRootCore(
         TasksWorkspaceState state,
         Rejected? lastRejection,
@@ -1220,6 +1407,12 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         }
 
         // Pending GitHub Issue Triage Comment Drafts ({brain}/connection/github/*)
+        var activeTab = TasksWorkspaceState.NormalizeTab(state.ActiveTab);
+        var draftKeyPrefix = activeTab is "approvals" or "details" ? "inspector:" : string.Empty;
+        var orphanEscalations = state.EscalatedIssues
+            .Where(link => !issueDrafts.Any(d => string.Equals(d.PreviewId, link.PreviewId, StringComparison.Ordinal)))
+            .ToArray();
+
         children.Add(SectionHeader(
             "GitHub Issue Triage Drafts",
             issueDrafts.Length > 0
@@ -1229,17 +1422,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         {
             foreach (var draft in issueDrafts)
             {
-                var labelsNote = draft.SuggestedLabels.Length > 0
-                    ? $"Labels: {string.Join(", ", draft.SuggestedLabels)}"
-                    : "Triage comment preview";
-                children.Add(DraftCard(
-                    id: draft.PreviewId,
-                    channel: "GitHub Issue",
-                    to: string.Create(CultureInfo.InvariantCulture, $"{draft.Repository} #{draft.IssueNumber}"),
-                    body: draft.Body,
-                    from: draft.ConnectionKey,
-                    subject: labelsNote,
-                    status: string.Equals(state.FocusedDraftPreviewId, draft.PreviewId, StringComparison.Ordinal) ? "focused" : "pending"));
+                children.Add(RenderIssueTriageDraftItem(state, draft, draftKeyPrefix, draft.PreviewId));
             }
         }
         else
@@ -1247,8 +1430,82 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             children.Add(MutedText("No pending GitHub issue triage comment drafts."));
         }
 
+        foreach (var escalated in orphanEscalations)
+        {
+            children.Add(RenderEscalatedIssueLinkItem(escalated, draftKeyPrefix));
+        }
+
         return VStack(Space.Sm, [.. children]);
     }
+
+    private static Node RenderIssueTriageDraftItem(
+        TasksWorkspaceState state,
+        PendingIssueTriageDraft draft,
+        string keyPrefix,
+        string cardId)
+    {
+        var labelsNote = draft.SuggestedLabels.Length > 0
+            ? $"Labels: {string.Join(", ", draft.SuggestedLabels)}"
+            : "Triage comment preview";
+        var isFocused = string.Equals(state.FocusedDraftPreviewId, draft.PreviewId, StringComparison.Ordinal);
+        var escalatedFlowId = state.FindEscalatedFlowId(draft.PreviewId, draft.Repository, draft.IssueNumber);
+        var studioIntent = BuildEngineerIssueIntent(draft.Repository, draft.IssueNumber, escalatedFlowId);
+
+        return VStack(Space.Xs)[
+            DraftCard(
+                id: cardId,
+                channel: "GitHub Issue",
+                to: string.Create(CultureInfo.InvariantCulture, $"{draft.Repository} #{draft.IssueNumber}"),
+                body: draft.Body,
+                from: draft.ConnectionKey,
+                subject: labelsNote,
+                status: isFocused ? "focused" : "pending"),
+            HStack(Space.Xs)[
+                PrimaryButton("Approve & Post", "circle-check")
+                    .Key($"{keyPrefix}tasks:approve-issue-draft:{draft.PreviewId}")
+                    .Small()
+                    .OnClickAsync<TasksApp>(app => app.ApproveIssueDraftCommand(draft.ConnectionKey, draft.IssueNumber, draft.PreviewId)),
+                GhostButton("Dismiss", "x")
+                    .Key($"{keyPrefix}tasks:dismiss-issue-draft:{draft.PreviewId}")
+                    .Small()
+                    .OnClickAsync<TasksApp>(app => app.DismissIssueDraftCommand(draft.ConnectionKey, draft.PreviewId)),
+                Button("Fix in Studio ↗", Icons.Sparkles)
+                    .Key($"{keyPrefix}tasks:escalate-issue:{draft.PreviewId}")
+                    .Small()
+                    .OnClickAsync<TasksApp>(app => app.EscalateIssueCommand(draft.ConnectionKey, draft.Repository, draft.IssueNumber, draft.PreviewId))
+            ],
+            HStack(Space.Xs)[
+                escalatedFlowId is not null
+                    ? StatusPill(StatusKind.Working, string.Create(CultureInfo.InvariantCulture, $"Run: {FlowKey(escalatedFlowId)}"))
+                    : null,
+                new Button(
+                    $"{keyPrefix}tasks:open-engineer-issue:{draft.PreviewId}",
+                    escalatedFlowId is not null ? "Open Run in Studio ↗" : "Open Engineer Studio ↗",
+                    Intent: studioIntent)
+                {
+                    Small = true,
+                    Style = "ghost",
+                    Icon = "external-link",
+                    AutomationName = "Open in Engineer Studio",
+                }
+            ]
+        ];
+    }
+
+    private static Node RenderEscalatedIssueLinkItem(EscalatedIssueLink link, string keyPrefix)
+        => HStack(Space.Xs)[
+            StatusPill(StatusKind.Working, string.Create(CultureInfo.InvariantCulture, $"{link.Repository} #{link.IssueNumber}")),
+            new Button(
+                $"{keyPrefix}tasks:open-engineer-issue:{link.PreviewId}",
+                "Open Run in Studio ↗",
+                Intent: BuildEngineerIssueIntent(link.Repository, link.IssueNumber, link.FlowId))
+            {
+                Small = true,
+                Style = "ghost",
+                Icon = "external-link",
+                AutomationName = "Open in Engineer Studio",
+            }
+        ];
 
     private static Node RenderApprovalsAndDetailsTab(
         TasksWorkspaceState state,
@@ -1309,17 +1566,21 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             ]);
         }
 
-        if (issueDrafts.Length > 0)
+        var orphanTabEscalations = state.EscalatedIssues
+            .Where(link => !issueDrafts.Any(d => string.Equals(d.PreviewId, link.PreviewId, StringComparison.Ordinal)))
+            .ToArray();
+        if (issueDrafts.Length > 0 || orphanTabEscalations.Length > 0)
         {
-            var draftNodes = issueDrafts.Select(draft => (Node)DraftCard(
-                id: $"tab:{draft.PreviewId}",
-                channel: "GitHub Issue",
-                to: string.Create(CultureInfo.InvariantCulture, $"{draft.Repository} #{draft.IssueNumber}"),
-                body: draft.Body,
-                from: draft.ConnectionKey,
-                subject: draft.SuggestedLabels.Length > 0 ? $"Labels: {string.Join(", ", draft.SuggestedLabels)}" : "DraftForApproval")).ToArray();
-            sections.Add(Surface(SurfaceKind.Elevated, "Pending GitHub Issue Triage Drafts", string.Create(CultureInfo.InvariantCulture, $"{issueDrafts.Length} draft(s)"))[
-                VStack(Space.Sm, draftNodes)
+            List<Node> draftNodes =
+            [
+                .. issueDrafts.Select(draft => RenderIssueTriageDraftItem(state, draft, string.Empty, $"tab:{draft.PreviewId}")),
+                .. orphanTabEscalations.Select(link => RenderEscalatedIssueLinkItem(link, string.Empty)),
+            ];
+            sections.Add(Surface(
+                SurfaceKind.Elevated,
+                "Pending GitHub Issue Triage Drafts",
+                string.Create(CultureInfo.InvariantCulture, $"{issueDrafts.Length} draft(s)"))[
+                VStack(Space.Sm, [.. draftNodes])
             ]);
         }
 
@@ -1700,4 +1961,59 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     private static string FlowKey(string flowId) => flowId[(flowId.LastIndexOf('/') + 1)..];
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string NormalizeGitHubConnectionKey(string? connectionKey)
+    {
+        if (string.IsNullOrWhiteSpace(connectionKey))
+        {
+            return "connection/github/main";
+        }
+
+        var trimmed = connectionKey.Trim();
+        const string marker = "connection/github/";
+        var idx = trimmed.IndexOf(marker, StringComparison.Ordinal);
+        if (idx >= 0)
+        {
+            var slug = trimmed[(idx + marker.Length)..].Trim('/');
+            return slug.Length > 0 ? string.Concat(marker, slug) : "connection/github/main";
+        }
+
+        var rawSlug = trimmed.Trim('/');
+        return rawSlug.Length > 0 ? string.Concat(marker, rawSlug) : "connection/github/main";
+    }
+
+    private async Task<string> StartEngineerFlowForIssueAsync(IFlows flows, string repoLabel, string taskTitle, string goal)
+    {
+        try
+        {
+            var request = new EngineerDelegationRequest(
+                RepoSlug: repoLabel,
+                Goal: goal,
+                ParallelInstances: 1,
+                Backend: "LocalGit",
+                RequirePlanRatification: true);
+            var summary = await flows.StartEngineerRun(request);
+            if (!summary.Ok && !string.Equals(repoLabel, "os", StringComparison.OrdinalIgnoreCase))
+            {
+                summary = await flows.StartEngineerRun(request with { RepoSlug = "os" });
+            }
+
+            if (summary.Ok && !string.IsNullOrWhiteSpace(summary.FlowId))
+            {
+                return summary.FlowId;
+            }
+        }
+        catch (NotSupportedException notSupported)
+        {
+            _logger.LogDebug(notSupported, "StartEngineerRun is unsupported on this IFlows host; starting flow.engineer directly.");
+        }
+
+        var fallbackStart = new EngineerStartRequest(
+            RunId: string.Empty,
+            Repository: "os",
+            Goal: goal,
+            InstanceCount: 1,
+            RequirePlanRatification: true);
+        return await fallbackStart.StartOnAsync(flows, title: taskTitle);
+    }
 }

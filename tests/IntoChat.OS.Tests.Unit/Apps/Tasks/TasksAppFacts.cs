@@ -635,6 +635,163 @@ public sealed class TasksAppFacts
         Assert.True(await tasks.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer", Force: true), ct));
     }
 
+    [Fact]
+    public async Task IssueTriageDraftActions_RenderButtonsInInspectorAndApprovalsTabAndApprovePostsCommentWithPersonAuthority()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
+        await using var os = FakeOsWithUi();
+        os.Register<FakeGitHubRepository>();
+
+        const string previewId = "draft-approve-101";
+        FakeGitHubRepository.Drafts =
+        [
+            new IssueCommentPreview(
+                previewId,
+                101,
+                "Null guard needed on grain activation path.",
+                ["bug", "triage"],
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                "intochat/intochat"),
+        ];
+
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        // 1. On Board tab: body stays 100% full-bleed ui.kanban ([1.0]) and right inspector renders the 3 triage action buttons + Studio deep-link
+        var boardShell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        var boardCol = Assert.IsType<Column>(boardShell.Body);
+        Assert.Equal([1.0], boardCol.Extents);
+        Assert.Equal("ui.kanban", Assert.IsType<NeuronRef>(Assert.Single(boardCol.Children)).Kind);
+
+        var inspectorButtons = Nodes(boardShell.Inspector).OfType<Button>().ToArray();
+        Assert.Contains(inspectorButtons, b => b.Key == $"tasks:approve-issue-draft:{previewId}");
+        Assert.Contains(inspectorButtons, b => b.Key == $"tasks:dismiss-issue-draft:{previewId}");
+        Assert.Contains(inspectorButtons, b => b.Key == $"tasks:escalate-issue:{previewId}");
+        var openStudioBtn = Assert.Single(inspectorButtons, b => b.Key == $"tasks:open-engineer-issue:{previewId}");
+        Assert.Equal(TasksApp.BuildEngineerIssueIntent("intochat/intochat", 101), openStudioBtn.Intent);
+
+        // 2. On Approvals tab: main center stage renders the canonical action buttons with zero duplicate keys across the shell
+        await tasks.Request("view", new TasksView("approvals"));
+        var approvalsShell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        var approvalsBodyButtons = Nodes(approvalsShell.Body).OfType<Button>().ToArray();
+        Assert.Contains(approvalsBodyButtons, b => b.Key == $"tasks:approve-issue-draft:{previewId}");
+        Assert.Contains(approvalsBodyButtons, b => b.Key == $"tasks:dismiss-issue-draft:{previewId}");
+        Assert.Contains(approvalsBodyButtons, b => b.Key == $"tasks:escalate-issue:{previewId}");
+        Assert.Contains(approvalsBodyButtons, b => b.Key == $"tasks:open-engineer-issue:{previewId}");
+
+        var liveGraph = AggregateExplorer<TasksWorkspaceState>.ExploreScreen(tasks.App, maxStates: 32).EnsureHealthy();
+        Assert.Empty(liveGraph.Violations);
+
+        // 3. Dispatching TasksApproveIssueDraft posts comment + labels via IRepository.CommentOnIssue under Person provenance and clears the draft
+        await tasks.Request(
+            "approve-issue-draft",
+            new TasksApproveIssueDraft("connection/github/main", 101, previewId));
+
+        var posted = Assert.Single(FakeGitHubRepository.CommentsPosted);
+        Assert.Equal(previewId, posted.Request.PreviewId);
+        Assert.Equal($"tasks-approve:{previewId}", posted.Request.RequestId);
+        Assert.Equal(101, posted.Request.IssueNumber);
+        Assert.IsType<DigitalBrain.Access.Actor.Person>(posted.CallerActor);
+
+        Assert.Empty(FakeGitHubRepository.Drafts);
+        Assert.DoesNotContain(Nodes(tasks.App.Render()).OfType<DraftCardNode>(), d => d.Id.Contains(previewId, StringComparison.Ordinal));
+        Assert.Contains("Approved & posted triage comment on issue #101 (labels: bug, triage).", tasks.App.State.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueTriageDraftDismiss_RemovesPendingDraftWithoutPostingToGitHub()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
+        await using var os = FakeOsWithUi();
+        os.Register<FakeGitHubRepository>();
+
+        const string previewId = "draft-dismiss-102";
+        FakeGitHubRepository.Drafts =
+        [
+            new IssueCommentPreview(
+                previewId,
+                102,
+                "Duplicate report of #88.",
+                ["duplicate"],
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                "intochat/intochat"),
+        ];
+
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+        Assert.Contains(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Key == $"tasks:dismiss-issue-draft:{previewId}");
+
+        await tasks.Request(
+            "dismiss-issue-draft",
+            new TasksDismissIssueDraft("connection/github/main", previewId));
+
+        Assert.Equal([previewId], FakeGitHubRepository.DismissedPreviewIds);
+        Assert.Empty(FakeGitHubRepository.CommentsPosted);
+        Assert.Empty(FakeGitHubRepository.Drafts);
+        Assert.DoesNotContain(Nodes(tasks.App.Render()).OfType<DraftCardNode>(), d => d.Id.Contains(previewId, StringComparison.Ordinal));
+        Assert.Contains($"Dismissed issue triage draft '{previewId}'.", tasks.App.State.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueTriageEscalate_ReadsIssueStartsEngineerRunLinksStudioIntentAndPreservesFullBleedAndExplorerHealth()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
+        await using var os = FakeOsWithUi();
+        os.Register<FakeGitHubRepository>();
+
+        const string previewId = "draft-escalate-103";
+        FakeGitHubRepository.Drafts =
+        [
+            new IssueCommentPreview(
+                previewId,
+                103,
+                "Race condition in timer callback.",
+                ["bug", "p1"],
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                "intochat/intochat"),
+        ];
+
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request(
+            "escalate-issue",
+            new TasksEscalateIssue("connection/github/main", "intochat/intochat", 103, previewId));
+
+        Assert.Equal([103], FakeGitHubRepository.ReadIssueNumbers);
+        var (delegation, startedFlowId) = Assert.Single(FakeFlows.EngineerRuns);
+        Assert.Equal("intochat/intochat", delegation.RepoSlug);
+        Assert.True(delegation.RequirePlanRatification);
+        Assert.Contains("#103", delegation.Goal, StringComparison.Ordinal);
+        Assert.Contains("Scheduler race when grain deactivates", delegation.Goal, StringComparison.Ordinal);
+        Assert.Contains(IssueRead.UntrustedEvidenceHeader, delegation.Goal, StringComparison.Ordinal);
+
+        Assert.Equal(startedFlowId, tasks.App.State.SelectedFlowId);
+        Assert.Equal(startedFlowId, tasks.App.State.FindEscalatedFlowId(previewId, "intochat/intochat", 103));
+
+        var renderedButtons = Nodes(tasks.App.Render()).OfType<Button>().ToArray();
+        var openStudioIssueBtn = Assert.Single(renderedButtons, b => b.Key == $"tasks:open-engineer-issue:{previewId}");
+        Assert.Equal(
+            AppSignals.OpenApp(
+                "engineer",
+                new StudioNavArgs(
+                    TargetId: "intochat/intochat#103",
+                    Lens: "plan",
+                    FlowId: startedFlowId)),
+            openStudioIssueBtn.Intent);
+
+        // Verify Board and Table remain 100% full-bleed ([1.0]) and AggregateExplorer stays 0-violation healthy
+        var boardShell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        Assert.Equal([1.0], Assert.IsType<Column>(boardShell.Body).Extents);
+
+        await tasks.Request("view", new TasksView("table"));
+        var tableShell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        Assert.Equal([1.0], Assert.IsType<Column>(tableShell.Body).Extents);
+
+        var graph = AggregateExplorer<TasksWorkspaceState>.ExploreScreen(tasks.App, maxStates: 32).EnsureHealthy();
+        Assert.Empty(graph.Violations);
+    }
+
     private static async Task Field(InstalledApp<TasksApp> tasks, string field, string value)
     {
         FakeField.Values[$"apps/tasks/{field}"] = value;
@@ -644,6 +801,7 @@ public sealed class TasksAppFacts
     private static TestOS FakeOs()
     {
         FakeFlows.Reset();
+        FakeGitHubRepository.Reset();
         FakeFocus.Points.Clear();
         FakeSynapses.Sources = [];
         FakeSynapses.SidecarFiles = [];
@@ -686,6 +844,7 @@ public sealed class TasksAppFacts
     private sealed class FakeFlows : Neuron, IFlows
     {
         public static List<(string Type, string Title, string InnerJson, string Id)> Started { get; } = [];
+        public static List<(EngineerDelegationRequest Request, string FlowId)> EngineerRuns { get; } = [];
         public static FlowView[] Views { get; set; } = [];
         public static List<string> Cancels { get; } = [];
         public static List<(string FlowId, FlowRelation Relation)> Relations { get; } = [];
@@ -694,6 +853,7 @@ public sealed class TasksAppFacts
         public static void Reset()
         {
             Started.Clear();
+            EngineerRuns.Clear();
             Cancels.Clear();
             Relations.Clear();
             Views = [];
@@ -708,6 +868,35 @@ public sealed class TasksAppFacts
             var id = $"local/{type}/{Started.Count + 1}";
             Started.Add((type, title, innerJson, id));
             return Task.FromResult(id);
+        }
+
+        public Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
+        {
+            var runId = $"eng-run-{EngineerRuns.Count + 1}";
+            var flowId = $"local/{IFlows.EngineerFlow}/{runId}";
+            EngineerRuns.Add((request, flowId));
+            return Task.FromResult(new EngineerRunSummary(
+                Ok: true,
+                FlowId: flowId,
+                RunId: runId,
+                RepoSlug: request.RepoSlug,
+                Goal: request.Goal,
+                Backend: request.Backend,
+                ParallelInstances: request.ParallelInstances,
+                Status: FlowStatus.Running,
+                CurrentStage: "brainstorm-and-plan",
+                CompletedStages: [],
+                ConfirmationPlanId: null,
+                TraceId: $"trace-{runId}",
+                WinningCommitSha: null,
+                PushedRef: null,
+                PullRequestUrl: null,
+                EngineerAppUri: $"os://window/open?app=engineer&input={flowId}",
+                TasksBoardUri: $"os://window/open?app=tasks&input={flowId}",
+                Plan: null,
+                Instances: [],
+                DiagnosticsAndTraces: [],
+                SummaryText: $"Started {flowId}"));
         }
 
         public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default) => Task.CompletedTask;
@@ -784,6 +973,17 @@ public sealed class TasksAppFacts
     private sealed class FakeGitHubRepository : Neuron, IRepository
     {
         public static IssueCommentPreview[] Drafts { get; set; } = [];
+        public static List<(CommentOnIssueRequest Request, DigitalBrain.Access.Actor? CallerActor)> CommentsPosted { get; } = [];
+        public static List<string> DismissedPreviewIds { get; } = [];
+        public static List<int> ReadIssueNumbers { get; } = [];
+
+        public static void Reset()
+        {
+            Drafts = [];
+            CommentsPosted.Clear();
+            DismissedPreviewIds.Clear();
+            ReadIssueNumbers.Clear();
+        }
 
         public Task<RepositoryView> Refresh(RefreshRepository request) => throw new NotSupportedException();
         public Task<RepositoryView> Read() => throw new NotSupportedException();
@@ -795,6 +995,59 @@ public sealed class TasksAppFacts
         public Task<PullRequestView> CreatePullRequest(CreatePullRequest request) => throw new NotSupportedException();
         public Task ReplyToReviewComment(ReplyReviewComment request) => throw new NotSupportedException();
         public Task MergePullRequest(MergePullRequest request) => throw new NotSupportedException();
+
+        public Task<IssueRead> ReadIssue(ReadIssue query, CancellationToken cancellationToken = default)
+        {
+            ReadIssueNumbers.Add(query.Number);
+            var snapshot = new IssueSnapshot(
+                Number: query.Number,
+                Title: "Scheduler race when grain deactivates",
+                Body: "Stack trace in grain timer callback.",
+                Url: $"https://github.com/intochat/intochat/issues/{query.Number}",
+                IsOpen: true,
+                Author: "octocat",
+                Labels: ["bug"],
+                CommentCount: 2,
+                ObservedAt: DateTimeOffset.UtcNow,
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                Revision: $"rev-{query.Number}",
+                RepositoryId: 4242);
+            var fenced = IssueRead.FenceUntrustedBody("intochat", "intochat", 4242, snapshot);
+            return Task.FromResult(new IssueRead(snapshot with { Body = fenced }, fenced));
+        }
+
+        public Task<IssueCommentResult> CommentOnIssue(CommentOnIssueRequest request, CancellationToken cancellationToken = default)
+        {
+            CommentsPosted.Add((request, Context.Caller?.Actor));
+            var matched = !string.IsNullOrWhiteSpace(request.PreviewId)
+                ? Drafts.FirstOrDefault(d => string.Equals(d.PreviewId, request.PreviewId, StringComparison.Ordinal))
+                : null;
+            var issueNum = request.IssueNumber > 0 ? request.IssueNumber : (matched?.IssueNumber ?? 1);
+            var labels = request.Labels ?? matched?.SuggestedLabels ?? [];
+            if (matched is not null)
+            {
+                Drafts = Drafts.Where(d => !string.Equals(d.PreviewId, matched.PreviewId, StringComparison.Ordinal)).ToArray();
+            }
+
+            return Task.FromResult(new IssueCommentResult(
+                issueNum,
+                9001,
+                $"https://github.com/intochat/intochat/issues/{issueNum}#issuecomment-9001",
+                labels,
+                request.RequestId ?? "req-1",
+                Deduplicated: false));
+        }
+
+        public Task<bool> DismissIssueDraft(string previewId, CancellationToken cancellationToken = default)
+        {
+            DismissedPreviewIds.Add(previewId);
+            var next = Drafts.Where(d => !string.Equals(d.PreviewId, previewId, StringComparison.Ordinal)).ToArray();
+            var removed = next.Length != Drafts.Length;
+            Drafts = next;
+            return Task.FromResult(removed);
+        }
+
         public Task<IssueCommentPreview[]> ReadPendingIssueDrafts() => Task.FromResult(Drafts);
     }
 }
