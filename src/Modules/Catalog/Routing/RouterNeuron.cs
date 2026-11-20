@@ -37,7 +37,7 @@ internal sealed class RouterNeuron(IServiceProvider services) : Neuron<RouterSto
     // (AdmitSynapse, R4-03), which only the runtime calls before it creates a synapse (T-06-14).
     internal static readonly HashSet<string> NotCallable = ["Watch", "Unwatch", "AdmitSynapse"];
     private RouterStorage Snapshot => State;
-    private string Key => $"{Id.Brain.Value}/{Id.Key}";
+    private string Key => Id.FullKey();
     private string Scope => Id.Brain.Value;
     private NeuronTypeSearch Capabilities() => services.GetRequiredService<NeuronTypeSearch>();
 

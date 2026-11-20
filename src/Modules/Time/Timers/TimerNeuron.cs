@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Neurons;
+using IntoChat.OS;
 using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.Options;
 
@@ -61,7 +62,7 @@ internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) :
         // The id is the os key "{brain}/{key}" callers address, as the grain neuron's was; feature scripts match ticks by it.
         try
         {
-            await Publish(new TimerTick($"{Id.Brain.Value}/{Id.Key}", Context.Time.GetUtcNow()));
+            await Publish(new TimerTick(Id.FullKey(), Context.Time.GetUtcNow()));
             _failures = 0;
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)

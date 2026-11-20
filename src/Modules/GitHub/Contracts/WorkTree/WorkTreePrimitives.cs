@@ -170,6 +170,17 @@ public sealed partial record BranchName
         return Parse($"ino/{slug}-{shortRun}");
     }
 
+    public static BranchName CreateParallelFeatureBranch(string goal, string runId, int instanceIndex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(goal);
+        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
+        ArgumentOutOfRangeException.ThrowIfNegative(instanceIndex);
+        var safeRun = SanitizeSegment(runId);
+        var shortRun = safeRun.Length <= 8 ? safeRun : safeRun[..8];
+        var slug = SlugifyGoal(goal);
+        return Parse(string.Create(CultureInfo.InvariantCulture, $"ino/{slug}-{shortRun}-w{instanceIndex + 1}"));
+    }
+
     internal static string SanitizeSegment(string value)
     {
         var chars = new char[value.Length];

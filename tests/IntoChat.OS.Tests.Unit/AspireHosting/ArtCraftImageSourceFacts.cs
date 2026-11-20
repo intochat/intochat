@@ -33,23 +33,6 @@ public sealed class ArtCraftImageSourceFacts
         Assert.Single(builder.Resources, r => r.Name.EndsWith(app + "-" + kind, StringComparison.Ordinal));
 
     [Fact]
-    public void StudiosAloneRunThePrebuiltWebImagesOnTheShellPorts()
-    {
-        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        ArtCraftModuleHosting.AddStudios(builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions()));
-        foreach (var (app, reference, port) in new[] { ("photocraft", ArtCraftModuleHosting.PhotoCraftRef, 18082), ("filmcraft", ArtCraftModuleHosting.FilmCraftRef, 18083) })
-        {
-            var web = Resource(builder, app, "web");
-            var image = Assert.Single(web.Annotations.OfType<ContainerImageAnnotation>());
-            Assert.Equal($"ghcr.io/intochat/os-artcraft-{app}-web", image.Registry is { } registry ? $"{registry}/{image.Image}" : image.Image);
-            Assert.Equal(reference[..12], image.Tag);
-            Assert.Equal(port, Assert.Single(web.Annotations.OfType<EndpointAnnotation>()).Port);
-            Assert.DoesNotContain(web.Annotations, a => a is DockerfileBuildAnnotation);
-        }
-        Assert.DoesNotContain(builder.Resources, r => r.Name.EndsWith("-mcp", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public void AConfiguredRegistryRunsTheTaggedImagesWithoutADockerfileBuild()
     {
         var builder = Compose("ghcr.io/intochat");

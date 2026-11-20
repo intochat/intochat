@@ -5,6 +5,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/ui_kit_field.dart';
 import '../theme/wire_node_values.dart';
+import 'button.dart';
 import 'node_context.dart';
 
 String _humanizeFieldPath(String rawName) => humanizeFieldLabel(rawName);
@@ -119,9 +120,13 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     );
     if (_liveChange && widget.node.onSubmit != null) {
       unawaited(
-        widget.ctx
-            .activate(widget.node.key, value: text)
-            .catchError((Object _) {}),
+        pressCommand(
+          widget.node.key,
+          widget.node.onSubmit,
+          widget.ctx,
+          mounted ? context : null,
+          value: text,
+        ).catchError((Object _) {}),
       );
     }
   }
@@ -130,9 +135,13 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     if (widget.node.onSubmit == null) return;
     if (_debounce != null) _post();
     unawaited(
-      widget.ctx
-          .activate(widget.node.key, value: value)
-          .catchError((Object _) {}),
+      pressCommand(
+        widget.node.key,
+        widget.node.onSubmit,
+        widget.ctx,
+        mounted ? context : null,
+        value: value,
+      ).catchError((Object _) {}),
     );
     if (_secret) _controller.clear();
   }
@@ -161,24 +170,28 @@ class _FieldNodeViewState extends State<FieldNodeView> {
         node.fieldKind == FieldKind.search ||
         node.fieldKind == FieldKind.text ||
         node.fieldKind == FieldKind.suggest;
-    return UiKitField(
-      label: label,
-      controller: _controller,
-      focusNode: _focus,
-      placeholder: node.placeholder,
-      helper: helper,
-      error: error,
-      secret: _secret,
-      clearable: clearable,
-      leadingIcon: node.fieldKind == FieldKind.search ? 'search' : null,
-      keyboardType: node.fieldKind == FieldKind.number
-          ? const TextInputType.numberWithOptions(decimal: true, signed: true)
-          : null,
-      autocorrect: !_secret && node.fieldKind != FieldKind.search,
-      multiline: node.fieldKind == FieldKind.multiline,
-      enabled: widget.ctx.interactive,
-      onChanged: _changed,
-      onSubmitted: node.onSubmit == null ? null : _submitted,
+    return Semantics(
+      label: controlNameOf(node.automationName, label, node.key),
+      container: true,
+      child: UiKitField(
+        label: label,
+        controller: _controller,
+        focusNode: _focus,
+        placeholder: node.placeholder,
+        helper: helper,
+        error: error,
+        secret: _secret,
+        clearable: clearable,
+        leadingIcon: node.fieldKind == FieldKind.search ? 'search' : null,
+        keyboardType: node.fieldKind == FieldKind.number
+            ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+            : null,
+        autocorrect: !_secret && node.fieldKind != FieldKind.search,
+        multiline: node.fieldKind == FieldKind.multiline,
+        enabled: widget.ctx.interactive,
+        onChanged: _changed,
+        onSubmitted: node.onSubmit == null ? null : _submitted,
+      ),
     );
   }
 }

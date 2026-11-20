@@ -1,7 +1,7 @@
 using System.Globalization;
 using DigitalBrain.Capabilities.Storage;
 
-namespace IntoChat.Files;
+namespace IntoChat.OS.Modules.Apps;
 
 // Tri-state quota. Unknown and a known total of 0 never render as 0.
 internal static class QuotaText

@@ -3,9 +3,14 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Modules.UI.BreadcrumbBar;
+using IntoChat.OS.Modules.UI.CodeEditor;
+using IntoChat.OS.Modules.UI.ContextMenu;
+using IntoChat.OS.Modules.UI.GridView;
+using IntoChat.OS.Modules.UI.ImageViewer;
+using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -41,11 +46,9 @@ internal sealed partial class FilesWorkspaceNeuron
         var extras = VStack(
             Space.Md,
             [
+                new NeuronRef("ui.dialog", FilesDialogKey),
                 notice is not null
                     ? (Node)Banner("Files notice", notice, tone: "info")
-                    : null,
-                notice is not null
-                    ? Text(notice).ToNode()
                     : null,
                 files.InoHandoffPrompt is { } handoffPrompt
                     ? Card("Ino Handoff", handoffPrompt)[
@@ -68,8 +71,27 @@ internal sealed partial class FilesWorkspaceNeuron
                 .. operations,
             ]).ToNode();
 
-        var main = VStack(Space.Md, screen.Main, extras).ToNode();
-        var full = ResponsiveSplit(leading: screen.Side, trailing: main, leadingExtent: 216, gap: Space.Md);
+        var quickViewRef = await SyncFilesUiNeuronsAsync(files, folderWritable);
+
+        var toolbar = HStack(Space.Md)[
+            new NeuronRef("ui.breadcrumb", FilesBreadcrumbKey),
+            new NeuronRef("ui.context-menu", FilesContextMenuKey)
+        ];
+
+        List<Node?> mainItems = [];
+        if (string.Equals(State.ViewMode, "grid", StringComparison.OrdinalIgnoreCase))
+        {
+            mainItems.Add(new NeuronRef("ui.grid-view", FilesGridKey));
+        }
+        mainItems.Add(screen.Main);
+        if (quickViewRef is not null)
+        {
+            mainItems.Add(quickViewRef);
+        }
+        mainItems.Add(extras);
+
+        var main = VStack(Space.Md, [.. mainItems]).ToNode();
+        var full = new AppShellNode(Key: "files-shell", Sidebar: screen.Side, Body: main, Toolbar: toolbar);
 
         // The workspace is host code: it publishes its views cleanly in-process, whoever's call led here.
         var edge = services?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
@@ -80,6 +102,70 @@ internal sealed partial class FilesWorkspaceNeuron
             await View("full").Publish(files.Revision, new("Files", full));
             await View("view").Publish(files.Revision, new("Files", full));
         }
+    }
+
+    private async Task<Node?> SyncFilesUiNeuronsAsync(FilesState files, bool folderWritable)
+    {
+        Node? quickView = null;
+        try
+        {
+            var crumbs = files.Breadcrumbs
+                .Select((b, idx) => new BreadcrumbItem(idx.ToString(CultureInfo.InvariantCulture), string.IsNullOrWhiteSpace(b.Item.Name) ? "Root" : b.Item.Name))
+                .ToArray();
+            if (crumbs.Length == 0) { crumbs = [new BreadcrumbItem("0", "Workspace")]; }
+            await Get<IBreadcrumbBar>(new DigitalBrain.NeuronId(Id.Brain, "ui.breadcrumb", FilesBreadcrumbKey)).SetItems(crumbs);
+
+            await Get<IContextMenu>(new DigitalBrain.NeuronId(Id.Brain, "ui.context-menu", FilesContextMenuKey)).Configure("Actions",
+            [
+                new ContextMenuItem("mkdir", "New folder", "folder-plus", "Ctrl+Shift+N", Disabled: !folderWritable),
+                new ContextMenuItem("rename", "Rename", "edit", "F2", Disabled: !folderWritable),
+                new ContextMenuItem("copy", "Copy", "copy", "Ctrl+C"),
+                new ContextMenuItem("delete", "Delete", "trash", "Del", Destructive: true, Disabled: !folderWritable),
+            ]);
+
+            if (string.Equals(State.ViewMode, "grid", StringComparison.OrdinalIgnoreCase))
+            {
+                var gridItems = files.Items.Take(48).Select((entry, i) => new GridViewItem(
+                    i.ToString(CultureInfo.InvariantCulture),
+                    entry.Item.Name,
+                    entry.Item.Kind == ItemKind.Folder ? "Folder" : $"{entry.Item.Size ?? 0} B",
+                    entry.Item.Kind == ItemKind.Folder ? "folder" : "file-text",
+                    Badge: entry.Item.Kind == ItemKind.Folder ? "DIR" : null)).ToArray();
+                await Get<IGridView>(new DigitalBrain.NeuronId(Id.Brain, "ui.grid-view", FilesGridKey)).Configure(
+                    files.Breadcrumbs.LastOrDefault()?.Item.Name ?? "Files",
+                    gridItems,
+                    columns: 4);
+            }
+
+            if (files.Selected is { } sel && sel.Item.Kind != ItemKind.Folder)
+            {
+                var ext = Path.GetExtension(sel.Item.Name).ToLowerInvariant();
+                if (ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".svg")
+                {
+                    await Get<IImageViewer>(new DigitalBrain.NeuronId(Id.Brain, "ui.image-viewer", FilesImageKey))
+                        .Configure(sel.Item.Name, "", $"{sel.Item.Size ?? 0} B · {ext.TrimStart('.').ToUpperInvariant()}");
+                    quickView = new NeuronRef("ui.image-viewer", FilesImageKey);
+                }
+                else if (ext is ".md" or ".markdown" && !string.IsNullOrWhiteSpace(files.Preview) && !string.Equals(files.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal))
+                {
+                    await Get<IMarkdownViewer>(new DigitalBrain.NeuronId(Id.Brain, "ui.markdown", FilesMarkdownKey))
+                        .SetDocument(sel.Item.Name, files.Preview);
+                    quickView = new NeuronRef("ui.markdown", FilesMarkdownKey);
+                }
+                else if (!string.IsNullOrWhiteSpace(files.Preview) && !string.Equals(files.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal))
+                {
+                    var lang = ext.TrimStart('.');
+                    await Get<ICodeEditor>(new DigitalBrain.NeuronId(Id.Brain, "ui.code-editor", FilesEditorKey))
+                        .Configure(sel.Item.Name, string.IsNullOrEmpty(lang) ? "text" : lang, files.Preview, readOnly: !folderWritable);
+                    quickView = new NeuronRef("ui.code-editor", FilesEditorKey);
+                }
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogDebug(error, "Optional Modules.UI neuron sync skipped in minimal Files test host.");
+        }
+        return quickView;
     }
 
     // The operations query's view of each started operation (cross-silo); one that cannot be read is null.

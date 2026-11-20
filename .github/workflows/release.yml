@@ -83,7 +83,7 @@ jobs:
 
       - name: Publish IntoChat.OS.Kernel binary
         run: |
-          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
             -c Release -r linux-x64 --self-contained \
             -o artifacts/kernel-bin -p:CodeGraphRefresh=false -p:DebugType=none
           tar -I 'gzip -1' -cf artifacts/kernel-bin.tar.gz -C artifacts/kernel-bin .
@@ -97,7 +97,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Dockerfile
+          file: src/IntoChat.OS.Kernel/Dockerfile
           push: true
           build-args: |
             GITHUB_ACTOR=${{ github.actor }}

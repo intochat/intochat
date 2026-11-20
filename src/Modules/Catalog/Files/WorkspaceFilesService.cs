@@ -4,7 +4,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Authority;
+using IntoChat.OS.Modules.LocalDisk;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;

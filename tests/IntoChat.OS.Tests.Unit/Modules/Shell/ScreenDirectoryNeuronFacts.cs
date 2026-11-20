@@ -191,7 +191,7 @@ public sealed class ScreenDirectoryNeuronFacts
             new Button("btn-add", "Add", new Command(".", "add", null)),
             new Field("fld-exp", "owner/apps/calc/exp", FieldKind.Text, Placeholder: "Type exp"),
             new ApprovalCardNode("card-1", "plan-99", "Approve Plan", "Summary", [], Resolve: new Resolve("plan-99")),
-            new NavItemNode("nav-1", "Navigation", "icon", "nav-route", Emit: new Emit("calc", "nav", null))
+            new NavItemNode("nav-1", "Navigation", "icon", "nav-route", Command: new Command(".", "nav", null))
         ]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
 

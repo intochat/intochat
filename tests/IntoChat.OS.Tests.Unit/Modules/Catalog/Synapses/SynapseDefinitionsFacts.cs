@@ -55,7 +55,7 @@ public sealed class SynapseDefinitionsFacts
     public void CreatorOffersToRunAWorkflow()
     {
         SynapseDefinition[] synapses = [new("workflow:approval-demo", SynapseForm.Workflow, "approval-demo", "", 0, null)];
-        var left = Assert.IsType<Column>(CreatorView.LeftPane(new CreatorState(), new BrainTopology([], []), [], [], synapses));
+        var left = Assert.IsType<Column>(CreatorView.LeftPane(new CreatorWorkspaceState(), new BrainTopology([], []), [], [], synapses));
 
         Assert.Contains(left.Children.OfType<Heading>(), heading => heading.Value == "Synapses");
         var run = left.Children.OfType<Row>().SelectMany(row => row.Children).OfType<Button>().Single(button => button.Key == "synapse:workflow:approval-demo");

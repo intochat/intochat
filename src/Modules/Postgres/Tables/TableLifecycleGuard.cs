@@ -3,6 +3,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Invocation;
 using DigitalBrain.Access;
+using IntoChat.OS;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
@@ -60,7 +61,7 @@ internal sealed class TableLifecycleGuard(ICallerAmbient callers) : IIncomingGra
     // The owner a host grain key (the neuron id "brain/postgres.tables/tables/{app}") names; anything else is refused.
     private static TableOwner OwnerOf(string hostKey)
         => DigitalBrain.NeuronId.TryParse(hostKey, out var id) && id.Type == TableIndexNeuron.GrainType
-            ? TableOwner.Parse($"{id.Brain.Value}/{id.Key}")
+            ? TableOwner.Parse(id.FullKey())
             : throw new UnauthorizedAccessException("This storage key does not name a brain and an app.");
 
     // The calling grain's type and os key; a runtime host grain (neuron.host*, keyed by the neuron id "brain/type/key") stands
@@ -72,7 +73,7 @@ internal sealed class TableLifecycleGuard(ICallerAmbient callers) : IIncomingGra
         var key = id.Key.ToString()!;
         if (type.StartsWith("neuron.host", StringComparison.Ordinal))
         {
-            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, neuron.FullKey()) : null;
         }
         return (type, key);
     }

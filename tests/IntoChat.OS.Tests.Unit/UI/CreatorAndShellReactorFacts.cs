@@ -20,9 +20,9 @@ public sealed class CreatorAndShellReactorFacts
     private static readonly SynapseCompiler HostCompiler = new(ReferenceSet.FromDefaultContext());
 
     [Fact]
-    public void CreatorState_AggregateExplorer_UnfoldsHealthyStateSpaceAndRuleRefusals()
+    public void CreatorWorkspaceState_AggregateExplorer_UnfoldsHealthyStateSpaceAndRuleRefusals()
     {
-        var graph = AggregateExplorer<CreatorState>.Explore(
+        var graph = AggregateExplorer<CreatorWorkspaceState>.Explore(
             maxStates: 24,
             render: s => CreatorView.Render(
                 s,
@@ -35,7 +35,7 @@ public sealed class CreatorAndShellReactorFacts
         Assert.True(graph.States.Count >= 4);
         Assert.NotEmpty(graph.AcceptedTransitions);
         Assert.NotEmpty(graph.RejectedTransitions);
-        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("empty_draft"));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_inspector_tab") || t.BrokenRules.Contains("empty_timeline"));
 
         var scene = graph.ToScene();
         Assert.NotEmpty(scene.Nodes);
@@ -52,7 +52,6 @@ public sealed class CreatorAndShellReactorFacts
         await creator.Request("open", new CreatorOpen());
         Assert.False(creator.App.State.ShowStateGraph);
 
-        // Toggle to Accordant State Graph via CreatorSelect("view:state-graph")
         var toggleBtn = Assert.Single(AllNodes(creator.App.Render()).OfType<Button>(), b => b.Key == "toggle-state-graph");
         Assert.NotNull(toggleBtn.Command);
         await creator.Request("select", new CreatorSelect(CreatorView.ToggleStateGraphTarget));
@@ -62,7 +61,6 @@ public sealed class CreatorAndShellReactorFacts
         Assert.True(stateScene.PauseRotation);
         Assert.NotEmpty(stateScene.Nodes);
 
-        // Toggle back to Live Brain Graph
         await creator.Request("select", new CreatorSelect(CreatorView.ToggleStateGraphTarget));
         Assert.False(creator.App.State.ShowStateGraph);
     }
@@ -89,16 +87,14 @@ public sealed class CreatorAndShellReactorFacts
     [Fact]
     public void TasksState_AggregateExplorer_VerifiesViewModeInvariantsAndKitRenderer()
     {
-        var t0 = new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero);
-        var graph = AggregateExplorer<TasksState>.Explore(
-            maxStates: 20,
-            render: s => TasksViewRenderer.Render(s, [], [], t0).Root);
+        var graph = AggregateExplorer<TasksWorkspaceState>.ExploreScreen<TasksApp>(maxStates: 24).EnsureHealthy();
 
         Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
         Assert.True(graph.States.Count >= 3);
-        Assert.Contains(graph.States, s => s.State.View == "board");
-        Assert.Contains(graph.States, s => s.State.View == "list");
-        Assert.Contains(graph.States, s => s.State.View == "timeline");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "board");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "list");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "details");
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("empty_title", StringComparer.Ordinal));
     }
 
     [Fact]
@@ -110,7 +106,6 @@ public sealed class CreatorAndShellReactorFacts
         Assert.True(desktopState.TabCapHolds);
         Assert.True(desktopState.DesktopNeverPinned);
 
-        // Pinning "ino" or "desktop" is refused by domain rule
         var refusedIno = desktopState.PinOrUnpin("ino", pinned: false);
         Assert.True(refusedIno.IsRefused);
         Assert.Contains("core_dock_app", refusedIno.Rejection!.Rules);

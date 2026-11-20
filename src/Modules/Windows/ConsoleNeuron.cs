@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Log;
 using DigitalBrain.Errors;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS;
 using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Framework.Logging;
 
@@ -21,7 +22,7 @@ internal sealed class ConsoleNeuron(MachineIdentity identity, IServiceProvider s
     public async Task<CommandResult> Run(string command, string? workingDirectory = null, int timeoutSeconds = 60, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
-        var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
+        var connection = WindowsKeys.Connection(Id.FullKey());
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
         var roots = await SiloNeurons.Get<IWindows>(services, connection).Roots();

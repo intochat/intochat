@@ -12,10 +12,10 @@ public sealed class KernelLayoutFacts
         => Path.Combine(Repository.ProjectNamed("IntoChat.OS.AppHost").Directory, "Hosting", "Modules", "AI", "Configuration", "SystemOneHostingState.cs");
 
     private static string ClientOrleansCsprojPath()
-        => Repository.ProjectNamed("IntoChat.OS.Framework").Path;
+        => Repository.ProjectNamed("IntoChat.OS.Modules.Identity").Path;
 
     private static string ClientOrleansDirectory()
-        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Framework").Directory, "ClientOrleans");
+        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Modules.Identity").Directory, "ClientOrleans");
 
     private static string ContractManifestPath()
         => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "ContractManifest.json");
@@ -132,7 +132,9 @@ public sealed class KernelLayoutFacts
     public void F11_02_IntoChatOSClientOrleansCsproj_GrantsFollowOwnTestsRule()
     {
         var xml = XDocument.Load(ClientOrleansCsprojPath());
+        var propsXml = XDocument.Load(Path.Combine(Repository.ModulesRoot, "Directory.Build.props"));
         var ivtElements = xml.Descendants("InternalsVisibleTo")
+            .Concat(propsXml.Descendants("InternalsVisibleTo"))
             .Select(x => x.Attribute("Include")?.Value)
             .Where(x => x != null)
             .ToList();

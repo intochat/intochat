@@ -17,6 +17,9 @@ public sealed record AgentDefinition
     public int MaxModelCalls { get; init; } = 16;
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(2);
     public int MaxHistoryMessages { get; init; } = 256;
+    public int CompactionThreshold { get; init; } = 40;
+    public int CompactionRecentWindow { get; init; } = 20;
+    public bool UseModelSummarizer { get; init; }
     public InferenceOptions? Options { get; init; }
     public string[] Contexts { get; init; } = [];
 }

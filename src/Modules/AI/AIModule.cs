@@ -82,7 +82,6 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddMediaNeurons();
         AIClients.AddImageGeneration(services, options);
         VoiceToTextHosting.Add(services, options);
-        services.TryAddSingleton<IKnowledgeStore, InMemoryKnowledgeStore>();
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();
@@ -140,7 +139,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
             return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var recognizer = brain.Get<ISpeechRecognizer>($"{caller.Brain.Value}/default");
+        var recognizer = brain.Get<ISpeechRecognizer>(caller.Brain.Value + "/default");
         try
         {
             var result = await recognizer.Recognize(

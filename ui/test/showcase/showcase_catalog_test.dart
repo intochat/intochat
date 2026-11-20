@@ -63,10 +63,7 @@ const knownWithoutAutomationName = <String>{
   'appShell',
   'approvalCard',
   'conversation',
-  'field',
-  'navItem',
   'statCard',
-  'switch',
   'webBrowser',
 };
 
@@ -231,7 +228,12 @@ void main() {
     testWidgets('a keyed control without an emit is still found by its key', (
       tester,
     ) async {
-      await _check(tester, {'kind': 'switch', 'key': 'plain', 'label': 'x'});
+      await _check(tester, {
+        'kind': 'switch',
+        'key': 'plain',
+        'label': 'x',
+        'automationName': 'x',
+      });
     });
 
     testWidgets('an unknown kind is reported as unsupported', (tester) async {

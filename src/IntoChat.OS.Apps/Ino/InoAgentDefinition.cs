@@ -1,4 +1,5 @@
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Routing;
@@ -42,12 +43,19 @@ public static class InoAgentDefinition
     When {user} asks to create or build a new interactive micro-app (for example a Hello World button toggle app, counter, dashboard, or live watcher), open a built-in OS app, or list studios/units/skills, use `neurons_call` on contract `IntoChat.OS.Modules.Apps.IInoStudio` at key `{brain}/ino/studio`:
     - `Make` with `[goal]` (or `CreateInteractiveApp` with `[alias, title, goal]`) to author, Roslyn-compile, verify against `scenarios.json`, and deploy a new interactive unit. Tell {user} when the unit is awaiting their install consent on the Tasks board (`RequiresPerson = true`) and share its live view route (`/brains/{brain}/apps/{alias}/view`); never attempt to approve a confirmation yourself.
     - When guiding or authoring C# UI in IntoChat OS, always use `IntoChat.OS.UI.Kit` v2 (`HeaderBar`, `SectionHeader`, `Toolbar`, `Breadcrumb`, `Segmented`, `ImageView`, `CodeBlock`, `Expander`, `StudioFrame`, `Slot`, `.Label(...)`, `.Value(...)`, `.Guard(rule)`) over immutable DDD state records (`AggregateScreen<TState>` / `Decision<TState>`) — and point {user} to `creator` (`Live Studio` & `Source & Kit` tabs) or `gallery` (`UI Kit Gallery`) to preview, inspect state graphs, and evolve units live inside the OS.
-    - `Launch` with `[appId]` to open a built-in OS app or studio such as `photocraft`, `filmcraft`, `vectorcraft`, `lightcraft`, `effectcraft`, `designcraft`, `pdfcraft`, `wordcraft`, `soundcraft`, `deckcraft`, `cadcraft`, `gridcraft`, `figcraft`, `texturecraft`, `materialcraft`, `solidcraft`, `markdraw`, `data`, `calculator`, `gallery`, `creator`, `tasks`, `files`, or `settings`.
+    - `Launch` with `[appId]` to open a built-in OS app or studio such as `engineer`, `photocraft`, `filmcraft`, `vectorcraft`, `lightcraft`, `effectcraft`, `designcraft`, `pdfcraft`, `wordcraft`, `soundcraft`, `deckcraft`, `cadcraft`, `gridcraft`, `figcraft`, `texturecraft`, `materialcraft`, `solidcraft`, `markdraw`, `data`, `calculator`, `gallery`, `creator`, `tasks`, `files`, or `settings`.
     - `List` with `[]` to list shipped studios, deployed units (with `spec.md` and `scenarios.json` status), and auto-discovered `SKILL.md` skills.
 
-    When {user} asks to implement a feature, fix code in a repository, or prepare a pull request, use `neurons_call` on contract `IntoChat.OS.Modules.Apps.IInoStudio` at key `{brain}/ino/studio` with method `ProposeChange` (`[repository, goal]`), `ProposeChangeOnBranch` (`[repository, goal, baseBranch]`), `ChangeStatus` (`[flowId]`), or `Repositories` (`[]`). Let {user} know when the change flow reaches human confirmation before pushing or opening the PR; never attempt to approve a confirmation yourself.
+    When {user} asks to delegate an autonomous multi-worktree engineering run (`IntoChat-Engineer`, `1..N` parallel worktrees, Architect + Critic planning, `LocalGit` or `ContainerVolume` sandbox execution, Roslyn AST edits, Release build/test, and live OTel/MCP verification), use `neurons_call` on contract `IntoChat.OS.Modules.Apps.Flows.IFlows` at key `{brain}/flows/index` with:
+    - `StartEngineerRun` and arguments `[{"repoSlug": repository, "goal": goal, "parallelInstances": n, "backend": backend}]` (for example `[{"repoSlug": "os", "goal": "Add Subtract and Clamp helpers", "parallelInstances": 2, "backend": "ContainerVolume"}]`) to start a `flow.engineer` run and receive a structured status/progress summary + deep-link card to `app.engineer`.
+    - `InspectEngineerRun` with `[flowId]` (or `[]` for the latest `flow.engineer` run) to inspect stages, Architect+Critic tasks, parallel worktree leases, OTel/trace verification results, and confirmation plan status (or `ChangeStatus` on `{brain}/ino/studio` with `[flowId]`).
+    - Point {user} to `engineer` (`Launch` `["engineer"]` or `neuron://{brain}/apps/engineer#{flowId}`) to inspect the live `IStepper`, `ITreeView`, `ITable`, `IKanbanBoard`, and `ITabs`, and remind {user} that only a human Person can approve the SHA-bound confirmation gate; never attempt to approve a confirmation yourself.
+
+    When {user} asks to implement a feature, fix code in a repository, or prepare a pull request, use `neurons_call` on contract `IntoChat.OS.Modules.Apps.IInoStudio` at key `{brain}/ino/studio` with method `ProposeChange` (`[repository, goal]`), `ProposeChangeOnBranch` (`[repository, goal, baseBranch]`), `ChangeStatus` (`[flowId]`), or `Repositories` (`[]`), or delegate multi-worktree engineering via `StartEngineerRun` on `IntoChat.OS.Modules.Apps.Flows.IFlows` (`{brain}/flows/index`). Let {user} know when the change flow reaches human confirmation before pushing or opening the PR; never attempt to approve a confirmation yourself.
 
     When {user} states a durable preference, coding rule, convention, or project relationship, record it via `neurons_call` on contract `IntoChat.OS.Modules.AI.Memory.IMemory` at key `{brain}/memory` using method `RememberPreference` (`[scope, subject, body]` or `[scope, subject, body, importance]`), `RememberFact` (`[subject, text]`), or `LinkEntities` (`[sourceEntity, relation, targetEntity]`), using scope `owner` for personal rules or `repo:<name>` for repository-specific context.
+
+    For pinned working memory (~2.5 KB scratchpad with `ActiveThreads`, `EnvironmentNotes`, `PendingDecisions`) and lazy-loaded project/skill briefs, use `neurons_call` on contract `IntoChat.OS.Modules.AI.Memory.IWorkingMemory` at key `{brain}/default` (`UpsertScratchpad`, `RemoveScratchpad`, `SetSlice`, `PutBrief`, `GetBrief`, `ListBriefs` — lazy-load brief bodies with `GetBrief` only when needed). For daily `YYYY-MM-DD` session milestones (`Goal`, `Deliverables`, `Decisions`, `OpenThreads`), use `IntoChat.OS.Modules.AI.Memory.ISessionJournal` at key `{brain}/default` (`RecordMilestone`, `FinalizeSession`, `ReadReturningView`). To inspect live `Modules.UI` neuron states, component contracts, or Accordant `StateGraph` transitions/DOT graphs, use `IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector` at key `{brain}/default` (`Contracts`, `InspectNeuron`, `InspectLiveNeurons`, `ExploreStateGraph`).
 
     When {user} asks to inspect C# code structure, symbols, file outlines, callers, references, or compiler diagnostics, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph` at key `{brain}/roslyn/codegraph` with `SearchSymbols`, `FileOutline`, or `FindCallers` (or contract `IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn` at key `system/microsoft.roslyn/default` with `FindSymbols`, `References`, `Callers`, `Skeleton`, `Member`, `Map`, or `Diagnostics`).
 
@@ -66,12 +74,13 @@ public static class InoAgentDefinition
             Contracts =
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
-                typeof(IMemory).FullName!, typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
+                typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
+                typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
                 "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
             ],
             Contexts =
             [
-                .. new[] { "user.profile", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "ui.state", "memory.recall" }
+                .. new[] { "user.profile", "working.memory", "session.journal", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "ui.state", "memory.recall" }
                     .Select(name => "context/" + name),
             ],
         };

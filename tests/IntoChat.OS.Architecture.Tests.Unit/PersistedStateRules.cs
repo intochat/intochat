@@ -89,11 +89,6 @@ internal static class PersistedStateRules
     // and a member leaves it only when its stored shape becomes an array.
     internal static readonly HashSet<string> UnmigratedConcreteCollections = new(StringComparer.Ordinal)
     {
-        "IntoChat.OS.Modules.AI.Embeddings.VectorEntry.Payload",
-        "IntoChat.OS.Modules.AI.Metering.IntentUsageStorage.Entries",
-        "IntoChat.OS.Modules.AI.Routing.RouteResult.Probabilities",
-        "IntoChat.OS.Modules.Apps.AppBundle.Files",
-        "IntoChat.OS.Modules.Apps.AppPresentation.Blackboard",
         "IntoChat.OS.Authority.Integrations.IntegrationState.Settings",
         "IntoChat.OS.Authority.Secrets.SecretsState.Fields",
     };

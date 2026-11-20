@@ -16,11 +16,14 @@
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Yarp" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" />
-    <PackageReference Include="Microsoft.AI.Foundry.Local" ExcludeAssets="build;buildTransitive;contentfiles" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
+    <PackageReference Include="Microsoft.AI.Foundry.Local" ExcludeAssets="build;buildTransitive;contentfiles" PrivateAssets="build; contentfiles; analyzers; buildtransitive">
+      <IncludeAssets>runtime; compile; native; analyzers</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../Modules/Identity/IntoChat.OS.Modules.Identity.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" IsAspireProjectResource="false" />

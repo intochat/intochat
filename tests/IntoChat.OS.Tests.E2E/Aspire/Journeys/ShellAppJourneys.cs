@@ -128,7 +128,7 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
 
         var diff = ViewComparison.Diff(driftedExpected, actualView);
         Assert.NotNull(diff);
-        Assert.Contains("/root/trailing/children/0/children/0/children/0/value", diff, StringComparison.Ordinal);
+        Assert.Contains("/root/toolbar/children/0/children/0/value", diff, StringComparison.Ordinal);
         Assert.Contains("DRIFTED_TEXT_NODE", diff, StringComparison.Ordinal);
     }
 
@@ -159,6 +159,44 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
 
                     var (nextTrailing, trailingChanged) = MutateNode(split.Trailing, newText);
                     return trailingChanged ? (split with { Trailing = nextTrailing }, true) : (split, false);
+                }
+
+            case AppShellNode shell:
+                {
+                    if (shell.Sidebar is { } sidebar)
+                    {
+                        var (nextSidebar, sidebarChanged) = MutateNode(sidebar, newText);
+                        if (sidebarChanged)
+                        {
+                            return (shell with { Sidebar = nextSidebar }, true);
+                        }
+                    }
+
+                    if (shell.Toolbar is { } toolbar)
+                    {
+                        var (nextToolbar, toolbarChanged) = MutateNode(toolbar, newText);
+                        if (toolbarChanged)
+                        {
+                            return (shell with { Toolbar = nextToolbar }, true);
+                        }
+                    }
+
+                    var (nextBody, bodyChanged) = MutateNode(shell.Body, newText);
+                    if (bodyChanged)
+                    {
+                        return (shell with { Body = nextBody }, true);
+                    }
+
+                    if (shell.Inspector is { } inspector)
+                    {
+                        var (nextInspector, inspectorChanged) = MutateNode(inspector, newText);
+                        if (inspectorChanged)
+                        {
+                            return (shell with { Inspector = nextInspector }, true);
+                        }
+                    }
+
+                    return (shell, false);
                 }
 
             case Column col:

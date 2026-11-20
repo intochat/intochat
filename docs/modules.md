@@ -33,7 +33,7 @@ The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id
 
 1. Create a folder under `src/Modules` with a project whose assembly name starts with `IntoChat.OS.Modules.`. The framework has a template; see [module template](../framework/docs/modules.md).
 2. Add a public module class with a parameterless constructor, the `[Module]` attribute and a static `Manifest` of type `ModuleManifest`. The manifest names what the module provides, requires and needs, and its settings and secrets.
-3. Reference the project from `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj`.
+3. Reference the project from `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj`.
 
 Nothing else registers it. `OperatingSystemModules` walks the assemblies the kernel references and takes every module class it finds there. It does not scan the folder beside the process.
 

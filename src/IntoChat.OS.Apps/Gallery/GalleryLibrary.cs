@@ -81,26 +81,6 @@ public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryS
         _ => "all",
     };
 
-    public static string CategoryDisplayName(string category) => category switch
-    {
-        "design" => "Design & Identity",
-        "controls" => "Basic Input",
-        "layout" => "Layout & App Shell",
-        "chat-lfp" => "Data & 13 LFP Chat Cards",
-        "3d-brain" => "3D Brain & Neurons",
-        _ => "All Controls",
-    };
-
-    public static string CategoryShortBadge(string category) => category switch
-    {
-        "design" => "Design",
-        "controls" => "Input",
-        "layout" => "Layout",
-        "chat-lfp" => "LFP",
-        "3d-brain" => "3D",
-        _ => "UI",
-    };
-
     public static string DefaultBarLayoutFor(string preset, string fallback) => preset switch
     {
         "fluent-acrylic" or "fluent-warm-mica" => "floating-glass",
@@ -120,8 +100,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryS
 
         // 2. Basic Input ("controls")
         new("buttons", "controls", "Btn (Styles, Sizes & Icons)", "Primary, Secondary, Ghost, and Danger buttons in Standard (36px) and Small (30px) sizes.", "IntoChat.OS.Modules.Flutter.Views.IView@1", ["FlutterViewChanged"], "neuron://local/ui.gallery/buttons", "new Button(\"execute\", \"Execute Action\", Command: new Command(\".\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), Tone: ButtonTone.Accent);") { Icon = "mouse-pointer-click" },
-        new("inputs", "controls", "Field & TextField", "Desktop-first EditableText fields with neuron:// address validation and instant submit.", "IntoChat.OS.Modules.Flutter.Fields.IField@1", ["FieldChanged"], "neuron://local/ui.gallery/inputs", "new Field(\"address\", \"address\", FieldKind.Text, \"Enter neuron:// address…\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")));") { Icon = "text-cursor-input" },
-        new("switch", "controls", "IcSwitch (with Lock State)", "Instant-save toggle switch with policy lock indicator and keyboard focus ring.", "IntoChat.OS.Modules.Flutter.Switch.ISwitch@1", ["SwitchToggledSignal"], "neuron://local/ui.gallery/switch", "new Switch(\"stream\", \"Live [Signal] stream active\", IsOn: true, Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"toggle:switch\")), Locked: false);") { Icon = "toggle-right" },
+        new("inputs", "controls", "Field & TextField", "Desktop-first EditableText fields with neuron:// address validation and instant submit.", "IntoChat.OS.Modules.Flutter.Fields.IField@1", ["FieldChanged"], "neuron://local/ui.gallery/inputs", "new Field(\"address\", \"address\", FieldKind.Text, \"Enter neuron:// address…\", new Command(\".\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), AutomationName: \"Neuron address\");") { Icon = "text-cursor-input" },
+        new("switch", "controls", "IcSwitch (with Lock State)", "Instant-save toggle switch with policy lock indicator and keyboard focus ring.", "IntoChat.OS.Modules.Flutter.Switch.ISwitch@1", ["SwitchToggledSignal"], "neuron://local/ui.gallery/switch", "new Switch(\"stream\", \"Live [Signal] stream active\", IsOn: true, Command: new Command(\".\", \"select\", JsonSerializer.SerializeToElement(\"toggle:switch\")), Locked: false, AutomationName: \"Live [Signal] stream active\");") { Icon = "toggle-right" },
         new("select", "controls", "Select & Dropdown", "Single-choice segmented and dropdown selectors backed by DigitalBrain.UI.Select.", "DigitalBrain.UI.Select@1", ["SelectionChangedSignal"], "neuron://local/ui.gallery/select", "new Select(\"Active Reasoning Model\", \"claude-sonnet-4-5\", [new SelectOption(\"claude\", \"claude-sonnet-4-5\", \"Claude Sonnet 4.5\")]);") { Icon = "list-filter" },
         new("tag-pill", "controls", "TagPill & Status Badges", "Semantic status pills (Neutral, Accent, Done, Working, Error) paired with vector glyphs.", "IntoChat.OS.Modules.Flutter.Badge.IBadge@1", ["StatusToneChanged"], "neuron://local/ui.gallery/tag-pill", "new Row([new TagPill(\"NEUTRAL\", \"neutral\", \"sparkles\"), new TagPill(\"ACCENT\", \"accent\", \"zap\"), new TagPill(\"DONE\", \"done\", \"check\")]);") { Icon = "tag" },
         new("progress-infobar", "controls", "Progress & InfoBar", "Determinate progress bars and contextual status banners with action buttons.", "IntoChat.OS.Modules.Flutter.Views.IView@1", ["FlutterViewChanged"], "neuron://local/ui.gallery/progress-infobar", "new InfoBar(\"Orleans grain pool synced\", \"14/14 [Scenario] gates passed without warnings.\", Tone: \"info\");") { Icon = "loader" },
@@ -151,5 +131,179 @@ public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryS
         // 5. 3D Brain & Neurons ("3d-brain")
         new("brain-scene-3d", "3d-brain", "BrainScene3D Orbital Graph", "Interactive 3D orbital projection of active neurons, modules, and traveling [Signal] photon pulses.", "IntoChat.UI.BrainScene@1", ["creator.inspect", "creator.prompt"], "neuron://local/creator/brain-scene#orbital", "await Inspect(new CreatorInspect(\"OperatingSystem\"));") { Icon = "brain-circuit" },
         new("neuron-paths", "3d-brain", "Distributed NeuronId Addressing", "Canonical neuron:// URIs across Files, UI controls, and cross-brain Group grants.", "DigitalBrain.NeuronId@1", ["SynapseRoutedSignal"], "neuron://local/storage.files/work/context.md", "new NeuronRef(\"files\", \"neuron://local/storage.files/work/context.md\");") { Icon = "network" },
+
+        // 6. WinUI 3 Wave 3 Neurons
+        new("stepper", "layout", "Stepper (IStepper)", "Workflow stage indicator neuron with interactive step selection and Advance.", "IntoChat.OS.Modules.UI.Stepper.IStepper@1", ["ui.stepper-changed"], "neuron://local/ui.stepper/demo", "await stepper.Configure([new StepperStep(\"plan\", \"Plan\", \"done\"), new StepperStep(\"build\", \"Build\", \"active\")]);") { Icon = "milestone" },
+        new("property-grid", "controls", "PropertyGrid (IPropertyGrid)", "Live JSON and neuron state tree inspector with filter and inline value editing.", "IntoChat.OS.Modules.UI.PropertyGrid.IPropertyGrid@1", ["ui.property-grid-changed"], "neuron://local/ui.property-grid/demo", "await grid.LoadJson(\"Neuron State\", stateJson);") { Icon = "braces" },
+        new("kanban-board", "layout", "KanbanBoard (IKanbanBoard)", "Multi-column Kanban board neuron with WIP limits and movable cards.", "IntoChat.OS.Modules.UI.KanbanBoard.IKanbanBoard@1", ["ui.kanban-changed"], "neuron://local/ui.kanban/demo", "await kanban.MoveCard(\"c1\", \"in-progress\");") { Icon = "kanban" },
+        new("file-picker", "controls", "FilePicker (IFilePicker)", "Files VFS path, extension filter, and multi-select file picker neuron.", "IntoChat.OS.Modules.UI.FilePicker.IFilePicker@1", ["ui.file-picker-changed"], "neuron://local/ui.file-picker/demo", "await picker.Select(\"/workspace/GalleryApp.cs\");") { Icon = "folder-open" },
     ];
+}
+
+public sealed record GalleryIconCatalogEntry(string Slug, string Category, string Badge);
+
+public static class GalleryIconCatalog
+{
+    public static readonly string[] Categories =
+    [
+        "All",
+        "OS",
+        "Code/DDD",
+        "AI/Neurons",
+        "Files",
+        "Media",
+        "Navigation",
+        "Status",
+        "Devices",
+    ];
+
+    public static readonly GalleryIconCatalogEntry[] All =
+    [
+        // OS
+        new("app-window", "OS", "OS"),
+        new("settings", "OS", "OS"),
+        new("sliders-horizontal", "OS", "OS"),
+        new("sliders-vertical", "OS", "OS"),
+        new("palette", "OS", "OS"),
+        new("paintbrush", "OS", "OS"),
+        new("sun", "OS", "OS"),
+        new("moon", "OS", "OS"),
+        new("command", "OS", "OS"),
+        new("power", "OS", "OS"),
+        new("layers", "OS", "OS"),
+        new("square-stack", "OS", "OS"),
+        new("layout-grid", "OS", "OS"),
+        new("columns-3", "OS", "OS"),
+        new("copy", "OS", "OS"),
+        new("key-round", "OS", "OS"),
+        new("lock", "OS", "OS"),
+        new("user", "OS", "OS"),
+        new("users", "OS", "OS"),
+        // Code/DDD
+        new("code", "Code/DDD", "DDD"),
+        new("code-xml", "Code/DDD", "DDD"),
+        new("braces", "Code/DDD", "DDD"),
+        new("brackets", "Code/DDD", "DDD"),
+        new("terminal", "Code/DDD", "DDD"),
+        new("bug", "Code/DDD", "DDD"),
+        new("hammer", "Code/DDD", "DDD"),
+        new("wrench", "Code/DDD", "DDD"),
+        new("git-branch", "Code/DDD", "DDD"),
+        new("git-commit", "Code/DDD", "DDD"),
+        new("git-compare", "Code/DDD", "DDD"),
+        new("git-merge", "Code/DDD", "DDD"),
+        new("git-pull-request", "Code/DDD", "DDD"),
+        new("blocks", "Code/DDD", "DDD"),
+        new("component", "Code/DDD", "DDD"),
+        new("puzzle", "Code/DDD", "DDD"),
+        new("binary", "Code/DDD", "DDD"),
+        new("regex", "Code/DDD", "DDD"),
+        new("variable", "Code/DDD", "DDD"),
+        new("database", "Code/DDD", "DDD"),
+        new("table", "Code/DDD", "DDD"),
+        new("kanban", "Code/DDD", "DDD"),
+        new("square-kanban", "Code/DDD", "DDD"),
+        new("folder-kanban", "Code/DDD", "DDD"),
+        // AI/Neurons
+        new("sparkles", "AI/Neurons", "AI"),
+        new("wand-sparkles", "AI/Neurons", "AI"),
+        new("brain", "AI/Neurons", "AI"),
+        new("brain-circuit", "AI/Neurons", "AI"),
+        new("brain-cog", "AI/Neurons", "AI"),
+        new("bot", "AI/Neurons", "AI"),
+        new("bot-message-square", "AI/Neurons", "AI"),
+        new("network", "AI/Neurons", "AI"),
+        new("workflow", "AI/Neurons", "AI"),
+        new("atom", "AI/Neurons", "AI"),
+        new("orbit", "AI/Neurons", "AI"),
+        new("lightbulb", "AI/Neurons", "AI"),
+        new("radar", "AI/Neurons", "AI"),
+        new("zap", "AI/Neurons", "AI"),
+        new("activity", "AI/Neurons", "AI"),
+        new("gauge", "AI/Neurons", "AI"),
+        // Files
+        new("file", "Files", "FILE"),
+        new("file-text", "Files", "FILE"),
+        new("file-code", "Files", "FILE"),
+        new("file-json", "Files", "FILE"),
+        new("file-diff", "Files", "FILE"),
+        new("file-search", "Files", "FILE"),
+        new("file-check", "Files", "FILE"),
+        new("file-lock", "Files", "FILE"),
+        new("file-archive", "Files", "FILE"),
+        new("folder", "Files", "FILE"),
+        new("folder-open", "Files", "FILE"),
+        new("folder-git-2", "Files", "FILE"),
+        new("folder-tree", "Files", "FILE"),
+        new("cloud", "Files", "FILE"),
+        new("cloud-upload", "Files", "FILE"),
+        new("cloud-download", "Files", "FILE"),
+        // Media
+        new("image", "Media", "MEDIA"),
+        new("camera", "Media", "MEDIA"),
+        new("aperture", "Media", "MEDIA"),
+        new("clapperboard", "Media", "MEDIA"),
+        new("play", "Media", "MEDIA"),
+        new("pause", "Media", "MEDIA"),
+        new("circle-play", "Media", "MEDIA"),
+        new("music", "Media", "MEDIA"),
+        new("headphones", "Media", "MEDIA"),
+        new("mic", "Media", "MEDIA"),
+        new("video", "Media", "MEDIA"),
+        new("volume-2", "Media", "MEDIA"),
+        // Navigation
+        new("house", "Navigation", "NAV"),
+        new("search", "Navigation", "NAV"),
+        new("compass", "Navigation", "NAV"),
+        new("map", "Navigation", "NAV"),
+        new("map-pin", "Navigation", "NAV"),
+        new("navigation", "Navigation", "NAV"),
+        new("milestone", "Navigation", "NAV"),
+        new("signpost", "Navigation", "NAV"),
+        new("panel-left", "Navigation", "NAV"),
+        new("panel-right", "Navigation", "NAV"),
+        new("panel-top", "Navigation", "NAV"),
+        new("bookmark", "Navigation", "NAV"),
+        new("external-link", "Navigation", "NAV"),
+        new("funnel", "Navigation", "NAV"),
+        // Status
+        new("check", "Status", "STAT"),
+        new("circle-check", "Status", "STAT"),
+        new("badge-check", "Status", "STAT"),
+        new("badge-info", "Status", "STAT"),
+        new("badge-alert", "Status", "STAT"),
+        new("bell", "Status", "STAT"),
+        new("triangle-alert", "Status", "STAT"),
+        new("shield-check", "Status", "STAT"),
+        new("shield-alert", "Status", "STAT"),
+        new("loader-circle", "Status", "STAT"),
+        new("flame", "Status", "STAT"),
+        new("rocket", "Status", "STAT"),
+        new("chart-column", "Status", "STAT"),
+        new("trending-up", "Status", "STAT"),
+        // Devices
+        new("monitor", "Devices", "DEV"),
+        new("laptop", "Devices", "DEV"),
+        new("smartphone", "Devices", "DEV"),
+        new("tablet", "Devices", "DEV"),
+        new("cpu", "Devices", "DEV"),
+        new("microchip", "Devices", "DEV"),
+        new("hard-drive", "Devices", "DEV"),
+        new("server", "Devices", "DEV"),
+        new("router", "Devices", "DEV"),
+        new("wifi", "Devices", "DEV"),
+        new("bluetooth", "Devices", "DEV"),
+        new("usb", "Devices", "DEV"),
+        new("keyboard", "Devices", "DEV"),
+        new("mouse", "Devices", "DEV"),
+    ];
+
+    public static GalleryIconCatalogEntry[] ForCategory(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category) || string.Equals(category, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            return All;
+        }
+        return All.Where(e => string.Equals(e.Category, category, StringComparison.OrdinalIgnoreCase)).ToArray();
+    }
 }

@@ -20,9 +20,9 @@ public sealed class ViewNeuronFacts
         new DigitalBrain.UI.Button("cancel", "Cancel", new Command(".", "cancel", JsonSerializer.SerializeToElement(new[] { "f/1", "x:y" }))),
         new DigitalBrain.UI.Button("copy", "Copy", Intent: new Intent(IntentKind.Copy, "neuron://owner/tasks")),
         new DigitalBrain.UI.Button("off", "Off", new Command(".", "off"), Enabled: false),
-        new Field("title", "apps/tasks/title", FieldKind.Text, OnSubmit: new Emit("tasks", "rename")),
+        new Field("title", "apps/tasks/title", FieldKind.Text, OnSubmit: new Command(".", "rename")),
         new ApprovalCardNode("approval", "plan-1", "Approve", "Detail", [], Resolve: new Resolve("plan-1")),
-        new NavItemNode("nav-filter", "All", "list", "filter-all", Emit: new Emit("tasks", "filter", JsonSerializer.SerializeToElement("all"))),
+        new NavItemNode("nav-filter", "All", "list", "filter-all", Command: new Command(".", "filter", JsonSerializer.SerializeToElement("all"))),
     ]));
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -87,7 +87,7 @@ public sealed class ViewNeuronFacts
 
         var nav = await view.Activate(1, "nav-filter", null);
         Assert.Equal(ViewActivationKind.Emit, nav.Kind);
-        Assert.Equal(("tasks", "filter"), (nav.Emit!.Owner, nav.Emit.Signal));
+        Assert.Equal(("owner/apps/tasks", "filter"), (nav.Emit!.Owner, nav.Emit.Signal));
         Assert.Equal("\"all\"", nav.Emit.Args!.Value.GetRawText());
     }
 

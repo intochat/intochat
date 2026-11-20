@@ -18,6 +18,7 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 

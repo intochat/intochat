@@ -15,7 +15,6 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Views;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;

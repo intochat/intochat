@@ -192,7 +192,7 @@ void main() {
     final events = <Map<String, dynamic>>[];
     await _host(tester, {
       ...nodeSamples['field']!,
-      'onSubmit': {'owner': 'apps/sample', 'signal': 'search'},
+      'onSubmit': {'target': '.', 'signal': 'search'},
     }, events: events);
     await tester.enterText(find.byType(TextField), 'query');
     await tester.testTextInput.receiveAction(TextInputAction.done);

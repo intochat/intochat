@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework.Visuals;
@@ -5,71 +6,86 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.UI;
+using AppRef = IntoChat.OS.Primitives.AppRef;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Creator;
 
-/// <summary>
-/// 3-pane Creator screen view built on <see cref="Kit"/>:
-/// Left pane: Catalog units + active change runs list + Describe/Make + Starter templates.
-/// Center pane: BrainScene topology (or Accordant StateGraphView when toggled) + active unit source/state-space + 7-stage FeatureToPrFlow pipeline + unified diff + build/test summary.
-/// Right pane: Inspector for selected node/edge/pulse + refine change input + interactive approve/reject gate.
-/// </summary>
 public static class CreatorView
 {
     public const string App = "creator";
-    public const string DescribeField = "describe", ChangeField = "change";
     public const string ToggleStateGraphTarget = "view:state-graph";
-    public static readonly string[] Fields = [DescribeField, ChangeField];
 
-    public static string FieldKey(string field) => $"apps/{App}/{field}";
+    // Brain-local keys for Creator's live Modules.UI time-travel & inspector neurons.
+    public const string ReplaySliderKey = "creator/replay/slider";
+    public const string ReplayCommandBarKey = "creator/replay/transport";
+    public const string InspectorTabsKey = "creator/inspector/tabs";
+    public const string InspectorStateKey = "creator/inspector/state";
+    public const string InspectorSourceKey = "creator/inspector/source";
+    public const string InspectorSignalsKey = "creator/inspector/signals";
 
     public static View Render(
-        CreatorState state,
+        CreatorWorkspaceState state,
         BrainTopology topology,
         FlowView[] flows,
         Approval[] approvals,
         Inspection inspection,
+        IReadOnlyList<TraceHop>? timelineHops = null,
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
+        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses));
+
+    public static Node RenderNode(
+        CreatorWorkspaceState state,
+        BrainTopology topology,
+        FlowView[] flows,
+        Approval[] approvals,
+        Inspection inspection,
+        IReadOnlyList<TraceHop> timelineHops,
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(flows);
+        ArgumentNullException.ThrowIfNull(approvals);
+        ArgumentNullException.ThrowIfNull(inspection);
+        ArgumentNullException.ThrowIfNull(timelineHops);
 
         var left = LeftPane(state, topology, flows, approvals, synapses);
-        var center = CenterPane(state, topology, flows, inspection);
-        var right = CreatorInspector.Render(state, inspection, flows, approvals);
+        var center = CenterPane(state, topology, flows, inspection, timelineHops);
+        var right = CreatorInspector.Render(state, inspection, timelineHops, flows, approvals);
 
-        return new View("Creator", ResponsiveSplit(left, ResponsiveSplit(center, right, 680), 300));
+        return ResponsiveSplit(left, ResponsiveSplit(center, right, 680), 280);
     }
 
     public static Node LeftPane(
-        CreatorState state,
+        CreatorWorkspaceState state,
         BrainTopology topology,
         FlowView[] flows,
         Approval[] approvals,
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(flows);
+        ArgumentNullException.ThrowIfNull(approvals);
 
         var children = new List<Node>();
 
-        // Every synapse by form: reactions, flows, workflows, agents; a workflow can be run from here.
         if (synapses is { Length: > 0 })
         {
             children.Add(SectionHeader("Synapses"));
             foreach (var form in synapses.GroupBy(synapse => synapse.Form).OrderBy(group => group.Key))
             {
                 children.Add(MutedText(form.Key.ToString()));
-                children.Add(HStack(Space.Xs, [.. form.Select(Synapse)]));
+                children.Add(HStack(Space.Xs, [.. form.Select(RenderSynapse)]));
             }
         }
 
-        // 1. Catalog Units & Apps List
+        // 1. Catalog Units
         children.Add(SectionHeader("Catalog Units"));
         var unitNodes = topology.Nodes
-            .Where(n => n.Role == BrainGraph.Unit || (!n.Id.StartsWith("draft:", StringComparison.Ordinal) && !n.Id.Contains("/apps/", StringComparison.Ordinal)))
-            .Take(10)
+            .Where(n => n.Role == BrainGraph.Unit || (!n.Id.StartsWith("draft:", StringComparison.Ordinal) && !AppRef.TryParse(n.Id, out _)))
+            .Take(12)
             .ToArray();
 
         if (unitNodes.Length > 0)
@@ -90,9 +106,10 @@ public static class CreatorView
             children.Add(MutedText("No runtime units installed yet."));
         }
 
+        // 2. Installed Apps
         var appNodes = topology.Nodes
-            .Where(n => n.Role == BrainGraph.App || IntoChat.OS.Primitives.AppRef.TryParse(n.Id, out _))
-            .Where(n => !IntoChat.OS.Primitives.AppRef.TryParse(n.Id, out var a) || a.Name != App)
+            .Where(n => n.Role == BrainGraph.App || AppRef.TryParse(n.Id, out _))
+            .Where(n => !AppRef.TryParse(n.Id, out var a) || a.Name != App)
             .Take(12)
             .ToArray();
 
@@ -103,7 +120,7 @@ public static class CreatorView
             {
                 var label = node.Label.Length > 0
                     ? node.Label
-                    : IntoChat.OS.Primitives.AppRef.TryParse(node.Id, out var nodeRef) ? nodeRef.Name : node.Id;
+                    : AppRef.TryParse(node.Id, out var nodeRef) ? nodeRef.Name : node.Id;
                 var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
                 return (Node)(isSelected ? PrimaryButton(label) : GhostButton(label))
                     .Key($"app:{node.Id}")
@@ -113,7 +130,7 @@ public static class CreatorView
             children.Add(HStack(Space.Xs, [.. appButtons]));
         }
 
-        // 2. Active Change Runs List
+        // 3. Active Change Runs
         children.Add(SectionHeader("Active Change Runs"));
         var activeFlows = flows
             .Where(f => f.Type is IFlows.ChangeFlow or BuildFlow.Alias)
@@ -131,59 +148,35 @@ public static class CreatorView
             children.Add(MutedText("No active change runs."));
         }
 
-        // 3. Make / Describe Dialogue (with StatusPill & Rule hint)
-        children.Add(SectionHeader("Make New Unit"));
+        // 4. Studio Navigation & Status
+        children.Add(SectionHeader("Studio Workbench"));
         children.Add(HStack(Space.Sm)[
             StatusPill(
-                approvals.Length > 0 ? StatusKind.NeedsYou : StatusKind.Idle,
-                approvals.Length > 0 ? $"{approvals.Length} Approval(s)" : "Studio Ready"),
-            MutedText(state.ConversationId.Length > 0 ? $"Ino · {state.ConversationId}" : "Describe what to make.")
+                approvals.Length > 0 ? StatusKind.NeedsYou : (state.IsReplayActive ? StatusKind.Working : StatusKind.Idle),
+                approvals.Length > 0 ? $"{approvals.Length} Approval(s)" : (state.IsReplayActive ? "Time-Travel Replay" : "Live Stream")),
+            MutedText(state.Status)
         ]);
-        children.Add(TextField(FieldKey(DescribeField), "e.g. Build a Pomodoro sprint timer…")
-            .Key(DescribeField)
-            .Label("Unit or App Goal")
-            .Value(state.Draft)
-            .Emits(AppSignals.Emit(App, "make", state.Draft)));
         children.Add(HStack(Space.Xs)[
-            PrimaryButton("Make Unit", Icons.Sparkles)
-                .Key("make")
-                .Small()
-                .Emits(AppSignals.Emit(App, "make", state.Draft)),
             new Button("open-ino-chat", "Co-Author in Ino", Intent: AppSignals.OpenApp("ino")) { Small = true, Icon = Icons.MessageSquare },
+            new Button("open-engineer-studio", "Open Engineer", Intent: AppSignals.OpenApp("engineer")) { Small = true, Icon = Icons.Sparkles },
             new Button("open-gallery", "UI Kit Gallery", Intent: AppSignals.OpenApp("gallery")) { Small = true, Icon = Icons.LayoutGrid }
         ]);
-        if (state.EmptyDraft.Broken)
-        {
-            children.Add(MutedText(state.EmptyDraft.Message));
-        }
-        children.Add(MutedText(state.Status));
-
-        // 4. Starter and Shipped Templates
-        children.Add(SectionHeader("Starter Templates"));
-        children.Add(HStack(6, [.. ShippedUnits.All.Select(alias =>
-            (Node)Button(ShippedUnits.Title(alias))
-                .Key($"seed:{alias}")
-                .Small()
-                .Emits(AppSignals.Emit(App, "seed", alias)))]));
-
-        children.Add(SectionHeader("Shipped Unit Templates"));
-        children.Add(HStack(6, [.. ShippedUnits.Legacy.Select(alias =>
-            (Node)Button(ShippedUnits.Title(alias))
-                .Key($"seed:{alias}")
-                .Small()
-                .Emits(AppSignals.Emit(App, "seed", alias)))]));
 
         return VStack(Space.Sm, [.. children]);
     }
 
     public static Node CenterPane(
-        CreatorState state,
+        CreatorWorkspaceState state,
         BrainTopology topology,
         FlowView[] flows,
-        Inspection inspection)
+        Inspection inspection,
+        IReadOnlyList<TraceHop> timelineHops)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(flows);
+        ArgumentNullException.ThrowIfNull(inspection);
+        ArgumentNullException.ThrowIfNull(timelineHops);
 
         var mode = state.ShowStateGraph && state.CanvasMode == "brain" ? "state" : state.CanvasMode;
         var modeSwitcher = Segmented(
@@ -192,6 +185,9 @@ public static class CreatorView
             Option("live", "Live Studio").Key("mode-live").Emits(AppSignals.Emit(App, "select", "mode:live")),
             Option("state", "State Graph").Key("mode-state").Emits(AppSignals.Emit(App, "select", "mode:state")),
             Option("source", "Source & Kit").Key("mode-source").Emits(AppSignals.Emit(App, "select", "mode:source")));
+
+        var steps = ReplayScript.Steps(timelineHops);
+        var cursorReadout = ReplayScript.FormatCursorReadout(state.ReplayCursor, steps.Length);
 
         var children = new List<Node>
         {
@@ -233,36 +229,43 @@ public static class CreatorView
         else
         {
             var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null);
-            if (state.Selected is { Kind: Selection.Pulse } && inspection.Hops.Count > 0)
+            var replayTraceId = state.TraceId ?? (inspection.Kind == Selection.Pulse ? inspection.Id : "timeline");
+            if (timelineHops.Count > 0)
             {
-                graph = graph with { Synapses = [.. graph.Synapses, .. ReplayScript.Synapses(inspection.Hops, inspection.Id, state.ReplayCursor, topology)] };
+                graph = graph with
+                {
+                    Synapses = [.. graph.Synapses, .. ReplayScript.Synapses(timelineHops, replayTraceId, state.ReplayCursor, topology)],
+                };
             }
 
             children.Add(graph);
 
-            // When a compiled app or live unit is selected in Brain mode, also offer an instant one-click Live Preview card!
             if (TryResolveLivePreviewTarget(state, inspection, out var quickSlotUri, out var quickSlotKind, out var quickAppName, out var quickTitle))
             {
                 children.Add(RenderEmbeddedStudioCard(state, quickTitle, quickSlotUri, quickSlotKind, quickAppName));
             }
         }
 
-        // 2. Active Unit Source & Accordant State-Space Summary
+        // 2. Time-Travel Transport Bar (ICommandBar + ISlider + 1-Event Keyboard Stepper)
+        children.Add(RenderTimeTravelBar(state, steps.Length, cursorReadout));
+
+        // 3. Active Unit Summary
         if (state.Selected is { Kind: Selection.Node } && inspection.Alias is { } alias)
         {
             var ghost = inspection.Id.StartsWith("draft:", StringComparison.Ordinal);
-            children.Add(Card(alias, ghost ? "Under construction: drawn from its build flow until it is installed." : inspection.Id)[
+            children.Add(Card(alias, ghost ? "Under construction: drawn from its build flow until installed." : inspection.Id)[
                 StatusPill(ghost ? StatusKind.Working : StatusKind.Done, ghost ? "Building" : "Installed")
             ]);
             if (!ghost)
             {
-                children.Add(Card("State", inspection.State ?? "No state saved yet."));
+                var stateJson = ReplayScript.StateJsonAt(steps, state.ReplayCursor, inspection.State);
+                children.Add(Card("State", inspection.State ?? stateJson));
                 children.Add(Card("View", inspection.View ?? "No view published yet."));
             }
 
             children.Add(CreatorStateSpaceInspector.RenderUnitSummaryCard(alias, inspection.Files));
 
-            foreach (var name in new[] { "spec.md" }.Concat(inspection.Files.Keys.Where(k => k.EndsWith(".cs", StringComparison.Ordinal)).Order(StringComparer.Ordinal)).Append("scenarios.json"))
+            foreach (var name in CreatorInspector.OrderedFiles(inspection.Files))
             {
                 if (inspection.Files.TryGetValue(name, out var text))
                 {
@@ -271,7 +274,7 @@ public static class CreatorView
             }
         }
 
-        // 3. Active FeatureToPrFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists — zero fake placeholder diffs!)
+        // 4. Active FeatureToPrFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists)
         var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == IFlows.ChangeFlow);
         if (activeRun is not null)
         {
@@ -288,8 +291,63 @@ public static class CreatorView
         return VStack(Space.Md, [.. children]);
     }
 
+    private static Node RenderTimeTravelBar(CreatorWorkspaceState state, int stepCount, string cursorReadout)
+    {
+        var hasEvents = stepCount > 0;
+        var toggleLabel = state.IsReplayActive ? "Live" : "Replay";
+        var toggleIcon = state.IsReplayActive ? "play" : "pause";
+
+        return Surface(
+            SurfaceKind.Elevated,
+            "Time-Travel Debugger",
+            "Keys: ← Step Back · → Step Forward · Space Live/Replay · Home First · End Last")[
+            HStack(Space.Sm)[
+                StatCard(
+                    "replay-cursor-readout",
+                    "Timeline Cursor",
+                    cursorReadout,
+                    state.IsReplayActive ? "Paused (Replay)" : "Live Tail",
+                    state.IsReplayActive ? BadgeTone.Accent : BadgeTone.Neutral,
+                    "history"),
+                FlexSpacer(),
+                Button("First", "chevrons-left")
+                    .Key("replay-first")
+                    .Small()
+                    .Disabled(!hasEvents)
+                    .Emits(AppSignals.Emit(App, "replay", "first")),
+                Button("Step Back", "chevron-left")
+                    .Key("replay-prev")
+                    .Small()
+                    .Disabled(!hasEvents)
+                    .Emits(AppSignals.Emit(App, "replay", "prev")),
+                PrimaryButton(toggleLabel, toggleIcon)
+                    .Key("replay-toggle")
+                    .Small()
+                    .Disabled(!hasEvents && !state.IsReplayActive)
+                    .Emits(AppSignals.Emit(App, "replay", "toggle")),
+                Button("Step Forward", "chevron-right")
+                    .Key("replay-next")
+                    .Small()
+                    .Disabled(!hasEvents)
+                    .Emits(AppSignals.Emit(App, "replay", "next")),
+                Button("Last", "chevrons-right")
+                    .Key("replay-last")
+                    .Small()
+                    .Disabled(!hasEvents)
+                    .Emits(AppSignals.Emit(App, "replay", "last")),
+                GhostButton("Stop", "radio")
+                    .Key("replay-live")
+                    .Small()
+                    .Disabled(!state.IsReplayActive)
+                    .Emits(AppSignals.Emit(App, "replay", "stop"))
+            ],
+            new NeuronRef("ui.command-bar", ReplayCommandBarKey),
+            new NeuronRef("ui.slider", ReplaySliderKey)
+        ];
+    }
+
     private static bool TryResolveLivePreviewTarget(
-        CreatorState state,
+        CreatorWorkspaceState state,
         Inspection inspection,
         out string slotUri,
         out string slotKind,
@@ -306,7 +364,7 @@ public static class CreatorView
             return false;
         }
 
-        if (IntoChat.OS.Primitives.AppRef.TryParse(nodeId, out var appRef) && appRef.Name != App)
+        if (AppRef.TryParse(nodeId, out var appRef) && appRef.Name != App)
         {
             slotUri = appRef.ChildKey("view");
             slotKind = "app";
@@ -318,9 +376,8 @@ public static class CreatorView
         if (!nodeId.StartsWith("draft:", StringComparison.Ordinal) && inspection.Alias is { Length: > 0 } unitAlias)
         {
             var slash = nodeId.IndexOf('/', StringComparison.Ordinal);
-            if (slash <= 0) { return false; }
-            var unitBrain = nodeId[..slash];
-            slotUri = $"{unitBrain}/units/{unitAlias}/view";
+            if (slash <= 0 || !BrainId.IsValid(nodeId[..slash])) { return false; }
+            slotUri = new NeuronId(new BrainId(nodeId[..slash]), "units", $"{unitAlias}/view").ToString();
             slotKind = "unit";
             openAppId = unitAlias;
             displayTitle = unitAlias;
@@ -330,19 +387,24 @@ public static class CreatorView
         return false;
     }
 
-    private static Node RenderLiveStudioPreview(CreatorState state, Inspection inspection)
+    private static Node RenderLiveStudioPreview(CreatorWorkspaceState state, Inspection inspection)
     {
         if (!TryResolveLivePreviewTarget(state, inspection, out var slotUri, out var slotKind, out var openAppId, out var title))
         {
             return Empty(
                 "Select an App or Unit to Preview Live",
-                "Pick any installed app or runtime unit in the left sidebar or Brain Topology to mount its live interactive View inside this Studio viewport — or describe a new unit to synthesize one with Ino.");
+                "Pick any installed app or runtime unit in the left sidebar or Brain Topology to mount its live interactive View inside this Studio viewport.");
         }
 
         return RenderEmbeddedStudioCard(state, title, slotUri, slotKind, openAppId);
     }
 
-    private static Node RenderEmbeddedStudioCard(CreatorState state, string title, string slotUri, string slotKind, string? openAppId)
+    private static Node RenderEmbeddedStudioCard(
+        CreatorWorkspaceState state,
+        string title,
+        string slotUri,
+        string slotKind,
+        string? openAppId)
     {
         double? viewportWidth = state.PreviewViewport switch
         {
@@ -371,49 +433,24 @@ public static class CreatorView
 
     private static Node RenderSourceAndKitStudio(Inspection inspection)
     {
-        const string kitQuickRef = """
-            using DigitalBrain.Rules;
-            using DigitalBrain.UI;
-            using IntoChat.OS.UI;
-            using static IntoChat.OS.UI.Kit;
-
-            // 1. Immutable State + Domain Rules (Accordant DDD)
-            public sealed record PomodoroState(int Minutes = 25, bool Running = false)
-            {
-                public Rule ValidDuration(int mins) =>
-                    Decision.Rule("duration_bounds", mins, static m => m is < 1 or > 120, "Choose 1–120 minutes.");
-
-                public Decision<PomodoroState> SetDuration(int mins) =>
-                    Decision.Check("set-duration", ValidDuration(mins))
-                    ?? Decision.Accept(this with { Minutes = mins });
-            }
-
-            // 2. Pure C# View with Kit v2 Controls
-            VStack(Space.Md)[
-                HeaderBar("Pomodoro Studio", $"{state.Minutes} min sprint",
-                    StatusPill(state.Running ? StatusKind.Working : StatusKind.Idle, state.Running ? "Focusing" : "Ready"),
-                    PrimaryButton(state.Running ? "Pause" : "Start", Icons.Play).Key("toggle")),
-                Toolbar(
-                    SectionHeader("Preset Sprints"),
-                    Segmented($"{state.Minutes}", Option("25", "25m"), Option("50", "50m"))),
-                Expander("Session Notes", "Optional markdown scratchpad", expanded: false,
-                    MultilineField("Notes", "What are you shipping this sprint?").Label("Goal"))
-            ]
-            """;
-
         var blocks = new List<Node>();
         if (inspection.Files.Count > 0)
         {
-            foreach (var (name, source) in inspection.Files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            foreach (var name in CreatorInspector.OrderedFiles(inspection.Files))
             {
-                var lang = name.EndsWith(".cs", StringComparison.Ordinal) ? "csharp"
-                    : name.EndsWith(".json", StringComparison.Ordinal) ? "json"
-                    : "markdown";
-                blocks.Add(CodeBlock(name, source, lang, maxHeight: 340));
+                if (inspection.Files.TryGetValue(name, out var source))
+                {
+                    blocks.Add(CodeBlock(name, source, CreatorInspector.InferLanguage(name), maxHeight: 340));
+                }
             }
         }
+        else
+        {
+            blocks.Add(Empty(
+                "Select a Unit to Inspect Source",
+                "Choose a runtime unit in the topology or catalog to view its C# aggregate, specification, and scenarios."));
+        }
 
-        blocks.Add(CodeBlock("IntoChat.OS.UI.Kit v2 Quick Reference", kitQuickRef, "csharp", maxHeight: 320));
         return VStack(Space.Md, [.. blocks]);
     }
 
@@ -509,10 +546,6 @@ public static class CreatorView
         ];
     }
 
-    // Preserved for backward compatibility
-    public static Node Conversation(CreatorState state, FlowView[] flows, Approval[] approvals)
-        => LeftPane(state, new BrainTopology([], []), flows, approvals);
-
     private static Node Turn(FlowView flow, Approval[] approvals)
     {
         var statusKind = flow.Status switch
@@ -552,8 +585,7 @@ public static class CreatorView
             : null;
     }
 
-    // One synapse: its name, how often it ran and how the last run ended; a workflow's button starts a run.
-    private static Node Synapse(IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition synapse)
+    private static Node RenderSynapse(IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition synapse)
     {
         var label = synapse.Runs == 0 ? synapse.Name : $"{synapse.Name} · {synapse.Runs} run(s), last {synapse.LastRun}";
         return synapse.Form == IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow

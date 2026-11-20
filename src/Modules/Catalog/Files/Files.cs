@@ -24,20 +24,20 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 
-namespace IntoChat.Files;
+namespace IntoChat.OS.Modules.Apps;
 
-public sealed record FilesStorage(string Connection, string Label, string Kind, ItemFlags Flags, string? Error, Quota? Space = null);
-public sealed record FilesGroup(string Connection, string Label, FilesItem[] Items, bool Failed, bool Bounded, string? Cursor = null);
-public sealed record FilesItem(string Connection, Item Item);
-public sealed record FilesPage(string Connection, ItemId? Folder, string? Cursor, bool Complete);
-public sealed record FilesClipboard(FilesItem Source, bool Move);
-[Signal("files.opened")] public sealed record FilesOpened : Signal;
-[Signal("files.more")] public sealed record FilesMore : Signal;
-[Signal("files.preview")] public sealed record FilesPreview : Signal;
-[Signal("files.location")] public sealed record FilesLocation(string Connection, ItemId? Folder = null) : Signal;
-[Signal("files.search")] public sealed record FilesSearch(string Text, bool Everywhere = false) : Signal;
-[Signal("files.selected")] public sealed record FilesSelected(FilesItem Item) : Signal;
-public sealed record FilesState
+internal sealed record FilesStorage(string Connection, string Label, string Kind, ItemFlags Flags, string? Error, Quota? Space = null);
+internal sealed record FilesGroup(string Connection, string Label, FilesItem[] Items, bool Failed, bool Bounded, string? Cursor = null);
+internal sealed record FilesItem(string Connection, Item Item);
+internal sealed record FilesPage(string Connection, ItemId? Folder, string? Cursor, bool Complete);
+internal sealed record FilesClipboard(FilesItem Source, bool Move);
+[Signal("files.opened")] internal sealed record FilesOpened : Signal;
+[Signal("files.more")] internal sealed record FilesMore : Signal;
+[Signal("files.preview")] internal sealed record FilesPreview : Signal;
+[Signal("files.location")] internal sealed record FilesLocation(string Connection, ItemId? Folder = null) : Signal;
+[Signal("files.search")] internal sealed record FilesSearch(string Text, bool Everywhere = false) : Signal;
+[Signal("files.selected")] internal sealed record FilesSelected(FilesItem Item) : Signal;
+internal sealed record FilesState
 {
     public long Revision { get; init; }
     public FilesStorage[] Storages { get; init; } = [];
@@ -73,7 +73,7 @@ public sealed record FilesState
 }
 
 // Files uses storage@1 only. The host persists snapshots and submits plans to the runtime's confirmation/operation gate.
-public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state, IReadOnlyList<IStorage>? storages = null)
+internal sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state, IReadOnlyList<IStorage>? storages = null)
 {
     public const string AppName = "files";
     public const int PageSize = 100;

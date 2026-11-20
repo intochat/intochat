@@ -2,14 +2,13 @@
 # Friends
 Role: Default
 Shipped: true
-Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, filter-scope
+Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, fork_app, filter-scope, ui.command
 
 Personal social profile, friends, files shared with friends, and interactive App-Post feed.
 A friend is confirmed with a code: one person makes it, the other redeems it. A folder or file of the workspace is shared
 with a confirmed friend as Viewer or Editor; what friends shared appears under Shared with me.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
-using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
@@ -55,17 +54,6 @@ public sealed record FriendsOpenShared(string OwnerBrain = "", string ShareId = 
 [Signal("friends.save-shared")]
 public sealed record FriendsSaveShared(string OwnerBrain = "", string ShareId = "", string Path = "", string Text = "") : Signal;
 
-// What is open from Shared with me: a folder's entries, or one file's text.
-public sealed record FriendsOpenedShare(
-    string OwnerBrain,
-    string ShareId,
-    string Path,
-    bool CanEdit,
-    SharedEntry[] Entries,
-    string? Text = null,
-    string SavedBy = "",
-    DateTimeOffset? SavedAt = null);
-
 [Signal("friends.fork_app")]
 public sealed record FriendsForkApp(string PostId = "post-1") : Signal;
 
@@ -74,63 +62,6 @@ public sealed record FriendsForkPost(string PostId = "post-1", string? NewPostId
 
 [Signal("friends.filter-scope")]
 public sealed record FriendsFilterScope(string Scope = "all") : Signal;
-
-public sealed record FriendsAppState(
-    string Handle,
-    string DisplayName,
-    string Bio,
-    string[] PinnedApps,
-    ProfileFriend[] Friends,
-    ProfilePostItem[] Posts,
-    string SelectedScope,
-    string Status,
-    string FriendCode = "",
-    WorkspaceShare[]? SharedByMe = null,
-    SharedPointer[]? SharedWithMe = null,
-    FriendsOpenedShare? Opened = null)
-{
-    public FriendsAppState() : this("user", "User", "", [], [], [], "all", "Ready") { }
-
-    [Invariant("SelectedScope is all, public, or friends."), JsonIgnore]
-    public bool ValidScope => SelectedScope is "all" or "public" or "friends";
-
-    [Invariant("Profile handle is never empty."), JsonIgnore]
-    public bool HandlePresent => !string.IsNullOrWhiteSpace(Handle);
-
-    public Rule SupportedScope(string? scope) => Decision.Rule(
-        "invalid_scope",
-        scope,
-        static s => string.IsNullOrWhiteSpace(s) || s.Trim().ToLowerInvariant() is not ("all" or "public" or "friends"),
-        "Feed scope must be all, public, or friends.");
-
-    public Decision<FriendsAppState> SelectScope([Sample("all", "public", "friends", "secret")] string scope)
-    {
-        if (Decision.Check("filter-scope", SupportedScope(scope)) is { } refusal) { return refusal; }
-        var normalized = scope.Trim().ToLowerInvariant();
-        return Decision.Accept(this with { SelectedScope = normalized, Status = $"Filtered feed to {normalized} posts." });
-    }
-
-    public static string NormalizeScope(string? scope, string fallback = "all") => scope?.Trim().ToLowerInvariant() switch
-    {
-        "public" => "public",
-        "friends" => "friends",
-        "all" => "all",
-        _ => fallback is "public" or "friends" ? fallback : "all",
-    };
-
-    [IgnoreExplore]
-    public FriendsAppState ApplyProfile(ProfileState profile, string status, string? selectedScope = null) => this with
-    {
-        Handle = string.IsNullOrWhiteSpace(profile.Handle) ? "user" : profile.Handle,
-        DisplayName = string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Handle : profile.DisplayName,
-        Bio = profile.Bio ?? "",
-        PinnedApps = profile.PinnedApps ?? [],
-        Friends = profile.Friends ?? [],
-        Posts = profile.Posts ?? [],
-        SelectedScope = NormalizeScope(selectedScope, SelectedScope),
-        Status = status,
-    };
-}
 
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
 public sealed class FriendsApp : AggregateScreen<FriendsAppState>
@@ -162,6 +93,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
                 new("fork-post", "Fork an interactive App-Post template (and its embedded app slots) into a new post."),
                 new("fork_app", "Fork and install an App-Post unit template into Creator and submit to IInstalls consent loop."),
                 new("filter-scope", "Filter the feed by scope (all, public, friends)."),
+                new(UiCommand.SignalAlias, "Dispatch a typed Friends aggregate command."),
             ],
             Settings: [],
             Slots: [],
@@ -204,8 +136,14 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     public async Task Publish(FriendsPublish request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (!string.IsNullOrWhiteSpace(request.Scope) && FriendsAppState.ValidCircleRule(request.Scope).Broken)
+        {
+            await ApplyDecisionAsync(Decision.Check("publish", FriendsAppState.ValidCircleRule(request.Scope))!);
+            return;
+        }
+
         var content = string.IsNullOrWhiteSpace(request.Content) ? "New App-Post" : request.Content.Trim();
-        var scope = string.IsNullOrWhiteSpace(request.Scope) ? "public" : request.Scope.Trim().ToLowerInvariant();
+        var scope = FriendsAppState.NormalizeCircle(request.Scope, "public");
         var id = string.IsNullOrWhiteSpace(request.Id) ? $"post-{Guid.NewGuid():N}" : request.Id.Trim();
         var templateAppId = string.IsNullOrWhiteSpace(request.TemplateAppId) ? $"post.app.{id}" : request.TemplateAppId.Trim().ToLowerInvariant();
         var embedded = ParseEmbeddedApps(request.EmbeddedAppIds, CurrentBrainId());
@@ -229,7 +167,15 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     public async Task UpdateBio(FriendsUpdateBio request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var handle = string.IsNullOrWhiteSpace(request.Handle) ? State.Handle : request.Handle.Trim();
+        var rawHandle = string.IsNullOrWhiteSpace(request.Handle) ? State.Handle : request.Handle.Trim();
+        var draftDecision = State.UpdateProfileDraft(rawHandle, request.DisplayName, request.Bio);
+        if (draftDecision.IsRefused)
+        {
+            await ApplyDecisionAsync(draftDecision);
+            return;
+        }
+
+        var handle = FriendsAppState.NormalizeHandleToken(rawHandle);
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? State.DisplayName : request.DisplayName.Trim();
         var updated = await Get<IProfile>("profile").UpdateProfile(handle, displayName, request.Bio?.Trim() ?? string.Empty, request.PinnedApps ?? State.PinnedApps ?? []);
         await Show(State.ApplyProfile(updated, $"Updated personal bio for @{handle}."));
@@ -410,7 +356,8 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     public Task FilterScope(FriendsFilterScope request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return ApplyDecisionAsync(State.SelectScope(FriendsAppState.NormalizeScope(request.Scope, "all")));
+        var targetScope = string.IsNullOrWhiteSpace(request.Scope) ? "all" : request.Scope;
+        return ApplyDecisionAsync(State.SelectScope(targetScope));
     }
 
     public Task PublishQuickPostAsync() => Publish(new FriendsPublish("Interactive revenue & sketch board", "friends"));
@@ -474,28 +421,47 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             ? allPosts
             : allPosts.Where(p => string.Equals(p.Scope, state.SelectedScope, StringComparison.OrdinalIgnoreCase)).ToArray();
 
+        var showRoster = state.ActiveTab is "all" or "roster";
+        var showShared = state.ActiveTab is "all" or "shared";
+        var showFeed = state.ActiveTab is "all" or "feed";
+
         return VStack(Space.Md)[
+            LastRejection is not null
+                ? Banner("Action refused", string.Join(" ", LastRejection.Messages), tone: "error")
+                : null,
             HeaderBar(
                 $"{state.DisplayName} (@{state.Handle})",
                 string.IsNullOrWhiteSpace(state.Bio) ? state.Status : $"{state.Bio} · {state.Status}",
                 StatusPill(StatusKind.Done, $"{friends.Length} friends"),
                 PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().OnClick(() => PublishQuickPostAsync())),
-            Tabs(
-                state.SelectedScope,
-                Tab("all", "All Posts", "layout-grid").OnSelect<FriendsAppState>(x => x.SelectScope("all")),
-                Tab("public", "Public", "globe").OnSelect<FriendsAppState>(x => x.SelectScope("public")),
-                Tab("friends", "Friends", "users").OnSelect<FriendsAppState>(x => x.SelectScope("friends"))),
+            HStack(Space.Sm)[
+                Segmented(
+                    "Section",
+                    state.ActiveTab,
+                    Option("all", "Overview").Key("friends-tab:all").OnSelect<FriendsAppState>(x => x.SelectTab("all")),
+                    Option("feed", "App-Posts").Key("friends-tab:feed").OnSelect<FriendsAppState>(x => x.SelectTab("feed")),
+                    Option("roster", "Roster").Key("friends-tab:roster").OnSelect<FriendsAppState>(x => x.SelectTab("roster")),
+                    Option("shared", "Shared").Key("friends-tab:shared").OnSelect<FriendsAppState>(x => x.SelectTab("shared"))),
+                FlexSpacer(),
+                Tabs(
+                    state.SelectedScope,
+                    Tab("all", "All Posts", "layout-grid").Key("friends-scope:all").OnSelect<FriendsAppState>(x => x.SelectScope("all")),
+                    Tab("public", "Public", "globe").Key("friends-scope:public").OnSelect<FriendsAppState>(x => x.SelectScope("public")),
+                    Tab("friends", "Friends", "users").Key("friends-scope:friends").OnSelect<FriendsAppState>(x => x.SelectScope("friends")))
+            ],
             Grid(3, Space.Sm)[
                 StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
                 StatCard("kpi-friends-count", "Friends", $"{friends.Count(f => f.Confirmed)}", $"{friends.Count(f => !f.Confirmed)} not confirmed", BadgeTone.Done, "users"),
                 StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{(state.PinnedApps ?? []).Length} Pinned", BadgeTone.Accent, "cpu")
             ],
-            RenderFriends(state, friends),
-            RenderSharedByMe(state),
-            RenderSharedWithMe(state),
-            visiblePosts.Length == 0
-                ? Empty("No App-Posts in this scope", "Publish an interactive App-Post or switch feed scope.")
-                : VStack(Space.Md, [.. visiblePosts.Select(post => RenderPostCard(state, post))]).ToNode()
+            showRoster ? RenderFriends(state, friends) : null,
+            showShared ? RenderSharedByMe(state) : null,
+            showShared ? RenderSharedWithMe(state) : null,
+            showFeed
+                ? (visiblePosts.Length == 0
+                    ? Empty("No App-Posts in this scope", "Publish an interactive App-Post or switch feed scope.")
+                    : VStack(Space.Md, [.. visiblePosts.Select(post => RenderPostCard(state, post))]).ToNode())
+                : null
         ];
     }
 

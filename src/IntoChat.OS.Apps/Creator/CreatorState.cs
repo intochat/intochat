@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
@@ -5,135 +6,244 @@ using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Creator;
 
-// Selected is what the inspector shows; TraceId the trace last opened (a pulse); ReplayCursor the replay scrubber's step (an index into its signals in sequence order, null when live);
-// ConversationId the Ino conversation agent the dialogue belongs to.
-public sealed record CreatorState(Selection? Selected, string? TraceId, long? ReplayCursor, string ConversationId)
+public sealed record CreatorWorkspaceState(
+    Selection? Selected,
+    string? TraceId,
+    long? ReplayCursor,
+    string InspectorTab,
+    string CanvasMode,
+    string PreviewViewport,
+    string Status)
 {
-    public CreatorState() : this(null, null, null, "") { }
+    public static readonly string[] InspectorTabIds = ["state", "source", "signals", "state-graph", "scenarios"];
+    public static readonly string[] CanvasModeIds = ["brain", "live", "state", "source"];
 
-    public string Status { get; init; } = "Ready";
+    public CreatorWorkspaceState() : this(null, null, null, "state", "brain", "fill", "Ready") { }
 
-    // What the describe and change fields hold, folded from their text fields' changes.
-    public string Draft { get; init; } = "";
-
-    public string ChangeDraft { get; init; } = "";
-
-    // The last scenario run's transcript.
     public string? Transcript { get; init; }
-
-    // Active change run being inspected or displayed in center/right panes.
     public string? ActiveRunId { get; init; }
-
-    public string? SelectedStage { get; init; }
-
-    // Whether the Accordant Aggregate State-Space Graph inspector overlay/card is expanded.
+    public string? SelectedSourceFile { get; init; }
+    public int ReplayStepCount { get; init; }
     public bool ShowStateGraph { get; init; }
 
-    // Studio canvas mode: "brain" | "live" | "state" | "source".
-    public string CanvasMode { get; init; } = "brain";
+    [JsonIgnore]
+    public bool IsReplayActive => ReplayCursor is not null;
 
-    // Studio live preview viewport width: "fill" | "720" | "390".
-    public string PreviewViewport { get; init; } = "fill";
+    // ── Domain Invariants & Rules ────────────────────────────────────────────
 
-    // ── Domain Rules & Invariants ────────────────────────────────────────────
+    [Invariant("ReplayCursor is null (live) or within non-negative timeline bounds."), JsonIgnore]
+    public bool ValidReplayCursor =>
+        ReplayCursor is null || (ReplayCursor >= 0 && (ReplayStepCount == 0 || ReplayCursor < ReplayStepCount));
 
-    [Invariant]
-    public bool NonNegativeReplayCursor => ReplayCursor is null or >= 0;
+    [Invariant("InspectorTab is one of the 5 canonical Creator inspector tabs."), JsonIgnore]
+    public bool ValidInspectorTab =>
+        InspectorTab is "state" or "source" or "signals" or "state-graph" or "scenarios";
 
-    [Invariant]
-    public bool ValidCanvasMode => CanvasMode is "brain" or "live" or "state" or "source";
+    [Invariant("CanvasMode is brain, live, state, or source."), JsonIgnore]
+    public bool ValidCanvasMode =>
+        CanvasMode is "brain" or "live" or "state" or "source";
 
-    [Invariant]
-    public bool ValidPreviewViewport => PreviewViewport is "fill" or "720" or "390";
+    [Invariant("PreviewViewport is fill, 720, or 390."), JsonIgnore]
+    public bool ValidPreviewViewport =>
+        PreviewViewport is "fill" or "720" or "390";
 
-    public Rule EmptyDraft => Decision.Rule("empty_draft", Draft, static d => string.IsNullOrWhiteSpace(d), "Describe what unit you want to make first.");
+    [Invariant("ShowStateGraph flag stays synchronized with state CanvasMode."), JsonIgnore]
+    public bool ConsistentStateGraphFlag =>
+        ShowStateGraph == (CanvasMode == "state");
 
-    public Rule EmptyChangeDraft => Decision.Rule("empty_change_draft", ChangeDraft, static d => string.IsNullOrWhiteSpace(d), "Describe how this unit should change first.");
+    [JsonIgnore]
+    public Rule RequiresSelectedNode => Decision.Rule(
+        "requires_selected_node",
+        Selected,
+        static s => s is not { Kind: Selection.Node },
+        "Select a unit or app node in the graph first.");
 
-    public Rule RequiresSelectedNode => Decision.Rule("requires_selected_node", Selected, static s => s is not { Kind: Selection.Node }, "Select a unit node in the graph first.");
+    public static Rule RequiresTimelineEvents(int eventCount) => Decision.Rule(
+        "empty_timeline",
+        eventCount,
+        static n => n <= 0,
+        "No recorded signal events are loaded for time-travel.");
 
-    // ── Rich DDD Aggregate Transitions ───────────────────────────────────────
+    public static Rule SupportedInspectorTab(string? tab) => Decision.Rule(
+        "invalid_inspector_tab",
+        tab,
+        static t => TryNormalizeInspectorTab(t) is null,
+        "Inspector tab must be state, source, signals, state-graph, or scenarios.");
 
-    public CreatorState SelectNode([Sample("local/ctr/default")] string nodeId)
+    public static Rule SupportedCanvasMode(string? mode) => Decision.Rule(
+        "invalid_canvas_mode",
+        mode,
+        static m => TryNormalizeCanvasMode(m) is null,
+        "Canvas mode must be brain, live, state, or source.");
+
+    // ── Aggregate Commands & Transitions ─────────────────────────────────────
+
+    public CreatorWorkspaceState SelectNode([Sample("local/ctr/default")] string nodeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+        var parsed = Selection.Parse(nodeId);
         return this with
         {
-            Selected = Selection.Parse(nodeId),
+            Selected = parsed,
             Transcript = null,
+            SelectedSourceFile = null,
             ReplayCursor = null,
+            ReplayStepCount = 0,
+            Status = $"Selected {parsed?.Id ?? nodeId}",
+        };
+    }
+
+    public CreatorWorkspaceState SelectRun([Sample("run-1")] string runId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
+        return this with
+        {
+            ActiveRunId = runId.Trim(),
+            Status = $"Inspecting change run {runId.Trim()}",
+        };
+    }
+
+    public CreatorWorkspaceState ToggleStateGraph()
+    {
+        var nextShow = !ShowStateGraph;
+        return this with
+        {
+            ShowStateGraph = nextShow,
+            CanvasMode = nextShow ? "state" : "brain",
+            Status = nextShow ? "Showing Accordant State Graph" : "Showing Live Brain Topology",
+        };
+    }
+
+    public CreatorWorkspaceState ClearSelection() => this with
+    {
+        Selected = null,
+        ActiveRunId = null,
+        Transcript = null,
+        SelectedSourceFile = null,
+        ReplayCursor = null,
+        ReplayStepCount = 0,
+        Status = "Ready",
+    };
+
+    public Decision<CreatorWorkspaceState> SelectInspectorTab(
+        [Sample("state", "source", "signals", "state-graph", "scenarios", "invalid")] string tab)
+    {
+        if (Decision.Check("select-inspector-tab", SupportedInspectorTab(tab)) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var normalized = TryNormalizeInspectorTab(tab)!;
+        return Decision.Accept(this with
+        {
+            InspectorTab = normalized,
+            Status = $"Inspector · {FormatInspectorTabTitle(normalized)}",
+        });
+    }
+
+    public Decision<CreatorWorkspaceState> SwitchCanvasMode(
+        [Sample("brain", "live", "state", "source", "invalid")] string mode)
+    {
+        if (Decision.Check("switch-canvas-mode", SupportedCanvasMode(mode)) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var normalized = TryNormalizeCanvasMode(mode)!;
+        return Decision.Accept(this with
+        {
+            CanvasMode = normalized,
+            ShowStateGraph = normalized == "state",
+            Status = $"Canvas · {normalized}",
+        });
+    }
+
+    public Decision<CreatorWorkspaceState> StepTimeline(
+        [Sample("next", "prev", "toggle", "stop")] string cursorArg,
+        [Sample(0, 4)] int eventCount)
+    {
+        var clean = cursorArg?.Trim() ?? string.Empty;
+        if (clean is "stop" or "live")
+        {
+            return Decision.Accept(this with
+            {
+                ReplayCursor = null,
+                ReplayStepCount = Math.Max(0, eventCount),
+                Status = ReplayScript.FormatCursorReadout(null, Math.Max(0, eventCount)),
+            });
+        }
+
+        if (Decision.Check("step-timeline", RequiresTimelineEvents(eventCount)) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var nextCursor = ReplayScript.Move(ReplayCursor, clean, eventCount);
+        return Decision.Accept(this with
+        {
+            ReplayCursor = nextCursor,
+            ReplayStepCount = eventCount,
+            Status = ReplayScript.FormatCursorReadout(nextCursor, eventCount),
+        });
+    }
+
+    public Decision<CreatorWorkspaceState> ValidateUnitSelection()
+        => Decision.Check("unit-action", RequiresSelectedNode) ?? Decision.Accept(this);
+
+    // ── Non-explored Runtime Helpers ─────────────────────────────────────────
+
+    [IgnoreExplore]
+    public CreatorWorkspaceState SelectSelection(Selection? selection, int stepCount = 0)
+    {
+        var defaultTab = selection?.Kind switch
+        {
+            Selection.Pulse or Selection.Edge => "signals",
+            _ => InspectorTab,
+        };
+        return this with
+        {
+            Selected = selection,
+            TraceId = selection?.Kind == Selection.Pulse ? selection.Id : TraceId,
+            InspectorTab = defaultTab,
+            ReplayCursor = null,
+            ReplayStepCount = Math.Max(0, stepCount),
+            Transcript = null,
+            SelectedSourceFile = null,
         };
     }
 
     [IgnoreExplore]
-    public CreatorState SelectSelection(Selection? selection) => this with
-    {
-        Selected = selection,
-        TraceId = selection?.Kind == Selection.Pulse ? selection.Id : TraceId,
-        ReplayCursor = null,
-        Transcript = null,
-    };
-
-    public CreatorState OpenInput([Sample("node:local/ctr/default", "trace/t-1")] string? rawInput)
+    public CreatorWorkspaceState OpenInput(string? rawInput)
     {
         var input = rawInput?.Trim() ?? string.Empty;
-        if (input.StartsWith("trace/", StringComparison.Ordinal) && input["trace/".Length..].Trim() is { Length: > 0 } traceId)
+        if (input.StartsWith("trace/", StringComparison.Ordinal)
+            && input["trace/".Length..].Trim() is { Length: > 0 } traceId)
         {
-            return this with { Selected = new Selection(Selection.Pulse, traceId), TraceId = traceId, ReplayCursor = null };
+            return this with
+            {
+                Selected = new Selection(Selection.Pulse, traceId),
+                TraceId = traceId,
+                InspectorTab = "signals",
+                ReplayCursor = null,
+            };
         }
 
         if (input.StartsWith("node:", StringComparison.Ordinal) && Selection.Parse(input) is { } node)
         {
-            return this with { Selected = node };
+            return this with
+            {
+                Selected = node,
+                ReplayCursor = null,
+            };
         }
 
         return this;
     }
 
-    public CreatorState SelectRun([Sample("run-1")] string runId)
+    [IgnoreExplore]
+    public CreatorWorkspaceState SetCanvasMode(string? mode)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
-        return this with
-        {
-            ActiveRunId = runId,
-            Status = $"Inspecting change run {runId}",
-        };
-    }
-
-    public CreatorState SetDraft([Sample("watch elonmusk on X")] string draft)
-        => this with { Draft = draft ?? string.Empty };
-
-    public CreatorState SetChangeDraft([Sample("count by two")] string changeDraft)
-        => this with { ChangeDraft = changeDraft ?? string.Empty };
-
-    [IgnoreExplore]
-    public CreatorState SetStatus(string status)
-        => this with { Status = status ?? string.Empty };
-
-    [IgnoreExplore]
-    public CreatorState SetTranscript(string? transcript)
-        => this with { Transcript = transcript };
-
-    public CreatorState SetStage([Sample("clone", "diff-review")] string? stage)
-        => this with { SelectedStage = stage };
-
-    public CreatorState ToggleStateGraph()
-        => this with
-        {
-            ShowStateGraph = !ShowStateGraph,
-            CanvasMode = !ShowStateGraph ? "state" : "brain",
-        };
-
-    [IgnoreExplore]
-    public CreatorState SetCanvasMode(string? mode)
-    {
-        var normalized = mode?.Trim().ToLowerInvariant() switch
-        {
-            "live" => "live",
-            "state" => "state",
-            "source" => "source",
-            _ => "brain",
-        };
+        var normalized = TryNormalizeCanvasMode(mode) ?? "brain";
         return this with
         {
             CanvasMode = normalized,
@@ -142,7 +252,7 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
     }
 
     [IgnoreExplore]
-    public CreatorState SetPreviewViewport(string? viewport)
+    public CreatorWorkspaceState SetPreviewViewport(string? viewport)
     {
         var normalized = viewport?.Trim().ToLowerInvariant() switch
         {
@@ -153,38 +263,56 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
         return this with { PreviewViewport = normalized };
     }
 
-    public CreatorState StepReplay([Sample("next", "stop")] string? cursorArg, [Sample(4)] int hopCount)
+    [IgnoreExplore]
+    public CreatorWorkspaceState SetSourceFile(string? fileName)
         => this with
         {
-            ReplayCursor = Selected is { Kind: Selection.Pulse }
-                ? ReplayScript.Move(ReplayCursor, cursorArg, hopCount)
-                : null,
+            SelectedSourceFile = string.IsNullOrWhiteSpace(fileName) ? null : fileName.Trim(),
+            InspectorTab = "source",
         };
 
-    public CreatorState ClearSelection() => this with
+    [IgnoreExplore]
+    public CreatorWorkspaceState StepReplay(string? cursorArg, int stepCount)
     {
-        Selected = null,
-        ActiveRunId = null,
-        Transcript = null,
-        ReplayCursor = null,
+        var normalizedCount = Math.Max(0, stepCount);
+        var nextCursor = normalizedCount > 0
+            ? ReplayScript.Move(ReplayCursor, cursorArg, normalizedCount)
+            : null;
+        return this with
+        {
+            ReplayCursor = nextCursor,
+            ReplayStepCount = normalizedCount,
+            Status = ReplayScript.FormatCursorReadout(nextCursor, normalizedCount),
+        };
+    }
+
+    public static string? TryNormalizeInspectorTab(string? tab) => tab?.Trim().ToLowerInvariant() switch
+    {
+        "state" or "properties" => "state",
+        "source" or "code" => "source",
+        "signals" or "trace" or "events" => "signals",
+        "state-graph" or "stategraph" or "graph" => "state-graph",
+        "scenarios" or "scenario" => "scenarios",
+        _ => null,
     };
 
-    public Decision<CreatorState> ValidateMake([Sample("", "watch elonmusk on X")] string? explicitGoal = null)
+    public static string? TryNormalizeCanvasMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
-        var goal = string.IsNullOrWhiteSpace(explicitGoal) ? Draft.Trim() : explicitGoal.Trim();
-        return Decision.Check("creator.make", Decision.Rule("empty_draft", goal, static g => g.Length == 0, "Describe what to make."))
-            ?? Decision.Accept(this with { Draft = string.Empty, Status = $"Building {goal}" });
-    }
+        "brain" => "brain",
+        "live" => "live",
+        "state" => "state",
+        "source" => "source",
+        _ => null,
+    };
 
-    public Decision<CreatorState> ValidateChange([Sample("", "count by two")] string? explicitRequest = null)
+    public static string FormatInspectorTabTitle(string tab) => tab switch
     {
-        var wanted = string.IsNullOrWhiteSpace(explicitRequest) ? ChangeDraft.Trim() : explicitRequest.Trim();
-        return Decision.Check(
-                "creator.change",
-                RequiresSelectedNode,
-                Decision.Rule("empty_change_draft", wanted, static w => w.Length == 0, "Describe how the selected unit should change."))
-            ?? Decision.Accept(this with { ChangeDraft = string.Empty });
-    }
+        "source" => "Source",
+        "signals" => "Signals",
+        "state-graph" => "State Graph",
+        "scenarios" => "Scenarios",
+        _ => "State",
+    };
 }
 
 // A selection of the graph: a node (its id; a ghost is draft:<alias>), an edge (its full key) or a pulse (its trace id).
@@ -192,7 +320,6 @@ public sealed record Selection(string Kind, string Id)
 {
     public const string Node = "node", Edge = "edge", Pulse = "pulse";
 
-    // A graph key back into a selection; a bare id is a node. Null clears.
     public static Selection? Parse(string? key) => key switch
     {
         null or "" => null,
@@ -218,11 +345,20 @@ public sealed record Inspection(string Kind, string Id)
     public string? Alias { get; init; }
     public string? State { get; init; }
     public string? View { get; init; }
-    public IReadOnlyDictionary<string, string> Files { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> Files { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<TraceEntry> Signals { get; init; } = [];
     public IReadOnlyList<TraceHop> Hops { get; init; } = [];
     public string? Notice { get; init; }
 }
 
 // One journaled signal of a trace, folded: Depth is its causation chain length to a root hop.
-public sealed record TraceHop(long Sequence, string Publisher, string Alias, string Address, string? Cause, int Depth, DateTimeOffset At, string Payload, string? FlowId);
+public sealed record TraceHop(
+    long Sequence,
+    string Publisher,
+    string Alias,
+    string Address,
+    string? Cause,
+    int Depth,
+    DateTimeOffset At,
+    string Payload,
+    string? FlowId);

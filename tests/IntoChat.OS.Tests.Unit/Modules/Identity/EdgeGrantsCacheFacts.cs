@@ -85,7 +85,7 @@ public sealed class EdgeGrantsCacheFacts
         var sln = System.Xml.Linq.XDocument.Load(Path.Combine(dir.FullName, "Intochat.OS.slnx"));
         var rel = sln.Descendants("Project")
             .Select(p => p.Attribute("Path")?.Value)
-            .First(p => p is not null && p.EndsWith("IntoChat.OS.Framework.csproj", StringComparison.OrdinalIgnoreCase))!;
+            .First(p => p is not null && p.EndsWith("IntoChat.OS.Modules.Identity.csproj", StringComparison.OrdinalIgnoreCase))!;
         var frameworkDir = Path.GetDirectoryName(Path.Combine(dir.FullName, rel))!;
         var src = File.ReadAllText(Path.Combine(frameworkDir, "Authority", "Identity", "Grants", "EdgeGrantsCache.cs"));
         Assert.DoesNotContain("GetAwaiter().GetResult()", src, StringComparison.Ordinal);

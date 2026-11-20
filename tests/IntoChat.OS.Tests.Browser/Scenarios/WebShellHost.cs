@@ -6,7 +6,9 @@ using System.Text;
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Tests.Support;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -35,6 +37,15 @@ public sealed class WebShellHost : IAsyncLifetime
     public DistributedApplication App { get; private set; } = null!;
 
     public string Origin { get; private set; } = "";
+
+    public string Scope { get; } = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
+
+    public HttpClient CreateKernelClient()
+    {
+        var client = App.CreateHttpClient("OperatingSystem-a", "http");
+        client.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProofValidator.HeaderName, _presence);
+        return client;
+    }
 
     public async ValueTask InitializeAsync()
     {
@@ -68,6 +79,9 @@ public sealed class WebShellHost : IAsyncLifetime
 
     // The shell with semantics on and the presence token in the fragment, as the brain browser opens it.
     public string Shell => $"{Origin}/?semantics=true#presence={Uri.EscapeDataString(_presence)}";
+
+    // Opens a specific app view root (e.g. "apps/gallery/view") on the same web bundle and kernel.
+    public string ShellFor(string root) => $"{Origin}/?root={Uri.EscapeDataString(root)}&semantics=true#presence={Uri.EscapeDataString(_presence)}";
 
     private async Task StartOrigin(string bundle, string kernel)
     {

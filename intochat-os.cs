@@ -1,5 +1,5 @@
 #!/usr/bin/env -S dotnet --
-#:project src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj
+#:project src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj
 #:property JsonSerializerIsReflectionEnabledByDefault=true
 #:property PublishAot=false
 // Starts IntoChat.OS: `dotnet run intochat-os.cs [default|headless|local|preflight|reset|<config>.json] [-- <AppHost arguments>]` from the repository root.
@@ -31,7 +31,7 @@ switch (command.Kind)
         appHostArguments = launch.Arguments;
         break;
     case LauncherKind.Reset:
-        appHostArguments = ["reset", .. command.Remaining];
+        appHostArguments = ["do", "reset", .. command.Remaining];
         break;
     case LauncherKind.ConfigFile when !File.Exists(Path.GetFullPath(command.ProfileWord!)):
         Console.Error.WriteLine($"Config file '{Path.GetFullPath(command.ProfileWord!)}' does not exist.");

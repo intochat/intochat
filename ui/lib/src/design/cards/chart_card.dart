@@ -293,7 +293,10 @@ class _ChartCardState extends State<ChartCard> {
           body,
           if (widget.state == ChartState.ready) ...[
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Stop(
                   onActivate: () => setState(() => _table = !_table),
@@ -310,6 +313,7 @@ class _ChartCardState extends State<ChartCard> {
                             vertical: 2,
                           ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 _table
@@ -334,8 +338,7 @@ class _ChartCardState extends State<ChartCard> {
                     ),
                   ),
                 ),
-                if (!_table && widget.onSwitchChartKind != null) ...[
-                  const SizedBox(width: 10),
+                if (!_table && widget.onSwitchChartKind != null)
                   Btn(
                     label: _kind == ChartKind.columns ? 'Line' : 'Columns',
                     icon: _kind == ChartKind.columns
@@ -344,9 +347,7 @@ class _ChartCardState extends State<ChartCard> {
                     small: true,
                     onTap: _toggleKind,
                   ),
-                ],
-                const Spacer(),
-                if (d.sourceNeuronUri != null) ...[
+                if (d.sourceNeuronUri != null)
                   Btn(
                     label: 'Copy URI',
                     icon: LucideIcons.copy,
@@ -357,14 +358,13 @@ class _ChartCardState extends State<ChartCard> {
                       widget.onCopyNeuronUri?.call(uri);
                     },
                   ),
-                  const SizedBox(width: 8),
-                ],
-                Btn(
-                  label: 'Open in Sheets',
-                  icon: LucideIcons.grid3x3,
-                  small: true,
-                  onTap: widget.onOpen,
-                ),
+                if (widget.onOpen != null)
+                  Btn(
+                    label: 'Open in Sheets',
+                    icon: LucideIcons.grid3x3,
+                    small: true,
+                    onTap: widget.onOpen,
+                  ),
               ],
             ),
           ],

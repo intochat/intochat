@@ -47,7 +47,7 @@ public static class CsvExplorerUnit
             new Heading(table.Title, Subtitle: string.IsNullOrEmpty(table.Filter) ? "All rows" : $"Filter: {table.Filter}"),
             Ui.StatCard("matching-rows", "Matching rows", $"{matching.Length}", $"of {table.Rows.Length} total", BadgeTone.Accent),
             new DataTable(table.Title, table.Columns, [.. matching.Select(row => (IReadOnlyList<string>)row)]),
-            new Field("filter", "data.csv/filter", FieldKind.Text, "Filter rows", OnSubmit: new Emit("data.csv", "csv.filter")),
+            new Field("filter", "data.csv/filter", FieldKind.Text, "Filter rows", OnSubmit: new Command(".", "csv.filter"), AutomationName: "Filter rows"),
         ]) { Gap = 12 });
     }
 

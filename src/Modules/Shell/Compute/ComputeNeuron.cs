@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -69,7 +70,7 @@ internal sealed class ComputeNeuron : DigitalBrain.Neurons.Neuron<ComputeLedgerS
 
     private void EnsureAuthorized()
     {
-        if (Context.Caller is not { } caller || $"{Id.Brain.Value}/{Id.Key}" != caller.Brain.Value + "/compute")
+        if (Context.Caller is not { } caller || Id.FullKey() != caller.Brain.Value + "/compute")
         {
             throw new UnauthorizedAccessException("Read usage only through the current brain's compute neuron.");
         }

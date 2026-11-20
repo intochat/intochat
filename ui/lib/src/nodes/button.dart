@@ -64,26 +64,35 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
         ),
       );
 
-/// Sends a button's [command]: on a top-level view a command to `.` activates
-/// the [key]; anything else goes through [NodeContext.act].
+/// Sends a control's [command]: on a top-level view a command to `.` activates
+/// the [key] (unless the view acts via `/act` with a canonical dotted signal,
+/// map args, and no field [value]); anything else goes through [NodeContext.act].
 Future<void> pressCommand(
   String key,
   Command? command,
   NodeContext ctx,
-  BuildContext? context,
-) {
-  // A view the server marked for the act route (a screen's) sends every
-  // command through /act, a root button's too; an emit-only button, and a
-  // top-level button of any other view, activates by key.
+  BuildContext? context, {
+  String? value,
+}) {
+  final isCanonicalAct =
+      command != null &&
+      command.target.isNotEmpty &&
+      command.signal.contains('.') &&
+      (command.args == null || command.args is Map);
   if (command == null ||
-      (ctx.isTopLevelSelf(command.target) && !ctx.actsViaAct)) {
-    return ctx.activate(key, context: context);
+      command.target.isEmpty ||
+      (ctx.isTopLevelSelf(command.target) &&
+          (!ctx.actsViaAct || !isCanonicalAct || value != null))) {
+    return ctx.activate(key, value: value, context: context);
   }
   final args = command.args;
+  final baseArgs = args is Map
+      ? args.cast<String, Object?>()
+      : const <String, Object?>{};
   return ctx.act(
     command.target,
     command.signal,
-    args is Map ? args.cast<String, Object?>() : const {},
+    value == null ? baseArgs : <String, Object?>{...baseArgs, 'value': value},
     context: context,
   );
 }

@@ -2,6 +2,7 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import 'button.dart';
 import 'node_context.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_icon.dart';
@@ -27,7 +28,7 @@ class _NavItemPillState extends State<_NavItemPill> {
 
   void _activate() {
     if (widget.ctx.interactive) {
-      widget.ctx.activate(widget.node.key, context: context);
+      pressCommand(widget.node.key, widget.node.command, widget.ctx, context);
     }
   }
 
@@ -52,7 +53,8 @@ class _NavItemPillState extends State<_NavItemPill> {
       button: true,
       selected: selected,
       enabled: interactive,
-      label: node.label,
+      excludeSemantics: true,
+      label: controlNameOf(node.automationName, node.label, node.key),
       child: FocusableActionDetector(
         enabled: interactive,
         mouseCursor: interactive ? SystemMouseCursors.click : MouseCursor.defer,

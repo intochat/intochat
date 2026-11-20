@@ -1,5 +1,6 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -79,16 +80,15 @@ void main() {
 
       final send = tester.getSemantics(find.bySemanticsLabel('Send message'));
       expect(send.label, 'Send message');
-      expect(send.hasFlag(SemanticsFlag.isButton), isTrue);
-      expect(send.hasFlag(SemanticsFlag.isEnabled), isFalse);
+      expect(send.flagsCollection.isButton, isTrue);
+      expect(send.flagsCollection.isEnabled, Tristate.isFalse);
 
       // No node above the retry is a disabled button: the send button's state stays on its own node.
       var node = tester.getSemantics(find.text('Try again')).parent;
       while (node != null) {
+        final flags = node.flagsCollection;
         final disabledButton =
-            node.hasFlag(SemanticsFlag.isButton) &&
-            node.hasFlag(SemanticsFlag.hasEnabledState) &&
-            !node.hasFlag(SemanticsFlag.isEnabled);
+            flags.isButton && flags.isEnabled == Tristate.isFalse;
         expect(disabledButton, isFalse, reason: 'ancestor "${node.label}"');
         node = node.parent;
       }

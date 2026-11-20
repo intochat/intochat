@@ -108,7 +108,7 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
     [Fact]
     public void T1_F04_TC01_OsRuntimeOptions_ContainsNoPubSubStoreOrSignalStreams()
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition", "Kernel", "OsRuntimeOptions.cs");
+        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition", "Kernel", "OsRuntimeOptions.cs");
         Assert.True(File.Exists(path), $"OsRuntimeOptions.cs must exist at expected path: {path}");
 
         var text = File.ReadAllText(path);
@@ -119,7 +119,7 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
     [Fact]
     public void T1_F04_TC02_CloudStorage_ContainsNoPubSubStoreReferences()
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition", "Kernel", "CloudStorage.cs");
+        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition", "Kernel", "CloudStorage.cs");
         Assert.True(File.Exists(path), $"CloudStorage.cs must exist at expected path: {path}");
 
         var text = File.ReadAllText(path);
@@ -129,7 +129,7 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
     [Fact]
     public void T1_F04_TC03_ZeroOrleansStreamRegistrations_AcrossHostingAndComposition()
     {
-        var compositionDir = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition");
+        var compositionDir = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition");
         Assert.True(Directory.Exists(compositionDir), $"Composition directory must exist: {compositionDir}");
 
         var regex = new Regex(@"\b(AddAzureQueueStreams|AddPersistentStreams|AddMemoryStreams|AuthorizeStreams)\b", RegexOptions.Compiled);
@@ -192,7 +192,7 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
     [Fact]
     public void T1_F04_TC06_CloudStorage_StoresArray_ExclusivelyContainsPlatformGrainStorage()
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition", "Kernel", "CloudStorage.cs");
+        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition", "Kernel", "CloudStorage.cs");
         Assert.True(File.Exists(path), "CloudStorage.cs must exist.");
 
         var text = File.ReadAllText(path);
@@ -203,14 +203,14 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
     [Fact]
     public void T1_F05_TC01_GrainNeuronResolverFile_IsDeleted()
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition", "Kernel", "GrainNeuronResolver.cs");
+        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition", "Kernel", "GrainNeuronResolver.cs");
         Assert.False(File.Exists(path), "GrainNeuronResolver.cs must be deleted.");
     }
 
     [Fact]
     public void T1_F05_TC02_ZeroINeuronResolverRegistrations_InBrainHosting()
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition", "Kernel", "BrainHosting.cs");
+        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition", "Kernel", "BrainHosting.cs");
         Assert.True(File.Exists(path), $"BrainHosting.cs must exist at expected path: {path}");
 
         var text = File.ReadAllText(path);
@@ -232,7 +232,7 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
     [Fact]
     public void T1_F05_TC04_ZeroKernelConfirmationsOrIConfirmationContexts_InBrainHosting()
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "Composition", "Kernel", "BrainHosting.cs");
+        var path = Path.Combine(SrcDir, "IntoChat.OS.Kernel", "Composition", "Kernel", "BrainHosting.cs");
         Assert.True(File.Exists(path), $"BrainHosting.cs must exist at expected path: {path}");
 
         var text = File.ReadAllText(path);

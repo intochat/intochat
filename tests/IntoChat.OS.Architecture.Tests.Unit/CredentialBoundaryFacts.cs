@@ -36,7 +36,7 @@ public sealed class CredentialBoundaryFacts
     public void RuntimeModulesCannotBypassIntegrationHandles()
     {
         var offenders = ModuleMethods().Where(m =>
-            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Kernel.Install"
+            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Kernel.Install"
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)
@@ -50,13 +50,13 @@ public sealed class CredentialBoundaryFacts
     // AI module (its one consumer) and the identity module (its implementation) may reference it.
     [Fact]
     public void BrainProviderKeysLivesInTheIdentityModule()
-        => Assert.Equal("IntoChat.OS.Framework", typeof(IBrainProviderKeys).Assembly.GetName().Name);
+        => Assert.Equal("IntoChat.OS.Modules.Identity", typeof(IBrainProviderKeys).Assembly.GetName().Name);
 
     [Fact]
     public void OnlyTheAiModuleAndTheIdentityModuleTouchBrainProviderKeys()
     {
         var keys = typeof(IBrainProviderKeys);
-        string[] allowed = ["IntoChat.OS.Framework", "IntoChat.OS.Modules.AI"];
+        string[] allowed = ["IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.AI"];
         var offenders = ProductionArchitecture.Assemblies.Where(a => !allowed.Contains(a.GetName().Name))
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

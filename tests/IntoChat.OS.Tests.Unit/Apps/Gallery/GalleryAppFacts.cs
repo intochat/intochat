@@ -45,5 +45,20 @@ public sealed class GalleryAppFacts
         Assert.DoesNotContain("data:image/png;base64,", viewJson, StringComparison.Ordinal);
         Assert.DoesNotContain("neuron://local/postgres/", viewJson, StringComparison.Ordinal);
         Assert.DoesNotContain("ino.connect-db", viewJson, StringComparison.Ordinal);
+        Assert.Contains("os://window/open?app=uikit", viewJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GalleryFilterAndSelectUpdateSelectedCatalogId()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var gallery = await os.Install<GalleryApp>();
+
+        await gallery.Request("filter", new GalleryFilter("chat-lfp", "Table"));
+        Assert.Equal("table-card", gallery.App.State.SelectedId);
+
+        await gallery.Request("select", new GallerySelect("brain-scene-3d"));
+        Assert.Equal("brain-scene-3d", gallery.App.State.SelectedId);
     }
 }

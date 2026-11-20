@@ -171,14 +171,17 @@
                 "kind": "button",
                 "key": "synapse:workflow:approval-demo",
                 "label": "Run approval-demo",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "start-workflow",
                   "args": "approval-demo"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "synapse:workflow:approval-demo",
                 "style": "secondary",
                 "small": true
               }
@@ -212,14 +215,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/artcraft",
                 "label": "ArtCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/artcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/artcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -227,14 +233,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/cadcraft",
                 "label": "CADCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/cadcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/cadcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -242,14 +251,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/deckcraft",
                 "label": "DeckCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/deckcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/deckcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -257,14 +269,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/designcraft",
                 "label": "DesignCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/designcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/designcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -272,14 +287,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/effectcraft",
                 "label": "EffectCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/effectcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/effectcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -287,14 +305,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/figcraft",
                 "label": "FigCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/figcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/figcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -302,14 +323,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/gridcraft",
                 "label": "GridCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/gridcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/gridcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -317,14 +341,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/lightcraft",
                 "label": "LightCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/lightcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/lightcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -332,14 +359,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/materialcraft",
                 "label": "MaterialCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/materialcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/materialcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -347,14 +377,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/pdfcraft",
                 "label": "PdfCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/pdfcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/pdfcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -362,14 +395,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/solidcraft",
                 "label": "SolidCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/solidcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/solidcraft",
                 "style": "ghost",
                 "small": true
               },
@@ -377,14 +413,17 @@
                 "kind": "button",
                 "key": "app:owner/apps/soundcraft",
                 "label": "SoundCraft",
-                "emit": {
-                  "owner": "app.creator",
+                "command": {
+                  "target": ".",
                   "signal": "select",
                   "args": "node:owner/apps/soundcraft"
                 },
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "app:owner/apps/soundcraft",
                 "style": "ghost",
                 "small": true
               }
@@ -407,7 +446,7 @@
           },
           {
             "kind": "heading",
-            "value": "Make New Unit",
+            "value": "Studio Workbench",
             "level": 6,
             "subtitle": null
           },
@@ -416,13 +455,13 @@
             "children": [
               {
                 "kind": "tagPill",
-                "label": "Studio Ready",
+                "label": "Live Stream",
                 "tone": "neutral",
                 "icon": null
               },
               {
                 "kind": "text",
-                "value": "Ino · ino/conversations/main",
+                "value": "Ready",
                 "tone": "muted",
                 "tabular": false,
                 "mono": false
@@ -432,261 +471,64 @@
             "padding": 0
           },
           {
-            "kind": "field",
-            "key": "describe",
-            "name": "apps/creator/describe",
-            "fieldKind": "Text",
-            "placeholder": "e.g. Build a Pomodoro sprint timer…",
-            "onSubmit": {
-              "owner": "app.creator",
-              "signal": "make",
-              "args": {
-                "uiLabel": "Unit or App Goal",
-                "uiValue": ""
-              }
-            }
-          },
-          {
             "kind": "row",
             "children": [
               {
                 "kind": "button",
-                "key": "make",
-                "label": "Make Unit",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "make",
-                  "args": ""
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "accent",
-                "style": "primary",
-                "icon": "sparkles",
-                "small": true
-              },
-              {
-                "kind": "button",
                 "key": "open-ino-chat",
                 "label": "Co-Author in Ino",
-                "emit": null,
+                "command": null,
                 "intent": {
                   "intentKind": "OpenWindow",
                   "arg": "os://window/open?app=ino"
                 },
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "open-ino-chat",
                 "style": "secondary",
                 "icon": "message-square",
                 "small": true
               },
               {
                 "kind": "button",
+                "key": "open-engineer-studio",
+                "label": "Open Engineer",
+                "command": null,
+                "intent": {
+                  "intentKind": "OpenWindow",
+                  "arg": "os://window/open?app=engineer"
+                },
+                "enabled": true,
+                "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "open-engineer-studio",
+                "style": "secondary",
+                "icon": "sparkles",
+                "small": true
+              },
+              {
+                "kind": "button",
                 "key": "open-gallery",
                 "label": "UI Kit Gallery",
-                "emit": null,
+                "command": null,
                 "intent": {
                   "intentKind": "OpenWindow",
                   "arg": "os://window/open?app=gallery"
                 },
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "open-gallery",
                 "style": "secondary",
                 "icon": "layout-grid",
                 "small": true
               }
             ],
             "gap": 4,
-            "padding": 0
-          },
-          {
-            "kind": "text",
-            "value": "Describe what unit you want to make first.",
-            "tone": "muted",
-            "tabular": false,
-            "mono": false
-          },
-          {
-            "kind": "text",
-            "value": "Ready",
-            "tone": "muted",
-            "tabular": false,
-            "mono": false
-          },
-          {
-            "kind": "heading",
-            "value": "Starter Templates",
-            "level": 6,
-            "subtitle": null
-          },
-          {
-            "kind": "row",
-            "children": [
-              {
-                "kind": "button",
-                "key": "seed:watch.x.elonmusk",
-                "label": "Musk X Watch",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "watch.x.elonmusk"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:triage.github.issues",
-                "label": "GitHub Issue Triager",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "triage.github.issues"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:digest.hn.top",
-                "label": "Hacker News Scheduled Digest",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "digest.hn.top"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:organizer.work.notes",
-                "label": "Workspace Markdown Organizer",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "organizer.work.notes"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:fx.rates.monitor",
-                "label": "Live Currency & Crypto Monitor",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "fx.rates.monitor"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              }
-            ],
-            "gap": 6,
-            "padding": 0
-          },
-          {
-            "kind": "heading",
-            "value": "Shipped Unit Templates",
-            "level": 6,
-            "subtitle": null
-          },
-          {
-            "kind": "row",
-            "children": [
-              {
-                "kind": "button",
-                "key": "seed:circleroom",
-                "label": "Circle room",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "circleroom"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:watch.web",
-                "label": "Web watch",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "watch.web"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:brief.daily",
-                "label": "Daily brief",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "brief.daily"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:data.csv",
-                "label": "CSV explorer",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "data.csv"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "seed:relay.webhook",
-                "label": "Webhook relay",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "seed",
-                  "args": "relay.webhook"
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "style": "secondary",
-                "small": true
-              }
-            ],
-            "gap": 6,
             "padding": 0
           }
         ],
@@ -762,14 +604,17 @@
                   "kind": "button",
                   "key": "toggle-state-graph",
                   "label": "Show Accordant State Graph",
-                  "emit": {
-                    "owner": "app.creator",
+                  "command": {
+                    "target": ".",
                     "signal": "select",
                     "args": "view:state-graph"
                   },
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "toggle-state-graph",
                   "style": "secondary",
                   "icon": "git-branch",
                   "small": true
@@ -796,14 +641,17 @@
                   "select": {
                     "key": "node:owner/apps/artcraft",
                     "label": "ArtCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/artcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/artcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -813,22 +661,25 @@
                   "label": "CADCraft",
                   "uri": "neuron://owner/apps/cadcraft",
                   "kind": "app",
-                  "x": 311.98,
-                  "y": 71.21,
+                  "x": 313.01,
+                  "y": 66.53,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/cadcraft",
                     "label": "CADCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/cadcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/cadcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -838,22 +689,25 @@
                   "label": "DeckCraft",
                   "uri": "neuron://owner/apps/deckcraft",
                   "kind": "app",
-                  "x": 288.31,
-                  "y": 138.84,
+                  "x": 292.33,
+                  "y": 130.16,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/deckcraft",
                     "label": "DeckCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/deckcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/deckcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -863,22 +717,25 @@
                   "label": "DesignCraft",
                   "uri": "neuron://owner/apps/designcraft",
                   "kind": "app",
-                  "x": 250.19,
-                  "y": 199.52,
+                  "x": 258.89,
+                  "y": 188.09,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/designcraft",
                     "label": "DesignCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/designcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/designcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -888,22 +745,25 @@
                   "label": "EffectCraft",
                   "uri": "neuron://owner/apps/effectcraft",
                   "kind": "app",
-                  "x": 199.52,
-                  "y": 250.19,
+                  "x": 214.12,
+                  "y": 237.81,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/effectcraft",
                     "label": "EffectCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/effectcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/effectcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -913,22 +773,25 @@
                   "label": "FigCraft",
                   "uri": "neuron://owner/apps/figcraft",
                   "kind": "app",
-                  "x": 138.84,
-                  "y": 288.31,
+                  "x": 160,
+                  "y": 277.13,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/figcraft",
                     "label": "FigCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/figcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/figcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -938,22 +801,25 @@
                   "label": "GridCraft",
                   "uri": "neuron://owner/apps/gridcraft",
                   "kind": "app",
-                  "x": 71.21,
-                  "y": 311.98,
+                  "x": 98.89,
+                  "y": 304.34,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/gridcraft",
                     "label": "GridCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/gridcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/gridcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -963,22 +829,25 @@
                   "label": "LightCraft",
                   "uri": "neuron://owner/apps/lightcraft",
                   "kind": "app",
-                  "x": 0,
-                  "y": 320,
+                  "x": 33.45,
+                  "y": 318.25,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/lightcraft",
                     "label": "LightCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/lightcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/lightcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -988,22 +857,25 @@
                   "label": "MaterialCraft",
                   "uri": "neuron://owner/apps/materialcraft",
                   "kind": "app",
-                  "x": -71.21,
-                  "y": 311.98,
+                  "x": -33.45,
+                  "y": 318.25,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/materialcraft",
                     "label": "MaterialCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/materialcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/materialcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1013,22 +885,25 @@
                   "label": "PdfCraft",
                   "uri": "neuron://owner/apps/pdfcraft",
                   "kind": "app",
-                  "x": -138.84,
-                  "y": 288.31,
+                  "x": -98.89,
+                  "y": 304.34,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/pdfcraft",
                     "label": "PdfCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/pdfcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/pdfcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1038,22 +913,25 @@
                   "label": "SolidCraft",
                   "uri": "neuron://owner/apps/solidcraft",
                   "kind": "app",
-                  "x": -199.52,
-                  "y": 250.19,
+                  "x": -160,
+                  "y": 277.13,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/solidcraft",
                     "label": "SolidCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/solidcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/solidcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1063,22 +941,25 @@
                   "label": "SoundCraft",
                   "uri": "neuron://owner/apps/soundcraft",
                   "kind": "app",
-                  "x": -250.19,
-                  "y": 199.52,
+                  "x": -214.12,
+                  "y": 237.81,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/soundcraft",
                     "label": "SoundCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/soundcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/soundcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1088,22 +969,25 @@
                   "label": "TextureCraft",
                   "uri": "neuron://owner/apps/texturecraft",
                   "kind": "app",
-                  "x": -288.31,
-                  "y": 138.84,
+                  "x": -258.89,
+                  "y": 188.09,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/texturecraft",
                     "label": "TextureCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/texturecraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/texturecraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1113,22 +997,25 @@
                   "label": "VectorCraft",
                   "uri": "neuron://owner/apps/vectorcraft",
                   "kind": "app",
-                  "x": -311.98,
-                  "y": 71.21,
+                  "x": -292.33,
+                  "y": 130.16,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/vectorcraft",
                     "label": "VectorCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/vectorcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/vectorcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1138,22 +1025,25 @@
                   "label": "WordCraft",
                   "uri": "neuron://owner/apps/wordcraft",
                   "kind": "app",
-                  "x": -320,
-                  "y": 0,
+                  "x": -313.01,
+                  "y": 66.53,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/wordcraft",
                     "label": "WordCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/wordcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/wordcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1163,22 +1053,25 @@
                   "label": "Calculator",
                   "uri": "neuron://owner/apps/calculator",
                   "kind": "app",
-                  "x": -311.98,
-                  "y": -71.21,
+                  "x": -320,
+                  "y": 0,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/calculator",
                     "label": "Calculator",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/calculator"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/calculator",
                     "style": "secondary",
                     "small": false
                   }
@@ -1188,22 +1081,25 @@
                   "label": "Creator",
                   "uri": "neuron://owner/apps/creator",
                   "kind": "app",
-                  "x": -288.31,
-                  "y": -138.84,
+                  "x": -313.01,
+                  "y": -66.53,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/creator",
                     "label": "Creator",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/creator"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/creator",
                     "style": "secondary",
                     "small": false
                   }
@@ -1213,22 +1109,53 @@
                   "label": "Data Studio",
                   "uri": "neuron://owner/apps/data",
                   "kind": "app",
-                  "x": -250.19,
-                  "y": -199.52,
+                  "x": -292.33,
+                  "y": -130.16,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/data",
                     "label": "Data Studio",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/data"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/data",
+                    "style": "secondary",
+                    "small": false
+                  }
+                },
+                {
+                  "id": "owner/apps/engineer",
+                  "label": "IntoChat Engineer",
+                  "uri": "neuron://owner/apps/engineer",
+                  "kind": "app",
+                  "x": -258.89,
+                  "y": -188.09,
+                  "z": 0,
+                  "status": "idle",
+                  "subtitle": null,
+                  "select": {
+                    "key": "node:owner/apps/engineer",
+                    "label": "IntoChat Engineer",
+                    "command": {
+                      "target": ".",
+                      "signal": "select",
+                      "args": "node:owner/apps/engineer"
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/engineer",
                     "style": "secondary",
                     "small": false
                   }
@@ -1238,22 +1165,25 @@
                   "label": "FilmCraft",
                   "uri": "neuron://owner/apps/filmcraft",
                   "kind": "app",
-                  "x": -199.52,
-                  "y": -250.19,
+                  "x": -214.12,
+                  "y": -237.81,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/filmcraft",
                     "label": "FilmCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/filmcraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/filmcraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1263,22 +1193,25 @@
                   "label": "Friends",
                   "uri": "neuron://owner/apps/friends",
                   "kind": "app",
-                  "x": -138.84,
-                  "y": -288.31,
+                  "x": -160,
+                  "y": -277.13,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/friends",
                     "label": "Friends",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/friends"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/friends",
                     "style": "secondary",
                     "small": false
                   }
@@ -1288,22 +1221,25 @@
                   "label": "UI Gallery",
                   "uri": "neuron://owner/apps/gallery",
                   "kind": "app",
-                  "x": -71.21,
-                  "y": -311.98,
+                  "x": -98.89,
+                  "y": -304.34,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/gallery",
                     "label": "UI Gallery",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/gallery"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/gallery",
                     "style": "secondary",
                     "small": false
                   }
@@ -1313,22 +1249,25 @@
                   "label": "Ino",
                   "uri": "neuron://owner/apps/ino",
                   "kind": "app",
-                  "x": -0,
-                  "y": -320,
+                  "x": -33.45,
+                  "y": -318.25,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/ino",
                     "label": "Ino",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/ino"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/ino",
                     "style": "secondary",
                     "small": false
                   }
@@ -1338,22 +1277,25 @@
                   "label": "Markdraw",
                   "uri": "neuron://owner/apps/markdraw",
                   "kind": "app",
-                  "x": 71.21,
-                  "y": -311.98,
+                  "x": 33.45,
+                  "y": -318.25,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/markdraw",
                     "label": "Markdraw",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/markdraw"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/markdraw",
                     "style": "secondary",
                     "small": false
                   }
@@ -1363,22 +1305,25 @@
                   "label": "PhotoCraft",
                   "uri": "neuron://owner/apps/photocraft",
                   "kind": "app",
-                  "x": 138.84,
-                  "y": -288.31,
+                  "x": 98.89,
+                  "y": -304.34,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/photocraft",
                     "label": "PhotoCraft",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/photocraft"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/photocraft",
                     "style": "secondary",
                     "small": false
                   }
@@ -1388,22 +1333,25 @@
                   "label": "Settings",
                   "uri": "neuron://owner/apps/settings",
                   "kind": "app",
-                  "x": 199.52,
-                  "y": -250.19,
+                  "x": 160,
+                  "y": -277.13,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/settings",
                     "label": "Settings",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/settings"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/settings",
                     "style": "secondary",
                     "small": false
                   }
@@ -1413,22 +1361,53 @@
                   "label": "Tasks",
                   "uri": "neuron://owner/apps/tasks",
                   "kind": "app",
-                  "x": 250.19,
-                  "y": -199.52,
+                  "x": 214.12,
+                  "y": -237.81,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/tasks",
                     "label": "Tasks",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/tasks"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/tasks",
+                    "style": "secondary",
+                    "small": false
+                  }
+                },
+                {
+                  "id": "owner/apps/uikit",
+                  "label": "UI Kit",
+                  "uri": "neuron://owner/apps/uikit",
+                  "kind": "app",
+                  "x": 258.89,
+                  "y": -188.09,
+                  "z": 0,
+                  "status": "idle",
+                  "subtitle": null,
+                  "select": {
+                    "key": "node:owner/apps/uikit",
+                    "label": "UI Kit",
+                    "command": {
+                      "target": ".",
+                      "signal": "select",
+                      "args": "node:owner/apps/uikit"
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/uikit",
                     "style": "secondary",
                     "small": false
                   }
@@ -1438,22 +1417,25 @@
                   "label": "Usage",
                   "uri": "neuron://owner/apps/usage",
                   "kind": "app",
-                  "x": 288.31,
-                  "y": -138.84,
+                  "x": 292.33,
+                  "y": -130.16,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/usage",
                     "label": "Usage",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/usage"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/usage",
                     "style": "secondary",
                     "small": false
                   }
@@ -1463,22 +1445,25 @@
                   "label": "Files",
                   "uri": "neuron://owner/apps/files",
                   "kind": "app",
-                  "x": 311.98,
-                  "y": -71.21,
+                  "x": 313.01,
+                  "y": -66.53,
                   "z": 0,
                   "status": "idle",
                   "subtitle": null,
                   "select": {
                     "key": "node:owner/apps/files",
                     "label": "Files",
-                    "emit": {
-                      "owner": "creator",
+                    "command": {
+                      "target": ".",
                       "signal": "select",
                       "args": "node:owner/apps/files"
                     },
                     "intent": null,
                     "enabled": true,
                     "tone": "neutral",
+                    "tooltip": null,
+                    "visible": true,
+                    "automationName": "node:owner/apps/files",
                     "style": "secondary",
                     "small": false
                   }
@@ -1488,6 +1473,159 @@
               "selectedId": null,
               "pauseRotation": false,
               "targetZoom": 1
+            },
+            {
+              "kind": "surface",
+              "children": [
+                {
+                  "kind": "row",
+                  "children": [
+                    {
+                      "kind": "statCard",
+                      "key": "replay-cursor-readout",
+                      "label": "Timeline Cursor",
+                      "value": "Event 0 / 0",
+                      "delta": "Live Tail",
+                      "tone": 0,
+                      "icon": "history"
+                    },
+                    {
+                      "kind": "spacer",
+                      "size": 0
+                    },
+                    {
+                      "kind": "button",
+                      "key": "replay-first",
+                      "label": "First",
+                      "command": {
+                        "target": ".",
+                        "signal": "replay",
+                        "args": "first"
+                      },
+                      "intent": null,
+                      "enabled": false,
+                      "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "replay-first",
+                      "style": "secondary",
+                      "icon": "chevrons-left",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "replay-prev",
+                      "label": "Step Back",
+                      "command": {
+                        "target": ".",
+                        "signal": "replay",
+                        "args": "prev"
+                      },
+                      "intent": null,
+                      "enabled": false,
+                      "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "replay-prev",
+                      "style": "secondary",
+                      "icon": "chevron-left",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "replay-toggle",
+                      "label": "Replay",
+                      "command": {
+                        "target": ".",
+                        "signal": "replay",
+                        "args": "toggle"
+                      },
+                      "intent": null,
+                      "enabled": false,
+                      "tone": "accent",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "replay-toggle",
+                      "style": "primary",
+                      "icon": "pause",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "replay-next",
+                      "label": "Step Forward",
+                      "command": {
+                        "target": ".",
+                        "signal": "replay",
+                        "args": "next"
+                      },
+                      "intent": null,
+                      "enabled": false,
+                      "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "replay-next",
+                      "style": "secondary",
+                      "icon": "chevron-right",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "replay-last",
+                      "label": "Last",
+                      "command": {
+                        "target": ".",
+                        "signal": "replay",
+                        "args": "last"
+                      },
+                      "intent": null,
+                      "enabled": false,
+                      "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "replay-last",
+                      "style": "secondary",
+                      "icon": "chevrons-right",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "replay-live",
+                      "label": "Stop",
+                      "command": {
+                        "target": ".",
+                        "signal": "replay",
+                        "args": "stop"
+                      },
+                      "intent": null,
+                      "enabled": false,
+                      "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "replay-live",
+                      "style": "ghost",
+                      "icon": "radio",
+                      "small": true
+                    }
+                  ],
+                  "gap": 8,
+                  "padding": 0
+                },
+                {
+                  "kind": "neuronRef",
+                  "refKind": "ui.command-bar",
+                  "neuronUri": "creator/replay/transport"
+                },
+                {
+                  "kind": "neuronRef",
+                  "refKind": "ui.slider",
+                  "neuronUri": "creator/replay/slider"
+                }
+              ],
+              "surfaceKind": "elevated",
+              "title": "Time-Travel Debugger",
+              "subtitle": "Keys: ← Step Back · → Step Forward · Space Live/Replay · Home First · End Last",
+              "padding": 18
             }
           ],
           "gap": 12,
@@ -1513,14 +1651,17 @@
                   "kind": "button",
                   "key": "graph:select",
                   "label": "Clear selection",
-                  "emit": {
-                    "owner": "app.creator",
+                  "command": {
+                    "target": ".",
                     "signal": "select",
                     "args": null
                   },
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "graph:select",
                   "style": "ghost",
                   "icon": "x",
                   "small": true
@@ -1530,10 +1671,89 @@
               "padding": 0
             },
             {
+              "kind": "neuronRef",
+              "refKind": "ui.tabs",
+              "neuronUri": "creator/inspector/tabs"
+            },
+            {
+              "kind": "tabs",
+              "items": [
+                {
+                  "key": "inspector-tab:state",
+                  "id": "state",
+                  "label": "State",
+                  "emit": {
+                    "owner": "app.creator",
+                    "signal": "select",
+                    "args": "tab:state"
+                  },
+                  "icon": null
+                },
+                {
+                  "key": "inspector-tab:source",
+                  "id": "source",
+                  "label": "Source",
+                  "emit": {
+                    "owner": "app.creator",
+                    "signal": "select",
+                    "args": "tab:source"
+                  },
+                  "icon": null
+                },
+                {
+                  "key": "inspector-tab:signals",
+                  "id": "signals",
+                  "label": "Signals",
+                  "emit": {
+                    "owner": "app.creator",
+                    "signal": "select",
+                    "args": "tab:signals"
+                  },
+                  "icon": null
+                },
+                {
+                  "key": "inspector-tab:state-graph",
+                  "id": "state-graph",
+                  "label": "State Graph",
+                  "emit": {
+                    "owner": "app.creator",
+                    "signal": "select",
+                    "args": "tab:state-graph"
+                  },
+                  "icon": null
+                },
+                {
+                  "key": "inspector-tab:scenarios",
+                  "id": "scenarios",
+                  "label": "Scenarios",
+                  "emit": {
+                    "owner": "app.creator",
+                    "signal": "select",
+                    "args": "tab:scenarios"
+                  },
+                  "icon": null
+                }
+              ],
+              "selectedId": "state"
+            },
+            {
               "kind": "emptyState",
               "title": "No Node Selected",
-              "body": "Click any unit, compiled app, edge, or live signal pulse in the Brain Topology (or left catalog) to inspect its state, source, and live Studio preview.",
+              "body": "Select any unit, compiled app, edge, or live signal pulse in the Brain Topology to inspect its live or time-traveled state.",
               "suggestions": null
+            },
+            {
+              "kind": "neuronRef",
+              "refKind": "ui.property-grid",
+              "neuronUri": "creator/inspector/state"
+            },
+            {
+              "kind": "card",
+              "title": "State",
+              "body": "{}",
+              "children": [],
+              "header": null,
+              "footer": null
             }
           ],
           "gap": 8,
@@ -1542,7 +1762,7 @@
         "leadingExtent": 680,
         "gap": 16
       },
-      "leadingExtent": 300,
+      "leadingExtent": 280,
       "gap": 16
     }
   }

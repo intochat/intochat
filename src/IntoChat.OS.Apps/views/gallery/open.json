@@ -456,713 +456,1276 @@
   "main": {
     "title": "UI Gallery",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "row",
-          "children": [
-            {
-              "kind": "heading",
-              "value": "IntoChat UI Kit Gallery",
-              "level": 2,
-              "subtitle": "Warm Ink & Paper · 7 canonical component families · DDD Aggregate rule guards · Accordant state graphs"
+      "kind": "appShell",
+      "key": "gallery-shell",
+      "sidebar": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "button",
+            "key": "nav:home",
+            "label": "Home",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "home"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "spacer",
-              "size": 0
+            "intent": null,
+            "enabled": true,
+            "tone": "accent",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:home",
+            "style": "primary",
+            "icon": "sparkles",
+            "small": true
+          },
+          {
+            "kind": "divider",
+            "label": "Design system"
+          },
+          {
+            "kind": "button",
+            "key": "nav:colors",
+            "label": "Colors & surfaces",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "colors"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "tagPill",
-              "label": "30 components",
-              "tone": "done",
-              "icon": "check"
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:colors",
+            "style": "ghost",
+            "icon": "palette",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:typography",
+            "label": "Typography",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "typography"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "tagPill",
-              "label": "fluent-acrylic · floating-glass",
-              "tone": "neutral",
-              "icon": null
-            }
-          ],
-          "gap": 8,
-          "padding": 0
-        },
-        {
-          "kind": "tabs",
-          "items": [
-            {
-              "key": "tab:foundation",
-              "id": "foundation",
-              "label": "Foundation & status",
-              "emit": {
-                "owner": "app.gallery",
-                "signal": "ui.command",
-                "args": {
-                  "target": "state",
-                  "method": "SelectTab",
-                  "args": [
-                    "foundation"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
-                }
-              },
-              "icon": "sparkles"
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:typography",
+            "style": "ghost",
+            "icon": "type",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:icons",
+            "label": "Iconography",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "icons"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "key": "tab:inputs",
-              "id": "inputs",
-              "label": "Inputs & rule guards",
-              "emit": {
-                "owner": "app.gallery",
-                "signal": "ui.command",
-                "args": {
-                  "target": "state",
-                  "method": "SelectTab",
-                  "args": [
-                    "inputs"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
-                }
-              },
-              "icon": "landmark"
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:icons",
+            "style": "ghost",
+            "icon": "shapes",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:spacing",
+            "label": "Spacing & layout",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "spacing"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "key": "tab:data",
-              "id": "data",
-              "label": "Data & charts",
-              "emit": {
-                "owner": "app.gallery",
-                "signal": "ui.command",
-                "args": {
-                  "target": "state",
-                  "method": "SelectTab",
-                  "args": [
-                    "data"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
-                }
-              },
-              "icon": "chart-column"
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:spacing",
+            "style": "ghost",
+            "icon": "layout-grid",
+            "small": true
+          },
+          {
+            "kind": "divider",
+            "label": "Basic input"
+          },
+          {
+            "kind": "button",
+            "key": "nav:toggle",
+            "label": "Toggle (IToggle)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "toggle"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "key": "tab:slots",
-              "id": "slots",
-              "label": "Live slots & Accordant state graph",
-              "emit": {
-                "owner": "app.gallery",
-                "signal": "ui.command",
-                "args": {
-                  "target": "state",
-                  "method": "SelectTab",
-                  "args": [
-                    "slots"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
-                }
-              },
-              "icon": "brain-circuit"
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:toggle",
+            "style": "ghost",
+            "icon": "toggle-right",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:checkbox",
+            "label": "CheckBox (ICheckBox)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "checkbox"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "key": "tab:catalog",
-              "id": "catalog",
-              "label": "Component catalog",
-              "emit": {
-                "owner": "app.gallery",
-                "signal": "ui.command",
-                "args": {
-                  "target": "state",
-                  "method": "SelectTab",
-                  "args": [
-                    "catalog"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
-                }
-              },
-              "icon": "sliders-horizontal"
-            }
-          ],
-          "selectedId": "foundation"
-        },
-        {
-          "kind": "column",
-          "children": [
-            {
-              "kind": "splitPane",
-              "leading": {
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:checkbox",
+            "style": "ghost",
+            "icon": "check-square",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:select",
+            "label": "Select (ISelect)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "select"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:select",
+            "style": "ghost",
+            "icon": "chevrons-up-down",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:buttons",
+            "label": "Buttons & actions",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "buttons"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:buttons",
+            "style": "ghost",
+            "icon": "mouse-pointer-click",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:form",
+            "label": "Form & Vault (IForm)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "form"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:form",
+            "style": "ghost",
+            "icon": "key-round",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:winui-inputs",
+            "label": "WinUI 3 Inputs (5)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "winui-inputs"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:winui-inputs",
+            "style": "ghost",
+            "icon": "sliders",
+            "small": true
+          },
+          {
+            "kind": "divider",
+            "label": "Navigation & layout"
+          },
+          {
+            "kind": "button",
+            "key": "nav:tabs",
+            "label": "Tabs (ITabs)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "tabs"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:tabs",
+            "style": "ghost",
+            "icon": "panel-top",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:expander",
+            "label": "Expander (IExpander)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "expander"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:expander",
+            "style": "ghost",
+            "icon": "chevron-down",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:listbox",
+            "label": "ListBox (IListBox)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "listbox"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:listbox",
+            "style": "ghost",
+            "icon": "list",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:dialog",
+            "label": "Dialog (IDialog)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "dialog"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:dialog",
+            "style": "ghost",
+            "icon": "message-square",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:winui-nav",
+            "label": "WinUI 3 Nav & Status (5)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "winui-nav"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:winui-nav",
+            "style": "ghost",
+            "icon": "compass",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:datetime",
+            "label": "Date & Time (3)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "datetime"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:datetime",
+            "style": "ghost",
+            "icon": "calendar",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:media",
+            "label": "Menus, Grid & Media (4)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "media"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:media",
+            "style": "ghost",
+            "icon": "image",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:workspace",
+            "label": "Workspace Kit (6)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "workspace"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:workspace",
+            "style": "ghost",
+            "icon": "code",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:wave3",
+            "label": "WinUI 3 Wave 3 (8)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "wave3"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:wave3",
+            "style": "ghost",
+            "icon": "milestone",
+            "small": true
+          },
+          {
+            "kind": "divider",
+            "label": "Data & charts"
+          },
+          {
+            "kind": "button",
+            "key": "nav:charts",
+            "label": "Charts (IChart)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "charts"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:charts",
+            "style": "ghost",
+            "icon": "chart-column",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:table",
+            "label": "Data table (ITable)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "table"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:table",
+            "style": "ghost",
+            "icon": "table",
+            "small": true
+          },
+          {
+            "kind": "divider",
+            "label": "Agent & patterns"
+          },
+          {
+            "kind": "button",
+            "key": "nav:chat",
+            "label": "DevUI Chat (IChatThread)",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "chat"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:chat",
+            "style": "ghost",
+            "icon": "sparkles",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:cards",
+            "label": "Status & chat cards",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "cards"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:cards",
+            "style": "ghost",
+            "icon": "layers",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "nav:graphs",
+            "label": "State graphs & DDD",
+            "command": {
+              "target": ".",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SelectPage",
+                "args": [
+                  "graphs"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "nav:graphs",
+            "style": "ghost",
+            "icon": "brain-circuit",
+            "small": true
+          }
+        ],
+        "gap": 4,
+        "padding": 0
+      },
+      "body": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "column",
+            "children": [
+              {
                 "kind": "surface",
                 "children": [
                   {
                     "kind": "column",
                     "children": [
                       {
-                        "kind": "heading",
-                        "value": "Warm ink on sunlit paper",
-                        "level": 1,
-                        "subtitle": "Display scale pairs InterDisplay headings with legible Inter body copy."
+                        "kind": "row",
+                        "children": [
+                          {
+                            "kind": "tagPill",
+                            "label": "42 live UI neurons",
+                            "tone": "done",
+                            "icon": "check"
+                          },
+                          {
+                            "kind": "tagPill",
+                            "label": "gRPC NeuronWatchMux",
+                            "tone": "working",
+                            "icon": "loader-circle"
+                          },
+                          {
+                            "kind": "tagPill",
+                            "label": "WinUI 3 NavigationShell",
+                            "tone": "neutral",
+                            "icon": null
+                          }
+                        ],
+                        "gap": 8,
+                        "padding": 0
                       },
                       {
-                        "kind": "heading",
-                        "value": "Section heading (level 2)",
-                        "level": 2,
-                        "subtitle": "Sentence case across every bar, panel, and action."
-                      },
-                      {
-                        "kind": "heading",
-                        "value": "Card & panel heading (level 3)",
-                        "level": 3,
-                        "subtitle": null
-                      },
-                      {
-                        "kind": "text",
-                        "value": "Body prose uses Inter 14/400 with generous line height so dense operational workspaces remain calm.",
-                        "tone": "neutral",
-                        "tabular": false,
-                        "mono": false
-                      },
-                      {
-                        "kind": "text",
-                        "value": "Tabular numerals keep live counters aligned: 1,492,048 tokens · 12.4 ms p95 · $50.00 cap.",
-                        "tone": "strong",
-                        "tabular": true,
-                        "mono": false
+                        "kind": "divider",
+                        "label": "Live OS Identity & Theme Switcher"
                       },
                       {
                         "kind": "text",
-                        "value": "Secondary captions use muted warm stone without falling back to developer monospace.",
+                        "value": "Click any identity preset to persist to IUserSettings and live-update the entire Flutter OS shell:",
                         "tone": "muted",
                         "tabular": false,
                         "mono": false
                       },
                       {
-                        "kind": "divider",
-                        "label": "Spacing & surfaces"
-                      },
-                      {
                         "kind": "row",
                         "children": [
                           {
-                            "kind": "text",
-                            "value": "4px grid",
-                            "tone": "neutral",
-                            "tabular": false,
-                            "mono": false
-                          },
-                          {
-                            "kind": "spacer",
-                            "size": 8
-                          },
-                          {
-                            "kind": "text",
-                            "value": "Active status: UI Gallery ready · 30 controls loaded · Category: all",
-                            "tone": "muted",
-                            "tabular": true,
-                            "mono": false
-                          }
-                        ],
-                        "gap": 8,
-                        "padding": 0
-                      }
-                    ],
-                    "gap": 8,
-                    "padding": 0
-                  }
-                ],
-                "surfaceKind": "elevated",
-                "title": "Typography & Hierarchy",
-                "subtitle": "Family 1 · InterDisplay + Inter with tabular figures",
-                "padding": 18
-              },
-              "trailing": {
-                "kind": "column",
-                "children": [
-                  {
-                    "kind": "surface",
-                    "children": [
-                      {
-                        "kind": "column",
-                        "children": [
-                          {
-                            "kind": "text",
-                            "value": "Every status badge pairs semantic foreground/tint tokens with a distinct Lucide icon and plain-language word:",
-                            "tone": "muted",
-                            "tabular": false,
-                            "mono": false
-                          },
-                          {
-                            "kind": "row",
-                            "children": [
-                              {
-                                "kind": "tagPill",
-                                "label": "Done",
-                                "tone": "done",
-                                "icon": "check"
-                              },
-                              {
-                                "kind": "tagPill",
-                                "label": "Working",
-                                "tone": "working",
-                                "icon": "loader-circle"
-                              },
-                              {
-                                "kind": "tagPill",
-                                "label": "Error",
-                                "tone": "error",
-                                "icon": "triangle-alert"
-                              },
-                              {
-                                "kind": "tagPill",
-                                "label": "Idle",
-                                "tone": "neutral",
-                                "icon": null
-                              },
-                              {
-                                "kind": "tagPill",
-                                "label": "Needs your approval",
-                                "tone": "accent",
-                                "icon": "hand"
-                              }
-                            ],
-                            "gap": 8,
-                            "padding": 0
-                          },
-                          {
-                            "kind": "divider",
-                            "label": null
-                          },
-                          {
-                            "kind": "infoBar",
-                            "title": "Capability check passed",
-                            "message": "All 7 component families render through a single declarative C# View tree.",
-                            "tone": "info",
-                            "action": {
-                              "key": "foundation:go-inputs",
-                              "label": "Inspect inputs",
-                              "emit": {
-                                "owner": "app.gallery",
-                                "signal": "ui.command",
-                                "args": {
-                                  "target": "state",
-                                  "method": "SelectTab",
-                                  "args": [
-                                    "inputs"
-                                  ],
-                                  "valueIndex": null,
-                                  "value": null,
-                                  "guardReason": null,
-                                  "tooltip": null
-                                }
-                              },
-                              "intent": null,
-                              "enabled": true,
-                              "tone": "neutral",
-                              "style": "secondary",
-                              "small": false
-                            }
-                          }
-                        ],
-                        "gap": 8,
-                        "padding": 0
-                      }
-                    ],
-                    "surfaceKind": "elevated",
-                    "title": "Status Is Never Colour Alone",
-                    "subtitle": "Family 5 · All 5 DESIGN.md §2.5 semantic status triads",
-                    "padding": 18
-                  },
-                  {
-                    "kind": "card",
-                    "title": "Honest Empty State",
-                    "body": "Family 5 · Clear guidance with one direct outcome button",
-                    "children": [
-                      {
-                        "kind": "emptyState",
-                        "title": "No pinned snapshots yet",
-                        "body": "Open the interactive BankAccount aggregate or browse the 28-entry component catalog.",
-                        "suggestions": [
-                          {
-                            "key": "empty:open-guards",
-                            "label": "Open rule guards",
-                            "emit": {
-                              "owner": "app.gallery",
-                              "signal": "ui.command",
+                            "kind": "button",
+                            "key": "preset-warm-paper",
+                            "label": "Warm Paper",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
                               "args": {
-                                "target": "state",
-                                "method": "SelectTab",
-                                "args": [
-                                  "inputs"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "StylePreset": "warm-paper",
+                                "BarLayout": "classic-bottom"
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-warm-paper",
+                            "style": "secondary",
+                            "icon": "sun",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "preset-fluent-acrylic",
+                            "label": "Fluent Acrylic",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
+                              "args": {
+                                "StylePreset": "fluent-acrylic",
+                                "BarLayout": "floating-glass"
                               }
                             },
                             "intent": null,
                             "enabled": true,
                             "tone": "accent",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-fluent-acrylic",
                             "style": "primary",
-                            "small": false
+                            "icon": "palette",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "preset-warm-mica",
+                            "label": "Fluent Warm Mica",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
+                              "args": {
+                                "StylePreset": "fluent-warm-mica",
+                                "BarLayout": "floating-glass"
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-warm-mica",
+                            "style": "secondary",
+                            "icon": "sun",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "preset-linear-carbon",
+                            "label": "Linear Carbon",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
+                              "args": {
+                                "StylePreset": "linear-carbon",
+                                "BarLayout": "classic-bottom"
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-linear-carbon",
+                            "style": "secondary",
+                            "icon": "sliders-horizontal",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "preset-spatial-glass",
+                            "label": "Spatial Glass",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
+                              "args": {
+                                "StylePreset": "spatial-glass",
+                                "BarLayout": "compact-pill"
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-spatial-glass",
+                            "style": "secondary",
+                            "icon": "sparkles",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "preset-cyber-synaptic",
+                            "label": "Cyber Synaptic",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
+                              "args": {
+                                "StylePreset": "cyber-synaptic",
+                                "BarLayout": "split-top-dock"
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-cyber-synaptic",
+                            "style": "secondary",
+                            "icon": "zap",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "preset-nordic-tactical",
+                            "label": "Nordic Tactical",
+                            "command": {
+                              "target": ".",
+                              "signal": "gallery.switch-identity",
+                              "args": {
+                                "StylePreset": "nordic-tactical",
+                                "BarLayout": "split-top-dock"
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "preset-nordic-tactical",
+                            "style": "secondary",
+                            "icon": "shield",
+                            "small": true
                           }
-                        ]
+                        ],
+                        "gap": 8,
+                        "padding": 0
                       }
-                    ]
+                    ],
+                    "gap": 12,
+                    "padding": 0
                   }
                 ],
-                "gap": 12,
-                "padding": 0
+                "surfaceKind": "acrylic",
+                "title": "Welcome to IntoChat UI Gallery",
+                "subtitle": "Every interactive control below is a real stateful DigitalBrain Neuron in IntoChat.OS.Modules.UI rendered directly over gRPC.",
+                "padding": 18
               },
-              "leadingExtent": 460,
-              "gap": 16
+              {
+                "kind": "heading",
+                "value": "Explore by category",
+                "level": 2,
+                "subtitle": null
+              },
+              {
+                "kind": "grid",
+                "columns": 3,
+                "children": [
+                  {
+                    "kind": "card",
+                    "title": "Charts (IChart)",
+                    "body": "Two independent stateful IChart neurons: live streaming Append + IChartSource query binding.",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "home:open:charts",
+                        "label": "Open Charts (IChart)",
+                        "command": {
+                          "target": ".",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "SelectPage",
+                            "args": [
+                              "charts"
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "home:open:charts",
+                        "style": "primary",
+                        "icon": "chart-column",
+                        "small": true
+                      }
+                    ],
+                    "header": null,
+                    "footer": null
+                  },
+                  {
+                    "kind": "card",
+                    "title": "Data Table (ITable)",
+                    "body": "Query-backed ITable neuron with live filter, sorting, pagination, and row selection.",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "home:open:table",
+                        "label": "Open Data Table (ITable)",
+                        "command": {
+                          "target": ".",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "SelectPage",
+                            "args": [
+                              "table"
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "home:open:table",
+                        "style": "primary",
+                        "icon": "table",
+                        "small": true
+                      }
+                    ],
+                    "header": null,
+                    "footer": null
+                  },
+                  {
+                    "kind": "card",
+                    "title": "Basic Input Neurons",
+                    "body": "IToggle, ICheckBox, ISelect, and guarded Buttons with domain invariants.",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "home:open:toggle",
+                        "label": "Open Basic Input Neurons",
+                        "command": {
+                          "target": ".",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "SelectPage",
+                            "args": [
+                              "toggle"
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "home:open:toggle",
+                        "style": "primary",
+                        "icon": "toggle-right",
+                        "small": true
+                      }
+                    ],
+                    "header": null,
+                    "footer": null
+                  },
+                  {
+                    "kind": "card",
+                    "title": "Design System",
+                    "body": "Colors, surfaces, InterDisplay + Inter typography, tabular numerals, icons, and 4pt/8pt spacing.",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "home:open:colors",
+                        "label": "Open Design System",
+                        "command": {
+                          "target": ".",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "SelectPage",
+                            "args": [
+                              "colors"
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "home:open:colors",
+                        "style": "primary",
+                        "icon": "palette",
+                        "small": true
+                      }
+                    ],
+                    "header": null,
+                    "footer": null
+                  },
+                  {
+                    "kind": "card",
+                    "title": "Navigation & Layout",
+                    "body": "ITabs, IExpander, IListBox, AppShell, SplitPane, and responsive grids.",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "home:open:tabs",
+                        "label": "Open Navigation & Layout",
+                        "command": {
+                          "target": ".",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "SelectPage",
+                            "args": [
+                              "tabs"
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "home:open:tabs",
+                        "style": "primary",
+                        "icon": "panel-top",
+                        "small": true
+                      }
+                    ],
+                    "header": null,
+                    "footer": null
+                  },
+                  {
+                    "kind": "card",
+                    "title": "State Graphs & DDD",
+                    "body": "Live BankAccount aggregate with Rule guards and unfolded Accordant StateGraphView.",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "home:open:graphs",
+                        "label": "Open State Graphs & DDD",
+                        "command": {
+                          "target": ".",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "SelectPage",
+                            "args": [
+                              "graphs"
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "home:open:graphs",
+                        "style": "primary",
+                        "icon": "brain-circuit",
+                        "small": true
+                      }
+                    ],
+                    "header": null,
+                    "footer": null
+                  }
+                ],
+                "gap": 12
+              }
+            ],
+            "gap": 16,
+            "padding": 0
+          }
+        ],
+        "gap": 16,
+        "padding": 0
+      },
+      "toolbar": {
+        "kind": "row",
+        "children": [
+          {
+            "kind": "heading",
+            "value": "IntoChat UI Gallery",
+            "level": 2,
+            "subtitle": "WinUI 3-style live showcase · Stateful Modules.UI neurons over gRPC"
+          },
+          {
+            "kind": "spacer",
+            "size": 0
+          },
+          {
+            "kind": "tagPill",
+            "label": "fluent-acrylic",
+            "tone": "done",
+            "icon": "check"
+          },
+          {
+            "kind": "tagPill",
+            "label": "Ready · Select any page from the navigation rail.",
+            "tone": "neutral",
+            "icon": null
+          },
+          {
+            "kind": "button",
+            "key": "gallery:open-uikit",
+            "label": "Open UI Kit",
+            "command": null,
+            "intent": {
+              "intentKind": "OpenWindow",
+              "arg": "os://window/open?app=uikit"
             },
-            {
-              "kind": "surface",
-              "children": [
-                {
-                  "kind": "row",
-                  "children": [
-                    {
-                      "kind": "button",
-                      "key": "preset-fluent-acrylic",
-                      "label": "Fluent Acrylic",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "fluent-acrylic",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "primary",
-                      "icon": "palette",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "preset-spatial-glass",
-                      "label": "Spatial Glass",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "spatial-glass",
-                          "compact-pill"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sparkles",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "preset-cyber-synaptic",
-                      "label": "Cyber Synaptic",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "cyber-synaptic",
-                          "split-top-dock"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "zap",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "preset-warm-paper",
-                      "label": "Warm Paper",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "warm-paper",
-                          "classic-bottom"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sun",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "preset-warm-mica",
-                      "label": "Warm Mica",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "fluent-warm-mica",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sun",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "preset-linear-carbon",
-                      "label": "Linear Carbon",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "linear-carbon",
-                          "classic-bottom"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sliders-horizontal",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "preset-nordic-tactical",
-                      "label": "Nordic Tactical",
-                      "emit": {
-                        "owner": "app.gallery",
-                        "signal": "switch-identity",
-                        "args": [
-                          "nordic-tactical",
-                          "split-top-dock"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "shield",
-                      "small": true
-                    }
-                  ],
-                  "gap": 8,
-                  "padding": 0
-                }
-              ],
-              "surfaceKind": "recessed",
-              "title": "UI Identity & Bar Layout Presets",
-              "subtitle": "Family 2 · Instant theme materiality switching",
-              "padding": 18
-            },
-            {
-              "kind": "surface",
-              "children": [
-                {
-                  "kind": "column",
-                  "children": [
-                    {
-                      "kind": "surface",
-                      "children": [
-                        {
-                          "kind": "heading",
-                          "value": "Studio Chrome",
-                          "level": 6,
-                          "subtitle": null
-                        },
-                        {
-                          "kind": "select",
-                          "label": "segmented:",
-                          "selected": "claude-sonnet-4-5",
-                          "options": [
-                            {
-                              "key": "seg:claude",
-                              "id": "claude-sonnet-4-5",
-                              "label": "Sonnet 4.5",
-                              "emit": {
-                                "owner": "app.gallery",
-                                "signal": "ui.command",
-                                "args": {
-                                  "target": "state",
-                                  "method": "SelectModelOption",
-                                  "args": [
-                                    "claude-sonnet-4-5"
-                                  ],
-                                  "valueIndex": null,
-                                  "value": null,
-                                  "guardReason": null,
-                                  "tooltip": null
-                                }
-                              }
-                            },
-                            {
-                              "key": "seg:gpt5",
-                              "id": "gpt-5-thinking",
-                              "label": "GPT-5",
-                              "emit": {
-                                "owner": "app.gallery",
-                                "signal": "ui.command",
-                                "args": {
-                                  "target": "state",
-                                  "method": "SelectModelOption",
-                                  "args": [
-                                    "gpt-5-thinking"
-                                  ],
-                                  "valueIndex": null,
-                                  "value": null,
-                                  "guardReason": null,
-                                  "tooltip": null
-                                }
-                              }
-                            },
-                            {
-                              "key": "seg:qwen",
-                              "id": "qwen3.5:4b",
-                              "label": "Qwen Local",
-                              "emit": {
-                                "owner": "app.gallery",
-                                "signal": "ui.command",
-                                "args": {
-                                  "target": "state",
-                                  "method": "SelectModelOption",
-                                  "args": [
-                                    "qwen3.5:4b"
-                                  ],
-                                  "valueIndex": null,
-                                  "value": null,
-                                  "guardReason": null,
-                                  "tooltip": null
-                                }
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "kind": "spacer",
-                          "size": 0
-                        },
-                        {
-                          "kind": "surface",
-                          "children": [
-                            {
-                              "kind": "text",
-                              "value": "Workspace",
-                              "tone": "neutral",
-                              "tabular": false,
-                              "mono": false
-                            },
-                            {
-                              "kind": "text",
-                              "value": "UI Kit v2",
-                              "tone": "neutral",
-                              "tabular": false,
-                              "mono": false
-                            },
-                            {
-                              "kind": "tagPill",
-                              "label": "Live",
-                              "tone": "done",
-                              "icon": "check"
-                            }
-                          ],
-                          "surfaceKind": "breadcrumb",
-                          "title": null,
-                          "subtitle": null,
-                          "padding": 0
-                        }
-                      ],
-                      "surfaceKind": "toolbar",
-                      "title": null,
-                      "subtitle": null,
-                      "padding": 8
-                    },
-                    {
-                      "kind": "grid",
-                      "columns": 2,
-                      "children": [
-                        {
-                          "kind": "surface",
-                          "children": [
-                            {
-                              "kind": "text",
-                              "value": "No raster preview attached.",
-                              "tone": "muted",
-                              "tabular": false,
-                              "mono": false
-                            }
-                          ],
-                          "surfaceKind": "elevated",
-                          "title": "ImageView Canvas",
-                          "subtitle": "Connect a live VFS or studio image source to preview raster frames.",
-                          "padding": 18
-                        },
-                        {
-                          "kind": "surface",
-                          "children": [],
-                          "surfaceKind": "code:csharp",
-                          "title": "Declarative C# Kit v2",
-                          "subtitle": "HeaderBar(\"Studio\", \"Ready\",\n    PrimaryButton(\"Deploy\").Guard(state.CanDeploy));",
-                          "padding": 180
-                        }
-                      ],
-                      "gap": 12
-                    },
-                    {
-                      "kind": "surface",
-                      "children": [
-                        {
-                          "kind": "text",
-                          "value": "Expanders keep secondary configuration tucked cleanly away without cluttering primary workflows.",
-                          "tone": "neutral",
-                          "tabular": false,
-                          "mono": false
-                        }
-                      ],
-                      "surfaceKind": "expander:closed",
-                      "title": "Disclosure Panel (Expander)",
-                      "subtitle": "Click to inspect bounded progressive disclosure",
-                      "padding": 12
-                    }
-                  ],
-                  "gap": 12,
-                  "padding": 0
-                }
-              ],
-              "surfaceKind": "elevated",
-              "title": "WinUI-Grade Desktop Chrome & Media Surfaces (Kit v2)",
-              "subtitle": "Toolbar, Breadcrumb, Segmented, SectionHeader, Expander, ImageView & CodeBlock",
-              "padding": 18
-            }
-          ],
-          "gap": 16,
-          "padding": 0
-        }
-      ],
-      "gap": 16,
-      "padding": 0
+            "enabled": true,
+            "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "gallery:open-uikit",
+            "style": "secondary",
+            "icon": "widgets",
+            "small": true
+          }
+        ],
+        "gap": 8,
+        "padding": 0
+      },
+      "inspector": null
     }
   }
 }

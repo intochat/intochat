@@ -2,6 +2,7 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Errors;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -18,7 +19,7 @@ internal sealed class FileSystemNeuron(MachineIdentity identity, IServiceProvide
     // Roots are read on every call, so a revoked root is refused by the very next call.
     private async Task<string> Resolve(string path)
     {
-        var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
+        var connection = WindowsKeys.Connection(Id.FullKey());
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
         return PathConfinement.Resolve(await SiloNeurons.Get<IWindows>(services, connection).Roots(), path);

@@ -8,7 +8,11 @@ import 'node_context.dart';
 import 'node_renderer.dart';
 
 bool _isInlineControl(Node n) =>
-    n is BadgeNode || n is TagPillNode || n is ButtonNode || n is SwitchNode;
+    n is BadgeNode ||
+    n is TagPillNode ||
+    n is ButtonNode ||
+    n is IconButtonNode ||
+    n is SwitchNode;
 
 bool _isCenterAlignedRowChild(Node n) =>
     _isInlineControl(n) ||

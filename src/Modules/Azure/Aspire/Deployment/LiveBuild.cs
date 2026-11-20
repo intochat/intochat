@@ -3,11 +3,11 @@ using System.Text.Json;
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 /// <summary>The build the live silos run: its commit and published folder.</summary>
-public sealed record LiveBuild(string Sha, string Path);
+internal sealed record LiveBuild(string Sha, string Path);
 
 // {Workdir}/live.json names the build the live silos run; absent on first boot, when the AppHost runs from source.
 /// <summary>Reads and writes {Workdir}/live.json; public for the module's Aspire hosting sibling.</summary>
-public static class LiveBuildFile
+internal static class LiveBuildFile
 {
     /// <summary>The live.json path under <paramref name="workdir"/>.</summary>
     public static string PathOf(string workdir) => System.IO.Path.Combine(workdir, "live.json");

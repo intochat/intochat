@@ -42,7 +42,7 @@ public static class AdvSynapses
         new("adv.counter", new Row(
             [
                 new Button("bump_btn", "Bump", new Command(".", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 5 }))),
-                new Switch("foreign_btn", "Foreign", false, new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 }))),
+                new Tabs([new TabItem("foreign_btn", "foreign", "Foreign", new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 })))], "foreign"),
                 new Text($"Count is {c.Count}")
             ]));
 }

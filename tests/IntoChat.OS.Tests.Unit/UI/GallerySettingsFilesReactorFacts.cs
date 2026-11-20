@@ -17,7 +17,6 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;
@@ -58,64 +57,68 @@ public sealed class GallerySettingsFilesReactorFacts
     public void GalleryAppStateExplorerVerifiesAllTabsUniqueKeysAndZeroMonospace()
     {
         var choices = new ChoiceSet()
-            .ForParameter("tab", "foundation", "inputs", "data", "slots", "catalog")
+            .ForParameter("page", "home", "colors", "toggle", "charts", "graphs")
             .ForParameter("holder", "alice")
             .ForParameter("amount", 50m, 30m, 70m)
-            .ForParameter("column", "latency", "span")
-            .ForParameter("query", "", "Table")
-            .ForParameter("category", "all", "chat-lfp");
+            .ForParameter("stateId", "s0")
+            .ForParameter("label", "Primary");
         var graph = AggregateExplorer<GalleryAppState>.ExploreScreen<GalleryApp>(
             choices: choices,
             maxStates: 40).EnsureHealthy();
 
         Assert.True(graph.IsHealthy);
-        Assert.Contains(graph.States, s => s.State.ShowcaseTab == "foundation");
-        Assert.Contains(graph.States, s => s.State.ShowcaseTab == "inputs");
-        Assert.Contains(graph.States, s => s.State.ShowcaseTab == "data");
-        Assert.Contains(graph.States, s => s.State.ShowcaseTab == "slots");
-        Assert.Contains(graph.States, s => s.State.ShowcaseTab == "catalog");
+        Assert.Contains(graph.States, s => s.State.Page == "home");
+        Assert.Contains(graph.States, s => s.State.Page == "colors");
+        Assert.Contains(graph.States, s => s.State.Page == "charts");
+        Assert.Contains(graph.States, s => s.State.Page == "graphs");
         Assert.Contains(
             graph.RejectedTransitions,
             t => t.Command == "WithdrawFunds(70)" && t.BrokenRules.Contains("sufficient_funds", StringComparer.Ordinal));
 
-        foreach (var tab in GalleryAppState.ShowcaseTabIds)
+        foreach (var page in GalleryAppState.PageIds)
         {
-            var node = AggregateExplorer<GalleryAppState>.PreviewNode<GalleryApp>(new GalleryAppState().SelectTab(tab));
+            var node = AggregateExplorer<GalleryAppState>.PreviewNode<GalleryApp>(new GalleryAppState().SelectPage(page));
             var wire = JsonSerializer.Serialize(node, RuntimeProtocol.OptionsFor(typeof(Node)));
             Assert.DoesNotContain("\"mono\":true", wire, StringComparison.OrdinalIgnoreCase);
         }
     }
 
     [Fact]
-    public async Task GalleryAppShowcasesAllFourInteractiveTabsLiveBankGuardsAndStateGraphView()
+    public async Task GalleryAppShowcasesWinUi3PagesLiveModulesUiNeuronsAndBankGuards()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("gallery-test", "gallery-test", new BrainId("gallery-test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         os.Register(typeof(GalleryApp).Assembly);
 
         var brain = new BrainId("gallery-test");
         var id = new NeuronId(brain, "app.gallery", "default");
         var screen = os.Get<IScreen>(id);
 
-        // 1. Foundation & Status tab: all 5 DESIGN.md §2.5 StatusPill triads
+        // 1. Home page: AppShell root with WinUI 3 navigation rail & live identity switcher
         var opened = await screen.Open();
         Assert.NotNull(opened);
-        var foundationWire = opened!.View.GetRawText();
-        Assert.Contains("\"tone\":\"done\"", foundationWire, StringComparison.Ordinal);
-        Assert.Contains("\"tone\":\"working\"", foundationWire, StringComparison.Ordinal);
-        Assert.Contains("\"tone\":\"error\"", foundationWire, StringComparison.Ordinal);
-        Assert.Contains("\"tone\":\"neutral\"", foundationWire, StringComparison.Ordinal);
-        Assert.Contains("\"tone\":\"accent\"", foundationWire, StringComparison.Ordinal);
-        Assert.Contains("Needs your approval", foundationWire, StringComparison.Ordinal);
+        var homeWire = opened!.View.GetRawText();
+        Assert.Contains("\"kind\":\"appShell\"", homeWire, StringComparison.Ordinal);
+        Assert.Contains("Welcome to IntoChat UI Gallery", homeWire, StringComparison.Ordinal);
 
-        // 2. Inputs & Rule Guards tab: open BankAccount for Alice -> +$50 -> -$30 enabled & -$70 guarded with tooltip!
-        await screen.Activate("app.gallery", opened.Generation, "tab:inputs");
+        // 2. Charts page: two independent live IChart neurons (stream + query-bound revenue)
+        await screen.Activate("app.gallery", opened.Generation, "nav:charts");
         await os.Idle();
-        var inputsInitial = await screen.Open();
-        Assert.NotNull(inputsInitial);
+        var chartsView = await screen.Open();
+        var chartsWire = chartsView!.View.GetRawText();
+        Assert.Contains("\"refKind\":\"ui.chart\"", chartsWire, StringComparison.Ordinal);
+        Assert.Contains(GalleryApp.StreamChartKey, chartsWire, StringComparison.Ordinal);
+        Assert.Contains(GalleryApp.RevenueChartKey, chartsWire, StringComparison.Ordinal);
 
-        await screen.Activate("app.gallery", inputsInitial!.Generation, "bank:open-alice");
+        // 3. Graphs & DDD Rules page: open BankAccount for Alice -> +$50 -> -$70 refused -> -$30 succeeds
+        await screen.Activate("app.gallery", chartsView.Generation, "nav:graphs");
+        await os.Idle();
+        var graphsInitial = await screen.Open();
+        Assert.NotNull(graphsInitial);
+
+        await screen.Activate("app.gallery", graphsInitial!.Generation, "bank:open");
         await os.Idle();
         var afterOpen = await screen.Open();
         Assert.NotNull(afterOpen);
@@ -125,10 +128,9 @@ public sealed class GallerySettingsFilesReactorFacts
         var afterDeposit = await screen.Open();
         Assert.NotNull(afterDeposit);
         var depositWire = afterDeposit!.View.GetRawText();
-        Assert.Contains("$50.00", depositWire, StringComparison.Ordinal);
+        Assert.Contains("Alice: $50", depositWire, StringComparison.Ordinal);
         Assert.Contains("Insufficient funds: balance $50, requested $70.", depositWire, StringComparison.Ordinal);
 
-        // Direct command invocation bypassing disabled button proves server-side Rule refuses -$70!
         var refuse70 = JsonSerializer.SerializeToElement(
             new UiCommand(Target: "state", Method: "WithdrawFunds", Args: [JsonSerializer.SerializeToElement(70m)]),
             RuntimeProtocol.OptionsFor(typeof(UiCommand)));
@@ -136,31 +138,15 @@ public sealed class GallerySettingsFilesReactorFacts
         await os.Idle();
         var afterRefused = await screen.Open();
         Assert.Contains("Domain rule refused command", afterRefused!.View.GetRawText(), StringComparison.Ordinal);
-        Assert.Contains("$50.00", afterRefused.View.GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("Alice: $50", afterRefused.View.GetRawText(), StringComparison.Ordinal);
 
-        // Valid -$30 withdrawal succeeds ($50 -> $20)
         await screen.Activate("app.gallery", afterRefused.Generation, "bank:withdraw-30");
         await os.Idle();
         var afterWithdraw = await screen.Open();
-        Assert.Contains("$20.00", afterWithdraw!.View.GetRawText(), StringComparison.Ordinal);
-
-        // 3. Data & Charts tab: StatCard, LineChart, BarChart, and sortable Table
-        await screen.Activate("app.gallery", afterWithdraw.Generation, "tab:data");
-        await os.Idle();
-        var dataView = await screen.Open();
-        var dataWire = dataView!.View.GetRawText();
-        Assert.Contains("\"chartKind\":\"line\"", dataWire, StringComparison.Ordinal);
-        Assert.Contains("\"chartKind\":\"columns\"", dataWire, StringComparison.Ordinal);
-        Assert.Contains("\"kind\":\"dataTable\"", dataWire, StringComparison.Ordinal);
-
-        // 4. Live Slots & Accordant State Graph tab: Slot (neuronRef) + StateGraphView (brainScene)
-        await screen.Activate("app.gallery", dataView.Generation, "tab:slots");
-        await os.Idle();
-        var slotsView = await screen.Open();
-        var slotsWire = slotsView!.View.GetRawText();
-        Assert.Contains("\"kind\":\"brainScene\"", slotsWire, StringComparison.Ordinal);
-        Assert.Contains("\"kind\":\"neuronRef\"", slotsWire, StringComparison.Ordinal);
-        Assert.Contains("sufficient_funds", slotsWire, StringComparison.Ordinal);
+        var withdrawWire = afterWithdraw!.View.GetRawText();
+        Assert.Contains("Alice: $20", withdrawWire, StringComparison.Ordinal);
+        Assert.Contains("\"kind\":\"brainScene\"", withdrawWire, StringComparison.Ordinal);
+        Assert.Contains("sufficient_funds", withdrawWire, StringComparison.Ordinal);
     }
 
     [Fact]

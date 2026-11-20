@@ -11,13 +11,12 @@ internal static class SettingsViewRenderer
 {
     public static Node RenderRoot(SettingsAppState state, SettingsSlots slots, Rejected? lastRejection = null)
     {
-        var section = SettingsDecisions.NormalizeSection(state.Section);
+        var section = SettingsAppState.NormalizeSection(state.Section);
         var sectionEntry = SettingsApp.SearchIndex.First(entry => entry.SectionId == section);
 
         var sidebar = BuildSidebar(state, section, slots);
         var contentChildren = new List<Node?>
         {
-            RenderHeader(state, sectionEntry),
             lastRejection is not null
                 ? Banner("Invalid setting value", string.Join(" ", lastRejection.Messages), tone: "error")
                 : null,
@@ -27,15 +26,16 @@ internal static class SettingsViewRenderer
             RenderSectionBody(state, section, state.SubPage, slots),
         };
 
-        return ResponsiveSplit(
-            leading: sidebar,
-            trailing: VStack(Space.Md, contentChildren.ToArray()),
-            leadingExtent: 248);
+        return AppShell(
+            key: "settings-shell",
+            sidebar: sidebar,
+            body: VStack(Space.Md, contentChildren.ToArray()),
+            toolbar: RenderHeader(state, sectionEntry));
     }
 
     private static Node BuildSidebar(SettingsAppState state, string activeSection, SettingsSlots slots)
     {
-        var filtered = SettingsDecisions.FilterSections(state.SearchQuery);
+        var filtered = SettingsAppState.FilterSections(state.SearchQuery);
         var groups = new[] { "Preferences", "Capabilities & Data", "Organization & System" };
         var nodes = new List<Node?>
         {
@@ -110,7 +110,7 @@ internal static class SettingsViewRenderer
                     .Key("settings:header-back")
                     .Small()
                     .Guard(state.CanReturnRule)
-                    .Emits(AppSignals.Emit("settings", "go-back"))
+                    .OnClick<SettingsAppState>(s => s.ReturnPrevious())
                     .ToNode()
                 : null,
             StatusPill(StatusKind.Idle, sectionEntry.Group),
@@ -143,7 +143,7 @@ internal static class SettingsViewRenderer
                     Button("Close sheet", "x")
                         .Key("settings:close-sheet")
                         .Small()
-                        .Emits(AppSignals.Emit("settings", "navigate", state.Section, state.SubPage ?? "", ""))
+                        .OnClick<SettingsAppState>(s => s.Navigate(state.Section, state.SubPage, ""))
                 ]
             ]
         ];
@@ -490,21 +490,16 @@ internal static class SettingsViewRenderer
             ];
         }).ToArray();
 
-        return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault and never echoed back after saving")[
+        return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault via SecretRef and never enter neuron state or journals")[
             VStack(Space.Md)[
                 VStack(Space.Sm, cards),
-                HStack(Space.Sm, [
-                    .. vaults.Select(v => Button(v.ButtonLabel, Icons.KeyRound)
-                        .Key(v.ButtonId)
-                        .Small()
-                        .Emits(AppSignals.Emit("settings", "set-variable", v.SecretName, $"vault://{v.SecretName}"))
-                        .ToNode()),
+                Slot(SettingsApp.ApiKeysFormKey, "ui.form"),
+                HStack(Space.Sm)[
                     PrimaryButton("Open secure vault window", Icons.KeyRound)
                         .Key("keys:open-vault")
                         .Small()
                         .WithIntent(IntentKind.OpenWindow, "os://window/secure")
-                        .ToNode(),
-                ])
+                ]
             ]
         ];
     }
@@ -523,7 +518,7 @@ internal static class SettingsViewRenderer
             .. (state.Variables ?? []).Select(static variable => (IReadOnlyList<string>)
             [
                 variable.Key,
-                SettingsDecisions.RedactSecretDisplay(variable.Key, variable.Value),
+                SettingsAppState.RedactSecretDisplay(variable.Key, variable.Value),
                 "brain",
             ]),
         ];
@@ -559,22 +554,17 @@ internal static class SettingsViewRenderer
                         .Key("billing-cap-10")
                         .Small()
                         .Guard(SettingsAppState.ValidateBudget(10_000_000L))
-                        .Emits(AppSignals.Emit("settings", "set-budget", "10000000")),
+                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(10_000_000L)),
                     (state.MonthlyBudgetMicros == 50_000_000L ? PrimaryButton("Set $50 cap", "gauge") : Button("Set $50 cap", "gauge"))
                         .Key("billing-cap-50")
                         .Small()
                         .Guard(SettingsAppState.ValidateBudget(50_000_000L))
-                        .Emits(AppSignals.Emit("settings", "set-budget", "50000000")),
+                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(50_000_000L)),
                     (state.MonthlyBudgetMicros == 200_000_000L ? PrimaryButton("Set $200 cap", "gauge") : Button("Set $200 cap", "gauge"))
                         .Key("billing-cap-200")
                         .Small()
                         .Guard(SettingsAppState.ValidateBudget(200_000_000L))
-                        .Emits(AppSignals.Emit("settings", "set-budget", "200000000")),
-                    DangerButton("Invalid $0 cap", Icons.TriangleAlert)
-                        .Key("billing-cap-invalid-zero")
-                        .Small()
-                        .Guard(SettingsAppState.ValidateBudget(0L))
-                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(0L))
+                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(200_000_000L))
                 ]
             ]
         ];

@@ -164,8 +164,62 @@ public static class InoModel
 
     public static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
     public static string ChatKeyOf(string conversationId) => $"ino/chats/{conversationId}";
+    public static string UiChatKeyOf(string conversationId) => $"ino/chat/{conversationId}";
     public static string ToneKeyOf(string conversationId) => $"observer/tone/{AgentKeyOf(conversationId)}";
     public static string MintConversationId() => ConversationId.New().Value;
+
+    public static string ConversationIdOf(string keyOrId)
+    {
+        if (string.IsNullOrWhiteSpace(keyOrId)) { return "main"; }
+        var trimmed = keyOrId.Trim();
+        const string prefix = "ino/conversations/";
+        return trimmed.StartsWith(prefix, StringComparison.Ordinal) ? trimmed[prefix.Length..] : trimmed;
+    }
+
+    public static InoAppState SwitchConversation(InoAppState s, string conversationId, string[]? recentConversations = null)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        var normalized = ConversationIdOf(conversationId);
+        return s with
+        {
+            ConversationId = normalized,
+            Title = normalized == s.ConversationId ? s.Title : $"Chat · {normalized[..Math.Min(8, normalized.Length)]}",
+            Status = Ready,
+            AgentKey = AgentKeyOf(normalized),
+            ActiveRunId = null,
+            Pending = null,
+            Error = null,
+            Messages = null,
+            ChatRevision = 0,
+            RecentConversations = recentConversations ?? s.RecentConversations,
+        };
+    }
+
+    public static string BuildCompactSummary(IReadOnlyList<InoMessage> messages, string? existingSummary = null)
+    {
+        var sb = new System.Text.StringBuilder();
+        if (!string.IsNullOrWhiteSpace(existingSummary))
+        {
+            sb.AppendLine(existingSummary.Trim());
+            sb.AppendLine();
+        }
+        var userTurns = messages.Where(static m => string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase)).ToList();
+        var assistantTurns = messages.Where(static m => string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(m.Text)).ToList();
+        sb.AppendLine($"Compacted {messages.Count} message(s) ({userTurns.Count} user, {assistantTurns.Count} assistant).");
+        foreach (var turn in userTurns.TakeLast(5))
+        {
+            var snippet = turn.Text.ReplaceLineEndings(" ").Trim();
+            if (snippet.Length > 140) { snippet = snippet[..137] + "..."; }
+            sb.AppendLine($"- User: {snippet}");
+        }
+        if (assistantTurns.LastOrDefault() is { } lastReply)
+        {
+            var replySnippet = lastReply.Text.ReplaceLineEndings(" ").Trim();
+            if (replySnippet.Length > 200) { replySnippet = replySnippet[..197] + "..."; }
+            sb.AppendLine($"- Latest reply: {replySnippet}");
+        }
+        return sb.ToString().Trim();
+    }
 
     public static Rule IdleRule(InoSession session)
         => Decision.Rule("not_busy", session, static s => s.PendingPrompt is not null || s.ActiveRunId is not null, "Wait for the current reply to finish or stop it first.");

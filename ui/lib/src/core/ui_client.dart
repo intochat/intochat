@@ -285,31 +285,125 @@ final class IntoChatOSUiClient {
     },
   );
 
+  static const screenContract = 'DigitalBrain.IScreen';
+  static const screenChangedSignal = 'ViewChanged';
+
+  /// True when [name] explicitly addresses an `app.<name>` screen neuron rather
+  /// than an `IView` node path (`{brain}/apps/{name}/view`).
+  static bool isExplicitScreenAddress(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return false;
+    final parts = trimmed.split('/');
+    return parts[0].startsWith('app.') ||
+        (parts.length >= 2 && parts[1].startsWith('app.'));
+  }
+
+  /// Resolves the canonical `{brainId}/{screenAlias}/default` neuron key of an
+  /// `IScreen` from a view or screen address (`{brain}/apps/{app}/view`,
+  /// `apps/{app}/view`, `{brain}/app.{app}/default`, `app.{app}`, etc.), or
+  /// `null` when [name] does not name an app screen.
+  static String? screenNeuronKey(String brainId, String name, {String? alias}) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+    final withoutView = trimmed.endsWith('/view')
+        ? trimmed.substring(0, trimmed.length - 5)
+        : trimmed;
+    final parts = withoutView.split('/');
+    if (parts.any((p) => p.isEmpty || p == '.' || p == '..')) return null;
+
+    if (alias != null && alias.trim().isNotEmpty && !alias.contains('/')) {
+      final cleanAlias = alias.trim();
+      final scope =
+          (parts.length >= 3 && parts[1] == 'apps') ||
+              (parts.length >= 2 &&
+                  parts[0] != 'apps' &&
+                  !parts[0].startsWith('app.'))
+          ? parts[0]
+          : brainId;
+      return scope.isEmpty
+          ? '$cleanAlias/default'
+          : '$scope/$cleanAlias/default';
+    }
+
+    if (parts.length == 3 && parts[1] == 'apps') {
+      return '${parts[0]}/app.${parts[2]}/default';
+    }
+    if (parts.length == 2 && parts[0] == 'apps') {
+      return brainId.isEmpty
+          ? 'app.${parts[1]}/default'
+          : '$brainId/app.${parts[1]}/default';
+    }
+    if (parts.length == 3 && parts[1].startsWith('app.')) {
+      return withoutView;
+    }
+    if (parts.length == 2 && parts[0].startsWith('app.')) {
+      return brainId.isEmpty ? withoutView : '$brainId/$withoutView';
+    }
+    if (parts.length == 2 && parts[1].startsWith('app.')) {
+      return '${parts[0]}/${parts[1]}/default';
+    }
+    if (parts.length == 1 && parts[0].startsWith('app.')) {
+      return brainId.isEmpty
+          ? '${parts[0]}/default'
+          : '$brainId/${parts[0]}/default';
+    }
+    return null;
+  }
+
+  static String _unitScreenKey(String brainId, String name) {
+    final trimmed = name.trim();
+    final parts = trimmed.split('/');
+    if (parts.length == 3) return trimmed;
+    if (parts.length == 2) {
+      return parts[0] == brainId
+          ? '$brainId/${parts[1]}/default'
+          : (brainId.isEmpty ? trimmed : '$brainId/$trimmed');
+    }
+    return brainId.isEmpty ? '$trimmed/default' : '$brainId/$trimmed/default';
+  }
+
   /// The brain's shared watch: every node watch of a screen rides one `Watch` stream.
   NeuronWatchMux watches(String brainId) =>
       _watches[brainId] ??= NeuronWatchMux(() => channel, brainId);
 
   /// The node's own change signal; the view reads the node once per event.
   Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
+    if (kind == 'screen' || (kind == 'view' && isExplicitScreenAddress(name))) {
+      final source =
+          screenNeuronKey(brainId, name) ?? _unitScreenKey(brainId, name);
+      return watches(brainId)
+          .watch(
+            WatchSourceSpec(screenContract, source, const [
+              screenChangedSignal,
+            ]),
+          )
+          .map(_logSignalLatency);
+    }
     final friendSlot =
         (kind == 'person' && name.endsWith('/profile')) ||
         (kind == 'collection' && name.endsWith('/posts')) ||
         (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
     final contract = NodeContracts.of(friendSlot ? 'friends.space' : kind);
-    final source = friendSlot ? '$brainId/space' : name;
+    final source = friendSlot
+        ? '$brainId/space'
+        : (kind.startsWith('ui.') && !name.startsWith('$brainId/')
+              ? '$brainId/$name'
+              : name);
     final signals = kind == 'confirmation'
         ? ['ConfirmationRequested', 'ConfirmationResolved']
         : [contract.changed];
-    return watches(
-      brainId,
-    ).watch(WatchSourceSpec(contract.contract, source, signals)).map((signal) {
-      // Delivery latency as the comparison measures it: envelope stamp to arrival.
-      developer.log(
-        'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',
-        name: 'intochatos.channel',
-      );
-      return signal;
-    });
+    return watches(brainId)
+        .watch(WatchSourceSpec(contract.contract, source, signals))
+        .map(_logSignalLatency);
+  }
+
+  static NeuronSignal _logSignalLatency(NeuronSignal signal) {
+    // Delivery latency as the comparison measures it: envelope stamp to arrival.
+    developer.log(
+      'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',
+      name: 'intochatos.channel',
+    );
+    return signal;
   }
 
   Future<List<TableSummary>> listTables(String workspace) async {

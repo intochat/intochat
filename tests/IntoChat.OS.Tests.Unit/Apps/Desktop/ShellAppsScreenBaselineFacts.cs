@@ -38,6 +38,7 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(CreatorApp),
         typeof(DataStudioApp),
         typeof(DesktopApp),
+        typeof(IntoChat.OS.Apps.Engineer.EngineerApp),
         typeof(FilmCraftApp),
         typeof(FriendsApp),
         typeof(GalleryApp),
@@ -100,7 +101,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(29, concreteScreens.Count);
+        Assert.Equal(30, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);

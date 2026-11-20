@@ -6,16 +6,16 @@ using static IntoChat.OS.UI.Kit;
 namespace IntoChat.OS.Apps.Creator;
 
 /// <summary>
-/// Accordant-inspired State-Space Inspector for Creator: unfolds both <see cref="CreatorState"/> via
+/// Accordant-inspired State-Space Inspector for Creator: unfolds both <see cref="CreatorWorkspaceState"/> via
 /// <see cref="AggregateExplorer{TState}"/> and static <c>[State]</c>/<c>[Synapse]</c>/<c>Rule</c>/<c>Decision</c>
 /// state-machine structure from any inspected unit's C# source files.
 /// </summary>
 public static partial class CreatorStateSpaceInspector
 {
-    private static readonly Lazy<StateGraph<CreatorState>> CachedCreatorGraph = new(() =>
-        AggregateExplorer<CreatorState>.Explore(maxStates: 16));
+    private static readonly Lazy<StateGraph<CreatorWorkspaceState>> CachedCreatorGraph = new(() =>
+        AggregateExplorer<CreatorWorkspaceState>.Explore(maxStates: 24));
 
-    public static StateGraph<CreatorState> CreatorGraph => CachedCreatorGraph.Value;
+    public static StateGraph<CreatorWorkspaceState> CreatorGraph => CachedCreatorGraph.Value;
 
     public static UnitStateSpaceSummary AnalyzeUnitSource(string alias, IReadOnlyDictionary<string, string> files)
     {

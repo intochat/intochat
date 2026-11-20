@@ -1,4 +1,4 @@
-namespace IntoChat.Files;
+namespace IntoChat.OS.Modules.Apps;
 
 // Copy is the 07 UI spec. Callers do not invent their own sentences.
 internal static class FilesCopy

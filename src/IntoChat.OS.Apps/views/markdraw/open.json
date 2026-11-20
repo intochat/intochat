@@ -60,7 +60,8 @@
           "action": "open:/work/architecture.markdraw",
           "selected": true,
           "badge": "LIVE",
-          "emit": null
+          "command": null,
+          "automationName": "drawing-work-architecture-markdraw"
         },
         {
           "kind": "navItem",
@@ -70,7 +71,8 @@
           "action": "open:/work/pipeline-flow.markdraw",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "drawing-work-pipeline-flow-markdraw"
         },
         {
           "kind": "divider",
@@ -84,7 +86,8 @@
           "action": "open:/work/architecture.markdraw",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "tpl-arch"
         },
         {
           "kind": "navItem",
@@ -94,7 +97,8 @@
           "action": "open:/work/pipeline-flow.markdraw",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "tpl-pipeline"
         },
         {
           "kind": "collection",
@@ -144,8 +148,8 @@
               "kind": "button",
               "key": "export-excalidraw",
               "label": "Export .excalidraw",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -162,6 +166,9 @@
               "intent": null,
               "enabled": true,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "export-excalidraw",
               "style": "secondary",
               "icon": "file-json",
               "small": true
@@ -170,8 +177,8 @@
               "kind": "button",
               "key": "export-svg",
               "label": "Export .svg",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -188,6 +195,9 @@
               "intent": null,
               "enabled": true,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "export-svg",
               "style": "secondary",
               "icon": "image",
               "small": true
@@ -196,8 +206,8 @@
               "kind": "button",
               "key": "diagram-crm-data",
               "label": "Diagram CRM Data",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -212,6 +222,9 @@
               "intent": null,
               "enabled": true,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "diagram-crm-data",
               "style": "secondary",
               "icon": "bar-chart-2",
               "small": true
@@ -220,8 +233,8 @@
               "kind": "button",
               "key": "save-to-files",
               "label": "Save to Files",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -236,6 +249,9 @@
               "intent": null,
               "enabled": true,
               "tone": "accent",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "save-to-files",
               "style": "primary",
               "icon": "save",
               "small": true
@@ -276,6 +292,288 @@
               },
               {
                 "kind": "card",
+                "title": "Studio Tools & Viewport",
+                "body": "Tool: select · 100% · Layer 1",
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "row",
+                        "children": [
+                          {
+                            "kind": "button",
+                            "key": "markdraw-tool:select",
+                            "label": "Select",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectTool",
+                                "args": [
+                                  "select"
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "accent",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-tool:select",
+                            "style": "primary",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-tool:rect",
+                            "label": "Rect",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectTool",
+                                "args": [
+                                  "rect"
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-tool:rect",
+                            "style": "ghost",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-tool:diamond",
+                            "label": "Diamond",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectTool",
+                                "args": [
+                                  "diamond"
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-tool:diamond",
+                            "style": "ghost",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-tool:arrow",
+                            "label": "Arrow",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectTool",
+                                "args": [
+                                  "arrow"
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-tool:arrow",
+                            "style": "ghost",
+                            "small": true
+                          }
+                        ],
+                        "gap": 4,
+                        "padding": 0
+                      },
+                      {
+                        "kind": "row",
+                        "children": [
+                          {
+                            "kind": "button",
+                            "key": "markdraw-zoom:out",
+                            "label": "Zoom -",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SetZoom",
+                                "args": [
+                                  75
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-zoom:out",
+                            "style": "ghost",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-zoom:reset",
+                            "label": "100%",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SetZoom",
+                                "args": [
+                                  100
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-zoom:reset",
+                            "style": "ghost",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-zoom:in",
+                            "label": "Zoom +",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SetZoom",
+                                "args": [
+                                  125
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-zoom:in",
+                            "style": "ghost",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-layer:prev",
+                            "label": "L-",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectLayer",
+                                "args": [
+                                  0
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": "Canvas layer must stay between 1 and 8 (received 0).",
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": false,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-layer:prev",
+                            "style": "ghost",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "markdraw-layer:next",
+                            "label": "L+",
+                            "command": {
+                              "target": ".",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectLayer",
+                                "args": [
+                                  2
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "markdraw-layer:next",
+                            "style": "ghost",
+                            "small": true
+                          }
+                        ],
+                        "gap": 4,
+                        "padding": 0
+                      }
+                    ],
+                    "gap": 4,
+                    "padding": 0
+                  }
+                ],
+                "header": null,
+                "footer": null
+              },
+              {
+                "kind": "card",
                 "title": "Templates & Drawings",
                 "body": "2 workspace file(s)",
                 "children": [
@@ -289,8 +587,8 @@
                             "kind": "button",
                             "key": "tpl-architecture",
                             "label": "Architecture",
-                            "emit": {
-                              "owner": "app.markdraw",
+                            "command": {
+                              "target": ".",
                               "signal": "ui.command",
                               "args": {
                                 "target": "state",
@@ -307,6 +605,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "tpl-architecture",
                             "style": "ghost",
                             "small": true
                           },
@@ -314,8 +615,8 @@
                             "kind": "button",
                             "key": "tpl-pipeline",
                             "label": "Pipeline",
-                            "emit": {
-                              "owner": "app.markdraw",
+                            "command": {
+                              "target": ".",
                               "signal": "ui.command",
                               "args": {
                                 "target": "state",
@@ -332,6 +633,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "tpl-pipeline",
                             "style": "ghost",
                             "small": true
                           }
@@ -357,7 +661,9 @@
                     "gap": 4,
                     "padding": 0
                   }
-                ]
+                ],
+                "header": null,
+                "footer": null
               }
             ],
             "gap": 8,
@@ -378,7 +684,9 @@
                     "tabular": true,
                     "mono": false
                   }
-                ]
+                ],
+                "header": null,
+                "footer": null
               },
               {
                 "kind": "dataTable",

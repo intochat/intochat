@@ -4,7 +4,6 @@ using System.Text.Json;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;

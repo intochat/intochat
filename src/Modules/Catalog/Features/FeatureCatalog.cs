@@ -33,7 +33,7 @@ public sealed class FeatureCatalog
         return new(registered);
     }
 
-    public Task<IReadOnlyList<FeatureFailure>> Failures() => Task.FromResult<IReadOnlyList<FeatureFailure>>(_loaded.Value.Failures);
+    internal Task<IReadOnlyList<FeatureFailure>> Failures() => Task.FromResult<IReadOnlyList<FeatureFailure>>(_loaded.Value.Failures);
 
     public async Task<AppBundle?> Find(string owner, string name)
         => (await Bundles()).GetValueOrDefault((owner, name))
@@ -50,7 +50,7 @@ public sealed class FeatureCatalog
             entry.Key.Owner, new AppSource.Shipped(), entry.Key.Name,
             entry.Value.Manifest.Title, entry.Value.Manifest.Description, entry.Value.Version, entry.Value.Manifest.Icon, entry.Value.Manifest.Requires))];
 
-    public Task<FeatureOrigin?> Origin(string owner, string name)
+    internal Task<FeatureOrigin?> Origin(string owner, string name)
         => Task.FromResult(_loaded.Value.Origins.GetValueOrDefault((owner, name)));
 
     internal bool IsCompiledHostApp(string name)
@@ -112,4 +112,4 @@ public sealed class FeatureCatalog
         IReadOnlyDictionary<(string Owner, string Name), FeatureOrigin> Origins);
 }
 
-public sealed record FeatureFailure(string Owner, string Name, string Version, string Reason);
+internal sealed record FeatureFailure(string Owner, string Name, string Version, string Reason);

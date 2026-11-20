@@ -110,16 +110,24 @@ final class SpriteNode extends NodeComponent {
   }
 }
 
-/// `d` is a move/line list: `M x y L x y L x y Z`.
+/// `d` is a move/line/cubic list: `M x y L x y C x1 y1 x2 y2 x y Z`.
 final class PathNode extends NodeComponent {
   PathNode(super.node);
   ui.Path _path = ui.Path();
 
   @override
   void changed() {
-    _path = parse(params['d'] ?? '');
-    final bounds = _path.getBounds();
-    size.setValues(bounds.right, bounds.bottom);
+    final raw = parse(params['d'] ?? '');
+    final bounds = raw.getBounds();
+    if (bounds.left < 0 || bounds.top < 0) {
+      final dx = bounds.left < 0 ? -bounds.left : 0.0;
+      final dy = bounds.top < 0 ? -bounds.top : 0.0;
+      _path = raw.shift(Offset(dx, dy));
+      size.setValues(bounds.right + dx, bounds.bottom + dy);
+    } else {
+      _path = raw;
+      size.setValues(bounds.right, bounds.bottom);
+    }
     super.changed();
     paint
       ..style = params['fill'] == 'true'
@@ -131,17 +139,29 @@ final class PathNode extends NodeComponent {
   static ui.Path parse(String d) {
     final path = ui.Path();
     final tokens = d
-        .replaceAllMapped(RegExp('[MLZmlz]'), (m) => ' ${m[0]} ')
+        .replaceAllMapped(RegExp('[MLCZmlcz]'), (m) => ' ${m[0]} ')
         .split(RegExp(r'[\s,]+'))
         .where((t) => t.isNotEmpty)
         .toList();
     var command = 'M';
     for (var i = 0; i < tokens.length;) {
       final token = tokens[i];
-      if (RegExp('^[MLZmlz]\$').hasMatch(token)) {
+      if (RegExp('^[MLCZmlcz]\$').hasMatch(token)) {
         command = token.toUpperCase();
         i++;
         if (command == 'Z') path.close();
+        continue;
+      }
+      if (command == 'C') {
+        if (i + 5 >= tokens.length) break;
+        final x1 = double.tryParse(token) ?? 0;
+        final y1 = double.tryParse(tokens[i + 1]) ?? 0;
+        final x2 = double.tryParse(tokens[i + 2]) ?? 0;
+        final y2 = double.tryParse(tokens[i + 3]) ?? 0;
+        final x3 = double.tryParse(tokens[i + 4]) ?? 0;
+        final y3 = double.tryParse(tokens[i + 5]) ?? 0;
+        path.cubicTo(x1, y1, x2, y2, x3, y3);
+        i += 6;
         continue;
       }
       if (i + 1 >= tokens.length) break;

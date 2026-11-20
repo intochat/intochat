@@ -217,7 +217,15 @@ internal sealed class AgentNeuron(
         }
     }
 
-    // Recall runs before the turn is planned, so the loop's read of the context sees what it wrote.
+    // Recall and structured memory/UI context slices run before the turn is planned, so the loop's read sees what they wrote.
+    private async Task HydrateTurnContextsAsync(string[] keys, string query)
+    {
+        await WriteRecall(keys, query);
+        var activeProjectBrief = await WriteSessionReturning(keys);
+        await WriteWorkingMemory(keys, activeProjectBrief);
+        await WriteUiState(keys);
+    }
+
     private async Task WriteRecall(string[] keys, string query)
     {
         var ids = ContextsNamed(keys, "memory.recall");
@@ -252,6 +260,101 @@ internal sealed class AgentNeuron(
         catch (Exception error) { Logger.LogWarning(error, "Memory recall could not be written; the turn runs without it."); }
     }
 
+    private async Task WriteWorkingMemory(string[] keys, string? journalProjectBrief)
+    {
+        var ids = ContextsNamed(keys, "working.memory");
+        if (ids.Length == 0) { return; }
+        try
+        {
+            var workingMemory = Context.Get<IWorkingMemory>(IWorkingMemory.NeuronIdOf(Id.Brain));
+            var pack = await workingMemory.FreezeSession(Key);
+            var briefPointer = pack.Project ?? journalProjectBrief;
+            ContextBrief? activeBrief = null;
+            if (!string.IsNullOrWhiteSpace(briefPointer))
+            {
+                activeBrief = await workingMemory.GetBrief(briefPointer.Trim());
+            }
+
+            foreach (var id in ids)
+            {
+                var context = Context.Get<IAgentContext>(id);
+                if (string.IsNullOrWhiteSpace(pack.FormattedPrompt))
+                {
+                    await context.Remove("startup");
+                }
+                else
+                {
+                    await context.Set(new("startup", pack.FormattedPrompt, [typeof(IWorkingMemory).FullName!]));
+                }
+
+                if (activeBrief is null)
+                {
+                    await context.Remove("project-brief");
+                }
+                else
+                {
+                    await context.Set(new("project-brief", $"[Active Brief: {activeBrief.Title}]\n{activeBrief.Content}", [typeof(IWorkingMemory).FullName!]));
+                }
+            }
+        }
+        catch (Exception error) { Logger.LogWarning(error, "Working memory context could not be written; the turn runs without it."); }
+    }
+
+    private async Task<string?> WriteSessionReturning(string[] keys)
+    {
+        var ids = ContextsNamed(keys, "session.journal");
+        if (ids.Length == 0) { return null; }
+        try
+        {
+            var journal = Context.Get<ISessionJournal>(ISessionJournal.NeuronIdOf(Id.Brain));
+            var returning = await journal.ReadReturningView();
+            foreach (var id in ids)
+            {
+                var context = Context.Get<IAgentContext>(id);
+                if (string.IsNullOrWhiteSpace(returning.FormattedMarkdown))
+                {
+                    await context.Remove("returning");
+                }
+                else
+                {
+                    await context.Set(new("returning", returning.FormattedMarkdown, [typeof(ISessionJournal).FullName!]));
+                }
+            }
+            return returning.ActiveProjectBrief;
+        }
+        catch (Exception error)
+        {
+            Logger.LogWarning(error, "Session journal context could not be written; the turn runs without it.");
+            return null;
+        }
+    }
+
+    private async Task RecordSessionMilestoneAsync(string[] keys, string? userText, string? replyText)
+    {
+        if (ContextsNamed(keys, "session.journal").Length == 0) { return; }
+        try
+        {
+            var milestone = SessionJournalNeuron.ExtractMilestoneFromTurn(Key, userText, replyText);
+            await Context.Get<ISessionJournal>(ISessionJournal.NeuronIdOf(Id.Brain)).RecordMilestone(milestone);
+        }
+        catch (Exception error) { Logger.LogWarning(error, "Session journal milestone could not be recorded."); }
+    }
+
+    private async Task WriteUiState(string[] keys)
+    {
+        var ids = ContextsNamed(keys, "ui.state");
+        if (ids.Length == 0) { return; }
+        try
+        {
+            var introspector = Context.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(Id.Brain));
+            foreach (var id in ids)
+            {
+                await introspector.SyncContext(id.Key);
+            }
+        }
+        catch (Exception error) { Logger.LogWarning(error, "UI introspector context could not be written; the turn runs without it."); }
+    }
+
     private void EnsureUnblocked()
     {
         if (_blocked) { throw new InvalidOperationException("Blocked: " + _interrupt); }
@@ -276,7 +379,9 @@ internal sealed class AgentNeuron(
         ArgumentNullException.ThrowIfNull(definition);
         if (State.Revision != expectedRevision) { throw new InvalidOperationException("Agent revision conflict."); }
         if (definition.MaxModelCalls is < 1 or > 512 || definition.Timeout <= TimeSpan.Zero || definition.Timeout > TimeSpan.FromMinutes(60)
-            || definition.MaxHistoryMessages is < 2 or > 4096) { throw new ArgumentException("Invalid agent execution limits.", nameof(definition)); }
+            || definition.MaxHistoryMessages is < 2 or > 4096
+            || definition.CompactionThreshold is < 2 or > 4096
+            || definition.CompactionRecentWindow is < 1 or > 4096) { throw new ArgumentException("Invalid agent execution limits.", nameof(definition)); }
         if (definition.Instructions.Length > 32000 || definition.Contracts.Length > 128 || definition.Contracts.Any(string.IsNullOrWhiteSpace)
             || definition.Contracts.Distinct(StringComparer.Ordinal).Count() != definition.Contracts.Length
             || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512))
@@ -344,6 +449,47 @@ internal sealed class AgentNeuron(
         {
             await Persist(State with { Revision = State.Revision + 1, Transcript = [], Summary = null, Runs = [] });
             await Notify(new TranscriptCleared(Key, State.Revision));
+        }
+        finally { _mutating = false; }
+    }
+
+    public async Task<AgentCompactionResult> Compact(string? instructions = null)
+    {
+        await Fresh();
+        EnsureIdle();
+        var previousCount = State.Transcript.Length;
+        if (previousCount == 0)
+        {
+            return new AgentCompactionResult(State.Revision, 0, 0, State.Summary ?? "");
+        }
+
+        _mutating = true;
+        try
+        {
+            var compacted = await AgentHistoryCompactor.CompactAsync(
+                State.Transcript,
+                State.Definition,
+                State.Summary,
+                instructions,
+                force: true,
+                Scope,
+                services,
+                Logger,
+                CancellationToken.None);
+            var maskedSummary = string.IsNullOrWhiteSpace(compacted.Summary) ? (State.Summary ?? "") : await Mask(compacted.Summary);
+            var nextRevision = State.Revision + 1;
+            await Persist(State with
+            {
+                Revision = nextRevision,
+                Transcript = compacted.Messages,
+                Summary = maskedSummary.Length > 0 ? maskedSummary : null,
+            });
+            if (maskedSummary.Length > 0)
+            {
+                await WriteSummary(State.Definition.Contexts, maskedSummary);
+            }
+            await RecordSessionMilestoneAsync(State.Definition.Contexts, userText: null, $"Decision: Compacted {compacted.EvictedCount} message(s) into conversation summary.");
+            return new AgentCompactionResult(nextRevision, previousCount, compacted.Messages.Length, maskedSummary);
         }
         finally { _mutating = false; }
     }
@@ -492,10 +638,59 @@ internal sealed class AgentNeuron(
             // Start already stored this run; only a Run admits it here.
             if (State.ActiveRun != run) { await Persist(State with { ActiveRun = run }); }
             await Notify(new TurnStarted(Key, runId, run.UserText));
-            await WriteRecall(definition.Contexts, UserText(input));
-            var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
+            var effectiveContexts = turn.Contexts ?? definition.Contexts;
+
+            if (AgentHistoryCompactor.TryParseCompactCommand(run.UserText, out var compactFocus))
+            {
+                var previousCount = State.Transcript.Length;
+                var compacted = await AgentHistoryCompactor.CompactAsync(
+                    State.Transcript,
+                    definition,
+                    State.Summary,
+                    compactFocus,
+                    force: true,
+                    Scope,
+                    services,
+                    Logger,
+                    lifetime.Token);
+                var maskedSummary = string.IsNullOrWhiteSpace(compacted.Summary) ? (State.Summary ?? "") : await Mask(compacted.Summary);
+                var replyText = previousCount == 0
+                    ? "No conversation messages to compact yet."
+                    : $"Compacted {compacted.EvictedCount} of {previousCount} message(s) ({compacted.Messages.Length} kept in active window).\n{maskedSummary}";
+                text.Append(replyText);
+                await Refresh(true);
+                run = run with { Status = AgentRunStatus.Completed, EndedAt = Clock.GetUtcNow(), Reply = visible };
+                await Persist(State with
+                {
+                    Transcript = compacted.Messages,
+                    Summary = maskedSummary.Length > 0 ? maskedSummary : null,
+                    ActiveRun = null,
+                    Runs = Keep(State.Runs, run),
+                });
+                if (maskedSummary.Length > 0)
+                {
+                    await WriteSummary(effectiveContexts, maskedSummary);
+                }
+                await RecordSessionMilestoneAsync(effectiveContexts, null, $"Decision: Compacted {compacted.EvictedCount} message(s) into conversation summary.");
+                completed = true;
+                await Announce();
+                var assistantReply = new AiMessage("assistant", [new AiText(visible)]);
+                yielding = true; yield return new AgentTurnEvent.Started(runId); yielding = false;
+                yielding = true; yield return new AgentTurnEvent.TextChunk(visible); yielding = false;
+                yielding = true; yield return new AgentTurnEvent.Completed([assistantReply], null); yielding = false;
+                yielding = true; yield return new AgentTurnEvent.Finished(); yielding = false;
+                yield break;
+            }
+
+            await HydrateTurnContextsAsync(effectiveContexts, UserText(input));
+            var preTurnMax = Math.Max(1, Math.Min(definition.MaxHistoryMessages, definition.CompactionThreshold) - 1);
+            var bounded = AgentHistoryCompactor.BoundWindow(
+                State.Transcript,
+                definition with { MaxHistoryMessages = Math.Max(2, preTurnMax), CompactionThreshold = Math.Max(2, preTurnMax) },
+                Math.Max(0, MaxHistoryCharacters - Size(input)),
+                State.Summary);
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
-                turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, turn.Contexts ?? definition.Contexts,
+                turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, effectiveContexts,
                 turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true);
             var loop = new AgentTurnLoop(services, ReadContext).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
             try
@@ -562,10 +757,24 @@ internal sealed class AgentNeuron(
                             run = run with { Status = AgentRunStatus.Completed, EndedAt = Clock.GetUtcNow(), Reply = visible, Usage = done.Usage };
                             var produced = new List<AiMessage>(done.Messages.Count);
                             foreach (var item in done.Messages) { produced.Add(Compacted(await Mask(item))); }
-                            var transcript = Bound([.. State.Transcript, input, .. produced], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
-                            var summarized = transcript.Summary != State.Summary;
-                            await Persist(State with { Transcript = transcript.Messages, Summary = transcript.Summary, ActiveRun = null, Runs = Keep(State.Runs, run) });
-                            if (summarized && transcript.Summary is { Length: > 0 }) { await WriteSummary(definition.Contexts, transcript.Summary); }
+                            var combinedTranscript = (AiMessage[])[.. State.Transcript, input, .. produced];
+                            var compacted = await AgentHistoryCompactor.CompactAsync(
+                                combinedTranscript,
+                                definition,
+                                State.Summary,
+                                focusInstructions: null,
+                                force: false,
+                                Scope,
+                                services,
+                                Logger,
+                                lifetime.Token);
+                            var nextSummary = string.IsNullOrWhiteSpace(compacted.Summary)
+                                ? State.Summary
+                                : (compacted.Summary == State.Summary ? State.Summary : await Mask(compacted.Summary));
+                            var summarized = nextSummary != State.Summary;
+                            await Persist(State with { Transcript = compacted.Messages, Summary = nextSummary, ActiveRun = null, Runs = Keep(State.Runs, run) });
+                            if (summarized && nextSummary is { Length: > 0 }) { await WriteSummary(effectiveContexts, nextSummary); }
+                            await RecordSessionMilestoneAsync(effectiveContexts, run.UserText, visible);
                             completed = true;
                             await Announce();
                             if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, await Mask(JsonSerializer.Serialize(done.Usage)), ++sequence)); }
@@ -673,15 +882,7 @@ internal sealed class AgentNeuron(
     private static string Preview(string json)
         => json[..(char.IsHighSurrogate(json[MaxStoredToolResultCharacters - 1]) ? MaxStoredToolResultCharacters - 1 : MaxStoredToolResultCharacters)];
 
-    // What a message costs the model in text; media is priced by the provider per item, not by its URI.
-    private static long Size(AiMessage message) => message.Content.Sum(content => (long)(content switch
-    {
-        AiText text => text.Text.Length,
-        AiReasoning reasoning => reasoning.Text.Length,
-        AiToolCall call => call.Name.Length + call.ArgumentsJson.Length,
-        AiToolResult result => result.ResultJson.Length,
-        _ => 0,
-    }));
+    private static long Size(AiMessage message) => AgentHistoryCompactor.MessageSize(message);
 
     // Only the run's own time limit is a timeout; the caller's token and Cancel are cancellations.
     private static bool TimedOut(CancellationTokenSource timeout, CancellationToken caller) => timeout.IsCancellationRequested && !caller.IsCancellationRequested;
@@ -772,21 +973,6 @@ internal sealed class AgentNeuron(
         catch (JsonException) { return null; }
     }
 
-    // Overflow, by count or by size, folds the oldest messages into a bounded summary instead of failing the run.
-    private static (AiMessage[] Messages, string? Summary) Bound(AiMessage[] messages, int maxMessages, long maxCharacters, string? summary)
-    {
-        var drop = Math.Max(0, messages.Length - maxMessages);
-        var size = messages.Skip(drop).Sum(Size);
-        while (drop < messages.Length && size > maxCharacters) { size -= Size(messages[drop]); drop++; }
-        if (drop == 0) { return (messages, summary); }
-        // Cut on a turn boundary: history always starts at a user message, so a tool call is never
-        // kept without its result or a result without its call. A turn too long to keep goes whole.
-        while (drop < messages.Length && messages[drop].Role != "user") { drop++; }
-        var added = string.Join(" ", messages.Take(drop).Select(UserText)
-            .Where(text => !string.IsNullOrWhiteSpace(text)).Select(text => text.Length <= 120 ? text : text[..120]));
-        var combined = added.Length == 0 ? summary : string.IsNullOrEmpty(summary) ? added : summary + " " + added;
-        return (messages[drop..], combined is { Length: > 4000 } ? combined[^4000..] : combined);
-    }
 }
 
 // A test seam over the agent's own writes (06-06d): the runtime's journal is not a grain storage a fact can wrap, so the

@@ -117,7 +117,7 @@ public sealed class HouseRules22Facts
     {
         var allowedLogFiles = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.OS.Framework", "OsConsoleLog.cs"),
+            ("IntoChat.OS.Modules.Identity", "OsConsoleLog.cs"),
             ("IntoChat.OS.Sandbox", "SandboxConsoleLog.cs"),
         };
         var registeredServices = DiscoverRegisteredServiceTypes(ProductionSources.Value.Select(s => s.Root));
@@ -333,7 +333,7 @@ public sealed class HouseRules22Facts
     [Fact]
     public void HouseRule03_NoCallerCompatBridgesOrDigitalBrainNonPublicReflection()
     {
-        Assert.False(File.Exists(Path.Combine(ProjectDirs.Value["IntoChat.OS.Framework"], "Callers", "CallerExtensions.cs")));
+        Assert.False(File.Exists(Path.Combine(ProjectDirs.Value["IntoChat.OS.Modules.Identity"], "Callers", "CallerExtensions.cs")));
 
         var bannedScope = "InProcessCaller" + "Scope";
         var bannedToCaller = ".To" + "Caller(";
@@ -403,7 +403,7 @@ public sealed class HouseRules22Facts
         {
             ("IntoChat.OS.Kernel", "Kernel.cs"),
             // The one place os platform code releases a credential to module code as the kernel.
-            ("IntoChat.OS.Framework", "PlatformCall.cs"),
+            ("IntoChat.OS.Modules.Identity", "PlatformCall.cs"),
         };
         var offenders = new List<string>();
         foreach (var src in ProductionSources.Value)
@@ -460,7 +460,7 @@ public sealed class HouseRules22Facts
             }
         }
 
-        const int RatchetCap = 264;
+        const int RatchetCap = 260;
         Assert.True(count <= RatchetCap, $"Raw `string brainId` parameters regressed to {count} (ratchet cap {RatchetCap}); use BrainId.");
     }
 
@@ -476,7 +476,7 @@ public sealed class HouseRules22Facts
 
         foreach (var src in ProductionSources.Value)
         {
-            if (src.ProjectName == "IntoChat.OS.Framework" && src.FileName == "AppRef.cs")
+            if (src.ProjectName == "IntoChat.OS.Modules.Identity" && src.FileName == "AppRef.cs")
             {
                 continue;
             }
@@ -492,7 +492,7 @@ public sealed class HouseRules22Facts
                     settingsOffenders.Add($"{DisplayPath(src)}:{line}");
                 }
             }
-            if (!(src.ProjectName == "IntoChat.OS.Framework" && src.FileName == "UnitAlias.cs"))
+            if (!(src.ProjectName == "IntoChat.OS.Modules.Identity" && src.FileName == "UnitAlias.cs"))
             {
                 foreach (var line in FindUnitDefaultKeyInterpolations(src.Root))
                 {
@@ -512,7 +512,7 @@ public sealed class HouseRules22Facts
         Assert.True(settingsOffenders.Count == 0, "Manual `$\"{...}/settings\"` key strings outside IUserSettings.Key:\n" + string.Join('\n', settingsOffenders));
         Assert.True(unitDefaultOffenders.Count == 0, "Manual `$\"{...}/{...}/default\"` unit state key strings outside UnitAlias:\n" + string.Join('\n', unitDefaultOffenders));
 
-        const int RatchetCap = 41;
+        const int RatchetCap = 28;
         Assert.True(
             brainKeyOffenders.Count <= RatchetCap,
             $"Ad-hoc brain-key string interpolations regressed to {brainKeyOffenders.Count} (ratchet cap {RatchetCap}):\n" + string.Join('\n', brainKeyOffenders));
@@ -544,7 +544,7 @@ public sealed class HouseRules22Facts
         => src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
             || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
             || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase)
-            || (src.ProjectName == "IntoChat.OS.Framework" && src.FileName is "AppRef.cs" or "UnitAlias.cs")
+            || (src.ProjectName == "IntoChat.OS.Modules.Identity" && src.FileName is "AppRef.cs" or "UnitAlias.cs")
             || (src.ProjectName == "IntoChat.OS" && src.FileName == "NeuronKeys.cs");
 
     private static List<int> FindSettingsKeyInterpolations(CompilationUnitSyntax root) =>
@@ -697,8 +697,8 @@ public sealed class HouseRules22Facts
         // Closed set of non-OS-filesystem single-segment identifier/blob/unit-token guards:
         var nonRelativePathTokenGuards = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.OS.Framework", "AppRef.cs"),
-            ("IntoChat.OS.Framework", "SafeRelativePath.cs"),
+            ("IntoChat.OS.Modules.Identity", "AppRef.cs"),
+            ("IntoChat.OS.Modules.Identity", "SafeRelativePath.cs"),
             ("IntoChat.OS.Modules.Catalog", "SlotNamesABrainNeuron.cs"),
             ("IntoChat.OS.Modules.Roslyn", "CodeGraphService.cs"),
             ("IntoChat.OS.Modules.Shell", "ViewportNeuron.cs"),
@@ -784,7 +784,7 @@ public sealed class HouseRules22Facts
     [Fact]
     public void HouseRule10_DomainPrimitivesExposePrivateConstructorsOnly()
     {
-        var primitivesDir = Path.Combine(ProjectDirs.Value["IntoChat.OS.Framework"], "Primitives");
+        var primitivesDir = Path.Combine(ProjectDirs.Value["IntoChat.OS.Modules.Identity"], "Primitives");
         var frameworkAssembly = typeof(AppRef).Assembly;
         var discoveredTypes = new List<Type>();
         var bad = new List<string>();
@@ -1134,21 +1134,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition",
             "IntoChat.OS.Modules.Microsoft.Azure.ArmAzure",
             "IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment",
-            "IntoChat.OS.Modules.Microsoft.Aspire.LiveBuild",
-            "IntoChat.OS.Modules.Microsoft.Aspire.LiveBuildFile",
-            "IntoChat.Files.FilesStorage",
-            "IntoChat.Files.FilesGroup",
-            "IntoChat.Files.FilesItem",
-            "IntoChat.Files.FilesPage",
-            "IntoChat.Files.FilesClipboard",
-            "IntoChat.Files.FilesOpened",
-            "IntoChat.Files.FilesMore",
-            "IntoChat.Files.FilesPreview",
-            "IntoChat.Files.FilesLocation",
-            "IntoChat.Files.FilesSearch",
-            "IntoChat.Files.FilesSelected",
-            "IntoChat.Files.FilesState",
-            "IntoChat.Files.FilesApp",
             "IntoChat.OS.Modules.Apps.OperationReceipt",
             "IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron",
             "IntoChat.OS.Modules.Apps.AppState",
@@ -1160,9 +1145,7 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Debugger.ScenarioTranscripts",
             "IntoChat.OS.Modules.Apps.CompiledAppsRegistration",
             "IntoChat.OS.Modules.Apps.FeatureCatalog",
-            "IntoChat.OS.Modules.Apps.FeatureFailure",
             "IntoChat.OS.Modules.Apps.FeatureLoader",
-            "IntoChat.OS.Modules.Apps.FeatureOrigin",
             "IntoChat.OS.Modules.Apps.Features.Module",
             "IntoChat.OS.Modules.Apps.ShippedInstall",
             "IntoChat.OS.Modules.Apps.IFilesVfsService",
@@ -1189,10 +1172,12 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Notifications.INotifications",
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
-            "IntoChat.OS.Modules.Microsoft.Playwright.BrowserSessionOwner",
-            "IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightSessionProvider",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",
             "IntoChat.OS.Modules.Microsoft.Windows.MachineIdentity",
+            "IntoChat.OS.Modules.LocalDisk.LocalCloudState",
+            "IntoChat.OS.Modules.LocalDisk.LocalCloudEntry",
+            "IntoChat.OS.Modules.LocalDisk.LocalCloudNeuron",
+            "IntoChat.OS.Modules.LocalDisk.LocalCloudStorage",
         };
 
         var contractsDeclaredNames = new HashSet<string>(StringComparer.Ordinal);
@@ -1221,7 +1206,8 @@ public sealed class HouseRules22Facts
         }
 
         var moduleAssemblies = ProductionArchitecture.Assemblies
-            .Where(a => a.GetName().Name?.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) == true)
+            .Where(a => a.GetName().Name?.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) == true
+                && a.GetName().Name != "IntoChat.OS.Modules.Identity")
             .ToArray();
 
         var unexpected = new List<string>();

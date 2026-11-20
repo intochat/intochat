@@ -3,7 +3,6 @@ using System.Text;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
 
@@ -647,19 +646,34 @@ internal static class FilesScreen
                 : FilesApp.IsPdf(fileName) ? "pdf"
                 : "image";
             var cardTitle = mediaKind == "image" ? (selected?.Item.Name ?? "Preview") : fileName;
-            children.Add(VStack(Space.Xs)[
-                Text(url).Tabular(),
-                Text(mediaKind),
-                Card(cardTitle, url)
-            ]);
+            if (mediaKind == "image")
+            {
+                children.Add(VStack(Space.Xs)[
+                    ImageView(url, cardTitle),
+                    MutedText($"image · {cardTitle}")
+                ]);
+            }
+            else
+            {
+                children.Add(VStack(Space.Xs)[
+                    Card(cardTitle, $"{mediaKind.ToUpperInvariant()} preview"),
+                    MutedText(url).Tabular()
+                ]);
+            }
         }
         else if (state.Preview is { } text)
         {
             var fileName = selected?.Item.Name ?? "";
             var kind = FilesApp.IsMarkdown(fileName) ? "markdown" : (FilesApp.IsCode(fileName) ? "code" : "text");
+            var renderedPreview = kind switch
+            {
+                "markdown" => new Markdown(text),
+                "code" => CodeBlock(text, CodeLanguageFor(fileName)),
+                _ => (Node)Surface(SurfaceKind.Recessed, padding: Space.Sm)[Text(text).Tabular()],
+            };
             var previewNodes = new List<Node>
             {
-                Surface(SurfaceKind.Recessed, padding: Space.Sm)[Text(text).Tabular()],
+                renderedPreview,
                 MutedText(kind),
             };
             if (state.PreviewNote is { } note)
@@ -675,6 +689,21 @@ internal static class FilesScreen
             state.SelectedNeuronUri ?? FilesCopy.QuickViewHeading,
             [.. children]);
     }
+
+    private static string CodeLanguageFor(string fileName) => Path.GetExtension(fileName).ToLowerInvariant() switch
+    {
+        ".cs" => "csharp",
+        ".dart" => "dart",
+        ".json" => "json",
+        ".ts" or ".tsx" => "typescript",
+        ".js" or ".jsx" => "javascript",
+        ".py" => "python",
+        ".sql" => "sql",
+        ".yaml" or ".yml" => "yaml",
+        ".xml" or ".csproj" => "xml",
+        ".sh" or ".ps1" => "bash",
+        _ => "text",
+    };
 
     private static IEnumerable<FilesItem> Order(IEnumerable<FilesItem> items, string sort, bool descending)
     {

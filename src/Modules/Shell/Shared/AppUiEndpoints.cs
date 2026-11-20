@@ -105,13 +105,16 @@ internal static class AppUiEndpoints
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
         // The brain route admitted the caller to this brain; a caller acting in another brain never reads its screens.
         if (!BrainId.IsValid(scope) || caller.Brain != new BrainId(scope)) { throw new UnauthorizedAccessException("The screen belongs to another brain."); }
-        var neuron = $"{scope}/apps/{name}";
-        if (string.IsNullOrWhiteSpace(name) || name.Contains('/', StringComparison.Ordinal) || !OwnsUi(scope, neuron + "/view"))
+        if (!IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(scope), name, out var appRef) || !OwnsUi(scope, appRef.ViewKey))
         {
-            throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
+            throw new UnauthorizedAccessException($"{name} is not a screen of this brain.");
         }
+        var neuron = appRef.Key;
         var alias = ScreenAlias(scope, neuron) ?? throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
-        if (string.IsNullOrWhiteSpace(path) || path.Split('/').Any(hop => hop.Length == 0 || hop is "." or ".." || hop.Contains(':', StringComparison.Ordinal)))
+        if (string.IsNullOrWhiteSpace(path)
+            || path.Contains('\\', StringComparison.Ordinal)
+            || path.StartsWith("./", StringComparison.Ordinal)
+            || !IntoChat.OS.Primitives.SafeRelativePath.TryParse(path, out _))
         {
             return Results.BadRequest(new { error = "A slot path is one or more keys separated by '/'." });
         }

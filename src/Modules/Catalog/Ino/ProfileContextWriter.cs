@@ -1,10 +1,13 @@
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Memory;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Writes who the user is (name, language, time zone, date format) into the user.profile context,
-// so the Ino agent answers in their terms. Model selection is decided per turn by ModelCatalog.Decide
-// and never overwritten in user.profile or conversation.inference here.
+// Writes who the user is (name, language, time zone, date format) into the user.profile context
+// and syncs the USER slice of IWorkingMemory when hosted, so the assistant answers in their terms.
+// Model selection is decided per turn by ModelCatalog.Decide and never overwritten in user.profile or conversation.inference here.
 [DigitalBrain.Neurons.Neuron("ino.profile-writer")]
 internal sealed class ProfileContextWriter : DigitalBrain.Neurons.Neuron, IProfileContextWriter
 {
@@ -32,9 +35,17 @@ internal sealed class ProfileContextWriter : DigitalBrain.Neurons.Neuron, IProfi
         });
     }
 
-    private Task Write(UserSettingsState settings)
+    private async Task Write(UserSettingsState settings)
     {
         var text = $"Name: {settings.DisplayName}\nLanguage: {settings.Language}\nTime zone: {settings.TimeZone}\nDate format: {settings.DateFormat}";
-        return Profile.Set(new ContextEntry("profile", text, []));
+        await Profile.Set(new ContextEntry("profile", text, []));
+        try
+        {
+            await Get<IWorkingMemory>(IWorkingMemory.NeuronIdOf(Id.Brain)).SetSlice(WorkingMemorySliceKind.User, text);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<ProfileContextWriter>().LogSwallowed(error, "syncing user profile slice to working memory");
+        }
     }
 }

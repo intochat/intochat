@@ -4,11 +4,8 @@ Role: Default
 Shipped: true
 Operations: open, filter, select, switch-identity, ui.command
 
-IntoChat Kit Gallery & DDD Aggregate Reactor Showcase (`UK-9` / `INT-1357`).
-Showcases all 7 canonical UI Kit component families across interactive tabs, an embedded live
-`BankAccount` DDD Aggregate with `Rule` guards (`SufficientFunds`) and hover tooltips, `accent` +
-`chartContext` charts, sortable tables, live `Slot` composition, and an Accordant-style unfolded
-`StateGraphView` generated directly via `AggregateExplorer<BankAccount>`.
+WinUI 3-style IntoChat UI Kit Gallery powered by live `IntoChat.OS.Modules.UI` neurons
+(`IChart`, `IToggle`, `ICheckBox`, `ISelect`, `ITabs`, `IExpander`, `IListBox`, `ITable`).
 */
 using System.Globalization;
 using DigitalBrain;
@@ -16,6 +13,48 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.UI.AutoSuggestBox;
+using IntoChat.OS.Modules.UI.BreadcrumbBar;
+using IntoChat.OS.Modules.UI.CalendarView;
+using IntoChat.OS.Modules.UI.Chart;
+using IntoChat.OS.Modules.UI.Chat;
+using IntoChat.OS.Modules.UI.CheckBox;
+using IntoChat.OS.Modules.UI.CodeEditor;
+using IntoChat.OS.Modules.UI.ColorPicker;
+using IntoChat.OS.Modules.UI.CommandBar;
+using IntoChat.OS.Modules.UI.ContextMenu;
+using IntoChat.OS.Modules.UI.DatePicker;
+using IntoChat.OS.Modules.UI.Dialog;
+using IntoChat.OS.Modules.UI.Expander;
+using IntoChat.OS.Modules.UI.FilePicker;
+using IntoChat.OS.Modules.UI.Form;
+using IntoChat.OS.Modules.UI.GridView;
+using IntoChat.OS.Modules.UI.ImageViewer;
+using IntoChat.OS.Modules.UI.InfoBadge;
+using IntoChat.OS.Modules.UI.InfoBar;
+using IntoChat.OS.Modules.UI.KanbanBoard;
+using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.MarkdownViewer;
+using IntoChat.OS.Modules.UI.MediaPlayer;
+using IntoChat.OS.Modules.UI.NotificationToast;
+using IntoChat.OS.Modules.UI.NumberBox;
+using IntoChat.OS.Modules.UI.PersonPicture;
+using IntoChat.OS.Modules.UI.PipsPager;
+using IntoChat.OS.Modules.UI.Progress;
+using IntoChat.OS.Modules.UI.PropertyGrid;
+using IntoChat.OS.Modules.UI.RadioButtons;
+using IntoChat.OS.Modules.UI.Rating;
+using IntoChat.OS.Modules.UI.Select;
+using IntoChat.OS.Modules.UI.Slider;
+using IntoChat.OS.Modules.UI.SplitButton;
+using IntoChat.OS.Modules.UI.Stepper;
+using IntoChat.OS.Modules.UI.Table;
+using IntoChat.OS.Modules.UI.Tabs;
+using IntoChat.OS.Modules.UI.TeachingTip;
+using IntoChat.OS.Modules.UI.TimePicker;
+using IntoChat.OS.Modules.UI.Toggle;
+using IntoChat.OS.Modules.UI.ToggleSplitButton;
+using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -35,7 +74,7 @@ public sealed record GallerySelect(string? ControlId = null) : Signal;
 public sealed record GallerySwitchIdentity(string? StylePreset = null, string? BarLayout = null) : Signal;
 
 /// <summary>
-/// Live interactive Accordant-style DDD Aggregate embedded inside the Kit Gallery (`UK-9`)
+/// Live interactive Accordant-style DDD Aggregate embedded inside the Patterns & Graphs page
 /// to demonstrate shared <see cref="Rule"/> guards, disabled-reason tooltips, and unfolded <see cref="StateGraph{TState}"/> topology.
 /// </summary>
 public sealed record BankAccount(bool IsOpen = false, string Holder = "", decimal Balance = 0m)
@@ -80,301 +119,210 @@ public sealed record BankAccount(bool IsOpen = false, string Holder = "", decima
 }
 
 public sealed record GalleryAppState(
-    string Category,
-    string Search,
-    string SelectedId,
+    string Page,
     string StylePreset,
     string BarLayout,
-    string Status,
-    GalleryCatalogEntry[] Entries)
+    string Status)
 {
-    public static readonly string[] ShowcaseTabIds = ["foundation", "inputs", "data", "slots", "catalog"];
+    public static readonly string[] PageIds =
+    [
+        "home",
+        "colors", "typography", "icons", "spacing",
+        "toggle", "checkbox", "select", "buttons", "form", "winui-inputs",
+        "tabs", "expander", "listbox", "dialog", "winui-nav",
+        "datetime", "media", "workspace", "wave3",
+        "charts", "table",
+        "chat", "cards", "graphs",
+    ];
 
-    public string ShowcaseTab { get; init; } = "foundation";
     public BankAccount Account { get; init; } = new();
-    public string TableSortColumn { get; init; } = "latency";
-    public bool TableSortDescending { get; init; }
+    public string SelectedId { get; init; } = "approval-card";
     public string SelectedGraphStateId { get; init; } = "s0";
     public bool ShowRejectedSelfLoops { get; init; } = true;
-    public string ViewMode { get; init; } = "detail";
-    public string KnobStyle { get; init; } = "primary";
-    public string KnobTone { get; init; } = "accent";
-    public bool KnobSmall { get; init; }
-    public string KnobState { get; init; } = "interactive";
-    public string KnobSurface { get; init; } = "elevated";
-    public string KnobChartKind { get; init; } = "bar";
-    public string CodeTab { get; init; } = "csharp";
-    public int SignalPulseCount { get; init; }
-    public bool SwitchValue { get; init; } = true;
-    public bool SwitchLocked { get; init; }
-    public string SelectedOption { get; init; } = "claude-sonnet-4-5";
-    public string ShellNav { get; init; } = "overview";
-    public string ApprovalStatus { get; init; } = "pending";
-    public int? ChoicePickedIndex { get; init; }
-    public string DraftStatus { get; init; } = "pending";
-    public string SecretStatus { get; init; } = "pending";
-    public string JobStatus { get; init; } = "running";
-    public string SelectedBrainNode { get; init; } = "os";
+    public int StreamPointCounter { get; init; } = 4;
+    public string RevenueQueryFilter { get; init; } = "all";
+    public bool LockedToggleDisabled { get; init; } = true;
+    public int ButtonClicks { get; init; }
+    public string IconCategory { get; init; } = "All";
+    public string CodeLanguage { get; init; } = "csharp";
+    public string LastAction { get; init; } = "Ready · Select any page from the navigation rail.";
 
     public GalleryAppState() : this(
-        "all",
-        "",
-        "approval-card",
-        "fluent-acrylic",
+        "home",
+        "warm-paper",
         "floating-glass",
-        "Ready",
-        GalleryLibrary.DefaultCatalog)
+        "Ready")
     {
     }
 
-    [Invariant("Showcase tab is always one of the canonical Kit Gallery tabs.")]
-    public bool HasValidShowcaseTab => ShowcaseTabIds.Contains(ShowcaseTab, StringComparer.Ordinal);
+    [Invariant("Active page is always a valid Gallery page.")]
+    public bool HasValidPage => PageIds.Contains(Page, StringComparer.Ordinal);
 
     [Invariant("Embedded BankAccount aggregate always satisfies its own non-negative balance invariant.")]
     public bool EmbeddedAccountHealthy => Account.NonNegativeBalance && !Account.OpenAccountHasHolder.Broken;
 
     public Rule SufficientAccountFunds(decimal amount) => Account.SufficientFunds(amount);
 
-    public GalleryAppState SelectTab([Sample("foundation", "inputs", "data", "slots", "catalog")] string tab)
+    public GalleryAppState SelectPage(string page)
     {
-        var normalized = NormalizeShowcaseTab(tab);
+        var normalized = NormalizePage(page);
         return this with
         {
-            ShowcaseTab = normalized,
-            Status = $"Kit Gallery · {ShowcaseTabTitle(normalized)}",
+            Page = normalized,
+            Status = $"Gallery · {PageTitle(normalized)}",
+            LastAction = $"Navigated to {PageTitle(normalized)}",
         };
     }
 
-    public GalleryAppState SetSearch([Sample("", "Table")] string query)
+    public GalleryAppState RecordButtonClick(string label) => this with
     {
-        var trimmed = query?.Trim() ?? string.Empty;
-        var matches = GalleryLibrary.FilteredEntries(Entries, Category, trimmed);
-        var selected = matches.Any(e => e.Id == SelectedId)
-            ? SelectedId
-            : matches.FirstOrDefault()?.Id ?? SelectedId;
-        return this with
-        {
-            Search = trimmed,
-            SelectedId = selected,
-            Status = $"Filtered {matches.Length} component(s) in {GalleryLibrary.CategoryDisplayName(Category)}",
-        };
-    }
-
-    public GalleryAppState SelectCategory([Sample("all", "chat-lfp")] string category)
-    {
-        var normalized = GalleryLibrary.NormalizeCategory(category);
-        var matches = GalleryLibrary.FilteredEntries(Entries, normalized, Search);
-        var selected = matches.Any(e => e.Id == SelectedId)
-            ? SelectedId
-            : matches.FirstOrDefault()?.Id ?? SelectedId;
-        return this with
-        {
-            Category = normalized,
-            SelectedId = selected,
-            ShowcaseTab = "catalog",
-            Status = $"Category · {GalleryLibrary.CategoryDisplayName(normalized)} ({matches.Length})",
-        };
-    }
-
-    [IgnoreExplore]
-    public GalleryAppState InspectControl(string controlId)
-    {
-        var raw = string.IsNullOrWhiteSpace(controlId) ? "approval-card" : controlId.Trim();
-        var normalizedId = raw.Equals("brain-3d", StringComparison.OrdinalIgnoreCase)
-            ? "brain-scene-3d"
-            : raw.Equals("acrylic", StringComparison.OrdinalIgnoreCase)
-                ? "acrylic-surface"
-                : raw;
-        var match = Entries.FirstOrDefault(e => string.Equals(e.Id, normalizedId, StringComparison.OrdinalIgnoreCase)) ?? Entries[0];
-        return this with
-        {
-            SelectedId = match.Id,
-            ViewMode = "detail",
-            ShowcaseTab = "catalog",
-            Status = $"Inspecting {match.Title} ({match.NeuronContract})",
-        };
-    }
-
-    [IgnoreExplore]
-    public GalleryAppState SetCatalogViewMode(string mode) => this with
-    {
-        ViewMode = string.Equals(mode, "grid", StringComparison.OrdinalIgnoreCase) ? "grid" : "detail",
-        ShowcaseTab = "catalog",
-        Status = string.Equals(mode, "grid", StringComparison.OrdinalIgnoreCase)
-            ? $"Catalog grid · {GalleryLibrary.FilteredEntries(Entries, Category, Search).Length} components"
-            : $"Inspecting {SelectedId}",
+        ButtonClicks = ButtonClicks + 1,
+        LastAction = $"Clicked '{label}' (total clicks: {ButtonClicks + 1})",
     };
 
-    public Decision<GalleryAppState> OpenBankAccount([Sample("alice")] string holder)
-    {
-        var outcome = Account.Open(holder);
-        if (outcome.IsRefused)
-        {
-            return Decision.Refuse<GalleryAppState>(outcome.Rejection);
-        }
+    public Decision<GalleryAppState> OpenBankAccount(string holder)
+        => Account.Open(holder).Match(
+            (next, _) => Decision.Accept(this with { Account = next, LastAction = $"Opened BankAccount for {next.Holder} ($0)" }),
+            Decision<GalleryAppState>.Refused);
 
-        return Decision.Accept(
-            this with
-            {
-                ShowcaseTab = "inputs",
-                Account = outcome.Next,
-                Status = $"Opened account for {outcome.Next.Holder} ($0)",
-            },
-            new GallerySelect("bank:open"));
-    }
+    public Decision<GalleryAppState> DepositFunds(decimal amount)
+        => Account.Deposit(amount).Match(
+            (next, _) => Decision.Accept(this with { Account = next, LastAction = string.Create(CultureInfo.InvariantCulture, $"Deposited ${amount:0} · Balance: ${next.Balance:0}") }),
+            Decision<GalleryAppState>.Refused);
 
-    [IgnoreExplore]
-    public GalleryAppState ResetBankAccount() => this with
-    {
-        ShowcaseTab = "inputs",
-        Account = new BankAccount(),
-        Status = "Reset BankAccount aggregate to closed ($0)",
-    };
+    public Decision<GalleryAppState> WithdrawFunds(decimal amount)
+        => Account.Withdraw(amount).Match(
+            (next, _) => Decision.Accept(this with { Account = next, LastAction = string.Create(CultureInfo.InvariantCulture, $"Withdrew ${amount:0} · Balance: ${next.Balance:0}") }),
+            Decision<GalleryAppState>.Refused);
 
-    public Decision<GalleryAppState> DepositFunds([Sample(50)] decimal amount)
-    {
-        var outcome = Account.Deposit(amount);
-        if (outcome.IsRefused)
-        {
-            return Decision.Refuse<GalleryAppState>(outcome.Rejection);
-        }
-
-        return Decision.Accept(
-            this with
-            {
-                ShowcaseTab = "inputs",
-                Account = outcome.Next,
-                Status = string.Create(CultureInfo.InvariantCulture, $"Deposited +${amount:0} · Balance ${outcome.Next.Balance:0}"),
-            },
-            new GallerySelect("bank:deposit"));
-    }
-
-    public Decision<GalleryAppState> WithdrawFunds([Sample(30, 70)] decimal amount)
-    {
-        var outcome = Account.Withdraw(amount);
-        if (outcome.IsRefused)
-        {
-            return Decision.Refuse<GalleryAppState>(outcome.Rejection);
-        }
-
-        return Decision.Accept(
-            this with
-            {
-                ShowcaseTab = "inputs",
-                Account = outcome.Next,
-                Status = string.Create(CultureInfo.InvariantCulture, $"Withdrew -${amount:0} · Balance ${outcome.Next.Balance:0}"),
-            },
-            new GallerySelect("bank:withdraw"));
-    }
-
-    public GalleryAppState SortTableBy([Sample("latency", "span")] string column)
-    {
-        var normalized = column?.Trim().ToLowerInvariant() switch
-        {
-            "span" => "span",
-            "module" => "module",
-            "status" => "status",
-            _ => "latency",
-        };
-        var desc = string.Equals(TableSortColumn, normalized, StringComparison.Ordinal) && !TableSortDescending;
-        return this with
-        {
-            ShowcaseTab = "data",
-            TableSortColumn = normalized,
-            TableSortDescending = desc,
-            Status = $"Sorted telemetry spans by {normalized} ({(desc ? "descending" : "ascending")})",
-        };
-    }
-
-    [IgnoreExplore]
-    public GalleryAppState SetChartKind(string chartKind) => this with
-    {
-        ShowcaseTab = "data",
-        KnobChartKind = string.Equals(chartKind, "line", StringComparison.OrdinalIgnoreCase) ? "line" : "bar",
-        Status = $"Chart mode · {(string.Equals(chartKind, "line", StringComparison.OrdinalIgnoreCase) ? "Line chart" : "Column chart")}",
-    };
-
-    [IgnoreExplore]
-    public GalleryAppState ToggleLiveStream() => this with
-    {
-        SwitchValue = !SwitchValue,
-        Status = !SwitchValue ? "Live signal stream active" : "Live signal stream paused",
-    };
-
-    [IgnoreExplore]
-    public GalleryAppState ToggleSwitchLock() => this with
-    {
-        SwitchLocked = !SwitchLocked,
-        Status = SwitchLocked ? "Unlocked switch policy" : "Locked switch policy",
-    };
-
-    [IgnoreExplore]
-    public GalleryAppState SelectModelOption(string model) => this with
-    {
-        SelectedOption = string.IsNullOrWhiteSpace(model) ? SelectedOption : model.Trim(),
-        Status = $"Selected model · {model}",
-    };
-
-    [IgnoreExplore]
     public GalleryAppState SelectGraphState(string stateId) => this with
     {
-        ShowcaseTab = "slots",
         SelectedGraphStateId = string.IsNullOrWhiteSpace(stateId) ? "s0" : stateId.Trim(),
-        Status = $"Inspecting unfolded state {stateId}",
+        LastAction = $"Inspecting unfolded state '{stateId}'",
     };
 
-    [IgnoreExplore]
     public GalleryAppState ToggleRejectedLoops() => this with
     {
-        ShowcaseTab = "slots",
         ShowRejectedSelfLoops = !ShowRejectedSelfLoops,
-        Status = !ShowRejectedSelfLoops ? "Showing guarded self-loops" : "Hiding guarded self-loops",
+        LastAction = !ShowRejectedSelfLoops ? "Showing rule-guarded self-loops" : "Hiding rule-guarded self-loops",
     };
 
-    [IgnoreExplore]
-    public GalleryAppState PickChoice(int index) => this with
+    public static string NormalizePage(string? page) => (page ?? "home").Trim().ToLowerInvariant() switch
     {
-        ChoicePickedIndex = index,
-        SignalPulseCount = SignalPulseCount + 1,
-        Status = $"Choice prompt selected option #{index + 1}",
+        "colors" or "surfaces" or "design" => "colors",
+        "typography" or "type" => "typography",
+        "icons" or "iconography" => "icons",
+        "spacing" or "layout" => "spacing",
+        "toggle" or "switch" => "toggle",
+        "checkbox" or "check" => "checkbox",
+        "select" or "combobox" => "select",
+        "buttons" or "button" or "inputs" => "buttons",
+        "form" => "form",
+        "winui-inputs" or "slider" or "radio" or "number" or "rating" or "color" => "winui-inputs",
+        "tabs" or "tabstrip" => "tabs",
+        "expander" => "expander",
+        "listbox" or "list" => "listbox",
+        "dialog" or "modal" => "dialog",
+        "winui-nav" or "breadcrumb" or "suggest" or "tree" or "progress" or "infobar" => "winui-nav",
+        "datetime" or "date" or "time" or "calendar" => "datetime",
+        "media" or "grid" or "image" or "player" or "context-menu" => "media",
+        "workspace" or "editor" or "markdown" or "command-bar" or "split-button" or "person" or "tip" => "workspace",
+        "wave3" or "stepper" or "property-grid" or "kanban" or "pips-pager" or "info-badge" or "toast" or "file-picker" or "toggle-split-button" => "wave3",
+        "charts" or "chart" or "data" => "charts",
+        "table" or "datatable" => "table",
+        "chat" or "ino" or "devui" => "chat",
+        "cards" or "status" => "cards",
+        "graphs" or "graph" or "patterns" or "slots" => "graphs",
+        _ => "home",
     };
 
-    [IgnoreExplore]
-    public GalleryAppState SetSecretVaultStatus(string status) => this with
+    public static string PageTitle(string page) => NormalizePage(page) switch
     {
-        SecretStatus = status,
-        SignalPulseCount = SignalPulseCount + 1,
-        Status = $"Credential prompt · {status}",
+        "colors" => "Colors & Surfaces",
+        "typography" => "Typography",
+        "icons" => "Iconography",
+        "spacing" => "Spacing & Layout",
+        "toggle" => "Toggle (IToggle)",
+        "checkbox" => "CheckBox (ICheckBox)",
+        "select" => "Select (ISelect)",
+        "buttons" => "Buttons & Actions",
+        "form" => "Form & Vault Secrets (IForm)",
+        "winui-inputs" => "WinUI 3 Inputs (Slider, Radio, Number, Rating, Color)",
+        "tabs" => "Tabs (ITabs)",
+        "expander" => "Expander (IExpander)",
+        "listbox" => "ListBox (IListBox)",
+        "dialog" => "Dialog (IDialog)",
+        "winui-nav" => "WinUI 3 Nav & Status (Breadcrumb, Suggest, Tree, Progress, InfoBar)",
+        "datetime" => "Date & Time (DatePicker, TimePicker, Calendar)",
+        "media" => "Menus, Grid & Media (ContextMenu, GridView, ImageViewer, MediaPlayer)",
+        "workspace" => "Workspace Kit (CommandBar, CodeEditor, Markdown, SplitButton, Person, Tip)",
+        "wave3" => "WinUI 3 Wave 3 (Stepper, PropertyGrid, Kanban, FilePicker, Toast, Pips, Badge, ToggleSplit)",
+        "charts" => "Charts (IChart)",
+        "table" => "Data Table (ITable)",
+        "chat" => "DevUI Chat (IChatThread)",
+        "cards" => "Status & Chat Cards",
+        "graphs" => "State Graphs & DDD Rules",
+        _ => "Home",
     };
-
-    public static string NormalizeShowcaseTab(string? tab) => (tab ?? "foundation").Trim().ToLowerInvariant() switch
-    {
-        "inputs" or "guards" or "controls" => "inputs",
-        "data" or "charts" => "data",
-        "slots" or "graph" or "state-graph" => "slots",
-        "catalog" or "inspector" => "catalog",
-        _ => "foundation",
-    };
-
-    public static string ShowcaseTabTitle(string tab) => NormalizeShowcaseTab(tab) switch
-    {
-        "inputs" => "Inputs & rule guards",
-        "data" => "Data & charts",
-        "slots" => "Live slots & Accordant state graph",
-        "catalog" => "Component catalog",
-        _ => "Foundation & status",
-    };
-
-    public override string ToString() => $"{ShowcaseTab}:{Account}|sort={TableSortColumn}{(TableSortDescending ? "-" : "+")}";
 }
 
 [Neuron("app.gallery")]
 [Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
 public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 {
-    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
+    public const string AppName = "gallery";
 
+    // Brain-local keys for live IntoChat.OS.Modules.UI neurons demonstrated in the Gallery.
+    public const string StreamChartKey = "gallery/charts/stream";
+    public const string RevenueChartKey = "gallery/charts/revenue";
+    public const string WifiToggleKey = "gallery/toggles/wifi";
+    public const string LockedToggleKey = "gallery/toggles/locked";
+    public const string RememberCheckKey = "gallery/checkbox/remember";
+    public const string ModelSelectKey = "gallery/select/model";
+    public const string DemoTabsKey = "gallery/tabs/demo";
+    public const string DemoExpanderKey = "gallery/expander/demo";
+    public const string DemoListBoxKey = "gallery/listbox/demo";
+    public const string SpansTableKey = "gallery/table/spans";
+    public const string DemoFormKey = "gallery/form/demo";
+    public const string DemoDialogKey = "gallery/dialog/demo";
+    public const string DevUiChatKey = "gallery/chat/devui";
+    public const string DemoSliderKey = "gallery/slider/demo";
+    public const string DemoRadioKey = "gallery/radio/demo";
+    public const string DemoNumberKey = "gallery/number/demo";
+    public const string DemoRatingKey = "gallery/rating/demo";
+    public const string DemoColorKey = "gallery/color/demo";
+    public const string DemoBreadcrumbKey = "gallery/breadcrumb/demo";
+    public const string DemoAutoSuggestKey = "gallery/auto-suggest/demo";
+    public const string DemoTreeViewKey = "gallery/tree-view/demo";
+    public const string DemoProgressKey = "gallery/progress/demo";
+    public const string DemoInfoBarKey = "gallery/info-bar/demo";
+    public const string DemoDatePickerKey = "gallery/date-picker/demo";
+    public const string DemoTimePickerKey = "gallery/time-picker/demo";
+    public const string DemoCalendarKey = "gallery/calendar/demo";
+    public const string DemoContextMenuKey = "gallery/context-menu/demo";
+    public const string DemoGridViewKey = "gallery/grid-view/demo";
+    public const string DemoImageViewerKey = "gallery/image-viewer/demo";
+    public const string DemoMediaPlayerKey = "gallery/media-player/demo";
+    public const string DemoCommandBarKey = "gallery/command-bar/demo";
+    public const string DemoCodeEditorKey = "gallery/code-editor/demo";
+    public const string DemoMarkdownKey = "gallery/markdown/demo";
+    public const string DemoSplitButtonKey = "gallery/split-button/demo";
+    public const string DemoPersonKey = "gallery/person/demo";
+    public const string DemoTeachingTipKey = "gallery/teaching-tip/demo";
+    public const string DemoStepperKey = "gallery/stepper/demo";
+    public const string DemoPropertyGridKey = "gallery/property-grid/demo";
+    public const string DemoPipsPagerKey = "gallery/pips-pager/demo";
+    public const string DemoInfoBadgeKey = "gallery/info-badge/demo";
+    public const string DemoToastKey = "gallery/toast/demo";
+    public const string DemoFilePickerKey = "gallery/file-picker/demo";
+    public const string DemoToggleSplitButtonKey = "gallery/toggle-split-button/demo";
+    public const string DemoKanbanKey = "gallery/kanban/demo";
+    public const string IconSuggestKey = "gallery/icons/suggest";
+    public const string IconGridKey = "gallery/icons/grid";
+
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
+    private bool _seeded;
 
     public GalleryApp() : this(null) { }
 
@@ -384,19 +332,17 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         _logger = (ILogger?)logger ?? ConsoleLogger;
     }
 
-    public const string AppName = "gallery";
-
     public static AppBundle Bundle { get; } = new(
         "gallery",
-        "2.0.0",
+        "3.0.0",
         new AppManifest(
             Title: "UI Gallery",
-            Description: "Interactive IntoChat UI Kit showcase, live BankAccount DDD rule guards, and Accordant state graph explorer.",
+            Description: "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
             Operations:
             [
-                new("open", "Open the UI Kit gallery catalog."),
-                new("filter", "Filter controls by category or search query."),
-                new("select", "Inspect a control's NodeContract, [Signal]s, and neuron:// URI."),
+                new("open", "Open the WinUI 3-style UI Gallery."),
+                new("filter", "Navigate to a Gallery page."),
+                new("select", "Execute a Gallery interactive demo action."),
                 new("switch-identity", "Switch the active StylePreset and BarLayout."),
                 new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
             ],
@@ -407,8 +353,8 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             SideWidth: 268d,
             Toolbar:
             [
-                new("open", Icon: "widgets", Label: "Catalog"),
-                new("switch-identity", Icon: "palette", Label: "Switch identity"),
+                new("open", Icon: "widgets", Label: "Home"),
+                new("switch-identity", Icon: "palette", Label: "Identity"),
             ]),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
@@ -416,10 +362,19 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         CompiledType = typeof(GalleryApp).AssemblyQualifiedName,
     };
 
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        await base.OnActivate(cancellationToken);
+        await EnsureSeededAsync();
+    }
+
     [On]
     public async Task Open(GalleryOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await EnsureSeededAsync();
+
         var preset = State.StylePreset;
         var barLayout = State.BarLayout;
         if (TryGetOptional<IUserSettings>("settings") is { } settings)
@@ -429,19 +384,13 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             barLayout = userPref.BarLayout;
         }
 
-        var category = string.IsNullOrWhiteSpace(request.Category) ? State.Category : GalleryLibrary.NormalizeCategory(request.Category);
-        var matches = GalleryLibrary.FilteredEntries(State.Entries, category, State.Search);
-        var selected = matches.Any(e => e.Id == State.SelectedId)
-            ? State.SelectedId
-            : matches.FirstOrDefault()?.Id ?? State.SelectedId;
-
+        var page = string.IsNullOrWhiteSpace(request.Category) ? State.Page : GalleryAppState.NormalizePage(request.Category);
         await Show(State with
         {
-            Category = category,
-            SelectedId = selected,
+            Page = page,
             StylePreset = preset,
             BarLayout = barLayout,
-            Status = $"UI Gallery ready · {State.Entries.Length} controls loaded · Category: {category}",
+            Status = $"UI Gallery · {GalleryAppState.PageTitle(page)}",
         });
     }
 
@@ -449,140 +398,132 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public Task Filter(GalleryFilter request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var rawCategory = request.Category?.Trim() ?? string.Empty;
-        var viewMode = State.ViewMode;
-        if (rawCategory.StartsWith("detail:", StringComparison.OrdinalIgnoreCase))
-        {
-            rawCategory = rawCategory["detail:".Length..];
-            viewMode = "detail";
-        }
-        else if (rawCategory.StartsWith("grid:", StringComparison.OrdinalIgnoreCase))
-        {
-            rawCategory = rawCategory["grid:".Length..];
-            viewMode = "grid";
-        }
-
-        var category = string.IsNullOrWhiteSpace(rawCategory) ? State.Category : GalleryLibrary.NormalizeCategory(rawCategory);
-        var search = request.Search is null ? State.Search : request.Search.Trim();
-        var matches = GalleryLibrary.FilteredEntries(State.Entries, category, search);
-        var selected = matches.Any(e => e.Id == State.SelectedId)
+        var normalizedCategory = GalleryLibrary.NormalizeCategory(request.Category ?? "all");
+        var matches = GalleryLibrary.FilteredEntries(GalleryLibrary.DefaultCatalog, normalizedCategory, request.Search ?? "");
+        var nextSelectedId = matches.Any(e => e.Id == State.SelectedId)
             ? State.SelectedId
             : matches.FirstOrDefault()?.Id ?? State.SelectedId;
-        return Show(State with
-        {
-            Category = category,
-            Search = search,
-            SelectedId = selected,
-            ViewMode = viewMode,
-            Status = $"Filtered {matches.Length} control(s) in '{category}'",
-        });
+
+        var target = !string.IsNullOrWhiteSpace(request.Category) ? request.Category : request.Search;
+        return Show(State.SelectPage(target ?? "home") with { SelectedId = nextSelectedId });
     }
 
     [On]
-    public Task Select(GallerySelect request)
+    public async Task Select(GallerySelect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var raw = string.IsNullOrWhiteSpace(request.ControlId) ? "approval-card" : request.ControlId.Trim();
+        await EnsureSeededAsync();
+        var raw = request.ControlId?.Trim() ?? "";
 
-        if (raw.StartsWith("showcase:", StringComparison.OrdinalIgnoreCase))
+        if (raw == "stream:append")
         {
-            return Show(State.SelectTab(raw["showcase:".Length..]));
-        }
-
-        if (string.Equals(raw, "home", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(raw, "grid", StringComparison.OrdinalIgnoreCase))
-        {
-            return Show(State with
+            var nextNum = State.StreamPointCounter + 1;
+            var val = 55 + (nextNum * 29 % 95);
+            if (TryGetOptional<IChart>(StreamChartKey) is { } chart)
             {
-                ShowcaseTab = "catalog",
-                ViewMode = "grid",
-                Status = $"Catalog grid · {GalleryLibrary.FilteredEntries(State.Entries, State.Category, State.Search).Length} controls",
-            });
-        }
-
-        if (string.Equals(raw, "detail", StringComparison.OrdinalIgnoreCase))
-        {
-            return Show(State with { ShowcaseTab = "catalog", ViewMode = "detail", Status = $"Inspecting {State.SelectedId}" });
-        }
-
-        if (string.Equals(raw, "pulse", StringComparison.OrdinalIgnoreCase))
-        {
-            var nextPulse = State.SignalPulseCount + 1;
-            var currentEntry = State.Entries.FirstOrDefault(e => e.Id == State.SelectedId) ?? State.Entries[0];
-            return Show(State with
+                await chart.Append(new ChartPoint($"T{nextNum}", val, $"evt-{nextNum}"));
+            }
+            await Show(State with
             {
-                SignalPulseCount = nextPulse,
-                Status = $"Fired [Signal] {currentEntry.Signals.FirstOrDefault() ?? "gallery.select"} (#{nextPulse})",
+                StreamPointCounter = nextNum,
+                LastAction = $"Appended point T{nextNum} ({val}) to IChart '{StreamChartKey}'",
             });
+            return;
         }
 
-        if (raw.StartsWith("tab:", StringComparison.OrdinalIgnoreCase))
+        if (raw.StartsWith("revenue:filter:", StringComparison.OrdinalIgnoreCase))
         {
-            var tab = raw["tab:".Length..].Trim().ToLowerInvariant();
-            return Show(State with { CodeTab = tab is "flutter" or "contract" ? tab : "csharp", Status = $"Code inspector tab: {tab}" });
-        }
-
-        if (raw.StartsWith("knob:", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = raw.Split(':', 3, StringSplitOptions.TrimEntries);
-            var knobKind = parts.ElementAtOrDefault(1)?.ToLowerInvariant() ?? "";
-            var knobVal = parts.ElementAtOrDefault(2)?.ToLowerInvariant() ?? "";
-            return Show(knobKind switch
+            var filter = raw["revenue:filter:".Length..].Trim().ToLowerInvariant();
+            if (TryGetOptional<IChart>(RevenueChartKey) is { } chart)
             {
-                "style" => State with { KnobStyle = knobVal, Status = $"Property knob · Style = {knobVal}" },
-                "tone" => State with { KnobTone = knobVal, Status = $"Property knob · Tone = {knobVal}" },
-                "size" => State with { KnobSmall = knobVal is "small" or "true", Status = $"Property knob · Size = {(knobVal is "small" or "true" ? "Small (30px)" : "Standard (36px)")}" },
-                "state" => State with { KnobState = knobVal, Status = $"Property knob · State = {knobVal}" },
-                "surface" => State with { KnobSurface = knobVal, Status = $"Property knob · Surface = {knobVal}" },
-                "chart" => State with { KnobChartKind = knobVal, Status = $"Property knob · ChartKind = {knobVal}" },
-                _ => State,
-            });
-        }
-
-        if (raw.StartsWith("toggle:", StringComparison.OrdinalIgnoreCase))
-        {
-            var target = raw["toggle:".Length..].Trim().ToLowerInvariant();
-            return Show(target switch
+                var sourceAddress = new NeuronId(Id.Brain, "ui.sample-chart-source", "default").ToString();
+                await chart.Bind(sourceAddress, new ChartQuery(Filter: filter));
+            }
+            await Show(State with
             {
-                "lock" => State.ToggleSwitchLock(),
-                _ => State.ToggleLiveStream(),
+                RevenueQueryFilter = filter,
+                LastAction = $"Bound IChart '{RevenueChartKey}' to SampleChartSource (filter: {filter})",
             });
+            return;
         }
 
-        if (raw.StartsWith("option:", StringComparison.OrdinalIgnoreCase))
+        if (raw == "toggle:lock")
         {
-            return Show(State.SelectModelOption(raw["option:".Length..]));
-        }
-
-        if (raw.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
-        {
-            var nav = raw["shell:".Length..].Trim().ToLowerInvariant();
-            return Show(State with { ShellNav = nav, Status = $"Shell navigation tab: {nav}" });
-        }
-
-        if (raw.StartsWith("card:", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = raw.Split(':', 3, StringSplitOptions.TrimEntries);
-            var cardKind = parts.ElementAtOrDefault(1)?.ToLowerInvariant() ?? "";
-            var cardAct = parts.ElementAtOrDefault(2)?.ToLowerInvariant() ?? "";
-            return Show(cardKind switch
+            var nextDisabled = !State.LockedToggleDisabled;
+            if (TryGetOptional<IToggle>(LockedToggleKey) is { } toggle)
             {
-                "approval" => State with { ApprovalStatus = cardAct, SignalPulseCount = State.SignalPulseCount + 1, Status = $"ApprovalCard: {cardAct}" },
-                "choice" => State with { ChoicePickedIndex = int.TryParse(cardAct, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx) ? idx : 0, SignalPulseCount = State.SignalPulseCount + 1, Status = $"ChoiceCard picked option #{cardAct}" },
-                "draft" => State with { DraftStatus = cardAct, SignalPulseCount = State.SignalPulseCount + 1, Status = $"DraftCard: {cardAct}" },
-                "secret" => State with { SecretStatus = cardAct, SignalPulseCount = State.SignalPulseCount + 1, Status = $"SecretCard: {cardAct}" },
-                "job" => State with { JobStatus = cardAct, SignalPulseCount = State.SignalPulseCount + 1, Status = $"JobCard: {cardAct}" },
-                _ => State,
+                await toggle.SetEnabled(!nextDisabled);
+            }
+            await Show(State with
+            {
+                LockedToggleDisabled = nextDisabled,
+                LastAction = nextDisabled ? "Locked secondary IToggle neuron" : "Unlocked secondary IToggle neuron",
             });
+            return;
         }
 
-        if (raw.StartsWith("node:", StringComparison.OrdinalIgnoreCase))
+        if (raw == "dialog:open")
         {
-            var nodeId = raw["node:".Length..].Trim();
-            return Show(State with { SelectedBrainNode = nodeId, Status = $"Inspecting brain node: {nodeId}" });
+            if (TryGetOptional<IDialog>(DemoDialogKey) is { } dlg)
+            {
+                await dlg.Open("Create folder", "Enter a folder name to test IDialog confirm-with-input.", "Create", "Cancel", inputLabel: "Folder name", inputPlaceholder: "e.g. q4-reports");
+            }
+            await Show(State with { LastAction = "Opened live IDialog neuron" });
+            return;
         }
 
-        return Show(State.InspectControl(raw));
+        if (raw == "toast:show")
+        {
+            if (TryGetOptional<INotificationToast>(DemoToastKey) is { } toast)
+            {
+                await toast.Show("Wave 3 Notification", "Live INotificationToast pushed over gRPC.", severity: "info", actionLabel: "Inspect", actionId: "inspect");
+            }
+            await Show(State with { LastAction = "Pushed live INotificationToast" });
+            return;
+        }
+
+        if (raw.StartsWith("icons:cat:", StringComparison.OrdinalIgnoreCase))
+        {
+            var cat = raw["icons:cat:".Length..].Trim();
+            var resolved = GalleryIconCatalog.Categories.FirstOrDefault(c => string.Equals(c, cat, StringComparison.OrdinalIgnoreCase)) ?? "All";
+            await SeedIconBrowserAsync(resolved);
+            await Show(State with
+            {
+                IconCategory = resolved,
+                LastAction = $"Filtered Iconography catalog to '{resolved}'",
+            });
+            return;
+        }
+
+        if (raw.StartsWith("code:lang:", StringComparison.OrdinalIgnoreCase))
+        {
+            var lang = raw["code:lang:".Length..].Trim().ToLowerInvariant();
+            if (TryGetOptional<ICodeEditor>(DemoCodeEditorKey) is { } ed)
+            {
+                var (fileTitle, sample) = CodeSampleForLanguage(lang);
+                await ed.Configure(fileTitle, lang, sample);
+            }
+            await Show(State with
+            {
+                CodeLanguage = lang,
+                LastAction = $"Switched ICodeEditor syntax highlighting to '{lang}'",
+            });
+            return;
+        }
+
+        if (raw.StartsWith("page:", StringComparison.OrdinalIgnoreCase))
+        {
+            await Show(State.SelectPage(raw["page:".Length..]));
+            return;
+        }
+
+        if (GalleryLibrary.DefaultCatalog.FirstOrDefault(e => string.Equals(e.Id, raw, StringComparison.OrdinalIgnoreCase)) is { } catalogEntry)
+        {
+            await Show(State.SelectPage(raw) with { SelectedId = catalogEntry.Id });
+            return;
+        }
+
+        await Show(State.SelectPage(raw));
     }
 
     [On]
@@ -602,8 +543,365 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         {
             StylePreset = preset,
             BarLayout = barLayout,
-            Status = $"Active UI identity: {preset} ({barLayout})",
+            Status = $"Active UI identity: {preset}",
+            LastAction = $"Switched OS identity to '{preset}' ({barLayout})",
         });
+    }
+
+    private async Task EnsureSeededAsync()
+    {
+        if (_seeded) { return; }
+        _seeded = true;
+        try
+        {
+            if (TryGetOptional<IChart>(StreamChartKey) is { } streamChart && (await streamChart.Read()).Version == 0)
+            {
+                await streamChart.Render(new ChartSpec(
+                    Title: "Live Signal Stream (Append)",
+                    Kind: ChartKinds.Line,
+                    Series:
+                    [
+                        new ChartSeries("Signals/s",
+                        [
+                            new ChartPoint("T1", 42, "evt-1"),
+                            new ChartPoint("T2", 68, "evt-2"),
+                            new ChartPoint("T3", 59, "evt-3"),
+                            new ChartPoint("T4", 84, "evt-4"),
+                        ]),
+                    ],
+                    Description: "Independent streaming IChart neuron (200-point rolling window, EventId dedup). Click 'Append point' or switch chart kind.",
+                    From: "Stream"));
+            }
+
+            if (TryGetOptional<IChart>(RevenueChartKey) is { } revenueChart && (await revenueChart.Read()).Version == 0)
+            {
+                var sourceAddress = new NeuronId(Id.Brain, "ui.sample-chart-source", "default").ToString();
+                await revenueChart.Bind(sourceAddress, new ChartQuery(Filter: "all"));
+            }
+
+            if (TryGetOptional<IToggle>(WifiToggleKey) is { } wifi && (await wifi.Read()).Version == 0)
+            {
+                await wifi.Configure("Live telemetry stream", isOn: true, isEnabled: true, onLabel: "Active", offLabel: "Paused");
+            }
+
+            if (TryGetOptional<IToggle>(LockedToggleKey) is { } locked && (await locked.Read()).Version == 0)
+            {
+                await locked.Configure("Protected policy switch", isOn: true, isEnabled: false, onLabel: "Enforced", offLabel: "Off");
+            }
+
+            if (TryGetOptional<ICheckBox>(RememberCheckKey) is { } check && (await check.Read()).Version == 0)
+            {
+                await check.Configure("Persist workspace layout across restarts", isChecked: true);
+            }
+
+            if (TryGetOptional<ISelect>(ModelSelectKey) is { } select && (await select.Read()).Version == 0)
+            {
+                await select.Configure("Default reasoning model",
+                [
+                    new UiSelectOption("claude-sonnet-4-5", "Claude Sonnet 4.5", "Balanced coding & reasoning"),
+                    new UiSelectOption("gpt-5-thinking", "GPT-5 Thinking", "Deep multi-step planning"),
+                    new UiSelectOption("qwen3.5:4b", "Qwen 3.5 4B (Local)", "Zero-cost local Ollama"),
+                ], "claude-sonnet-4-5");
+            }
+
+            if (TryGetOptional<ITabs>(DemoTabsKey) is { } tabs && (await tabs.Read()).Version == 0)
+            {
+                await tabs.Configure(
+                [
+                    new UiTabItem("overview", "Overview"),
+                    new UiTabItem("signals", "Signals"),
+                    new UiTabItem("contracts", "Contracts"),
+                ], "overview");
+            }
+
+            if (TryGetOptional<IExpander>(DemoExpanderKey) is { } expander && (await expander.Read()).Version == 0)
+            {
+                await expander.Configure(
+                    "Why every control is a Neuron",
+                    "Each interactive control in IntoChat.OS.Modules.UI owns durable state, enforces invariants, emits typed signals, and can be addressed identically by Flutter, Ino, MCP, and C# synapses.",
+                    isExpanded: true);
+            }
+
+            if (TryGetOptional<IListBox>(DemoListBoxKey) is { } listBox && (await listBox.Read()).Version == 0)
+            {
+                await listBox.Configure(
+                [
+                    new UiListBoxItem("chart", "IChart", "Streaming + IChartSource query binding", Group: "Data", Icon: "chart-column"),
+                    new UiListBoxItem("table", "ITable", "Filter, sort, paginate via ITableSource", Group: "Data", Icon: "table"),
+                    new UiListBoxItem("toggle", "IToggle", "Durable boolean switch neuron", Group: "Input", Icon: "sliders"),
+                    new UiListBoxItem("select", "ISelect", "Typed option picker neuron", Group: "Input", Icon: "list"),
+                ], "chart");
+            }
+
+            if (TryGetOptional<ITable>(SpansTableKey) is { } table && (await table.Read()).Version == 0)
+            {
+                var tableSource = new NeuronId(Id.Brain, "ui.sample-table-source", "default").ToString();
+                await table.Bind(
+                    tableSource,
+                    "Live Silo Telemetry Spans",
+                    [
+                        new TableColumn("span", "Span"),
+                        new TableColumn("status", "Status"),
+                        new TableColumn("latency", "Duration"),
+                        new TableColumn("module", "Module"),
+                    ],
+                    pageSize: 5);
+            }
+
+            if (TryGetOptional<IForm>(DemoFormKey) is { } form && (await form.Read()).Version == 0)
+            {
+                await form.Configure("Workspace & Vault Secret Form",
+                [
+                    new FormField("displayName", "Display name", FormFieldKinds.Text, "Alex", Required: true),
+                    new FormField("apiKey", "Provider API key (Vault SecretRef)", FormFieldKinds.Secret, "Paste token and press Enter to seal"),
+                ],
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["displayName"] = "Alex" },
+                submitLabel: "Save form");
+            }
+
+            if (TryGetOptional<IChatThread>(DevUiChatKey) is { } chat && (await chat.Read()).Version == 0)
+            {
+                await chat.Configure("demo", "Ino DevUI Workbench", "claude-sonnet-4-5",
+                [
+                    new ChatModelOption("claude-sonnet-4-5", "Claude Sonnet 4.5", "Anthropic"),
+                    new ChatModelOption("gpt-5-thinking", "GPT-5 Thinking", "OpenAI"),
+                    new ChatModelOption("qwen3.5:4b", "Qwen 3.5 4B (Local)", "Ollama"),
+                ], voiceAvailable: true);
+                await chat.AppendMessage(new ChatMessage("u1", "user", "Compare Q1 vs Q2 throughput and explain the spike."));
+                await chat.AppendMessage(new ChatMessage(
+                    Id: "a1",
+                    Role: "assistant",
+                    Text: "Throughput grew +66% from Jan (68) to Jun (156). Below is the live query-bound `IChart` neuron — you can switch its kind or click any bar directly inside this chat turn.",
+                    Reasoning: "1. Query SampleChartSource via IChart.Bind.\n2. Compare 2026 Active series vs 2025 Baseline.\n3. Embed live ui.chart neuron inline in the reply.",
+                    ToolCalls:
+                    [
+                        new ChatToolCall("tc-1", "ui.chart.bind", "{\"source\":\"ui.sample-chart-source\",\"filter\":\"all\"}", "{\"series\":2,\"points\":12,\"status\":\"ready\"}", "done", 14),
+                    ],
+                    Slots: [new ChatInlineSlot("ui.chart", RevenueChartKey)],
+                    Status: "done",
+                    InputTokens: 1240,
+                    OutputTokens: 215));
+                await chat.SetContext(
+                [
+                    new ChatContextItem("user.profile", "Name: Owner · Theme: Warm Paper", "owner", 85),
+                    new ChatContextItem("memory.recall", "Prefers WinUI 3 layout + DDD UI neurons", "owner", 140),
+                    new ChatContextItem("apps.capabilities", "12 Modules.UI contracts available", "platform", 190),
+                ], "Ready · Click Compact to summarize older turns.", 1240, 215);
+            }
+
+            if (TryGetOptional<ISlider>(DemoSliderKey) is { } slider && (await slider.Read()).Version == 0)
+            {
+                await slider.Configure("Reasoning budget", min: 0, max: 100, step: 5, value: 65, unit: "%");
+            }
+            if (TryGetOptional<IRadioButtons>(DemoRadioKey) is { } radio && (await radio.Read()).Version == 0)
+            {
+                await radio.Configure("Execution topology",
+                [
+                    new RadioOption("local", "Local Orleans Silo"),
+                    new RadioOption("cloud", "Azure Cloud Control Plane"),
+                    new RadioOption("hybrid", "Hybrid Local + Cloud"),
+                ], "local");
+            }
+            if (TryGetOptional<INumberBox>(DemoNumberKey) is { } number && (await number.Read()).Version == 0)
+            {
+                await number.Configure("Monthly spend cap", value: 50, min: 5, max: 500, step: 10, prefix: "$");
+            }
+            if (TryGetOptional<IRating>(DemoRatingKey) is { } rating && (await rating.Read()).Version == 0)
+            {
+                await rating.Configure("Response quality", value: 4, max: 5);
+            }
+            if (TryGetOptional<IColorPicker>(DemoColorKey) is { } color && (await color.Read()).Version == 0)
+            {
+                await color.Configure("Accent color", "#1F5EFF");
+            }
+            if (TryGetOptional<IBreadcrumbBar>(DemoBreadcrumbKey) is { } crumb && (await crumb.Read()).Version == 0)
+            {
+                await crumb.SetItems([new BreadcrumbItem("root", "Workspace"), new BreadcrumbItem("docs", "Documents"), new BreadcrumbItem("q4", "Q4 Reports")]);
+            }
+            if (TryGetOptional<IAutoSuggestBox>(DemoAutoSuggestKey) is { } suggest && (await suggest.Read()).Version == 0)
+            {
+                await suggest.Configure("Search 21 Modules.UI neurons…",
+                    ["IChart", "ITable", "IChatThread", "IToggle", "ICheckBox", "ISelect", "ITabs", "IExpander", "IListBox", "IForm", "IDialog", "ISlider", "IRadioButtons", "INumberBox", "IRating", "IColorPicker", "IBreadcrumbBar", "IAutoSuggestBox", "ITreeView", "IProgressIndicator", "IInfoBar"]);
+            }
+            if (TryGetOptional<ITreeView>(DemoTreeViewKey) is { } tree && (await tree.Read()).Version == 0)
+            {
+                await tree.Configure(
+                [
+                    new TreeNode("src", "src", IsFolder: true),
+                    new TreeNode("ui", "Modules/UI", ParentId: "src", IsFolder: true),
+                    new TreeNode("chart", "ChartNeuron.cs", ParentId: "ui"),
+                    new TreeNode("chat", "ChatThreadNeuron.cs", ParentId: "ui"),
+                    new TreeNode("apps", "IntoChat.OS.Apps", ParentId: "src", IsFolder: true),
+                    new TreeNode("gallery", "GalleryApp.cs", ParentId: "apps"),
+                ], expandedIds: ["src", "ui"], selectedId: "chart");
+            }
+            if (TryGetOptional<IProgressIndicator>(DemoProgressKey) is { } prog && (await prog.Read()).Version == 0)
+            {
+                await prog.SetProgress("Indexing brain knowledge graph", 0.78, isIndeterminate: false, kind: "bar");
+            }
+            if (TryGetOptional<IInfoBar>(DemoInfoBarKey) is { } info && (await info.Read()).Version == 0)
+            {
+                await info.Show("WinUI 3 Neuron Kit", "All 28 interactive controls are real DigitalBrain neurons synced over gRPC.", severity: "success");
+            }
+            if (TryGetOptional<IDatePicker>(DemoDatePickerKey) is { } dp && (await dp.Read()).Version == 0)
+            {
+                await dp.Configure("Release target date", "2026-11-19", minDate: "2026-01-01", maxDate: "2027-12-31");
+            }
+            if (TryGetOptional<ITimePicker>(DemoTimePickerKey) is { } tp && (await tp.Read()).Version == 0)
+            {
+                await tp.Configure("Daily digest time", 9, 30, use24Hour: true);
+            }
+            if (TryGetOptional<ICalendarView>(DemoCalendarKey) is { } cal && (await cal.Read()).Version == 0)
+            {
+                await cal.Configure("Sprint milestones", 2026, 11, ["2026-11-19", "2026-11-24"], multiSelect: true);
+            }
+            if (TryGetOptional<IContextMenu>(DemoContextMenuKey) is { } menu && (await menu.Read()).Version == 0)
+            {
+                await menu.Configure("File Actions",
+                [
+                    new ContextMenuItem("open", "Open in Editor", "file-code", "Ctrl+O"),
+                    new ContextMenuItem("rename", "Rename", "edit", "F2"),
+                    new ContextMenuItem("delete", "Delete", "trash", "Del", Destructive: true),
+                ]);
+            }
+            if (TryGetOptional<IGridView>(DemoGridViewKey) is { } gv && (await gv.Read()).Version == 0)
+            {
+                await gv.Configure("Workspace Assets",
+                [
+                    new GridViewItem("arch", "architecture.md", "14 KB · Markdown", "file-text", Badge: "DOC"),
+                    new GridViewItem("hero", "hero-banner.png", "1.2 MB · PNG", "image", Badge: "IMG"),
+                    new GridViewItem("demo", "walkthrough.mp4", "24 MB · Video", "film", Badge: "VID"),
+                    new GridViewItem("data", "q4-metrics.csv", "82 KB · Table", "table", Badge: "CSV"),
+                ], selectedId: "arch", columns: 2);
+            }
+            if (TryGetOptional<IImageViewer>(DemoImageViewerKey) is { } img && (await img.Read()).Version == 0)
+            {
+                await img.Configure("Design System Preview", "", "Interactive zoom & rotation backed by IImageViewer neuron");
+            }
+            if (TryGetOptional<IMediaPlayer>(DemoMediaPlayerKey) is { } mp && (await mp.Read()).Version == 0)
+            {
+                await mp.Configure("IntoChat OS Ambient Focus", "Neural Audio Engine", "", kind: "audio", durationSeconds: 215);
+            }
+            if (TryGetOptional<ICommandBar>(DemoCommandBarKey) is { } cb && (await cb.Read()).Version == 0)
+            {
+                await cb.Configure(
+                [
+                    new CommandBarItem("run", "Run", "play"),
+                    new CommandBarItem("format", "Format", "sparkles"),
+                    new CommandBarItem("share", "Share", "share-2"),
+                    new CommandBarItem("export", "Export JSON", "download", Primary: false),
+                    new CommandBarItem("reset", "Reset State", "refresh-cw", Primary: false),
+                ]);
+            }
+            if (TryGetOptional<ICodeEditor>(DemoCodeEditorKey) is { } ed && (await ed.Read()).Version == 0)
+            {
+                await ed.Configure("ChartDemo.cs", "csharp",
+                    "var chart = Get<IChart>(\"gallery/charts/stream\");\nawait chart.Append(new ChartPoint(\"T6\", 94, \"evt-6\"));");
+            }
+            if (TryGetOptional<IMarkdownViewer>(DemoMarkdownKey) is { } md && (await md.Read()).Version == 0)
+            {
+                await md.SetDocument("Architecture Note", "## IntoChat UI Neurons\nEvery interactive widget is a **durable DDD neuron** under `IntoChat.OS.Modules.UI` synced 1-to-1 over gRPC.");
+            }
+            if (TryGetOptional<ISplitButton>(DemoSplitButtonKey) is { } sb && (await sb.Read()).Version == 0)
+            {
+                await sb.Configure("Build & Test",
+                [
+                    new SplitButtonOption("build-test", "Build & Test", "play"),
+                    new SplitButtonOption("build-only", "Build Only", "hammer"),
+                    new SplitButtonOption("e2e", "Run Chromium E2E", "globe"),
+                ], "play", "build-test");
+            }
+            if (TryGetOptional<IPersonPicture>(DemoPersonKey) is { } pp && (await pp.Read()).Version == 0)
+            {
+                await pp.Configure("Ino Assistant", "Claude Sonnet 4.5 · Ready", presence: "online");
+            }
+            if (TryGetOptional<ITeachingTip>(DemoTeachingTipKey) is { } tip && (await tip.Read()).Version == 0)
+            {
+                await tip.Show("Direct gRPC Neurons", "All 42 UI controls talk directly to DigitalBrain neurons with zero host round-trips.", "Explore Charts");
+            }
+            if (TryGetOptional<IStepper>(DemoStepperKey) is { } stepper && (await stepper.Read()).Version == 0)
+            {
+                await stepper.Configure(
+                [
+                    new StepperStep("plan", "Brainstorm & Plan", StepperStatuses.Done, "Architect + Critic"),
+                    new StepperStep("worktree", "Prepare Worktree", StepperStatuses.Done, "Isolated lease"),
+                    new StepperStep("implement", "Implement Tasks", StepperStatuses.Active, "Roslyn + Dart"),
+                    new StepperStep("verify", "Live Verify", StepperStatuses.Pending, "Playwright E2E"),
+                    new StepperStep("pr", "Review & PR", StepperStatuses.Pending, "Approval gate"),
+                ], activeStepId: "implement", title: "Engineer Autonomous Pipeline");
+            }
+            if (TryGetOptional<IPropertyGrid>(DemoPropertyGridKey) is { } propGrid && (await propGrid.Read()).Version == 0)
+            {
+                await propGrid.LoadJson(
+                    "Live Neuron State",
+                    "{\"neuron\":\"app.gallery\",\"version\":3,\"healthy\":true,\"metrics\":{\"uiNeurons\":42,\"p95Ms\":4.2},\"tags\":[\"winui3\",\"grpc\"]}",
+                    readOnly: false);
+            }
+            if (TryGetOptional<IPipsPager>(DemoPipsPagerKey) is { } pips && (await pips.Read()).Version == 0)
+            {
+                await pips.Configure(pageCount: 5, selectedIndex: 0, maxVisiblePips: 5);
+            }
+            if (TryGetOptional<IInfoBadge>(DemoInfoBadgeKey) is { } badge && (await badge.Read()).Version == 0)
+            {
+                await badge.Configure("Pending PR reviews", value: 7, severity: "attention");
+            }
+            if (TryGetOptional<INotificationToast>(DemoToastKey) is { } toast && (await toast.Read()).Version == 0)
+            {
+                await toast.Show("Wave 3 UI Parity Ready", "All 42 Modules.UI neurons compiled with zero warnings.", severity: "success", actionLabel: "Open Report", actionId: "open-report", id: "toast-1");
+            }
+            if (TryGetOptional<IFilePicker>(DemoFilePickerKey) is { } picker && (await picker.Read()).Version == 0)
+            {
+                await picker.Configure(
+                    "Select Workspace Artifact",
+                    "neuron://owner/storage.files/workspace",
+                    [
+                        new FilePickerEntry("/workspace/src", "src", IsDirectory: true),
+                        new FilePickerEntry("/workspace/GalleryApp.cs", "GalleryApp.cs", SizeBytes: 28_400, NeuronUri: "neuron://owner/storage.files/workspace/GalleryApp.cs"),
+                        new FilePickerEntry("/workspace/architecture.md", "architecture.md", SizeBytes: 14_200, NeuronUri: "neuron://owner/storage.files/workspace/architecture.md"),
+                        new FilePickerEntry("/workspace/manifest.json", "manifest.json", SizeBytes: 6_100, NeuronUri: "neuron://owner/storage.files/workspace/manifest.json"),
+                    ],
+                    filters: ["*", ".cs", ".md", ".json"]);
+            }
+            if (TryGetOptional<IToggleSplitButton>(DemoToggleSplitButtonKey) is { } tsb && (await tsb.Read()).Version == 0)
+            {
+                await tsb.Configure(
+                    "Live Watch",
+                    [
+                        new ToggleSplitButtonOption("all", "Watch All Signals", "activity"),
+                        new ToggleSplitButtonOption("errors", "Watch Errors Only", "triangle-alert"),
+                        new ToggleSplitButtonOption("ui", "Watch UI Neurons", "sparkles"),
+                    ],
+                    isChecked: true,
+                    icon: "activity",
+                    selectedOptionId: "all");
+            }
+            if (TryGetOptional<IKanbanBoard>(DemoKanbanKey) is { } kanban && (await kanban.Read()).Version == 0)
+            {
+                await kanban.Configure(
+                    "Sprint Delivery Board",
+                    [
+                        new KanbanColumn("backlog", "Backlog", "list-todo"),
+                        new KanbanColumn("in-progress", "In Progress", "zap", WipLimit: 4),
+                        new KanbanColumn("done", "Done", "circle-check"),
+                    ],
+                    [
+                        new KanbanCard("c1", "backlog", "FilePicker VFS binding", "Canonical neuron:// URIs", "UI", "ui-kit", 0),
+                        new KanbanCard("c2", "in-progress", "Engineer Worktree Flow", "Parallel sandbox leases", "Flow", "engineer", 0),
+                        new KanbanCard("c3", "done", "Stepper & PropertyGrid", "Milestone 1 contracts", "DDD", "ui-kit", 0),
+                    ],
+                    selectedCardId: "c1");
+            }
+            if (TryGetOptional<IGridView>(IconGridKey) is { } iconGrid && (await iconGrid.Read()).Version == 0)
+            {
+                await SeedIconBrowserAsync("All");
+            }
+        }
+#pragma warning disable CA1031 // Seeding is best-effort when running in unit tests without UI module registered.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogDebug(ex, "Gallery UI neuron seeding skipped in minimal test host.");
+        }
     }
 
     public new GalleryAppState State => base.State;
@@ -613,14 +911,44 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     protected override Node Render(GalleryAppState state)
         => GalleryRendering.RenderRoot(state, LastRejection);
 
-    private ILogger Log => _logger;
+    private async Task SeedIconBrowserAsync(string category)
+    {
+        var entries = GalleryIconCatalog.ForCategory(category);
+        if (TryGetOptional<IAutoSuggestBox>(IconSuggestKey) is { } suggest)
+        {
+            await suggest.Configure(
+                $"Search {entries.Length} Lucide icon slugs ({category})…",
+                entries.Select(e => e.Slug).ToArray());
+        }
+        if (TryGetOptional<IGridView>(IconGridKey) is { } grid)
+        {
+            await grid.Configure(
+                $"Icon Catalog · {category} ({entries.Length} glyphs · click any tile to copy slug)",
+                entries.Select(e => new GridViewItem(e.Slug, e.Slug, e.Category, e.Slug, Badge: e.Badge)).ToArray(),
+                selectedId: entries.FirstOrDefault()?.Slug,
+                columns: 4);
+        }
+    }
+
+    private static (string Title, string Sample) CodeSampleForLanguage(string lang) => lang switch
+    {
+        "dart" => ("CodeEditorDemo.dart", "final theme = buildIcCodeHighlightTheme(IcTheme.of(context), 'dart');\nreturn CodeEditor(controller: controller, style: CodeEditorStyle(codeTheme: theme));"),
+        "json" => ("manifest.json", "{\n  \"module\": \"ui\",\n  \"neurons\": 42,\n  \"syntaxHighlight\": true\n}"),
+        "sql" => ("telemetry.sql", "SELECT module, COUNT(*) AS spans, AVG(duration_ms) AS avg_ms\nFROM neuron_telemetry\nWHERE status = 'done'\nGROUP BY module;"),
+        "typescript" => ("client.ts", "export interface NeuronRef {\n  readonly kind: string;\n  readonly key: string;\n}\nconst stepper: NeuronRef = { kind: 'ui.stepper', key: 'engineer/pipeline' };"),
+        "yaml" => ("pipeline.yaml", "pipeline: engineer\nstages:\n  - id: brainstorm\n    status: done\n  - id: verify\n    browser: chromium"),
+        "markdown" => ("ARCHITECTURE.md", "# IntoChat UI Neurons\n\n- **42 stateful controls** synced over `gRPC`\n- Live `re_highlight` syntax coloring in light & dark presets"),
+        _ => ("ChartDemo.cs", "var chart = Get<IChart>(\"gallery/charts/stream\");\nawait chart.Append(new ChartPoint(\"T6\", 94, \"evt-6\"));"),
+    };
 
     private T? TryGetOptional<T>(string key) where T : class
     {
         try { return Get<T>(key); }
+#pragma warning disable CA1031 // Optional service in unit tests.
         catch (Exception ex)
+#pragma warning restore CA1031
         {
-            Log.LogDebug(ex, "{Service} is optional when GalleryApp runs in tests.", typeof(T).Name);
+            _logger.LogDebug(ex, "{Service} is optional when GalleryApp runs in tests.", typeof(T).Name);
             return null;
         }
     }

@@ -28,7 +28,7 @@ public sealed class AppUiScreenEndpointsFacts
             "TestApp",
             new Column([
                 new Button(key, "ClickMe", new Command(".", emitSignal, null)),
-                new Switch("btn-alien", "Alien", false, new Emit("app.alien", "test.alien", null))
+                new Tabs([new TabItem("btn-alien", "alien", "Alien", new Emit("app.alien", "test.alien", null))], "alien")
             ]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
         return new PublishedView(alias, generation, json);

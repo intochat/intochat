@@ -109,7 +109,8 @@ public static class BtcAlertUnit
                 Name: "Alert Threshold (USD)",
                 Kind: FieldKind.Number,
                 Placeholder: state.Threshold.ToString(CultureInfo.InvariantCulture),
-                OnSubmit: new Emit("btcalert", "btcalert.setthreshold")),
+                OnSubmit: new Command(".", "btcalert.setthreshold"),
+                AutomationName: "Alert Threshold (USD)"),
             new Button("rearm", "Re-arm Alert", new Command(".", "btcalert.rearm"), Enabled: !state.Armed),
         ], Title: "Bitcoin Spot Monitor", Subtitle: "Coinbase Spot · Every 1m"));
 

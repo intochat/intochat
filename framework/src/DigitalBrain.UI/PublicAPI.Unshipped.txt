@@ -443,16 +443,18 @@ DigitalBrain.UI.ErrorLineNode.ErrorLineNode(string! What, string? Detail = null,
 DigitalBrain.UI.ErrorLineNode.What.get -> string!
 DigitalBrain.UI.ErrorLineNode.What.init -> void
 DigitalBrain.UI.Field
-DigitalBrain.UI.Field.Deconstruct(out string! Key, out string! Name, out DigitalBrain.UI.FieldKind Kind, out string? Placeholder, out DigitalBrain.UI.Emit? OnSubmit) -> void
+DigitalBrain.UI.Field.AutomationName.get -> string!
+DigitalBrain.UI.Field.AutomationName.init -> void
+DigitalBrain.UI.Field.Deconstruct(out string! Key, out string! Name, out DigitalBrain.UI.FieldKind Kind, out string? Placeholder, out DigitalBrain.UI.Command? OnSubmit, out string! AutomationName) -> void
 DigitalBrain.UI.Field.Equals(DigitalBrain.UI.Field? other) -> bool
-DigitalBrain.UI.Field.Field(string! Key, string! Name, DigitalBrain.UI.FieldKind Kind, string? Placeholder = null, DigitalBrain.UI.Emit? OnSubmit = null) -> void
+DigitalBrain.UI.Field.Field(string! Key, string! Name, DigitalBrain.UI.FieldKind Kind, string? Placeholder = null, DigitalBrain.UI.Command? OnSubmit = null, string! AutomationName = "") -> void
 DigitalBrain.UI.Field.Key.get -> string!
 DigitalBrain.UI.Field.Key.init -> void
 DigitalBrain.UI.Field.Kind.get -> DigitalBrain.UI.FieldKind
 DigitalBrain.UI.Field.Kind.init -> void
 DigitalBrain.UI.Field.Name.get -> string!
 DigitalBrain.UI.Field.Name.init -> void
-DigitalBrain.UI.Field.OnSubmit.get -> DigitalBrain.UI.Emit?
+DigitalBrain.UI.Field.OnSubmit.get -> DigitalBrain.UI.Command?
 DigitalBrain.UI.Field.OnSubmit.init -> void
 DigitalBrain.UI.Field.Placeholder.get -> string?
 DigitalBrain.UI.Field.Placeholder.init -> void
@@ -585,11 +587,13 @@ DigitalBrain.UI.MetricTileNode.Value.init -> void
 DigitalBrain.UI.NavItemNode
 DigitalBrain.UI.NavItemNode.Action.get -> string!
 DigitalBrain.UI.NavItemNode.Action.init -> void
+DigitalBrain.UI.NavItemNode.AutomationName.get -> string!
+DigitalBrain.UI.NavItemNode.AutomationName.init -> void
 DigitalBrain.UI.NavItemNode.Badge.get -> string?
 DigitalBrain.UI.NavItemNode.Badge.init -> void
-DigitalBrain.UI.NavItemNode.Deconstruct(out string! Key, out string! Label, out string! Icon, out string! Action, out bool Selected, out string? Badge, out DigitalBrain.UI.Emit? Emit) -> void
-DigitalBrain.UI.NavItemNode.Emit.get -> DigitalBrain.UI.Emit?
-DigitalBrain.UI.NavItemNode.Emit.init -> void
+DigitalBrain.UI.NavItemNode.Command.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.NavItemNode.Command.init -> void
+DigitalBrain.UI.NavItemNode.Deconstruct(out string! Key, out string! Label, out string! Icon, out string! Action, out bool Selected, out string? Badge, out DigitalBrain.UI.Command? Command, out string! AutomationName) -> void
 DigitalBrain.UI.NavItemNode.Equals(DigitalBrain.UI.NavItemNode? other) -> bool
 DigitalBrain.UI.NavItemNode.Icon.get -> string!
 DigitalBrain.UI.NavItemNode.Icon.init -> void
@@ -597,7 +601,7 @@ DigitalBrain.UI.NavItemNode.Key.get -> string!
 DigitalBrain.UI.NavItemNode.Key.init -> void
 DigitalBrain.UI.NavItemNode.Label.get -> string!
 DigitalBrain.UI.NavItemNode.Label.init -> void
-DigitalBrain.UI.NavItemNode.NavItemNode(string! Key, string! Label, string! Icon, string! Action, bool Selected = false, string? Badge = null, DigitalBrain.UI.Emit? Emit = null) -> void
+DigitalBrain.UI.NavItemNode.NavItemNode(string! Key, string! Label, string! Icon, string! Action, bool Selected = false, string? Badge = null, DigitalBrain.UI.Command? Command = null, string! AutomationName = "") -> void
 DigitalBrain.UI.NavItemNode.Selected.get -> bool
 DigitalBrain.UI.NavItemNode.Selected.init -> void
 DigitalBrain.UI.NeuronRef
@@ -752,9 +756,11 @@ DigitalBrain.UI.Surface.Title.get -> string?
 DigitalBrain.UI.Surface.Title.init -> void
 DigitalBrain.UI.SurfaceKind
 DigitalBrain.UI.Switch
-DigitalBrain.UI.Switch.Deconstruct(out string! Key, out string! Label, out bool IsOn, out DigitalBrain.UI.Emit? Emit, out bool Locked) -> void
-DigitalBrain.UI.Switch.Emit.get -> DigitalBrain.UI.Emit?
-DigitalBrain.UI.Switch.Emit.init -> void
+DigitalBrain.UI.Switch.AutomationName.get -> string!
+DigitalBrain.UI.Switch.AutomationName.init -> void
+DigitalBrain.UI.Switch.Command.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.Switch.Command.init -> void
+DigitalBrain.UI.Switch.Deconstruct(out string! Key, out string! Label, out bool IsOn, out DigitalBrain.UI.Command? Command, out bool Locked, out string! AutomationName) -> void
 DigitalBrain.UI.Switch.Equals(DigitalBrain.UI.Switch? other) -> bool
 DigitalBrain.UI.Switch.IsOn.get -> bool
 DigitalBrain.UI.Switch.IsOn.init -> void
@@ -764,7 +770,7 @@ DigitalBrain.UI.Switch.Label.get -> string!
 DigitalBrain.UI.Switch.Label.init -> void
 DigitalBrain.UI.Switch.Locked.get -> bool
 DigitalBrain.UI.Switch.Locked.init -> void
-DigitalBrain.UI.Switch.Switch(string! Key, string! Label, bool IsOn, DigitalBrain.UI.Emit? Emit = null, bool Locked = false) -> void
+DigitalBrain.UI.Switch.Switch(string! Key, string! Label, bool IsOn, DigitalBrain.UI.Command? Command = null, bool Locked = false, string! AutomationName = "") -> void
 DigitalBrain.UI.TabItem
 DigitalBrain.UI.TabItem.<Clone>$() -> DigitalBrain.UI.TabItem!
 DigitalBrain.UI.TabItem.Deconstruct(out string! Key, out string! Id, out string! Label, out DigitalBrain.UI.Emit! Emit, out string? Icon) -> void
@@ -1227,7 +1233,7 @@ static DigitalBrain.UI.Toast.operator ==(DigitalBrain.UI.Toast? left, DigitalBra
 static DigitalBrain.UI.Ui.AppShell(string! key, DigitalBrain.UI.Node? sidebar, DigitalBrain.UI.Node! body, DigitalBrain.UI.Node? toolbar = null, DigitalBrain.UI.Node? inspector = null) -> DigitalBrain.UI.AppShellNode!
 static DigitalBrain.UI.Ui.DiffCard(string! id, string! repo, string! targetBranch, string! headSha, int filesChanged, int additions, int deletions, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.DiffFileNode!>! files) -> DigitalBrain.UI.DiffCardNode!
 static DigitalBrain.UI.Ui.MetricTile(string! id, string! appId, string! title, string! value, string? delta = null, string! deltaTone = "neutral", string? statusLabel = null, string! statusTone = "neutral", System.Collections.Generic.IReadOnlyList<double>? sparkline = null, double? threshold = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Button!>? actions = null) -> DigitalBrain.UI.MetricTileNode!
-static DigitalBrain.UI.Ui.NavItem(string! key, string! label, string! icon, string! action, bool selected = false, string? badge = null, DigitalBrain.UI.Emit? emit = null) -> DigitalBrain.UI.NavItemNode!
+static DigitalBrain.UI.Ui.NavItem(string! key, string! label, string! icon, string! action, bool selected = false, string? badge = null, DigitalBrain.UI.Command? command = null, string! automationName = "") -> DigitalBrain.UI.NavItemNode!
 static DigitalBrain.UI.Ui.StatCard(string! key, string! label, string! value, string? delta = null, DigitalBrain.UI.BadgeTone tone = DigitalBrain.UI.BadgeTone.Neutral, string? icon = null) -> DigitalBrain.UI.StatCardNode!
 static DigitalBrain.UI.Ui.WebBrowser(string! url, string? title = null, string! key = "web-browser", double height = 520, string! executionMode = "wasm-ui") -> DigitalBrain.UI.WebBrowser!
 static DigitalBrain.UI.View.operator !=(DigitalBrain.UI.View? left, DigitalBrain.UI.View? right) -> bool

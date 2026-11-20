@@ -4,7 +4,8 @@ export 'src/chat/conversation_view.dart';
 export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
 export 'src/components/kit/kit_toast.dart';
-export 'src/theme/ui_icon.dart' show uiIcon, uiIconSize;
+export 'src/theme/ui_icon.dart'
+    show uiIcon, uiIconSize, UiIconEntry, uiIconCatalog, uiIconCategories;
 export 'src/components/kit/ui_kit_button.dart';
 export 'src/components/kit/ui_kit_field.dart';
 export 'src/components/kit/ui_kit_select.dart';
@@ -28,6 +29,14 @@ export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
 
 export 'src/composition/view_host.dart';
+export 'src/ui/neuron_widget.dart';
+export 'src/ui/ui_neuron_registry.dart';
+export 'src/ui/code_editor/code_editor_widget.dart'
+    show
+        CodeEditorNeuronWidget,
+        buildIcCodeHighlightTheme,
+        resolveCodeHighlightLanguage,
+        supportedCodeHighlightModes;
 export 'src/nodes/brain_scene.dart';
 export 'src/nodes/diff_card.dart';
 export 'src/nodes/empty_state.dart';

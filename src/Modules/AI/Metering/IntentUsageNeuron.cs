@@ -10,7 +10,7 @@ namespace IntoChat.OS.Modules.AI.Metering;
 [GenerateSerializer, Alias("ai.intent-usage-storage")]
 internal sealed record IntentUsageStorage
 {
-    [Id(0)] public List<TokenUsageEntry> Entries { get; init; } = [];
+    [Id(0)] public TokenUsageEntry[] Entries { get; init; } = [];
 }
 
 [Neuron("ai-intent-usage", State = "intent-usage")]

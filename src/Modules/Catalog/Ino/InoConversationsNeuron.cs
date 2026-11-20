@@ -64,6 +64,8 @@ internal sealed class InoConversationsNeuron : DigitalBrain.Neurons.Neuron<InoCo
 
     public Task<string[]> Current() => Task.FromResult<string[]>(State.Agents is [var current, ..] ? [current] : []);
 
+    public Task<string[]> List() => Task.FromResult(State.Agents);
+
     public async Task<string> CreateNew()
     {
         var id = ConversationId.New();

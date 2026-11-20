@@ -49,8 +49,8 @@ src/IntoChat.OS/OS/IntoChat.OS.Kernel.Host/applications/
 .file-compiler-tests/
 .script-graph-tests/
 .graph-failure-tests/
-# Local Aspire state created by E2E hosts.
-**/*.Tests.E2E/.aspire/
+# Local Aspire state created by AppHost and E2E hosts.
+**/.aspire/
 
 # Prebuilt built-in app packages (src/IntoChat.OS.BuiltinApps)
 /compiled-apps/
@@ -63,4 +63,4 @@ __pycache__/
 Directory.Build.local.props
 
 # Locally downloaded ArtCraft WASM release bundles
-src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/wwwroot/artcraft/
+src/IntoChat.OS.Kernel/wwwroot/artcraft/

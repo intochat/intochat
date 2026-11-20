@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Flows;
+using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
@@ -229,6 +230,162 @@ internal sealed class FlowsNeuron(
     {
         ArgumentNullException.ThrowIfNull(relation);
         return Flow(flowId).Relate(relation);
+    }
+
+    public async Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var repoSlug = string.IsNullOrWhiteSpace(request.RepoSlug) ? "os" : request.RepoSlug.Trim();
+        var goal = request.Goal?.Trim() ?? string.Empty;
+        var instances = Math.Clamp(request.ParallelInstances <= 0 ? 1 : request.ParallelInstances, 1, EngineerRun.MaxParallelInstances);
+        var backend = EngineerRun.NormalizeBackend(request.Backend) ?? nameof(IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeBackendKind.LocalGit);
+
+        if (string.IsNullOrWhiteSpace(goal))
+        {
+            return EngineerDelegationSummaries.Failure(Id.Brain, repoSlug, goal, instances, backend, "Engineer delegation requires a non-empty goal.");
+        }
+
+        IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.RepositoryId parsedRepo;
+        IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.BranchName? parsedBase;
+        try
+        {
+            parsedRepo = IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.RepositoryId.Parse(repoSlug);
+            parsedBase = string.IsNullOrWhiteSpace(request.RequestedBaseBranch)
+                ? null
+                : IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.BranchName.FromRequestedBase(request.RequestedBaseBranch);
+            if (services?.GetService<IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.IWorkTree>() is { } workTree)
+            {
+                _ = workTree.ResolveRepository(parsedRepo);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger().LogSwallowed(ex, $"resolving repository '{repoSlug}' for Engineer delegation");
+            return EngineerDelegationSummaries.Failure(
+                Id.Brain,
+                repoSlug,
+                goal,
+                instances,
+                backend,
+                $"Could not start IntoChat-Engineer on repository '{repoSlug}': {ex.Message}");
+        }
+
+        var runKey = string.IsNullOrWhiteSpace(request.RunId)
+            ? Guid.NewGuid().ToString("N")[..12]
+            : request.RunId.Trim();
+        var title = goal.Length <= 56 ? goal : goal[..56];
+        var startPayload = new EngineerStartRequest(
+            RunId: runKey,
+            Repository: parsedRepo.Value,
+            Goal: goal,
+            InstanceCount: instances,
+            RequestedBaseBranch: parsedBase?.Value,
+            Backend: backend).ToStartJson();
+
+        string flowId;
+        try
+        {
+            flowId = await Start(IFlows.EngineerFlow, title, parentFlowId: null, startPayload, ct, flowId: runKey).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger().LogSwallowed(ex, $"starting EngineerFlow '{title}'");
+            return EngineerDelegationSummaries.Failure(
+                Id.Brain,
+                repoSlug,
+                goal,
+                instances,
+                backend,
+                $"Could not start IntoChat-Engineer '{title}': {ex.Message}");
+        }
+
+        // Poll briefly when steps are actively advancing so live agent tool calls return the approval-gate summary directly,
+        // while exiting quickly if the host scheduler defers flow execution until an explicit pump (e.g. TestOS.Idle).
+        var deadline = Context.Time.GetUtcNow() + TimeSpan.FromSeconds(15);
+        for (var attempt = 0; attempt < 80 && !ct.IsCancellationRequested; attempt++)
+        {
+            var head = await Flow(flowId).Head().ConfigureAwait(true);
+            if (head.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
+            {
+                break;
+            }
+
+            if (attempt >= 3 && head.Done.Length == 0)
+            {
+                break;
+            }
+
+            if (Context.Time.GetUtcNow() >= deadline)
+            {
+                break;
+            }
+
+            await Task.Delay(50, ct).ConfigureAwait(true);
+        }
+
+        return await InspectEngineerRun(flowId, ct).ConfigureAwait(true);
+    }
+
+    public async Task<EngineerRunSummary> InspectEngineerRun(string? flowId = null, CancellationToken ct = default)
+    {
+        var resolvedFlowId = ResolveEngineerFlowId(flowId);
+        if (string.IsNullOrWhiteSpace(resolvedFlowId))
+        {
+            return EngineerDelegationSummaries.Failure(
+                Id.Brain,
+                "os",
+                string.Empty,
+                1,
+                nameof(IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeBackendKind.LocalGit),
+                "No IntoChat-Engineer (flow.engineer) run was found in this brain.");
+        }
+
+        try
+        {
+            var head = await Flow(resolvedFlowId).Head().ConfigureAwait(true);
+            var view = State.Flows.TryGetValue(resolvedFlowId, out var entry)
+                ? await View(entry, State.Flows, ct).ConfigureAwait(true)
+                : null;
+            return EngineerDelegationSummaries.Build(Id.Brain, resolvedFlowId, view, head);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger().LogSwallowed(ex, $"inspecting EngineerFlow '{resolvedFlowId}'");
+            return EngineerDelegationSummaries.Failure(
+                Id.Brain,
+                "os",
+                string.Empty,
+                1,
+                nameof(IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeBackendKind.LocalGit),
+                $"Could not inspect IntoChat-Engineer flow '{resolvedFlowId}': {ex.Message}",
+                resolvedFlowId);
+        }
+    }
+
+    private string? ResolveEngineerFlowId(string? rawFlowId)
+    {
+        if (string.IsNullOrWhiteSpace(rawFlowId))
+        {
+            return State.Flows.Values
+                .Where(static f => string.Equals(f.Type, IFlows.EngineerFlow, StringComparison.Ordinal))
+                .OrderByDescending(static f => f.Started)
+                .Select(static f => f.FlowId)
+                .FirstOrDefault();
+        }
+
+        var trimmed = rawFlowId.Trim();
+        var hashIdx = trimmed.LastIndexOf('#');
+        if (hashIdx >= 0 && hashIdx + 1 < trimmed.Length)
+        {
+            trimmed = trimmed[(hashIdx + 1)..];
+        }
+
+        if (NeuronId.TryParse(trimmed, out var parsed))
+        {
+            return parsed.Brain == Id.Brain ? parsed.ToString() : null;
+        }
+
+        return new NeuronId(Id.Brain, IFlows.EngineerFlow, trimmed).ToString();
     }
 
     [On]

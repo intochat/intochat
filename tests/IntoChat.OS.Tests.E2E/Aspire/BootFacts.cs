@@ -233,6 +233,7 @@ public sealed class BootFacts(OsAppHostFixture host)
             await Task.Delay(100, ct);
         }
 
+        var composerSlotKey = $"{InoView.ConversationKey}/{InoView.ComposerKey}";
         using (var existingScreen = await client.GetAsync($"/brains/{scope}/screens/ino", ct))
         {
             if (existingScreen.StatusCode == HttpStatusCode.OK)
@@ -240,7 +241,7 @@ public sealed class BootFacts(OsAppHostFixture host)
                 var existingJson = await existingScreen.Content.ReadAsStringAsync(ct);
                 using var existingDoc = JsonDocument.Parse(existingJson);
                 if (existingDoc.RootElement.TryGetProperty("controls", out var existingControls)
-                    && existingControls.EnumerateArray().Any(c => string.Equals(c.GetProperty("key").GetString(), InoView.ComposerKey, StringComparison.Ordinal)))
+                    && existingControls.EnumerateArray().Any(c => string.Equals(c.GetProperty("key").GetString(), composerSlotKey, StringComparison.Ordinal)))
                 {
                     return;
                 }
@@ -263,7 +264,7 @@ public sealed class BootFacts(OsAppHostFixture host)
                 var json = await screenResponse.Content.ReadAsStringAsync(ct);
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("controls", out var controls)
-                    && controls.EnumerateArray().Any(c => string.Equals(c.GetProperty("key").GetString(), InoView.ComposerKey, StringComparison.Ordinal)))
+                    && controls.EnumerateArray().Any(c => string.Equals(c.GetProperty("key").GetString(), composerSlotKey, StringComparison.Ordinal)))
                 {
                     return;
                 }
@@ -277,6 +278,7 @@ public sealed class BootFacts(OsAppHostFixture host)
 
     private static async Task SendInoPromptAsync(HttpClient client, string scope, string prompt, CancellationToken ct)
     {
+        var composerSlotKey = $"{InoView.ConversationKey}/{InoView.ComposerKey}";
         using var screenResponse = await client.GetAsync($"/brains/{scope}/screens/ino", ct);
         screenResponse.EnsureSuccessStatusCode();
         using var snapshot = JsonDocument.Parse(await screenResponse.Content.ReadAsStringAsync(ct));
@@ -286,7 +288,7 @@ public sealed class BootFacts(OsAppHostFixture host)
 
         using var actResponse = await client.PostAsJsonAsync(
             $"/brains/{scope}/screens/ino/act",
-            new { key = InoView.ComposerKey, value = prompt, generation },
+            new { key = composerSlotKey, value = prompt, generation },
             ct);
         Assert.True(
             actResponse.IsSuccessStatusCode,

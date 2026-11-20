@@ -199,7 +199,8 @@ void main() {
                   action: 'overview',
                   selected: true,
                   badge: '3',
-                  emit: null,
+                  command: null,
+                  automationName: 'Overview',
                 ),
                 NavItemNode(
                   key: 'nav_vault',
@@ -208,7 +209,8 @@ void main() {
                   action: 'vault',
                   selected: false,
                   badge: null,
-                  emit: null,
+                  command: null,
+                  automationName: 'Vault',
                 ),
               ],
             ),
@@ -552,6 +554,7 @@ void main() {
                 fieldKind: FieldKind.search,
                 placeholder: 'Search settings…',
                 onSubmit: null,
+                automationName: 'Search',
               ),
               FieldNode(
                 key: 'api_key',
@@ -559,6 +562,7 @@ void main() {
                 fieldKind: FieldKind.secret,
                 placeholder: 'sk-...',
                 onSubmit: null,
+                automationName: 'API key',
               ),
             ],
           );

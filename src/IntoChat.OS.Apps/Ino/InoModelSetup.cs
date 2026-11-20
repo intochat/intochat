@@ -1,6 +1,7 @@
 using DigitalBrain;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Media;
@@ -12,6 +13,7 @@ using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.UI.Chat;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Ino;
@@ -30,8 +32,11 @@ internal sealed record InoSetupHost(
     Func<IApprovals> GetApprovals,
     Func<IInoConversations> GetConversations,
     Func<IProfileContextWriter> GetProfileWriter,
+    Func<string, IAgentContext> GetAgentContext,
+    Func<string, IChatThread> GetUiChatThread,
     Func<string, Task> FollowAgentBlocked,
     Func<string, Task> FollowChatSignals,
+    Func<string, Task> FollowUiChatSignals,
     Func<string, Func<Task>, Task> TryOptional,
     Func<string, bool, Func<Task<bool>>, Task<bool>> ReadBoolOptional,
     Func<string, Approval[], Func<Task<Approval[]>>, Task<Approval[]>> ReadApprovalsOptional,
@@ -63,6 +68,116 @@ internal static class InoModelSetup
             return InoModel.SummarizeGrants(grants, IntoChat.OS.Framework.CallerApps.Assistant);
         });
 
+    public static Task<string[]> ReadRecentConversationsAsync(InoSetupHost host, string[]? fallback = null)
+        => host.ReadStringArrayOptional("conversations-list", fallback ?? [], () => host.GetConversations().List());
+
+    public static async Task<long> ReadLastRunTokensAsync(InoSetupHost host, string agentKey, long fallback)
+    {
+        try
+        {
+            var agentState = await host.GetAgent(agentKey).Read();
+            var lastUsage = agentState.Runs.LastOrDefault(static r => r.Usage is not null)?.Usage;
+            if (lastUsage is not null)
+            {
+                var total = lastUsage.TotalTokens ?? ((lastUsage.InputTokens ?? 0L) + (lastUsage.OutputTokens ?? 0L));
+                if (total > 0) { return total; }
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            host.LogOptional(error, "agent-usage");
+        }
+        return fallback;
+    }
+
+    public static async Task SyncUiChatThreadAsync(InoSetupHost host, InoAppState state, bool canDictate)
+    {
+        await host.TryOptional("ui-chat-sync", async () =>
+        {
+            var uiKey = InoModel.UiChatKeyOf(state.ConversationId);
+            var thread = host.GetUiChatThread(uiKey);
+            var activeModel = state.SelectedModel ?? state.DetectedLocalModel ?? ModelCatalog.DefaultChatModelId;
+            var modelOptions = (state.DetectedLocalModels ?? [])
+                .Prepend(activeModel)
+                .Where(static m => !string.IsNullOrWhiteSpace(m))
+                .Distinct(StringComparer.Ordinal)
+                .Select(static m => new ChatModelOption(m, m))
+                .ToArray();
+
+            await thread.Configure(state.ConversationId, state.Title, activeModel, modelOptions, voiceAvailable: canDictate);
+
+            foreach (var msg in InoView.Shown(state))
+            {
+                var toolCalls = msg.Activities.Select(static a => new ChatToolCall(
+                    a.Id,
+                    a.Title,
+                    "{}",
+                    ResultJson: a.Error ?? a.Result,
+                    Status: string.IsNullOrWhiteSpace(a.Error) ? "done" : "failed")).ToArray();
+
+                var slots = msg.Cards
+                    .Where(static c => string.Equals(c.Kind, "chart", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(c.SourceNeuronUri))
+                    .Select(static c => new ChatInlineSlot("ui.chart", InoView.StripNeuronUri(c.SourceNeuronUri)))
+                    .ToArray();
+
+                await thread.AppendMessage(new ChatMessage(
+                    msg.Id,
+                    msg.Role,
+                    msg.Text ?? string.Empty,
+                    ToolCalls: toolCalls.Length > 0 ? toolCalls : null,
+                    Slots: slots.Length > 0 ? slots : null,
+                    Status: msg.Status,
+                    Error: msg.Failure));
+            }
+
+            await thread.SetWorking(state.ActiveRunId is not null || state.Pending is not null, state.Error?.Detail ?? state.Error?.Code);
+
+            long totalIn = 0, totalOut = 0;
+            string? summary = state.ContextSummary;
+            try
+            {
+                var agentState = await host.GetAgent(InoModel.AgentKeyOf(state.ConversationId)).Read();
+                foreach (var run in agentState.Runs)
+                {
+                    if (run.Usage is { } u)
+                    {
+                        totalIn += u.InputTokens ?? 0L;
+                        totalOut += u.OutputTokens ?? 0L;
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(summary) && !string.IsNullOrWhiteSpace(agentState.Summary))
+                {
+                    summary = agentState.Summary;
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                host.LogOptional(error, "ui-chat-agent-usage");
+            }
+
+            List<ChatContextItem> contextItems = [];
+            try
+            {
+                var snap = await host.GetAgentContext("default").Read();
+                foreach (var entry in snap.Entries.Take(24))
+                {
+                    var preview = entry.Text.Length > 120 ? entry.Text[..117] + "..." : entry.Text;
+                    contextItems.Add(new ChatContextItem(
+                        entry.Name,
+                        preview,
+                        entry.Provenance?.Trust ?? ContextTrust.Platform,
+                        Math.Max(1, entry.Text.Length / 4)));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                host.LogOptional(error, "ui-chat-context");
+            }
+
+            await thread.SetContext(contextItems, summary, totalIn, totalOut);
+        });
+    }
+
     public static Task EnsureProfileContextAsync(InoSetupHost host)
         => host.TryOptional("profile-context", () => host.GetProfileWriter().Ensure());
 
@@ -90,6 +205,7 @@ internal static class InoModelSetup
             GrantSummaries = await ReadGrantSummariesAsync(host, current.GrantSummaries),
             DetectedLocalModel = local?.PreferredModel ?? current.DetectedLocalModel,
             DetectedLocalModels = local?.InstalledModels ?? current.DetectedLocalModels,
+            RecentConversations = await ReadRecentConversationsAsync(host, current.RecentConversations),
         });
         return canDictate;
     }
@@ -228,6 +344,38 @@ internal static class InoModelSetup
         switch (cmd)
         {
             case "new" or "clear": await startConversation(); return;
+            case "compact":
+                var messages = state.Messages ?? [];
+                AgentCompactionResult? agentCompacted = null;
+                try
+                {
+                    agentCompacted = await host.GetAgent(InoModel.AgentKeyOf(state.ConversationId)).Compact(string.IsNullOrWhiteSpace(arg) ? null : arg);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    host.LogOptional(error, "agent-compact");
+                }
+
+                if (messages.Length == 0 && (agentCompacted is null || agentCompacted.PreviousMessageCount == 0))
+                {
+                    await host.ShowState(state with { Status = "No messages to compact yet." });
+                    return;
+                }
+
+                var summary = agentCompacted is { Summary.Length: > 0 }
+                    ? agentCompacted.Summary
+                    : InoModel.BuildCompactSummary(messages, state.ContextSummary);
+                await host.TryOptional("compact-context", () => host.GetAgentContext("context/conversation.summary").Upsert(
+                    new ContextEntry("summary", "Earlier conversation summary: " + summary, [])));
+                var compactedCount = agentCompacted is { PreviousMessageCount: > 0 }
+                    ? agentCompacted.PreviousMessageCount - agentCompacted.KeptMessageCount
+                    : messages.Length;
+                await host.ShowState(state with
+                {
+                    ContextSummary = summary,
+                    Status = $"Compacted {compactedCount} message(s) into conversation summary.",
+                });
+                return;
             case "pin": await host.ShowState(InoModel.DecideSlashPin(state)); return;
             case "rename": await host.ShowState(InoModel.DecideSlashRename(state, arg)); return;
             case "model":
@@ -361,6 +509,8 @@ internal static class InoModelSetup
                 new("query-db", "Execute a read-only SQL query against the connected database."),
                 new("new", "Start a new conversation."),
                 new("new-conversation", "Alias for new."),
+                new("switch-conversation", "Switch to an existing conversation."),
+                new("toggle-devui", "Toggle native Modules.UI DevUI chat view."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
                 new("link", "Post a pasted workspace link: its app, opaque input and text."),
             ],

@@ -37,15 +37,15 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting" Version="17.1.0-preview.1.26569.1" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.1.0-preview.1.26569.1" />
+    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.1.0-preview.1.26569.1" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.1.0-preview.1.26569.1" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Orleans" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="17.1.0-preview.1.26569.1" />
+    <PackageVersion Include="Aspire.Hosting.Orleans" Version="17.1.0-preview.1.26569.1" />
     <PackageVersion Include="Aspire.Hosting.Qdrant" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Yarp" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Yarp" Version="17.1.0-preview.1.26569.1" />
     <PackageVersion Include="Aspire.Hosting.ClickHouse" Version="13.5.3" />
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="$(AspireVersion)" />
@@ -109,7 +109,7 @@
     <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Server" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.4.0" />
-    <PackageVersion Include="Microsoft.AI.Foundry.Local" Version="2.1.0" />
+    <PackageVersion Include="Microsoft.AI.Foundry.Local" Version="2.5.0" />
     <PackageVersion Include="Concentus" Version="2.2.2" />
     <PackageVersion Include="Concentus.Oggfile" Version="1.0.7" />
     <PackageVersion Include="NAudio" Version="3.3.0" />

@@ -47,7 +47,7 @@ public sealed class ViewKeyResolutionFacts
     [Fact]
     public void FindResolvesAFieldSubmit()
     {
-        var wire = Wire(new Field("q", "Search", FieldKind.Search, OnSubmit: new Emit("app", "search")));
+        var wire = Wire(new Field("q", "Search", FieldKind.Search, OnSubmit: new Command(".", "search")));
 
         Assert.Equal("search", SignalOf(wire, "q"));
     }

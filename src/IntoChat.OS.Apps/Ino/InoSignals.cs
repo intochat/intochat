@@ -9,6 +9,8 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.link")] public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : Signal;
 [Signal("ino.new")] public sealed record InoNew : Signal;
 [Signal("ino.new-conversation")] public sealed record InoNewConversation : Signal;
+[Signal("ino.switch-conversation")] public sealed record InoSwitchConversation(string? ConversationId = null) : Signal;
+[Signal("ino.toggle-devui")] public sealed record InoToggleDevUi : Signal;
 [Signal("ino.make")] public sealed record InoMake(string? Sentence = null, string[]? Focus = null) : Signal;
 [Signal("ino.stop")] public sealed record InoStop : Signal;
 [Signal("ino.smart")] public sealed record InoSmart(bool On = true) : Signal;

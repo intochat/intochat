@@ -4,7 +4,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // retires it (R4-03), so the fence names it directly.
 public sealed class AuthorityFenceFacts
 {
-    internal static readonly IReadOnlySet<string> Fenced = new HashSet<string>(StringComparer.Ordinal) { "IntoChat.OS", "IntoChat.OS.Framework" };
+    internal static readonly IReadOnlySet<string> Fenced = new HashSet<string>(StringComparer.Ordinal) { "IntoChat.OS" };
 
     [Fact]
     public void FencedProjectsDoNotReferenceAuthority()

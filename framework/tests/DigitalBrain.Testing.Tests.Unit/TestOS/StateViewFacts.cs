@@ -40,7 +40,7 @@ public static class ViewBoardUnit
     [
         new Badge(b.Polls.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         new Button("refresh", "Refresh", new Command(".", "x.refresh", System.Text.Json.JsonSerializer.SerializeToElement(new { key = "hidden", kind = "button" }))),
-        new Switch("foreign", "Foreign", false, new Emit("other.alias", "x.refresh")),
+        new Tabs([new TabItem("foreign", "foreign", "Foreign", new Emit("other.alias", "x.refresh"))], "foreign"),
         new Button("boom", "Boom", new Command(".", "x.boom")),
         new Button("plain", "Plain", Intent: new Intent(IntentKind.Copy, "x")),
         new Button("forge", "Forge", new Command(".", "unit.answered")),

@@ -94,7 +94,9 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
-        var conversation = thread(ThreadProps(s, dictation, threadFailure));
+        var conversation = s.DevUiMode
+            ? new NeuronRef("ui.chat", InoModel.UiChatKeyOf(s.ConversationId))
+            : thread(ThreadProps(s, dictation, threadFailure));
         if (HasUnprojectedVaultSecretPrompt(s))
         {
             Node[] above = [.. s.ActiveCards.SelectMany(RenderCardNodes)];
@@ -142,6 +144,28 @@ public static partial class InoView
         var (statusKind, statusLabel) = ResolveSideStatus(state);
         var activeModel = ResolveModelVisual(state.SelectedModel)?.Label ?? state.SelectedModel;
 
+        var recents = (state.RecentConversations ?? [])
+            .Select(InoModel.ConversationIdOf)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Prepend(state.ConversationId)
+            .Distinct(StringComparer.Ordinal)
+            .Take(64)
+            .ToArray();
+
+        Node[] sessionNavs = [.. recents.Select(convId =>
+        {
+            var isCurrent = string.Equals(convId, state.ConversationId, StringComparison.Ordinal);
+            var label = isCurrent ? state.Title : $"Chat · {convId[..Math.Min(8, convId.Length)]}";
+            return NavItem(
+                $"session-{convId}",
+                label,
+                Icons.Sparkles,
+                "switch-conversation",
+                selected: isCurrent,
+                badge: isCurrent ? $"{count}" : null,
+                emit: AppSignals.Emits("ino", new InoSwitchConversation(convId)));
+        })];
+
         return new View(
             "Chats",
             VStack(Space.Sm)[
@@ -149,12 +173,19 @@ public static partial class InoView
                     VStack(Space.Sm)[
                         HeaderBar(state.Title, activeModel, StatusPill(statusKind, statusLabel)),
                         MutedText(state.Status).Tabular(),
-                        PrimaryButton("+ New Session", Icons.Plus).Small().Key("new-session").Emits(AppSignals.Emit("ino", "new")).ToNode()
+                        HStack(Space.Xs)[
+                            PrimaryButton("+ New Session", Icons.Plus).Small().Key("new-session").Emits(AppSignals.Emit("ino", "new")).ToNode(),
+                            (state.DevUiMode ? PrimaryButton("DevUI On", Icons.Sliders) : Button("DevUI", Icons.Sliders)).Small().Key("toggle-devui").Emits(AppSignals.Emits("ino", new InoToggleDevUi())).ToNode()
+                        ]
                     ]
                 ],
-                Divider("SESSIONS"),
-                NavItem($"session-{state.ConversationId}", state.Title, Icons.Sparkles, "open", selected: true, badge: $"{count}"),
-                new Collection([new Entry(state.ConversationId, state.Title, $"{count} turn(s)")]),
+                Divider($"SESSIONS ({recents.Length})"),
+                VStack(Space.Xs, sessionNavs),
+                new Collection([.. recents.Select(convId =>
+                {
+                    var isCurrent = string.Equals(convId, state.ConversationId, StringComparison.Ordinal);
+                    return new Entry(convId, isCurrent ? state.Title : $"Chat · {convId[..Math.Min(8, convId.Length)]}", isCurrent ? $"{count} turn(s)" : "Switch");
+                })]),
                 Divider("WHAT INO MAY DO"),
                 new Collection([.. (state.GrantSummaries ?? []).Select((summary, i) => new Entry($"grant-{i}", summary, null))])
             ]);
@@ -438,6 +469,23 @@ public static partial class InoView
                 yield return MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
                     $"{card.Id}-canvas-rev-{rev}", card.Title, activeDoc, format, content, rev, card.Summary, elements,
                     [activeDoc, "/work/architecture.markdraw", "/work/pipeline-flow.markdraw"], exportPath, 460);
+                break;
+
+            case "engineer":
+                var engRepo = ColumnOr(card, 0, "os");
+                var engTopology = ColumnOr(card, 1, "1x LocalGit");
+                var engStageOrSha = ColumnOr(card, 2, card.Status);
+                yield return new RecordCardNode(
+                    "IntoChat Engineer · Multi-Worktree Pipeline", card.Title,
+                    [
+                        new RecordFieldNode("Status", card.Status),
+                        new RecordFieldNode("Repository", engRepo),
+                        new RecordFieldNode("Worktrees", engTopology),
+                        new RecordFieldNode("Checkpoint", engStageOrSha),
+                    ],
+                    Subtitle: card.Summary,
+                    LinkLabel: "Open Engineer Workbench",
+                    Open: Button("Open Engineer Workbench").Small().Key("open-engineer").EmitsOrIntent(AppSignals.OpenApp("engineer", card.Id)));
                 break;
 
             default:

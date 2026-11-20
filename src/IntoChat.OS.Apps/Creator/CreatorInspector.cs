@@ -10,17 +10,22 @@ using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Creator;
 
-/// <summary>
-/// Right pane: Inspector for selected node/edge/pulse, Accordant state-space summary, change-run prompts, and interactive approve/reject actions.
-/// </summary>
 public static class CreatorInspector
 {
     private const string App = CreatorView.App;
 
-    public static Node Render(CreatorState state, Inspection inspection, FlowView[] flows, Approval[] approvals)
+    public static Node Render(
+        CreatorWorkspaceState state,
+        Inspection inspection,
+        IReadOnlyList<TraceHop> timelineHops,
+        FlowView[] flows,
+        Approval[] approvals)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(inspection);
+        ArgumentNullException.ThrowIfNull(timelineHops);
+        ArgumentNullException.ThrowIfNull(flows);
+        ArgumentNullException.ThrowIfNull(approvals);
 
         List<Node> children =
         [
@@ -32,247 +37,351 @@ public static class CreatorInspector
                     .Small()
                     .Emits(AppSignals.Emit(App, "select"))
             ],
+            new NeuronRef("ui.tabs", CreatorView.InspectorTabsKey),
+            Tabs(
+                state.InspectorTab,
+                Tab("state", "State").Key("inspector-tab:state").Emits(AppSignals.Emit(App, "select", "tab:state")),
+                Tab("source", "Source").Key("inspector-tab:source").Emits(AppSignals.Emit(App, "select", "tab:source")),
+                Tab("signals", "Signals").Key("inspector-tab:signals").Emits(AppSignals.Emit(App, "select", "tab:signals")),
+                Tab("state-graph", "State Graph").Key("inspector-tab:state-graph").Emits(AppSignals.Emit(App, "select", "tab:state-graph")),
+                Tab("scenarios", "Scenarios").Key("inspector-tab:scenarios").Emits(AppSignals.Emit(App, "select", "tab:scenarios"))),
         ];
 
-        if (state.Selected is null || inspection.Kind.Length == 0)
-        {
-            children.Add(Empty(
-                "No Node Selected",
-                "Click any unit, compiled app, edge, or live signal pulse in the Brain Topology (or left catalog) to inspect its state, source, and live Studio preview."));
-
-            if (approvals.Length > 0)
-            {
-                children.Add(SectionHeader("Pending Approvals"));
-                foreach (var approval in approvals)
-                {
-                    children.Add(StatusPill(StatusKind.NeedsYou, "Needs Approval"));
-                    var visual = VisualCatalog.ForApproval(approval.Subject);
-                    children.Add(new ApprovalCardNode($"approval:{approval.PlanId}", approval.PlanId, approval.Title, approval.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label));
-                    children.Add(HStack(6)[
-                        PrimaryButton("Approve & Promote", Icons.Check)
-                            .Key($"approve:{approval.PlanId}")
-                            .Small()
-                            .Emits(AppSignals.Emit(App, "approve", approval.PlanId)),
-                        Button("Reject & Abort", "x")
-                            .Key($"reject:{approval.PlanId}")
-                            .Small()
-                            .Emits(AppSignals.Emit(App, "reject", approval.PlanId))
-                    ]);
-                }
-            }
-
-            return VStack(Space.Sm, [.. children]);
-        }
-
-        if (inspection.Notice is { } notice)
+        if (inspection.Notice is { Length: > 0 } notice)
         {
             children.Add(Banner("Note", notice));
         }
 
-        children.AddRange(inspection.Kind switch
+        children.AddRange(state.InspectorTab switch
         {
-            Selection.Edge => Edge(inspection),
-            Selection.Pulse => Pulse(state, inspection),
-            _ => Node(state, inspection, flows, approvals),
+            "source" => RenderSourceTab(state, inspection),
+            "signals" => RenderSignalsTab(state, inspection, timelineHops),
+            "state-graph" => RenderStateGraphTab(state, inspection),
+            "scenarios" => RenderScenariosTab(state, inspection),
+            _ => RenderStateTab(state, inspection, timelineHops, flows),
         });
 
-        return VStack([.. children]);
+        RenderApprovalGates(children, state, inspection, flows, approvals);
+
+        return VStack(Space.Sm, [.. children]);
     }
 
-    private static IEnumerable<Node> Node(CreatorState state, Inspection inspection, FlowView[] flows, Approval[] approvals)
+    private static IEnumerable<Node> RenderStateTab(
+        CreatorWorkspaceState state,
+        Inspection inspection,
+        IReadOnlyList<TraceHop> timelineHops,
+        FlowView[] flows)
     {
-        if (inspection.Alias is not { } alias)
+        if (state.Selected is { Kind: Selection.Node })
         {
-            var isApp = IntoChat.OS.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
-            yield return Card(inspection.Id, isApp ? "Compiled OS Application" : "Kernel System Neuron");
-            if (isApp)
+            if (inspection.Alias is { } alias)
             {
-                var app = appRef.Name;
-                yield return HStack(Space.Xs)[
-                    PrimaryButton($"Preview {app} in Studio", "eye")
-                        .Key("preview-compiled-app")
-                        .Small()
-                        .Emits(AppSignals.Emit(App, "select", "mode:live")),
-                    new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app)) { Small = true, Icon = "external-link" }
+                var ghost = inspection.Id.StartsWith("draft:", StringComparison.Ordinal);
+                yield return Card(alias, ghost ? "Under construction: drawn from its build flow until installed." : inspection.Id)[
+                    StatusPill(ghost ? StatusKind.Working : StatusKind.Done, ghost ? "Under Construction" : "Live Unit")
                 ];
-            }
 
+                if (!ghost)
+                {
+                    yield return HStack(Space.Xs)[
+                        Button("Preview Live", "eye")
+                            .Key("preview-unit-live")
+                            .Small()
+                            .Emits(AppSignals.Emit(App, "select", "mode:live")),
+                        new Button("open-unit-window", $"Open {alias}", Intent: AppSignals.OpenApp(alias)) { Small = true, Icon = "external-link" },
+                        Button("Share as App-Post", "share-2")
+                            .Key("share-unit")
+                            .Small()
+                            .Emits(AppSignals.Emit(App, "share", alias))
+                    ];
+                }
+
+                var flow = flows.Where(f => f.Subject == alias).OrderByDescending(f => f.Started).FirstOrDefault();
+                if (flow is not null)
+                {
+                    yield return new Button("open-unit-flow", $"Build flow: {flow.Status.ToString().ToLowerInvariant()}", Intent: AppSignals.OpenApp("tasks", flow.FlowId))
+                    {
+                        Small = true,
+                        Icon = "tasks",
+                    };
+                }
+            }
+            else
+            {
+                var isApp = IntoChat.OS.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
+                yield return Card(inspection.Id, isApp ? "Compiled OS Application" : "Kernel System Neuron");
+                if (isApp)
+                {
+                    var app = appRef.Name;
+                    yield return HStack(Space.Xs)[
+                        PrimaryButton($"Preview {app} in Studio", "eye")
+                            .Key("preview-compiled-app")
+                            .Small()
+                            .Emits(AppSignals.Emit(App, "select", "mode:live")),
+                        new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app)) { Small = true, Icon = "external-link" }
+                    ];
+                }
+            }
+        }
+        else if (state.Selected is null && timelineHops.Count == 0)
+        {
+            yield return Empty(
+                "No Node Selected",
+                "Select any unit, compiled app, edge, or live signal pulse in the Brain Topology to inspect its live or time-traveled state.");
+        }
+
+        yield return new NeuronRef("ui.property-grid", CreatorView.InspectorStateKey);
+
+        var steps = ReplayScript.Steps(timelineHops);
+        var stateJson = ReplayScript.StateJsonAt(steps, state.ReplayCursor, inspection.State);
+        var stateLabel = state.ReplayCursor is { } cursor && steps.Length > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"State at Event {Math.Clamp(cursor, 0, steps.Length - 1) + 1} / {steps.Length}")
+            : "State";
+        yield return Card(stateLabel, stateJson);
+
+        if (inspection.View is { Length: > 0 } publishedView)
+        {
+            yield return Card("Published View", publishedView);
+        }
+
+        if (state.ReplayCursor is { } stepIdx && ReplayScript.Diff(steps, stepIdx) is { } diff)
+        {
+            yield return Table(
+                string.Create(CultureInfo.InvariantCulture, $"State change at step {stepIdx + 1}"),
+                ["Property", "Before", "After"],
+                [.. diff.Select(row => (IReadOnlyList<string>)row)]);
+        }
+    }
+
+    private static IEnumerable<Node> RenderSourceTab(CreatorWorkspaceState state, Inspection inspection)
+    {
+        var orderedFiles = OrderedFiles(inspection.Files);
+        if (orderedFiles.Length > 1)
+        {
+            var selectedFile = ResolveActiveFile(state.SelectedSourceFile, orderedFiles);
+            yield return HStack(Space.Xs, [.. orderedFiles.Select(file =>
+                (Node)(string.Equals(file, selectedFile, StringComparison.Ordinal)
+                    ? PrimaryButton(file)
+                    : GhostButton(file))
+                    .Key($"source-file:{file}")
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "select", $"file:{file}")))]);
+        }
+
+        yield return new NeuronRef("ui.code-editor", CreatorView.InspectorSourceKey);
+
+        if (orderedFiles.Length == 0)
+        {
+            yield return MutedText("No source files kept for the current selection.");
             yield break;
         }
 
-        var ghost = inspection.Id.StartsWith("draft:", StringComparison.Ordinal);
-        yield return Card(alias, ghost ? "Under construction: drawn from its build flow until it is installed." : inspection.Id)[
-            StatusPill(ghost ? StatusKind.Working : StatusKind.Done, ghost ? "Under Construction" : "Live Unit")
-        ];
-        if (!ghost)
-        {
-            yield return HStack(Space.Xs)[
-                Button("Preview Live", "eye")
-                    .Key("preview-unit-live")
-                    .Small()
-                    .Emits(AppSignals.Emit(App, "select", "mode:live")),
-                new Button("open-unit-window", $"Open {alias}", Intent: AppSignals.OpenApp(alias)) { Small = true, Icon = "external-link" }
-            ];
-            yield return Card("State", inspection.State ?? "No state saved yet.");
-            yield return Card("View", inspection.View ?? "No view published yet.");
-        }
-
-        foreach (var name in new[] { "spec.md" }.Concat(inspection.Files.Keys.Where(k => k.EndsWith(".cs", StringComparison.Ordinal)).Order(StringComparer.Ordinal)).Append("scenarios.json"))
+        foreach (var name in orderedFiles)
         {
             if (inspection.Files.TryGetValue(name, out var text))
             {
-                var lang = name.EndsWith(".cs", StringComparison.Ordinal) ? "csharp" : (name.EndsWith(".json", StringComparison.Ordinal) ? "json" : "markdown");
-                yield return CodeBlock(name, text, lang, maxHeight: 220);
+                yield return CodeBlock(name, text, InferLanguage(name), maxHeight: 220);
             }
-        }
-
-        if (inspection.Files.Count == 0)
-        {
-            yield return MutedText("No source kept for this unit.");
-        }
-
-        // Needs and consent: build flow and approvals
-        var flow = flows.Where(f => f.Subject == alias).OrderByDescending(f => f.Started).FirstOrDefault();
-        if (flow is not null)
-        {
-            yield return new Button("open-flow", $"Build flow: {flow.Status.ToString().ToLowerInvariant()}", Intent: AppSignals.OpenApp("tasks", flow.FlowId)) { Small = true, Icon = "tasks" };
-            if (CreatorView.Consent(flow, approvals) is { } consent)
-            {
-                var consentVisual = VisualCatalog.ForApproval(consent.Subject);
-                yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, [], Icon: consentVisual.IconKey, CapabilityLabel: consentVisual.Label);
-                yield return MutedText("Approve or deny in the inbox.");
-            }
-        }
-
-        foreach (var staged in approvals.Where(a => a.Kind == ApprovalKind.SynapseStaged && a.Subject == alias && a.PlanId != flow?.ConfirmationPlanId))
-        {
-            var stagedVisual = VisualCatalog.ForApproval(staged.Subject);
-            yield return new ApprovalCardNode($"needs:{staged.PlanId}", staged.PlanId, staged.Title, staged.Detail, [], Icon: stagedVisual.IconKey, CapabilityLabel: stagedVisual.Label);
-        }
-
-        // Prompt / refine change input
-        yield return SectionHeader("Evolve Unit");
-        yield return TextField(CreatorView.FieldKey(CreatorView.ChangeField), $"How should {alias} change?")
-            .Key(CreatorView.ChangeField)
-            .Label($"Refine {alias}")
-            .Value(state.ChangeDraft);
-        yield return HStack(Space.Sm)[
-            PrimaryButton("Change it", Icons.Sparkles)
-                .Key("change-it")
-                .Small()
-                .Emits(AppSignals.Emit(App, "change", alias, state.ChangeDraft)),
-            Button("Run scenario", "play")
-                .Key("run-scenario")
-                .Small()
-                .Emits(AppSignals.Emit(App, "scenario", alias)),
-            Button("Share as App-Post", "share-2")
-                .Key("share-unit")
-                .Small()
-                .Emits(AppSignals.Emit(App, "share", alias))
-        ];
-
-        // Interactive Approve / Reject actions for any pending approval
-        var relevantApprovals = approvals.Where(a =>
-            a.Subject == alias ||
-            a.Subject == "creator" ||
-            a.Detail.Contains("creator", StringComparison.OrdinalIgnoreCase) ||
-            a.PlanId == flow?.ConfirmationPlanId).ToArray();
-
-        if (relevantApprovals.Length > 0)
-        {
-            yield return SectionHeader("Pending Approval Gate");
-            foreach (var apprv in relevantApprovals)
-            {
-                yield return StatusPill(StatusKind.NeedsYou, "Needs Your Approval");
-                var gateVisual = VisualCatalog.ForApproval(apprv.Subject);
-                yield return new ApprovalCardNode($"gate:{apprv.PlanId}", apprv.PlanId, apprv.Title, apprv.Detail, [], Icon: gateVisual.IconKey, CapabilityLabel: gateVisual.Label);
-                yield return HStack(6)[
-                    PrimaryButton("Approve & Promote", Icons.Check)
-                        .Key($"approve:{apprv.PlanId}")
-                        .Small()
-                        .Emits(AppSignals.Emit(App, "approve", apprv.PlanId)),
-                    Button("Reject & Abort", "x")
-                        .Key($"reject:{apprv.PlanId}")
-                        .Small()
-                        .Emits(AppSignals.Emit(App, "reject", apprv.PlanId))
-                ];
-            }
-        }
-
-        if (state.Transcript is { } transcript)
-        {
-            yield return CodeBlock("Scenario transcript", transcript, "text", maxHeight: 220);
         }
     }
 
-    private static IEnumerable<Node> Edge(Inspection inspection)
+    private static IEnumerable<Node> RenderSignalsTab(
+        CreatorWorkspaceState state,
+        Inspection inspection,
+        IReadOnlyList<TraceHop> timelineHops)
     {
-        var parts = BrainGraph.ParseEdge(inspection.Id);
-        yield return Card(inspection.Alias ?? inspection.Id, parts is { } p ? $"{p.From} → {p.To}" : inspection.Id);
-        yield return Table(
-            $"Last {inspection.Signals.Count} signal(s)",
-            ["#", "At", "Publisher", "Trace"],
-            [.. inspection.Signals.Select(s => (IReadOnlyList<string>)[
-                s.Sequence.ToString(CultureInfo.InvariantCulture),
-                s.At.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
-                s.Publisher,
-                s.TraceId ?? "",
-            ])]);
-        foreach (var traceId in inspection.Signals.Select(s => s.TraceId).OfType<string>().Distinct(StringComparer.Ordinal).TakeLast(5))
-        {
-            yield return Button($"Trace {traceId}", "activity")
-                .Key($"open-trace:{traceId}")
-                .Small()
-                .Emits(AppSignals.Emit(App, "trace", traceId))
-                .ToNode();
-        }
-    }
+        yield return new NeuronRef("ui.table", CreatorView.InspectorSignalsKey);
 
-    private static IEnumerable<Node> Pulse(CreatorState state, Inspection inspection)
-    {
-        var hops = inspection.Hops;
-        if (hops.Count == 0)
+        if (inspection.Kind == Selection.Edge)
         {
+            var parts = BrainGraph.ParseEdge(inspection.Id);
+            yield return Card(inspection.Alias ?? inspection.Id, parts is { } p ? $"{p.From} → {p.To}" : inspection.Id);
+            yield return Table(
+                string.Create(CultureInfo.InvariantCulture, $"Last {inspection.Signals.Count} signal(s)"),
+                ["#", "At", "Publisher", "Trace"],
+                [.. inspection.Signals.Select(s => (IReadOnlyList<string>)[
+                    s.Sequence.ToString(CultureInfo.InvariantCulture),
+                    s.At.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                    s.Publisher,
+                    s.TraceId ?? "",
+                ])]);
+
+            foreach (var traceId in inspection.Signals.Select(s => s.TraceId).OfType<string>().Distinct(StringComparer.Ordinal).TakeLast(5))
+            {
+                yield return Button($"Trace {traceId}", "activity")
+                    .Key($"open-trace:{traceId}")
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "trace", traceId))
+                    .ToNode();
+            }
+
             yield break;
         }
 
-        var first = hops.Min(h => h.At);
-        var steps = ReplayScript.Steps(hops);
-        var cursor = state.ReplayCursor is { } c ? Math.Clamp(c, 0, steps.Length - 1) : (long?)null;
-        var current = cursor is { } at ? steps[at].Sequence : (long?)null;
+        if (timelineHops.Count == 0)
+        {
+            yield return MutedText("Select an edge or signal pulse on the graph to inspect its causal signal stream.");
+            yield break;
+        }
+
+        var first = timelineHops.Min(h => h.At);
+        var steps = ReplayScript.Steps(timelineHops);
+        var cursor = state.ReplayCursor is { } c && steps.Length > 0
+            ? Math.Clamp(c, 0, steps.Length - 1)
+            : (long?)null;
+        var currentSeq = cursor is { } at ? steps[at].Sequence : (long?)null;
+        var traceTitle = state.TraceId is { Length: > 0 } tid ? $"Trace {tid}" : $"Trace {inspection.Id}";
 
         yield return Table(
-            $"Trace {inspection.Id}",
+            traceTitle,
             ["#", "Δt", "Publisher", "Signal", "Cause"],
-            [.. hops.Select(h => (IReadOnlyList<string>)[
-                (h.Sequence == current ? "▶ " : "") + h.Sequence.ToString(CultureInfo.InvariantCulture),
+            [.. timelineHops.Select(h => (IReadOnlyList<string>)[
+                (h.Sequence == currentSeq ? "▶ " : "") + h.Sequence.ToString(CultureInfo.InvariantCulture),
                 string.Create(CultureInfo.InvariantCulture, $"+{(h.At - first).TotalMilliseconds:0}ms"),
                 TraceFold.Indent(h.Depth) + h.Publisher,
                 h.Alias,
                 h.Cause ?? "",
             ])]);
 
-        yield return new Progress(
-            "Replay",
-            cursor is { } position ? (steps.Length == 1 ? 1 : (double)position / (steps.Length - 1)) : 0,
-            cursor is { } now ? $"step {now + 1} of {steps.Length}: {steps[now].Alias}" : $"live; {steps.Length} step(s)");
-
-        yield return HStack(Space.Xs)[
-            Button("First", "chevrons-left").Key("replay-first").Small().Emits(AppSignals.Emit(App, "replay", "first")),
-            Button("Prev", "chevron-left").Key("replay-prev").Small().Emits(AppSignals.Emit(App, "replay", "prev")),
-            Button("Next", "chevron-right").Key("replay-next").Small().Emits(AppSignals.Emit(App, "replay", "next")),
-            Button("Last", "chevrons-right").Key("replay-last").Small().Emits(AppSignals.Emit(App, "replay", "last")),
-            Button("Live", "radio").Key("replay-live").Small().Emits(AppSignals.Emit(App, "replay", "stop"))
-        ];
-
-        if (cursor is { } step && ReplayScript.Diff(steps, step) is { } diff)
+        if (cursor is { } stepIdx && ReplayScript.Diff(steps, stepIdx) is { } diff)
         {
-            yield return Table($"State change at step {step + 1}", ["Property", "Before", "After"], [.. diff.Select(row => (IReadOnlyList<string>)row)]);
+            yield return Table(
+                string.Create(CultureInfo.InvariantCulture, $"State change at step {stepIdx + 1}"),
+                ["Property", "Before", "After"],
+                [.. diff.Select(row => (IReadOnlyList<string>)row)]);
         }
 
-        foreach (var flowId in hops.Select(h => h.FlowId).OfType<string>().Distinct(StringComparer.Ordinal))
+        foreach (var flowId in timelineHops.Select(h => h.FlowId).OfType<string>().Distinct(StringComparer.Ordinal))
         {
-            yield return new Button($"open-flow:{flowId}", "Open the flow", Intent: AppSignals.OpenApp("tasks", flowId)) { Small = true, Icon = "tasks" };
+            yield return new Button($"open-flow:{flowId}", "Open the flow", Intent: AppSignals.OpenApp("tasks", flowId))
+            {
+                Small = true,
+                Icon = "tasks",
+            };
         }
     }
+
+    private static IEnumerable<Node> RenderStateGraphTab(CreatorWorkspaceState state, Inspection inspection)
+    {
+        if (state.Selected is { Kind: Selection.Node } && inspection.Alias is { } alias && inspection.Files.Count > 0)
+        {
+            yield return CreatorStateSpaceInspector.RenderUnitSummaryCard(alias, inspection.Files);
+            yield return CreatorStateSpaceInspector.RenderUnitStateScene(alias, inspection.Files);
+            yield break;
+        }
+
+        var creatorGraph = CreatorStateSpaceInspector.CreatorGraph;
+        yield return Card(
+            "Creator Aggregate State Graph",
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{creatorGraph.States.Count} reachable state(s) · {creatorGraph.AcceptedTransitions.Count} accepted / {creatorGraph.RejectedTransitions.Count} guarded edge(s)"))[
+            StatusPill(
+                creatorGraph.IsHealthy ? StatusKind.Done : StatusKind.Error,
+                creatorGraph.IsHealthy ? "Invariants Healthy" : $"{creatorGraph.Violations.Count} Violation(s)")
+        ];
+        yield return StateGraphView(creatorGraph);
+    }
+
+    private static IEnumerable<Node> RenderScenariosTab(CreatorWorkspaceState state, Inspection inspection)
+    {
+        var alias = inspection.Alias;
+        yield return Card(
+            "Scenario Verification",
+            alias is { Length: > 0 } ? $"Unit: {alias}" : "Select an installed unit to execute its kept scenarios on TestOS fakes.")[
+            PrimaryButton("Run scenario", "play")
+                .Key("run-scenario")
+                .Small()
+                .Guard(state.RequiresSelectedNode)
+                .Emits(AppSignals.Emit(App, "scenario", alias ?? ""))
+        ];
+
+        if (inspection.Files.TryGetValue("scenarios.json", out var scenariosJson) && !string.IsNullOrWhiteSpace(scenariosJson))
+        {
+            yield return CodeBlock("scenarios.json", scenariosJson, "json", maxHeight: 180);
+        }
+
+        if (state.Transcript is { Length: > 0 } transcript)
+        {
+            yield return CodeBlock("Scenario transcript", transcript, "text", maxHeight: 240);
+        }
+    }
+
+    private static void RenderApprovalGates(
+        List<Node> children,
+        CreatorWorkspaceState state,
+        Inspection inspection,
+        FlowView[] flows,
+        Approval[] approvals)
+    {
+        if (approvals.Length == 0)
+        {
+            return;
+        }
+
+        var alias = inspection.Alias;
+        var flow = alias is not null
+            ? flows.Where(f => f.Subject == alias).OrderByDescending(f => f.Started).FirstOrDefault()
+            : null;
+
+        var relevant = state.Selected is null
+            ? approvals
+            : approvals.Where(a =>
+                (alias is not null && a.Subject == alias) ||
+                a.Subject == App ||
+                a.Detail.Contains(App, StringComparison.OrdinalIgnoreCase) ||
+                a.PlanId == flow?.ConfirmationPlanId).ToArray();
+
+        if (relevant.Length == 0)
+        {
+            return;
+        }
+
+        children.Add(SectionHeader("Pending Approval Gate"));
+        foreach (var apprv in relevant)
+        {
+            children.Add(StatusPill(StatusKind.NeedsYou, "Needs Approval"));
+            var visual = VisualCatalog.ForApproval(apprv.Subject);
+            children.Add(new ApprovalCardNode(
+                $"gate:{apprv.PlanId}",
+                apprv.PlanId,
+                apprv.Title,
+                apprv.Detail,
+                [],
+                Icon: visual.IconKey,
+                CapabilityLabel: visual.Label));
+            children.Add(HStack(6)[
+                PrimaryButton("Approve & Promote", Icons.Check)
+                    .Key($"approve:{apprv.PlanId}")
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "approve", apprv.PlanId)),
+                Button("Reject & Abort", "x")
+                    .Key($"reject:{apprv.PlanId}")
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "reject", apprv.PlanId))
+            ]);
+        }
+    }
+
+    internal static string[] OrderedFiles(IReadOnlyDictionary<string, string> files)
+        => [.. new[] { "spec.md" }
+            .Concat(files.Keys.Where(k => k.EndsWith(".cs", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
+            .Append("scenarios.json")
+            .Concat(files.Keys.Order(StringComparer.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .Where(files.ContainsKey)];
+
+    internal static string? ResolveActiveFile(string? preferred, string[] orderedFiles)
+        => preferred is not null && orderedFiles.Contains(preferred, StringComparer.Ordinal)
+            ? preferred
+            : orderedFiles.FirstOrDefault(f => f.EndsWith(".cs", StringComparison.Ordinal)) ?? orderedFiles.FirstOrDefault();
+
+    internal static string InferLanguage(string fileName)
+        => fileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ? "csharp"
+            : fileName.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart"
+            : fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json"
+            : fileName.EndsWith(".sql", StringComparison.OrdinalIgnoreCase) ? "sql"
+            : fileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) ? "yaml"
+            : fileName.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ? "typescript"
+            : "markdown";
 }

@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using DigitalBrain.Testing.Conformance.Storage;
-using IntoChat.Files;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Views;
 
@@ -389,7 +388,7 @@ public sealed class FilesMediaPreviewFacts
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
         var texts = ViewReads.Texts(screen.Main);
-        Assert.Contains("audio", texts, StringComparer.Ordinal);
+        Assert.Contains("AUDIO preview", texts, StringComparer.Ordinal);
         Assert.Contains(app.Snapshot.PreviewUrl, texts, StringComparer.Ordinal);
     }
 
@@ -407,7 +406,7 @@ public sealed class FilesMediaPreviewFacts
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
         var texts = ViewReads.Texts(screen.Main);
-        Assert.Contains("video", texts, StringComparer.Ordinal);
+        Assert.Contains("VIDEO preview", texts, StringComparer.Ordinal);
         Assert.Contains(app.Snapshot.PreviewUrl, texts, StringComparer.Ordinal);
     }
 
@@ -425,7 +424,7 @@ public sealed class FilesMediaPreviewFacts
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
         var texts = ViewReads.Texts(screen.Main);
-        Assert.Contains("pdf", texts, StringComparer.Ordinal);
+        Assert.Contains("PDF preview", texts, StringComparer.Ordinal);
         Assert.Contains(app.Snapshot.PreviewUrl, texts, StringComparer.Ordinal);
     }
 
@@ -442,7 +441,11 @@ public sealed class FilesMediaPreviewFacts
         Assert.Null(app.Snapshot.Preview);
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
-        Assert.Contains(Walk.Nodes(screen.Main), n => Walk.Kind(n) == "card" && Walk.Str(n, "body") == app.Snapshot.PreviewUrl);
+        Assert.Contains(
+            Walk.Nodes(screen.Main),
+            n => Walk.Kind(n) == "surface"
+                && Walk.Str(n, "surfaceKind") == "image:contain"
+                && Walk.Str(n, "subtitle") == app.Snapshot.PreviewUrl);
     }
 }
 

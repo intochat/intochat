@@ -2,7 +2,10 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Friends;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.UI;
+using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Friends;
 
@@ -139,4 +142,113 @@ public sealed class FriendsAppFacts
         System.Collections.IEnumerable items => items.Cast<object?>().SelectMany(Nodes),
         _ => [],
     };
+
+    [Fact]
+    public void FriendsAppState_AggregateExplorer_UnfoldsHealthyStateGraphAndRuleGuards()
+    {
+        var graph = AggregateExplorer<FriendsAppState>.ExploreScreen<FriendsApp>(maxStates: 48).EnsureHealthy();
+
+        Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
+        Assert.Empty(graph.Violations);
+        Assert.Contains(graph.States, s => s.State.SelectedScope == "all");
+        Assert.Contains(graph.States, s => s.State.SelectedScope == "public");
+        Assert.Contains(graph.States, s => s.State.SelectedScope == "friends");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "roster");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "shared");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "feed");
+        Assert.Contains(graph.States, s => s.State.Handle == "ada");
+        Assert.Contains(graph.States, s => s.State.Friends.Any(f => f.Handle == "ada"));
+
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_scope", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_tab", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_handle", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_invite_code", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("duplicate_contact", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_circle", StringComparer.Ordinal));
+
+        Assert.Contains("digraph FriendsAppState", graph.ToDot(), StringComparison.Ordinal);
+        Assert.Contains(FriendsApp.Bundle.Manifest.Operations, op => op.Name == UiCommand.SignalAlias);
+    }
+
+    [Fact]
+    public async Task FriendsDomainRules_EnforceHandleInviteDuplicateContactCircleAndTabValidation()
+    {
+        var initial = new FriendsAppState();
+
+        var badScope = initial.SelectScope("secret");
+        Assert.True(badScope.IsRefused);
+        Assert.Contains("invalid_scope", badScope.Rejection!.Rules);
+
+        var badTab = initial.SelectTab("unknown-tab");
+        Assert.True(badTab.IsRefused);
+        Assert.Contains("invalid_tab", badTab.Rejection!.Rules);
+
+        var badHandle = initial.UpdateProfileDraft("bad handle!");
+        Assert.True(badHandle.IsRefused);
+        Assert.Contains("invalid_handle", badHandle.Rejection!.Rules);
+
+        var badInvite = initial.StageInviteCode("short");
+        Assert.True(badInvite.IsRefused);
+        Assert.Contains("invalid_invite_code", badInvite.Rejection!.Rules);
+
+        var selfContact = initial.AddContactToCircle("user", "Self", "friends");
+        Assert.True(selfContact.IsRefused);
+        Assert.Contains("duplicate_contact", selfContact.Rejection!.Rules);
+
+        var badCircle = initial.AddContactToCircle("grace", "Grace Hopper", "unknown-circle");
+        Assert.True(badCircle.IsRefused);
+        Assert.Contains("invalid_circle", badCircle.Rejection!.Rules);
+
+        var addedAda = initial.AddContactToCircle("ada", "Ada Lovelace", "friends");
+        Assert.True(addedAda.IsAccepted);
+        var dupAda = addedAda.Next!.AddContactToCircle("ada", "Ada Duplicate", "friends");
+        Assert.True(dupAda.IsRefused);
+        Assert.Contains("duplicate_contact", dupAda.Rejection!.Rules);
+
+        var dupInvite = addedAda.Next.StageInviteCode("ada.CODE-2026");
+        Assert.True(dupInvite.IsRefused);
+        Assert.Contains("duplicate_contact", dupInvite.Rejection!.Rules);
+
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var friends = await os.Install<FriendsApp>();
+
+        await friends.Request("filter-scope", new FriendsFilterScope("secret"));
+        Assert.NotNull(friends.App.LastRejection);
+        Assert.Contains("invalid_scope", friends.App.LastRejection!.Rules);
+        Assert.Equal("all", friends.App.State.SelectedScope);
+
+        await friends.Request("update-bio", new FriendsUpdateBio("bad handle!"));
+        Assert.NotNull(friends.App.LastRejection);
+        Assert.Contains("invalid_handle", friends.App.LastRejection!.Rules);
+        Assert.Equal("user", friends.App.State.Handle);
+
+        await friends.Request("publish", new FriendsPublish("Hello", Scope: "invalid-circle"));
+        Assert.NotNull(friends.App.LastRejection);
+        Assert.Contains("invalid_circle", friends.App.LastRejection!.Rules);
+
+        var renderedJson = System.Text.Json.JsonSerializer.Serialize(friends.App.Render());
+        Assert.Contains("Action refused", renderedJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FriendsApp_UiIntrospector_UnfoldsCleanAccordantStateGraphAndDot()
+    {
+        var brain = new BrainId("friends-introspect");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", brain));
+        await using var os = TestOS.Local();
+        os.Register(typeof(UiModule).Assembly);
+        os.Register<AgentContextNeuron>();
+        os.Register<UiIntrospectorNeuron>();
+
+        var introspector = os.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(brain));
+        var snapshot = await introspector.ExploreStateGraph(typeof(FriendsApp).FullName!, maxStates: 48);
+
+        Assert.True(snapshot.IsHealthy, string.Join("\n", snapshot.Violations));
+        Assert.Empty(snapshot.Violations);
+        Assert.True(snapshot.States.Length >= 6);
+        Assert.Contains(snapshot.Transitions, t => t.Accepted);
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_scope", StringComparer.Ordinal));
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("duplicate_contact", StringComparer.Ordinal));
+        Assert.Contains("digraph FriendsAppState", snapshot.Dot, StringComparison.Ordinal);
+    }
 }

@@ -124,14 +124,15 @@ internal sealed class RepositoryAllowlist(
                 {
                     yield return new RegisteredRepository(child.Key, Path.GetFullPath(child.Value));
                 }
-                else if (child["path"] is { Length: > 0 } || child["localPath"] is { Length: > 0 })
+                else if (child["path"] is { Length: > 0 } || child["localPath"] is { Length: > 0 } || child["remoteCloneUrl"] is { Length: > 0 })
                 {
-                    var local = child["path"] ?? child["localPath"]!;
+                    var local = child["path"] ?? child["localPath"] ?? Path.Combine(HomeDirectory, "volumes", "sources", child["id"] ?? child.Key);
                     yield return new RegisteredRepository(
                         child["id"] ?? child.Key,
                         Path.GetFullPath(local),
                         child["githubRepo"] ?? child["remote"],
-                        child["baseBranch"] ?? child["defaultBaseBranch"]);
+                        child["baseBranch"] ?? child["defaultBaseBranch"],
+                        child["remoteCloneUrl"] ?? child["cloneUrl"]);
                 }
             }
         }
@@ -205,14 +206,18 @@ internal sealed class RepositoryAllowlist(
 
         var id = GetStringIgnoreCase(element, "id") ?? GetStringIgnoreCase(element, "name") ?? fallbackId;
         var localPath = GetStringIgnoreCase(element, "path") ?? GetStringIgnoreCase(element, "localPath");
-        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(localPath))
+        var cloneUrl = GetStringIgnoreCase(element, "remoteCloneUrl") ?? GetStringIgnoreCase(element, "cloneUrl");
+        if (string.IsNullOrWhiteSpace(id) || (string.IsNullOrWhiteSpace(localPath) && string.IsNullOrWhiteSpace(cloneUrl)))
         {
             return null;
         }
 
         var githubRepo = GetStringIgnoreCase(element, "githubRepo") ?? GetStringIgnoreCase(element, "repo") ?? GetStringIgnoreCase(element, "slug");
         var baseBranch = GetStringIgnoreCase(element, "baseBranch") ?? GetStringIgnoreCase(element, "defaultBaseBranch");
-        return new RegisteredRepository(id.Trim(), Path.GetFullPath(localPath.Trim()), githubRepo?.Trim(), baseBranch?.Trim());
+        var resolvedLocal = !string.IsNullOrWhiteSpace(localPath)
+            ? Path.GetFullPath(localPath.Trim())
+            : Path.GetFullPath(Path.Combine(Path.GetTempPath(), "worktree-mirror-placeholder", id.Trim()));
+        return new RegisteredRepository(id.Trim(), resolvedLocal, githubRepo?.Trim(), baseBranch?.Trim(), cloneUrl?.Trim());
     }
 
     private static string? GetStringIgnoreCase(JsonElement obj, string name)

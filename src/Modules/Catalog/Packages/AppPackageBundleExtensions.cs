@@ -137,7 +137,7 @@ internal sealed class NullSandboxRuntimeBridge : ISandboxRuntimeBridge
     {
         cancellationToken.ThrowIfCancellationRequested();
         _ = assemblyBytes;
-        _deployments[$"{brainId}/{package.Key}"] = (package, stateJson, settingsJson);
+        _deployments[DeploymentKey(brainId, package.Key)] = (package, stateJson, settingsJson);
         return Task.FromResult(new SandboxDeploymentResult(
             Succeeded: true,
             Error: null,
@@ -158,7 +158,7 @@ internal sealed class NullSandboxRuntimeBridge : ISandboxRuntimeBridge
 
     public Task<DigitalBrain.UI.View?> RenderAsync(string brainId, string appKey, CancellationToken cancellationToken = default)
     {
-        if (_deployments.TryGetValue($"{brainId}/{appKey}", out var entry))
+        if (_deployments.TryGetValue(DeploymentKey(brainId, appKey), out var entry))
         {
             return Task.FromResult<DigitalBrain.UI.View?>(
                 new DigitalBrain.UI.View(entry.Package.Title, new DigitalBrain.UI.Column([new DigitalBrain.UI.Text(entry.Package.Summary)])));
@@ -172,7 +172,9 @@ internal sealed class NullSandboxRuntimeBridge : ISandboxRuntimeBridge
 
     public Task UnloadAsync(string brainId, string appKey, CancellationToken cancellationToken = default)
     {
-        _deployments.TryRemove($"{brainId}/{appKey}", out _);
+        _deployments.TryRemove(DeploymentKey(brainId, appKey), out _);
         return Task.CompletedTask;
     }
+
+    private static string DeploymentKey(string brainId, string appKey) => $"{brainId}/{appKey}";
 }

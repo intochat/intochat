@@ -9,7 +9,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Primitives;
@@ -52,6 +51,13 @@ internal sealed partial class FilesWorkspaceNeuron(
     ILogger<FilesWorkspaceNeuron> logger,
     IServiceProvider services) : Neuron<FilesWorkspaceState>, IFilesWorkspace
 {
+    private const string FilesDialogKey = "files/dialogs/prompt";
+    private const string FilesBreadcrumbKey = "files/breadcrumb";
+    private const string FilesGridKey = "files/grid";
+    private const string FilesContextMenuKey = "files/context-menu";
+    private const string FilesEditorKey = "files/preview/editor";
+    private const string FilesMarkdownKey = "files/preview/markdown";
+    private const string FilesImageKey = "files/preview/image";
     private string AppPath => Id.Key.EndsWith("/workspace", StringComparison.Ordinal) && Id.Key.StartsWith("apps/", StringComparison.Ordinal)
         ? Id.Key[..^"/workspace".Length] : throw new InvalidOperationException("Files workspace keys belong to an app.");
     private string AppKey => Id.Brain.Value + "/" + AppPath;
@@ -105,6 +111,11 @@ internal sealed partial class FilesWorkspaceNeuron(
         await Field("content").Configure(DigitalBrain.UI.FieldKind.Multiline);
         foreach (var field in new[] { "search", "filter" })
         { await Context.Wires.Ensure<FieldChanged>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + field)); }
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.Dialog.Signals.DialogResolved>(new(Id.Brain, "ui.dialog", FilesDialogKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.BreadcrumbBar.Signals.BreadcrumbClicked>(new(Id.Brain, "ui.breadcrumb", FilesBreadcrumbKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.ContextMenu.Signals.ContextMenuInvoked>(new(Id.Brain, "ui.context-menu", FilesContextMenuKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.GridView.Signals.GridViewChanged>(new(Id.Brain, "ui.grid-view", FilesGridKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.CodeEditor.Signals.CodeEditorSaved>(new(Id.Brain, "ui.code-editor", FilesEditorKey));
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -188,6 +199,21 @@ internal sealed partial class FilesWorkspaceNeuron(
                 case "mkdir" or "write" or "rename" or "delete" or "paste":
                     if (State.Started.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
                     var name = input.Name ?? (await Field("name").Read()).Value ?? "";
+                    if (operation is "mkdir" or "rename" && string.IsNullOrWhiteSpace(name))
+                    {
+                        var dialog = Get<IntoChat.OS.Modules.UI.Dialog.IDialog>(new(Id.Brain, "ui.dialog", FilesDialogKey));
+                        await dialog.Open(
+                            operation == "mkdir" ? "New folder" : "Rename item",
+                            operation == "mkdir"
+                                ? "Enter a single-segment folder name to create in the current directory."
+                                : $"Enter a new name for '{State.Files.Selected?.Item.Name ?? "selected item"}'.",
+                            confirmLabel: operation == "mkdir" ? "Create" : "Rename",
+                            inputLabel: "Name",
+                            inputPlaceholder: operation == "mkdir" ? "e.g. reports" : (State.Files.Selected?.Item.Name ?? ""),
+                            initialInput: operation == "rename" ? State.Files.Selected?.Item.Name : null);
+                        await Persist(State with { PendingRequest = operation, Notice = null });
+                        break;
+                    }
                     if (operation is "mkdir" or "write" or "rename")
                     {
                         var nameRule = FilesPathRules.ValidateSingleSegmentName(name);
@@ -238,7 +264,27 @@ internal sealed partial class FilesWorkspaceNeuron(
                     }
                     await Store(app, resetPage: true);
                     break;
-                case "upload" or "download" or "open-app": break;
+                case "download":
+                    await Persist(State with
+                    {
+                        Notice = State.Files.PreviewUrl is { } dlUrl
+                            ? $"Download ready: {dlUrl}"
+                            : State.Files.Selected is { } sel
+                                ? $"Select a file to download ({sel.Item.Name})."
+                                : "Select a file to download.",
+                    });
+                    break;
+                case "upload":
+                    await Persist(State with { Notice = "Drag-and-drop or use Quick Write to save a file into the current folder." });
+                    break;
+                case "open-app":
+                    await Persist(State with
+                    {
+                        Notice = State.Files.PreviewApp is { } appName
+                            ? $"Smart App '{appName}' source folder selected."
+                            : "Select a Smart App folder to open.",
+                    });
+                    break;
                 default: throw new ArgumentException("Unknown Files action.", nameof(operation));
             }
         }
@@ -246,6 +292,72 @@ internal sealed partial class FilesWorkspaceNeuron(
         catch (ArgumentException error) { await Persist(State with { PendingRequest = null, Notice = error.Message }); }
         catch (InvalidOperationException error) { await Persist(State with { PendingRequest = null, Notice = error.Message }); }
         await Render();
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.Dialog.Signals.DialogResolved resolved)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+        var pending = State.PendingRequest;
+        await Persist(State with { PendingRequest = null });
+        if (!resolved.Confirmed || string.IsNullOrWhiteSpace(pending) || string.IsNullOrWhiteSpace(resolved.InputValue))
+        {
+            await Render();
+            return;
+        }
+        await Request(pending, new FilesWorkspaceInput(Name: resolved.InputValue.Trim()), State.Files.Revision, Guid.NewGuid());
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.BreadcrumbBar.Signals.BreadcrumbClicked clicked)
+    {
+        ArgumentNullException.ThrowIfNull(clicked);
+        if (!int.TryParse(clicked.ItemId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx)) { return; }
+        if (idx < 0 || idx >= State.Files.Breadcrumbs.Length - 1) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request("breadcrumb", new(Index: idx), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files breadcrumb action was stale."); }
+        });
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.ContextMenu.Signals.ContextMenuInvoked invoked)
+    {
+        ArgumentNullException.ThrowIfNull(invoked);
+        if (invoked.ItemId is not ("mkdir" or "rename" or "copy" or "delete")) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request(invoked.ItemId, new(), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files context-menu action was stale."); }
+        });
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.GridView.Signals.GridViewChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        if (!int.TryParse(changed.SelectedId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx)) { return; }
+        if (idx < 0 || idx >= State.Files.Items.Length) { return; }
+        var currentIdx = State.Files.Selected is { } sel ? Array.IndexOf(State.Files.Items, sel) : -1;
+        if (idx == currentIdx) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request("select", new(Index: idx), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files grid selection action was stale."); }
+        });
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.CodeEditor.Signals.CodeEditorSaved saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        if (string.IsNullOrWhiteSpace(saved.Title)) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request("write", new(Name: saved.Title, Text: saved.Content), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files code-editor save action was stale."); }
+        });
     }
 
     [On]

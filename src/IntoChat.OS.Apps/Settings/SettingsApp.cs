@@ -9,7 +9,6 @@ Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, 
 `PersonPage`, `LocalServerPage`), modal sheets, search index, navigation backstack, and pure immutable
 `SettingsAppState` DDD Aggregate projections (zero transient mutable grain fields!).
 */
-using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
@@ -20,12 +19,12 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Anthropic;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Settings;
@@ -76,208 +75,21 @@ public sealed record SettingsSetVariable(string? Key = null, string? Value = nul
 [Signal("settings.set-budget")]
 public sealed record SettingsSetBudget(long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros) : Signal;
 
-public sealed record SettingsSearchEntry(
-    string SectionId,
-    string Title,
-    string Keywords,
-    string ActionUri,
-    string Icon = "settings",
-    string Group = "Preferences");
-
-public sealed record SettingsModelOption(
-    string Id,
-    string Label,
-    bool Available = true,
-    string? ProviderLabel = null,
-    string? Reason = null);
-
-/// <summary>
-/// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
-/// (compute spend/cap, pending approvals, and redacted secret statuses) without transient grain fields.
-/// </summary>
-public sealed record SettingsAppState(
-    string Title,
-    string Status,
-    string DisplayName,
-    string Theme,
-    string DefaultModel,
-    string Section = "general",
-    string? SubPage = null,
-    string? Sheet = null,
-    IReadOnlyList<string>? History = null,
-    string SearchQuery = "",
-    string StylePreset = "fluent-acrylic",
-    string BarLayout = "floating-glass",
-    string ThemeMode = "auto",
-    string DesktopTone = "cream",
-    string Language = "English",
-    string TimeZone = "UTC",
-    string DateFormat = "17 Oct 2026",
-    IReadOnlyList<string>? ConnectionKeys = null,
-    IReadOnlyList<string>? FriendGrants = null,
-    string? ExportedArchiveJson = null,
-    IReadOnlyList<UserVariableEntry>? Variables = null,
-    IReadOnlyList<string>? DeployedUnits = null,
-    IReadOnlyList<ProfileFriend>? TeamFriends = null)
-{
-    public const long MinMonthlyBudgetMicros = 1_000_000L;       // $1.00
-    public const long MaxMonthlyBudgetMicros = 10_000_000_000L;  // $10,000.00
-
-    public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
-    public static IReadOnlyList<string> DefaultFriendGrants { get; } = [];
-
-    // Projected immutable read-model fields (eliminating transient mutable grain fields on SettingsApp):
-    public string ComputeSpendUsd { get; init; } = "$0.00";
-    public string ComputeBudgetUsd { get; init; } = "$50.00";
-    public long MonthlyBudgetMicros { get; init; } = ComputeState.DefaultMonthlyBudgetMicros;
-    public bool ComputeBudgetExceeded { get; init; }
-    public string ComputeRowsSummary { get; init; } = "0 model(s) metered";
-    public IReadOnlyList<Approval> PendingApprovals { get; init; } = [];
-    public IReadOnlyDictionary<string, bool>? SecretStatuses { get; init; }
-    public bool NotifyApprovals { get; init; } = true;
-    public bool NotifyBackgroundJobs { get; init; } = true;
-    public bool NotifyConnectionHealth { get; init; } = true;
-    public bool QuietHoursEnabled { get; init; }
-    public bool ShowOsBarNotifications { get; init; } = true;
-    public bool ShowOsBarComputeMeter { get; init; } = true;
-    public bool ShowOsBarClock { get; init; } = true;
-    public IReadOnlyList<SettingsModelOption> AvailableModels { get; init; } = [];
-    public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
-
-    public SettingsAppState() : this(
-        "Settings",
-        "Settings",
-        "User",
-        "dark",
-        ModelCatalog.DefaultChatModelId,
-        "general",
-        null,
-        null,
-        [],
-        "",
-        "fluent-acrylic",
-        "floating-glass",
-        "auto",
-        "cream",
-        "English",
-        "UTC",
-        "17 Oct 2026",
-        [],
-        [],
-        null,
-        [],
-        [],
-        [])
-    {
-    }
-
-    [Invariant("Active section is always one of the 13 canonical Settings sections.")]
-    public bool ValidSectionInvariant => SettingsApp.SearchIndex.Any(entry => entry.SectionId == Section);
-
-    [Invariant("Monthly compute budget cap is always positive and within platform bounds.")]
-    public Rule ValidBudgetCapInvariant => ValidateBudget(MonthlyBudgetMicros);
-
-    [Invariant("Navigation history never exceeds 20 entries.")]
-    public bool BoundedHistoryInvariant => (History?.Count ?? 0) <= 20;
-
-    public bool CanGoBack => !string.IsNullOrEmpty(SubPage) || !string.IsNullOrEmpty(Sheet) || (History is { Count: > 0 });
-
-    public Rule CanReturnRule => Decision.Require(
-        "can_go_back",
-        this,
-        static s => s.CanGoBack,
-        "No previous settings page or sheet to return to.");
-
-    public static Rule ValidateBudget(long monthlyBudgetMicros) => Decision.Rule(
-        "valid_monthly_budget",
-        monthlyBudgetMicros,
-        static b => b < MinMonthlyBudgetMicros || b > MaxMonthlyBudgetMicros,
-        static b => $"Monthly compute cap must be between $1.00 and $10,000.00 (received {b} micro-credits).");
-
-    public static Rule ValidateVariableKey(string? key) => Decision.Rule(
-        "variable_key_required",
-        key,
-        static k => string.IsNullOrWhiteSpace(k),
-        "Variable key cannot be empty.");
-
-    public SettingsAppState Navigate(
-        [Sample("general", "models", "billing", "apps:ino")] string? section,
-        [Sample(null, "local-server")] string? subPage = null,
-        string? sheet = null,
-        string? searchQuery = null)
-        => SettingsDecisions.DecideNavigate(this, section, subPage, sheet, searchQuery);
-
-    public SettingsAppState GoBack() => SettingsDecisions.DecideGoBack(this);
-
-    public SettingsAppState Filter([Sample("", "Ollama", "vault")] string query)
-        => this with
-        {
-            SearchQuery = query?.Trim() ?? string.Empty,
-            Status = string.IsNullOrWhiteSpace(query)
-                ? $"Showing all {SettingsApp.SearchIndex.Count} sections"
-                : $"Filtered sections matching '{query.Trim()}'",
-        };
-
-    public Decision<SettingsAppState> ApplyPreferences(
-        [Sample("Ada")] string? displayName = null,
-        [Sample("dark", "light")] string? theme = null,
-        [Sample(nameof(IQwen35), nameof(ISonnet46))] string? defaultModel = null,
-        [Sample("fluent-acrylic")] string? stylePreset = null,
-        [Sample("floating-glass")] string? barLayout = null,
-        [Sample("auto")] string? themeMode = null,
-        [Sample("cream")] string? desktopTone = null)
-    {
-        var nextName = string.IsNullOrWhiteSpace(displayName) ? DisplayName : displayName.Trim();
-        var nextTheme = string.IsNullOrWhiteSpace(theme) ? Theme : theme.Trim();
-        var nextModel = string.IsNullOrWhiteSpace(defaultModel) ? DefaultModel : defaultModel.Trim();
-        var nextPreset = string.IsNullOrWhiteSpace(stylePreset) ? StylePreset : stylePreset.Trim();
-        var nextBar = string.IsNullOrWhiteSpace(barLayout) ? BarLayout : barLayout.Trim();
-        var nextMode = string.IsNullOrWhiteSpace(themeMode) ? ThemeMode : themeMode.Trim();
-        var nextTone = string.IsNullOrWhiteSpace(desktopTone) ? DesktopTone : desktopTone.Trim();
-
-        return Decision.Accept(this with
-        {
-            Title = "Settings",
-            Status = $"Saved: {nextName} ({nextTheme}, {nextModel}, {nextPreset}, {nextBar})",
-            DisplayName = nextName,
-            Theme = nextTheme,
-            DefaultModel = nextModel,
-            StylePreset = nextPreset,
-            BarLayout = nextBar,
-            ThemeMode = nextMode,
-            DesktopTone = nextTone,
-        });
-    }
-
-    public Decision<SettingsAppState> ApplyBudgetCap([Sample(50_000_000L, 0L)] long monthlyBudgetMicros)
-    {
-        var check = Decision.Check("set-budget", ValidateBudget(monthlyBudgetMicros));
-        if (check is not null)
-        {
-            return check;
-        }
-
-        var usd = FormatUsd(monthlyBudgetMicros);
-        return Decision.Accept(this with
-        {
-            Section = "billing",
-            MonthlyBudgetMicros = monthlyBudgetMicros,
-            ComputeBudgetUsd = usd,
-            Status = $"Updated monthly compute cap to {usd}.",
-        });
-    }
-
-    public static string FormatUsd(long micros)
-        => (micros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
-
-    public override string ToString()
-        => $"{Section}{(SubPage is null ? "" : "/" + SubPage)}{(Sheet is null ? "" : "#" + Sheet)} · {ComputeBudgetUsd}";
-}
-
 [Neuron("app.settings")]
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
-public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
+public sealed class SettingsApp : AggregateScreen<SettingsAppState>
 {
+    public const string ApiKeysFormKey = "settings/forms/api-keys";
+
+    public SettingsApp() : this(null, null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public SettingsApp(ISecretVault? secretVault = null, BrainPreferenceStore? preferenceStore = null)
+    {
+        SecretVault = secretVault;
+        PreferenceStore = preferenceStore;
+    }
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -287,6 +99,28 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
         await FollowSlot<FormNeuron, Submitted>(SettingsControls.Search);
         await FollowSlot<FormNeuron, Submitted>(SettingsControls.Regional);
+
+        try
+        {
+            var form = Get<IForm>(ApiKeysFormKey);
+            if ((await form.Read()).Version == 0)
+            {
+                await form.Configure(
+                    "Seal API keys in Secure Vault",
+                    [
+                        new FormField("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKinds.Secret, Placeholder: "sk-ant-…"),
+                        new FormField("OPENAI_API_KEY", "OpenAI API key", FormFieldKinds.Secret, Placeholder: "sk-…"),
+                        new FormField("GOOGLE_API_KEY", "Google Gemini API key", FormFieldKinds.Secret, Placeholder: "AIza…"),
+                    ],
+                    submitLabel: "Save vault references");
+            }
+        }
+#pragma warning disable CA1031 // Optional UI module in minimal test hosts.
+        catch (Exception ex)
+        {
+            IntoChat.OS.Framework.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping API keys IForm seeding in minimal test host.");
+        }
+#pragma warning restore CA1031
     }
 
     private SettingsSlots Slots => new(
@@ -295,12 +129,24 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         Slot<FormNeuron, FormProps>);
 
     [On]
-    public Task OnToggled(Toggled toggled)
+    public async Task OnToggled(Toggled toggled)
     {
         ArgumentNullException.ThrowIfNull(toggled);
-        return SettingsControls.ToggleOf(SignalSlot) is { } toggle
-            ? toggle.Get(State) == toggled.IsOn ? Task.CompletedTask : UpdateAsync(toggle.Set(State, toggled.IsOn))
-            : Task.CompletedTask;
+        if (SettingsControls.ToggleOf(SignalSlot) is not { } toggle || toggle.Get(State) == toggled.IsOn)
+        {
+            return;
+        }
+        try
+        {
+            await Get<IUserSettings>("settings").SetVariable($"settings.toggle.{toggle.Key}", toggled.IsOn ? "true" : "false");
+        }
+#pragma warning disable CA1031 // Best-effort persistence when settings neuron is absent in unit tests.
+        catch (Exception ex)
+        {
+            IntoChat.OS.Framework.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping toggle persistence in minimal test host.");
+        }
+#pragma warning restore CA1031
+        await UpdateAsync(toggle.Set(State, toggled.IsOn));
     }
 
     [On]
@@ -389,9 +235,9 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         CompiledType = typeof(SettingsApp).AssemblyQualifiedName,
     };
 
-    public static string NormalizeSection(string? section) => SettingsDecisions.NormalizeSection(section);
+    public static string NormalizeSection(string? section) => SettingsAppState.NormalizeSection(section);
 
-    public static IReadOnlyList<SettingsSearchEntry> FilterSections(string? query) => SettingsDecisions.FilterSections(query);
+    public static IReadOnlyList<SettingsSearchEntry> FilterSections(string? query) => SettingsAppState.FilterSections(query);
 
     protected override string Title => State.Title;
 
@@ -440,14 +286,15 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
             : user with { DefaultModel = displayModel };
         var targetSection = string.IsNullOrWhiteSpace(requestedSection) ? State.Section : NormalizeSection(requestedSection);
 
-        var next = SettingsDecisions.DecideApplyUserSettings(
-            computeProjection with
-            {
-                PendingApprovals = approvals,
-                SecretStatuses = secrets,
-                AvailableModels = modelInfo.Options,
-                LocalOllamaEndpoint = modelInfo.LocalEndpoint,
-            },
+        var projected = computeProjection with
+        {
+            PendingApprovals = approvals,
+            SecretStatuses = secrets,
+            AvailableModels = modelInfo.Options,
+            LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+        };
+
+        var next = projected.ApplyUserSettings(
             effectiveUser,
             $"Settings ({effectiveUser.DisplayName} · {effectiveUser.Theme} · {effectiveUser.DefaultModel})",
             deployedUnits,
@@ -547,7 +394,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         string? section = null,
         string? archiveJson = null,
         SettingsAppState? baseline = null)
-        => UpdateAsync(SettingsDecisions.DecideApplyUserSettings(baseline ?? State, user, status, deployedUnits, teamFriends, section, archiveJson));
+        => UpdateAsync((baseline ?? State).ApplyUserSettings(user, status, deployedUnits, teamFriends, section, archiveJson));
 
     private async Task<IReadOnlyList<string>> TryReadDeployedUnitsAsync()
     {
@@ -641,13 +488,42 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     public Task RefreshConnections(SettingsRefreshConnections request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return UpdateAsync(SettingsDecisions.DecideRefreshConnections(State, request.ConnectionKey, request.FriendApp));
+        if (request.ConnectionKey is not null && string.IsNullOrWhiteSpace(request.ConnectionKey) && string.IsNullOrWhiteSpace(request.FriendApp))
+        {
+            return ApplySettingsDecisionAsync(State.RegisterConnection(request.ConnectionKey, request.FriendApp));
+        }
+
+        return UpdateAsync(State.RefreshConnectionsProjection(request.ConnectionKey, request.FriendApp));
     }
 
     [On]
     public async Task SavePreferences(SettingsSavePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (new[]
+            {
+                request.DisplayName, request.Theme, request.DefaultModel, request.StylePreset, request.BarLayout,
+                request.ThemeMode, request.DesktopTone, request.Language, request.TimeZone, request.DateFormat,
+            }.All(static v => v is null))
+        {
+            await UpdateAsync(State with { Title = "Settings", Status = "Nothing to save." });
+            return;
+        }
+
+        var validation = State.ApplyPreferences(
+            request.DisplayName,
+            request.Theme,
+            request.DefaultModel,
+            request.StylePreset,
+            request.BarLayout,
+            request.ThemeMode,
+            request.DesktopTone);
+        if (validation.IsRefused)
+        {
+            await ApplySettingsDecisionAsync(validation);
+            return;
+        }
+
         if (new[]
             {
                 request.DisplayName, request.Theme, request.DefaultModel, request.StylePreset, request.BarLayout,
@@ -667,9 +543,10 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     public async Task SetVariable(SettingsSetVariable request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (SettingsAppState.ValidateVariableKey(request.Key).Broken)
+        var check = State.UpsertVariable(request.Key, request.Value);
+        if (check.IsRefused)
         {
-            await UpdateAsync(State with { Status = "Variable key cannot be empty." });
+            await ApplySettingsDecisionAsync(check);
             return;
         }
 
@@ -678,20 +555,18 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         var updated = await Get<IUserSettings>("settings").SetVariable(key, val);
         var variables = updated.Variables ?? [];
         var secrets = await InspectSecretStatusesAsync(variables);
-        await UpdateAsync(SettingsDecisions.DecideSetVariable(State with { SecretStatuses = secrets }, key, variables));
+        await UpdateAsync((State with { SecretStatuses = secrets }).ApplyStoredVariables(key, variables));
     }
 
     [On]
     public async Task SetBudget(SettingsSetBudget request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cap = request.MonthlyBudgetMicros > 0
-            ? request.MonthlyBudgetMicros
-            : ComputeState.DefaultMonthlyBudgetMicros;
+        var cap = request.MonthlyBudgetMicros;
         var decision = State.ApplyBudgetCap(cap);
         if (decision.IsRefused)
         {
-            await ApplyDecisionAsync(decision);
+            await ApplySettingsDecisionAsync(decision);
             return;
         }
 
@@ -706,7 +581,11 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
             Log.LogDebug(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
         }
 
-        await UpdateAsync(SettingsDecisions.DecideSetBudget(next, next.ComputeBudgetUsd));
+        await UpdateAsync(next with
+        {
+            Section = "billing",
+            Status = $"Updated monthly compute cap to {next.ComputeBudgetUsd}.",
+        });
     }
 
     [On]
@@ -715,7 +594,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         ArgumentNullException.ThrowIfNull(request);
         var brainId = TryCurrentBrainId();
         var snapshot = await PortableBrainArchive.ExportAsync(brainId, Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
-        await UpdateAsync(SettingsDecisions.DecideExportBrain(State, PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
+        await UpdateAsync(State.RecordExportedArchive(PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
     }
 
     private BrainPreferenceStore ResolvePreferenceStore()
@@ -735,13 +614,13 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     public async Task ImportBrain(SettingsImportBrain request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson) ? State.ExportedArchiveJson : request.ArchiveJson;
-        if (string.IsNullOrWhiteSpace(archiveJson))
+        if (Decision.Check("import-brain", State.HasPortableArchiveRule(request.ArchiveJson)) is { } rejected)
         {
-            await UpdateAsync(State with { Section = "danger", Status = "No portable brain archive JSON provided to import." });
+            await ApplySettingsDecisionAsync(rejected);
             return;
         }
 
+        var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson) ? State.ExportedArchiveJson! : request.ArchiveJson;
         var snapshot = PortableBrainArchive.FromJson(archiveJson);
         var settings = Get<IUserSettings>("settings");
         await PortableBrainArchive.ImportAsync(snapshot, settings, Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
@@ -768,13 +647,32 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 
     public new SettingsAppState State => base.State;
 
+    public new Rejected? LastRejection => State.LastRejection ?? base.LastRejection;
+
     public View Render() => PreviewView(State);
 
     protected override Node Render(SettingsAppState state)
-        => SettingsViewRenderer.RenderRoot(state, Slots, LastRejection);
+        => SettingsViewRenderer.RenderRoot(state, Slots, state.LastRejection ?? base.LastRejection);
 
     // The controls are controlled: their values are props of this view, so a save re-renders them; nothing is pushed to them.
-    private Task UpdateAsync(SettingsAppState next) => Show(next);
+    private Task UpdateAsync(SettingsAppState next) => Show(next with { LastRejection = null });
+
+    private async Task ApplySettingsDecisionAsync(Decision<SettingsAppState> decision)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        if (decision.IsRefused)
+        {
+            await PublishEphemeral(decision.Rejection);
+            await Show(State with
+            {
+                LastRejection = decision.Rejection,
+                Status = string.Join(" ", decision.Rejection.Messages),
+            });
+            return;
+        }
+
+        await UpdateAsync(decision.Next);
+    }
 
     private T? TryGetOptional<T>(string key) where T : class
     {

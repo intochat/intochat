@@ -64,7 +64,7 @@ public sealed class CircleRoomUnitFacts
         var field = Assert.Single(emitting);
         Assert.Equal("message", field.GetProperty("key").GetString());
         var submit = field.GetProperty("onSubmit");
-        Assert.Equal(("circleroom", "circleroom.message"), (submit.GetProperty("owner").GetString(), submit.GetProperty("signal").GetString()));
+        Assert.Equal((".", "circleroom.message"), (submit.GetProperty("target").GetString(), submit.GetProperty("signal").GetString()));
 
         static JsonElement Payload(params (string Name, string Value)[] members)
             => JsonSerializer.SerializeToElement(members.ToDictionary(member => member.Name, member => member.Value));

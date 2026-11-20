@@ -3,7 +3,10 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.UI;
+using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Settings;
 
@@ -230,11 +233,11 @@ public sealed class SettingsAppFacts
                 .Register<ProfileNeuron>()
                 .Register<InMemoryPortableSynapseStudio>();
 
-            var creator = await os.Install<IntoChat.OS.Apps.Creator.CreatorApp>();
             var settings = await os.Install<SettingsApp>();
             var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
 
-            await creator.Request("seed", new IntoChat.OS.Apps.Creator.CreatorSeed("watch.web"));
+            await os.Get<IntoChat.OS.Modules.Apps.ISynapseStudio>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "ino.synapses", "ino/synapses"))
+                .DeployFiles("watch.web", IntoChat.OS.Apps.ShippedUnits.Files("watch.web"), new Dictionary<string, string>(StringComparer.Ordinal));
             Assert.Contains("watch.web", InMemoryPortableSynapseStudio.Store.Keys);
 
             await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Linus", Theme: "dark", DefaultModel: "claude-opus-4-6"));
@@ -535,5 +538,127 @@ public sealed class SettingsAppFacts
             value = default;
             return false;
         }
+    }
+
+    [Fact]
+    public void SettingsAppState_AggregateExplorer_UnfoldsHealthyStateGraphAndRuleGuards()
+    {
+        var graph = AggregateExplorer<SettingsAppState>.ExploreScreen<SettingsApp>(maxStates: 48).EnsureHealthy();
+
+        Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
+        Assert.Empty(graph.Violations);
+        Assert.Contains(graph.States, s => s.State.Section == "general");
+        Assert.Contains(graph.States, s => s.State.Section == "models");
+        Assert.Contains(graph.States, s => s.State.Section == "billing");
+        Assert.Contains(graph.States, s => s.State.Section == "connections");
+        Assert.Contains(graph.States, s => s.State.Section == "variables");
+
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_section", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("can_go_back", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_display_name", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_theme", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("valid_monthly_budget", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_connection_key", StringComparer.Ordinal));
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("variable_key_required", StringComparer.Ordinal));
+
+        var dot = graph.ToDot();
+        Assert.Contains("digraph SettingsAppState", dot, StringComparison.Ordinal);
+        var scene = Kit.StateGraphView(graph);
+        Assert.Equal(graph.States.Count, scene.Nodes.Count);
+    }
+
+    [Fact]
+    public async Task SettingsDomainRules_RefuseInvalidSectionsThemesBudgetsConnectionsVariablesAndMissingArchives()
+    {
+        var initial = new SettingsAppState();
+
+        var badSection = initial.OpenSection("nonexistent-tab");
+        Assert.True(badSection.IsRefused);
+        Assert.Contains("invalid_section", badSection.Rejection!.Rules);
+
+        var cannotReturn = initial.ReturnPrevious();
+        Assert.True(cannotReturn.IsRefused);
+        Assert.Contains("can_go_back", cannotReturn.Rejection!.Rules);
+
+        var moved = initial.OpenSection("connections", "github");
+        Assert.True(moved.IsAccepted);
+        var returned = moved.Next!.ReturnPrevious();
+        Assert.True(returned.IsAccepted);
+        Assert.Equal("general", returned.Next!.Section);
+
+        var badPrefs = initial.ApplyPreferences(
+            displayName: "   ",
+            theme: "solarized",
+            stylePreset: "unknown-preset",
+            barLayout: "unknown-bar",
+            themeMode: "invalid-mode",
+            desktopTone: "neon");
+        Assert.True(badPrefs.IsRefused);
+        Assert.Contains("invalid_display_name", badPrefs.Rejection!.Rules);
+        Assert.Contains("invalid_theme", badPrefs.Rejection!.Rules);
+        Assert.Contains("invalid_style_preset", badPrefs.Rejection.Rules);
+        Assert.Contains("invalid_bar_layout", badPrefs.Rejection.Rules);
+        Assert.Contains("invalid_theme_mode", badPrefs.Rejection.Rules);
+        Assert.Contains("invalid_desktop_tone", badPrefs.Rejection.Rules);
+
+        var badConn = initial.RegisterConnection("   ");
+        Assert.True(badConn.IsRefused);
+        Assert.Contains("invalid_connection_key", badConn.Rejection!.Rules);
+
+        var badVar = initial.UpsertVariable("BAD KEY WITH SPACES", "1");
+        Assert.True(badVar.IsRefused);
+        Assert.Contains("variable_key_required", badVar.Rejection!.Rules);
+
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
+        Assert.NotNull(await settings.Screen.Open());
+
+        await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "   ", Theme: "neon"));
+        Assert.NotNull(settings.App.LastRejection);
+        Assert.Contains("invalid_display_name", settings.App.LastRejection!.Rules);
+        Assert.Contains("invalid_theme", settings.App.LastRejection.Rules);
+        Assert.Equal("User", settings.App.State.DisplayName);
+        Assert.Equal("dark", settings.App.State.Theme);
+
+        await settings.Request("set-budget", new SettingsSetBudget(0));
+        Assert.NotNull(settings.App.LastRejection);
+        Assert.Contains("valid_monthly_budget", settings.App.LastRejection!.Rules);
+
+        await settings.Request("set-variable", new SettingsSetVariable("   ", "val"));
+        Assert.NotNull(settings.App.LastRejection);
+        Assert.Contains("variable_key_required", settings.App.LastRejection!.Rules);
+
+        await settings.Request("import-brain", new SettingsImportBrain(""));
+        Assert.NotNull(settings.App.LastRejection);
+        Assert.Contains("archive_required", settings.App.LastRejection!.Rules);
+
+        var renderedJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("Invalid setting value", renderedJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SettingsApp_UiIntrospector_UnfoldsCleanAccordantStateGraphAndDot()
+    {
+        var brain = new BrainId("settings-introspect");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", brain));
+        await using var os = TestOS.Local();
+        os.Register(typeof(UiModule).Assembly);
+        os.Register<AgentContextNeuron>();
+        os.Register<UiIntrospectorNeuron>();
+
+        var introspector = os.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(brain));
+        var snapshot = await introspector.ExploreStateGraph(typeof(SettingsApp).FullName!, maxStates: 48);
+
+        Assert.True(snapshot.IsHealthy, string.Join("\n", snapshot.Violations));
+        Assert.Empty(snapshot.Violations);
+        Assert.True(snapshot.States.Length >= 6);
+        Assert.Contains(snapshot.Transitions, t => t.Accepted);
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("valid_monthly_budget", StringComparer.Ordinal));
+        Assert.Contains(snapshot.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_section", StringComparer.Ordinal));
+        Assert.Contains("digraph SettingsAppState", snapshot.Dot, StringComparison.Ordinal);
+
+        var report = await introspector.SyncContext();
+        Assert.Contains("SettingsApp", report.ContextSummary, StringComparison.Ordinal);
     }
 }

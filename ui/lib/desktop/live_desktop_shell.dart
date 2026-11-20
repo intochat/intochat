@@ -67,6 +67,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.localPreferences,
     this.profileMenu,
     this.read,
+    this.callNeuron,
     this.requestApp,
     this.notificationsClient,
     this.installedApps = const <String>[],
@@ -113,6 +114,9 @@ class LiveDesktopShell extends StatefulWidget {
     String method,
   )?
   read;
+
+  /// Invokes any typed method on a neuron contract over `NeuronChannel` (gRPC).
+  final NeuronMethodCaller? callNeuron;
 
   /// Optional client for real OS notifications; falls back to [entries] when present.
   final IntoChatOSUiClient? notificationsClient;
@@ -344,9 +348,24 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         .listen((_) => unawaited(_readSmart()), onError: (Object _) {});
   }
 
-  /// Smart mode is the `ino.smart` user variable; off when it cannot be read.
+  String? _syncedStylePreset;
+
+  static IcStylePreset? _parseStylePreset(String? raw) =>
+      switch (raw?.trim().toLowerCase()) {
+        'fluent-acrylic' => IcStylePreset.fluentAcrylic,
+        'spatial-glass' => IcStylePreset.spatialGlass,
+        'cyber-synaptic' => IcStylePreset.cyberSynaptic,
+        'warm-paper' || 'intochat' || 'paper' => IcStylePreset.warmPaper,
+        'fluent-warm-mica' => IcStylePreset.fluentWarmMica,
+        'linear-carbon' => IcStylePreset.linearCarbon,
+        'nordic-tactical' => IcStylePreset.nordicTactical,
+        _ => null,
+      };
+
+  /// Syncs `ino.smart` and `stylePreset` from `IUserSettings`.
   Future<void> _readSmart() async {
     var on = false;
+    String? remotePreset;
     try {
       final settings = await widget.read?.call(
         _settingsContract,
@@ -362,10 +381,22 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 v['key'] == 'ino.smart' &&
                 '${v['value']}'.toLowerCase() == 'on',
           );
+      final presetRaw = settings?['stylePreset'] as String?;
+      if (presetRaw != null && presetRaw.trim().isNotEmpty) {
+        remotePreset = presetRaw.trim().toLowerCase();
+      }
     } catch (_) {
       on = false;
     }
-    if (!mounted || on == _smart) return;
+    if (!mounted) return;
+    if (remotePreset != null && remotePreset != _syncedStylePreset) {
+      _syncedStylePreset = remotePreset;
+      final parsed = _parseStylePreset(remotePreset);
+      if (parsed != null && parsed != widget.stylePreset) {
+        widget.onSelectPreset(parsed);
+      }
+    }
+    if (on == _smart) return;
     setState(() {
       _smart = on;
       if (!on) {
@@ -1323,6 +1354,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         name: widget.name,
         load: widget.load,
         watch: widget.watch,
+        callNeuron: widget.callNeuron,
         onAction: widget.onAction,
         knowsApp: widget.knowsApp,
         transcribe: widget.transcribe,
@@ -1656,6 +1688,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         name: w.viewportRef['name'] as String,
                                         load: widget.load,
                                         watch: widget.watch,
+                                        callNeuron: widget.callNeuron,
                                         onAction: widget.onAction,
                                         knowsApp: _knowsDesktopApp,
                                         transcribe: widget.transcribe,
@@ -1679,6 +1712,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 name: spec.viewportRef['name'] as String,
                                 load: widget.load,
                                 watch: widget.watch,
+                                callNeuron: widget.callNeuron,
                                 onAction: widget.onAction,
                                 knowsApp: _knowsDesktopApp,
                                 transcribe: widget.transcribe,

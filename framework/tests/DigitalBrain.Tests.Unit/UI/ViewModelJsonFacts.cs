@@ -152,7 +152,7 @@ public sealed class ViewModelJsonFacts
     [Fact]
     public void FieldIsKeyedAndSerialisesItsKindAsAString()
     {
-        var field = new Field("q", "search", FieldKind.Search, "Find", new Emit("app", "search"));
+        var field = new Field("q", "search", FieldKind.Search, "Find", new Command(".", "search"), "Search");
 
         var json = JsonSerializer.Serialize<Node>(field);
 

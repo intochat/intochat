@@ -53,7 +53,7 @@ public sealed class BoundaryTestScreen : Screen<BoundaryTestState>
             new Text($"Count: {state.Count}"),
             new Text($"LastBy: {state.LastBy ?? "none"}"),
             new Button("btn-inc", "Increment", Sends(new BoundaryInc("inc"))),
-            new Switch("btn-alien", "Alien Button", false, new Emit("app.foreign_owner", "boundary-test.inc", null)),
+            new Tabs([new TabItem("btn-alien", "alien", "Alien Button", new Emit("app.foreign_owner", "boundary-test.inc", null))], "alien"),
             new Button("btn-oversized", "Make Oversized", Sends(new BoundaryMakeOversized())),
             new Button("btn-inject-by", "Make Inject By", Sends(new BoundaryMakeInjectBy())),
             new Field("fld-no-emit", "Input", FieldKind.Text),

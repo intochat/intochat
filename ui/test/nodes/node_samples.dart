@@ -1,6 +1,12 @@
 /// One sample per generated node kind, as `DigitalBrain.UI` serialises it.
 const _emit = {'owner': 'apps/sample', 'signal': 'picked'};
-const _button = {'key': 'go', 'label': 'Go', 'emit': _emit};
+const _command = {'target': '.', 'signal': 'picked'};
+const _button = {
+  'key': 'go',
+  'label': 'Go',
+  'command': _command,
+  'automationName': 'Go',
+};
 
 const nodeSamples = <String, Map<String, dynamic>>{
   'column': {
@@ -81,6 +87,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'name': 'apps/sample/title',
     'fieldKind': 'Text',
     'placeholder': 'Title',
+    'automationName': 'Title',
   },
   'intent': {'kind': 'intent', 'intentKind': 'Copy', 'arg': 'x'},
   'switch': {
@@ -88,8 +95,9 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'on',
     'label': 'Enabled',
     'isOn': true,
-    'emit': _emit,
+    'command': _command,
     'locked': false,
+    'automationName': 'Enabled',
   },
   'select': {
     'kind': 'select',
@@ -242,6 +250,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
       'icon': 'house',
       'action': 'home',
       'selected': true,
+      'automationName': 'Home',
     },
     'body': {'kind': 'text', 'value': 'Body'},
     'toolbar': {'kind': 'heading', 'value': 'Toolbar'},
@@ -253,6 +262,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'icon': 'folder',
     'action': 'files',
     'badge': '3',
+    'automationName': 'Files',
   },
   'statCard': {
     'kind': 'statCard',
