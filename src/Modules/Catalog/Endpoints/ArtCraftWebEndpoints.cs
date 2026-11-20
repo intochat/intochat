@@ -71,6 +71,20 @@ internal static class ArtCraftWebEndpoints
             ServeStudioPageAsync(appId, context, env, ct))
             .WithOrder(-100);
 
+        endpoints.MapPost("/artcraft/{appId}/install", static async (string appId, CancellationToken ct) =>
+        {
+            var normalized = ArtCraftCatalog.NormalizeAppId(appId);
+            if (!ArtCraftCatalog.TryGet(normalized, out var descriptor))
+            {
+                return Results.NotFound(new { error = $"Unknown ArtCraft studio '{appId}'." });
+            }
+
+            var result = await ArtCraftWasmBundleManager.EnsureInstalledAsync(descriptor, ct: ct).ConfigureAwait(false);
+            return result.Installed
+                ? Results.Ok(new { installed = true, appId = descriptor.Id, path = descriptor.StaticWebPath })
+                : Results.Problem(detail: result.Error, statusCode: StatusCodes.Status502BadGateway);
+        }).WithOrder(-100);
+
         endpoints.MapGet("/artcraft/{appId}/{**assetPath}", static (string appId, string assetPath, HttpContext context, IWebHostEnvironment env, CancellationToken ct) =>
             ServeStudioAssetAsync(appId, assetPath, context, env, ct))
             .WithOrder(-100);
@@ -288,15 +302,44 @@ internal static class ArtCraftWebEndpoints
   <title>{{title}} — ArtCraft Studio</title>
 {{bridgeScript}}
 </head>
-<body style="margin:0;background:#0b0e14;color:#f3f4f6;font-family:system-ui,sans-serif">
-  <main data-artcraft-app="{{d.Id}}" style="padding:16px">
-    <header style="border-left:3px solid {{accent}};padding-left:10px;margin-bottom:12px">
-      <strong>{{title}}</strong> · <span>{{subtitle}}</span>
-      <div id="active-doc" style="font-family:monospace;font-size:12px;color:#9ca3af">{{doc}}</div>
+<body style="margin:0;background:#0b0e14;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;min-height:100vh;display:grid;place-items:center">
+  <main data-artcraft-app="{{d.Id}}" style="max-width:640px;width:90%;padding:28px;background:#161c2a;border:1px solid #242e42;border-radius:14px">
+    <header style="border-left:3px solid {{accent}};padding-left:12px;margin-bottom:14px">
+      <strong style="font-size:18px">{{title}}</strong> · <span style="color:#9aa7bd">{{subtitle}}</span>
+      <div id="active-doc" style="font-family:monospace;font-size:12px;color:#9ca3af;margin-top:4px">{{doc}}</div>
     </header>
-    <p style="font-size:13px;color:#9ca3af;margin-bottom:12px">{{description}}</p>
-    <pre style="padding:10px;background:#131822;border-radius:6px;font-size:11px;overflow:auto">{{cliBin}} run {{doc}} --cmd {{cmdId}} --params '{{paramsJson}}' --out {{outDoc}}</pre>
+    <p style="font-size:13.5px;color:#9aa7bd;margin-bottom:16px;line-height:1.55">{{description}}</p>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+      <button id="install-wasm-btn" style="background:{{accent}};color:#0b0e14;border:none;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer">Download &amp; Launch WASM Studio</button>
+      <span id="install-status" style="font-size:12.5px;color:#9aa7bd"></span>
+    </div>
+    <pre style="padding:10px;background:#0e131d;border:1px solid #242e42;border-radius:8px;font-size:11px;overflow:auto;color:#60a5fa">{{cliBin}} run {{doc}} --cmd {{cmdId}} --params '{{paramsJson}}' --out {{outDoc}}</pre>
   </main>
+  <script>
+    (function() {
+      const btn = document.getElementById('install-wasm-btn');
+      const status = document.getElementById('install-status');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        status.textContent = 'Downloading WASM bundle...';
+        try {
+          const res = await fetch('/artcraft/{{d.Id}}/install', { method: 'POST' });
+          if (res.ok) {
+            status.textContent = 'Installed! Launching studio...';
+            window.location.reload();
+          } else {
+            const body = await res.json().catch(() => ({}));
+            status.textContent = body.detail || ('Install failed (HTTP ' + res.status + ')');
+            btn.disabled = false;
+          }
+        } catch (err) {
+          status.textContent = 'Install error: ' + err;
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
 """;
