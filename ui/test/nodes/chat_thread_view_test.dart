@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
@@ -144,5 +145,58 @@ void main() {
     expect(find.text('Ino has no model to answer with.'), findsOneWidget);
     expect(find.text('Set up a model'), findsOneWidget);
     expect(find.text('Esc to stop'), findsOneWidget);
+  });
+
+  testWidgets('composer field draws no border of its own', (tester) async {
+    await _pump(tester, {'placeholder': 'Ask anything.'});
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.decoration!.border, InputBorder.none);
+    expect(field.decoration!.enabledBorder, InputBorder.none);
+    expect(field.decoration!.focusedBorder, InputBorder.none);
+    expect(field.decoration!.disabledBorder, InputBorder.none);
+    expect(field.decoration!.filled, isFalse);
+  });
+
+  testWidgets('one-line field, chip and send button share a centre line', (
+    tester,
+  ) async {
+    await _pump(tester, {
+      'placeholder': 'Ask anything.',
+      'activeModelLabel': 'Qwen 2.5 Coder 14B',
+    });
+    final y = [
+      find.byType(TextField),
+      find.byKey(const ValueKey('composer-active-model')),
+      find.byKey(const ValueKey('composer-send')),
+    ].map((f) => tester.getCenter(f).dy);
+    expect(y.reduce(math.max) - y.reduce(math.min), lessThanOrEqualTo(1.0));
+  });
+
+  testWidgets('ControlsStayAtBottomWhenTextGrows', (tester) async {
+    await _pump(tester, {
+      'placeholder': 'Ask anything.',
+      'activeModelLabel': 'Qwen 2.5 Coder 14B',
+    });
+    await tester.enterText(
+      find.byType(TextField),
+      List.filled(6, 'line').join('\n'),
+    );
+    await tester.pump();
+
+    expect(tester.getSize(find.byType(TextField)).height, greaterThan(100));
+    expect(
+      (tester.getBottomLeft(find.byKey(const ValueKey('composer-send'))).dy -
+              tester.getBottomLeft(find.byType(TextField)).dy)
+          .abs(),
+      lessThanOrEqualTo(2.0),
+    );
+    expect(
+      (tester
+                  .getCenter(find.byKey(const ValueKey('composer-active-model')))
+                  .dy -
+              tester.getCenter(find.byKey(const ValueKey('composer-send'))).dy)
+          .abs(),
+      lessThanOrEqualTo(1.0),
+    );
   });
 }
