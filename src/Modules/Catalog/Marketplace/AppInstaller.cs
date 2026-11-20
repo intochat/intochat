@@ -9,7 +9,6 @@ using Microsoft.Extensions.Options;
 using Idn = DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -18,8 +17,7 @@ namespace IntoChat.OS.Modules.Apps;
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the shipped catalog. An app that reads data installs only for the brain's owner.
 public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
-    ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null,
-    IOptions<AuthOptions>? auth = null)
+    ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null)
 {
     // The caller the edge stamped for this install.
     internal DigitalBrain.Access.Caller? Caller => (plain.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current;
@@ -138,7 +136,6 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     // A person, not an app or a script, who owns this brain: its Owner member in the directory.
     internal async Task<bool> IsOwner(string scope, DigitalBrain.Access.Caller? caller)
     {
-        _ = auth;
         return directory is not null && caller?.Actor is DigitalBrain.Access.Actor.Person person
             && caller.Brain.Value == scope
             && (await (await directory.Identity()).Membership(scope, person.Principal))?.Role == Idn.MemberRole.Owner;

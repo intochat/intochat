@@ -248,7 +248,7 @@ public sealed class NetworkSignInFacts
 
     private static Dictionary<string, string?> Settings(string? topology, string? urls)
     {
-        var settings = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase) { [AuthOptions.PostureKey] = "Secured" };
+        var settings = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase) { [AuthKeys.Posture] = "Secured" };
         if (!string.IsNullOrEmpty(topology)) { settings[IntoChatOSNames.TopologyKey] = topology; }
         if (urls is not null) { settings["urls"] = urls; }
         return settings;

@@ -168,8 +168,8 @@ public sealed class GuestSurfaceFacts
         });
         builder.WebHost.UseSetting(WebHostDefaults.PreventHostingStartupKey, "true");
         builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [AuthOptions.PostureKey] = IdentityPosture.Secured.ToString() });
-        builder.Services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName);
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [AuthKeys.Posture] = IdentityPosture.Secured.ToString() });
+        builder.Services.AddOptions<AuthOptions>().BindConfiguration(AuthKeys.SectionName);
         builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority);
         builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
 

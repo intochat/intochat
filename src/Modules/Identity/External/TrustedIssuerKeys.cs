@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities.Identity;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Identity.External;
 
@@ -35,7 +36,7 @@ internal sealed partial class TrustedIssuerKeys : IDisposable
         for (var index = 0; index < issuers.Length; index++)
         {
             var issuer = issuers[index];
-            var key = AuthOptions.Key(nameof(AuthOptions.TrustedIssuers)) + ":" + index;
+            var key = AuthKeys.TrustedIssuers + ":" + index;
             if (issuer is null || !IssuerName().IsMatch(issuer.Name)) { return $"{key}:Name must be 1-100 characters of letters, digits, '.', '-' or '_'."; }
             if (!names.Add(issuer.Name)) { return $"{key}:Name '{issuer.Name}' is listed twice."; }
             if (string.IsNullOrWhiteSpace(issuer.Audience) || issuer.Audience.Length > 500) { return $"{key}:Audience must name this install (1-500 characters)."; }

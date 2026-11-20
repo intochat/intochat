@@ -6,11 +6,7 @@ namespace IntoChat.OS.Modules.Identity.Accounts;
 // which keys happen to be configured, and a host that declares nothing refuses to start.
 public sealed class AuthOptions
 {
-    public const string SectionName = "IntoChatOS:Auth";
-    public const string PostureKey = SectionName + ":" + nameof(Posture);
-
-    public static string Key(string property) => SectionName + ":" + property;
-
+    // Bound from AuthKeys.SectionName; each property's key is the AuthKeys constant of the same name (AuthKeysFacts).
     public IdentityPosture? Posture { get; set; }
 
     // The Open posture's synthetic owner ("owner" signing in as "owner"), a person at the authenticated edge:

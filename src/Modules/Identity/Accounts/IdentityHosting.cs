@@ -23,9 +23,9 @@ public static class IdentityHosting
         services.TryAddSingleton(TimeProvider.System);
         // The platform endpoints resolve Authority grains through it; a web host that brings its own grain factory gets it here.
         services.TryAddSingleton<AuthorityNeurons>();
-        services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName)
+        services.AddOptions<AuthOptions>().BindConfiguration(AuthKeys.SectionName)
             .Validate(options => options.Posture is not null,
-                $"Configure {AuthOptions.PostureKey} (Open or Secured) before starting the host.")
+                $"Configure {AuthKeys.Posture} (Open or Secured) before starting the host.")
             .Validate(options => string.IsNullOrEmpty(options.Username) == string.IsNullOrEmpty(options.Password),
                 "A Basic bootstrap credential needs both IntoChatOS:Auth:Username and IntoChatOS:Auth:Password, or neither.")
             .ValidateOnStart();

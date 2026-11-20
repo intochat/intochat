@@ -4,14 +4,11 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // references a module or the kernel. The identity module is a leaf the kernel composes; everything else uses its contracts.
 public sealed class HostLayerFacts
 {
-    // The projects that still compile against the identity implementation. AppHost, Azure and Catalog read AuthOptions,
-    // which carries the bootstrap password and so cannot be a contract (OWED.md: a secret-free keys contract retires them).
+    // The one production project that compiles against the identity implementation: the kernel composes it. Everything else
+    // reaches identity through IntoChat.OS.Modules.Identity.Contracts (configuration keys through AuthKeys).
     private static readonly string[] IdentityImplementationUsers =
     [
-        "IntoChat.OS.AppHost",
         "IntoChat.OS.Kernel",
-        "IntoChat.OS.Modules.Azure",
-        "IntoChat.OS.Modules.Catalog",
     ];
 
     [Fact]
@@ -27,7 +24,7 @@ public sealed class HostLayerFacts
     }
 
     [Fact]
-    public void OnlyTheKernelTestsAndTheTrackedHoldoutsReferenceTheIdentityImplementation()
+    public void OnlyTheKernelAndTestsReferenceTheIdentityImplementation()
     {
         var tests = Repository.TestProjects().Select(project => project.Name).ToHashSet(StringComparer.Ordinal);
         var users = Repository.Projects.Values
