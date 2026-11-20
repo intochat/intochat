@@ -35,14 +35,15 @@
           "fieldKind": "Search",
           "placeholder": "Search settings...",
           "onSubmit": {
-            "owner": "apps/settings",
+            "target": ".",
             "signal": "navigate",
             "args": [
               "general",
               "",
               ""
             ]
-          }
+          },
+          "automationName": "settings-search"
         },
         {
           "kind": "navItem",
@@ -52,7 +53,8 @@
           "action": "navigate:general",
           "selected": true,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-general"
         },
         {
           "kind": "navItem",
@@ -62,7 +64,8 @@
           "action": "navigate:desktop",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-desktop"
         },
         {
           "kind": "navItem",
@@ -72,7 +75,8 @@
           "action": "navigate:apps",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-apps"
         },
         {
           "kind": "navItem",
@@ -82,7 +86,8 @@
           "action": "navigate:connections",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-connections"
         },
         {
           "kind": "navItem",
@@ -92,7 +97,8 @@
           "action": "navigate:files",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-files"
         },
         {
           "kind": "navItem",
@@ -102,7 +108,8 @@
           "action": "navigate:models",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-models"
         },
         {
           "kind": "navItem",
@@ -112,7 +119,8 @@
           "action": "navigate:keys",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-keys"
         },
         {
           "kind": "navItem",
@@ -122,7 +130,8 @@
           "action": "navigate:variables",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-variables"
         },
         {
           "kind": "navItem",
@@ -132,7 +141,8 @@
           "action": "navigate:billing",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-billing"
         },
         {
           "kind": "navItem",
@@ -142,7 +152,8 @@
           "action": "navigate:team",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-team"
         },
         {
           "kind": "navItem",
@@ -152,7 +163,8 @@
           "action": "navigate:notifications",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-notifications"
         },
         {
           "kind": "navItem",
@@ -162,7 +174,8 @@
           "action": "navigate:keyboard",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "nav-keyboard"
         },
         {
           "kind": "navItem",
@@ -172,7 +185,8 @@
           "action": "navigate:danger",
           "selected": false,
           "badge": "!",
-          "emit": null
+          "command": null,
+          "automationName": "nav-danger"
         },
         {
           "kind": "collection",
@@ -293,11 +307,12 @@
                 "action": "navigate:general",
                 "selected": true,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "general"
-                }
+                },
+                "automationName": "General"
               },
               {
                 "kind": "navItem",
@@ -307,11 +322,12 @@
                 "action": "navigate:desktop",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "desktop"
-                }
+                },
+                "automationName": "Desktop & Dock"
               }
             ],
             "gap": 2,
@@ -332,11 +348,12 @@
                 "action": "navigate:apps",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "apps"
-                }
+                },
+                "automationName": "Apps"
               },
               {
                 "kind": "navItem",
@@ -346,11 +363,12 @@
                 "action": "navigate:connections",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "connections"
-                }
+                },
+                "automationName": "Connections"
               },
               {
                 "kind": "navItem",
@@ -360,11 +378,12 @@
                 "action": "navigate:files",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "files"
-                }
+                },
+                "automationName": "Files"
               },
               {
                 "kind": "navItem",
@@ -374,11 +393,12 @@
                 "action": "navigate:models",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "models"
-                }
+                },
+                "automationName": "AI models"
               },
               {
                 "kind": "navItem",
@@ -388,11 +408,12 @@
                 "action": "navigate:keys",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "keys"
-                }
+                },
+                "automationName": "API keys"
               },
               {
                 "kind": "navItem",
@@ -402,11 +423,12 @@
                 "action": "navigate:variables",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "variables"
-                }
+                },
+                "automationName": "Variables and secrets"
               }
             ],
             "gap": 2,
@@ -427,11 +449,12 @@
                 "action": "navigate:billing",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "billing"
-                }
+                },
+                "automationName": "Billing"
               },
               {
                 "kind": "navItem",
@@ -441,11 +464,12 @@
                 "action": "navigate:team",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "team"
-                }
+                },
+                "automationName": "Team and permissions"
               },
               {
                 "kind": "navItem",
@@ -455,11 +479,12 @@
                 "action": "navigate:notifications",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "notifications"
-                }
+                },
+                "automationName": "Notifications"
               },
               {
                 "kind": "navItem",
@@ -469,11 +494,12 @@
                 "action": "navigate:keyboard",
                 "selected": false,
                 "badge": null,
-                "emit": {
-                  "owner": "app.settings",
+                "command": {
+                  "target": ".",
                   "signal": "navigate",
                   "args": "keyboard"
-                }
+                },
+                "automationName": "Keyboard"
               }
             ],
             "gap": 2,
@@ -491,11 +517,12 @@
             "action": "navigate:danger",
             "selected": false,
             "badge": null,
-            "emit": {
-              "owner": "app.settings",
+            "command": {
+              "target": ".",
               "signal": "navigate",
               "args": "danger"
-            }
+            },
+            "automationName": "Danger zone"
           }
         ],
         "gap": 8,

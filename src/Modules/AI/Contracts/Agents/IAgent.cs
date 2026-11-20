@@ -36,7 +36,8 @@ public interface IAgent
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<AgentState> Read();
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<AiMessage[]> Transcript();
     [DigitalBrain.Contracts.Interleaves] Task Clear();
-    [DigitalBrain.Contracts.Interleaves] Task<AgentCompactionResult> Compact(string? instructions = null)
+    [DigitalBrain.Contracts.Interleaves]
+    Task<AgentCompactionResult> Compact(string? instructions = null)
         => throw new NotSupportedException("Compact is not supported by this agent implementation.");
     // Records a completed assistant-only entry (no model call), e.g. a greeting; one entry per id
     // (stored as run `post/{id}`). Throws InvalidOperationException while a run is active: retry later.

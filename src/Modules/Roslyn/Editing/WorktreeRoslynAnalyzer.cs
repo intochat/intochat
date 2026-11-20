@@ -310,108 +310,108 @@ internal sealed class WorktreeRoslynAnalyzer : IWorktreeRoslyn
         switch (edit.Kind)
         {
             case WorktreeCSharpEditKind.CreateTypeFile:
-            {
-                var nsName = RequireNonBlank(edit.NamespaceName, nameof(edit.NamespaceName));
-                var typeName = RequireNonBlank(edit.TypeName, nameof(edit.TypeName));
-                if (!SyntaxFacts.IsValidIdentifier(typeName))
                 {
-                    throw new ArgumentException($"'{typeName}' is not a valid C# type identifier.");
-                }
-
-                var typeDecl = BuildTypeDeclaration(edit.TypeKind ?? "class", typeName, edit.BaseTypes, edit.Source);
-                var nsDecl = SyntaxFactory.FileScopedNamespaceDeclaration(SyntaxFactory.ParseName(nsName))
-                    .AddMembers(typeDecl);
-                var unit = SyntaxFactory.CompilationUnit().AddMembers(nsDecl);
-                if (!string.IsNullOrWhiteSpace(edit.MemberName))
-                {
-                    foreach (var u in edit.MemberName.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    var nsName = RequireNonBlank(edit.NamespaceName, nameof(edit.NamespaceName));
+                    var typeName = RequireNonBlank(edit.TypeName, nameof(edit.TypeName));
+                    if (!SyntaxFacts.IsValidIdentifier(typeName))
                     {
-                        unit = unit.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(u)));
+                        throw new ArgumentException($"'{typeName}' is not a valid C# type identifier.");
                     }
-                }
 
-                return FormatCleanCSharp(unit);
-            }
+                    var typeDecl = BuildTypeDeclaration(edit.TypeKind ?? "class", typeName, edit.BaseTypes, edit.Source);
+                    var nsDecl = SyntaxFactory.FileScopedNamespaceDeclaration(SyntaxFactory.ParseName(nsName))
+                        .AddMembers(typeDecl);
+                    var unit = SyntaxFactory.CompilationUnit().AddMembers(nsDecl);
+                    if (!string.IsNullOrWhiteSpace(edit.MemberName))
+                    {
+                        foreach (var u in edit.MemberName.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            unit = unit.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(u)));
+                        }
+                    }
+
+                    return FormatCleanCSharp(unit);
+                }
 
             case WorktreeCSharpEditKind.AddUsing:
-            {
-                if (!fileExists)
                 {
-                    throw new InvalidOperationException($"C# file '{relPath}' does not exist.");
-                }
+                    if (!fileExists)
+                    {
+                        throw new InvalidOperationException($"C# file '{relPath}' does not exist.");
+                    }
 
-                var nsName = RequireNonBlank(edit.NamespaceName, nameof(edit.NamespaceName));
-                var root = ParseCompilationUnit(currentSource, relPath);
-                if (root.Usings.Any(u => string.Equals(u.Name?.ToString(), nsName, StringComparison.Ordinal)))
-                {
-                    return currentSource;
-                }
+                    var nsName = RequireNonBlank(edit.NamespaceName, nameof(edit.NamespaceName));
+                    var root = ParseCompilationUnit(currentSource, relPath);
+                    if (root.Usings.Any(u => string.Equals(u.Name?.ToString(), nsName, StringComparison.Ordinal)))
+                    {
+                        return currentSource;
+                    }
 
-                var updatedUsings = root.Usings
-                    .Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(nsName)))
-                    .OrderBy(static u => u.Name?.ToString(), StringComparer.Ordinal)
-                    .ToArray();
-                return FormatCleanCSharp(root.WithUsings(SyntaxFactory.List(updatedUsings)));
-            }
+                    var updatedUsings = root.Usings
+                        .Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(nsName)))
+                        .OrderBy(static u => u.Name?.ToString(), StringComparer.Ordinal)
+                        .ToArray();
+                    return FormatCleanCSharp(root.WithUsings(SyntaxFactory.List(updatedUsings)));
+                }
 
             case WorktreeCSharpEditKind.AddOrReplaceMember:
-            {
-                if (!fileExists)
                 {
-                    throw new InvalidOperationException($"C# file '{relPath}' does not exist.");
+                    if (!fileExists)
+                    {
+                        throw new InvalidOperationException($"C# file '{relPath}' does not exist.");
+                    }
+
+                    var typeName = RequireNonBlank(edit.TypeName, nameof(edit.TypeName));
+                    var memberSource = RequireNonBlank(edit.Source, nameof(edit.Source));
+                    var root = ParseCompilationUnit(currentSource, relPath);
+                    var targetType = root.DescendantNodes()
+                        .OfType<TypeDeclarationSyntax>()
+                        .FirstOrDefault(t => string.Equals(t.Identifier.Text, typeName, StringComparison.Ordinal))
+                        ?? throw new InvalidOperationException($"Type '{typeName}' was not found in '{relPath}'.");
+
+                    var parsedMember = ParseMemberCleanly(memberSource);
+                    var memberId = edit.MemberName ?? TryGetMemberIdentifier(parsedMember);
+                    var existing = memberId is null
+                        ? null
+                        : targetType.Members.FirstOrDefault(m => string.Equals(TryGetMemberIdentifier(m), memberId, StringComparison.Ordinal));
+
+                    if (targetType is RecordDeclarationSyntax rec && rec.OpenBraceToken.IsKind(SyntaxKind.None))
+                    {
+                        var opened = rec
+                            .WithSemicolonToken(default)
+                            .WithOpenBraceToken(SyntaxFactory.Token(SyntaxKind.OpenBraceToken))
+                            .WithCloseBraceToken(SyntaxFactory.Token(SyntaxKind.CloseBraceToken))
+                            .AddMembers(parsedMember);
+                        return FormatCleanCSharp(root.ReplaceNode(targetType, opened));
+                    }
+
+                    var nextType = existing is not null
+                        ? targetType.ReplaceNode(existing, parsedMember)
+                        : targetType.AddMembers(parsedMember);
+                    return FormatCleanCSharp(root.ReplaceNode(targetType, nextType));
                 }
-
-                var typeName = RequireNonBlank(edit.TypeName, nameof(edit.TypeName));
-                var memberSource = RequireNonBlank(edit.Source, nameof(edit.Source));
-                var root = ParseCompilationUnit(currentSource, relPath);
-                var targetType = root.DescendantNodes()
-                    .OfType<TypeDeclarationSyntax>()
-                    .FirstOrDefault(t => string.Equals(t.Identifier.Text, typeName, StringComparison.Ordinal))
-                    ?? throw new InvalidOperationException($"Type '{typeName}' was not found in '{relPath}'.");
-
-                var parsedMember = ParseMemberCleanly(memberSource);
-                var memberId = edit.MemberName ?? TryGetMemberIdentifier(parsedMember);
-                var existing = memberId is null
-                    ? null
-                    : targetType.Members.FirstOrDefault(m => string.Equals(TryGetMemberIdentifier(m), memberId, StringComparison.Ordinal));
-
-                if (targetType is RecordDeclarationSyntax rec && rec.OpenBraceToken.IsKind(SyntaxKind.None))
-                {
-                    var opened = rec
-                        .WithSemicolonToken(default)
-                        .WithOpenBraceToken(SyntaxFactory.Token(SyntaxKind.OpenBraceToken))
-                        .WithCloseBraceToken(SyntaxFactory.Token(SyntaxKind.CloseBraceToken))
-                        .AddMembers(parsedMember);
-                    return FormatCleanCSharp(root.ReplaceNode(targetType, opened));
-                }
-
-                var nextType = existing is not null
-                    ? targetType.ReplaceNode(existing, parsedMember)
-                    : targetType.AddMembers(parsedMember);
-                return FormatCleanCSharp(root.ReplaceNode(targetType, nextType));
-            }
 
             case WorktreeCSharpEditKind.RemoveMember:
-            {
-                if (!fileExists)
                 {
-                    throw new InvalidOperationException($"C# file '{relPath}' does not exist.");
+                    if (!fileExists)
+                    {
+                        throw new InvalidOperationException($"C# file '{relPath}' does not exist.");
+                    }
+
+                    var typeName = RequireNonBlank(edit.TypeName, nameof(edit.TypeName));
+                    var memberName = RequireNonBlank(edit.MemberName, nameof(edit.MemberName));
+                    var root = ParseCompilationUnit(currentSource, relPath);
+                    var targetType = root.DescendantNodes()
+                        .OfType<TypeDeclarationSyntax>()
+                        .FirstOrDefault(t => string.Equals(t.Identifier.Text, typeName, StringComparison.Ordinal))
+                        ?? throw new InvalidOperationException($"Type '{typeName}' was not found in '{relPath}'.");
+
+                    var existing = targetType.Members.FirstOrDefault(m => string.Equals(TryGetMemberIdentifier(m), memberName, StringComparison.Ordinal))
+                        ?? throw new InvalidOperationException($"Member '{memberName}' was not found on '{typeName}' in '{relPath}'.");
+
+                    var nextType = targetType.RemoveNode(existing, SyntaxRemoveOptions.KeepNoTrivia)!;
+                    return FormatCleanCSharp(root.ReplaceNode(targetType, nextType));
                 }
-
-                var typeName = RequireNonBlank(edit.TypeName, nameof(edit.TypeName));
-                var memberName = RequireNonBlank(edit.MemberName, nameof(edit.MemberName));
-                var root = ParseCompilationUnit(currentSource, relPath);
-                var targetType = root.DescendantNodes()
-                    .OfType<TypeDeclarationSyntax>()
-                    .FirstOrDefault(t => string.Equals(t.Identifier.Text, typeName, StringComparison.Ordinal))
-                    ?? throw new InvalidOperationException($"Type '{typeName}' was not found in '{relPath}'.");
-
-                var existing = targetType.Members.FirstOrDefault(m => string.Equals(TryGetMemberIdentifier(m), memberName, StringComparison.Ordinal))
-                    ?? throw new InvalidOperationException($"Member '{memberName}' was not found on '{typeName}' in '{relPath}'.");
-
-                var nextType = targetType.RemoveNode(existing, SyntaxRemoveOptions.KeepNoTrivia)!;
-                return FormatCleanCSharp(root.ReplaceNode(targetType, nextType));
-            }
 
             default:
                 throw new InvalidOperationException($"Unsupported C# edit kind '{edit.Kind}'.");
