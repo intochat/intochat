@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using DigitalBrain.Caching;
 using DigitalBrain.Log;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Memory;
@@ -12,7 +12,7 @@ internal sealed class ToolRouter(
     IReadOnlyList<AIFunction> tools,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings) : IToolRouter
 {
-    private static readonly ConcurrentDictionary<string, float[]> VectorCache = new(StringComparer.Ordinal);
+    private static readonly BoundedCache<string, float[]> VectorCache = new(1_024, StringComparer.Ordinal);
 
     public async Task<IReadOnlyList<AIFunction>> Route(string text, int k = 8, CancellationToken ct = default)
     {
@@ -52,7 +52,7 @@ internal sealed class ToolRouter(
         CancellationToken ct)
     {
         var providerKey = generator.GetType().FullName ?? "embedder";
-        var texts = new string[tools.Count];
+        var vectors = new float[tools.Count][];
         var keys = new string[tools.Count];
         var missingIndices = new List<int>();
         var missingTexts = new List<string>();
@@ -60,10 +60,13 @@ internal sealed class ToolRouter(
         for (var i = 0; i < tools.Count; i++)
         {
             var toolText = ToolText(tools[i]);
-            texts[i] = toolText;
             var cacheKey = providerKey + "\0" + toolText;
             keys[i] = cacheKey;
-            if (!VectorCache.ContainsKey(cacheKey))
+            if (VectorCache.TryGet(cacheKey, out var cached))
+            {
+                vectors[i] = cached;
+            }
+            else
             {
                 missingIndices.Add(i);
                 missingTexts.Add(toolText);
@@ -84,7 +87,9 @@ internal sealed class ToolRouter(
                 {
                     return null;
                 }
-                VectorCache[keys[missingIndices[i]]] = vector;
+                var index = missingIndices[i];
+                VectorCache.Set(keys[index], vector);
+                vectors[index] = vector;
             }
         }
 
@@ -99,14 +104,12 @@ internal sealed class ToolRouter(
             return null;
         }
 
-        var vectors = new float[tools.Count][];
         for (var i = 0; i < tools.Count; i++)
         {
-            if (!VectorCache.TryGetValue(keys[i], out var vector) || vector.Length != queryVector.Length)
+            if (vectors[i] is null || vectors[i].Length != queryVector.Length)
             {
                 return null;
             }
-            vectors[i] = vector;
         }
 
         return TopK(queryVector, vectors, k);
@@ -122,8 +125,7 @@ internal sealed class ToolRouter(
             var cacheKey = "local\0" + toolText;
             vectors[i] = VectorCache.GetOrAdd(
                 cacheKey,
-                static (_, text) => HybridMemoryEmbedder.LocalDeterministicEmbed(text.Replace('_', ' ')),
-                toolText);
+                _ => HybridMemoryEmbedder.LocalDeterministicEmbed(toolText.Replace('_', ' ')));
         }
 
         return TopK(queryVector, vectors, k);

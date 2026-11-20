@@ -1477,6 +1477,7 @@ public sealed class HouseRules22Facts
             "ILlmProviderFactory",
             "ILocalProcessProbe",
             "IModelTurnRunner",
+            "IToolRouter",
             "IMemoryEmbedder",
             "IViewFacet",
             "IVfsFacet",

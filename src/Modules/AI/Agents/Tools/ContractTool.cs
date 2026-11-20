@@ -11,7 +11,7 @@ internal sealed class ContractTool : AIFunction
 {
     private static readonly string[] RelativeKeyPrefixes =
     [
-        "codeblocks/", "connection/", "diagnostics/", "ino/", "apps/", "context/", "runs/", "flows/", "roslyn/",
+        "codeblocks/", "connection/", "diagnostics/", "apps/", "context/", "runs/", "flows/", "roslyn/",
     ];
 
     private readonly Func<string, string, string, string, CancellationToken, Task<object?>> _invoke;
