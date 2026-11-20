@@ -1,7 +1,10 @@
+using System.Buffers;
+using System.Collections;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalBrain.Access;
 using DigitalBrain.Contracts;
-using DigitalBrain.Invocation;
 using IntoChat.OS.Host.Surface;
 using Microsoft.Extensions.AI;
 
@@ -83,8 +86,123 @@ internal sealed class ContractTool : AIFunction
             key = NormalizeKey(rawKey.Trim(), Schema.KeyPattern);
         }
 
-        var argsJson = JsonSerializer.Serialize(payload, RuntimeProtocol.Json);
+        var argsJson = SerializeArguments(payload);
         return await _invoke(Schema.Contract, key, Schema.Method, argsJson, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string SerializeArguments(Dictionary<string, object?> payload)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            foreach (var (name, value) in payload)
+            {
+                writer.WritePropertyName(name);
+                WriteValue(writer, value);
+            }
+            writer.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
+
+    private static void WriteValue(Utf8JsonWriter writer, object? value)
+    {
+        switch (value)
+        {
+            case null:
+                writer.WriteNullValue();
+                return;
+            case JsonElement element:
+                element.WriteTo(writer);
+                return;
+            case JsonNode node:
+                node.WriteTo(writer);
+                return;
+            case string text:
+                writer.WriteStringValue(text);
+                return;
+            case bool flag:
+                writer.WriteBooleanValue(flag);
+                return;
+            case int n:
+                writer.WriteNumberValue(n);
+                return;
+            case long n:
+                writer.WriteNumberValue(n);
+                return;
+            case double n:
+                writer.WriteNumberValue(n);
+                return;
+            case float n:
+                writer.WriteNumberValue(n);
+                return;
+            case decimal n:
+                writer.WriteNumberValue(n);
+                return;
+            case short n:
+                writer.WriteNumberValue(n);
+                return;
+            case byte n:
+                writer.WriteNumberValue(n);
+                return;
+            case uint n:
+                writer.WriteNumberValue(n);
+                return;
+            case ulong n:
+                writer.WriteNumberValue(n);
+                return;
+            case ushort n:
+                writer.WriteNumberValue(n);
+                return;
+            case sbyte n:
+                writer.WriteNumberValue(n);
+                return;
+            case DateTime dt:
+                writer.WriteStringValue(dt);
+                return;
+            case DateTimeOffset dto:
+                writer.WriteStringValue(dto);
+                return;
+            case Guid guid:
+                writer.WriteStringValue(guid);
+                return;
+            case Enum e:
+                writer.WriteStringValue(e.ToString());
+                return;
+            case IEnumerable<KeyValuePair<string, object?>> map:
+                writer.WriteStartObject();
+                foreach (var (k, v) in map)
+                {
+                    writer.WritePropertyName(k);
+                    WriteValue(writer, v);
+                }
+                writer.WriteEndObject();
+                return;
+            case IDictionary dict:
+                writer.WriteStartObject();
+                foreach (DictionaryEntry entry in dict)
+                {
+                    if (entry.Key?.ToString() is { } k)
+                    {
+                        writer.WritePropertyName(k);
+                        WriteValue(writer, entry.Value);
+                    }
+                }
+                writer.WriteEndObject();
+                return;
+            case IEnumerable seq:
+                writer.WriteStartArray();
+                foreach (var item in seq)
+                {
+                    WriteValue(writer, item);
+                }
+                writer.WriteEndArray();
+                return;
+            default:
+                writer.WriteStringValue(value.ToString());
+                return;
+        }
     }
 
     private static string NormalizeKey(string key, string? keyPattern)

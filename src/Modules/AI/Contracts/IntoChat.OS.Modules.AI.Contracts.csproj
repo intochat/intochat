@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
     <IsIntoChatOSModule>false</IsIntoChatOSModule>
     <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
     <PackageId>IntoChat.OS.Modules.AI.Contracts</PackageId>
