@@ -3,13 +3,9 @@
     <IsPackable>true</IsPackable>
     <PackageId>DigitalBrain.Runtime.Http</PackageId>
     <Description>The HTTP edge seam for DigitalBrain modules on ASP.NET Core: module HTTP surfaces, brain route groups and the session cookie issuer. No Orleans.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />

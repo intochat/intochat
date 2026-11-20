@@ -3,7 +3,6 @@
     <IsPackable>true</IsPackable>
     <PackageId>DigitalBrain.Runtime.Synapses</PackageId>
     <Description>Compiles synapse source to assemblies with the shipped DigitalBrain analyzers, including the synapse rules DB0041-DB0044, and loads them into collectible contexts. No Orleans.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DefineConstants Condition="'$(IntoChatOSAot)' == 'true'">$(DefineConstants);INTOCHAT_OS_AOT</DefineConstants>
   </PropertyGroup>
@@ -14,7 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="$(OutDir)DigitalBrain.Analyzers.dll" Pack="true" PackagePath="lib/$(TargetFramework)/" Visible="false" />
   </ItemGroup>
   <ItemGroup>
