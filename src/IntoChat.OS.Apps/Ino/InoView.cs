@@ -120,7 +120,7 @@ public static partial class InoView
         }
 
         Node[] under = [.. approvals, .. loose, .. setup];
-        return navAbove.Length == 0 && under.Length == 0 ? conversation : Filling(navAbove, conversation, under);
+        return Filling(navAbove, conversation, under);
     }
 
     private static Node[] RenderNavigationSeedNodes(InoAppState s, Rejected? departureRejection)
