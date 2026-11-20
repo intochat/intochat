@@ -13,6 +13,18 @@ public sealed record EngineerStartRequest(
     public EngineerStartRequest() : this("", "os", "", 1, null) { }
 
     public string ToStartJson() => System.Text.Json.JsonSerializer.Serialize(this, System.Text.Json.JsonSerializerOptions.Web);
+
+    public Task<string> StartOnAsync(
+        IFlows flows,
+        string? title = null,
+        string? parentFlowId = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(flows);
+        var effectiveTitle = string.IsNullOrWhiteSpace(title) ? Goal : title.Trim();
+        var explicitKey = string.IsNullOrWhiteSpace(RunId) ? null : RunId.Trim();
+        return flows.Start(IFlows.EngineerFlow, effectiveTitle, parentFlowId, ToStartJson(), ct, flowId: explicitKey);
+    }
 }
 
 [GenerateSerializer, Alias("engineer.brainstorm-turn")]

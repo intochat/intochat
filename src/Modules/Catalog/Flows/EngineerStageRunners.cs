@@ -9,6 +9,7 @@ using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -176,14 +177,35 @@ internal sealed class EngineerPlanner(
 
 internal sealed partial class EngineerBuildVerifier(
     IConfiguration? configuration = null,
+    ISandboxCommandRunner? sandboxRunner = null,
     ILogger<EngineerBuildVerifier>? logger = null) : IEngineerBuildVerifier
 {
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<EngineerBuildVerifier>();
+    private readonly ISandboxCommandRunner _sandboxRunner = sandboxRunner
+        ?? ISandboxCommandRunner.CreateDefault(
+            configuration: configuration,
+            logger: (ILogger?)logger ?? OsConsoleLog.For<EngineerBuildVerifier>());
 
-    public async Task<EngineerBuildReport> VerifyAsync(
+    public Task<EngineerBuildReport> VerifyAsync(
         string worktreePath,
         IReadOnlyList<string> changedFiles,
         CancellationToken ct = default)
+        => VerifyCoreAsync(worktreePath, lease: null, changedFiles, ct);
+
+    public Task<EngineerBuildReport> VerifyAsync(
+        WorkTreeLease lease,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        return VerifyCoreAsync(lease.WorkspacePath, lease, changedFiles, ct);
+    }
+
+    private async Task<EngineerBuildReport> VerifyCoreAsync(
+        string worktreePath,
+        WorkTreeLease? lease,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
         ArgumentNullException.ThrowIfNull(changedFiles);
@@ -193,12 +215,20 @@ internal sealed partial class EngineerBuildVerifier(
         var diagnostics = new List<string>();
         var warnings = 0;
         var errors = 0;
+        var useContainerVolumeSandbox = lease?.Backend == WorkTreeBackendKind.ContainerVolume;
 
         var buildProjects = DiscoverAffectedProjects(root, changedFiles);
         var dotnetBuildPassed = true;
         foreach (var csproj in buildProjects)
         {
-            var res = await RunToolAsync("dotnet", ["build", csproj, "-c", "Release", "--nologo", "-v", "minimal"], root, ct).ConfigureAwait(false);
+            var projectTarget = useContainerVolumeSandbox ? ToRelativeUnixPath(root, csproj) : csproj;
+            var res = await ExecuteVerificationToolAsync(
+                lease,
+                "dotnet",
+                ["build", projectTarget, "-c", "Release", "--nologo", "-v", "minimal"],
+                root,
+                relativeWorkingDir: null,
+                ct).ConfigureAwait(false);
             var combined = res.StdOut + "\n" + res.StdErr;
             warnings += BuildWarningRegex().Matches(combined).Count;
             errors += BuildErrorRegex().Matches(combined).Count;
@@ -215,7 +245,19 @@ internal sealed partial class EngineerBuildVerifier(
         var flutterDir = ResolveFlutterRoot(root);
         if (hasChangedDart && flutterDir is not null)
         {
-            var analyze = await RunToolAsync("flutter", ["analyze", "--no-pub"], flutterDir, ct).ConfigureAwait(false);
+            var relFlutterDir = string.Equals(
+                Path.GetFullPath(flutterDir),
+                root,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                ? null
+                : ToRelativeUnixPath(root, flutterDir);
+            var analyze = await ExecuteVerificationToolAsync(
+                lease,
+                "flutter",
+                ["analyze", "--no-pub"],
+                flutterDir,
+                relFlutterDir,
+                ct).ConfigureAwait(false);
             var combined = analyze.StdOut + "\n" + analyze.StdErr;
             CollectDiagnosticLines(combined, diagnostics);
             if (analyze.ExitCode != 0)
@@ -233,7 +275,14 @@ internal sealed partial class EngineerBuildVerifier(
         {
             foreach (var testProj in testProjects)
             {
-                var testRes = await RunToolAsync("dotnet", ["test", testProj, "-c", "Release", "--nologo", "-v", "minimal"], root, ct).ConfigureAwait(false);
+                var testTarget = useContainerVolumeSandbox ? ToRelativeUnixPath(root, testProj) : testProj;
+                var testRes = await ExecuteVerificationToolAsync(
+                    lease,
+                    "dotnet",
+                    ["test", testTarget, "-c", "Release", "--nologo", "-v", "minimal"],
+                    root,
+                    relativeWorkingDir: null,
+                    ct).ConfigureAwait(false);
                 var combined = testRes.StdOut + "\n" + testRes.StdErr;
                 var (p, f) = ParseTestCounts(combined);
                 passedTests += p;
@@ -268,6 +317,33 @@ internal sealed partial class EngineerBuildVerifier(
             DurationMs: sw.ElapsedMilliseconds,
             Summary: summary);
     }
+
+    private async Task<(int ExitCode, string StdOut, string StdErr)> ExecuteVerificationToolAsync(
+        WorkTreeLease? lease,
+        string executable,
+        IReadOnlyList<string> args,
+        string hostWorkingDir,
+        string? relativeWorkingDir,
+        CancellationToken ct)
+    {
+        if (lease is { Backend: WorkTreeBackendKind.ContainerVolume })
+        {
+            var sandboxResult = await _sandboxRunner.ExecuteAsync(
+                lease,
+                new SandboxCommandRequest(
+                    executable,
+                    args,
+                    RelativeWorkingDirectory: relativeWorkingDir,
+                    Timeout: TimeSpan.FromMinutes(3)),
+                ct).ConfigureAwait(false);
+            return (sandboxResult.ExitCode, sandboxResult.StdOut, sandboxResult.StdErr);
+        }
+
+        return await RunToolAsync(executable, args, hostWorkingDir, ct).ConfigureAwait(false);
+    }
+
+    private static string ToRelativeUnixPath(string root, string targetPath)
+        => Path.GetRelativePath(root, targetPath).Replace('\\', '/');
 
     private static bool IsLiveCliVerificationEnabled(IConfiguration? cfg)
         => !string.Equals(cfg?["IntoChatOS:Engineer:RunTestSuites"], "false", StringComparison.OrdinalIgnoreCase);

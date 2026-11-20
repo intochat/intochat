@@ -40,6 +40,9 @@ public sealed record WorkTreeLease(
     string? VolumeId = null)
 {
     [JsonIgnore]
+    public string WorkspacePath => TreePath;
+
+    [JsonIgnore]
     public string EffectiveLeaseId => string.IsNullOrWhiteSpace(LeaseId)
         ? BuildLeaseId(RepositoryId, RunId, InstanceIndex)
         : LeaseId;

@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
@@ -31,8 +29,9 @@ internal sealed class EngineerFlow(
 {
     public const string Alias = IFlows.EngineerFlow;
     public const string ConfirmationKind = "engineer.publish";
+    private const string PlanPrefix = "app:engineer";
 
-    public static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(48);
+    public static readonly TimeSpan ApprovalWindow = EngineerPipelineStages.DefaultApprovalWindow;
 
     public static readonly string[] Names =
     [
@@ -47,7 +46,7 @@ internal sealed class EngineerFlow(
         "clean",
     ];
 
-    internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    internal static readonly JsonSerializerOptions Json = EngineerPipelineStages.Json;
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<EngineerFlow>();
 
@@ -83,23 +82,19 @@ internal sealed class EngineerFlow(
         ?? Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
 
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
-    {
-        var sanitized = EngineerRun.FromUntrustedJson(innerJson, Json);
-        return Start(title, owner, parentFlowId, sanitized);
-    }
+        => Start(title, owner, parentFlowId, EngineerRun.FromUntrustedJson(innerJson, Json));
 
-    public Task<FlowHead> Head() => Task.FromResult(new FlowHead(
-        [.. Names],
+    public Task<FlowHead> Head() => Task.FromResult(EngineerPipelineStages.BuildHead(
+        Names,
         State.Owner,
         State.TraceId,
         State.ParentFlowId,
         State.Started,
-        JsonSerializer.Serialize(State.Inner, Json),
+        State.Inner,
         State.Title,
         State.Status,
-        [.. State.Done],
-        State.Ended,
-        null));
+        State.Done,
+        State.Ended));
 
     protected override async Task<StepResult<EngineerRun>> Run(string step, EngineerRun inner, CancellationToken ct)
     {
@@ -125,17 +120,11 @@ internal sealed class EngineerFlow(
                 .Select(static i => i.Lease)
                 .OfType<WorkTreeLease>()
                 .ToArray();
-            if (activeLeases.Length > 0 && inner.Publication?.Cleaned != true)
-            {
-                try
-                {
-                    await WorkTree.CleanupParallelAsync(activeLeases, CancellationToken.None).ConfigureAwait(true);
-                }
-                catch (Exception cleanupEx) when (cleanupEx is not OperationCanceledException)
-                {
-                    OsConsoleLog.For<EngineerFlow>().LogSwallowed(cleanupEx, "Best-effort parallel worktree cleanup after failed step.");
-                }
-            }
+            await EngineerPipelineStages.CleanupFailedLeasesBestEffortAsync(
+                WorkTree,
+                activeLeases,
+                inner.Publication?.Cleaned == true,
+                ConsoleLogger).ConfigureAwait(true);
 
             if (ex is FlowFailed)
             {
@@ -148,41 +137,23 @@ internal sealed class EngineerFlow(
 
     protected override ConfirmationPlan PlanFor(string step, EngineerRun inner)
     {
-        var runId = EffectiveRunId(inner);
         var winner = inner.SelectedInstance
             ?? throw new InvalidOperationException("Cannot raise Engineer confirmation plan without a verified candidate instance.");
-        var sha = winner.Commit?.Commit.Value
+        var verifiedCommit = winner.Commit?.Commit
             ?? throw new InvalidOperationException("Cannot raise Engineer confirmation plan without a verified CommitSha.");
-        var planId = BuildPlanId(runId, sha);
-        var repoLabel = winner.Lease?.GitHubRepo ?? winner.Lease?.RepositoryId ?? inner.Repository?.Value ?? string.Empty;
+        var planId = BuildPlanId(EffectiveRunId(inner), verifiedCommit.Value);
 
-        return new ConfirmationPlan(
-            Id: planId,
-            Action: ConfirmationAction.Other,
-            Destructive: true,
-            Title: $"Push & open Draft PR on {repoLabel} ({sha[..Math.Min(8, sha.Length)]})?",
-            Body: ChangeCard.Body(inner.ToSelectedChange()),
-            ApproveLabel: "Push & Open Draft PR",
-            DenyLabel: "Discard Worktrees",
-            TargetLabel: $"{repoLabel}@{sha[..Math.Min(8, sha.Length)]}")
-        {
-            RequiresPerson = true,
-            Expiry = ApprovalWindow,
-            Kind = ConfirmationKind,
-            Subject = sha,
-        };
+        return EngineerPipelineStages.BuildConfirmationPlan(
+            planId,
+            ConfirmationKind,
+            "Discard Worktrees",
+            ApprovalWindow,
+            inner.ToSelectedChange(),
+            verifiedCommit);
     }
 
     public static string BuildPlanId(string runId, string commitSha)
-    {
-        var cleanRun = string.IsNullOrWhiteSpace(runId) ? "run" : runId.Trim();
-        if (cleanRun.Length > 48)
-        {
-            cleanRun = cleanRun[..48];
-        }
-
-        return $"app:engineer:{cleanRun}:{commitSha.Trim()}";
-    }
+        => EngineerPipelineStages.BuildPlanId(PlanPrefix, runId, commitSha);
 
     private async Task<StepResult<EngineerRun>> BrainstormAndPlanStepAsync(EngineerRun inner, CancellationToken ct)
     {
@@ -217,7 +188,6 @@ internal sealed class EngineerFlow(
 
     private async Task<StepResult<EngineerRun>> PrepareWorktreeStepAsync(EngineerRun inner, CancellationToken ct)
     {
-        var repo = inner.Repository ?? throw new FlowFailed("prepare-worktree", "Repository id is required.");
         if (inner.Plan is null)
         {
             throw new FlowFailed("prepare-worktree", "EngineerTaskPlan is required before preparing worktrees.");
@@ -225,24 +195,19 @@ internal sealed class EngineerFlow(
 
         var runId = EffectiveRunId(inner);
         var existingLeases = inner.Instances.Select(static i => i.Lease).OfType<WorkTreeLease>().ToArray();
-        if (existingLeases.Length == inner.InstanceCount && existingLeases.All(static l => Directory.Exists(l.TreePath)))
-        {
-            foreach (var existing in existingLeases)
-            {
-                await WorkTreeService.VerifyTripleGitLockAsync(existing, ct).ConfigureAwait(true);
-            }
-
-            return inner.WithLeases(runId, existingLeases)
-                .Advance(new FlowSubject(Id.ToString(), $"{repo.Value}:{existingLeases[0].BranchName}"));
-        }
-
-        var wt = WorkTree;
-        var leases = await Task.Run(
-            () => wt.PrepareParallelAsync(repo, runId, inner.Goal, inner.InstanceCount, inner.RequestedBaseBranch, ct),
+        var (leases, subject) = await EngineerPipelineStages.PrepareWorktreesAsync(
+            WorkTree,
+            inner.Repository,
+            inner.Goal,
+            runId,
+            inner.InstanceCount,
+            inner.RequestedBaseBranch,
+            existingLeases,
+            Id.ToString(),
+            "prepare-worktree",
             ct).ConfigureAwait(true);
 
-        return inner.WithLeases(runId, leases)
-            .Advance(new FlowSubject(Id.ToString(), $"{leases[0].RepositoryId}:{leases[0].BranchName}"));
+        return inner.WithLeases(runId, leases).Advance(subject);
     }
 
     private async Task<StepResult<EngineerRun>> ImplementTasksStepAsync(EngineerRun inner, CancellationToken ct)
@@ -273,20 +238,12 @@ internal sealed class EngineerFlow(
         var nextSelected = completedInstances.FirstOrDefault(static i => i.Commit is not null)?.InstanceIndex ?? 0;
         var updated = inner.WithUpdatedInstances(completedInstances, nextSelected);
 
-        // Verify approval card size / binary file refusal before storing full diff on the selected candidate.
         if (updated.SelectedInstance?.Commit is { } selectedCommit)
         {
-            var metadataOnly = ChangeSet.Create(
-                selectedCommit.Commit,
-                selectedCommit.ChangedFiles,
-                string.Empty,
-                selectedCommit.Additions,
-                selectedCommit.Deletions);
-            var previewChange = updated.ToSelectedChange(metadataOnly);
-            if (ChangeCard.Refusal(previewChange, selectedCommit.HostRenderedDiff) is { } refusal)
-            {
-                throw new FlowFailed("implement-tasks", refusal);
-            }
+            EngineerPipelineStages.EnsureCardAcceptsDiff(
+                updated.ToSelectedChange,
+                selectedCommit,
+                "implement-tasks");
         }
 
         return updated.Advance();
@@ -435,7 +392,10 @@ internal sealed class EngineerFlow(
             }
 
             var changedPaths = instance.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
-            var report = await Task.Run(() => verifier.VerifyAsync(instance.Lease.TreePath, changedPaths, ct), ct).ConfigureAwait(false);
+            var lease = instance.Lease;
+            var report = verifier is EngineerBuildVerifier stageVerifier
+                ? await Task.Run(() => stageVerifier.VerifyAsync(lease, changedPaths, ct), ct).ConfigureAwait(false)
+                : await Task.Run(() => verifier.VerifyAsync(lease.TreePath, changedPaths, ct), ct).ConfigureAwait(false);
             return instance with
             {
                 Build = report,
@@ -503,16 +463,14 @@ internal sealed class EngineerFlow(
     private StepResult<EngineerRun> ApprovalGateStep(string step, EngineerRun inner)
     {
         var winner = inner.SelectedInstance ?? throw new FlowFailed(step, "No verified candidate instance available.");
-        var commit = winner.Commit ?? throw new FlowFailed(step, "Cannot enter approval-gate without a verified CommitSha.");
-
-        if (ChangeCard.Refusal(inner.ToSelectedChange(), commit.HostRenderedDiff) is { } refusal)
-        {
-            throw new FlowFailed(step, refusal);
-        }
-
-        var runId = EffectiveRunId(inner);
-        var planId = BuildPlanId(runId, commit.Commit.Value);
-        var expires = Context.Time.GetUtcNow().Add(ApprovalWindow);
+        var (planId, expires) = EngineerPipelineStages.PrepareApprovalGate(
+            inner.ToSelectedChange(),
+            winner.Commit,
+            PlanPrefix,
+            EffectiveRunId(inner),
+            Context.Time.GetUtcNow(),
+            ApprovalWindow,
+            step);
 
         return inner.WithApprovalPending(planId, expires).WaitApproval(step, expires);
     }
@@ -525,17 +483,18 @@ internal sealed class EngineerFlow(
         }
 
         var winner = inner.SelectedInstance ?? throw new FlowFailed("push", "Selected worktree instance is missing.");
-        var lease = winner.Lease ?? throw new FlowFailed("push", "Worktree lease is missing.");
         var commit = winner.Commit ?? throw new FlowFailed("push", "Verified CommitSha is missing.");
         var planId = inner.Approval?.PlanId ?? BuildPlanId(EffectiveRunId(inner), commit.Commit.Value);
+        var (approvedBy, pushedCommit, pushedRef) = await EngineerPipelineStages.ExecutePushAsync(
+            WorkTree,
+            ConfirmationRequests,
+            winner.Lease,
+            commit,
+            planId,
+            inner.EnsureCanPublish,
+            ct).ConfigureAwait(true);
 
-        var outcome = await ConfirmationRequests.Outcome(planId).ConfigureAwait(true);
-        var humanApprover = inner.EnsureCanPublish(outcome, commit.Commit);
-
-        var wt = WorkTree;
-        var pushedRef = await Task.Run(() => wt.PushAsync(lease, commit.Commit, ct), ct).ConfigureAwait(true);
-
-        return inner.WithPushed(humanApprover, commit.Commit, pushedRef).Advance();
+        return inner.WithPushed(approvedBy, pushedCommit, pushedRef).Advance();
     }
 
     private async Task<StepResult<EngineerRun>> PullRequestStepAsync(EngineerRun inner, CancellationToken ct)
@@ -546,16 +505,16 @@ internal sealed class EngineerFlow(
         }
 
         var winner = inner.SelectedInstance ?? throw new FlowFailed("pr", "Selected worktree instance is missing.");
-        var lease = winner.Lease ?? throw new FlowFailed("pr", "Worktree lease is missing.");
-        var commit = winner.Commit ?? throw new FlowFailed("pr", "Verified CommitSha is missing.");
-        var approverId = inner.Approval?.ApprovedBy ?? throw new FlowFailed("pr", "Human approver is missing.");
-
-        var prTitle = ChangePolicy.BuildPrTitle(inner.Goal);
-        var prBody = BuildPrBody(inner, winner, commit.Commit.Value, approverId);
-
-        var wt = WorkTree;
-        var prUrl = await Task.Run(
-            () => wt.CreateDraftPullRequestAsync(lease, prTitle, prBody, ct),
+        var prUrl = await EngineerPipelineStages.ExecutePullRequestAsync(
+            WorkTree,
+            winner.Lease,
+            winner.Commit,
+            inner.Approval?.ApprovedBy,
+            inner.Approval?.PlanId,
+            inner.Goal,
+            winner.Edit?.Summary,
+            winner.Edit?.ModelId,
+            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner),
             ct).ConfigureAwait(true);
 
         return inner.WithPullRequest(prUrl).Advance();
@@ -569,71 +528,10 @@ internal sealed class EngineerFlow(
         }
 
         var activeLeases = inner.Instances.Select(static i => i.Lease).OfType<WorkTreeLease>().ToArray();
-        if (activeLeases.Length > 0)
-        {
-            var wt = WorkTree;
-            await Task.Run(() => wt.CleanupParallelAsync(activeLeases, ct), ct).ConfigureAwait(true);
-        }
-
+        await EngineerPipelineStages.ExecuteCleanupAsync(WorkTree, activeLeases, ct).ConfigureAwait(true);
         return inner.WithCleaned().Advance();
     }
 
     private string EffectiveRunId(EngineerRun inner)
-    {
-        if (!string.IsNullOrWhiteSpace(inner.RunId))
-        {
-            return inner.RunId.Trim();
-        }
-
-        try
-        {
-            return Id.Key;
-        }
-        catch (InvalidOperationException)
-        {
-            return Guid.NewGuid().ToString("N")[..12];
-        }
-    }
-
-    private static string BuildPrBody(EngineerRun inner, EngineerInstance winner, string sha, string approverId)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("## Summary");
-        var cleanSummary = ChangePolicy.SanitizeCommitText(winner.Edit?.Summary);
-        sb.AppendLine(string.IsNullOrWhiteSpace(cleanSummary) ? ChangePolicy.SanitizeCommitText(inner.Goal) : cleanSummary);
-
-        if (inner.Plan is { } plan)
-        {
-            sb.AppendLine();
-            sb.AppendLine("## Architecture & Plan");
-            sb.AppendLine($"- **Architect:** {ChangePolicy.SanitizeCommitText(plan.ArchitectureSummary)}");
-            sb.AppendLine($"- **Critic:** {ChangePolicy.SanitizeCommitText(plan.CriticReview)}");
-            sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"- **Tasks Completed ({winner.CompletedTaskIds.Length}/{plan.Tasks.Length}):** {string.Join(", ", winner.CompletedTaskIds)}"));
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("## Verification & Provenance");
-        sb.AppendLine($"- **Goal:** {ChangePolicy.SanitizeCommitText(inner.Goal)}");
-        sb.AppendLine($"- **Commit:** `{sha}`");
-        sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"- **Parallel Candidates:** `{inner.Instances.Length}` (selected instance `#{winner.InstanceIndex}`, lease `{winner.Lease?.EffectiveLeaseId}`, backend `{winner.Lease?.Backend}`)"));
-        var files = winner.Commit?.ChangedFiles ?? [];
-        sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"- **Files ({files.Length}):** {string.Join(", ", files.Select(static f => $"`{f.Value}`"))}"));
-        if (winner.Build is { } build)
-        {
-            sb.AppendLine($"- **Build & Test:** {ChangePolicy.SanitizeCommitText(build.Summary)}");
-        }
-
-        if (winner.Live is { } live)
-        {
-            sb.AppendLine($"- **Live Verify:** {ChangePolicy.SanitizeCommitText(live.Summary)}");
-        }
-
-        sb.AppendLine($"- **Approved by Person:** `{approverId}` (plan `{inner.Approval?.PlanId}`)");
-        if (!string.IsNullOrWhiteSpace(winner.Edit?.ModelId))
-        {
-            sb.AppendLine($"- **Model:** `{winner.Edit.ModelId}`");
-        }
-
-        return sb.ToString().Trim();
-    }
+        => EngineerPipelineStages.ResolveEffectiveRunId(inner.RunId, () => Id.Key);
 }

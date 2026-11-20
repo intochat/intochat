@@ -391,6 +391,167 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.Equal(winner.Commit!.Commit.Value, remoteSha);
     }
 
+    [Fact]
+    public async Task EngineerBuildVerifierRoutesContainerVolumeLeaseCommandsThroughSandboxCommandRunner()
+    {
+        var (bareOrigin, checkout, home) = CreateBareOriginAndCheckout("sbx-verifier");
+        var workTree = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home,
+            Backend = WorkTreeBackendKind.ContainerVolume,
+            VolumeMountRoot = Path.Combine(_root, "sbx-verifier-volumes"),
+        });
+        workTree.RegisterRepository(new RegisteredRepository("os", checkout, DefaultBaseBranch: "main", RemoteCloneUrl: bareOrigin));
+
+        var lease = await workTree.PrepareAsync(RepositoryId.Parse("os"), "verifyvol1", "Verify container sandbox routing", null, Ct);
+        await File.WriteAllTextAsync(
+            Path.Combine(lease.WorkspacePath, "code", "Calc.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>",
+            Ct);
+        Directory.CreateDirectory(Path.Combine(lease.WorkspacePath, "ui", "lib"));
+        await File.WriteAllTextAsync(Path.Combine(lease.WorkspacePath, "ui", "pubspec.yaml"), "name: demo_ui\n", Ct);
+        await File.WriteAllTextAsync(Path.Combine(lease.WorkspacePath, "ui", "lib", "badge.dart"), "class Badge {}\n", Ct);
+
+        var recordedRequests = new List<SandboxCommandRequest>();
+        var fakeRunner = new RecordingSandboxRunner(recordedRequests);
+        var verifier = new EngineerBuildVerifier(configuration: null, sandboxRunner: fakeRunner);
+
+        var report = await verifier.VerifyAsync(lease, ["code/Calculator.cs", "ui/lib/badge.dart"], Ct);
+
+        Assert.True(report.Succeeded, report.Summary);
+        Assert.True(report.DotnetBuildPassed);
+        Assert.True(report.FlutterAnalyzePassed);
+        Assert.Equal(2, recordedRequests.Count);
+        Assert.Equal("dotnet", recordedRequests[0].Executable);
+        Assert.Contains("code/Calc.csproj", recordedRequests[0].Arguments);
+        Assert.Null(recordedRequests[0].RelativeWorkingDirectory);
+
+        Assert.Equal("flutter", recordedRequests[1].Executable);
+        Assert.Equal(["analyze", "--no-pub"], recordedRequests[1].Arguments);
+        Assert.Equal("ui", recordedRequests[1].RelativeWorkingDirectory);
+
+        await workTree.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
+    public async Task FeatureToPrFlowAdapterExecutesConsolidatedPipelineStagesEndToEndOnTestOS()
+    {
+        var (bareOrigin, checkout, home) = CreateBareOriginAndCheckout("f2pr-consolidated");
+        var workTree = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home,
+            VerifyFormatting = false,
+        });
+        workTree.RegisterRepository(new RegisteredRepository("os", checkout, DefaultBaseBranch: "main"));
+
+        var coder = new SingleFileRoslynCoder();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IWorkTree>(workTree);
+        serviceCollection.AddSingleton<ICoder>(coder);
+        await using var services = serviceCollection.BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = services);
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner")));
+        os.Register(typeof(AppsModule).Assembly);
+
+        var flows = os.Get<IFlows>(IFlows.Key("owner"));
+        var startJson = JsonSerializer.Serialize(
+            Change.Start("f2pr01", RepositoryId.Parse("os"), "Add Multiply via consolidated adapter"),
+            FeatureToPrFlow.Json);
+
+        var flowId = await flows.Start(FeatureToPrFlow.Alias, "Consolidated Change Run", null, startJson, Ct, flowId: "f2pr01");
+        for (var i = 0; i < 60; i++)
+        {
+            await os.Idle();
+            var check = await flows.Read(flowId, Ct);
+            if (check is { Status: FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed })
+            {
+                break;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        var waiting = await flows.Read(flowId, Ct);
+        Assert.NotNull(waiting);
+        Assert.Equal(FlowStatus.Waiting, waiting!.Status);
+        Assert.Equal("approval-gate", waiting.WaitingStep);
+        Assert.StartsWith("app:change:f2pr01:", waiting.ConfirmationPlanId!, StringComparison.Ordinal);
+
+        var inbox = os.Get<IConfirmationInbox>(new NeuronId(new BrainId("owner"), "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
+        var pendingReq = Assert.Single((await inbox.Read()).Pending, p => p.PlanId == waiting.ConfirmationPlanId);
+        Assert.Equal(FeatureToPrFlow.ConfirmationKind, pendingReq.Plan.Kind);
+        await inbox.Resolve(waiting.ConfirmationPlanId!, approve: true);
+
+        for (var i = 0; i < 60; i++)
+        {
+            await os.Idle();
+            var check = await flows.Read(flowId, Ct);
+            if (check is { Status: FlowStatus.Completed or FlowStatus.Failed })
+            {
+                break;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        var completed = await flows.Read(flowId, Ct);
+        Assert.NotNull(completed);
+        Assert.Equal(FlowStatus.Completed, completed!.Status);
+        Assert.Equal(FeatureToPrFlow.Names, completed.Done);
+
+        var starter = os.Get<IFlowStarter>(NeuronId.Parse(flowId));
+        var changeAfter = JsonSerializer.Deserialize<Change>((await starter.Head()).InnerJson, FeatureToPrFlow.Json)!;
+        Assert.Equal("owner", changeAfter.Approval?.ApprovedBy);
+        Assert.True(changeAfter.Publication?.Cleaned);
+        Assert.False(Directory.Exists(changeAfter.Tree!.TreePath));
+        Assert.Equal(changeAfter.Commit!.Commit.Value, RunGit(bareOrigin, ["rev-parse", changeAfter.Publication!.PushedRef!]).Trim());
+    }
+
+    private sealed class RecordingSandboxRunner(List<SandboxCommandRequest> sink) : ISandboxCommandRunner
+    {
+        public IReadOnlyList<string> BuildContainerArguments(WorkTreeLease lease, SandboxCommandRequest request)
+            => ["run", "--rm", request.Executable, .. request.Arguments];
+
+        public Task<SandboxCommandResult> ExecuteAsync(WorkTreeLease lease, SandboxCommandRequest request, CancellationToken ct = default)
+        {
+            lock (sink)
+            {
+                sink.Add(request);
+            }
+
+            return Task.FromResult(new SandboxCommandResult(
+                ExitCode: 0,
+                StdOut: "Build succeeded.\n    0 Warning(s)\n    0 Error(s)",
+                StdErr: string.Empty,
+                ExecutedMode: SandboxExecutionMode.Container,
+                EffectiveInvocation: ["docker", "run", "--rm", request.Executable, .. request.Arguments],
+                DurationMs: 12));
+        }
+    }
+
+    private sealed class SingleFileRoslynCoder : ICoder
+    {
+        private readonly IWorktreeRoslyn _roslyn = IWorktreeRoslyn.CreateDefault();
+
+        public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
+        {
+            var edit = await _roslyn.ApplyEditsAsync(
+                lease.TreePath,
+                [
+                    new WorktreeCSharpEdit(
+                        WorktreeCSharpEditKind.AddOrReplaceMember,
+                        "code/Calculator.cs",
+                        TypeName: "Calculator",
+                        MemberName: "Multiply",
+                        Source: "public static int Multiply(int a, int b) => a * b;"),
+                ],
+                ct);
+            Assert.True(edit.Succeeded, edit.Detail);
+            return new CoderEditResult("Added Multiply via Roslyn.", edit.TouchedFiles, "qwen2.5-coder:14b");
+        }
+    }
+
     private sealed class TwoStepPlanner : IEngineerPlanner
     {
         public Task<EngineerTaskPlan> PlanAsync(string repositoryId, string goal, IReadOnlyList<string> allowedExtensions, int maxChangedFiles, CancellationToken ct = default)
