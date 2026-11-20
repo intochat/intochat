@@ -8,8 +8,6 @@ public sealed record IntoChatOSHostingOptions
     public const string ServiceIdKey = "Orleans:ServiceId";
     public const string ClusterIdKey = "Orleans:ClusterId";
     public const string GrainStateContainerKey = IntoChatOSNames.GrainStateContainerKey;
-    // Whether the local profile may pass the GPU to the Ollama container (the launcher sets it from detection).
-    public const string LocalGpuKey = IntoChatOSNames.LocalGpuKey;
     // The Ollama model the local profile serves instead of the default (qwen3.5:4b).
     public const string LocalModelKey = IntoChatOSNames.LocalModelKey;
     public const string EnvironmentKey = "IntoChatOS:Hosting:Environment";

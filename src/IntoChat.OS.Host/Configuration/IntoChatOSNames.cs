@@ -45,7 +45,6 @@ public static class IntoChatOSNames
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
     public const string ShellEnabledKey = "IntoChatOS:Shell:Enabled";
     public const string FrontEnabledKey = "IntoChatOS:Http:Front";
-    public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     public const string LocalModelKey = "IntoChatOS:Local:Model";
     public const string LocalDefaultChatModel = "qwen3.5:4b";
     public const string LocalOllamaEndpoint = "http://localhost:11434";

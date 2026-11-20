@@ -72,8 +72,8 @@ public static class Preflight
         return command.NoFail ? exitCode : Math.Max(exitCode, pullExit);
     }
 
-    // `local`: preflight with the model pull enabled, then the AppHost arguments the detected host calls for (GPU only when
-    // detected, the shell only when Flutter is available). ExitCode is non-zero when the run must not start the AppHost.
+    // `local`: preflight with the model pull enabled, then the AppHost arguments the detected host calls for (the shell
+    // only when Flutter is available). ExitCode is non-zero when the run must not start the AppHost.
     public static async Task<LocalLaunch> PrepareLocalAsync(LauncherCommand command, TextWriter output, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -84,7 +84,7 @@ public static class Preflight
             await output.WriteLineAsync(modelError, cancellationToken).ConfigureAwait(false);
             return new LocalLaunch(UsageExitCode, []);
         }
-        if (command.SkipPreflight) { return new LocalLaunch(0, command.LocalAppHostArguments(gpu: false, shellAvailable: true)); }
+        if (command.SkipPreflight) { return new LocalLaunch(0, command.LocalAppHostArguments(shellAvailable: true)); }
         IProbeEnvironment environment = command.Fake is null ? new SystemProbeEnvironment() : FakeProbeEnvironment.Load(command.Fake);
         var options = new PreflightOptions(command.ModelOptions, ShellEnabled: true, Directory.GetCurrentDirectory());
         var report = await CollectAsync(environment, options, cancellationToken).ConfigureAwait(false);
@@ -92,7 +92,7 @@ public static class Preflight
         PreflightRenderer.Render(report, exitCode, command.Json, output);
         var pullExit = await PullIfRequestedAsync(environment, command with { Pull = true }, report, output, cancellationToken).ConfigureAwait(false);
         exitCode = command.NoFail ? exitCode : Math.Max(exitCode, pullExit);
-        return new LocalLaunch(exitCode, exitCode == 0 ? command.LocalAppHostArguments(report.GpuDetected, report.FlutterAvailable) : []);
+        return new LocalLaunch(exitCode, exitCode == 0 ? command.LocalAppHostArguments(report.FlutterAvailable) : []);
     }
 
     // `--pull`: download the configured model when Ollama is up and the tag is missing, printing progress. 0 or 1.

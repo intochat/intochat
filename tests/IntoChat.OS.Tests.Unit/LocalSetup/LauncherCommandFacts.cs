@@ -68,16 +68,15 @@ public sealed class LauncherCommandFacts
     }
 
     [Theory]
-    [InlineData(true, true, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Local:Gpu=true" })]
-    [InlineData(false, true, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Local:Gpu=false" })]
-    [InlineData(true, false, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Local:Gpu=true", "--IntoChatOS:Shell:Enabled=false" })]
-    public void LocalAppHostArgumentsCarryGpuAndShell(bool gpu, bool shell, string[] expected)
-        => Assert.Equal(expected, LauncherCommand.Parse(["local"]).LocalAppHostArguments(gpu, shell));
+    [InlineData(true, new[] { "--IntoChatOS:Topology=local" })]
+    [InlineData(false, new[] { "--IntoChatOS:Topology=local", "--IntoChatOS:Shell:Enabled=false" })]
+    public void LocalAppHostArgumentsCarryShell(bool shell, string[] expected)
+        => Assert.Equal(expected, LauncherCommand.Parse(["local"]).LocalAppHostArguments(shell));
 
     [Fact]
     public void LocalAppHostArgumentsCarryModelOverrideAndForwardedArguments()
     {
-        var arguments = LauncherCommand.Parse(["local", "--model", "qwen3.5:2b", "--", "--X=1"]).LocalAppHostArguments(false, true);
+        var arguments = LauncherCommand.Parse(["local", "--model", "qwen3.5:2b", "--", "--X=1"]).LocalAppHostArguments(shellAvailable: true);
         Assert.Contains("--IntoChatOS:Local:Model=qwen3.5:2b", arguments);
         Assert.Equal("--X=1", arguments[^1]);
     }

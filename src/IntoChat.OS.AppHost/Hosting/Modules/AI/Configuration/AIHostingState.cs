@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
@@ -5,7 +6,6 @@ using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Voice;
-using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
@@ -122,14 +122,14 @@ public static partial class AIHostingExtensions
         internal IResourceBuilder<OllamaResource> EnsureOllama()
             => _ollama ??= AddOllama();
 
-        // GPU passthrough is the host's decision (IntoChatOS:Local:Gpu, set by the launcher's detection); a host
-        // without an NVIDIA runtime must still start the container.
+        private static readonly Lazy<bool> NvidiaGpuAvailable = new(DetectNvidiaGpu);
+
         private IResourceBuilder<OllamaResource> AddOllama()
         {
             var ollama = brain.ApplicationBuilder
                 .AddOllama(brain.ResourceName("ollama"))
                 .WithImageTag(OllamaImageTag);
-            if (brain.ApplicationBuilder.Configuration.GetValue<bool>(IntoChatOSHostingOptions.LocalGpuKey))
+            if (NvidiaGpuAvailable.Value)
             {
                 ollama = ollama.WithGPUSupport();
             }
@@ -138,6 +138,31 @@ public static partial class AIHostingExtensions
                 .WithLifetime(ContainerLifetime.Persistent)
                 .WithOpenWebUI(openwebui => openwebui.WithLifetime(ContainerLifetime.Persistent))
                 .WithParentRelationship(module);
+        }
+
+        private static bool DetectNvidiaGpu()
+        {
+            try
+            {
+                using var process = Process.Start(new ProcessStartInfo("nvidia-smi", "--query-gpu=name --format=csv,noheader")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+                if (process is null) { return false; }
+                if (!process.WaitForExit(2000))
+                {
+                    process.Kill(entireProcessTree: true);
+                    return false;
+                }
+                return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(process.StandardOutput.ReadToEnd());
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                return false;
+            }
         }
     }
 
