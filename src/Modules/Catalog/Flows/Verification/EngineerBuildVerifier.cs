@@ -1,0 +1,349 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using DigitalBrain;
+using DigitalBrain.Log;
+using DigitalBrain.Neurons;
+using IntoChat.OS.Host.Execution;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Modules.Microsoft.Roslyn;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace IntoChat.OS.Modules.Apps.Flows;
+
+
+internal sealed partial class EngineerBuildVerifier(
+    IConfiguration? configuration = null,
+    ISandboxCommandRunner? sandboxRunner = null,
+    ILogger<EngineerBuildVerifier>? logger = null) : IEngineerBuildVerifier
+{
+    private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<EngineerBuildVerifier>();
+    private readonly ISandboxCommandRunner _sandboxRunner = sandboxRunner
+        ?? ISandboxCommandRunner.CreateDefault(
+            configuration: configuration,
+            logger: (ILogger?)logger ?? OsConsoleLog.For<EngineerBuildVerifier>());
+
+    public Task<EngineerBuildReport> VerifyAsync(
+        string worktreePath,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken ct = default)
+        => VerifyCoreAsync(worktreePath, lease: null, changedFiles, ct);
+
+    public Task<EngineerBuildReport> VerifyAsync(
+        WorkTreeLease lease,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        return VerifyCoreAsync(lease.WorkspacePath, lease, changedFiles, ct);
+    }
+
+    private async Task<EngineerBuildReport> VerifyCoreAsync(
+        string worktreePath,
+        WorkTreeLease? lease,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
+        ArgumentNullException.ThrowIfNull(changedFiles);
+
+        var sw = Stopwatch.StartNew();
+        using var buildActivity = EngineerTelemetry.Source.StartActivity("engineer.build");
+        buildActivity?.SetTag("engineer.files", changedFiles.Count);
+        var root = Path.GetFullPath(worktreePath);
+        var diagnostics = new List<string>();
+        var warnings = 0;
+        var errors = 0;
+        var useContainerVolumeSandbox = lease?.Backend == WorkTreeBackendKind.ContainerVolume;
+
+        var buildProjects = DiscoverAffectedProjects(root, changedFiles);
+        var dotnetBuildPassed = true;
+        foreach (var csproj in buildProjects)
+        {
+            var projectTarget = useContainerVolumeSandbox ? ToRelativeUnixPath(root, csproj) : csproj;
+            var res = await ExecuteVerificationToolAsync(
+                lease,
+                "dotnet",
+                ["build", projectTarget, "-c", "Release", "--nologo", "--disable-build-servers", "-v", "minimal"],
+                root,
+                relativeWorkingDir: null,
+                ct).ConfigureAwait(false);
+            var combined = res.StdOut + "\n" + res.StdErr;
+            warnings += BuildWarningRegex().Matches(combined).Count;
+            errors += BuildErrorRegex().Matches(combined).Count;
+            CollectDiagnosticLines(combined, diagnostics);
+            if (res.ExitCode != 0)
+            {
+                dotnetBuildPassed = false;
+                if (errors == 0) { errors++; }
+            }
+        }
+
+        var flutterAnalyzePassed = true;
+        var hasChangedDart = changedFiles.Any(static f => f.EndsWith(".dart", StringComparison.OrdinalIgnoreCase));
+        var flutterDir = ResolveFlutterRoot(root);
+        if (hasChangedDart && flutterDir is not null)
+        {
+            var relFlutterDir = string.Equals(
+                Path.GetFullPath(flutterDir),
+                root,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                ? null
+                : ToRelativeUnixPath(root, flutterDir);
+            var analyze = await ExecuteVerificationToolAsync(
+                lease,
+                "flutter",
+                ["analyze", "--no-pub"],
+                flutterDir,
+                relFlutterDir,
+                ct).ConfigureAwait(false);
+            var combined = analyze.StdOut + "\n" + analyze.StdErr;
+            CollectDiagnosticLines(combined, diagnostics);
+            if (analyze.ExitCode != 0)
+            {
+                flutterAnalyzePassed = false;
+                errors++;
+            }
+        }
+
+        var dotnetTestPassed = true;
+        var passedTests = 0;
+        var failedTests = 0;
+        var testProjects = DiscoverTestProjects(root);
+        if (dotnetBuildPassed && testProjects.Length > 0 && IsLiveCliVerificationEnabled(configuration))
+        {
+            foreach (var testProj in testProjects)
+            {
+                var testTarget = useContainerVolumeSandbox ? ToRelativeUnixPath(root, testProj) : testProj;
+                var testRes = await ExecuteVerificationToolAsync(
+                    lease,
+                    "dotnet",
+                    ["test", testTarget, "-c", "Release", "--nologo", "--disable-build-servers", "-v", "minimal"],
+                    root,
+                    relativeWorkingDir: null,
+                    ct).ConfigureAwait(false);
+                var combined = testRes.StdOut + "\n" + testRes.StdErr;
+                var (p, f) = ParseTestCounts(combined);
+                passedTests += p;
+                failedTests += f;
+                CollectDiagnosticLines(combined, diagnostics);
+                if (testRes.ExitCode != 0 || f > 0)
+                {
+                    dotnetTestPassed = false;
+                    errors += Math.Max(1, f);
+                }
+            }
+        }
+
+        sw.Stop();
+        var succeeded = dotnetBuildPassed && flutterAnalyzePassed && dotnetTestPassed;
+        var summary = buildProjects.Length == 0 && !hasChangedDart
+            ? $"Verified {changedFiles.Count} file(s) in {sw.ElapsedMilliseconds} ms (no .csproj/.dart target requires compilation)."
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"Build={dotnetBuildPassed} ({buildProjects.Length} csproj), Analyze={flutterAnalyzePassed}, Tests={dotnetTestPassed} (passed={passedTests}, failed={failedTests}, warnings={warnings}, errors={errors}) in {sw.ElapsedMilliseconds} ms.");
+
+        return new EngineerBuildReport(
+            Succeeded: succeeded,
+            DotnetBuildPassed: dotnetBuildPassed,
+            FlutterAnalyzePassed: flutterAnalyzePassed,
+            DotnetTestPassed: dotnetTestPassed,
+            PassedTests: passedTests,
+            FailedTests: failedTests,
+            WarningCount: warnings,
+            ErrorCount: errors,
+            Diagnostics: [.. diagnostics.Take(50)],
+            DurationMs: sw.ElapsedMilliseconds,
+            Summary: summary);
+    }
+
+    private async Task<(int ExitCode, string StdOut, string StdErr)> ExecuteVerificationToolAsync(
+        WorkTreeLease? lease,
+        string executable,
+        IReadOnlyList<string> args,
+        string hostWorkingDir,
+        string? relativeWorkingDir,
+        CancellationToken ct)
+    {
+        if (lease is { Backend: WorkTreeBackendKind.ContainerVolume })
+        {
+            var sandboxResult = await _sandboxRunner.ExecuteAsync(
+                lease,
+                new SandboxCommandRequest(
+                    executable,
+                    args,
+                    RelativeWorkingDirectory: relativeWorkingDir,
+                    Timeout: TimeSpan.FromMinutes(3)),
+                ct).ConfigureAwait(false);
+            return (sandboxResult.ExitCode, sandboxResult.StdOut, sandboxResult.StdErr);
+        }
+
+        return await RunToolAsync(executable, args, hostWorkingDir, ct).ConfigureAwait(false);
+    }
+
+    private static string ToRelativeUnixPath(string root, string targetPath)
+        => Path.GetRelativePath(root, targetPath).Replace('\\', '/');
+
+    private static bool IsLiveCliVerificationEnabled(IConfiguration? cfg)
+        => !string.Equals(cfg?["IntoChatOS:Engineer:RunTestSuites"], "false", StringComparison.OrdinalIgnoreCase);
+
+    private static string[] DiscoverAffectedProjects(string root, IReadOnlyList<string> changedFiles)
+    {
+        var projects = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        foreach (var rel in changedFiles.Where(static f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+        {
+            var full = Path.GetFullPath(Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar)));
+            var dir = Path.GetDirectoryName(full);
+            while (!string.IsNullOrEmpty(dir) && dir.StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                var found = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.csproj") : [];
+                if (found.Length > 0)
+                {
+                    projects.Add(found[0]);
+                    break;
+                }
+
+                if (string.Equals(dir, root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+
+        return [.. projects.Order(StringComparer.Ordinal)];
+    }
+
+    private static string[] DiscoverTestProjects(string root)
+    {
+        if (!Directory.Exists(root))
+        {
+            return [];
+        }
+
+        return
+        [
+            .. Directory.EnumerateFiles(root, "*.Tests*.csproj", SearchOption.AllDirectories)
+                .Where(static p => !p.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                    && !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.Ordinal)
+                .Take(2),
+        ];
+    }
+
+    private static string? ResolveFlutterRoot(string root)
+    {
+        var uiPubspec = Path.Combine(root, "ui", "pubspec.yaml");
+        if (File.Exists(uiPubspec))
+        {
+            return Path.Combine(root, "ui");
+        }
+
+        var rootPubspec = Path.Combine(root, "pubspec.yaml");
+        return File.Exists(rootPubspec) ? root : null;
+    }
+
+    private static void CollectDiagnosticLines(string output, List<string> sink)
+    {
+        foreach (var raw in output.Split('\n'))
+        {
+            var trimmed = raw.Trim();
+            if (trimmed.Contains(": error ", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Contains(": warning ", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("error •", StringComparison.OrdinalIgnoreCase))
+            {
+                sink.Add(trimmed);
+            }
+        }
+    }
+
+    private static (int Passed, int Failed) ParseTestCounts(string output)
+    {
+        var m = TestSummaryRegex().Match(output);
+        if (!m.Success)
+        {
+            return (0, 0);
+        }
+
+        var failed = int.TryParse(m.Groups["failed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var f) ? f : 0;
+        var passed = int.TryParse(m.Groups["passed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var p) ? p : 0;
+        return (passed, failed);
+    }
+
+    private async Task<(int ExitCode, string StdOut, string StdErr)> RunToolAsync(
+        string executable,
+        IReadOnlyList<string> args,
+        string workingDir,
+        CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo(executable)
+        {
+            WorkingDirectory = workingDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        ChildEnvironmentPolicy.Scrub(psi);
+
+        using var proc = Process.Start(psi)
+            ?? throw new InvalidOperationException($"Failed to start verification process '{executable}'.");
+        proc.StandardInput.Close();
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromMinutes(3));
+
+        try
+        {
+            var outTask = proc.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+            var errTask = proc.StandardError.ReadToEndAsync(timeoutCts.Token);
+            await proc.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            return (proc.ExitCode, await outTask.ConfigureAwait(false), await errTask.ConfigureAwait(false));
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!proc.HasExited)
+                {
+                    proc.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception killEx) when (killEx is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(killEx, "Best-effort process termination during build/test cancellation.");
+            }
+
+            throw;
+        }
+    }
+
+    [GeneratedRegex(@":\s*warning\s+[A-Z]+\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BuildWarningRegex();
+
+    [GeneratedRegex(@":\s*error\s+[A-Z]+\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BuildErrorRegex();
+
+    [GeneratedRegex(@"Failed:\s*(?<failed>\d+).*?Passed:\s*(?<passed>\d+)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex TestSummaryRegex();
+}
+
