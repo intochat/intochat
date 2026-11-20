@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Contracts;
+using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http.Surface;
@@ -93,29 +94,22 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         key = NormalizeBrainPlaceholder(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        JsonElement[] payload;
-        try { payload = string.IsNullOrWhiteSpace(arguments) ? [] : JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
-        catch (JsonException error) { throw new ArgumentException("arguments must be a JSON array: " + error.Message, nameof(arguments)); }
-        var candidates = type.GetMethods().Concat(type.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
-            .Where(candidate => candidate.Name == method)
-            .ToArray();
-        static int TotalArguments(MethodInfo candidate) => candidate.GetParameters().Count(IsArgument);
-        static int RequiredArguments(MethodInfo candidate) => candidate.GetParameters().Count(p => IsArgument(p) && !p.HasDefaultValue);
-        var exactMatches = candidates.Where(candidate => TotalArguments(candidate) == payload.Length).ToArray();
-        var compatibleMatches = exactMatches.Length > 0
-            ? exactMatches
-            : candidates.Where(candidate => RequiredArguments(candidate) <= payload.Length && payload.Length <= TotalArguments(candidate)).ToArray();
-        if (compatibleMatches.Length == 0)
+        ArrangedCall call;
+        try
         {
-            var overloads = candidates.Select(FormatSignature).Distinct(StringComparer.Ordinal).ToArray();
-            var expected = overloads.Length > 0 ? $" Expected: {string.Join(" or ", overloads)}." : string.Empty;
-            throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.{expected}");
+            using var parsed = string.IsNullOrWhiteSpace(arguments) ? null : JsonDocument.Parse(arguments);
+            call = NeuronBinder.Arrange(type, method, parsed is null ? default : parsed.RootElement);
         }
-        if (compatibleMatches.Length > 1)
+        catch (JsonException error)
         {
-            throw new ArgumentException($"{type.Name}.{method} is ambiguous for {payload.Length} arguments.");
+            throw new ArgumentException("arguments must be a JSON object or array: " + error.Message, nameof(arguments), error);
         }
-        var target = compatibleMatches[0];
+        catch (BindingException error)
+        {
+            throw new ArgumentException(error.Message, nameof(arguments), error);
+        }
+
+        var target = call.Method;
         var parameters = target.GetParameters();
         var values = new object?[parameters.Length];
         for (int index = 0, argument = 0; index < parameters.Length; index++)
@@ -126,19 +120,14 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
                 values[index] = ct;
                 continue;
             }
-            if (argument >= payload.Length && parameter.HasDefaultValue)
-            {
-                values[index] = parameter.DefaultValue;
-                continue;
-            }
             try
             {
-                var argIndex = argument++;
-                values[index] = payload[argIndex].ValueKind == JsonValueKind.Null && parameter.HasDefaultValue && parameter.ParameterType.IsValueType && Nullable.GetUnderlyingType(parameter.ParameterType) is null
-                    ? parameter.DefaultValue
-                    : payload[argIndex].Deserialize(parameter.ParameterType, Json);
+                values[index] = RuntimeProtocol.Deserialize(call.Arguments[argument++], parameter.ParameterType);
             }
-            catch (JsonException error) { throw new ArgumentException($"Argument {argument - 1} of {method}: {error.Message}", nameof(arguments)); }
+            catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException)
+            {
+                throw new ArgumentException($"Argument {argument - 1} of {method}: {error.Message}", nameof(arguments), error);
+            }
         }
         object? returned;
         try { returned = target.Invoke(Neuron(type, key), values); }
@@ -246,25 +235,4 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
         => plain ?? throw new NotSupportedException("This host cannot reach plain neurons: it registers no IPlainNeurons (the silo's kernel composition does).");
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
-
-    private static string FormatSignature(MethodInfo candidate)
-    {
-        var required = new List<string>();
-        var optional = new List<string>();
-        foreach (var parameter in candidate.GetParameters())
-        {
-            if (!IsArgument(parameter)) { continue; }
-            var name = parameter.Name ?? "_";
-            if (parameter.HasDefaultValue) { optional.Add(name); }
-            else { required.Add(name); }
-        }
-
-        var req = string.Join(", ", required);
-        var opt = optional.Count == 0
-            ? string.Empty
-            : required.Count == 0
-                ? $"[{string.Join(", ", optional)}]"
-                : $"[, {string.Join(", ", optional)}]";
-        return $"{candidate.Name}({req}{opt})";
-    }
 }
