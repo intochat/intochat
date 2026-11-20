@@ -87,16 +87,14 @@ public sealed class CreatorAndShellReactorFacts
     [Fact]
     public void TasksState_AggregateExplorer_VerifiesViewModeInvariantsAndKitRenderer()
     {
-        var t0 = new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero);
-        var graph = AggregateExplorer<TasksState>.Explore(
-            maxStates: 20,
-            render: s => TasksViewRenderer.Render(s, [], [], t0).Root);
+        var graph = AggregateExplorer<TasksWorkspaceState>.ExploreScreen<TasksApp>(maxStates: 24).EnsureHealthy();
 
         Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
         Assert.True(graph.States.Count >= 3);
-        Assert.Contains(graph.States, s => s.State.View == "board");
-        Assert.Contains(graph.States, s => s.State.View == "list");
-        Assert.Contains(graph.States, s => s.State.View == "timeline");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "board");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "list");
+        Assert.Contains(graph.States, s => s.State.ActiveTab == "details");
+        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("empty_title", StringComparer.Ordinal));
     }
 
     [Fact]

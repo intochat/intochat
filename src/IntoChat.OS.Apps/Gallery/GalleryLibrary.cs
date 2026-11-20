@@ -81,26 +81,6 @@ public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryS
         _ => "all",
     };
 
-    public static string CategoryDisplayName(string category) => category switch
-    {
-        "design" => "Design & Identity",
-        "controls" => "Basic Input",
-        "layout" => "Layout & App Shell",
-        "chat-lfp" => "Data & 13 LFP Chat Cards",
-        "3d-brain" => "3D Brain & Neurons",
-        _ => "All Controls",
-    };
-
-    public static string CategoryShortBadge(string category) => category switch
-    {
-        "design" => "Design",
-        "controls" => "Input",
-        "layout" => "Layout",
-        "chat-lfp" => "LFP",
-        "3d-brain" => "3D",
-        _ => "UI",
-    };
-
     public static string DefaultBarLayoutFor(string preset, string fallback) => preset switch
     {
         "fluent-acrylic" or "fluent-warm-mica" => "floating-glass",

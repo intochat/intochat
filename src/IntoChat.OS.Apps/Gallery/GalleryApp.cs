@@ -136,6 +136,7 @@ public sealed record GalleryAppState(
     ];
 
     public BankAccount Account { get; init; } = new();
+    public string SelectedId { get; init; } = "approval-card";
     public string SelectedGraphStateId { get; init; } = "s0";
     public bool ShowRejectedSelfLoops { get; init; } = true;
     public int StreamPointCounter { get; init; } = 4;
@@ -363,6 +364,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         await EnsureSeededAsync();
     }
@@ -396,8 +398,14 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public Task Filter(GalleryFilter request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var normalizedCategory = GalleryLibrary.NormalizeCategory(request.Category ?? "all");
+        var matches = GalleryLibrary.FilteredEntries(GalleryLibrary.DefaultCatalog, normalizedCategory, request.Search ?? "");
+        var nextSelectedId = matches.Any(e => e.Id == State.SelectedId)
+            ? State.SelectedId
+            : matches.FirstOrDefault()?.Id ?? State.SelectedId;
+
         var target = !string.IsNullOrWhiteSpace(request.Category) ? request.Category : request.Search;
-        return Show(State.SelectPage(target ?? "home"));
+        return Show(State.SelectPage(target ?? "home") with { SelectedId = nextSelectedId });
     }
 
     [On]
@@ -506,6 +514,12 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         if (raw.StartsWith("page:", StringComparison.OrdinalIgnoreCase))
         {
             await Show(State.SelectPage(raw["page:".Length..]));
+            return;
+        }
+
+        if (GalleryLibrary.DefaultCatalog.FirstOrDefault(e => string.Equals(e.Id, raw, StringComparison.OrdinalIgnoreCase)) is { } catalogEntry)
+        {
+            await Show(State.SelectPage(raw) with { SelectedId = catalogEntry.Id });
             return;
         }
 

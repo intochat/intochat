@@ -34,7 +34,11 @@ internal static class GalleryRendering
             "IntoChat UI Gallery",
             "WinUI 3-style live showcase · Stateful Modules.UI neurons over gRPC",
             StatusPill(StatusKind.Done, state.StylePreset),
-            StatusPill(StatusKind.Idle, state.LastAction));
+            StatusPill(StatusKind.Idle, state.LastAction),
+            Button("Open UI Kit", "widgets")
+                .Key("gallery:open-uikit")
+                .Small()
+                .WithIntent(IntentKind.OpenWindow, "os://window/open?app=uikit"));
 
         var body = VStack(Space.Lg)[
             lastRejection is not null
@@ -534,7 +538,7 @@ internal static class GalleryRendering
         Grid(3, Space.Md)[
             StatCard("kpi-signals", "Active signals / min", "148", "+18.4%", BadgeTone.Done, "zap"),
             StatCard("kpi-latency", "P95 gRPC watch latency", "4.2 ms", "-1.8 ms", BadgeTone.Accent, "activity"),
-            StatCard("kpi-neurons", "UI Kit neurons", "8", "Modules.UI", BadgeTone.Neutral, "layers")
+            StatCard("kpi-neurons", "UI Kit neurons", "42", "Modules.UI", BadgeTone.Neutral, "layers")
         ],
         Surface(SurfaceKind.Elevated, "Progress & Banners")[
             VStack(Space.Sm)[
