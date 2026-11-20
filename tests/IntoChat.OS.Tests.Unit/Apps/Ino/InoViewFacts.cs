@@ -493,6 +493,46 @@ public sealed class InoViewFacts
         Assert.DoesNotContain(root.Children, c => c is Column);
     }
 
+    [Fact]
+    public void ANodeCardIsDrawnInsideACardFrame()
+    {
+        const string nodeJson = """{"kind":"column","children":[{"kind":"text","value":"Apple"}]}""";
+        var state = new InoAppState() with
+        {
+            Messages =
+            [
+                new InoMessage("r1/user", "user", "Show fruit"),
+                new InoMessage("r1/assistant", "assistant", "Here is the card.")
+                {
+                    Cards =
+                    [
+                        new InoCard("node-1", "node", "Fruit", "", IInoFocus.DefaultKey, "done") { Node = nodeJson },
+                    ],
+                },
+            ],
+        };
+
+        var conversation = InoDrawing.Conversation(state);
+        var assistant = conversation.Messages[1];
+        var card = Assert.IsType<Card>(Assert.Single(assistant.Cards!));
+        Assert.Equal("Fruit", card.Title);
+        var innerColumn = Assert.IsType<Column>(Assert.Single(card.Children));
+        var innerText = Assert.IsType<Text>(Assert.Single(innerColumn.Children));
+        Assert.Equal("Apple", innerText.Value);
+    }
+
+    [Fact]
+    public void AnInvalidStoredNodeCardRendersNothing()
+    {
+        var nodes = InoView.RenderCardNodes(
+            new InoCard("node-bad", "node", "Hostile", "", IInoFocus.DefaultKey, "done")
+            {
+                Node = """{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""",
+            }).ToArray();
+
+        Assert.Empty(nodes);
+    }
+
     private static IReadOnlyList<string> Texts(View view)
         => new PresentedView("main", view).Texts;
 

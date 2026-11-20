@@ -555,6 +555,13 @@ public static partial class InoView
                     Open: PrimaryButton("Review & Install").Small().Key("review-install").WithIntent(IntentKind.OpenWindow, "os://sheet/install").ToButton());
                 break;
 
+            case "node":
+                if (!string.IsNullOrWhiteSpace(card.Node) && InoNodeCard.TryRead(card.Node, out var parsedNode, out _))
+                {
+                    yield return Card(card.Title, card.Summary)[parsedNode];
+                }
+                break;
+
             case "table" when card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows:
                 yield return new DataTable(card.Title, cols, rows.Select(static r => (IReadOnlyList<string>)r).ToArray(), StripNeuronUri(card.SourceNeuronUri), From: "Postgres");
                 break;
