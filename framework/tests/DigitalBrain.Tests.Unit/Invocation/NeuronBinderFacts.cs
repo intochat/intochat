@@ -9,6 +9,8 @@ namespace DigitalBrain.Tests.Unit.Invocation;
 public sealed class NeuronBinderFacts
 {
     public sealed record Item(string Name, int Count);
+    public enum Tone { Info, Warning }
+    public sealed record Action(string Kind, string Argument);
 
     public interface IProbe : IDisposable
     {
@@ -26,6 +28,10 @@ public sealed class NeuronBinderFacts
         Task<double> Wide(double value);
         Task Fail();
         Task Put(Item item);
+        Task<string> Point(string target, Tone tone, string reason, Action? action = null);
+        Task<string> Make(string goal);
+        Task<string> Make(string? alias, string? title, string goal);
+        Task<int> List(int limit = 10);
     }
 
     public sealed class Probe : IProbe
@@ -54,6 +60,10 @@ public sealed class NeuronBinderFacts
         public Task<double> Wide(double value) => Task.FromResult(value);
         public Task Fail() => throw new InvalidTimeZoneException("boom");
         public Task Put(Item item) => Task.CompletedTask;
+        public Task<string> Point(string target, Tone tone, string reason, Action? action = null) => Task.FromResult($"{target}:{tone}:{reason}:{action?.Kind}");
+        public Task<string> Make(string goal) => Task.FromResult(goal);
+        public Task<string> Make(string? alias, string? title, string goal) => Task.FromResult($"{alias}:{title}:{goal}");
+        public Task<int> List(int limit = 10) => Task.FromResult(limit);
         public void Dispose() { }
     }
 
@@ -166,5 +176,87 @@ public sealed class NeuronBinderFacts
         var second = binder.Bind(typeof(IProbe), Call("Twice", Json(5)));
 
         Assert.Same(first, second);
+    }
+
+    private static JsonElement J(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
+
+    [Fact]
+    public void NamedArgumentsBindInParameterOrder()
+    {
+        var call = NeuronBinder.Arrange(typeof(IProbe), "Point", J("""{"reason":"why","target":"window:settings","tone":"Info"}"""));
+        Assert.Equal(["\"window:settings\"", "\"Info\"", "\"why\"", "null"], call.Arguments.Select(a => a.GetRawText()));
+    }
+
+    [Fact]
+    public void SnakeCaseAndPascalCaseNamesMatch()
+    {
+        Assert.Equal("\"g\"", NeuronBinder.Arrange(typeof(IProbe), "Make", J("""{"Goal":"g"}""")).Arguments[0].GetRawText());
+        Assert.Equal("3", NeuronBinder.Arrange(typeof(IProbe), "Count", J("""{"up_to":3}""")).Arguments[0].GetRawText());
+    }
+
+    [Fact]
+    public void MissingNamedArgumentIsNamed()
+    {
+        var error = Assert.Throws<BindingException>(() => NeuronBinder.Arrange(typeof(IProbe), "Point", J("""{"target":"t","tone":"Info"}""")));
+        Assert.Contains("missing 'reason'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Point(target, tone, reason[, action])", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UnknownNamedArgumentIsRefusedWithTheKnownNames()
+    {
+        var error = Assert.Throws<BindingException>(() => NeuronBinder.Arrange(typeof(IProbe), "Make", J("""{"goal":"g","colour":"red"}""")));
+        Assert.Contains("'colour'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("goal", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ArrayArgumentsStillBind()
+    {
+        var call = NeuronBinder.Arrange(typeof(IProbe), "Point", J("""["t","Info","r"]"""));
+        Assert.Equal(4, call.Arguments.Length);
+        Assert.Equal(["\"t\"", "\"Info\"", "\"r\"", "null"], call.Arguments.Select(a => a.GetRawText()));
+    }
+
+    [Fact]
+    public void OverloadIsChosenByNames()
+    {
+        Assert.Single(NeuronBinder.Arrange(typeof(IProbe), "Make", J("""{"goal":"g"}""")).Method.GetParameters());
+        var call = NeuronBinder.Arrange(typeof(IProbe), "Make", J("""{"alias":"a","goal":"g"}"""));
+        Assert.Equal(3, call.Method.GetParameters().Length);
+        Assert.Equal(["\"a\"", "null", "\"g\""], call.Arguments.Select(a => a.GetRawText()));
+    }
+
+    [Fact]
+    public void AStringIsNotArguments() =>
+        Assert.Throws<BindingException>(() => NeuronBinder.Arrange(typeof(IProbe), "Make", J("\"g\"")));
+
+    [Fact]
+    public void UndefinedAndNullBindZeroArgAndDefaultedMethods()
+    {
+        Assert.Empty(NeuronBinder.Arrange(typeof(IProbe), "Reset", default).Arguments);
+        Assert.Empty(NeuronBinder.Arrange(typeof(IProbe), "Reset", J("null")).Arguments);
+        Assert.Equal(["10"], NeuronBinder.Arrange(typeof(IProbe), "List", default).Arguments.Select(a => a.GetRawText()));
+        Assert.Equal(["10"], NeuronBinder.Arrange(typeof(IProbe), "List", J("{}")).Arguments.Select(a => a.GetRawText()));
+        Assert.Equal(["10"], NeuronBinder.Arrange(typeof(IProbe), "List", J("""{"limit":null}""")).Arguments.Select(a => a.GetRawText()));
+        Assert.Equal(["10"], NeuronBinder.Arrange(typeof(IProbe), "List", J("[null]")).Arguments.Select(a => a.GetRawText()));
+    }
+
+    [Fact]
+    public void NamedOverloadsWithSameParameterDisambiguateByTypeAndRejectAmbiguity()
+    {
+        Assert.Equal(typeof(int), NeuronBinder.Arrange(typeof(IProbe), "Add", J("""{"value":2}""")).Method.GetParameters()[0].ParameterType);
+        Assert.Equal(typeof(string), NeuronBinder.Arrange(typeof(IProbe), "Add", J("""{"value":"a"}""")).Method.GetParameters()[0].ParameterType);
+        Assert.Throws<BindingException>(() => NeuronBinder.Arrange(typeof(IProbe), "Wide", J("""{"value":2}""")));
+    }
+
+    [Fact]
+    public void DuplicateNormalizedNamedArgumentsAreRefused()
+    {
+        Assert.Throws<BindingException>(() => NeuronBinder.Arrange(typeof(IProbe), "Make", J("""{"goal":"a","Goal":"b"}""")));
     }
 }
