@@ -27,15 +27,20 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
+using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Apps;
+using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+using IntoChat.OS.UI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -401,6 +406,156 @@ public sealed class GitHubIssueWebhookTriageJourneys
         Assert.All(host.GitHubApi.AuthorizationHeaders, header => Assert.Contains(pat, header, StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task TurnkeyInoStudioTriageSynapseDraftsWebhookIssuesForTasksApproveDismissAndEngineerEscalation()
+    {
+        var webhookSecret = new string('t', 24);
+        var pat = "github_pat_" + new string('b', 32);
+
+        await using var host = await GitHubWebhookOsHost.StartAsync(
+            status: IntegrationStatus.Partial,
+            settings: [],
+            secrets: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["WebhookSecret"] = webhookSecret,
+            });
+
+        const string brain = "ghturnkey";
+        var brainId = new BrainId(brain);
+        var connId = new NeuronId(brainId, "github", "connection/github/main");
+        var tasksScreenId = new NeuronId(brainId, "app.tasks", "default");
+
+        // 1. Connect {brain}/connection/github/main via sealed Fine-Grained PAT under Person authority.
+        using (host.StampPerson(brain))
+        {
+            var inbound = SiloNeurons.Get<IConnectionInbound>(host.Services, connId);
+            var connected = await inbound.AcceptGrant(new OAuthGrant(
+                AuthMethodId: "pat",
+                AccessToken: pat,
+                RefreshToken: null,
+                ExpiresAt: null,
+                Scopes: "issues:write,metadata:read",
+                Target: "intochat/os",
+                Response: """{"auth_kind":"pat"}"""));
+
+            Assert.Equal(ConnectionStatus.Connected, connected.Status);
+            Assert.Equal("intochat/os", connected.Account);
+
+            // 2. 1-click turnkey installer: IInoStudio.CreateIssueTriageSynapse compiles, verifies & deploys gh-triage-main!
+            var inoStudio = SiloNeurons.Get<IInoStudio>(host.Services, new NeuronId(brainId, "ino.studio", "ino/studio"));
+            var installed = await inoStudio.CreateIssueTriageSynapse("connection/github/main", "DraftForApproval", Ct);
+            Assert.True(installed.Ok, installed.Text);
+            Assert.NotNull(installed.Card);
+            Assert.Equal("gh-triage-main", installed.Card!.Id);
+
+            var synapseStudio = SiloNeurons.Get<ISynapseStudio>(host.Services, ISynapseStudio.Key(brain));
+            var deployed = await synapseStudio.List();
+            Assert.Contains(deployed, u => u.SourceKey == "gh-triage-main");
+        }
+
+        await host.EnsureSynapseUnitInstalledAsync(brain, "gh-triage-main", Ct);
+
+        // 3. Signed POST /integrations/github/webhook (issues.opened #301) -> Synapse creates PreviewIssueComment draft -> TasksDismissIssueDraft!
+        var delivery301 = Guid.NewGuid().ToString();
+        var payload301 = BuildIssueWebhookJson(action: "opened", issueNumber: 301, repositoryId: 54321, installationId: null);
+        using (var resp301 = await host.PostSignedWebhookAsync(webhookSecret, delivery301, "issues", payload301, Ct))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, resp301.StatusCode);
+        }
+
+        await host.WaitForUnitStateAsync(
+            brainId,
+            s => s.GetProperty("triagedCount").GetInt32() == 1 && s.GetProperty("lastIssueNumber").GetInt32() == 301,
+            Ct,
+            unitAlias: "gh-triage-main");
+
+        IssueCommentPreview draft301 = null!;
+        using (host.StampPerson(brain))
+        {
+            var repo = SiloNeurons.Get<IRepository>(host.Services, connId);
+            await UntilAsync(async () => (await repo.ReadPendingIssueDrafts()).Any(d => d.IssueNumber == 301), Ct);
+            draft301 = Assert.Single(await repo.ReadPendingIssueDrafts(), d => d.IssueNumber == 301);
+            Assert.Equal(["triage", "bug"], draft301.SuggestedLabels);
+            Assert.Contains("Automated Issue Triage (`#301`)", draft301.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain(host.GitHubApi.CreatedComments, c => c.IssueNumber == 301);
+
+            var tasksScreen = SiloNeurons.Get<IScreen>(host.Services, tasksScreenId);
+            await tasksScreen.Dispatch(new DigitalBrain.UI.Command(".", "tasks.open", null));
+            var viewWith301 = await tasksScreen.Read();
+            Assert.NotNull(viewWith301);
+            var viewJson301 = viewWith301!.View.GetRawText();
+            Assert.Contains($"tasks:approve-issue-draft:{draft301.PreviewId}", viewJson301, StringComparison.Ordinal);
+            Assert.Contains($"tasks:dismiss-issue-draft:{draft301.PreviewId}", viewJson301, StringComparison.Ordinal);
+            Assert.Contains($"tasks:escalate-issue:{draft301.PreviewId}", viewJson301, StringComparison.Ordinal);
+
+            // Dismiss #301 via TasksDismissIssueDraft -> clears preview with ZERO Octokit comments!
+            var dismissArgs = JsonSerializer.SerializeToElement(
+                new TasksDismissIssueDraft("connection/github/main", draft301.PreviewId),
+                JsonSerializerOptions.Web);
+            await tasksScreen.Dispatch(new DigitalBrain.UI.Command(".", "tasks.dismiss-issue-draft", dismissArgs));
+            Assert.Empty(await repo.ReadPendingIssueDrafts());
+            Assert.DoesNotContain(host.GitHubApi.CreatedComments, c => c.IssueNumber == 301);
+        }
+
+        // 4. Signed POST /integrations/github/webhook (issues.opened #302) -> Synapse creates PreviewIssueComment draft -> TasksEscalateIssue + TasksApproveIssueDraft!
+        var delivery302 = Guid.NewGuid().ToString();
+        var payload302 = BuildIssueWebhookJson(action: "opened", issueNumber: 302, repositoryId: 54321, installationId: null);
+        using (var resp302 = await host.PostSignedWebhookAsync(webhookSecret, delivery302, "issues", payload302, Ct))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, resp302.StatusCode);
+        }
+
+        await host.WaitForUnitStateAsync(
+            brainId,
+            s => s.GetProperty("triagedCount").GetInt32() == 2 && s.GetProperty("lastIssueNumber").GetInt32() == 302,
+            Ct,
+            unitAlias: "gh-triage-main");
+
+        using (host.StampPerson(brain))
+        {
+            var repo = SiloNeurons.Get<IRepository>(host.Services, connId);
+            await UntilAsync(async () => (await repo.ReadPendingIssueDrafts()).Any(d => d.IssueNumber == 302), Ct);
+            var draft302 = Assert.Single(await repo.ReadPendingIssueDrafts(), d => d.IssueNumber == 302);
+            Assert.Equal(["triage", "bug"], draft302.SuggestedLabels);
+
+            var tasksScreen = SiloNeurons.Get<IScreen>(host.Services, tasksScreenId);
+            await tasksScreen.Dispatch(new DigitalBrain.UI.Command(".", "tasks.open", null));
+
+            // Escalate #302 via TasksEscalateIssue -> reads fenced issue #302 and starts an Engineer run on IFlows!
+            var escalateArgs = JsonSerializer.SerializeToElement(
+                new TasksEscalateIssue("connection/github/main", "intochat/os", 302, draft302.PreviewId),
+                JsonSerializerOptions.Web);
+            await tasksScreen.Dispatch(new DigitalBrain.UI.Command(".", "tasks.escalate-issue", escalateArgs));
+
+            var flows = SiloNeurons.Get<IFlows>(host.Services, new NeuronId(brainId, "flows", "flows/index"));
+            var activeFlows = await flows.List(new FlowQuery(), Ct);
+            Assert.Contains(activeFlows, f => f.Title.Contains("Fix #302", StringComparison.Ordinal));
+
+            var viewAfterEscalate = await tasksScreen.Read();
+            Assert.NotNull(viewAfterEscalate);
+            Assert.Contains($"tasks:open-engineer-issue:{draft302.PreviewId}", viewAfterEscalate!.View.GetRawText(), StringComparison.Ordinal);
+
+            // Approve & Post #302 via TasksApproveIssueDraft -> posts Octokit comment + labels under Person authority and clears pending draft!
+            var approveArgs = JsonSerializer.SerializeToElement(
+                new TasksApproveIssueDraft("connection/github/main", 302, draft302.PreviewId),
+                JsonSerializerOptions.Web);
+            await tasksScreen.Dispatch(new DigitalBrain.UI.Command(".", "tasks.approve-issue-draft", approveArgs));
+
+            Assert.Empty(await repo.ReadPendingIssueDrafts());
+            var viewAfterApprove = await tasksScreen.Read();
+            Assert.NotNull(viewAfterApprove);
+            Assert.Contains("posted triage comment on issue #302", viewAfterApprove!.View.GetRawText(), StringComparison.Ordinal);
+            Assert.DoesNotContain($"tasks:approve-issue-draft:{draft302.PreviewId}", viewAfterApprove.View.GetRawText(), StringComparison.Ordinal);
+            Assert.Contains($"tasks:open-engineer-issue:{draft302.PreviewId}", viewAfterApprove.View.GetRawText(), StringComparison.Ordinal);
+        }
+
+        var posted302 = Assert.Single(host.GitHubApi.CreatedComments, c => c.IssueNumber == 302);
+        Assert.Contains("Automated Issue Triage (`#302`)", posted302.Body, StringComparison.Ordinal);
+        var labels302 = Assert.Single(host.GitHubApi.AppliedLabels, l => l.IssueNumber == 302);
+        Assert.Contains("\"triage\"", labels302.RawBody, StringComparison.Ordinal);
+        Assert.Contains("\"bug\"", labels302.RawBody, StringComparison.Ordinal);
+    }
+
     private static string BuildIssueWebhookJson(string action, int issueNumber, long repositoryId, long? installationId)
     {
         object payload = installationId is { } instId
@@ -494,10 +649,13 @@ public sealed class GitHubIssueWebhookTriageJourneys
             var signalAssemblies = new[]
             {
                 typeof(Signal).Assembly,
+                typeof(View).Assembly,
+                typeof(UiCommand).Assembly,
                 typeof(TriageHostTestModule).Assembly,
                 typeof(GitHubModule).Assembly,
                 typeof(IRepository).Assembly,
                 typeof(AppsModule).Assembly,
+                typeof(TasksApp).Assembly,
                 typeof(IApp).Assembly,
                 typeof(AuthorityPlainNeurons).Assembly,
                 typeof(IConnectionRequests).Assembly,
@@ -520,6 +678,8 @@ public sealed class GitHubIssueWebhookTriageJourneys
                     services.AddHttpClient(GitHubUserAccess.HttpClientName)
                         .ConfigurePrimaryHttpMessageHandler(() => new NonDisposingHandler(ghApi));
 
+                    services.Configure<Orleans.Configuration.SiloMessagingOptions>(o => o.ResponseTimeout = TimeSpan.FromMinutes(2));
+                    services.Configure<Orleans.Configuration.ClientMessagingOptions>(o => o.ResponseTimeout = TimeSpan.FromMinutes(2));
                     services.AddSingleton<ICapabilityConnections>(triageConnections);
                     services.TryAddSingleton(TimeProvider.System);
                     services.AddNeuronProxies();
@@ -536,6 +696,7 @@ public sealed class GitHubIssueWebhookTriageJourneys
                         typeof(TriageHostTestModule),
                         typeof(GitHubModule),
                         typeof(AppsModule),
+                        typeof(ShippedShellAppsModule),
                         typeof(AuthorityPlainNeurons),
                         typeof(AIModule),
                     ],
@@ -615,15 +776,29 @@ public sealed class GitHubIssueWebhookTriageJourneys
                 var studio = SiloNeurons.Get<ISynapseStudio>(Services, ISynapseStudio.Key(brain));
                 var deployed = await studio.DeployFiles(RuntimeSynapseUnitAlias, files, bindings);
                 Assert.True(deployed.Ok, deployed.Text);
+            }
 
+            await EnsureSynapseUnitInstalledAsync(brain, RuntimeSynapseUnitAlias, ct, bindings);
+        }
+
+        public async Task EnsureSynapseUnitInstalledAsync(
+            string brain,
+            string unitAlias,
+            CancellationToken ct,
+            IReadOnlyDictionary<string, string>? bindings = null)
+        {
+            var brainId = new BrainId(brain);
+            var effectiveBindings = bindings ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            using (StampPerson(brain))
+            {
                 var installs = SiloNeurons.Get<IInstalls>(Services, new NeuronId(brainId, "synapse.installs", "default"));
-                if (await installs.Describe(RuntimeSynapseUnitAlias, ct) is null)
+                if (await installs.Describe(unitAlias, ct) is null)
                 {
-                    var pending = (await installs.Pending(ct)).FirstOrDefault(p => p.Alias == RuntimeSynapseUnitAlias);
+                    var pending = (await installs.Pending(ct)).FirstOrDefault(p => p.Alias == unitAlias);
                     string? planId = pending?.PlanId;
                     if (planId is null)
                     {
-                        var installOutcome = await installs.Install(new InstallRequest(RuntimeSynapseUnitAlias, bindings), ct);
+                        var installOutcome = await installs.Install(new InstallRequest(unitAlias, effectiveBindings), ct);
                         planId = installOutcome.Reason;
                     }
 
@@ -636,7 +811,7 @@ public sealed class GitHubIssueWebhookTriageJourneys
                         await inbox.Resolve(planId, approve: true);
                     }
 
-                    await UntilAsync(async () => await installs.Describe(RuntimeSynapseUnitAlias, ct) is not null, ct);
+                    await UntilAsync(async () => await installs.Describe(unitAlias, ct) is not null, ct);
                 }
             }
         }
@@ -664,10 +839,11 @@ public sealed class GitHubIssueWebhookTriageJourneys
         public async Task<JsonElement> WaitForUnitStateAsync(
             BrainId brainId,
             Func<JsonElement, bool> predicate,
-            CancellationToken ct)
+            CancellationToken ct,
+            string unitAlias = RuntimeSynapseUnitAlias)
         {
             var grains = Services.GetRequiredService<IGrainFactory>();
-            var unitGrainId = GrainId.Create("neuron.host", new NeuronId(brainId, RuntimeSynapseUnitAlias, "default").ToString());
+            var unitGrainId = GrainId.Create("neuron.host", new NeuronId(brainId, unitAlias, "default").ToString());
             var host = grains.GetGrain<INeuronHost>(unitGrainId);
 
             var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(15);
