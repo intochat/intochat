@@ -248,7 +248,7 @@ internal sealed partial class InoNativeHarness
 
         if (catalog is not null)
         {
-            var resolved = await catalog.Decide(brain?.Value, ModelUse.Code, null, personModel: null, requiresTools: true, ct).ConfigureAwait(false);
+            var resolved = await catalog.Decide(brain?.Value, Role.Think, null, requiresTools: true, ct).ConfigureAwait(false);
             if (resolved.Provider == AiProvider.Host && services?.GetService<IChatClient>() is null)
             {
                 throw new NoProviderConfiguredException("No tool-capable model is configured for InoNativeHarness.");

@@ -45,20 +45,40 @@ internal static class RoleMaps
         }
     }
 
+    // When no topology is set in configuration, try Device first and then Cloud so tests or hosts
+    // configuring only Roles.Cloud (or legacy Default:*) still resolve without setting Topology.
+    internal static IEnumerable<ModelId> Candidates(RoleMap map, string? topology, Role role)
+    {
+        if (string.IsNullOrWhiteSpace(topology))
+        {
+            var seen = default(ModelId?);
+            if (map.Device.TryGetValue(role, out var device))
+            {
+                seen = device;
+                yield return device;
+            }
+            if (map.Cloud.TryGetValue(role, out var cloud) && cloud != seen)
+            {
+                yield return cloud;
+            }
+            yield break;
+        }
+
+        foreach (var id in Deployment(map, topology, role))
+        {
+            yield return id;
+        }
+    }
+
     // Returns only explicitly configured role ids (not KnownModels.Defaults), useful for opt-in features
     // like VoiceToTextHosting where an unconfigured role must remain off (503).
     internal static ModelId? Explicit(AIOptions options, string? topology, Role role)
     {
         ArgumentNullException.ThrowIfNull(options);
         var configured = options.Roles.ToRoleMap();
-        foreach (var id in Deployment(configured, topology, role))
+        foreach (var id in Candidates(configured, topology, role))
         {
             return id;
-        }
-
-        if (string.IsNullOrWhiteSpace(topology))
-        {
-            if (configured.Cloud.TryGetValue(role, out var cloud)) { return cloud; }
         }
 
         return null;

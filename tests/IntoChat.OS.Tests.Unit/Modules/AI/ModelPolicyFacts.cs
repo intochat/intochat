@@ -3,12 +3,14 @@ using System.Text;
 using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.OS.LocalSetup;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Pricing;
+using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,64 +38,56 @@ public sealed partial class ModelPolicyFacts
             => throw new NotSupportedException();
     }
 
+    private sealed class TestOSProxies(TestOS os) : INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
+        public object Get(Type contract, NeuronId id) => throw new NotSupportedException();
+    }
+
     [Fact]
-    public void ModelRefParseRequiresExplicitGrammarAndRejectsGuesses()
+    public void StoredModelTryReadAcceptsCatalogProfilesAndExplicitOllamaTagsAndRejectsGuesses()
     {
         var profiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "work-fast" };
 
-        var cataloguedById = Assert.IsType<ModelRef.Catalogued>(ModelRef.Parse("qwen3.5:4b", profiles));
-        Assert.Equal("qwen3.5:4b", cataloguedById.Model.Id.Value);
+        Assert.True(StoredModel.TryRead("qwen3.5:4b", profiles, out var cataloguedById));
+        Assert.Equal("qwen3.5:4b", cataloguedById.Model);
 
-        var cataloguedByMarker = Assert.IsType<ModelRef.Catalogued>(ModelRef.Parse("IQwen35", profiles));
-        Assert.Equal(KnownModels.Qwen35, cataloguedByMarker.Model);
+        Assert.True(StoredModel.TryRead("IQwen35", profiles, out var cataloguedByMarker));
+        Assert.Equal("qwen3.5:4b", cataloguedByMarker.Model);
 
-        var profile = Assert.IsType<ModelRef.Profile>(ModelRef.Parse("WORK-FAST", profiles));
-        Assert.Equal("work-fast", profile.Name);
+        Assert.True(StoredModel.TryRead("preset:IQwen35", profiles, out var presetMarker));
+        Assert.Equal("qwen3.5:4b", presetMarker.Model);
 
-        var ollamaTag = Assert.IsType<ModelRef.Tag>(ModelRef.Parse("ollama/qwen3:14b", profiles));
-        Assert.Equal((AiProvider.Ollama, "qwen3:14b"), (ollamaTag.Provider, ollamaTag.Id));
+        Assert.True(StoredModel.TryRead("WORK-FAST", profiles, out var profile));
+        Assert.Equal("work-fast", profile.Model);
 
-        var colonTag = Assert.IsType<ModelRef.Tag>(ModelRef.Parse("ollama:qwen2.5-coder:14b", profiles));
-        Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (colonTag.Provider, colonTag.Id));
+        Assert.True(StoredModel.TryRead("ollama/qwen3:14b", profiles, out var ollamaTag));
+        Assert.Equal("qwen3:14b", ollamaTag.Model);
 
-        var openRouterTag = Assert.IsType<ModelRef.Tag>(ModelRef.Parse("openrouter/deepseek/deepseek-chat", profiles));
-        Assert.Equal((AiProvider.OpenRouter, "deepseek/deepseek-chat"), (openRouterTag.Provider, openRouterTag.Id));
+        Assert.True(StoredModel.TryRead("ollama:qwen2.5-coder:14b", profiles, out var colonTag));
+        Assert.Equal("qwen2.5-coder:14b", colonTag.Model);
 
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("", profiles));
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("   ", profiles));
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("claude-sonnet-4-5", profiles));
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("gpt-5", profiles));
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("gemini-2.5-pro", profiles));
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("totally-unknown-model", profiles));
-        Assert.Throws<ArgumentException>(() => ModelRef.Parse("http://localhost:11434", profiles));
+        Assert.True(StoredModel.TryRead("gemma4:12b", profiles, out var gemmaAlias));
+        Assert.Equal("gemma4:e2b", gemmaAlias.Model);
+
+        Assert.False(StoredModel.TryRead("", profiles, out _));
+        Assert.False(StoredModel.TryRead("   ", profiles, out _));
+        Assert.False(StoredModel.TryRead("claude-sonnet-4-5", profiles, out _));
+        Assert.False(StoredModel.TryRead("gpt-5", profiles, out _));
+        Assert.False(StoredModel.TryRead("gemini-2.5-pro", profiles, out _));
+        Assert.False(StoredModel.TryRead("totally-unknown-model", profiles, out _));
+        Assert.False(StoredModel.TryRead("http://localhost:11434", profiles, out _));
     }
 
     [Fact]
-    public void ModelRefReadStoredReadsLegacyStringsAndRejectsUnknownGarbage()
+    public async Task DecideRespectsPrecedenceTurnThenPersonThenDeployment()
     {
-        var profiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "custom-profile" };
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(
+            IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
 
-        var claude = Assert.IsType<ModelRef.Tag>(ModelRef.ReadStored("claude-sonnet-4-5", profiles));
-        Assert.Equal((AiProvider.Anthropic, "claude-sonnet-4-5"), (claude.Provider, claude.Id));
+        await using var os = TestOS.Local();
+        os.Register<UserSettingsNeuron>();
 
-        var gpt = Assert.IsType<ModelRef.Tag>(ModelRef.ReadStored("gpt-5", profiles));
-        Assert.Equal((AiProvider.OpenAI, "gpt-5"), (gpt.Provider, gpt.Id));
-
-        var gemma12b = Assert.IsType<ModelRef.Catalogued>(ModelRef.ReadStored("gemma4:12b", profiles));
-        Assert.Equal("gemma4:e2b", gemma12b.Model.Id.Value);
-
-        var gemmaLegacyTag = Assert.IsType<ModelRef.Catalogued>(ModelRef.ReadStored("gemma4:e2b", profiles));
-        Assert.Equal((AiProvider.Ollama, "gemma4:e2b"), (gemmaLegacyTag.Model.Provider, gemmaLegacyTag.Model.Id.Value));
-
-        var coder = Assert.IsType<ModelRef.Catalogued>(ModelRef.ReadStored("qwen2.5-coder:14b", profiles, ["qwen2.5-coder:14b"]));
-        Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (coder.Model.Provider, coder.Model.Id.Value));
-
-        Assert.Throws<ArgumentException>(() => ModelRef.ReadStored("not-a-valid-model-at-all", profiles));
-    }
-
-    [Fact]
-    public async Task DecideRespectsPrecedenceTurnThenPersonThenDeploymentThenDetected()
-    {
         var services = new ServiceCollection();
         services.AddOptions<AIOptions>().Configure(o =>
         {
@@ -110,27 +104,30 @@ public sealed partial class ModelPolicyFacts
             "qwen3.5:4b",
             ["qwen3.5:4b", "qwen2.5-coder:14b"],
             HasNomicEmbed: false)));
+        services.AddSingleton<INeuronProxies>(new TestOSProxies(os));
         AIClients.Add(services);
         services.AddSingleton<ModelCatalog>();
 
         await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<ModelCatalog>();
-
-        // 1. Turn beats Person, Deployment, and Detected.
-        var byTurn = await catalog.Decide("local", ModelUse.Chat, new ModelSelection("gpt-5.4"), personModel: "gemini-3.6-pro", ct: Ct);
-        Assert.Equal((AiProvider.OpenAI, "gpt-5.4"), (byTurn.Provider, byTurn.Model));
-
-        // 2. Person beats Deployment and Detected when Turn is omitted.
-        var byPerson = await catalog.Decide("local", ModelUse.Chat, turn: null, personModel: "gemini-3.6-pro", ct: Ct);
-        Assert.Equal((AiProvider.Google, "gemini-3.6-pro"), (byPerson.Provider, byPerson.Model));
+        var settings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
 
         // 3. Deployment beats Detected when Turn and Person are omitted.
-        var byDeployment = await catalog.Decide("local", ModelUse.Chat, turn: null, personModel: null, ct: Ct);
+        var byDeployment = await catalog.Decide("local", Role.Chat, turn: null, ct: Ct);
         Assert.Equal((AiProvider.Anthropic, "claude-sonnet-4-6"), (byDeployment.Provider, byDeployment.Model));
+
+        // 2. Person beats Deployment and Detected when Turn is omitted.
+        await settings.SetRole(Role.Chat, KnownModels.Gemini36Pro.Id);
+        var byPerson = await catalog.Decide("local", Role.Chat, turn: null, ct: Ct);
+        Assert.Equal((AiProvider.Google, "gemini-3.6-pro"), (byPerson.Provider, byPerson.Model));
+
+        // 1. Turn beats Person, Deployment, and Detected.
+        var byTurn = await catalog.Decide("local", Role.Chat, new ModelSelection("gpt-5.4"), ct: Ct);
+        Assert.Equal((AiProvider.OpenAI, "gpt-5.4"), (byTurn.Provider, byTurn.Model));
     }
 
     [Fact]
-    public async Task CoderModelIsSelectedOnlyForCodeAndChatUsesChatDefault()
+    public async Task CoderModelIsSelectedOnlyForThinkAndChatUsesChatDefault()
     {
         var services = new ServiceCollection();
         services.AddOptions<AIOptions>().Configure(o =>
@@ -151,10 +148,10 @@ public sealed partial class ModelPolicyFacts
         await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<ModelCatalog>();
 
-        var chat = await catalog.Decide("local", ModelUse.Chat, ct: Ct);
+        var chat = await catalog.Decide("local", Role.Chat, ct: Ct);
         Assert.Equal((AiProvider.Ollama, "qwen3.5:4b"), (chat.Provider, chat.Model));
 
-        var code = await catalog.Decide("local", ModelUse.Code, ct: Ct);
+        var code = await catalog.Decide("local", Role.Think, ct: Ct);
         Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (code.Provider, code.Model));
 
         // Even with zero explicit deployment default, detected chat picks non-coder over coder.

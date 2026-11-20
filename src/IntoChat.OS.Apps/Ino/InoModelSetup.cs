@@ -14,6 +14,8 @@ using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Apps.Ino;
 
+internal sealed record InoCatalogSnapshot(ModelId? PickedChat, ModelCard[] Cards, ModelAvailability[] Availability);
+
 internal sealed record InoSetupHost(
     Func<InoAppState> GetState,
     Func<InoAppState, Task> ShowState,
@@ -39,7 +41,7 @@ internal sealed record InoSetupHost(
     Func<string, string[], Func<Task<string[]>>, Task<string[]>> ReadStringArrayOptional,
     Func<string, UserSettingsState?, Func<Task<UserSettingsState?>>, Task<UserSettingsState?>> ReadSettingsOptional,
     Func<string, LocalModelSummary?, Func<Task<LocalModelSummary?>>, Task<LocalModelSummary?>> ReadLocalOptional,
-    Func<string, ModelChoices?, Func<Task<ModelChoices?>>, Task<ModelChoices?>> ReadChoicesOptional,
+    Func<string, InoCatalogSnapshot?, Func<Task<InoCatalogSnapshot?>>, Task<InoCatalogSnapshot?>> ReadCatalogOptional,
     Func<string, ChatState?, Func<Task<ChatState?>>, Task<ChatState?>> ReadChatOptional,
     Action<Exception, string> LogOptional,
     ILogger? Logger);
@@ -396,8 +398,28 @@ internal static class InoModelSetup
             return summary.Available ? summary : null;
         });
 
-    public static Task<ModelChoices?> ReadModelChoicesAsync(InoSetupHost host)
-        => host.ReadChoicesOptional("model-catalog", null, async () => await host.GetCatalog().List(null));
+    public static Task<InoCatalogSnapshot?> ReadCatalogSnapshotAsync(InoSetupHost host)
+        => host.ReadCatalogOptional("model-catalog", null, async () =>
+        {
+            var catalog = host.GetCatalog();
+            var cards = await catalog.List(Abilities.Text);
+            var availability = await catalog.Availability();
+            ModelId? picked = null;
+            try
+            {
+                var chosen = await catalog.Pick(Role.Chat);
+                if (!string.IsNullOrWhiteSpace(chosen.Value))
+                {
+                    picked = chosen;
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                host.LogOptional(error, "model-catalog-pick");
+            }
+
+            return new InoCatalogSnapshot(picked, cards, availability);
+        });
 
     public static async Task<(LocalModelSummary? Local, string? EffectiveModel, string DisplayModel)> ResolveForSettingsAsync(
         InoSetupHost host,
@@ -413,14 +435,16 @@ internal static class InoModelSetup
         UserSettingsState settings,
         LocalModelSummary? local)
     {
-        var personModel = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim();
-        if (personModel is not null) { return (personModel, personModel); }
+        var personModel = settings.RoleOf(Role.Chat)?.Value;
+        if (!string.IsNullOrWhiteSpace(personModel)) { return (personModel, personModel); }
 
-        var choices = await ReadModelChoicesAsync(host);
-        if (choices is not null)
+        var snapshot = await ReadCatalogSnapshotAsync(host);
+        if (snapshot is not null)
         {
-            var auto = choices.Automatic;
-            if (!string.IsNullOrWhiteSpace(auto.Model) && !string.IsNullOrWhiteSpace(auto.Provider)) { return (auto.Model, auto.Model); }
+            if (snapshot.PickedChat is { Value.Length: > 0 } picked)
+            {
+                return (picked.Value, picked.Value);
+            }
             var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : KnownModels.Defaults.Device[Role.Chat].Value;
             return (null, fallbackDisplay);
         }
@@ -431,9 +455,23 @@ internal static class InoModelSetup
 
     public static async Task<bool> IsMissingLocalOllamaAsync(InoSetupHost host, LocalModelSummary? local)
     {
-        var choices = await ReadModelChoicesAsync(host);
-        if (choices is null || !string.Equals(choices.Automatic.Provider, AiProvider.Ollama.ToString(), StringComparison.OrdinalIgnoreCase)) { return false; }
-        if (choices.Models.Any(m => m.Available && !string.Equals(m.Provider, AiProvider.Ollama.ToString(), StringComparison.OrdinalIgnoreCase))) { return false; }
+        var snapshot = await ReadCatalogSnapshotAsync(host);
+        if (snapshot?.PickedChat is not { Value.Length: > 0 } picked) { return false; }
+
+        var pickedCard = snapshot.Cards.FirstOrDefault(c => string.Equals(c.Id.Value, picked.Value, StringComparison.OrdinalIgnoreCase))
+            ?? KnownModels.Find(picked.Value);
+        if (pickedCard is not { Provider: AiProvider.Ollama }) { return false; }
+
+        var readyIds = snapshot.Availability
+            .Where(a => a.Ready)
+            .Select(a => a.Model.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (snapshot.Cards.Any(c => c.Provider != AiProvider.Ollama && c.Can.HasFlag(Abilities.Tools) && readyIds.Contains(c.Id.Value)))
+        {
+            return false;
+        }
+
         var detected = local ?? await DetectLocalModelsAsync(host);
         return detected is not { Available: true };
     }

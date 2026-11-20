@@ -325,7 +325,7 @@ public sealed class InoAppFacts
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         os.Register<FakeModelCatalog>();
-        FakeModelCatalog.AutomaticModel = new ModelChoice("automatic", "Automatic", "Ollama", "qwen3.5:4b", true, ["Tools"]);
+        FakeModelCatalog.PickedChat = KnownModels.Qwen35.Id;
         FakeModelCatalog.LocalSummary = new LocalModelSummary(Available: false, PreferredModel: null, InstalledModels: []);
 
         try
@@ -1256,24 +1256,30 @@ public sealed class InoAppFacts
     private sealed class FakeModelCatalog : Neuron, IModelCatalog
     {
         public static LocalModelSummary LocalSummary { get; set; } = new(false, null, []);
-        public static ModelChoice AutomaticModel { get; set; } = new("automatic", "Automatic", null, null, false, []);
+        public static ModelId? PickedChat { get; set; }
 
         public static void Reset()
         {
             LocalSummary = new(false, null, []);
-            AutomaticModel = new("automatic", "Automatic", null, null, false, []);
+            PickedChat = null;
         }
 
-        public Task<ModelChoices> List(string? defaultModel = null)
-        {
-            var effective = !string.IsNullOrWhiteSpace(defaultModel)
-                ? AutomaticModel with { Model = defaultModel.Trim(), Available = true }
-                : AutomaticModel;
-            return Task.FromResult(new ModelChoices(effective, []));
-        }
+        public Task<ModelCard[]> List(Abilities need = Abilities.None)
+            => Task.FromResult<ModelCard[]>(PickedChat is { } id && KnownModels.Find(id.Value) is { } card
+                && (need == Abilities.None || (card.Can & need) == need)
+                ? [card]
+                : []);
 
-        public Task<ModelSelection?> Select(string? id, string? defaultModel = null)
-            => Task.FromResult<ModelSelection?>(string.IsNullOrWhiteSpace(id) ? null : new ModelSelection(id));
+        public Task<ModelId> Pick(Role role, ModelId? turn = null)
+            => turn is { Value.Length: > 0 } t ? Task.FromResult(t)
+                : PickedChat is { Value.Length: > 0 } picked ? Task.FromResult(picked)
+                : Task.FromResult(new ModelId(string.Empty));
+
+        public Task SetRole(Role role, ModelId model) => Task.CompletedTask;
+
+        public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
+
+        public Task<ModelAvailability[]> Availability() => Task.FromResult<ModelAvailability[]>([]);
 
         public Task<LocalModelSummary> DetectLocal() => Task.FromResult(LocalSummary);
 

@@ -45,7 +45,6 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.Modules.AI.Models.Abilities>(services);
         AddEnum<IntoChat.OS.Modules.AI.Models.Tier>(services);
         AddEnum<IntoChat.OS.Modules.AI.Models.Role>(services);
-        AddEnum<IntoChat.OS.Modules.AI.Models.ModelUse>(services);
         AddEnum<IntoChat.OS.Modules.AI.Voice.TranscriptionFormats>(services);
         AddEnum<IntoChat.OS.Modules.ArtCraft.ArtCraftCapabilities>(services);
         AddEnum<IntoChat.OS.Modules.Apps.Approvals.ApprovalKind>(services);

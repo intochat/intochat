@@ -64,6 +64,7 @@ internal static class AIClients
         // Apply legacy Default:* aliases and local topology defaults before resolving options.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, LegacyDefaultsAlias>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, TopologyAiOptionsPostConfigure>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILocalCardSource, OllamaLocalCardSource>());
         services.TryAddSingleton<ModelCatalog>();
 
         services.TryAddSingleton(provider =>
@@ -162,7 +163,7 @@ internal static class AIClients
     private static async Task<IChatClient> DefaultChatClientAsync(IServiceProvider provider, CancellationToken cancellationToken)
     {
         var catalog = provider.GetRequiredService<ModelCatalog>();
-        var resolved = await catalog.Decide(brainId: null, ModelUse.Chat, ct: cancellationToken);
+        var resolved = await catalog.Decide(brainId: null, Role.Chat, ct: cancellationToken);
         if (resolved.Provider is AiProvider.Host)
         {
             throw new NoProviderConfiguredException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint.");

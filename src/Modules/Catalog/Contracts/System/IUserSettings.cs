@@ -1,9 +1,12 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.Apps;
 
 public sealed record UserVariableEntry(string Key, string Value);
+
+public sealed record RoleChoice(Role Role, ModelId Model);
 
 public sealed record UserSettingsState(
     string DisplayName,
@@ -17,9 +20,32 @@ public sealed record UserSettingsState(
     string Language = "English",
     string TimeZone = "UTC",
     string DateFormat = "17 Oct 2026",
-    string ArtCraftDefaultMode = "wasm-ui")
+    string ArtCraftDefaultMode = "wasm-ui",
+    RoleChoice[]? Roles = null)
 {
-    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026", "wasm-ui") { }
+    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026", "wasm-ui", null) { }
+
+    public ModelId? RoleOf(Role role)
+    {
+        if (Roles is { Length: > 0 })
+        {
+            foreach (var choice in Roles)
+            {
+                if (choice.Role == role && !string.IsNullOrWhiteSpace(choice.Model.Value))
+                {
+                    return KnownModels.Find(choice.Model.Value)?.Id ?? new ModelId(choice.Model.Value.Trim());
+                }
+            }
+        }
+
+        if (role == Role.Chat && !string.IsNullOrWhiteSpace(DefaultModel))
+        {
+            var trimmed = DefaultModel.Trim();
+            return KnownModels.Find(trimmed)?.Id ?? new ModelId(trimmed);
+        }
+
+        return null;
+    }
 }
 
 [DigitalBrain.Signal("os.settings.changed")]
@@ -57,4 +83,6 @@ public interface IUserSettings
         string? artCraftDefaultMode = null);
 
     Task<UserSettingsState> SetVariable(string key, string value);
+
+    Task<UserSettingsState> SetRole(Role role, ModelId model);
 }

@@ -110,20 +110,38 @@ public sealed partial class SettingsApp
         try
         {
             var catalog = Get<IModelCatalog>(IModelCatalog.Key(brain.Value));
-            var choices = await catalog.List(string.IsNullOrWhiteSpace(personModel) ? null : personModel.Trim());
+            var cards = await catalog.List(Abilities.Tools);
+            var availability = (await catalog.Availability())
+                .ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
+
             var deduped = new Dictionary<string, SettingsModelOption>(StringComparer.OrdinalIgnoreCase);
-            foreach (var choice in choices.Models)
+            foreach (var card in cards)
             {
-                if (string.IsNullOrWhiteSpace(choice.Model)) { continue; }
-                var id = choice.Model.Trim();
-                var option = new SettingsModelOption(id, choice.Label, choice.Available, choice.ProviderLabel, choice.Reason);
+                var id = card.Id.Value;
+                var available = availability.TryGetValue(id, out var avail) && avail.Ready;
+                var reason = available ? null : avail?.Reason;
+                var providerLabel = VisualCatalog.ForProvider(card.Provider.ToString()).Category;
+                var option = new SettingsModelOption(id, card.Name, available, providerLabel, reason);
                 if (!deduped.TryGetValue(id, out var existing) || (!existing.Available && option.Available))
                 {
                     deduped[id] = option;
                 }
             }
 
-            var autoModel = string.IsNullOrWhiteSpace(choices.Automatic.Model) ? null : choices.Automatic.Model.Trim();
+            string? autoModel = null;
+            try
+            {
+                var picked = await catalog.Pick(Role.Chat, string.IsNullOrWhiteSpace(personModel) ? null : new ModelId(personModel.Trim()));
+                if (!string.IsNullOrWhiteSpace(picked.Value))
+                {
+                    autoModel = picked.Value;
+                }
+            }
+            catch (Exception pickError) when (pickError is not OperationCanceledException)
+            {
+                Log.LogDebug(pickError, "IModelCatalog.Pick did not resolve an automatic chat model.");
+            }
+
             IReadOnlyList<SettingsModelOption> resolvedOptions = deduped.Count > 0 ? [.. deduped.Values] : CatalogFallbackOptions();
             return (resolvedOptions, autoModel, IntoChatOSNames.LocalOllamaEndpoint);
         }

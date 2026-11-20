@@ -1,9 +1,8 @@
 using DigitalBrain;
-using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using Orleans;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity.Contracts.Entries;
+using Orleans;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
@@ -11,10 +10,32 @@ namespace IntoChat.OS.Modules.AI.Models;
 [Neuron("ai.models"), StatelessNeuron]
 internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? grains = null) : DigitalBrain.Neurons.Neuron, IModelCatalog
 {
-    private string? Brain => Id.Brain.Value == IModelCatalog.SystemBrain ? null : Id.Brain.Value;
+    private BrainId? Brain => Id.Brain.Value == IModelCatalog.SystemBrain ? null : Id.Brain;
 
-    public Task<ModelChoices> List(string? defaultModel = null) => catalog.List(Brain, defaultModel, CancellationToken.None);
-    public Task<ModelSelection?> Select(string? id, string? defaultModel = null) => catalog.Select(Brain, id, defaultModel, CancellationToken.None);
+    public Task<ModelCard[]> List(Abilities need = Abilities.None)
+        => catalog.List(need, CancellationToken.None);
+
+    public Task<ModelId> Pick(Role role, ModelId? turn = null)
+        => catalog.Pick(Brain, role, turn, ReadPersonSettingsAsync, CancellationToken.None);
+
+    public async Task SetRole(Role role, ModelId model)
+    {
+        EnforceOwnerOrTrustedShell("SetRole", "Only the brain owner may change model roles.", "Only the person or a built-in shell screen may change model roles.");
+
+        if (Brain is null)
+        {
+            throw new InvalidOperationException("Setting a model role requires a brain scope.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
+        await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).SetRole(role, model).ConfigureAwait(false);
+    }
+
+    public Task<RoleMap> Roles()
+        => catalog.Roles(Brain, ReadPersonSettingsAsync, CancellationToken.None);
+
+    public Task<ModelAvailability[]> Availability()
+        => catalog.Availability(Brain, CancellationToken.None);
 
     public async Task<LocalModelSummary> DetectLocal()
     {
@@ -26,21 +47,9 @@ internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? gr
 
     public async Task SaveProviderCredential(string provider, string credentialValue)
     {
-        if (Context.Caller is { } caller)
-        {
-            if (caller.Actor is DigitalBrain.Access.Actor.Agent)
-            {
-                throw new DigitalBrain.Rules.RuleViolationException(
-                    new DigitalBrain.Rules.Rejected("SaveProviderCredential", ["owner-only"], ["Only the brain owner may store provider credentials."]));
-            }
+        EnforceOwnerOrTrustedShell("SaveProviderCredential", "Only the brain owner may store provider credentials.", "Only the person or a built-in shell screen may save provider credentials.");
 
-            if (caller.Actor is DigitalBrain.Access.Actor.App && !IsTrustedShellCaller(caller, Brain))
-            {
-                throw new UnauthorizedAccessException("Only the person or a built-in shell screen may save provider credentials.");
-            }
-        }
-
-        if (Brain is null)
+        if (Brain is not { Value: var brainId })
         {
             throw new InvalidOperationException("Provider credentials require a brain scope.");
         }
@@ -66,9 +75,45 @@ internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? gr
             throw new InvalidOperationException("Platform entry storage is unavailable in this host.");
         }
 
-        await grains.GetGrain<IBrainEntries>(Brain)
+        await grains.GetGrain<IBrainEntries>(brainId)
             .Put(BrainEntries.ProviderEntry(normalized), EntryKind.Secret, credentialValue.Trim())
             .ConfigureAwait(false);
+    }
+
+    private void EnforceOwnerOrTrustedShell(string operation, string agentMessage, string appMessage)
+    {
+        if (Context.Caller is not { } caller)
+        {
+            return;
+        }
+
+        if (caller.Actor is DigitalBrain.Access.Actor.Agent)
+        {
+            throw new DigitalBrain.Rules.RuleViolationException(
+                new DigitalBrain.Rules.Rejected(operation, ["owner-only"], [agentMessage]));
+        }
+
+        if (caller.Actor is DigitalBrain.Access.Actor.App && !IsTrustedShellCaller(caller, Brain?.Value))
+        {
+            throw new UnauthorizedAccessException(appMessage);
+        }
+    }
+
+    private async Task<UserSettingsState?> ReadPersonSettingsAsync(CancellationToken _)
+    {
+        if (Brain is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).Read().ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     // A built-in shell screen ("app.*") acting in this brain; a stored or proxied app carries its own key.

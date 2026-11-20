@@ -1,3 +1,5 @@
+using IntoChat.OS.Modules.AI.Models;
+
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("os.settings")]
@@ -7,11 +9,26 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
 
     public async Task<UserSettingsState> SetProfile(string displayName, string theme, string defaultModel)
     {
+        var nextDefaultModel = string.IsNullOrWhiteSpace(defaultModel) ? State.DefaultModel : defaultModel.Trim();
+        var nextRoles = State.Roles;
+        if (!string.IsNullOrWhiteSpace(defaultModel) && nextRoles is { Length: > 0 })
+        {
+            var normalized = KnownModels.Find(nextDefaultModel)?.Id ?? new ModelId(nextDefaultModel);
+            var list = nextRoles.ToList();
+            var chatIndex = list.FindIndex(entry => entry.Role == Role.Chat);
+            if (chatIndex >= 0)
+            {
+                list[chatIndex] = new RoleChoice(Role.Chat, normalized);
+                nextRoles = [.. list];
+            }
+        }
+
         var next = State with
         {
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? State.DisplayName : displayName.Trim(),
             Theme = string.IsNullOrWhiteSpace(theme) ? State.Theme : theme.Trim(),
-            DefaultModel = string.IsNullOrWhiteSpace(defaultModel) ? State.DefaultModel : defaultModel.Trim(),
+            DefaultModel = nextDefaultModel,
+            Roles = nextRoles,
         };
         await Save(next, new UserSettingsChanged(
             next.DisplayName,
@@ -114,6 +131,42 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
             next.Language,
             next.TimeZone,
             next.DateFormat));
+        return next;
+    }
+
+    public async Task<UserSettingsState> SetRole(Role role, ModelId model)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
+
+        var normalized = KnownModels.Find(model.Value)?.Id ?? new ModelId(model.Value.Trim());
+        var roles = State.Roles is { Length: > 0 } existing ? existing.ToList() : new List<RoleChoice>();
+        var index = roles.FindIndex(entry => entry.Role == role);
+        if (index >= 0)
+        {
+            roles[index] = new RoleChoice(role, normalized);
+        }
+        else
+        {
+            roles.Add(new RoleChoice(role, normalized));
+        }
+
+        var next = State with
+        {
+            DefaultModel = role == Role.Chat ? normalized.Value : State.DefaultModel,
+            Roles = [.. roles],
+        };
+        await Save(next, new UserSettingsChanged(
+            next.DisplayName,
+            next.Theme,
+            next.DefaultModel,
+            next.StylePreset,
+            next.BarLayout,
+            next.ThemeMode,
+            next.DesktopTone,
+            next.Language,
+            next.TimeZone,
+            next.DateFormat,
+            next.ArtCraftDefaultMode));
         return next;
     }
 }

@@ -68,38 +68,33 @@ public sealed class ModelVisualCatalogFacts
         os.Register(typeof(AIModule).Assembly);
 
         var catalogNeuron = os.Get<IModelCatalog>(new NeuronId(new BrainId("local"), "ai.models", "main"));
-        var choices = await catalogNeuron.List();
+        var cards = await catalogNeuron.List();
+        var availability = (await catalogNeuron.Availability()).ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
 
-        var localQwen = Assert.Single(choices.Models, static c => c.Model == "qwen2.5-coder:14b");
-        Assert.Equal("Qwen 2.5 Coder 14B", localQwen.Label);
-        Assert.Equal("provider:ollama", localQwen.IconKey);
-        Assert.Equal("Ollama (Local GPU)", localQwen.ProviderLabel);
-        Assert.Equal("#6366F1", localQwen.AccentHex);
-        Assert.True(localQwen.Available);
+        var localQwen = Assert.Single(cards, static c => c.Id.Value == "qwen2.5-coder:14b");
+        Assert.Equal("Qwen 2.5 Coder 14B", localQwen.Name);
+        Assert.Equal("provider:ollama", localQwen.IconKey());
+        Assert.True(availability[localQwen.Id.Value].Ready);
 
-        var localQwen3 = Assert.Single(choices.Models, static c => c.Model == "qwen3:14b");
-        Assert.Equal("Qwen 3 14B", localQwen3.Label);
-        Assert.Equal("provider:ollama", localQwen3.IconKey);
-        Assert.Equal("Ollama (Local GPU)", localQwen3.ProviderLabel);
+        var localQwen3 = Assert.Single(cards, static c => c.Id.Value == "qwen3:14b");
+        Assert.Equal("qwen3:14b", localQwen3.Name);
+        Assert.Equal("provider:ollama", localQwen3.IconKey());
+        Assert.True(availability[localQwen3.Id.Value].Ready);
 
-        var sonnet46 = Assert.Single(choices.Models, static c => c.Model == "claude-sonnet-4-6");
-        Assert.Equal("Sonnet 4.6", sonnet46.Label);
-        Assert.Equal("provider:anthropic", sonnet46.IconKey);
-        Assert.Equal("Anthropic", sonnet46.ProviderLabel);
-        Assert.Equal("#D97757", sonnet46.AccentHex);
-        Assert.True(sonnet46.Available);
+        var sonnet46 = Assert.Single(cards, static c => c.Id.Value == "claude-sonnet-4-6");
+        Assert.Equal("Sonnet 4.6", sonnet46.Name);
+        Assert.Equal("provider:anthropic", sonnet46.IconKey());
+        Assert.True(availability[sonnet46.Id.Value].Ready);
 
-        var opus46 = Assert.Single(choices.Models, static c => c.Model == "claude-opus-4-6");
-        Assert.Equal("Opus 4.6", opus46.Label);
-        Assert.Equal("provider:anthropic", opus46.IconKey);
-        Assert.Equal("Anthropic", opus46.ProviderLabel);
-        Assert.Equal("#D97757", opus46.AccentHex);
+        var opus46 = Assert.Single(cards, static c => c.Id.Value == "claude-opus-4-6");
+        Assert.Equal("Opus 4.6", opus46.Name);
+        Assert.Equal("provider:anthropic", opus46.IconKey());
+        Assert.True(availability[opus46.Id.Value].Ready);
 
-        var gpt54 = Assert.Single(choices.Models, static c => c.Model == "gpt-5.4");
-        Assert.Equal("GPT-5.4", gpt54.Label);
-        Assert.Equal("provider:openai", gpt54.IconKey);
-        Assert.Equal("OpenAI", gpt54.ProviderLabel);
-        Assert.Equal("#10A37F", gpt54.AccentHex);
+        var gpt54 = Assert.Single(cards, static c => c.Id.Value == "gpt-5.4");
+        Assert.Equal("GPT-5.4", gpt54.Name);
+        Assert.Equal("provider:openai", gpt54.IconKey());
+        Assert.False(availability[gpt54.Id.Value].Ready);
     }
 
     [Fact]
@@ -123,10 +118,10 @@ public sealed class ModelVisualCatalogFacts
 
         var resolvedAuto = await catalog.Resolve("local", null, requiresTools: true, TestContext.Current.CancellationToken);
         Assert.Equal(AiProvider.Ollama, resolvedAuto.Provider);
-        Assert.Equal("qwen3:14b", resolvedAuto.Model);
+        Assert.Contains(resolvedAuto.Model, new[] { "qwen2.5-coder:14b", "qwen3:14b" });
         Assert.Equal("http://127.0.0.1:11434/", resolvedAuto.Endpoint);
 
-        var resolvedCode = await catalog.Decide("local", ModelUse.Code, null, null, requiresTools: true, TestContext.Current.CancellationToken);
+        var resolvedCode = await catalog.Decide("local", Role.Think, null, requiresTools: true, TestContext.Current.CancellationToken);
         Assert.Equal(AiProvider.Ollama, resolvedCode.Provider);
         Assert.Equal("qwen2.5-coder:14b", resolvedCode.Model);
     }

@@ -40,7 +40,7 @@ internal sealed class LocalLlmCoderOptions
 
 /// <summary>
 /// Local-first <see cref="ICoder"/> implementation that routes through <see cref="Modules.AI"/>
-/// (<see cref="ModelCatalog.Decide"/> with <see cref="ModelUse.Code"/>) and <see cref="IModelInference"/>
+/// (<see cref="ModelCatalog.Decide"/> with <see cref="Role.Think"/>) and <see cref="IModelInference"/>
 /// using strictly path-confined file tools (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>)
 /// inside <see cref="WorkTreeLease.TreePath"/>.
 /// </summary>
@@ -259,7 +259,7 @@ internal sealed class LocalLlmCoder : ICoder
 
         if (catalog is not null)
         {
-            var resolved = await catalog.Decide(brainId: null, ModelUse.Code, explicitSelection, personModel: null, requiresTools: true, ct).ConfigureAwait(false);
+            var resolved = await catalog.Decide(brainId: null, Role.Think, explicitSelection, requiresTools: true, ct).ConfigureAwait(false);
             if (resolved.Provider == AiProvider.Host && _services?.GetService<IChatClient>() is null)
             {
                 throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");

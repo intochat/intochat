@@ -55,7 +55,7 @@ internal static class CreatorModel
             ? null
             : model.Trim();
 
-        // Route all Creator calls through Modules/AI (ModelCatalog.Decide(ModelUse.Code) -> IModelInference / IChatClient / ILLM).
+        // Route all Creator calls through Modules/AI (ModelCatalog.Decide(Role.Think) -> IModelInference / IChatClient / ILLM).
         var catalog = neurons.GetService<ModelCatalog>();
         var inference = neurons.GetService<IModelInference>();
         if (catalog is not null)
@@ -136,7 +136,7 @@ internal static class CreatorModel
         {
             try
             {
-                var resolved = await catalog.Decide(brainId, ModelUse.Code, candidate, personModel: null, requiresTools, ct).ConfigureAwait(false);
+                var resolved = await catalog.Decide(brainId, Role.Think, candidate, requiresTools, ct).ConfigureAwait(false);
                 if (resolved.Provider == AiProvider.Host && neurons.GetService<IChatClient>() is null)
                 {
                     continue;
