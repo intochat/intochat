@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using DigitalBrain.Modules;
 using System.Reflection;
 
@@ -36,7 +37,7 @@ public sealed record ConnectorDefinition(
     private static readonly string[] MemberNames = ["Connector", "Connectors"];
 
     // A module declares its connectors as a static Connector or Connectors member.
-    public static ConnectorDefinition[] DeclaredBy(Type module)
+    public static ConnectorDefinition[] DeclaredBy([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicFields)] Type module)
     {
         ArgumentNullException.ThrowIfNull(module);
         const BindingFlags flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;

@@ -100,7 +100,17 @@ internal sealed class ConnectionSecretsJsonConverter : JsonConverter<IReadOnlyDi
             foreach (var (name, secret) in value)
             {
                 writer.WritePropertyName(name);
-                JsonSerializer.Serialize(writer, secret, options);
+                if (secret is null)
+                {
+                    writer.WriteNullValue();
+                }
+                else
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("cipher", secret.Cipher);
+                    writer.WriteString("keyId", secret.KeyId);
+                    writer.WriteEndObject();
+                }
             }
         }
         writer.WriteEndObject();

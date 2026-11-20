@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
     <PackageId>DigitalBrain.Capabilities.Compute</PackageId>
     <Description>Compute capability contract (costs, funding, budgets, external-call metering), version 1.</Description>
   </PropertyGroup>

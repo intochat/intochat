@@ -11,15 +11,29 @@ public static class TraceContext
     private static Action<string, object>? s_requestContextSet;
     private static Func<string, bool>? s_requestContextRemove;
 
-    public static Trace? Current => RequestContextGet()?.Invoke(RequestContextKey) as Trace ?? Ambient.Value;
+    public static Trace? Current => s_requestContextGet?.Invoke(RequestContextKey) as Trace ?? Ambient.Value;
+
+    /// <summary>Registers a static host request-context bridge (e.g. Orleans <c>RequestContext</c>) without runtime reflection.</summary>
+    public static void RegisterRequestContextAccessor(
+        Func<string, object?> get,
+        Action<string, object> set,
+        Func<string, bool> remove)
+    {
+        ArgumentNullException.ThrowIfNull(get);
+        ArgumentNullException.ThrowIfNull(set);
+        ArgumentNullException.ThrowIfNull(remove);
+        s_requestContextGet = get;
+        s_requestContextSet = set;
+        s_requestContextRemove = remove;
+    }
 
     public static IDisposable Enter(Trace trace)
     {
         ArgumentNullException.ThrowIfNull(trace);
         var previousAmbient = Ambient.Value;
-        var previousRequest = RequestContextGet()?.Invoke(RequestContextKey);
+        var previousRequest = s_requestContextGet?.Invoke(RequestContextKey);
         Ambient.Value = trace;
-        RequestContextSet()?.Invoke(RequestContextKey, trace);
+        s_requestContextSet?.Invoke(RequestContextKey, trace);
         return new Scope(previousAmbient, previousRequest);
     }
 
@@ -51,54 +65,6 @@ public static class TraceContext
         };
     }
 
-    private static Func<string, object?>? RequestContextGet()
-    {
-        if (s_requestContextGet is not null) { return s_requestContextGet; }
-        var method = FindRequestContextType()?.GetMethod("Get", [typeof(string)]);
-        if (method is not null)
-        {
-            s_requestContextGet = method.CreateDelegate<Func<string, object?>>();
-            return s_requestContextGet;
-        }
-        return null;
-    }
-
-    private static Action<string, object>? RequestContextSet()
-    {
-        if (s_requestContextSet is not null) { return s_requestContextSet; }
-        var method = FindRequestContextType()?.GetMethod("Set", [typeof(string), typeof(object)]);
-        if (method is not null)
-        {
-            s_requestContextSet = method.CreateDelegate<Action<string, object>>();
-            return s_requestContextSet;
-        }
-        return null;
-    }
-
-    private static Func<string, bool>? RequestContextRemove()
-    {
-        if (s_requestContextRemove is not null) { return s_requestContextRemove; }
-        var method = FindRequestContextType()?.GetMethod("Remove", [typeof(string)]);
-        if (method is not null)
-        {
-            s_requestContextRemove = method.CreateDelegate<Func<string, bool>>();
-            return s_requestContextRemove;
-        }
-        return null;
-    }
-
-    private static Type? FindRequestContextType()
-    {
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (string.Equals(assembly.GetName().Name, "Orleans.Core.Abstractions", StringComparison.Ordinal))
-            {
-                return assembly.GetType("Orleans.Runtime.RequestContext");
-            }
-        }
-        return null;
-    }
-
     private sealed class Scope(Trace? previousAmbient, object? previousRequest) : IDisposable
     {
         public void Dispose()
@@ -106,11 +72,11 @@ public static class TraceContext
             Ambient.Value = previousAmbient;
             if (previousRequest is null)
             {
-                _ = RequestContextRemove()?.Invoke(RequestContextKey);
+                _ = s_requestContextRemove?.Invoke(RequestContextKey);
             }
             else
             {
-                RequestContextSet()?.Invoke(RequestContextKey, previousRequest);
+                s_requestContextSet?.Invoke(RequestContextKey, previousRequest);
             }
         }
     }
