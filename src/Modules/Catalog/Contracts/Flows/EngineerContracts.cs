@@ -8,9 +8,10 @@ public sealed record EngineerStartRequest(
     [property: Id(1)] string Repository,
     [property: Id(2)] string Goal,
     [property: Id(3)] int InstanceCount = 1,
-    [property: Id(4)] string? RequestedBaseBranch = null)
+    [property: Id(4)] string? RequestedBaseBranch = null,
+    [property: Id(5)] string? Backend = null)
 {
-    public EngineerStartRequest() : this("", "os", "", 1, null) { }
+    public EngineerStartRequest() : this("", "os", "", 1, null, null) { }
 
     public string ToStartJson() => System.Text.Json.JsonSerializer.Serialize(this, System.Text.Json.JsonSerializerOptions.Web);
 
@@ -26,6 +27,59 @@ public sealed record EngineerStartRequest(
         return flows.Start(IFlows.EngineerFlow, effectiveTitle, parentFlowId, ToStartJson(), ct, flowId: explicitKey);
     }
 }
+
+[GenerateSerializer, Alias("engineer.delegation-request")]
+public sealed record EngineerDelegationRequest(
+    [property: Id(0)] string RepoSlug,
+    [property: Id(1)] string Goal,
+    [property: Id(2)] int ParallelInstances = 1,
+    [property: Id(3)] string Backend = "LocalGit",
+    [property: Id(4)] string? RequestedBaseBranch = null,
+    [property: Id(5)] string? RunId = null)
+{
+    public EngineerDelegationRequest() : this("os", "", 1, "LocalGit", null, null) { }
+}
+
+[GenerateSerializer, Alias("engineer.instance-summary")]
+public sealed record EngineerInstanceSummary(
+    [property: Id(0)] int InstanceIndex,
+    [property: Id(1)] string LeaseId,
+    [property: Id(2)] string Backend,
+    [property: Id(3)] string BranchName,
+    [property: Id(4)] string Status,
+    [property: Id(5)] string[] CompletedTaskIds,
+    [property: Id(6)] string[] ChangedFiles,
+    [property: Id(7)] string? CommitSha = null,
+    [property: Id(8)] bool BuildSucceeded = false,
+    [property: Id(9)] bool LiveSucceeded = false,
+    [property: Id(10)] string? FailureDetail = null)
+{
+    public EngineerInstanceSummary() : this(0, "", "LocalGit", "", "pending", [], [], null, false, false, null) { }
+}
+
+public sealed record EngineerRunSummary(
+    bool Ok,
+    string FlowId,
+    string RunId,
+    string RepoSlug,
+    string Goal,
+    string Backend,
+    int ParallelInstances,
+    DigitalBrain.Flows.FlowStatus Status,
+    string CurrentStage,
+    string[] CompletedStages,
+    string? ConfirmationPlanId,
+    string? TraceId,
+    string? WinningCommitSha,
+    string? PushedRef,
+    string? PullRequestUrl,
+    string EngineerAppUri,
+    string TasksBoardUri,
+    EngineerTaskPlan? Plan,
+    EngineerInstanceSummary[] Instances,
+    string[] DiagnosticsAndTraces,
+    string SummaryText,
+    IntoChat.OS.Modules.Apps.InoCard? Card = null);
 
 [GenerateSerializer, Alias("engineer.brainstorm-turn")]
 public sealed record EngineerBrainstormTurn(

@@ -144,6 +144,12 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         await TryFollowUiNeuronsAsync();
+        var synced = await SyncLatestOrActiveFlowAsync(State);
+        if (synced != State)
+        {
+            await Show(synced);
+        }
+
         await SyncUiNeuronsAsync(State);
     }
 
@@ -151,10 +157,13 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     public async Task Open(EngineerOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var next = string.IsNullOrWhiteSpace(request.Tab) ? State : State.SelectTab(request.Tab);
-        if (!string.IsNullOrWhiteSpace(request.FlowId))
+        var next = !string.IsNullOrWhiteSpace(request.FlowId)
+            ? await SyncFromLiveFlowAsync(State, request.FlowId!.Trim())
+            : await SyncLatestOrActiveFlowAsync(State);
+
+        if (!string.IsNullOrWhiteSpace(request.Tab))
         {
-            next = await SyncFromLiveFlowAsync(next, request.FlowId!.Trim());
+            next = next.SelectTab(request.Tab);
         }
 
         await ShowAndSyncAsync(next);
@@ -378,9 +387,16 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
     public async Task OnFlowsChanged(FlowsChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        if (State.ActiveFlowId is { } active && changed.FlowId == active)
+        if (string.IsNullOrWhiteSpace(changed.FlowId))
         {
-            var synced = await SyncFromLiveFlowAsync(State, active);
+            return;
+        }
+
+        var matchesActive = State.ActiveFlowId is { } active && string.Equals(changed.FlowId, active, StringComparison.Ordinal);
+        var isEngineerFlow = changed.FlowId.Contains($"/{IFlows.EngineerFlow}/", StringComparison.Ordinal);
+        if (matchesActive || isEngineerFlow)
+        {
+            var synced = await SyncFromLiveFlowAsync(State, changed.FlowId);
             if (synced != State)
             {
                 await ShowAndSyncAsync(synced);
@@ -444,7 +460,8 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
                 RunId: basis.ActiveRunId,
                 Repository: repoId!.Value,
                 Goal: basis.Goal,
-                InstanceCount: basis.InstanceCount).ToStartJson();
+                InstanceCount: basis.InstanceCount,
+                Backend: basis.BackendMode).ToStartJson();
 
             var flowId = await flows.Start(IFlows.EngineerFlow, Truncate(basis.Goal, 52), null, payload);
             return basis with { ActiveFlowId = flowId };
@@ -458,11 +475,122 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>
         }
     }
 
+    private async Task<EngineerWorkspaceState> SyncLatestOrActiveFlowAsync(EngineerWorkspaceState basis)
+    {
+        if (!string.IsNullOrWhiteSpace(basis.ActiveFlowId))
+        {
+            return await SyncFromLiveFlowAsync(basis, basis.ActiveFlowId!);
+        }
+
+        if (TryGetOptional<IFlows>(FlowsKey) is not { } flows)
+        {
+            return basis;
+        }
+
+        try
+        {
+            var recent = await flows.List(new FlowQuery(Type: IFlows.EngineerFlow, Limit: 1));
+            if (recent.Length > 0)
+            {
+                return await SyncFromLiveFlowAsync(basis, recent[0].FlowId);
+            }
+        }
+#pragma warning disable CA1031
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogDebug(ex, "Skipping initial flow.engineer discovery in standalone EngineerApp host.");
+        }
+
+        return basis;
+    }
+
     private async Task<EngineerWorkspaceState> SyncFromLiveFlowAsync(EngineerWorkspaceState basis, string flowId)
     {
         if (TryGetOptional<IFlows>(FlowsKey) is not { } flows)
         {
             return basis;
+        }
+
+        try
+        {
+            var summary = await flows.InspectEngineerRun(flowId);
+            if (!string.IsNullOrWhiteSpace(summary.FlowId) && (summary.Ok || summary.Instances.Length > 0 || summary.Plan is not null))
+            {
+                var stage = EngineerWorkspaceState.NormalizeStage(summary.CurrentStage);
+                var plannedTargets = summary.Plan?.Tasks
+                    .SelectMany(static t => t.TargetFiles ?? [])
+                    .Where(static f => !string.IsNullOrWhiteSpace(f))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray() ?? [];
+
+                var candidates = summary.Instances.Length > 0
+                    ? summary.Instances.Select(inst =>
+                    {
+                        var files = inst.ChangedFiles is { Length: > 0 } cf
+                            ? cf
+                            : plannedTargets.Length > 0
+                                ? plannedTargets
+                                : [basis.SelectedFilePath];
+                        return new EngineerCandidateSummary(
+                            InstanceIndex: inst.InstanceIndex,
+                            LeaseId: inst.LeaseId,
+                            Backend: inst.Backend,
+                            BranchName: inst.BranchName,
+                            Status: inst.Status,
+                            ChangedFiles: files,
+                            CommitSha: inst.CommitSha);
+                    }).ToArray()
+                    : basis.Candidates;
+
+                var clampedCount = Math.Clamp(summary.ParallelInstances, 1, 8);
+                var selectedIdx = Math.Clamp(basis.SelectedInstanceIndex, 0, Math.Max(0, candidates.Length - 1));
+                var selectedFile = candidates.ElementAtOrDefault(selectedIdx)?.ChangedFiles.FirstOrDefault() ?? basis.SelectedFilePath;
+                var selectedLang = selectedFile.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
+                var mappedTab = stage switch
+                {
+                    "brainstorm-and-plan" => "plan",
+                    "prepare-worktree" or "implement-tasks" => "code",
+                    "build-and-test" or "live-verify" => "verify",
+                    _ => "pr",
+                };
+                var activeTab = !string.Equals(basis.ActiveFlowId, summary.FlowId, StringComparison.Ordinal)
+                    || !string.Equals(basis.CurrentStage, stage, StringComparison.Ordinal)
+                    ? mappedTab
+                    : basis.ActiveTab;
+
+                return basis with
+                {
+                    ActiveFlowId = summary.FlowId,
+                    ActiveRunId = string.IsNullOrWhiteSpace(summary.RunId) ? basis.ActiveRunId : summary.RunId,
+                    RepositoryId = string.IsNullOrWhiteSpace(summary.RepoSlug) ? basis.RepositoryId : summary.RepoSlug,
+                    Goal = string.IsNullOrWhiteSpace(summary.Goal) ? basis.Goal : summary.Goal,
+                    InstanceCount = clampedCount,
+                    BackendMode = EngineerWorkspaceState.NormalizeBackendMode(summary.Backend, basis.BackendMode),
+                    CurrentStage = stage,
+                    ActiveTab = activeTab,
+                    SelectedInstanceIndex = selectedIdx,
+                    SelectedFilePath = selectedFile,
+                    SelectedLanguage = selectedLang,
+                    HasPlan = summary.Plan is not null || basis.HasPlan,
+                    PlanApproved = summary.CompletedStages.Contains("prepare-worktree", StringComparer.Ordinal) || basis.PlanApproved,
+                    VerificationPassed = summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) || basis.VerificationPassed,
+                    PrPublished = summary.Status == FlowStatus.Completed || !string.IsNullOrWhiteSpace(summary.PushedRef),
+                    WorktreesCleaned = summary.CompletedStages.Contains("clean", StringComparer.Ordinal),
+                    Tasks = summary.Plan?.Tasks is { Length: > 0 } planTasks ? planTasks : basis.Tasks,
+                    BrainstormTurns = summary.Plan?.Transcript is { Length: > 0 } turns ? turns : basis.BrainstormTurns,
+                    Candidates = candidates,
+                    DiagnosticsAndTraces = summary.DiagnosticsAndTraces is { Length: > 0 } traces ? traces : basis.DiagnosticsAndTraces,
+                    PullRequestUrl = summary.PullRequestUrl ?? basis.PullRequestUrl,
+                    StatusBanner = $"Live flow {summary.FlowId} · {summary.Status} ({stage})",
+                };
+            }
+        }
+#pragma warning disable CA1031
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogDebug(ex, "InspectEngineerRun unavailable for {FlowId}; falling back to FlowView sync.", flowId);
         }
 
         try

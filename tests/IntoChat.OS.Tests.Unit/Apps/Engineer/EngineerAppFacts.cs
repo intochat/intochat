@@ -15,11 +15,13 @@ using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.Tests;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Engineer;
 
 public sealed class EngineerAppFacts
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> EngineerOperations
         => ScreenBaseline.Cases(typeof(EngineerApp), os =>
         {
@@ -125,5 +127,188 @@ public sealed class EngineerAppFacts
         await os.Idle();
         Assert.Equal("pr", (await tabs.Read()).SelectedId);
         Assert.All((await stepper.Read()).Steps, static s => Assert.Equal(StepperStatuses.Done, s.Status));
+    }
+
+    [Fact]
+    public async Task EngineerAppAutoDiscoversAndReflectsDelegatedEngineerFlowOnOpen()
+    {
+        var brain = new BrainId("engdeleg");
+        var tempRoot = Path.Combine(Path.GetTempPath(), "eng-app-sync-" + Guid.NewGuid().ToString("N")[..8]);
+        var bareDir = Path.Combine(tempRoot, "origin.git");
+        var repoDir = Path.Combine(tempRoot, "repo");
+        var wtHome = Path.Combine(tempRoot, "wt");
+        Directory.CreateDirectory(bareDir);
+        Directory.CreateDirectory(repoDir);
+        Directory.CreateDirectory(wtHome);
+
+        try
+        {
+            RunGit(bareDir, ["init", "--bare", "--initial-branch=main"]);
+            RunGit(repoDir, ["init", "--initial-branch=main"]);
+            RunGit(repoDir, ["config", "user.name", "Owner"]);
+            RunGit(repoDir, ["config", "user.email", "owner@example.test"]);
+            Directory.CreateDirectory(Path.Combine(repoDir, "code"));
+            await File.WriteAllTextAsync(Path.Combine(repoDir, "code", "Calc.cs"), "namespace Demo; public static class Calc { public static int Add(int a, int b) => a + b; }\n", Ct);
+            RunGit(repoDir, ["add", "."]);
+            RunGit(repoDir, ["commit", "-m", "init"]);
+            RunGit(repoDir, ["remote", "add", "origin", bareDir]);
+            RunGit(repoDir, ["push", "-u", "origin", "main"]);
+
+            var wt = new IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService(
+                options: new IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeOptions
+                {
+                    HomeDirectory = wtHome,
+                    VerifyFormatting = false,
+                });
+            wt.RegisterRepository(new IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.RegisteredRepository("os", repoDir, DefaultBaseBranch: "main"));
+
+            var services = new ServiceCollection()
+                .AddSingleton<IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.IWorkTree>(wt)
+                .AddSingleton<IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.ICoder>(new TouchCalcCoder())
+                .AddSingleton<IntoChat.OS.Modules.Apps.Flows.IEngineerPlanner>(new StubPlanner())
+                .AddSingleton<IntoChat.OS.Modules.Apps.Flows.IEngineerBuildVerifier>(new StubBuildVerifier())
+                .AddSingleton<IntoChat.OS.Modules.Apps.Flows.ILiveVerifier>(new StubLiveVerifier())
+                .BuildServiceProvider();
+
+            await using var os = TestOS.Local(o => o.Services = services);
+            using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register(typeof(UiModule).Assembly);
+            os.Register(typeof(EngineerApp).Assembly);
+
+            var flows = os.Get<IntoChat.OS.Modules.Apps.Flows.IFlows>(IntoChat.OS.Modules.Apps.Flows.IFlows.Key(brain.Value));
+            var delegated = await flows.StartEngineerRun(
+                new IntoChat.OS.Modules.Apps.Flows.EngineerDelegationRequest(
+                    RepoSlug: "os",
+                    Goal: "Add Subtract and Clamp helpers",
+                    ParallelInstances: 2,
+                    Backend: "LocalGit",
+                    RunId: "syncrun01"),
+                Ct);
+
+            for (var i = 0; i < 60; i++)
+            {
+                await os.Idle();
+                if ((await flows.Read(delegated.FlowId, Ct))?.Status == DigitalBrain.Flows.FlowStatus.Waiting)
+                {
+                    break;
+                }
+
+                await Task.Delay(40, Ct);
+            }
+
+            // Open EngineerApp WITHOUT passing FlowId: it must auto-discover syncrun01 and populate all UI neurons!
+            var screen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
+            await screen.Request(new EngineerOpen());
+            await os.Idle();
+
+            var stepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
+            var tree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
+            var kanban = os.Get<IKanbanBoard>(new NeuronId(brain, "ui.kanban", EngineerApp.KanbanKey));
+            var tabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
+
+            Assert.Equal("review-and-pr", (await stepper.Read()).ActiveStepId);
+            Assert.Equal("pr", (await tabs.Read()).SelectedId);
+            var treeNodes = (await tree.Read()).Nodes;
+            Assert.Contains(treeNodes, static n => n.Id == "wt-0" && n.Label.Contains("verified", StringComparison.Ordinal));
+            Assert.Contains(treeNodes, static n => n.Id == "wt-1" && n.Label.Contains("verified", StringComparison.Ordinal));
+            Assert.All((await kanban.Read()).Cards, static c => Assert.Equal("verified", c.ColumnId));
+
+            await flows.Cancel(delegated.FlowId, "cleanup", Ct);
+            await os.Idle();
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    foreach (var f in Directory.EnumerateFiles(tempRoot, "*", SearchOption.AllDirectories))
+                    {
+                        try { File.SetAttributes(f, FileAttributes.Normal); } catch { }
+                    }
+
+                    Directory.Delete(tempRoot, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private sealed class TouchCalcCoder : IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.ICoder
+    {
+        public async Task<IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.CoderEditResult> EditAsync(
+            IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeLease lease,
+            string goal,
+            CancellationToken ct = default)
+        {
+            var path = Path.Combine(lease.WorkspacePath, "code", "Calc.cs");
+            await File.WriteAllTextAsync(
+                path,
+                $"namespace Demo;\npublic static class Calc {{ public static int Add(int a, int b) => a + b; public static int Sub{lease.InstanceIndex}(int a, int b) => a - b; }}\n",
+                ct);
+            return new IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.CoderEditResult("Updated Calc.cs", ["code/Calc.cs"], "test-coder");
+        }
+    }
+
+    private sealed class StubPlanner : IntoChat.OS.Modules.Apps.Flows.IEngineerPlanner
+    {
+        public Task<IntoChat.OS.Modules.Apps.Flows.EngineerTaskPlan> PlanAsync(
+            string repositoryId,
+            string goal,
+            IReadOnlyList<string> allowedExtensions,
+            int maxChangedFiles,
+            CancellationToken ct = default)
+            => Task.FromResult(new IntoChat.OS.Modules.Apps.Flows.EngineerTaskPlan(
+                Goal: goal,
+                ArchitectureSummary: "Stub plan",
+                CriticReview: "Stub critic",
+                Transcript:
+                [
+                    new("User", "user", "Goal", goal),
+                    new("Architect", "architect", "Plan", "Edit code/Calc.cs"),
+                    new("Critic", "critic", "Audit", "Zero warnings"),
+                ],
+                Tasks: [new("t1-sub", "Add Sub helper", "csharp", ["code/Calc.cs"], [], goal)]));
+    }
+
+    private sealed class StubBuildVerifier : IntoChat.OS.Modules.Apps.Flows.IEngineerBuildVerifier
+    {
+        public Task<IntoChat.OS.Modules.Apps.Flows.EngineerBuildReport> VerifyAsync(
+            string worktreePath,
+            IReadOnlyList<string> changedFiles,
+            CancellationToken ct = default)
+            => Task.FromResult(new IntoChat.OS.Modules.Apps.Flows.EngineerBuildReport(true, true, true, true, 4, 0, 0, 0, [], 25, "Build OK"));
+    }
+
+    private sealed class StubLiveVerifier : IntoChat.OS.Modules.Apps.Flows.ILiveVerifier
+    {
+        public Task<IntoChat.OS.Modules.Apps.Flows.EngineerLiveReport> VerifyLiveAsync(
+            string worktreePath,
+            string goal,
+            IReadOnlyList<string> changedFiles,
+            CancellationToken ct = default)
+            => Task.FromResult(new IntoChat.OS.Modules.Apps.Flows.EngineerLiveReport(true, true, true, true, 0, 0, 0, 0, [], ["span live.ok"], "Live OK"));
+    }
+
+    private static void RunGit(string workingDir, IReadOnlyList<string> args)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            WorkingDirectory = workingDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var a in args) { psi.ArgumentList.Add(a); }
+        using var proc = System.Diagnostics.Process.Start(psi)!;
+        proc.WaitForExit();
+        if (proc.ExitCode != 0)
+        {
+            throw new InvalidOperationException(proc.StandardError.ReadToEnd());
+        }
     }
 }

@@ -294,7 +294,25 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(flowId);
         var brainId = CurrentBrainId;
-        var fullId = NormalizeFlowId(brainId, flowId.Trim());
+        var trimmed = flowId.Trim();
+        if (trimmed.Contains($"/{IFlows.EngineerFlow}/", StringComparison.Ordinal))
+        {
+            var engSummary = await Get<IFlows>(IFlows.Key(brainId)).InspectEngineerRun(trimmed, ct).ConfigureAwait(true);
+            return new InoToolResult(engSummary.SummaryText, engSummary.Card, Ok: engSummary.Ok);
+        }
+
+        if (!trimmed.Contains('/', StringComparison.Ordinal))
+        {
+            var candidateEngId = new NeuronId(Id.Brain, IFlows.EngineerFlow, trimmed).ToString();
+            var existingEng = await Get<IFlows>(IFlows.Key(brainId)).Read(candidateEngId, ct).ConfigureAwait(true);
+            if (existingEng is not null)
+            {
+                var engSummary = await Get<IFlows>(IFlows.Key(brainId)).InspectEngineerRun(candidateEngId, ct).ConfigureAwait(true);
+                return new InoToolResult(engSummary.SummaryText, engSummary.Card, Ok: engSummary.Ok);
+            }
+        }
+
+        var fullId = NormalizeFlowId(brainId, trimmed);
         return await FormatChangeStatusAsync(brainId, fullId, ct).ConfigureAwait(true);
     }
 

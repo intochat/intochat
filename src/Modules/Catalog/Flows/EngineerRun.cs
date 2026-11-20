@@ -43,7 +43,8 @@ internal sealed record EngineerRun
         EngineerInstance[]? instances,
         int selectedInstanceIndex,
         ChangeApproval? approval,
-        ChangePublication? publication)
+        ChangePublication? publication,
+        string? requestedBackend = null)
     {
         RunId = runId ?? string.Empty;
         Repository = repository;
@@ -55,6 +56,7 @@ internal sealed record EngineerRun
         SelectedInstanceIndex = Math.Max(0, selectedInstanceIndex);
         Approval = approval;
         Publication = publication;
+        RequestedBackend = NormalizeBackend(requestedBackend);
     }
 
     public string RunId { get; private init; } = string.Empty;
@@ -66,6 +68,8 @@ internal sealed record EngineerRun
     public BranchName? RequestedBaseBranch { get; private init; }
 
     public int InstanceCount { get; private init; } = 1;
+
+    public string? RequestedBackend { get; private init; }
 
     public EngineerTaskPlan? Plan { get; private init; }
 
@@ -90,7 +94,8 @@ internal sealed record EngineerRun
         RepositoryId repository,
         string goal,
         BranchName? requestedBaseBranch = null,
-        int instanceCount = 1)
+        int instanceCount = 1,
+        string? requestedBackend = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
@@ -104,6 +109,7 @@ internal sealed record EngineerRun
             Goal = goal.Trim(),
             RequestedBaseBranch = requestedBaseBranch,
             InstanceCount = instanceCount,
+            RequestedBackend = NormalizeBackend(requestedBackend),
         };
     }
 
@@ -120,8 +126,27 @@ internal sealed record EngineerRun
             ? null
             : BranchName.FromRequestedBase(untrusted.RequestedBaseBranch);
         var count = untrusted.InstanceCount is null or <= 0 ? 1 : untrusted.InstanceCount.Value;
+        var backend = untrusted.Backend ?? untrusted.RequestedBackend;
 
-        return Start(untrusted.RunId, repository, untrusted.Goal ?? string.Empty, requestedBase, count);
+        return Start(untrusted.RunId, repository, untrusted.Goal ?? string.Empty, requestedBase, count, backend);
+    }
+
+    internal static string? NormalizeBackend(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim();
+        if (trimmed.Contains("volume", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("container", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("cloud", StringComparison.OrdinalIgnoreCase))
+        {
+            return nameof(WorkTreeBackendKind.ContainerVolume);
+        }
+
+        return nameof(WorkTreeBackendKind.LocalGit);
     }
 
     public EngineerRun WithPlan(EngineerTaskPlan plan)
@@ -301,5 +326,7 @@ internal sealed record EngineerRun
         string? Repository,
         string? Goal,
         string? RequestedBaseBranch,
-        int? InstanceCount);
+        int? InstanceCount,
+        string? Backend = null,
+        string? RequestedBackend = null);
 }

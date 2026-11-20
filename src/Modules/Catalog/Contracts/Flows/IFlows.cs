@@ -42,4 +42,12 @@ public interface IFlows
 
     [DigitalBrain.Contracts.Interleaves]
     Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default);
+
+    [DigitalBrain.Contracts.Interleaves]
+    Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
+        => throw new NotSupportedException("StartEngineerRun is not supported by this IFlows implementation.");
+
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
+    Task<EngineerRunSummary> InspectEngineerRun(string? flowId = null, CancellationToken ct = default)
+        => throw new NotSupportedException("InspectEngineerRun is not supported by this IFlows implementation.");
 }

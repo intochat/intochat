@@ -118,7 +118,8 @@ internal static class EngineerPipelineStages
         IReadOnlyList<WorkTreeLease> existingLeases,
         string flowId,
         string stepName,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? requestedBackend = null)
     {
         if (repository is null)
         {
@@ -130,6 +131,11 @@ internal static class EngineerPipelineStages
             throw new FlowFailed(stepName, "Goal description is required.");
         }
 
+        var desiredBackend = EngineerRun.NormalizeBackend(requestedBackend) is { } normalized
+            && Enum.TryParse<WorkTreeBackendKind>(normalized, ignoreCase: true, out var parsedKind)
+            ? (WorkTreeBackendKind?)parsedKind
+            : null;
+
         if (existingLeases.Count == instanceCount && existingLeases.All(static l => Directory.Exists(l.TreePath)))
         {
             foreach (var existing in existingLeases)
@@ -137,12 +143,20 @@ internal static class EngineerPipelineStages
                 await WorkTreeService.VerifyTripleGitLockAsync(existing, ct).ConfigureAwait(true);
             }
 
-            return (existingLeases, new FlowSubject(flowId, $"{repository.Value}:{existingLeases[0].BranchName}"));
+            var alignedExisting = desiredBackend is { } keepKind
+                ? existingLeases.Select(l => l.Backend == keepKind ? l : l with { Backend = keepKind }).ToArray()
+                : existingLeases;
+            return (alignedExisting, new FlowSubject(flowId, $"{repository.Value}:{alignedExisting[0].BranchName}"));
         }
 
         IReadOnlyList<WorkTreeLease> leases = instanceCount == 1
             ? [await Task.Run(() => workTree.PrepareAsync(repository, runId, goal, requestedBaseBranch, ct), ct).ConfigureAwait(true)]
             : await Task.Run(() => workTree.PrepareParallelAsync(repository, runId, goal, instanceCount, requestedBaseBranch, ct), ct).ConfigureAwait(true);
+
+        if (desiredBackend is { } overrideKind)
+        {
+            leases = leases.Select(l => l.Backend == overrideKind ? l : l with { Backend = overrideKind }).ToArray();
+        }
 
         return (leases, new FlowSubject(flowId, $"{leases[0].RepositoryId}:{leases[0].BranchName}"));
     }

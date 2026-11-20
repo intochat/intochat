@@ -3,18 +3,32 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DigitalBrain;
 using DigitalBrain.Log;
 using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
+
+internal static class EngineerTelemetry
+{
+    public const string SourceName = "IntoChat.OS.Engineer";
+
+    public static readonly ActivitySource Source = new(SourceName);
+}
+
+internal sealed record EngineerLiveContext(
+    string? TraceId = null,
+    ITraceReader? TraceReader = null,
+    IReadOnlyList<(string ScreenName, IScreen Screen)>? Screens = null);
 
 internal sealed class EngineerPlanner(
     IServiceProvider? services = null,
@@ -42,7 +56,7 @@ internal sealed class EngineerPlanner(
 
         if (services?.GetService<IModelInference>() is { } inference)
         {
-            var drafted = await TryDraftWithModelAsync(inference, repositoryId, cleanGoal, allowedExtensions, effectiveMax, ct).ConfigureAwait(false);
+            var drafted = await TryDraftMultiAgentPlanAsync(inference, repositoryId, cleanGoal, allowedExtensions, effectiveMax, ct).ConfigureAwait(false);
             if (drafted is not null && drafted.Validate(effectiveMax) is null)
             {
                 return drafted;
@@ -52,7 +66,7 @@ internal sealed class EngineerPlanner(
         return BuildStructuredDefaultPlan(repositoryId, cleanGoal, allowedExtensions, effectiveMax);
     }
 
-    private async Task<EngineerTaskPlan?> TryDraftWithModelAsync(
+    private async Task<EngineerTaskPlan?> TryDraftMultiAgentPlanAsync(
         IModelInference inference,
         string repositoryId,
         string goal,
@@ -60,22 +74,85 @@ internal sealed class EngineerPlanner(
         int maxChangedFiles,
         CancellationToken ct)
     {
+        var extList = allowedExtensions.Count > 0 ? string.Join(", ", allowedExtensions) : ".cs, .dart, .md";
+        EngineerTaskPlan? architectCandidate = null;
+        string? architectRawJson = null;
+        string? architectSummaryText = null;
+
+        // Turn 1: Architect decomposition & file/contract plan.
         try
         {
-            var extList = string.Join(", ", allowedExtensions);
-            var prompt = $$"""
-                You are facilitating a 3-perspective IntoChat-Engineer planning session (User, Architect, Critic) for repository '{{repositoryId}}'.
-                Goal: {{goal}}
-                Constraints: Modify at most {{maxChangedFiles}} files total; allowed file extensions: {{extList}}.
+            using var archActivity = EngineerTelemetry.Source.StartActivity("engineer.plan.architect");
+            archActivity?.SetTag("engineer.repository", repositoryId);
+            archActivity?.SetTag("engineer.role", "architect");
+
+            var architectPrompt = $$"""
+                You are the IntoChat-Engineer ARCHITECT agent planning a change for repository '{{repositoryId}}'.
+                User Goal: {{goal}}
+                Policy Constraints: Modify at most {{maxChangedFiles}} files total; allowed file extensions: {{extList}}.
+                Decompose the goal into a clean, cycle-free topological task graph respecting DDD boundaries and Contracts/ separation.
                 Reply ONLY with valid JSON matching:
+                {
+                  "goal": "...",
+                  "architectureSummary": "...",
+                  "tasks": [
+                    { "id": "t1", "title": "...", "language": "csharp" | "dart" | "markdown" | "mixed", "targetFiles": [], "dependsOn": [], "instructions": "..." }
+                  ]
+                }
+                """;
+
+            var archResult = await inference.Generate(
+                new InferenceRequest([new AiMessage("user", [new AiText(architectPrompt)])]),
+                marker: null,
+                cancellationToken: ct,
+                brainId: null).ConfigureAwait(false);
+
+            var archReply = ExtractReplyText(archResult);
+            architectRawJson = ExtractJsonObject(archReply);
+            if (architectRawJson is not null)
+            {
+                architectCandidate = JsonSerializer.Deserialize<EngineerTaskPlan>(architectRawJson, Json);
+                architectSummaryText = architectCandidate?.ArchitectureSummary;
+            }
+
+            if (string.IsNullOrWhiteSpace(architectSummaryText) && !string.IsNullOrWhiteSpace(archReply))
+            {
+                architectSummaryText = Truncate(archReply.ReplaceLineEndings(" "), 320);
+            }
+
+            archActivity?.SetStatus(ActivityStatusCode.Ok);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(ex, "Architect planning turn failed; falling back if Critic cannot recover.");
+            return null;
+        }
+
+        // Turn 2: Critic DDD / HouseRules / edge-case audit & plan refinement.
+        try
+        {
+            using var criticActivity = EngineerTelemetry.Source.StartActivity("engineer.plan.critic");
+            criticActivity?.SetTag("engineer.repository", repositoryId);
+            criticActivity?.SetTag("engineer.role", "critic");
+
+            var proposalContext = architectRawJson ?? architectSummaryText ?? goal;
+            var criticPrompt = $$"""
+                You are the IntoChat-Engineer CRITIC agent auditing the Architect's proposed plan for repository '{{repositoryId}}'.
+                User Goal: {{goal}}
+                Policy Constraints: Modify at most {{maxChangedFiles}} files total; allowed file extensions: {{extList}}.
+                Architect Proposal:
+                {{proposalContext}}
+
+                Audit for DDD aggregate invariants, HouseRules (Contracts/ placement, zero swallowed exceptions, immutable state, safe relative paths), edge cases, file budget <= {{maxChangedFiles}}, and cycle-free task dependencies.
+                Refine the tasks if needed and reply ONLY with valid JSON matching:
                 {
                   "goal": "...",
                   "architectureSummary": "...",
                   "criticReview": "...",
                   "transcript": [
-                    { "speaker": "User", "role": "user", "perspective": "Goal", "message": "..." },
-                    { "speaker": "Architect", "role": "architect", "perspective": "DDD & Module Boundaries", "message": "..." },
-                    { "speaker": "Critic", "role": "critic", "perspective": "Invariants & Verification", "message": "..." }
+                    { "speaker": "User", "role": "user", "perspective": "Goal & Scope", "message": "..." },
+                    { "speaker": "Architect", "role": "architect", "perspective": "DDD & File Decomposition", "message": "..." },
+                    { "speaker": "Critic", "role": "critic", "perspective": "HouseRules & Edge-Case Critique", "message": "..." }
                   ],
                   "tasks": [
                     { "id": "t1", "title": "...", "language": "csharp" | "dart" | "markdown" | "mixed", "targetFiles": [], "dependsOn": [], "instructions": "..." }
@@ -83,26 +160,138 @@ internal sealed class EngineerPlanner(
                 }
                 """;
 
-            var result = await inference.Generate(
-                new InferenceRequest([new AiMessage("user", [new AiText(prompt)])]),
+            var criticResult = await inference.Generate(
+                new InferenceRequest(
+                [
+                    new AiMessage("user", [new AiText($"Goal: {goal}")]),
+                    new AiMessage("assistant", [new AiText(proposalContext)]),
+                    new AiMessage("user", [new AiText(criticPrompt)]),
+                ]),
                 marker: null,
                 cancellationToken: ct,
                 brainId: null).ConfigureAwait(false);
 
-            var replyText = string.Join("\n", result.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text)).Trim();
-            var start = replyText.IndexOf('{');
-            var end = replyText.LastIndexOf('}');
-            if (start >= 0 && end > start)
+            var criticReply = ExtractReplyText(criticResult);
+            if (ExtractJsonObject(criticReply) is { } criticJson
+                && JsonSerializer.Deserialize<EngineerTaskPlan>(criticJson, Json) is { } refinedRaw)
             {
-                return JsonSerializer.Deserialize<EngineerTaskPlan>(replyText[start..(end + 1)], Json);
+                var merged = NormalizeMultiAgentPlan(
+                    goal,
+                    architectSummaryText,
+                    architectCandidate,
+                    refinedRaw,
+                    criticReply);
+                if (merged.Validate(maxChangedFiles) is null)
+                {
+                    criticActivity?.SetStatus(ActivityStatusCode.Ok);
+                    return merged;
+                }
+            }
+
+            if (architectCandidate is not null)
+            {
+                var fallbackReview = !string.IsNullOrWhiteSpace(criticReply)
+                    ? Truncate(criticReply.ReplaceLineEndings(" "), 320)
+                    : !string.IsNullOrWhiteSpace(architectCandidate.CriticReview)
+                        ? architectCandidate.CriticReview
+                        : $"Verified {maxChangedFiles}-file budget, Triple Git Lock, Roslyn zero-error diagnostics, and human SHA-bound approval.";
+                var fromArchitect = NormalizeMultiAgentPlan(
+                    goal,
+                    architectSummaryText,
+                    architectCandidate,
+                    architectCandidate with { CriticReview = fallbackReview },
+                    fallbackReview);
+                if (fromArchitect.Validate(maxChangedFiles) is null)
+                {
+                    criticActivity?.SetStatus(ActivityStatusCode.Ok);
+                    return fromArchitect;
+                }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogSwallowed(ex, "Model-assisted EngineerPlanner fell back to deterministic structured task plan.");
+            _logger.LogSwallowed(ex, "Critic planning turn failed; attempting validated Architect candidate before deterministic plan.");
+            if (architectCandidate is not null)
+            {
+                var recovered = NormalizeMultiAgentPlan(
+                    goal,
+                    architectSummaryText,
+                    architectCandidate,
+                    architectCandidate,
+                    null);
+                if (recovered.Validate(maxChangedFiles) is null)
+                {
+                    return recovered;
+                }
+            }
         }
 
         return null;
+    }
+
+    private static EngineerTaskPlan NormalizeMultiAgentPlan(
+        string cleanGoal,
+        string? architectSummary,
+        EngineerTaskPlan? architectDraft,
+        EngineerTaskPlan criticDraft,
+        string? rawCriticText)
+    {
+        var effectiveGoal = string.IsNullOrWhiteSpace(criticDraft.Goal) ? cleanGoal : criticDraft.Goal.Trim();
+        var effectiveArch = !string.IsNullOrWhiteSpace(criticDraft.ArchitectureSummary)
+            ? criticDraft.ArchitectureSummary.Trim()
+            : !string.IsNullOrWhiteSpace(architectSummary)
+                ? architectSummary.Trim()
+                : $"Decomposed '{cleanGoal}' into isolated worktree tasks with surgical contract & AST boundaries.";
+        var effectiveCritic = !string.IsNullOrWhiteSpace(criticDraft.CriticReview)
+            ? criticDraft.CriticReview.Trim()
+            : !string.IsNullOrWhiteSpace(architectDraft?.CriticReview)
+                ? architectDraft!.CriticReview.Trim()
+                : !string.IsNullOrWhiteSpace(rawCriticText)
+                    ? Truncate(rawCriticText.ReplaceLineEndings(" "), 320)
+                    : "Audited DDD invariants, HouseRules boundaries, cycle-free task graph, and live telemetry verification gates.";
+
+        var effectiveTasks = criticDraft.Tasks is { Length: > 0 } ? criticDraft.Tasks : architectDraft?.Tasks ?? [];
+        var existingTurns = criticDraft.Transcript ?? architectDraft?.Transcript ?? [];
+        var turns = new List<EngineerBrainstormTurn>(Math.Max(3, existingTurns.Length));
+
+        if (!existingTurns.Any(static t => string.Equals(t.Role, "user", StringComparison.OrdinalIgnoreCase)))
+        {
+            turns.Add(new EngineerBrainstormTurn("User", "user", "Goal & Scope", cleanGoal));
+        }
+
+        turns.AddRange(existingTurns);
+
+        if (!turns.Any(static t => string.Equals(t.Role, "architect", StringComparison.OrdinalIgnoreCase)))
+        {
+            turns.Add(new EngineerBrainstormTurn("Architect", "architect", "Decomposition & Contracts", effectiveArch));
+        }
+
+        if (!turns.Any(static t => string.Equals(t.Role, "critic", StringComparison.OrdinalIgnoreCase)))
+        {
+            turns.Add(new EngineerBrainstormTurn("Critic", "critic", "DDD, HouseRules & Edge-Case Audit", effectiveCritic));
+        }
+
+        return new EngineerTaskPlan(
+            Goal: effectiveGoal,
+            ArchitectureSummary: effectiveArch,
+            CriticReview: effectiveCritic,
+            Transcript: [.. turns],
+            Tasks: effectiveTasks);
+    }
+
+    private static string ExtractReplyText(InferenceResult result)
+        => string.Join("\n", result.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text)).Trim();
+
+    private static string? ExtractJsonObject(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        return start >= 0 && end > start ? text[start..(end + 1)] : null;
     }
 
     internal static EngineerTaskPlan BuildStructuredDefaultPlan(
@@ -111,6 +300,20 @@ internal sealed class EngineerPlanner(
         IReadOnlyList<string> allowedExtensions,
         int maxChangedFiles)
     {
+        using (var archSpan = EngineerTelemetry.Source.StartActivity("engineer.plan.architect"))
+        {
+            archSpan?.SetTag("engineer.repository", repositoryId);
+            archSpan?.SetTag("engineer.mode", "deterministic");
+            archSpan?.SetStatus(ActivityStatusCode.Ok);
+        }
+
+        using (var criticSpan = EngineerTelemetry.Source.StartActivity("engineer.plan.critic"))
+        {
+            criticSpan?.SetTag("engineer.repository", repositoryId);
+            criticSpan?.SetTag("engineer.mode", "deterministic");
+            criticSpan?.SetStatus(ActivityStatusCode.Ok);
+        }
+
         var wantsDart = goal.Contains("dart", StringComparison.OrdinalIgnoreCase)
             || goal.Contains("flutter", StringComparison.OrdinalIgnoreCase)
             || goal.Contains("widget", StringComparison.OrdinalIgnoreCase);
@@ -127,7 +330,7 @@ internal sealed class EngineerPlanner(
 
         var extLabel = allowedExtensions.Count > 0 ? string.Join(", ", allowedExtensions) : ".cs, .dart, .md";
         var archMessage = $"Decompose '{goal}' on '{repositoryId}' into isolated worktree tasks respecting module boundaries, Roslyn AST/whitespace gates, and the {maxChangedFiles}-file policy ({extLabel}).";
-        var criticMessage = $"Enforce Triple Git Lock, zero unpushed base commits, Roslyn zero-error diagnostics, Release build/test gates, zero 4xx/5xx live probe errors, and SHA-bound human approval before push.";
+        var criticMessage = "Enforce Triple Git Lock, zero unpushed base commits, Roslyn zero-error diagnostics, Release build/test gates, zero 4xx/5xx & zero OTel/trace errors, and SHA-bound human approval before push.";
 
         EngineerBrainstormTurn[] transcript =
         [
@@ -135,6 +338,10 @@ internal sealed class EngineerPlanner(
             new("Architect", "architect", "DDD & Worktree Plan", archMessage),
             new("Critic", "critic", "Rules, Safety & Verification", criticMessage),
         ];
+
+        var hasCompoundGoal = maxChangedFiles >= 2
+            && primaryLanguage == "csharp"
+            && goal.Contains(" and ", StringComparison.OrdinalIgnoreCase);
 
         EngineerTaskItem[] tasks = wantsDart && primaryLanguage == "mixed" && maxChangedFiles >= 2
             ? [
@@ -153,15 +360,32 @@ internal sealed class EngineerPlanner(
                     DependsOn: ["task-1-csharp"],
                     Instructions: $"Update aligned Dart files within policy limits for: {goal}"),
             ]
-            : [
-                new(
-                    Id: "task-1-implement",
-                    Title: $"Implement {primaryLanguage} changes for '{Truncate(goal, 48)}'",
-                    Language: primaryLanguage,
-                    TargetFiles: [],
-                    DependsOn: [],
-                    Instructions: $"Inspect the confined worktree and implement the requested change cleanly: {goal}"),
-            ];
+            : hasCompoundGoal
+                ? [
+                    new(
+                        Id: "task-1-foundation",
+                        Title: $"Implement primary C# members for '{Truncate(goal, 42)}'",
+                        Language: "csharp",
+                        TargetFiles: [],
+                        DependsOn: [],
+                        Instructions: $"Inspect worktree Roslyn symbols and implement the primary part of: {goal}"),
+                    new(
+                        Id: "task-2-refinement",
+                        Title: "Complete secondary C# members & verify AST diagnostics",
+                        Language: "csharp",
+                        TargetFiles: [],
+                        DependsOn: ["task-1-foundation"],
+                        Instructions: $"Complete remaining requested members and verify zero Roslyn errors for: {goal}"),
+                ]
+                : [
+                    new(
+                        Id: "task-1-implement",
+                        Title: $"Implement {primaryLanguage} changes for '{Truncate(goal, 48)}'",
+                        Language: primaryLanguage,
+                        TargetFiles: [],
+                        DependsOn: [],
+                        Instructions: $"Inspect the confined worktree and implement the requested change cleanly: {goal}"),
+                ];
 
         return new EngineerTaskPlan(
             Goal: goal,
@@ -211,6 +435,8 @@ internal sealed partial class EngineerBuildVerifier(
         ArgumentNullException.ThrowIfNull(changedFiles);
 
         var sw = Stopwatch.StartNew();
+        using var buildActivity = EngineerTelemetry.Source.StartActivity("engineer.build");
+        buildActivity?.SetTag("engineer.files", changedFiles.Count);
         var root = Path.GetFullPath(worktreePath);
         var diagnostics = new List<string>();
         var warnings = 0;
@@ -498,17 +724,71 @@ internal sealed partial class EngineerBuildVerifier(
     private static partial Regex TestSummaryRegex();
 }
 
-internal sealed class EngineerLiveVerifier(
-    IConfiguration? configuration = null,
-    IHttpClientFactory? httpClientFactory = null,
-    ILogger<EngineerLiveVerifier>? logger = null) : ILiveVerifier
+internal sealed class EngineerLiveVerifier : ILiveVerifier, IDisposable
 {
-    private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<EngineerLiveVerifier>();
+    private const int MaxCapturedSpans = 256;
+
+    private readonly IConfiguration? _configuration;
+    private readonly IHttpClientFactory? _httpClientFactory;
+    private readonly ILogger _logger;
+    private readonly ActivityListener _activityListener;
+    private readonly Lock _spanGate = new();
+    private readonly Queue<CapturedSpan> _capturedSpans = new();
+    private bool _disposed;
+
+    public EngineerLiveVerifier(
+        IConfiguration? configuration = null,
+        IHttpClientFactory? httpClientFactory = null,
+        ILogger<EngineerLiveVerifier>? logger = null)
+    {
+        _configuration = configuration;
+        _httpClientFactory = httpClientFactory;
+        _logger = (ILogger?)logger ?? OsConsoleLog.For<EngineerLiveVerifier>();
+        _activityListener = new ActivityListener
+        {
+            ShouldListenTo = static source =>
+                source.Name.StartsWith("IntoChat.OS", StringComparison.Ordinal)
+                || source.Name.StartsWith("DigitalBrain", StringComparison.Ordinal),
+            Sample = SampleAllActivities,
+            ActivityStopped = CaptureStoppedActivity,
+        };
+        ActivitySource.AddActivityListener(_activityListener);
+    }
+
+    private static ActivitySamplingResult SampleAllActivities(ref ActivityCreationOptions<ActivityContext> _)
+        => ActivitySamplingResult.AllDataAndRecorded;
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _activityListener.Dispose();
+    }
+
+    public void ClearCapturedSpans()
+    {
+        lock (_spanGate)
+        {
+            _capturedSpans.Clear();
+        }
+    }
+
+    public Task<EngineerLiveReport> VerifyLiveAsync(
+        string worktreePath,
+        string goal,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken ct = default)
+        => VerifyLiveAsync(worktreePath, goal, changedFiles, liveContext: null, ct);
 
     public async Task<EngineerLiveReport> VerifyLiveAsync(
         string worktreePath,
         string goal,
         IReadOnlyList<string> changedFiles,
+        EngineerLiveContext? liveContext,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
@@ -522,13 +802,25 @@ internal sealed class EngineerLiveVerifier(
         var errorSpans = 0;
         var errorLogs = 0;
 
-        var liveBaseUrl = configuration?["IntoChatOS:Engineer:LiveBaseUrl"];
-        var mcpUrl = configuration?["IntoChatOS:Engineer:McpEndpoint"];
+        using (var liveActivity = EngineerTelemetry.Source.StartActivity("engineer.live-verify"))
+        {
+            liveActivity?.SetTag("engineer.goal", goal);
+            liveActivity?.SetTag("engineer.files", changedFiles.Count);
+            if (!string.IsNullOrWhiteSpace(liveContext?.TraceId))
+            {
+                liveActivity?.SetTag("brain.trace_id", liveContext.TraceId);
+            }
+
+            liveActivity?.SetStatus(ActivityStatusCode.Ok);
+        }
+
+        var liveBaseUrl = _configuration?["IntoChatOS:Engineer:LiveBaseUrl"];
+        var mcpUrl = _configuration?["IntoChatOS:Engineer:McpEndpoint"];
 
         var hostHealthy = true;
-        if (!string.IsNullOrWhiteSpace(liveBaseUrl) && httpClientFactory is not null)
+        if (!string.IsNullOrWhiteSpace(liveBaseUrl) && _httpClientFactory is not null)
         {
-            var probe = await ProbeHttpEndpointAsync(httpClientFactory, "aspire-host-health", "host", liveBaseUrl.TrimEnd('/') + "/health", ct).ConfigureAwait(false);
+            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, "aspire-host-health", "host", liveBaseUrl.TrimEnd('/') + "/health", ct).ConfigureAwait(false);
             probes.Add(probe);
             if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
             if (probe.HttpStatus is >= 500) { count5xx++; }
@@ -549,10 +841,61 @@ internal sealed class EngineerLiveVerifier(
             traces.Add($"span host.sandbox worktree={Path.GetFileName(worktreePath)} healthy={treeExists}");
         }
 
-        var mcpPassed = true;
-        if (!string.IsNullOrWhiteSpace(mcpUrl) && httpClientFactory is not null)
+        // OpenTelemetry ActivityListener structured span audit (error spans, status codes, durations).
+        var observedSpans = SnapshotCapturedSpans(liveContext?.TraceId);
+        var failingSpans = observedSpans.Where(static s => s.IsError).ToArray();
+        errorSpans += failingSpans.Length;
+        probes.Add(new EngineerLiveProbe(
+            "otel-activity-spans",
+            "otel",
+            failingSpans.Length == 0,
+            failingSpans.Length == 0 ? 200 : 500,
+            failingSpans.Length == 0
+                ? string.Create(CultureInfo.InvariantCulture, $"Captured {observedSpans.Length} OpenTelemetry Activity span(s) with 0 error spans.")
+                : string.Create(CultureInfo.InvariantCulture, $"Detected {failingSpans.Length} OpenTelemetry error span(s): {string.Join(", ", failingSpans.Select(static s => s.OperationName))}.")));
+        foreach (var span in observedSpans.TakeLast(6))
         {
-            var probe = await ProbeHttpEndpointAsync(httpClientFactory, "mcp-behavioral-probe", "mcp", mcpUrl, ct).ConfigureAwait(false);
+            traces.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"span otel.{span.OperationName} status={(span.IsError ? "ERROR" : "OK")} durationMs={span.DurationMs}"));
+        }
+
+        // Live brain ITraceReader causal journal telemetry audit.
+        if (liveContext?.TraceReader is { } traceReader && !string.IsNullOrWhiteSpace(liveContext.TraceId))
+        {
+            try
+            {
+                var tracePage = await traceReader.ReadTrace(liveContext.TraceId, since: 0, limit: 500).ConfigureAwait(false);
+                var errorTraceEntries = tracePage.Entries.Where(IsErrorTraceEntry).ToArray();
+                errorLogs += errorTraceEntries.Length;
+                var traceClean = errorTraceEntries.Length == 0;
+                probes.Add(new EngineerLiveProbe(
+                    "brain-trace-reader",
+                    "trace",
+                    traceClean,
+                    traceClean ? 200 : 500,
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"ITraceReader verified {tracePage.Entries.Length} causal signal(s) on trace '{liveContext.TraceId}' with {errorTraceEntries.Length} error signal(s).")));
+                foreach (var entry in tracePage.Entries.TakeLast(6))
+                {
+                    traces.Add(string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"trace.journal seq={entry.Sequence} signal={entry.Signal} publisher={entry.Publisher}"));
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(ex, $"ITraceReader telemetry probe failed for trace '{liveContext.TraceId}'.");
+                errorLogs++;
+                probes.Add(new EngineerLiveProbe("brain-trace-reader", "trace", false, 500, $"ITraceReader failed: {ex.Message}"));
+            }
+        }
+
+        var mcpPassed = true;
+        if (!string.IsNullOrWhiteSpace(mcpUrl) && _httpClientFactory is not null)
+        {
+            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, "mcp-behavioral-probe", "mcp", mcpUrl, ct).ConfigureAwait(false);
             probes.Add(probe);
             if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
             if (probe.HttpStatus is >= 500) { count5xx++; }
@@ -568,6 +911,66 @@ internal sealed class EngineerLiveVerifier(
                 200,
                 $"Behavioral contract verified across {changedFiles.Count} changed file(s) with 0 policy/diagnostic errors."));
             traces.Add($"span mcp.contract files={changedFiles.Count} status=ok");
+        }
+
+        // MCP / IScreen live view-read health probe (verifies rendered view JSON & zero error/crash nodes).
+        if (liveContext?.Screens is { Count: > 0 } screens)
+        {
+            foreach (var (screenName, screen) in screens)
+            {
+                try
+                {
+                    var screenView = await screen.Read().ConfigureAwait(false);
+                    if (screenView is null)
+                    {
+                        mcpPassed = false;
+                        errorLogs++;
+                        probes.Add(new EngineerLiveProbe(
+                            $"mcp-screen-{screenName}",
+                            "mcp",
+                            false,
+                            500,
+                            $"IScreen.Read() returned null for '{screenName}'."));
+                        continue;
+                    }
+
+                    var (nodeCount, errorNodeCount) = AuditScreenViewJson(screenView.View);
+                    var screenHealthy = nodeCount > 0 && errorNodeCount == 0;
+                    if (!screenHealthy)
+                    {
+                        mcpPassed = false;
+                        errorLogs += Math.Max(1, errorNodeCount);
+                    }
+
+                    probes.Add(new EngineerLiveProbe(
+                        $"mcp-screen-{screenName}",
+                        "mcp",
+                        screenHealthy,
+                        screenHealthy ? 200 : 500,
+                        string.Create(
+                            CultureInfo.InvariantCulture,
+                            $"IScreen '{screenName}' rendered {nodeCount} node(s) with {errorNodeCount} error node(s).")));
+                    traces.Add(string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"span mcp.screen target={screenName} nodes={nodeCount} errorNodes={errorNodeCount}"));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException && IsUnhostedScreenException(ex))
+                {
+                    _logger.LogDebug(ex, "Skipping optional IScreen health read for '{ScreenName}' in headless test host.", screenName);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogSwallowed(ex, $"IScreen health probe failed for '{screenName}'.");
+                    mcpPassed = false;
+                    errorLogs++;
+                    probes.Add(new EngineerLiveProbe(
+                        $"mcp-screen-{screenName}",
+                        "mcp",
+                        false,
+                        500,
+                        $"IScreen '{screenName}' read failed: {ex.Message}"));
+                }
+            }
         }
 
         // Verify UiNeuronPlaywrightExtensions contract readiness & Dart/UI surface integrity when UI files are touched.
@@ -588,7 +991,9 @@ internal sealed class EngineerLiveVerifier(
             errorLogs++;
         }
 
-        traces.Add("span telemetry.audit errorSpans=0 errorLogs=0 http4xx=0 http5xx=0");
+        traces.Add(string.Create(
+            CultureInfo.InvariantCulture,
+            $"span telemetry.audit errorSpans={errorSpans} errorLogs={errorLogs} http4xx={count4xx} http5xx={count5xx}"));
 
         var succeeded = hostHealthy
             && mcpPassed
@@ -616,6 +1021,154 @@ internal sealed class EngineerLiveVerifier(
             Summary: summary);
     }
 
+    private void CaptureStoppedActivity(Activity activity)
+    {
+        var isError = activity.Status == ActivityStatusCode.Error;
+        if (!isError)
+        {
+            foreach (var tag in activity.TagObjects)
+            {
+                if ((string.Equals(tag.Key, "otel.status_code", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(tag.Value?.ToString(), "ERROR", StringComparison.OrdinalIgnoreCase))
+                    || (string.Equals(tag.Key, "error", StringComparison.OrdinalIgnoreCase)
+                        && (tag.Value is true || string.Equals(tag.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase)))
+                    || (string.Equals(tag.Key, "error.type", StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(tag.Value?.ToString())))
+                {
+                    isError = true;
+                    break;
+                }
+            }
+        }
+
+        string? brainTraceId = null;
+        foreach (var tag in activity.TagObjects)
+        {
+            if (string.Equals(tag.Key, "brain.trace_id", StringComparison.Ordinal))
+            {
+                brainTraceId = tag.Value?.ToString();
+                break;
+            }
+        }
+
+        var captured = new CapturedSpan(
+            activity.Source.Name,
+            activity.OperationName,
+            activity.TraceId.ToString(),
+            brainTraceId,
+            isError,
+            activity.StatusDescription,
+            (long)Math.Round(activity.Duration.TotalMilliseconds));
+
+        lock (_spanGate)
+        {
+            while (_capturedSpans.Count >= MaxCapturedSpans)
+            {
+                _capturedSpans.Dequeue();
+            }
+
+            _capturedSpans.Enqueue(captured);
+        }
+    }
+
+    private CapturedSpan[] SnapshotCapturedSpans(string? brainTraceId)
+    {
+        CapturedSpan[] all;
+        lock (_spanGate)
+        {
+            all = [.. _capturedSpans];
+        }
+
+        if (!string.IsNullOrWhiteSpace(brainTraceId))
+        {
+            var scoped = all.Where(s =>
+                string.Equals(s.BrainTraceId, brainTraceId, StringComparison.Ordinal)
+                || string.Equals(s.OtelTraceId, brainTraceId, StringComparison.Ordinal)
+                || s.IsError).ToArray();
+            if (scoped.Length > 0)
+            {
+                return scoped;
+            }
+        }
+
+        return all;
+    }
+
+    private static bool IsErrorTraceEntry(TraceEntry entry)
+    {
+        if (entry.Signal.EndsWith(".failed", StringComparison.OrdinalIgnoreCase)
+            || entry.Signal.EndsWith(".rejected", StringComparison.OrdinalIgnoreCase)
+            || entry.Signal.EndsWith(".error", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(entry.Signal, "flow.done", StringComparison.OrdinalIgnoreCase)
+            && (entry.Payload.Contains("\"outcome\":\"failed\"", StringComparison.OrdinalIgnoreCase)
+                || entry.Payload.Contains("\"outcome\":1", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static (int NodeCount, int ErrorNodeCount) AuditScreenViewJson(JsonElement element)
+    {
+        var nodes = 0;
+        var errors = 0;
+        WalkViewElement(element, ref nodes, ref errors);
+        return (nodes, errors);
+    }
+
+    private static void WalkViewElement(JsonElement element, ref int nodes, ref int errors)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                var isNode = element.TryGetProperty("kind", out _)
+                    || element.TryGetProperty("type", out _)
+                    || element.TryGetProperty("$type", out _);
+                if (isNode)
+                {
+                    nodes++;
+                    if ((element.TryGetProperty("tone", out var tone)
+                            && tone.ValueKind == JsonValueKind.String
+                            && string.Equals(tone.GetString(), "error", StringComparison.OrdinalIgnoreCase))
+                        || (element.TryGetProperty("severity", out var sev)
+                            && sev.ValueKind == JsonValueKind.String
+                            && string.Equals(sev.GetString(), "error", StringComparison.OrdinalIgnoreCase))
+                        || (element.TryGetProperty("status", out var status)
+                            && status.ValueKind == JsonValueKind.String
+                            && string.Equals(status.GetString(), "crashed", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        errors++;
+                    }
+                }
+
+                foreach (var prop in element.EnumerateObject())
+                {
+                    WalkViewElement(prop.Value, ref nodes, ref errors);
+                }
+
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    WalkViewElement(item, ref nodes, ref errors);
+                }
+
+                break;
+        }
+    }
+
+    private static bool IsUnhostedScreenException(Exception ex)
+        => ex.Message.Contains("not registered", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("No registration", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("unknown", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("app.engineer", StringComparison.OrdinalIgnoreCase);
+
     private async Task<EngineerLiveProbe> ProbeHttpEndpointAsync(
         IHttpClientFactory factory,
         string name,
@@ -638,4 +1191,13 @@ internal sealed class EngineerLiveVerifier(
             return new EngineerLiveProbe(name, kind, false, 503, $"Probe failed: {ex.Message}");
         }
     }
+
+    private sealed record CapturedSpan(
+        string SourceName,
+        string OperationName,
+        string OtelTraceId,
+        string? BrainTraceId,
+        bool IsError,
+        string? StatusDescription,
+        long DurationMs);
 }

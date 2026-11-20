@@ -2,12 +2,16 @@ using System.Diagnostics;
 using System.Security;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
+using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Tests;
@@ -506,6 +510,225 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.True(changeAfter.Publication?.Cleaned);
         Assert.False(Directory.Exists(changeAfter.Tree!.TreePath));
         Assert.Equal(changeAfter.Commit!.Commit.Value, RunGit(bareOrigin, ["rev-parse", changeAfter.Publication!.PushedRef!]).Trim());
+    }
+
+    [Fact]
+    public async Task EngineerPlannerRunsDistinctArchitectAndCriticTurnsAndRefinesTaskPlan()
+    {
+        var seenPrompts = new List<string>();
+        var turns = new Queue<Func<InferenceRequest, AiMessage>>(
+        [
+            req =>
+            {
+                var prompt = string.Join("\n", req.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text));
+                seenPrompts.Add(prompt);
+                Assert.Contains("ARCHITECT", prompt, StringComparison.Ordinal);
+                return new AiMessage("assistant",
+                [
+                    new AiText("""
+                        {
+                          "goal": "Add Subtract and Clamp to Calculator",
+                          "architectureSummary": "Architect draft: split Subtract and Clamp into sequential Roslyn AST steps.",
+                          "tasks": [
+                            { "id": "t1-subtract", "title": "Draft Subtract", "language": "csharp", "targetFiles": ["code/Calculator.cs"], "dependsOn": [], "instructions": "Add Subtract" }
+                          ]
+                        }
+                        """),
+                ]);
+            },
+            req =>
+            {
+                var prompt = string.Join("\n", req.Messages.SelectMany(static m => m.Content.OfType<AiText>()).Select(static t => t.Text));
+                seenPrompts.Add(prompt);
+                Assert.Contains("CRITIC", prompt, StringComparison.Ordinal);
+                Assert.Contains("Architect draft: split Subtract and Clamp", prompt, StringComparison.Ordinal);
+                return new AiMessage("assistant",
+                [
+                    new AiText("""
+                        {
+                          "goal": "Add Subtract and Clamp to Calculator",
+                          "architectureSummary": "Refined DDD worktree plan across Calculator.cs within 5-file policy.",
+                          "criticReview": "Critic verified HouseRules, zero swallowed exceptions, and added dependent t2-clamp task.",
+                          "tasks": [
+                            { "id": "t1-subtract", "title": "Implement Subtract via Roslyn AST", "language": "csharp", "targetFiles": ["code/Calculator.cs"], "dependsOn": [], "instructions": "Add Subtract(int a, int b)" },
+                            { "id": "t2-clamp", "title": "Implement Clamp with min/max bounds", "language": "csharp", "targetFiles": ["code/Calculator.cs"], "dependsOn": ["t1-subtract"], "instructions": "Add Clamp(int v, int min, int max)" }
+                          ]
+                        }
+                        """),
+                ]);
+            },
+        ]);
+
+        await using var sp = new ServiceCollection()
+            .AddSingleton<IModelInference>(new QueueInference(turns))
+            .BuildServiceProvider();
+        var planner = new EngineerPlanner(sp);
+
+        var plan = await planner.PlanAsync("os", "Add Subtract and Clamp to Calculator", [".cs", ".dart"], 5, Ct);
+
+        Assert.Equal(2, seenPrompts.Count);
+        Assert.Null(plan.Validate(5));
+        Assert.Equal(["t1-subtract", "t2-clamp"], plan.TopologicalOrder().Select(static t => t.Id));
+        Assert.Contains("Critic verified HouseRules", plan.CriticReview, StringComparison.Ordinal);
+        Assert.Contains(plan.Transcript, static t => t.Role == "user");
+        Assert.Contains(plan.Transcript, static t => t.Role == "architect");
+        Assert.Contains(plan.Transcript, static t => t.Role == "critic");
+    }
+
+    [Fact]
+    public async Task EngineerLiveVerifierAuditsOpenTelemetryErrorSpansTraceReaderAndLiveScreenHealth()
+    {
+        var treeDir = Path.Combine(_root, "live-verify-wt");
+        Directory.CreateDirectory(treeDir);
+
+        using var verifier = new EngineerLiveVerifier();
+        var cleanTrace = new FakeTraceReader(
+        [
+            new TraceEntry("owner/flow.engineer/r1", 1, "flow.started", DateTimeOffset.UtcNow, "trace-clean", null, "{\"title\":\"Run\"}"),
+            new TraceEntry("owner/flow.engineer/r1", 2, "flow.step", DateTimeOffset.UtcNow, "trace-clean", "1", "{\"step\":\"live-verify\"}"),
+        ]);
+        var healthyScreen = new FakeVerifyScreen(
+            JsonDocument.Parse("""{"kind":"appShell","children":[{"kind":"banner","tone":"info","title":"Healthy"}]}""").RootElement.Clone());
+
+        var healthyReport = await verifier.VerifyLiveAsync(
+            treeDir,
+            "Verify healthy telemetry and screen",
+            ["code/Calculator.cs"],
+            new EngineerLiveContext("trace-clean", cleanTrace, [("app.engineer", healthyScreen)]),
+            Ct);
+
+        Assert.True(healthyReport.Succeeded, healthyReport.Summary);
+        Assert.Equal(0, healthyReport.ErrorSpanCount);
+        Assert.Equal(0, healthyReport.ErrorLogCount);
+        Assert.Contains(healthyReport.Probes, static p => p.Name == "otel-activity-spans" && p.Passed);
+        Assert.Contains(healthyReport.Probes, static p => p.Name == "brain-trace-reader" && p.Passed);
+        Assert.Contains(healthyReport.Probes, static p => p.Name == "mcp-screen-app.engineer" && p.Passed);
+
+        // Emit an OpenTelemetry Error span and an error UI banner: EngineerLiveVerifier must fail and report both!
+        verifier.ClearCapturedSpans();
+        using (var errSpan = EngineerTelemetry.Source.StartActivity("engineer.synthetic-error"))
+        {
+            errSpan?.SetTag("brain.trace_id", "trace-bad");
+            errSpan?.SetStatus(ActivityStatusCode.Error, "Simulated telemetry failure");
+        }
+
+        var errorScreen = new FakeVerifyScreen(
+            JsonDocument.Parse("""{"kind":"appShell","children":[{"kind":"infoBar","tone":"error","title":"Crash"}]}""").RootElement.Clone());
+
+        var failingReport = await verifier.VerifyLiveAsync(
+            treeDir,
+            "Verify error span and error node detection",
+            ["code/Calculator.cs"],
+            new EngineerLiveContext("trace-bad", cleanTrace, [("app.engineer", errorScreen)]),
+            Ct);
+
+        Assert.False(failingReport.Succeeded);
+        Assert.True(failingReport.ErrorSpanCount >= 1);
+        Assert.True(failingReport.ErrorLogCount >= 1);
+        Assert.False(failingReport.McpProbesPassed);
+        Assert.Contains(failingReport.Probes, static p => p.Name == "otel-activity-spans" && !p.Passed);
+        Assert.Contains(failingReport.Probes, static p => p.Name == "mcp-screen-app.engineer" && !p.Passed);
+    }
+
+    [Fact]
+    public async Task FlowsNeuronAndInoStudioDelegateAndInspectMultiWorktreeEngineerRun()
+    {
+        var (bareOrigin, checkout, home) = CreateBareOriginAndCheckout("ino-delegate-unit");
+        var workTree = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = home,
+            Backend = WorkTreeBackendKind.ContainerVolume,
+            VolumeMountRoot = Path.Combine(_root, "ino-delegate-volumes"),
+        });
+        workTree.RegisterRepository(new RegisteredRepository("os", checkout, DefaultBaseBranch: "main", RemoteCloneUrl: bareOrigin));
+
+        var coder = new CheckpointingRoslynCoder([]);
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IWorkTree>(workTree);
+        serviceCollection.AddSingleton<ICoder>(coder);
+        serviceCollection.AddSingleton<IEngineerPlanner>(new TwoStepPlanner());
+        serviceCollection.AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier());
+        serviceCollection.AddSingleton<ILiveVerifier>(new EngineerLiveVerifier());
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault());
+        await using var services = serviceCollection.BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = services);
+        var brain = new BrainId("owner");
+        using var agentCaller = os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), brain));
+        os.Register(typeof(AppsModule).Assembly);
+
+        var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
+        var started = await flows.StartEngineerRun(
+            new EngineerDelegationRequest(
+                RepoSlug: "os",
+                Goal: "Add Subtract and Modulo via Ino delegation",
+                ParallelInstances: 2,
+                Backend: "ContainerVolume",
+                RunId: "inodeleg01"),
+            Ct);
+
+        Assert.True(started.Ok, started.SummaryText);
+        Assert.Equal("owner/flow.engineer/inodeleg01", started.FlowId);
+
+        EngineerRunSummary? waiting = null;
+        for (var i = 0; i < 60; i++)
+        {
+            await os.Idle();
+            var check = await flows.InspectEngineerRun(started.FlowId, Ct);
+            if (check.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed)
+            {
+                waiting = check;
+                break;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.NotNull(waiting);
+        Assert.Equal(FlowStatus.Waiting, waiting!.Status);
+        Assert.Equal("approval-gate", waiting.CurrentStage);
+        Assert.Equal(2, waiting.ParallelInstances);
+        Assert.Equal("ContainerVolume", waiting.Backend);
+        Assert.Equal(2, waiting.Instances.Length);
+        Assert.NotNull(waiting.Card);
+        Assert.Equal("approval", waiting.Card!.Kind);
+        Assert.Contains("neuron://owner/apps/engineer#owner/flow.engineer/inodeleg01", waiting.EngineerAppUri, StringComparison.Ordinal);
+
+        // IInoStudio.ChangeStatus also inspects flow.engineer runs seamlessly!
+        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        var studioStatus = await studio.ChangeStatus("inodeleg01", Ct);
+        Assert.True(studioStatus.Ok, studioStatus.Text);
+        Assert.NotNull(studioStatus.Card);
+        Assert.Equal("approval", studioStatus.Card!.Kind);
+
+        // Clean up active worktrees via human cancel
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        await flows.Cancel(started.FlowId, "test cleanup", Ct);
+        await os.Idle();
+    }
+
+    private sealed class FakeTraceReader(TraceEntry[] entries) : ITraceReader
+    {
+        public Task<TracePage> ReadTrace(string traceId, long since, int limit)
+            => Task.FromResult(new TracePage(entries));
+    }
+
+    private sealed class FakeVerifyScreen(JsonElement view) : IScreen
+    {
+        public Task<PublishedView?> Open() => Read();
+
+        public Task Act(ScreenAction action) => Task.CompletedTask;
+
+        public Task<PublishedView?> Read(string? alias = null)
+            => Task.FromResult<PublishedView?>(new PublishedView(alias ?? "app.engineer", 1, view));
+
+        public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
+
+        public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
+
+        public Task Dispatch(DigitalBrain.UI.Command command) => Task.CompletedTask;
+
+        public Task<PublishedView?> ReadSlot(string path) => Task.FromResult<PublishedView?>(null);
     }
 
     private sealed class RecordingSandboxRunner(List<SandboxCommandRequest> sink) : ISandboxCommandRunner

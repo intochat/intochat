@@ -205,7 +205,8 @@ internal sealed class EngineerFlow(
             existingLeases,
             Id.ToString(),
             "prepare-worktree",
-            ct).ConfigureAwait(true);
+            ct,
+            inner.RequestedBackend).ConfigureAwait(true);
 
         return inner.WithLeases(runId, leases).Advance(subject);
     }
@@ -419,31 +420,37 @@ internal sealed class EngineerFlow(
     private async Task<StepResult<EngineerRun>> LiveVerifyStepAsync(EngineerRun inner, CancellationToken ct)
     {
         var verifier = LiveVerifier;
-        var tasks = inner.Instances.Select(async instance =>
+        var liveContext = BuildLiveVerificationContext();
+        var results = new EngineerInstance[inner.Instances.Length];
+        for (var idx = 0; idx < inner.Instances.Length; idx++)
         {
+            var instance = inner.Instances[idx];
             if (instance.Build is not { Succeeded: true } || instance.Commit is null || instance.Lease is null)
             {
-                return instance;
+                results[idx] = instance;
+                continue;
             }
 
             if (instance.Live is { Succeeded: true })
             {
-                return instance;
+                results[idx] = instance;
+                continue;
             }
 
             var changedPaths = instance.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
-            var report = await Task.Run(
-                () => verifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, ct),
-                ct).ConfigureAwait(false);
-            return instance with
+            var report = verifier is EngineerLiveVerifier stageVerifier
+                ? await stageVerifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, liveContext, ct).ConfigureAwait(true)
+                : await Task.Run(
+                    () => verifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, ct),
+                    ct).ConfigureAwait(true);
+            results[idx] = instance with
             {
                 Live = report,
                 Status = report.Succeeded ? "verified" : "failed",
                 FailureDetail = report.Succeeded ? null : report.Summary,
             };
-        }).ToArray();
+        }
 
-        var results = await Task.WhenAll(tasks).ConfigureAwait(true);
         var verified = results
             .Where(static i => i.Live is { Succeeded: true } && i.Build is { Succeeded: true } && i.Commit is not null)
             .OrderBy(static i => i.Build!.WarningCount)
@@ -458,6 +465,35 @@ internal sealed class EngineerFlow(
         }
 
         return inner.WithUpdatedInstances(results, verified[0].InstanceIndex).Advance();
+    }
+
+    private EngineerLiveContext BuildLiveVerificationContext()
+    {
+        IntoChat.OS.Modules.Apps.Trace.ITraceReader? traceReader = null;
+        try
+        {
+            traceReader = Context.Get<IntoChat.OS.Modules.Apps.Trace.ITraceReader>(
+                IntoChat.OS.Modules.Apps.Trace.ITraceReader.Key(Id.Brain.Value));
+        }
+        catch (InvalidOperationException ex)
+        {
+            ConsoleLogger.LogDebug(ex, "Live verification ITraceReader skipped in detached flow invocation.");
+        }
+
+        IReadOnlyList<(string ScreenName, IScreen Screen)>? screens = null;
+        try
+        {
+            screens =
+            [
+                ("app.engineer", Context.Get<IScreen>(new NeuronId(Id.Brain, "app.engineer", "default"))),
+            ];
+        }
+        catch (InvalidOperationException ex)
+        {
+            ConsoleLogger.LogDebug(ex, "Live verification IScreen skipped in headless test host.");
+        }
+
+        return new EngineerLiveContext(State.TraceId, traceReader, screens);
     }
 
     private StepResult<EngineerRun> ApprovalGateStep(string step, EngineerRun inner)

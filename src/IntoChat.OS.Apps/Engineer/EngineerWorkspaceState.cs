@@ -290,6 +290,20 @@ public sealed record EngineerWorkspaceState(
         _ => "brainstorm-and-plan",
     };
 
+    public static string NormalizeBackendMode(string? backend, string fallback = "LocalGit")
+    {
+        if (string.IsNullOrWhiteSpace(backend))
+        {
+            return string.IsNullOrWhiteSpace(fallback) ? "LocalGit" : fallback;
+        }
+
+        return backend.Contains("volume", StringComparison.OrdinalIgnoreCase)
+            || backend.Contains("container", StringComparison.OrdinalIgnoreCase)
+            || backend.Contains("cloud", StringComparison.OrdinalIgnoreCase)
+            ? "ContainerVolume"
+            : "LocalGit";
+    }
+
     public static string TabTitle(string tab) => NormalizeTab(tab) switch
     {
         "code" => "Code & Diff",

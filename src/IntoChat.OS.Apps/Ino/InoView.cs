@@ -471,6 +471,23 @@ public static partial class InoView
                     [activeDoc, "/work/architecture.markdraw", "/work/pipeline-flow.markdraw"], exportPath, 460);
                 break;
 
+            case "engineer":
+                var engRepo = ColumnOr(card, 0, "os");
+                var engTopology = ColumnOr(card, 1, "1x LocalGit");
+                var engStageOrSha = ColumnOr(card, 2, card.Status);
+                yield return new RecordCardNode(
+                    "IntoChat Engineer · Multi-Worktree Pipeline", card.Title,
+                    [
+                        new RecordFieldNode("Status", card.Status),
+                        new RecordFieldNode("Repository", engRepo),
+                        new RecordFieldNode("Worktrees", engTopology),
+                        new RecordFieldNode("Checkpoint", engStageOrSha),
+                    ],
+                    Subtitle: card.Summary,
+                    LinkLabel: "Open Engineer Workbench",
+                    Open: Button("Open Engineer Workbench").Small().Key("open-engineer").EmitsOrIntent(AppSignals.OpenApp("engineer", card.Id)));
+                break;
+
             default:
                 if (IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.TryGet(card.Kind, out var studio))
                 {
