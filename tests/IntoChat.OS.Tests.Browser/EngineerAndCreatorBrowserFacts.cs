@@ -142,10 +142,41 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             var verifyTable = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "PASS", ct);
             Assert.Contains("PASS", verifyTable, StringComparison.OrdinalIgnoreCase);
 
-            // Switch ITabs to PR Review -> verify human PR gate & unified diff ICodeEditor
+            // Switch ITabs to PR Review -> verify tournament scoreboard, candidate diff switching, tree selection & PR promotion
             await page.SelectTabAsync(EngineerApp.WorkspaceTabsKey, "PR Review", ct);
             await page.KeyedNode("engineer:pr:approve").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             await page.CodeEditor(EngineerApp.CodeEditorKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+
+            // Default tournament winner is Candidate w1 (#0 · Minimal Surgical Patch · commit aaaaaaaa)
+            await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w1", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Host-Rendered Unified Diff Preview · Candidate w1 (aaaaaaaa)", ct);
+            await WaitForSemanticsTextContainsAsync(page, "app:engineer:eng-01:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ct);
+            var initialEditor = await WaitForNeuronTextContainsAsync(page, "ui.code-editor", EngineerApp.CodeEditorKey, "EngineerFlow.cs", ct);
+            Assert.Contains("EngineerFlow.cs", initialEditor, StringComparison.OrdinalIgnoreCase);
+            var initialScoreboard = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "998 · SELECTED (Rank #1)", ct);
+            Assert.Contains("993 · STANDBY (Rank #2)", initialScoreboard, StringComparison.OrdinalIgnoreCase);
+
+            // Promote Candidate w2 via rule-guarded Select Candidate w2 button -> switches diff card, scoreboard & SHA-bound gate to bbbbbbbb
+            await page.ClickButtonAsync(EngineerApp.CandidateSelectKey(1), ct);
+            await WaitForSemanticsTextContainsAsync(page, "Promoted candidate w2", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w2", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Host-Rendered Unified Diff Preview · Candidate w2 (bbbbbbbb)", ct);
+            await WaitForSemanticsTextContainsAsync(page, "app:engineer:eng-01:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", ct);
+            var promotedScoreboard = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "993 · SELECTED (Rank #2)", ct);
+            Assert.Contains("998 · STANDBY (Rank #1)", promotedScoreboard, StringComparison.OrdinalIgnoreCase);
+
+            // Switch via ITreeView worktree file node back to w1 (WorktreeRoslynAnalyzer.cs), then select w2's Dart file & approve PR for w2
+            await page.SelectTreeNodeAsync(EngineerApp.WorktreeTreeKey, "WorktreeRoslynAnalyzer.cs", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w1", ct);
+            await WaitForNeuronTextContainsAsync(page, "ui.code-editor", EngineerApp.CodeEditorKey, "WorktreeRoslynAnalyzer.cs", ct);
+
+            await page.SelectTreeNodeAsync(EngineerApp.WorktreeTreeKey, "stepper_widget.dart", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w2", ct);
+            await WaitForNeuronTextContainsAsync(page, "ui.code-editor", EngineerApp.CodeEditorKey, "stepper_widget.dart", ct);
+            await page.KeyedNode("code-highlight:dart").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+
+            await page.ClickButtonAsync("engineer:pr:approve", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Pushed candidate w2", ct);
         }
         catch (Exception ex)
         {
