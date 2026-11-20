@@ -4,7 +4,6 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

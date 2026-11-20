@@ -13,7 +13,6 @@ using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;

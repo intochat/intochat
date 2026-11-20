@@ -2,7 +2,6 @@ using System.Reflection;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.Logging.Abstractions;
 

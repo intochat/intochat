@@ -10,10 +10,10 @@ using DigitalBrain.Capabilities.Http;
 using DigitalBrain.Modules;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using IntoChat.OS.Host.Connections;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 

@@ -1,6 +1,5 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Connections;
 using IntoChat.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

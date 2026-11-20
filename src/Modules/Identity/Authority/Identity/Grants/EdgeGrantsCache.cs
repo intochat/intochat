@@ -9,7 +9,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Contacts;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

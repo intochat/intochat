@@ -11,7 +11,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;

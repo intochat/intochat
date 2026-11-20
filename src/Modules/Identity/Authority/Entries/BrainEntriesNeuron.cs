@@ -5,7 +5,6 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

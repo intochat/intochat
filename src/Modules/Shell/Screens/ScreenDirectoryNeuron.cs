@@ -10,7 +10,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Views;

@@ -1,6 +1,4 @@
 using DigitalBrain.Contracts;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Kernel;
 

@@ -18,7 +18,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
-    <ProjectReference Include="../Identity/IntoChat.OS.Modules.Identity.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
   </ItemGroup>
 </Project>

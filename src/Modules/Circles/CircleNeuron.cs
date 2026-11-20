@@ -8,9 +8,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Rules;
 using IntoChat.OS.Modules.Circles.Signals;
@@ -18,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.ServiceDefaults;
 using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Host.Connections;
 
 namespace IntoChat.OS.Modules.Circles;
 

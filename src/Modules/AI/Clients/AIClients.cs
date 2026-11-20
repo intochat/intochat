@@ -2,7 +2,6 @@ using DigitalBrain.Capabilities.Compute;
 using IntoChat.OS;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;

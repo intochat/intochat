@@ -8,8 +8,6 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Signals;
 using DigitalBrain.Signals.Watch;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;

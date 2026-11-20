@@ -5,7 +5,7 @@
     <Description>Preflight checks, MSIX packaging, model pull and launcher command parsing behind intochat-os.cs.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />

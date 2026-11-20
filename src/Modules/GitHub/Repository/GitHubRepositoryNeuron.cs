@@ -4,7 +4,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Limits;
 using DigitalBrain.Access;
-using IntoChat.OS.Framework;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 

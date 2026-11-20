@@ -1,8 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.UI.Confirmation;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 

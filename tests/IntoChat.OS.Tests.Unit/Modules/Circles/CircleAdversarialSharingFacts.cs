@@ -2,7 +2,6 @@ using System.Reflection;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Circles.Tests.Unit;
 

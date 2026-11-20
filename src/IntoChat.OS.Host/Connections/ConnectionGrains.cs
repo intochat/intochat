@@ -2,13 +2,10 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Connections.Platform.Connections;
+namespace IntoChat.OS.Host.Connections;
 
 // Every connector's neuron implements IConnection, so a contract alone names no neuron type once two connectors are composed.
 // The key does: each connection neuron is [Neuron(connectorId)] (06-08: plain neurons, R4-21(2) — the id's type picks the class).

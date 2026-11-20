@@ -5,7 +5,6 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;

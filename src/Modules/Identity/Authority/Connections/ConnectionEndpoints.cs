@@ -2,7 +2,6 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;

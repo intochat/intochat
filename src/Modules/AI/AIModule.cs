@@ -15,7 +15,6 @@ using IntoChat.OS;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;

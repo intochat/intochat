@@ -11,7 +11,6 @@ using IntoChat.OS.Authority.Identity.Contacts;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;

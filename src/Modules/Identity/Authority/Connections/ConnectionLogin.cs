@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Authority.Integrations;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Http;

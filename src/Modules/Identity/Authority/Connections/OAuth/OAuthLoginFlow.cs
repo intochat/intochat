@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;

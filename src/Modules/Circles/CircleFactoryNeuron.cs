@@ -7,7 +7,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Rules;
 using IntoChat.OS.Runtime;

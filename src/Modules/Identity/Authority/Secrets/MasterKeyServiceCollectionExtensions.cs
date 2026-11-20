@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Identity.Local.Vault;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

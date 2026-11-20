@@ -6,7 +6,6 @@ using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Hosting;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;

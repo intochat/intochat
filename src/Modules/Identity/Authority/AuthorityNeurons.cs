@@ -8,11 +8,11 @@ using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using External = IntoChat.OS.Authority.Identity.External;
+using IntoChat.OS.Host.Connections;
 
 namespace IntoChat.OS.Authority;
 

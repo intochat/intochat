@@ -9,8 +9,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Flutter.Views;

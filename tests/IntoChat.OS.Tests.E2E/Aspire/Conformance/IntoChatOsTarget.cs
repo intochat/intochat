@@ -12,7 +12,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Testing.Conformance.Host;
 using IntoChat.OS.Authority;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;

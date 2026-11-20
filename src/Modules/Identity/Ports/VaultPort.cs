@@ -7,7 +7,6 @@ using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;

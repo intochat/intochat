@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
