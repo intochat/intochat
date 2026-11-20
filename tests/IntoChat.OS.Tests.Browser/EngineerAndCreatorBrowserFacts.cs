@@ -1,3 +1,4 @@
+using System.Globalization;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.Microsoft.Playwright;
@@ -9,13 +10,16 @@ namespace IntoChat.OS.Tests.Browser;
 [Collection(nameof(WebShellCollection))]
 public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
 {
+    private const int StudioViewportWidth = 1440;
+    private const int StudioViewportHeight = 900;
+
     [Fact]
-    public async Task Creator_flame_camera_hud_and_time_travel_inspector_work_live_without_http_errors()
+    public async Task Creator_flame_camera_hud_minimap_shell_collapse_and_geometry_work_live_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1920, Height = 1600 } });
+        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -28,11 +32,38 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
         };
 
         await page.GotoAsync(host.ShellFor("apps/creator/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
+        await page.KeyedNode("creator-shell").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
         await page.SceneCameraHud().First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
 
         try
         {
-            // 1. Flame Camera HUD: normalize to 100%, zoom in (-> 125%), zoom out, drag pan, fit, and reset back to 100%
+            // 1. Hard BoundingBoxAsync geometry & zero-bloat assertions at 1440x900
+            var canvasBox = await page.MeasureSceneCanvasBoxAsync("brain", ct);
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Creator Flame 3D Canvas: {canvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                canvasBox.HeightRatio(StudioViewportHeight) >= 0.65f && canvasBox.Height >= 580f,
+                string.Create(CultureInfo.InvariantCulture, $"Creator Flame canvas must occupy >= 65% of 900px viewport (>= 580px), measured: {canvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                canvasBox.Y <= 110f,
+                string.Create(CultureInfo.InvariantCulture, $"Creator top toolbar must stay compact (canvas Y <= 110px), measured: {canvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+
+            // Zero duplicate tab bar in Inspector, zero legacy ui.command-bar, zero raw JSON card below ui.property-grid
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.command-bar:").CountAsync().WaitAsync(ct));
+            Assert.Equal(1, await page.SemanticsPrefix("neuron:ui.tabs:").CountAsync().WaitAsync(ct));
+            Assert.Equal(1, await page.Neuron("ui.tabs", CreatorView.InspectorTabsKey).CountAsync().WaitAsync(ct));
+            await page.PropertyGrid(CreatorView.InspectorStateKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.code-editor:").CountAsync().WaitAsync(ct));
+
+            // 2. Corner Viewport Minimap + Follow Live HUD toggle
+            var minimapBox = await page.MeasureKeyedBoxAsync("flame-viewport-minimap", minWidth: 80f, minHeight: 40f, ct);
+            Assert.True(
+                minimapBox.Width >= 80f && minimapBox.Height >= 40f,
+                string.Create(CultureInfo.InvariantCulture, $"Expected corner viewport minimap bounds, measured: {minimapBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            await page.SceneFollowLive().First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ToggleSceneFollowLiveAsync(ct);
+            await page.ClickSceneMinimapAsync(0.45f, 0.5f, ct);
+
+            // 3. Flame Camera HUD: normalize to 100%, zoom in (-> 125%), zoom out, drag pan, fit, and reset back to 100%
             await page.ResetSceneCameraAsync(ct);
             var baselineZoom = await WaitForZoomTargetAsync(page, "100%", ct);
             Assert.Equal("100%", baselineZoom);
@@ -48,12 +79,26 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             var resetZoom = await WaitForZoomTargetAsync(page, "100%", ct);
             Assert.Equal("100%", resetZoom);
 
-            // 2. Creator Time-Travel controls + keyboard stepping + Inspector tabs (State, Source, Signals, State Graph, Scenarios)
-            await page.KeyedNode("replay-cursor-readout").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.command-bar", CreatorView.ReplayCommandBarKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.slider", CreatorView.ReplaySliderKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            // 4. AppShell collapsible right inspector: collapse widens canvas, re-expand restores inspector
+            await page.ShellToggleInspector().First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            var widthWithInspector = (await page.MeasureSceneCanvasBoxAsync("brain", ct)).Width;
+            await page.ToggleShellInspectorAsync(ct);
+            var widthCollapsed = await WaitForCanvasWidthChangeAsync(page, widthWithInspector, expectWider: true, ct);
+            Assert.True(
+                widthCollapsed > widthWithInspector + 120f,
+                string.Create(CultureInfo.InvariantCulture, $"Collapsing inspector must widen 3D canvas (before={widthWithInspector:0.#}px, collapsed={widthCollapsed:0.#}px)."));
+
+            await page.ToggleShellInspectorAsync(ct);
             await page.Neuron("ui.tabs", CreatorView.InspectorTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.PropertyGrid(CreatorView.InspectorStateKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            var widthRestored = await WaitForCanvasWidthChangeAsync(page, widthCollapsed, expectWider: false, ct);
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Creator Inspector Collapse/Expand Widths: open={widthWithInspector:0.#}px -> collapsed={widthCollapsed:0.#}px -> restored={widthRestored:0.#}px"));
+            Assert.True(
+                widthRestored < widthCollapsed - 100f,
+                string.Create(CultureInfo.InvariantCulture, $"Re-expanding inspector must restore split width (collapsed={widthCollapsed:0.#}px, restored={widthRestored:0.#}px)."));
+
+            // 5. Creator Time-Travel controls + keyboard stepping + Inspector tabs (State, Source, Signals, State Graph, Scenarios)
+            await page.KeyedNode("replay-cursor-readout").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.Neuron("ui.slider", CreatorView.ReplaySliderKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             await page.StepTimeTravelBackwardAsync(ct);
             await page.StepTimeTravelForwardAsync(ct);
@@ -89,12 +134,12 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     }
 
     [Fact]
-    public async Task Engineer_workbench_renders_and_drives_stepper_tabs_chat_and_code_editor_without_http_errors()
+    public async Task Engineer_unified_3d_studio_switches_flow_and_full_height_github_diff_with_candidate_promotion()
     {
         var ct = TestContext.Current.CancellationToken;
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1920, Height = 1600 } });
+        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -111,17 +156,24 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
 
         try
         {
-            // Verify core Engineer workbench neurons: ICommandBar, IStepper, ITreeView, ITabs, IChatThread, IKanbanBoard, ITable
-            await page.Neuron("ui.command-bar", EngineerApp.CommandBarKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Stepper(EngineerApp.StepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.tree-view", EngineerApp.WorktreeTreeKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            // 1. Compact Studio header (zero ui.command-bar, zero ui.kanban, zero ui.stepper bloat) + InoNative presence & 3D Flow stage
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.command-bar:").CountAsync().WaitAsync(ct));
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.kanban:").CountAsync().WaitAsync(ct));
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.stepper:").CountAsync().WaitAsync(ct));
+
             await page.Neuron("ui.tabs", EngineerApp.WorkspaceTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
             await page.Neuron("ui.chat", EngineerApp.BrainstormChatKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.KanbanBoard(EngineerApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.Neuron("ui.tree-view", EngineerApp.WorktreeTreeKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             await page.Neuron("ui.table", EngineerApp.TasksTableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
-            var stepperText = await page.ReadStepperTextAsync(EngineerApp.StepperKey, ct);
-            Assert.Contains("Brainstorm", stepperText, StringComparison.OrdinalIgnoreCase);
+            await WaitForSemanticsTextContainsAsync(page, "Ino Native", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Ratified Plan & Ino Slices", ct);
+
+            var flowCanvasBox = await page.MeasureSceneCanvasBoxAsync("brain", ct);
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Engineer 3D Flow Canvas: {flowCanvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                flowCanvasBox.HeightRatio(StudioViewportHeight) >= 0.65f && flowCanvasBox.Y <= 110f,
+                string.Create(CultureInfo.InvariantCulture, $"Engineer 3D Flow stage must be full-bleed (>= 65%h, Y <= 110px), measured: {flowCanvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
             var chatText = await WaitForNeuronTextContainsAsync(page, "ui.chat", EngineerApp.BrainstormChatKey, "Architect", ct);
             Assert.Contains("Architect", chatText, StringComparison.OrdinalIgnoreCase);
@@ -131,21 +183,32 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             Assert.Contains("Verify cloud sandbox lease isolation", brainstormedChat, StringComparison.OrdinalIgnoreCase);
             await WaitForSemanticsTextContainsAsync(page, "Brainstorm complete", ct);
 
-            // Approve plan -> transitions EngineerApp to implement-tasks & Code tab with syntax-highlighted ICodeEditor
+            // 2. Ratify Plan -> transitions to GitHub Desktop Changes & Diff stage with full-height ui.code-editor (>= 60% of 900px = >= 540px)
             await page.ClickButtonAsync("engineer:approve-plan", ct);
             await page.CodeEditor(EngineerApp.CodeEditorKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             await page.KeyedNode("code-highlight:csharp").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.KeyedNode("engineer:diff-file:0").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
-            // Run verification -> transitions to Verification & Traces tab
+            var editorBox = await page.MeasureNeuronBoxAsync("ui.code-editor", EngineerApp.CodeEditorKey, minWidth: 300f, minHeight: 540f, ct);
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Engineer GitHub Desktop Diff CodeEditor: {editorBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                editorBox.HeightRatio(StudioViewportHeight) >= 0.60f && editorBox.Height >= 540f,
+                string.Create(CultureInfo.InvariantCulture, $"Engineer GitHub Desktop diff ui.code-editor must occupy >= 60% of 900px viewport (>= 540px), measured: {editorBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+
+            // Switch smoothly back to 3D Flow & Plan and back to Verification / PR Review
+            await page.SelectTabAsync(EngineerApp.WorkspaceTabsKey, "3D Flow & Plan", ct);
+            var returnedFlowBox = await page.MeasureSceneCanvasBoxAsync("brain", ct);
+            Assert.True(returnedFlowBox.HeightRatio(StudioViewportHeight) >= 0.65f);
+
             await page.ClickButtonAsync("engineer:run-verify", ct);
-            await page.KeyedNode("kpi-eng-build").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             var verifyTable = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "PASS", ct);
             Assert.Contains("PASS", verifyTable, StringComparison.OrdinalIgnoreCase);
 
-            // Switch ITabs to PR Review -> verify tournament scoreboard, candidate diff switching, tree selection & PR promotion
+            // 3. Switch ITabs to PR Review -> verify tournament scoreboard, candidate diff switching, tree selection & PR promotion
             await page.SelectTabAsync(EngineerApp.WorkspaceTabsKey, "PR Review", ct);
             await page.KeyedNode("engineer:pr:approve").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.CodeEditor(EngineerApp.CodeEditorKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            var prEditorBox = await page.MeasureNeuronBoxAsync("ui.code-editor", EngineerApp.CodeEditorKey, minWidth: 300f, minHeight: 540f, ct);
+            Assert.True(prEditorBox.HeightRatio(StudioViewportHeight) >= 0.60f);
 
             // Default tournament winner is Candidate w1 (#0 · Minimal Surgical Patch · commit aaaaaaaa)
             await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w1", ct);
@@ -156,7 +219,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             var initialScoreboard = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "998 · SELECTED (Rank #1)", ct);
             Assert.Contains("993 · STANDBY (Rank #2)", initialScoreboard, StringComparison.OrdinalIgnoreCase);
 
-            // Promote Candidate w2 via rule-guarded Select Candidate w2 button -> switches diff card, scoreboard & SHA-bound gate to bbbbbbbb
+            // Promote Candidate w2 via rule-guarded w2 button -> switches diff card, scoreboard & SHA-bound gate to bbbbbbbb
             await page.ClickButtonAsync(EngineerApp.CandidateSelectKey(1), ct);
             await WaitForSemanticsTextContainsAsync(page, "Promoted candidate w2", ct);
             await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w2", ct);
@@ -183,11 +246,29 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? '<no-semantics>'");
             var ids = await page.ReadSemanticsIdentifiersAsync(ct);
             throw new Xunit.Sdk.XunitException(
-                $"Engineer E2E failed: {ex.Message}\nHTTP errors: [{string.Join(", ", httpErrors)}]\nIdentifiers: [{string.Join(", ", ids.Take(80))}]\nVisible text:\n{visible[..Math.Min(1500, visible.Length)]}",
+                $"Engineer Studio E2E failed: {ex.Message}\nHTTP errors: [{string.Join(", ", httpErrors)}]\nIdentifiers: [{string.Join(", ", ids.Take(80))}]\nVisible text:\n{visible[..Math.Min(1500, visible.Length)]}",
                 ex);
         }
 
         Assert.Empty(httpErrors);
+    }
+
+    private static async Task<float> WaitForCanvasWidthChangeAsync(IPage page, float previousWidth, bool expectWider, CancellationToken ct)
+    {
+        for (var i = 0; i < 40; i++)
+        {
+            var box = await page.MeasureSceneCanvasBoxAsync("brain", ct);
+            if (expectWider && box.Width > previousWidth + 100f)
+            {
+                return box.Width;
+            }
+            if (!expectWider && box.Width < previousWidth - 100f)
+            {
+                return box.Width;
+            }
+            await page.WaitForTimeoutAsync(100).WaitAsync(ct);
+        }
+        return (await page.MeasureSceneCanvasBoxAsync("brain", ct)).Width;
     }
 
     private static async Task<string> WaitForZoomChangeAsync(IPage page, string previousZoom, CancellationToken ct)
