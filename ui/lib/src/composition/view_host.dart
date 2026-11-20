@@ -107,8 +107,10 @@ class ViewHost extends StatefulWidget {
 class _ViewHostState extends State<ViewHost> {
   Map<String, dynamic>? _data;
   Object? _error;
-  Timer? _timer, _resubscribe, _uiNeuronSync, _uiNeuronFollowUp;
+  Timer? _timer, _resubscribe;
   StreamSubscription<void>? _watch;
+  String _watchedKind = '', _watchedName = '';
+  int _watchGeneration = 0;
   bool _loading = false, _reloadAgain = false;
   int _generation = 0;
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
@@ -135,28 +137,74 @@ class _ViewHostState extends State<ViewHost> {
     if (watch == null) {
       _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
     } else {
-      _subscribe(watch);
+      final initial = _initialWatchTarget();
+      _subscribe(watch, initial.$1, initial.$2);
     }
   }
 
-  void _subscribe(Stream<void> Function(String, String) watch) {
+  (String, String) _initialWatchTarget() {
+    if (widget.kind == 'screen' ||
+        (widget.kind == 'view' &&
+            IntoChatOSUiClient.isExplicitScreenAddress(widget.name))) {
+      final key =
+          IntoChatOSUiClient.screenNeuronKey('', widget.name) ??
+          widget.name.trim();
+      return ('screen', key);
+    }
+    return (widget.kind, widget.name);
+  }
+
+  void _syncWatchForData(Map<String, dynamic> data) {
+    final watch = widget.watch;
+    if (watch == null || (widget.kind != 'view' && widget.kind != 'screen')) {
+      return;
+    }
+    final rawView = data['view'] is Map ? data['view'] as Map : data;
+    final isScreen =
+        rawView['acts'] == 'act' ||
+        widget.kind == 'screen' ||
+        IntoChatOSUiClient.isExplicitScreenAddress(widget.name);
+    if (!isScreen) return;
+    final alias = data['alias'] is String ? data['alias'] as String : null;
+    final screenKey = IntoChatOSUiClient.screenNeuronKey(
+      '',
+      widget.name,
+      alias: alias,
+    );
+    if (screenKey == null) return;
+    if (_watchedKind == 'screen' && _watchedName == screenKey) return;
+    _subscribe(watch, 'screen', screenKey);
+  }
+
+  void _subscribe(
+    Stream<void> Function(String, String) watch,
+    String kind,
+    String name,
+  ) {
+    _resubscribe?.cancel();
+    _resubscribe = null;
     _watch?.cancel();
-    _watch = watch(widget.kind, widget.name).listen(
+    _watchedKind = kind;
+    _watchedName = name;
+    final subGeneration = ++_watchGeneration;
+    _watch = watch(kind, name).listen(
       (_) => _reload(),
-      onError: (Object _) => _reopen(watch),
-      onDone: () => _reopen(watch),
+      onError: (Object _) => _reopen(watch, subGeneration),
+      onDone: () => _reopen(watch, subGeneration),
     );
   }
 
   // A stream that ends or breaks (a proxy idle-close, a silo roll) is reopened after a pause;
   // the pause reads the node once so nothing published meanwhile is missed.
-  void _reopen(Stream<void> Function(String, String) watch) {
-    if (!mounted || _resubscribe != null) return;
+  void _reopen(Stream<void> Function(String, String) watch, int subGeneration) {
+    if (!mounted || subGeneration != _watchGeneration || _resubscribe != null) {
+      return;
+    }
     _resubscribe = Timer(widget.refreshEvery, () {
       _resubscribe = null;
-      if (!mounted) return;
+      if (!mounted || subGeneration != _watchGeneration) return;
       _reload();
-      _subscribe(watch);
+      _subscribe(watch, _watchedKind, _watchedName);
     });
   }
 
@@ -173,7 +221,24 @@ class _ViewHostState extends State<ViewHost> {
       FocusRegistry.instance.register(_focusTarget, _focusKey);
     }
     if (moved || old.revision != widget.revision) _reload();
-    if (moved && widget.watch != null) _subscribe(widget.watch!);
+    if (moved || old.watch != widget.watch) {
+      _timer?.cancel();
+      _timer = null;
+      final watch = widget.watch;
+      if (watch == null) {
+        _resubscribe?.cancel();
+        _resubscribe = null;
+        _watchGeneration++;
+        _watch?.cancel();
+        _watch = null;
+        _watchedKind = '';
+        _watchedName = '';
+        _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
+      } else {
+        final initial = _initialWatchTarget();
+        _subscribe(watch, initial.$1, initial.$2);
+      }
+    }
   }
 
   Future<void> _reload() async {
@@ -192,6 +257,7 @@ class _ViewHostState extends State<ViewHost> {
           _data = data;
           _error = null;
         });
+        _syncWatchForData(data);
       }
     } catch (error) {
       if (mounted &&
@@ -283,20 +349,7 @@ class _ViewHostState extends State<ViewHost> {
       return buildUiNeuronWidget(
         kind: kind,
         neuronKey: key,
-        callNeuron: (contract, targetKey, method, arguments) async {
-          final result = await caller(contract, targetKey, method, arguments);
-          if (method != 'Read' && mounted) {
-            _uiNeuronSync?.cancel();
-            _uiNeuronFollowUp?.cancel();
-            _uiNeuronSync = Timer(const Duration(milliseconds: 90), () {
-              if (mounted) _reload();
-            });
-            _uiNeuronFollowUp = Timer(const Duration(milliseconds: 380), () {
-              if (mounted) _reload();
-            });
-          }
-          return result;
-        },
+        callNeuron: caller,
         watch: widget.watch,
       );
     }
@@ -584,8 +637,7 @@ class _ViewHostState extends State<ViewHost> {
     FocusRegistry.instance.unregister(_focusTarget, _focusKey);
     _timer?.cancel();
     _resubscribe?.cancel();
-    _uiNeuronSync?.cancel();
-    _uiNeuronFollowUp?.cancel();
+    _watchGeneration++;
     _watch?.cancel();
     _events.removeListener(_reload);
     if (widget.events == null) _events.dispose();

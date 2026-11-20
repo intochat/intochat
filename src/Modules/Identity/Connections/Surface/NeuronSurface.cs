@@ -85,7 +85,7 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var normalizedKey = NormalizeBrainPlaceholder(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, normalizedKey).ToString();
+        return ResolveId(type, normalizedKey).ToString();
     }
 
     public async Task<JsonElement?> Call(string contract, string key, string method, string arguments, CancellationToken ct)
@@ -163,7 +163,7 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var normalizedKey = NormalizeBrainPlaceholder(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return DigitalBrain.Contracts.PlainNeuronContracts.Is(type) ? DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, normalizedKey) : null;
+        return DigitalBrain.Contracts.PlainNeuronContracts.Is(type) ? ResolveId(type, normalizedKey) : null;
     }
 
     private string NormalizeBrainPlaceholder(string key)
@@ -228,13 +228,18 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
     {
         if (DigitalBrain.Contracts.PlainNeuronContracts.Is(contract))
         {
-            try { return SiloNeurons.Get(Plain(), contract, DigitalBrain.Contracts.PlainNeuronContracts.IdOf(contract, key)); }
+            try { return SiloNeurons.Get(Plain(), contract, ResolveId(contract, key)); }
             catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.Message}", error); }
         }
-        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [DigitalBrain.Contracts.PlainNeuronContracts.IdOf(contract, key)])!; }
+        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [ResolveId(contract, key)])!; }
         catch (TargetInvocationException error) when (error.InnerException is not null)
         { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
     }
+
+    private static DigitalBrain.NeuronId ResolveId(Type contract, string fullKey)
+        => contract == typeof(IScreen) && DigitalBrain.NeuronId.TryParse(fullKey, out var screenId)
+            ? screenId
+            : DigitalBrain.Contracts.PlainNeuronContracts.IdOf(contract, fullKey);
 
     private IServiceProvider Plain()
         => plain ?? throw new NotSupportedException("This host cannot reach plain neurons: it registers no IPlainNeurons (the silo's kernel composition does).");

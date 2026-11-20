@@ -1,7 +1,8 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
-import 'package:intochat_os_flutter_shell/workspace/application_surface.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -106,5 +107,211 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Ready'), findsOneWidget);
     expect(attempts, 2);
+    await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'ApplicationSurface subscribes IScreen views to DigitalBrain.IScreen ViewChanged via NeuronWatchMux and coalesces mid-flight pushes',
+    (tester) async {
+      var activeStage = 'plan';
+      var generation = 0;
+      var nodeReads = 0;
+      Completer<void>? holdNextRead;
+      final link = _ScreenWatchTestLink();
+
+      final client = IntoChatOSUiClient(
+        baseUri: Uri.parse('http://test'),
+        httpClient: MockClient((request) async {
+          nodeReads++;
+          if (holdNextRead != null) {
+            final barrier = holdNextRead!;
+            holdNextRead = null;
+            await barrier.future;
+          }
+          generation++;
+          return http.Response(
+            jsonEncode({
+              'alias': 'app.engineer',
+              'generation': generation,
+              'view': {
+                'title': 'IntoChat Engineer',
+                'acts': 'act',
+                'root': {
+                  'kind': 'column',
+                  'children': [
+                    {'kind': 'text', 'value': 'Stage:$activeStage'},
+                    {
+                      'kind': 'neuronRef',
+                      'refKind': 'ui.stepper',
+                      'neuronUri': 'engineer/stepper',
+                    },
+                  ],
+                },
+              },
+            }),
+            200,
+          );
+        }),
+      )..link = link;
+      addTearDown(client.close);
+
+      link.onCall = (brainId, contract, key, method, arguments) async {
+        if (contract.endsWith('IStepper') && method == 'Advance') {
+          activeStage = 'verify';
+        }
+        return {
+          'version': nodeReads + 1,
+          'title': 'Pipeline',
+          'activeStepId': activeStage,
+          'allowInteractiveSelection': true,
+          'steps': [
+            {'id': 'plan', 'title': 'Plan', 'status': 'done'},
+            {'id': 'verify', 'title': 'Verify', 'status': 'active'},
+          ],
+        };
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            useMaterial3: true,
+            extensions: [
+              IcColors.forPreset(IcStylePreset.warmPaper, dark: false),
+            ],
+          ),
+          home: Scaffold(
+            body: ApplicationSurface(
+              knowsApp: (_) => true,
+              client: client,
+              workspace: 'owner',
+              application: 'engineer',
+              start: () async => {
+                'kind': 'view',
+                'name': 'owner/apps/engineer/view',
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Allow NeuronWatchMux's 50ms chunk debounce to open the Watch stream.
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(find.text('Stage:plan'), findsOneWidget);
+      expect(nodeReads, 1);
+      expect(
+        link.openedSources.last.any(
+          (s) =>
+              s.contract == 'DigitalBrain.IScreen' &&
+              s.key == 'owner/app.engineer/default' &&
+              s.types.length == 1 &&
+              s.types.single == 'ViewChanged',
+        ),
+        isTrue,
+      );
+
+      // Mutate child IStepper: without ViewChanged push, no timer reloads the parent IScreen.
+      await tester.tap(find.text('Advance'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(nodeReads, 1);
+      expect(find.text('Stage:plan'), findsOneWidget);
+
+      // Hold reload #2 in flight and emit a second ViewChanged push mid-reload.
+      final gate = Completer<void>();
+      holdNextRead = gate;
+      link.emitScreenChanged('owner/app.engineer/default', sequence: 2);
+      await tester.pump();
+      expect(nodeReads, 2);
+
+      // Second ViewChanged arrives while reload #2 is still in flight.
+      activeStage = 'pr';
+      link.emitScreenChanged('owner/app.engineer/default', sequence: 3);
+      await tester.pump();
+      expect(nodeReads, 2);
+
+      // Release reload #2 -> ViewHost completes #2 and immediately fetches #3 ('Stage:pr').
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(nodeReads, 3);
+      expect(find.text('Stage:pr'), findsOneWidget);
+
+      // Dispose ApplicationSurface: NeuronWatchMux closes its stream with zero leaks.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(client.watches('owner').openStreams, 0);
+      expect(link.activeStreams, 0);
+    },
+  );
+}
+
+final class _ScreenWatchTestLink implements NeuronLink {
+  final openedSources = <List<WatchSourceSpec>>[];
+  int activeStreams = 0;
+  Future<Map<String, dynamic>?> Function(
+    String brainId,
+    String contract,
+    String key,
+    String method,
+    List<Object?> arguments,
+  )?
+  onCall;
+
+  final _events = StreamController<NeuronSignal>.broadcast();
+
+  void emitScreenChanged(String key, {required int sequence}) {
+    _events.add(
+      NeuronSignal(
+        source: key,
+        type: 'ViewChanged',
+        publisher: key,
+        sequence: sequence,
+        payload: {'alias': 'app.engineer', 'generation': sequence},
+        serverTimeMs: 0,
+      ),
+    );
+  }
+
+  @override
+  Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources) {
+    openedSources.add(List.unmodifiable(sources));
+    late StreamController<NeuronSignal> controller;
+    StreamSubscription<NeuronSignal>? sub;
+    controller = StreamController<NeuronSignal>(
+      onListen: () {
+        activeStreams++;
+        sub = _events.stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+      },
+      onCancel: () async {
+        activeStreams--;
+        await sub?.cancel();
+      },
+    );
+    return controller.stream;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> call(
+    String brainId,
+    String contract,
+    String key,
+    String method,
+    List<Object?> arguments,
+  ) async => onCall?.call(brainId, contract, key, method, arguments);
+
+  @override
+  Future<dynamic> readState(
+    String brainId,
+    String contract,
+    String key, {
+    Duration? timeout,
+  }) async => null;
+
+  @override
+  Future<void> shutdown() async {
+    await _events.close();
+  }
 }
