@@ -98,7 +98,7 @@ public sealed class TestHome : IDisposable
             if (File.Exists(presenceFilePath))
             {
                 var bytes = await File.ReadAllBytesAsync(presenceFilePath, ct).ConfigureAwait(false);
-                if (bytes.Length >= PresenceProofValidator.SecretByteCount)
+                if (bytes.Length >= PresenceProof.SecretByteCount)
                 {
                     var isPrintableAscii = bytes.All(static b => b is (byte)'\r' or (byte)'\n' or (byte)'\t' || b is >= 0x21 and <= 0x7E);
                     return isPrintableAscii

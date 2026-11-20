@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections.Platform.Entries;
 

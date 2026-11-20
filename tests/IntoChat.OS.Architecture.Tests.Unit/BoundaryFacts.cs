@@ -13,7 +13,7 @@ public sealed class BoundaryFacts
     // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "IntoChat.OS", "IntoChat.OS.Host", "IntoChat.OS.Modules.Identity"
+        "DigitalBrain", "IntoChat.OS", "IntoChat.OS.Host", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.Identity"
     ];
 
     [Theory]
@@ -71,6 +71,7 @@ public sealed class BoundaryFacts
         {
             foreach (var implementation in runtime)
             {
+                if (IdentityContractsMayUseTheHostLayer(contract, implementation)) { continue; }
                 ArchRuleDefinition.Types().That().ResideInAssembly(contract).Should()
                     .NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(implementation))
                     .Check(ProductionArchitecture.Graph.Value);
@@ -105,6 +106,17 @@ public sealed class BoundaryFacts
         }
     }
 
+    // Owner decision 2026-11-20 (identity break-up, option A): the OS primitives live in the host layer, and the identity
+    // contracts use them (ShippedGrants builds the assistant's key with AppRef). Scripts never see either: the sandbox
+    // refuses every IntoChat.OS.Modules.Identity* assembly, which this exemption checks before it applies.
+    private static bool IdentityContractsMayUseTheHostLayer(System.Reflection.Assembly contract, System.Reflection.Assembly implementation)
+    {
+        if (contract.GetName().Name != "IntoChat.OS.Modules.Identity.Contracts" || implementation.GetName().Name != "IntoChat.OS.Host") { return false; }
+        var guard = File.ReadAllText(Path.Combine(Repository.ProjectNamed("IntoChat.OS.Sandbox").Directory, "AppLoadContext.cs"));
+        Assert.Contains("\"IntoChat.OS.Modules.Identity\",", guard, StringComparison.Ordinal);
+        return true;
+    }
+
     [Fact]
     public void CredentialAndIdentityContractsResideInPlatformContracts()
     {
@@ -113,7 +125,7 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(IIdentityDirectory).Assembly, typeof(IntoChat.OS.Host.Modules.OsModule).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(IIdentityDirectory).Assembly, typeof(IIntegration).Assembly, typeof(IntoChat.OS.Host.Modules.OsModule).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }

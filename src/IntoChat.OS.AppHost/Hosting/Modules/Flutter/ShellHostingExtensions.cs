@@ -86,11 +86,11 @@ public static class ShellHostingExtensions
         private IResourceBuilder<IResourceWithEndpoints>? _front;
         private EndpointReference? _firstKernel;
 
-        private string PresenceTokenHash => _presenceTokenHash ??= PresenceProofValidator.ComputeTokenHash(_presenceToken);
+        private string PresenceTokenHash => _presenceTokenHash ??= PresenceProof.ComputeTokenHash(_presenceToken);
 
         private static string MintPresenceToken(out byte[] rawBytes)
         {
-            rawBytes = RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
+            rawBytes = RandomNumberGenerator.GetBytes(PresenceProof.SecretByteCount);
             return Base64Url.EncodeToString(rawBytes);
         }
 
@@ -334,7 +334,7 @@ public static class ShellHostingExtensions
                 return;
             }
 
-            builder.WithEnvironment(PresenceProofValidator.TokenHashEnvironmentVariable, PresenceTokenHash);
+            builder.WithEnvironment(PresenceProof.TokenHashEnvironmentVariable, PresenceTokenHash);
             var corsOrigin = ModuleConfiguration.EnvironmentName(IntoChat.OS.Host.Http.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Host.Http.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)

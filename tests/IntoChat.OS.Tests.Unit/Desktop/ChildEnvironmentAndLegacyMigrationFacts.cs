@@ -28,7 +28,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
         start.Environment[IntoChatOSNames.MasterKeyEnvironmentVariable] = "secret-master-key";
         start.Environment[AzureInstaller.MasterKeyVariable] = "secret-azure-master-key";
         start.Environment[DesktopBootstrap.PresenceTokenEnvVar] = "secret-presence-token";
-        start.Environment[PresenceProofValidator.TokenHashEnvironmentVariable] = "deadbeef";
+        start.Environment[PresenceProof.TokenHashEnvironmentVariable] = "deadbeef";
         start.Environment["APP_SECRET"] = "top-secret";
         start.Environment["SERVICE_API_KEY"] = "key-value";
         start.Environment["DB_PASSWORD"] = "pw-value";
@@ -40,7 +40,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
         Assert.False(start.Environment.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
         Assert.False(start.Environment.ContainsKey(AzureInstaller.MasterKeyVariable));
         Assert.False(start.Environment.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
-        Assert.False(start.Environment.ContainsKey(PresenceProofValidator.TokenHashEnvironmentVariable));
+        Assert.False(start.Environment.ContainsKey(PresenceProof.TokenHashEnvironmentVariable));
         Assert.False(start.Environment.ContainsKey("APP_SECRET"));
         Assert.False(start.Environment.ContainsKey("SERVICE_API_KEY"));
         Assert.False(start.Environment.ContainsKey("DB_PASSWORD"));
@@ -85,10 +85,10 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 .AddJsonFile(configPath, optional: false, reloadOnChange: false)
                 .Build();
             Assert.Equal(masterKey, kernelConfig[IntoChatOSNames.MasterKeyConfigurationKey]);
-            Assert.Equal(layout.PresenceFilePath, kernelConfig[PresenceProofValidator.TokenFileConfigurationKey]);
+            Assert.Equal(layout.PresenceFilePath, kernelConfig[PresenceProof.TokenFileConfigurationKey]);
             Assert.Equal(
-                PresenceProofValidator.ComputeTokenHash(presenceToken),
-                kernelConfig[PresenceProofValidator.TokenHashConfigurationKey]);
+                PresenceProof.ComputeTokenHash(presenceToken),
+                kernelConfig[PresenceProof.TokenHashConfigurationKey]);
 
             var shellStart = DesktopBootstrap.BuildShellStartInfo(
                 Path.Combine(tempDir.FullName, "shell"),
@@ -153,7 +153,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [IntoChatOSNames.MasterKeyConfigurationKey] = "host-master-secret",
-                [PresenceProofValidator.TokenHashConfigurationKey] = "host-presence-hash",
+                [PresenceProof.TokenHashConfigurationKey] = "host-presence-hash",
                 [DesktopBootstrap.PresenceTokenEnvVar] = "host-presence-secret",
                 ["IntoChatOS:Home"] = "/live/home",
             })
@@ -170,21 +170,21 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
         var mcpEnv = host.McpEnvironment("abc1234");
         Assert.False(mcpEnv.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
         Assert.False(mcpEnv.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
-        Assert.False(mcpEnv.ContainsKey(PresenceProofValidator.TokenHashEnvironmentVariable));
+        Assert.False(mcpEnv.ContainsKey(PresenceProof.TokenHashEnvironmentVariable));
 
         var siloEnv = host.Environment("abc1234", new Dictionary<string, string>(), "pg-pw", "ch-pw");
         Assert.True(siloEnv.TryGetValue(IntoChatOSNames.MasterKeyEnvironmentVariable, out var candidateKey));
         Assert.NotEqual("host-master-secret", candidateKey);
         Assert.False(siloEnv.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
-        Assert.False(siloEnv.ContainsKey(PresenceProofValidator.TokenHashEnvironmentVariable));
+        Assert.False(siloEnv.ContainsKey(PresenceProof.TokenHashEnvironmentVariable));
     }
 
     [Fact]
     public void PresenceProofValidator_VerifiesByHashOnly_AndIgnoresEnvVarTokenReader()
     {
-        var secret = RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
+        var secret = RandomNumberGenerator.GetBytes(PresenceProof.SecretByteCount);
         var token = System.Buffers.Text.Base64Url.EncodeToString(secret);
-        var hash = PresenceProofValidator.ComputeTokenHash(secret);
+        var hash = PresenceProof.ComputeTokenHash(secret);
 
         var previousEnv = Environment.GetEnvironmentVariable(DesktopBootstrap.PresenceTokenEnvVar);
         try
@@ -195,7 +195,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    [PresenceProofValidator.TokenHashConfigurationKey] = hash,
+                    [PresenceProof.TokenHashConfigurationKey] = hash,
                     [DesktopBootstrap.PresenceTokenEnvVar] = "env-spoof-token-0000000000000000000",
                 })
                 .Build();
@@ -219,7 +219,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
             ctx.Connection.RemoteIpAddress = IPAddress.Loopback;
             Assert.False(RuntimeShutdownEndpoints.HasValidPresenceProof(ctx.Request, validator));
 
-            ctx.Request.Headers[PresenceProofValidator.HeaderName] = token;
+            ctx.Request.Headers[PresenceProof.HeaderName] = token;
             Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(ctx.Request, validator));
         }
         finally
@@ -267,7 +267,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 foreach (var cb in silo.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(siloCtx); }
 
                 Assert.False(siloEnv.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
-                Assert.True(siloEnv.TryGetValue(PresenceProofValidator.TokenHashEnvironmentVariable, out var hashObj));
+                Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
                 var shellResource = Assert.Single(builder.Resources.OfType<ExecutableResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
@@ -278,7 +278,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 var definePrefix = ShellHostingExtensions.PresenceDartDefinePrefix;
                 var defineArg = Assert.Single(shellArgs.OfType<string>(), a => a.StartsWith(definePrefix, StringComparison.Ordinal));
                 var shellToken = defineArg[definePrefix.Length..];
-                Assert.Equal(expectedHash, PresenceProofValidator.ComputeTokenHash(shellToken));
+                Assert.Equal(expectedHash, PresenceProof.ComputeTokenHash(shellToken));
 
                 var shellEnv = new Dictionary<string, object> { [IntoChatOSNames.MasterKeyEnvironmentVariable] = "ambient-mk", [DesktopBootstrap.PresenceTokenEnvVar] = "ambient-pt" };
                 var shellCtx = new EnvironmentCallbackContext(builder.ExecutionContext, shellResource, shellEnv, TestContext.Current.CancellationToken);
@@ -305,7 +305,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 var siloCtx = new EnvironmentCallbackContext(builder.ExecutionContext, silo.Resource, siloEnv, TestContext.Current.CancellationToken);
                 foreach (var cb in silo.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(siloCtx); }
 
-                Assert.True(siloEnv.TryGetValue(PresenceProofValidator.TokenHashEnvironmentVariable, out var hashObj));
+                Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
                 var shellResource = Assert.Single(builder.Resources, r => r.Name == ShellNames.DefaultFlutterResourceName);
@@ -313,7 +313,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
                 Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in browser path '{browser.Path}'.");
                 var fragmentToken = browser.Path[(fragmentIndex + "#presence=".Length)..];
-                Assert.Equal(expectedHash, PresenceProofValidator.ComputeTokenHash(fragmentToken));
+                Assert.Equal(expectedHash, PresenceProof.ComputeTokenHash(fragmentToken));
             }
 
             // WebContainer mode check
@@ -334,7 +334,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 var siloCtx = new EnvironmentCallbackContext(builder.ExecutionContext, silo.Resource, siloEnv, TestContext.Current.CancellationToken);
                 foreach (var cb in silo.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(siloCtx); }
 
-                Assert.True(siloEnv.TryGetValue(PresenceProofValidator.TokenHashEnvironmentVariable, out var hashObj));
+                Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
                 var shellContainer = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
@@ -342,7 +342,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
                 var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
                 Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in container browser path '{browser.Path}'.");
                 var fragmentToken = browser.Path[(fragmentIndex + "#presence=".Length)..];
-                Assert.Equal(expectedHash, PresenceProofValidator.ComputeTokenHash(fragmentToken));
+                Assert.Equal(expectedHash, PresenceProof.ComputeTokenHash(fragmentToken));
 
                 var containerEnv = new Dictionary<string, object> { [IntoChatOSNames.MasterKeyEnvironmentVariable] = "ambient-mk", [DesktopBootstrap.PresenceTokenEnvVar] = "ambient-pt" };
                 var containerCtx = new EnvironmentCallbackContext(builder.ExecutionContext, shellContainer, containerEnv, TestContext.Current.CancellationToken);

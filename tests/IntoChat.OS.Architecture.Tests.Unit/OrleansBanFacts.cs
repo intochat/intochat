@@ -20,6 +20,7 @@ public sealed class OrleansBanFacts
         "IntoChat.OS",
         "IntoChat.OS.Host",
         "IntoChat.OS.Modules.Identity",
+        "IntoChat.OS.Modules.Identity.Contracts",
         "IntoChat.OS.Kernel",
     ];
 

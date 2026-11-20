@@ -1,5 +1,4 @@
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections.Identity.Configuration;
 

@@ -35,6 +35,8 @@ public sealed class IdentityFixture : BothRuntimesFixture
     {
         services.AddJournalPayloads(typeof(Grant).Assembly);
         services.AddJournalPayloads(typeof(IdentityModule).Assembly);
+        // The module's signals (GrantsChanged, ContactsChanged) live in its contracts assembly, which a host registers through IdentityModule.Contracts.
+        services.AddJournalPayloads(typeof(IntoChat.OS.Authority.Identity.Grants.GrantsChanged).Assembly);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions
         {

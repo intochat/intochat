@@ -230,7 +230,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
     {
         var path = $"/brains/{harness.Scope}{relativeBrainRoute}";
         using var request = new HttpRequestMessage(method, path);
-        request.Headers.Add(PresenceProofValidator.HeaderName, harness.PresenceToken);
+        request.Headers.Add(PresenceProof.HeaderName, harness.PresenceToken);
         if (body is not null)
         {
             request.Content = JsonContent.Create(body);

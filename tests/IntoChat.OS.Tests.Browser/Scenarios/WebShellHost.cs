@@ -46,7 +46,7 @@ public sealed class WebShellHost : IAsyncLifetime
     public HttpClient CreateKernelClient()
     {
         var client = App.CreateHttpClient("OperatingSystem-a", "http");
-        client.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProofValidator.HeaderName, _presence);
+        client.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProof.HeaderName, _presence);
         return client;
     }
 

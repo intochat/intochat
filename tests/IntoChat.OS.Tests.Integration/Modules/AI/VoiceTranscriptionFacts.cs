@@ -42,7 +42,7 @@ public sealed class VoiceTranscriptionFacts
         {
             Content = new ByteArrayContent([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00]),
         };
-        rawRequest.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        rawRequest.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         rawRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
 
         using var rawResponse = await host.Client.SendAsync(rawRequest, Ct);
@@ -62,7 +62,7 @@ public sealed class VoiceTranscriptionFacts
         {
             Content = multipart,
         };
-        multipartRequest.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        multipartRequest.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
 
         using var multipartResponse = await host.Client.SendAsync(multipartRequest, Ct);
         Assert.Equal(HttpStatusCode.OK, multipartResponse.StatusCode);
@@ -79,7 +79,7 @@ public sealed class VoiceTranscriptionFacts
         {
             Content = new ByteArrayContent([0x52, 0x49, 0x46, 0x46]),
         };
-        request.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        request.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
 
         using var response = await host.Client.SendAsync(request, Ct);
@@ -176,7 +176,7 @@ public sealed class VoiceTranscriptionFacts
         {
             Content = new ByteArrayContent([1, 2, 3, 4]),
         };
-        request.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        request.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
 
         using var response = await host.Client.SendAsync(request, Ct);
@@ -220,7 +220,7 @@ public sealed class VoiceTranscriptionFacts
         {
             Content = new ByteArrayContent([]),
         };
-        emptyReq.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        emptyReq.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         using var emptyRes = await host.Client.SendAsync(emptyReq, Ct);
         Assert.Equal(HttpStatusCode.BadRequest, emptyRes.StatusCode);
 
@@ -228,7 +228,7 @@ public sealed class VoiceTranscriptionFacts
         {
             Content = new ByteArrayContent([1, 2, 3, 4]),
         };
-        badNameReq.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        badNameReq.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         using var badNameRes = await host.Client.SendAsync(badNameReq, Ct);
         Assert.Equal(HttpStatusCode.BadRequest, badNameRes.StatusCode);
         Assert.Equal(0, stub.Calls);

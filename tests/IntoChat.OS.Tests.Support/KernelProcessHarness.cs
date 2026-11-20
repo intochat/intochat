@@ -109,11 +109,11 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
         var brainId = AccountSession.DefaultLogin;
         var scope = BrainScope.Create(brainId, brainId).Id;
         var masterKey = home.LoadOrCreateSealedMasterKey();
-        var presenceToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount))
+        var presenceToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(PresenceProof.SecretByteCount))
             .TrimEnd('=')
             .Replace('+', '-')
             .Replace('/', '_');
-        var presenceHash = PresenceProofValidator.ComputeTokenHash(presenceToken);
+        var presenceHash = PresenceProof.ComputeTokenHash(presenceToken);
 
         WriteRestrictedFile(home.PresenceFilePath, Encoding.UTF8.GetBytes(presenceToken));
         WriteKernelConfigurationFile(home, options, masterKey, presenceHash);
@@ -288,7 +288,7 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
         };
         if (withPresence)
         {
-            client.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, PresenceToken);
+            client.DefaultRequestHeaders.Add(PresenceProof.HeaderName, PresenceToken);
         }
 
         return client;
@@ -368,7 +368,7 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
             BaseAddress = baseAddress,
             Timeout = TimeSpan.FromSeconds(5),
         };
-        probeClient.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, presenceToken);
+        probeClient.DefaultRequestHeaders.Add(PresenceProof.HeaderName, presenceToken);
 
         var deadline = DateTimeOffset.UtcNow + timeout;
         Exception? lastFailure = null;
@@ -491,8 +491,8 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
     {
         var root = new JsonObject();
         SetNestedValue(root, IntoChatOSNames.MasterKeyConfigurationKey, masterKey);
-        SetNestedValue(root, PresenceProofValidator.TokenFileConfigurationKey, home.PresenceFilePath);
-        SetNestedValue(root, PresenceProofValidator.TokenHashConfigurationKey, presenceHash);
+        SetNestedValue(root, PresenceProof.TokenFileConfigurationKey, home.PresenceFilePath);
+        SetNestedValue(root, PresenceProof.TokenHashConfigurationKey, presenceHash);
 
         if (options.OllamaEndpoint is not null)
         {

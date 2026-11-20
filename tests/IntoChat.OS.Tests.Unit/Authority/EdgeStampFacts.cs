@@ -33,7 +33,7 @@ public sealed class EdgeStampFacts
         var proof = new PresenceProofValidator(RandomNumberGenerator.GetBytes(32));
         var services = new ServiceCollection().AddSingleton<IPresenceProof>(proof).AddSingleton(os.Edge).BuildServiceProvider();
         var http = new DefaultHttpContext { RequestServices = services };
-        http.Request.Headers[PresenceProofValidator.HeaderName] = proof.Token;
+        http.Request.Headers[PresenceProof.HeaderName] = proof.Token;
         var mcp = new McpCaller(new HttpContextAccessor { HttpContext = http }, Options.Create(new AuthOptions { Posture = IdentityPosture.Open }), os, os.Edge);
 
         var stamped = mcp.Stamp(NeuronSurfaceTools.CallName);

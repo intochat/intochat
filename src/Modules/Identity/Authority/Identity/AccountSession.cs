@@ -157,7 +157,7 @@ public static class AccountSession
         }
 
         var presenceProof = context.RequestServices?.GetService<IPresenceProof>();
-        if (context.Request.Headers.TryGetValue(PresenceProofValidator.HeaderName, out var presenceHeaders) && presenceHeaders.Count > 0)
+        if (context.Request.Headers.TryGetValue(PresenceProof.HeaderName, out var presenceHeaders) && presenceHeaders.Count > 0)
         {
             if (presenceHeaders.Count == 1
                 && presenceProof is not null
@@ -171,7 +171,7 @@ public static class AccountSession
             return null;
         }
 
-        if (context.Request.Cookies.TryGetValue(PresenceProofValidator.CookieName, out var presenceCookie)
+        if (context.Request.Cookies.TryGetValue(PresenceProof.CookieName, out var presenceCookie)
             && !string.IsNullOrEmpty(presenceCookie))
         {
             if (presenceProof is not null
@@ -213,7 +213,7 @@ public static class AccountSession
 
         // The login and session endpoints exist to establish the session the gate would require.
         var requested = request.Path.Value?.ToLowerInvariant();
-        if (requested is "/identity/session" or "/identity/logout" or PresenceProofValidator.ExchangePath)
+        if (requested is "/identity/session" or "/identity/logout" or PresenceProof.ExchangePath)
         {
             return true;
         }

@@ -73,7 +73,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         Assert.Equal(HttpStatusCode.Unauthorized, appsDenied.StatusCode);
 
         using var forged = host.Host.CreateClient(withPresence: false);
-        forged.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, "forged-presence-proof");
+        forged.DefaultRequestHeaders.Add(PresenceProof.HeaderName, "forged-presence-proof");
         using var screenDenied = await forged.GetAsync($"/brains/{host.Scope}/screens/ino", Ct);
         Assert.Equal(HttpStatusCode.Unauthorized, screenDenied.StatusCode);
 

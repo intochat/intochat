@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using DigitalBrain.Runtime.Orleans;
+using static IntoChat.OS.Authority.Identity.PresenceProof;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 
@@ -30,18 +31,7 @@ public interface IPresenceProof
 
 public sealed class PresenceProofValidator : IPresenceProof
 {
-    public const string HeaderName = "X-IntoChat-Presence";
-    public const string LegacyHeaderName = "X-Presence-Token";
-    public const string CookieName = "IntoChatPresence";
     public static readonly RuntimeOptions DefaultRuntimeOptions = new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" };
-    public const string ExchangePath = "/auth/local-presence";
-    public const string ConfigurationKey = "IntoChatOS:Authority:PresenceToken";
-    public const string TokenHashConfigurationKey = "IntoChatOS:Security:PresenceTokenHash";
-    public const string TokenHashEnvironmentVariable = "IntoChatOS__Security__PresenceTokenHash";
-    public const string TokenFileConfigurationKey = "IntoChatOS:Security:PresenceTokenFile";
-    public const int SecretByteCount = 32;
-    private const int MinimumUtf8SecretBytes = 16;
-    private const int MaxCandidateChars = 512;
 
     private static readonly byte[] CookieContext = "intochat-local-presence-cookie-v1"u8.ToArray();
 
@@ -75,36 +65,6 @@ public sealed class PresenceProofValidator : IPresenceProof
 
     public string Token => _canonicalToken
         ?? throw new InvalidOperationException("Plaintext presence token is unavailable when configured by hash.");
-
-    public static string ComputeTokenHash(ReadOnlySpan<byte> rawSecretBytes)
-    {
-        if (rawSecretBytes.Length < MinimumUtf8SecretBytes)
-        {
-            throw new ArgumentException($"Presence secret must be at least {MinimumUtf8SecretBytes} bytes.", nameof(rawSecretBytes));
-        }
-
-        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
-        SHA256.HashData(rawSecretBytes, digest);
-        return Convert.ToHexStringLower(digest);
-    }
-
-    public static string ComputeTokenHash(string token)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(token);
-        var trimmed = token.AsSpan().Trim();
-        if (trimmed.Length is 0 or > MaxCandidateChars)
-        {
-            throw new ArgumentException("Presence token length is out of bounds.", nameof(token));
-        }
-
-        Span<byte> extracted = stackalloc byte[Encoding.UTF8.GetMaxByteCount(trimmed.Length)];
-        if (!TryExtractSecretBytes(trimmed, extracted, out var len))
-        {
-            throw new ArgumentException("Presence token does not contain valid secret material.", nameof(token));
-        }
-
-        return ComputeTokenHash(extracted[..len]);
-    }
 
     public string IssueCookieValue() => Encoding.UTF8.GetString(_cookieHmacUtf8);
 
@@ -422,70 +382,6 @@ public sealed class PresenceProofValidator : IPresenceProof
             }
 
             if (b is < 0x21 or > 0x7E)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryExtractSecretBytes(ReadOnlySpan<char> text, Span<byte> destination, out int bytesWritten)
-    {
-        if (TryDecodeSecretBytes(text, destination, out bytesWritten))
-        {
-            return true;
-        }
-
-        var utf8ByteCount = Encoding.UTF8.GetByteCount(text);
-        if (utf8ByteCount >= MinimumUtf8SecretBytes && utf8ByteCount <= destination.Length)
-        {
-            bytesWritten = Encoding.UTF8.GetBytes(text, destination);
-            return true;
-        }
-
-        bytesWritten = 0;
-        return false;
-    }
-
-    private static bool TryDecodeSecretBytes(ReadOnlySpan<char> text, Span<byte> destination, out int bytesWritten)
-    {
-        bytesWritten = 0;
-
-        // Hex (64+ hex chars -> >= 32 bytes)
-        if (text.Length >= SecretByteCount * 2 && text.Length % 2 == 0 && IsHex(text))
-        {
-            var status = Convert.FromHexString(text, destination, out _, out bytesWritten);
-            if (status == System.Buffers.OperationStatus.Done && bytesWritten >= SecretByteCount)
-            {
-                return true;
-            }
-        }
-
-        // Base64Url
-        if (Base64Url.IsValid(text))
-        {
-            if (Base64Url.TryDecodeFromChars(text, destination, out bytesWritten) && bytesWritten >= SecretByteCount)
-            {
-                return true;
-            }
-        }
-
-        // Standard Base64
-        if (Convert.TryFromBase64Chars(text, destination, out bytesWritten) && bytesWritten >= SecretByteCount)
-        {
-            return true;
-        }
-
-        bytesWritten = 0;
-        return false;
-    }
-
-    private static bool IsHex(ReadOnlySpan<char> chars)
-    {
-        foreach (var c in chars)
-        {
-            if (!Uri.IsHexDigit(c))
             {
                 return false;
             }

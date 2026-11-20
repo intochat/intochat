@@ -715,7 +715,7 @@ public sealed class SandboxEndToEndIntegrationFacts
 
                 kernelClient = new HttpClient { BaseAddress = new Uri(kernelUrl, UriKind.Absolute) };
                 var presence = kernelApp.Services.GetRequiredService<IntoChat.OS.Authority.Identity.IPresenceProof>();
-                kernelClient.DefaultRequestHeaders.Add(IntoChat.OS.Authority.Identity.PresenceProofValidator.HeaderName, presence.Token);
+                kernelClient.DefaultRequestHeaders.Add(IntoChat.OS.Authority.Identity.PresenceProof.HeaderName, presence.Token);
                 var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
                 var ready = false;

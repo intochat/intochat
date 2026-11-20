@@ -100,7 +100,7 @@ public sealed class LocalOwnerJournalTailFacts
         }
         else if (proof is not null)
         {
-            request.Headers.Add(PresenceProofValidator.HeaderName, proof.Token);
+            request.Headers.Add(PresenceProof.HeaderName, proof.Token);
         }
         return request;
     }

@@ -73,6 +73,7 @@
   <Project Path="src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
   <Project Path="src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
   <Project Path="src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
+  <Project Path="src/Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
   <Project Path="src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
   <Project Path="src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
   <Project Path="src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />

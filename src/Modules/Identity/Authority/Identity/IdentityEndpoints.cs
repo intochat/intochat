@@ -31,7 +31,7 @@ internal static class IdentityEndpoints
     public static void Map(IEndpointRouteBuilder routes)
     {
         routes.MapGet(AccountSession.CheckPath, static () => Results.NoContent());
-        routes.MapPost(PresenceProofValidator.ExchangePath, ExchangeLocalPresence);
+        routes.MapPost(PresenceProof.ExchangePath, ExchangeLocalPresence);
         if (routes.ServiceProvider.GetRequiredService<IOptions<IdentityHostOptions>>().Value.BuiltInPasswordEndpoints)
         {
             // Registration gives a visitor an owner account of their own, so it exists on loopback only (NetworkSignIn).
@@ -185,7 +185,7 @@ internal static class IdentityEndpoints
         }
 
         http.Response.Cookies.Append(
-            PresenceProofValidator.CookieName,
+            PresenceProof.CookieName,
             proof.IssueCookieValue(),
             new CookieOptions
             {
@@ -200,7 +200,7 @@ internal static class IdentityEndpoints
 
     private static async Task<IResult> LogoutAsync(HttpContext http, [FromServices] ISessionIssuer issuer)
     {
-        http.Response.Cookies.Delete(PresenceProofValidator.CookieName, new CookieOptions { Path = "/", SameSite = SameSiteMode.Strict });
+        http.Response.Cookies.Delete(PresenceProof.CookieName, new CookieOptions { Path = "/", SameSite = SameSiteMode.Strict });
         await issuer.EndAsync(http);
         return Results.NoContent();
     }

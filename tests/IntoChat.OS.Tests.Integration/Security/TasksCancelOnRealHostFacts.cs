@@ -49,7 +49,7 @@ public sealed class TasksCancelOnRealHostFacts
         Accepted(await Send(host, "/apps/tasks/request", new { operation = "open", input = "{}" }, presence: true));
 
         using var mcpHttp = new HttpClient { BaseAddress = host.BaseAddress };
-        mcpHttp.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        mcpHttp.DefaultRequestHeaders.Add(PresenceProof.HeaderName, host.PresenceToken);
         await using var mcp = await McpClient.CreateAsync(
             new HttpClientTransport(new HttpClientTransportOptions
             {
@@ -218,7 +218,7 @@ public sealed class TasksCancelOnRealHostFacts
     private static async Task<(HttpStatusCode Status, string Body)> Send(EdgeKernelHarness host, string route, object body, bool presence)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/brains/{host.Scope}{route}") { Content = JsonContent.Create(body) };
-        if (presence) { request.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken); }
+        if (presence) { request.Headers.Add(PresenceProof.HeaderName, host.PresenceToken); }
         using var response = await host.Client.SendAsync(request, Ct);
         return (response.StatusCode, await response.Content.ReadAsStringAsync(Ct));
     }
@@ -229,7 +229,7 @@ public sealed class TasksCancelOnRealHostFacts
     private static async Task<(HttpStatusCode Status, string Body)> Get(EdgeKernelHarness host, string route)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/brains/{host.Scope}{route}");
-        request.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        request.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         using var response = await host.Client.SendAsync(request, Ct);
         return (response.StatusCode, await response.Content.ReadAsStringAsync(Ct));
     }

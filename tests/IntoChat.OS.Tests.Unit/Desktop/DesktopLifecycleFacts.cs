@@ -218,7 +218,7 @@ public sealed class DesktopLifecycleFacts
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [PresenceProofValidator.TokenHashConfigurationKey] = PresenceProofValidator.ComputeTokenHash(validToken),
+                [PresenceProof.TokenHashConfigurationKey] = PresenceProof.ComputeTokenHash(validToken),
             })
             .Build();
 
@@ -237,16 +237,16 @@ public sealed class DesktopLifecycleFacts
         Assert.False(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, proof));
 
         // Wrong token -> rejected.
-        loopbackCtx.Request.Headers[PresenceProofValidator.LegacyHeaderName] = DesktopBootstrap.GeneratePresenceToken();
+        loopbackCtx.Request.Headers[PresenceProof.LegacyHeaderName] = DesktopBootstrap.GeneratePresenceToken();
         Assert.False(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, proof));
 
         // Exact X-Presence-Token -> accepted.
-        loopbackCtx.Request.Headers[PresenceProofValidator.LegacyHeaderName] = validToken;
+        loopbackCtx.Request.Headers[PresenceProof.LegacyHeaderName] = validToken;
         Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, proof));
 
         // Exact X-IntoChat-Presence -> accepted.
         var canonicalCtx = new DefaultHttpContext();
-        canonicalCtx.Request.Headers[PresenceProofValidator.HeaderName] = validToken;
+        canonicalCtx.Request.Headers[PresenceProof.HeaderName] = validToken;
         Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(canonicalCtx.Request, proof));
 
         // Authorization: Bearer <token> -> accepted.

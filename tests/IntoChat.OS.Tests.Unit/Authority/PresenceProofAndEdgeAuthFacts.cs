@@ -105,14 +105,14 @@ public sealed class PresenceProofAndEdgeAuthFacts
         // 2. Forged X-IntoChat-Presence header -> 401 Unauthorized
         using (var forgedReq = new HttpRequestMessage(HttpMethod.Get, "/probe/caller"))
         {
-            forgedReq.Headers.Add(PresenceProofValidator.HeaderName, "stale-or-forged-token");
+            forgedReq.Headers.Add(PresenceProof.HeaderName, "stale-or-forged-token");
             using var forgedRes = await client.SendAsync(forgedReq, Ct);
             Assert.Equal(HttpStatusCode.Unauthorized, forgedRes.StatusCode);
         }
 
         // 3. Valid X-IntoChat-Presence header -> Actor.Person
         using var provedReq = new HttpRequestMessage(HttpMethod.Get, "/probe/caller");
-        provedReq.Headers.Add(PresenceProofValidator.HeaderName, proof.Token);
+        provedReq.Headers.Add(PresenceProof.HeaderName, proof.Token);
         using var provedRes = await client.SendAsync(provedReq, Ct);
         Assert.Equal(HttpStatusCode.OK, provedRes.StatusCode);
         var proved = await provedRes.Content.ReadFromJsonAsync<CallerProbe>(cancellationToken: Ct);
@@ -133,13 +133,13 @@ public sealed class PresenceProofAndEdgeAuthFacts
         using var client = new HttpClient(handler) { BaseAddress = baseUri };
 
         // Invalid token -> 401
-        using (var badRes = await client.PostAsJsonAsync(PresenceProofValidator.ExchangePath, new { token = "wrong" }, Ct))
+        using (var badRes = await client.PostAsJsonAsync(PresenceProof.ExchangePath, new { token = "wrong" }, Ct))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, badRes.StatusCode);
         }
 
         // Cross-origin exchange attempt -> 401 even with valid token
-        using (var crossReq = new HttpRequestMessage(HttpMethod.Post, PresenceProofValidator.ExchangePath)
+        using (var crossReq = new HttpRequestMessage(HttpMethod.Post, PresenceProof.ExchangePath)
         {
             Content = JsonContent.Create(new { token = proof.Token }),
         })
@@ -151,7 +151,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
 
         // Same-origin exchange with valid token -> 200 + HttpOnly; SameSite=Strict cookie
         string? setCookieHeader;
-        using (var okReq = new HttpRequestMessage(HttpMethod.Post, PresenceProofValidator.ExchangePath)
+        using (var okReq = new HttpRequestMessage(HttpMethod.Post, PresenceProof.ExchangePath)
         {
             Content = JsonContent.Create(new { token = proof.Token }),
         })
@@ -160,7 +160,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
             using var okRes = await client.SendAsync(okReq, Ct);
             Assert.Equal(HttpStatusCode.OK, okRes.StatusCode);
             Assert.True(okRes.Headers.TryGetValues("Set-Cookie", out var cookies));
-            setCookieHeader = cookies.Single(c => c.StartsWith(PresenceProofValidator.CookieName + "=", StringComparison.Ordinal));
+            setCookieHeader = cookies.Single(c => c.StartsWith(PresenceProof.CookieName + "=", StringComparison.Ordinal));
         }
 
         Assert.Contains("httponly", setCookieHeader, StringComparison.OrdinalIgnoreCase);

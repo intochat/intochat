@@ -4,6 +4,11 @@
     <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005;CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Contracts/**" />
+    <EmbeddedResource Remove="Contracts/**" />
+    <None Remove="Contracts/**" />
+  </ItemGroup>
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
@@ -22,5 +27,6 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
   </ItemGroup>
 </Project>

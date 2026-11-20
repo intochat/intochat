@@ -93,7 +93,7 @@ public static class RuntimeShutdownEndpoints
 
     private static string? ExtractCandidateToken(HttpRequest request)
     {
-        if (request.Headers.TryGetValue(PresenceProofValidator.LegacyHeaderName, out var direct) && direct.Count == 1)
+        if (request.Headers.TryGetValue(PresenceProof.LegacyHeaderName, out var direct) && direct.Count == 1)
         {
             var token = direct[0]?.Trim();
             if (!string.IsNullOrEmpty(token))
@@ -102,7 +102,7 @@ public static class RuntimeShutdownEndpoints
             }
         }
 
-        if (request.Headers.TryGetValue(PresenceProofValidator.HeaderName, out var canonical) && canonical.Count == 1)
+        if (request.Headers.TryGetValue(PresenceProof.HeaderName, out var canonical) && canonical.Count == 1)
         {
             var token = canonical[0]?.Trim();
             if (!string.IsNullOrEmpty(token))

@@ -134,9 +134,9 @@ public sealed class EdgePresenceSecurityFacts
     [Fact]
     public async Task McpAndOpenRoutes_RequireValidPresenceToken_RejectUnprovedWith401()
     {
-        var secret = RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
+        var secret = RandomNumberGenerator.GetBytes(PresenceProof.SecretByteCount);
         var token = System.Buffers.Text.Base64Url.EncodeToString(secret);
-        var hash = PresenceProofValidator.ComputeTokenHash(secret);
+        var hash = PresenceProof.ComputeTokenHash(secret);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -149,7 +149,7 @@ public sealed class EdgePresenceSecurityFacts
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [PresenceProofValidator.TokenHashConfigurationKey] = hash,
+            [PresenceProof.TokenHashConfigurationKey] = hash,
         });
         builder.Services.AddSingleton<IIdentityClient>(new AllowIdentityClient());
         builder.Services.AddIntoChatOSConnections();
@@ -183,18 +183,18 @@ public sealed class EdgePresenceSecurityFacts
 
         // Wrong presence token -> 401
         using var wrongMcp = McpInitializeRequest("/mcp");
-        wrongMcp.Headers.Add(PresenceProofValidator.HeaderName, "wrong-token-000000000000000000000000000");
+        wrongMcp.Headers.Add(PresenceProof.HeaderName, "wrong-token-000000000000000000000000000");
         using var wrongMcpRes = await client.SendAsync(wrongMcp, Ct);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongMcpRes.StatusCode);
 
         // Valid presence token -> 200 OK
         using var validRoute = new HttpRequestMessage(HttpMethod.Get, "/probe/ok");
-        validRoute.Headers.Add(PresenceProofValidator.HeaderName, token);
+        validRoute.Headers.Add(PresenceProof.HeaderName, token);
         using var validRouteRes = await client.SendAsync(validRoute, Ct);
         Assert.Equal(HttpStatusCode.OK, validRouteRes.StatusCode);
 
         using var validMcp = McpInitializeRequest("/mcp");
-        validMcp.Headers.Add(PresenceProofValidator.HeaderName, token);
+        validMcp.Headers.Add(PresenceProof.HeaderName, token);
         using var validMcpRes = await client.SendAsync(validMcp, Ct);
         Assert.Equal(HttpStatusCode.OK, validMcpRes.StatusCode);
     }

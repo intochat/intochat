@@ -58,7 +58,7 @@ public sealed class Gate20EdgeApprovalWallFacts
 
         // Internal SiloNeurons hops (e.g. MarketplaceView.List) remain healthy while UnstampedEdgeIsKernel is false
         using var marketplaceReq = new HttpRequestMessage(HttpMethod.Get, $"/brains/{host.Scope}/marketplace");
-        marketplaceReq.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        marketplaceReq.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
         using var marketplaceRes = await host.Client.SendAsync(marketplaceReq, Ct);
         Assert.Equal(HttpStatusCode.OK, marketplaceRes.StatusCode);
 
@@ -86,7 +86,7 @@ public sealed class Gate20EdgeApprovalWallFacts
     {
         await using var host = await EdgeKernelHarness.StartAsync(Ct);
         using var mcpHttp = new HttpClient { BaseAddress = host.BaseAddress };
-        mcpHttp.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        mcpHttp.DefaultRequestHeaders.Add(PresenceProof.HeaderName, host.PresenceToken);
         await using var mcpClient = await McpClient.CreateAsync(
             new HttpClientTransport(new HttpClientTransportOptions
             {
@@ -156,7 +156,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             }),
         })
         {
-            forgedReq.Headers.Add(PresenceProofValidator.HeaderName, "forged-token-value-12345678901234567890");
+            forgedReq.Headers.Add(PresenceProof.HeaderName, "forged-token-value-12345678901234567890");
             using var forgedRes = await host.Client.SendAsync(forgedReq, Ct);
             Assert.Equal(HttpStatusCode.Unauthorized, forgedRes.StatusCode);
         }
@@ -197,7 +197,7 @@ public sealed class Gate20EdgeApprovalWallFacts
         // Try screen_approve (approve + deny) AND neurons_call on Resolve + Withdraw!
         // -----------------------------------------------------------------------------------------
         using var mcpHttp = new HttpClient { BaseAddress = host.BaseAddress };
-        mcpHttp.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        mcpHttp.DefaultRequestHeaders.Add(PresenceProof.HeaderName, host.PresenceToken);
         await using (var mcpClient = await McpClient.CreateAsync(
             new HttpClientTransport(new HttpClientTransportOptions
             {
@@ -290,7 +290,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             }),
         })
         {
-            personReq.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+            personReq.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
             using var personRes = await host.Client.SendAsync(personReq, Ct);
             Assert.Equal(HttpStatusCode.OK, personRes.StatusCode);
         }

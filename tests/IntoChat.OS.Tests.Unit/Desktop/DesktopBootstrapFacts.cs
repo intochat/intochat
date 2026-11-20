@@ -145,10 +145,10 @@ public sealed class DesktopBootstrapFacts
                 .AddJsonFile(configArg[configPrefix.Length..], optional: false, reloadOnChange: false)
                 .Build();
             Assert.Equal(masterKey, kernelConfig[IntoChatOSNames.MasterKeyConfigurationKey]);
-            Assert.Equal(layout.PresenceFilePath, kernelConfig[PresenceProofValidator.TokenFileConfigurationKey]);
+            Assert.Equal(layout.PresenceFilePath, kernelConfig[PresenceProof.TokenFileConfigurationKey]);
             Assert.Equal(
-                PresenceProofValidator.ComputeTokenHash(presenceToken),
-                kernelConfig[PresenceProofValidator.TokenHashConfigurationKey]);
+                PresenceProof.ComputeTokenHash(presenceToken),
+                kernelConfig[PresenceProof.TokenHashConfigurationKey]);
 
             Assert.Equal("false", env[DesktopBootstrap.OrleansDashboardEnabledEnvVar]);
             Assert.Equal("false", env[DesktopBootstrap.IntoChatOrleansDashboardEnabledEnvVar]);

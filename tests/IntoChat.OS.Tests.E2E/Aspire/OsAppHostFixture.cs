@@ -88,7 +88,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             await App.StartAsync(startTimeout.Token);
             PresenceToken = await TestHome.ReadPresenceTokenAsync(_home.PresenceFilePath, startTimeout.Token, _startTimeout);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
-            Os.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProofValidator.HeaderName, PresenceToken);
+            Os.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProof.HeaderName, PresenceToken);
             await Healthy(startTimeout.Token);
             StartupDuration = DateTimeOffset.UtcNow - started;
         }
