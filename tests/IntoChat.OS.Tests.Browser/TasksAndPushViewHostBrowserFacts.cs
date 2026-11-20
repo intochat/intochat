@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using IntoChat.OS.Apps.Tasks;
@@ -10,13 +11,16 @@ namespace IntoChat.OS.Tests.Browser;
 [Collection(nameof(WebShellCollection))]
 public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 {
+    private const int StudioViewportWidth = 1440;
+    private const int StudioViewportHeight = 900;
+
     [Fact]
-    public async Task Tasks_workspace_renders_and_drives_kanban_stepper_tabs_and_command_bar_without_http_errors()
+    public async Task Tasks_workspace_renders_full_bleed_kanban_stepper_and_tabs_at_1440x900_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1920, Height = 1600 } });
+        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -29,15 +33,25 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
         };
 
         await page.GotoAsync(host.ShellFor("apps/tasks/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
+        await page.KeyedNode("tasks-shell").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
         await page.KanbanBoard(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
 
         try
         {
-            // 1. Verify all 4 TasksApp Modules.UI neurons and seeded Kanban cards render live
-            await page.Neuron("ui.command-bar", TasksApp.CommandBarKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            // 1. Hard 1440x900 geometry & zero-clutter assertions: full-bleed ui.kanban (>= 70%h = >= 630px), <= 52px header, 0 duplicate ui.command-bar
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.command-bar:").CountAsync().WaitAsync(ct));
             await page.Stepper(TasksApp.StepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
             await page.Neuron("ui.tabs", TasksApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
             await page.KanbanBoard(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+
+            var kanbanBox = await page.MeasureNeuronBoxAsync("ui.kanban", TasksApp.KanbanKey, minWidth: 450f, minHeight: 630f, ct);
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Studio Kanban Board: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                kanbanBox.HeightRatio(StudioViewportHeight) >= 0.70f && kanbanBox.Height >= 630f,
+                string.Create(CultureInfo.InvariantCulture, $"TasksApp ui.kanban must occupy >= 70% of 900px viewport (>= 630px), measured: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                kanbanBox.Y <= 52f,
+                string.Create(CultureInfo.InvariantCulture, $"TasksApp top header must be <= 52px (kanban Y <= 52px), measured: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
             foreach (var cardId in new[] { "task-1", "task-2", "task-3" })
             {
@@ -59,18 +73,23 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
             await page.AdvanceStepperAsync(TasksApp.StepperKey, ct);
             await WaitForSemanticsTextContainsAsync(page, "Moved 'Verify Kanban & Stepper push sync' to Review.", ct);
 
-            // 4. Drive ITabs across List (ITable), Details, and back to Board (IKanbanBoard) via ViewHost push
-            await page.SelectTabAsync(TasksApp.TabsKey, "List", ct);
+            // 4. Drive ITabs across Table (ITable), Approvals, and back to Board (IKanbanBoard) via ViewHost push
+            await page.SelectTabAsync(TasksApp.TabsKey, "Table", ct);
             await page.Neuron("ui.table", TasksApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            var tableBox = await page.MeasureNeuronBoxAsync("ui.table", TasksApp.TableKey, minWidth: 450f, minHeight: 630f, ct);
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Studio Table View: {tableBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            Assert.True(
+                tableBox.HeightRatio(StudioViewportHeight) >= 0.70f && tableBox.Y <= 52f,
+                string.Create(CultureInfo.InvariantCulture, $"TasksApp ui.table must occupy >= 70%h with <= 52px header, measured: {tableBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
-            await page.SelectTabAsync(TasksApp.TabsKey, "Details", ct);
+            await page.SelectTabAsync(TasksApp.TabsKey, "Approvals", ct);
             await page.WaitForTimeoutAsync(200).WaitAsync(ct);
 
             await page.SelectTabAsync(TasksApp.TabsKey, "Board", ct);
             await page.KanbanBoard(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
-            // 5. Exercise ICommandBar quick task action ("Add Task" -> task-4 on KanbanBoard)
-            await page.ClickCommandBarItemAsync(TasksApp.CommandBarKey, "Add Task", ct);
+            // 5. Exercise compact top-bar "New Task" button (tasks:add -> task-4 on KanbanBoard)
+            await page.ClickButtonAsync("tasks:add", ct);
             await page.KanbanCard("task-4").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             // 6. Out-of-band server-side TasksMove (ZERO browser clicks!) -> pushes task-4 into Done
@@ -100,7 +119,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
         var ct = TestContext.Current.CancellationToken;
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1920, Height = 1600 } });
+        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = StudioViewportWidth, Height = StudioViewportHeight } });
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();

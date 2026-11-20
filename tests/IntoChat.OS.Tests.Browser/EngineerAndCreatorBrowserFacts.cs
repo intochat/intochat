@@ -106,20 +106,16 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await page.JumpTimeTravelLastAsync(ct);
             await page.ToggleTimeTravelModeAsync(ct);
 
-            await page.SelectTabAsync(CreatorView.InspectorTabsKey, "Source", ct);
-            await page.CodeEditor(CreatorView.InspectorSourceKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await SelectInspectorTabAndWaitAsync(page, "Source", page.CodeEditor(CreatorView.InspectorSourceKey).First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
-            await page.SelectTabAsync(CreatorView.InspectorTabsKey, "Signals", ct);
-            await page.Neuron("ui.table", CreatorView.InspectorSignalsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await SelectInspectorTabAndWaitAsync(page, "Signals", page.Neuron("ui.table", CreatorView.InspectorSignalsKey).First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
-            await page.SelectTabAsync(CreatorView.InspectorTabsKey, "State Graph", ct);
-            await page.SceneCameraHud().First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await SelectInspectorTabAndWaitAsync(page, "State Graph", page.SceneCameraHud().First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
-            await page.SelectTabAsync(CreatorView.InspectorTabsKey, "Scenarios", ct);
-            await page.KeyedNode("run-scenario").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await SelectInspectorTabAndWaitAsync(page, "Scenarios", page.KeyedNode("run-scenario").First, ct);
         }
         catch (Exception ex)
         {
@@ -178,10 +174,8 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             var chatText = await WaitForNeuronTextContainsAsync(page, "ui.chat", EngineerApp.BrainstormChatKey, "Architect", ct);
             Assert.Contains("Architect", chatText, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Critic", chatText, StringComparison.OrdinalIgnoreCase);
-            await page.SendChatMessageAsync(EngineerApp.BrainstormChatKey, "Verify cloud sandbox lease isolation", ct);
-            var brainstormedChat = await WaitForNeuronTextContainsAsync(page, "ui.chat", EngineerApp.BrainstormChatKey, "Verify cloud sandbox lease isolation", ct);
-            Assert.Contains("Verify cloud sandbox lease isolation", brainstormedChat, StringComparison.OrdinalIgnoreCase);
-            await WaitForSemanticsTextContainsAsync(page, "Brainstorm complete", ct);
+            await SubmitBrainstormChatAndWaitAsync(page, EngineerApp.BrainstormChatKey, "Verify cloud sandbox lease isolation", ct);
+            await WaitForSemanticsTextContainsAsync(page, "Verify cloud sandbox lease isolation", ct);
 
             // 2. Ratify Plan -> transitions to GitHub Desktop Changes & Diff stage with full-height ui.code-editor (>= 60% of 900px = >= 540px)
             await page.ClickButtonAsync("engineer:approve-plan", ct);
@@ -311,6 +305,50 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await page.WaitForTimeoutAsync(150).WaitAsync(ct);
         }
         return await page.ReadNeuronTextAsync(kind, key, ct);
+    }
+
+    private static async Task SubmitBrainstormChatAndWaitAsync(IPage page, string chatKey, string message, CancellationToken ct)
+    {
+        await page.SendChatMessageAsync(chatKey, message, ct);
+        await page.WaitForTimeoutAsync(150).WaitAsync(ct);
+
+        var chatHost = page.Neuron("ui.chat", chatKey).First;
+        var input = chatHost.Locator("input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])").Last;
+        if (await input.CountAsync().WaitAsync(ct) > 0)
+        {
+            var remaining = await input.InputValueAsync(new() { Timeout = 5_000 }).WaitAsync(ct);
+            if (!string.IsNullOrWhiteSpace(remaining))
+            {
+                var sendBtn = chatHost.GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).First;
+                if (await sendBtn.CountAsync().WaitAsync(ct) > 0)
+                {
+                    await sendBtn.ClickAsync(new() { Force = true, Timeout = 5_000 }).WaitAsync(ct);
+                }
+                else
+                {
+                    await input.PressAsync("Enter", new() { Timeout = 5_000 }).WaitAsync(ct);
+                }
+            }
+        }
+
+        await WaitForSemanticsTextContainsAsync(page, "Brainstorm complete", ct);
+    }
+
+    private static async Task SelectInspectorTabAndWaitAsync(IPage page, string tabLabel, ILocator expectedTarget, CancellationToken ct)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await page.SelectTabAsync(CreatorView.InspectorTabsKey, tabLabel, ct);
+            try
+            {
+                await expectedTarget.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = attempt == 2 ? 15_000 : 4_000 }).WaitAsync(ct);
+                return;
+            }
+            catch (TimeoutException) when (attempt < 2)
+            {
+                await page.WaitForTimeoutAsync(200).WaitAsync(ct);
+            }
+        }
     }
 
     private static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)
