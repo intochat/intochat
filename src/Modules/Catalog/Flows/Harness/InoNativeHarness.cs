@@ -40,12 +40,6 @@ internal sealed partial class InoNativeHarness(
     public const int MaxSelfRepairTurns = 2;
     public const string KnowledgeStoreKey = "memory";
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
-    {
-        PropertyNameCaseInsensitive = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<InoNativeHarness>();
     private readonly InoCodeOrchestrator _orchestrator = new(
         roslyn ?? services?.GetService<IWorktreeRoslyn>(),

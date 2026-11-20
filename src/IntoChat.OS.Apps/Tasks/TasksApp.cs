@@ -280,7 +280,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         var description = request.Description?.Trim() ?? State.Draft.Description.Trim();
         var stage = TasksWorkspaceState.TryNormalizeStage(request.Stage) ?? "backlog";
         var goal = string.IsNullOrWhiteSpace(description) ? title : description;
-        var inner = JsonSerializer.Serialize(new PlanInner { Goal = goal }, JsonSerializerOptions.Web);
+        var inner = JsonSerializer.Serialize(new PlanInner { Goal = goal }, TasksAppJsonContext.Default.PlanInner);
 
         if (TryGetOptional<IFlows>(FlowsKey) is { } flows)
         {
