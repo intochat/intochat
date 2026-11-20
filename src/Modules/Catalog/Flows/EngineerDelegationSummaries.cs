@@ -234,6 +234,22 @@ internal static class EngineerDelegationSummaries
                 $"plan.multi-agent · {plan.Tasks.Length} task(s), {slices.Length} slice(s), {cleanupTargets.Length} cleanup target(s), harness={run.Harness}"));
         }
 
+        var digest = run.RatifiedPlan?.CodeGraphDigest ?? run.Plan?.CodeGraphDigest;
+        if (!string.IsNullOrWhiteSpace(digest))
+        {
+            lines.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"plan.codegraph · hydrated {Encoding.UTF8.GetByteCount(digest)} B repository symbol/brief digest"));
+        }
+
+        var totalSelfRepairs = slices.Sum(static s => s.SelfRepairAttempts);
+        if (totalSelfRepairs > 0)
+        {
+            lines.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"ino.self-repair · {totalSelfRepairs} bounded intra-slice Roslyn repair turn(s) across {slices.Count(static s => s.SelfRepairAttempts > 0)} slice(s)"));
+        }
+
         if (candidates.Length > 1)
         {
             foreach (var c in candidates.OrderBy(static c => c.Rank))

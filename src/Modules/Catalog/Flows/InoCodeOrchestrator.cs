@@ -198,6 +198,134 @@ internal sealed class InoCodeOrchestrator(
         CancellationToken ct = default)
         => _roslyn.AnalyzeAsync(worktreePath, relativePaths, ct);
 
+    public Task<IReadOnlyList<WorktreeDiagnostic>> GetSliceDiagnosticsAsync(
+        string worktreePath,
+        IReadOnlyList<string> touchedFiles,
+        CancellationToken ct = default)
+        => GetSliceDiagnosticsAsync(worktreePath, touchedFiles, sliceOwnedPaths: null, ct);
+
+    public async Task<IReadOnlyList<WorktreeDiagnostic>> GetSliceDiagnosticsAsync(
+        string worktreePath,
+        IReadOnlyList<string> touchedFiles,
+        IReadOnlyList<string>? sliceOwnedPaths,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
+        ArgumentNullException.ThrowIfNull(touchedFiles);
+
+        var normalizedRoot = Path.GetFullPath(worktreePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidateCsFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void CollectCandidate(string rawPath)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath))
+            {
+                return;
+            }
+
+            var (relPath, fullPath) = _policy.ResolveConfinedPath(
+                normalizedRoot,
+                rawPath,
+                requireWriteAllowed: false,
+                allowDirectory: true);
+
+            if (File.Exists(fullPath) && relPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                candidateCsFiles.Add(relPath);
+                return;
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                foreach (var nestedCs in Directory.EnumerateFiles(fullPath, "*.cs", SearchOption.AllDirectories))
+                {
+                    var nestedRel = Path.GetRelativePath(normalizedRoot, nestedCs).Replace('\\', '/');
+                    if (nestedRel.Split('/').Any(static seg => seg.StartsWith('.') || seg is "bin" or "obj" or "artifacts"))
+                    {
+                        continue;
+                    }
+
+                    candidateCsFiles.Add(nestedRel);
+                }
+            }
+        }
+
+        foreach (var touched in touchedFiles)
+        {
+            CollectCandidate(touched);
+        }
+
+        if (sliceOwnedPaths is { Count: > 0 })
+        {
+            foreach (var owned in sliceOwnedPaths)
+            {
+                CollectCandidate(owned);
+            }
+        }
+
+        if (candidateCsFiles.Count == 0)
+        {
+            return [];
+        }
+
+        var orderedTargets = candidateCsFiles.Order(StringComparer.Ordinal).ToArray();
+        return await _roslyn.AnalyzeAsync(normalizedRoot, orderedTargets, ct).ConfigureAwait(false);
+    }
+
+    public async Task<string> BuildSelfRepairDiagnosticContextAsync(
+        string worktreePath,
+        IReadOnlyList<WorktreeDiagnostic> errorDiagnostics,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
+        ArgumentNullException.ThrowIfNull(errorDiagnostics);
+
+        var normalizedRoot = Path.GetFullPath(worktreePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var sb = new StringBuilder();
+        sb.AppendLine("Roslyn diagnostics on slice-owned C# files (must resolve all Error diagnostics):");
+
+        foreach (var diag in errorDiagnostics.Take(12))
+        {
+            sb.AppendLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"- {diag.Id} [{diag.Severity}] {diag.FilePath}:{diag.Line}: {diag.Message}"));
+        }
+
+        var failingFiles = errorDiagnostics
+            .Select(static d => d.FilePath)
+            .Where(static p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3);
+
+        foreach (var relPath in failingFiles)
+        {
+            ct.ThrowIfCancellationRequested();
+            var (cleanRel, fullPath) = _policy.ResolveConfinedPath(normalizedRoot, relPath, requireWriteAllowed: false, allowDirectory: false);
+            if (!File.Exists(fullPath))
+            {
+                continue;
+            }
+
+            var lines = await File.ReadAllLinesAsync(fullPath, Encoding.UTF8, ct).ConfigureAwait(false);
+            var focusLine = errorDiagnostics
+                .Where(d => string.Equals(d.FilePath, relPath, StringComparison.OrdinalIgnoreCase))
+                .Select(static d => d.Line)
+                .DefaultIfEmpty(1)
+                .Min();
+            var startLine = Math.Max(1, focusLine - 15);
+            var endLine = Math.Min(lines.Length, Math.Max(startLine + 40, focusLine + 25));
+
+            sb.AppendLine();
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"Current snippet of '{cleanRel}' (lines {startLine}..{endLine}):"));
+            for (var lineNo = startLine; lineNo <= endLine; lineNo++)
+            {
+                sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"{lineNo,4}: {lines[lineNo - 1]}"));
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
     public async Task<InoUiStateGraphCheckResult> VerifyModifiedScreensAsync(
         string worktreePath,
         IReadOnlyList<string> touchedFiles,
