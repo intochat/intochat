@@ -21,7 +21,7 @@ internal sealed class DeploymentNeuron(
     private AspireDeploymentState Snapshot => State;
     private string BrainId => Id.Brain.Value;
     private T Peer<T>(string relative) where T : class
-        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), $"{BrainId}/{relative}"));
+        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), new NeuronId(Id.Brain, Id.Type, relative).FullKey()));
     private readonly Guid activation = Guid.NewGuid();
     private IAsyncDisposable? membershipSubscription;
     private long membershipVersion = long.MinValue;

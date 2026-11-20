@@ -11,7 +11,8 @@ internal sealed class OrleansBrain(BrainClient client, string brainId) : ISignal
 {
     public T Get<T>(string osFullKey) where T : class => (T)client.Get(typeof(T), osFullKey);
 
-    public T Neuron<T>(string relative) where T : class => Get<T>($"{brainId}/{relative}");
+    public T Neuron<T>(string relative) where T : class
+        => Get<T>(new DigitalBrain.NeuronId(brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId), "neuron", relative).FullKey());
 
     public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => client.On<T>(neuron, onSubscribed, cancellationToken);

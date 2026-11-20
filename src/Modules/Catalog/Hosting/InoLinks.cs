@@ -10,7 +10,8 @@ public static class InoLinks
     public static async Task<string> Json(IServiceProvider services, string brain)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var records = await SiloNeurons.Get<IInoRecords>(services, $"{brain}/{IInoRecords.Key}").Read();
+        var brainId = brain is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brain);
+        var records = await SiloNeurons.Get<IInoRecords>(services, new DigitalBrain.NeuronId(brainId, "apps.ino-records", IInoRecords.Key).FullKey()).Read();
         return System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(records.Links, typeof(InoLink[])));
     }
 }

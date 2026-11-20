@@ -163,6 +163,7 @@ final class AppShellNode extends Node {
     required this.body,
     required this.toolbar,
     required this.inspector,
+    required this.automationName,
   });
 
   @override
@@ -173,6 +174,7 @@ final class AppShellNode extends Node {
   final Node body;
   final Node? toolbar;
   final Node? inspector;
+  final String automationName;
 
   factory AppShellNode.fromJson(Map<String, dynamic> json) => AppShellNode(
     key: _string(json['key']),
@@ -186,6 +188,7 @@ final class AppShellNode extends Node {
     inspector: json['inspector'] is Map
         ? Node.fromJson(_map(json['inspector']))
         : null,
+    automationName: _string(json['automationName']),
   );
 }
 
@@ -215,6 +218,7 @@ final class ApprovalCardNode extends Node {
     required this.sourceNeuronUri,
     required this.icon,
     required this.capabilityLabel,
+    required this.automationName,
   });
 
   @override
@@ -232,6 +236,7 @@ final class ApprovalCardNode extends Node {
   final String? sourceNeuronUri;
   final String? icon;
   final String? capabilityLabel;
+  final String automationName;
 
   factory ApprovalCardNode.fromJson(Map<String, dynamic> json) =>
       ApprovalCardNode(
@@ -252,6 +257,7 @@ final class ApprovalCardNode extends Node {
         sourceNeuronUri: _stringOrNull(json['sourceNeuronUri']),
         icon: _stringOrNull(json['icon']),
         capabilityLabel: _stringOrNull(json['capabilityLabel']),
+        automationName: _string(json['automationName']),
       );
 }
 
@@ -889,6 +895,7 @@ final class ConversationNode extends Node {
     required this.error,
     required this.stop,
     required this.empty,
+    required this.automationName,
   });
 
   @override
@@ -902,6 +909,7 @@ final class ConversationNode extends Node {
   final ErrorLineNode? error;
   final ButtonNode? stop;
   final EmptyStateNode? empty;
+  final String automationName;
 
   factory ConversationNode.fromJson(Map<String, dynamic> json) =>
       ConversationNode(
@@ -924,6 +932,7 @@ final class ConversationNode extends Node {
         empty: json['empty'] is Map
             ? EmptyStateNode.fromJson(_map(json['empty']))
             : null,
+        automationName: _string(json['automationName']),
       );
 }
 
@@ -2121,6 +2130,7 @@ final class StatCardNode extends Node {
     required this.delta,
     required this.tone,
     required this.icon,
+    required this.automationName,
   });
 
   @override
@@ -2132,6 +2142,7 @@ final class StatCardNode extends Node {
   final String? delta;
   final BadgeTone tone;
   final String? icon;
+  final String automationName;
 
   factory StatCardNode.fromJson(Map<String, dynamic> json) => StatCardNode(
     key: _string(json['key']),
@@ -2140,6 +2151,7 @@ final class StatCardNode extends Node {
     delta: _stringOrNull(json['delta']),
     tone: _enum(BadgeTone.values, json['tone']),
     icon: _stringOrNull(json['icon']),
+    automationName: _string(json['automationName']),
   );
 }
 
@@ -2414,6 +2426,7 @@ final class WebBrowserNode extends Node {
     required this.title,
     required this.height,
     required this.executionMode,
+    required this.automationName,
   });
 
   @override
@@ -2424,6 +2437,7 @@ final class WebBrowserNode extends Node {
   final String? title;
   final double height;
   final String executionMode;
+  final String automationName;
 
   factory WebBrowserNode.fromJson(Map<String, dynamic> json) => WebBrowserNode(
     key: _string(json['key']),
@@ -2431,6 +2445,7 @@ final class WebBrowserNode extends Node {
     title: _stringOrNull(json['title']),
     height: _double(json['height'], 520.0),
     executionMode: _string(json['executionMode'], 'wasm-ui'),
+    automationName: _string(json['automationName']),
   );
 }
 

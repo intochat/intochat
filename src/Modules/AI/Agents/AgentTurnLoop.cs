@@ -215,7 +215,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
     // A context that is missing or fails leaves the turn without it rather than failing the turn.
     // A key that starts with "context/" is relative to the agent's own brain.
     internal static string Absolute(string brain, string key)
-        => key.StartsWith("context/", StringComparison.Ordinal) ? $"{brain}/{key}" : key;
+        => key.StartsWith("context/", StringComparison.Ordinal) ? ContextKeys.Of(brain, key["context/".Length..]) : key;
 
     private async Task<List<ContextEntry>> ReadContexts(string[] keys, string brain, CancellationToken ct)
     {

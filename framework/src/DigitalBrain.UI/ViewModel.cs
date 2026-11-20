@@ -648,8 +648,12 @@ public sealed record ApprovalCardNode(
     Resolve? Resolve = null,
     string? SourceNeuronUri = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Icon = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CapabilityLabel = null) : Node
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CapabilityLabel = null,
+    string AutomationName = "") : Node
 {
+    /// <summary>The accessible name: the given one, or <see cref="Title"/> / <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : !string.IsNullOrWhiteSpace(Title) ? Title : Key ?? "";
+
     /// <inheritdoc />
     public bool Equals(ApprovalCardNode? other) =>
         other is not null &&
@@ -663,6 +667,7 @@ public sealed record ApprovalCardNode(
         Icon == other.Icon &&
         CapabilityLabel == other.CapabilityLabel &&
         Key == other.Key &&
+        AutomationName == other.AutomationName &&
         Equals(Resolve, other.Resolve) &&
         Rows.SequenceEqual(other.Rows);
 
@@ -828,7 +833,12 @@ public sealed record WebBrowser(
     string Url,
     string? Title = null,
     double Height = 520,
-    string ExecutionMode = "wasm-ui") : Node;
+    string ExecutionMode = "wasm-ui",
+    string AutomationName = "") : Node
+{
+    /// <summary>The accessible name: the given one, or <see cref="Title"/> / <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : !string.IsNullOrWhiteSpace(Title) ? Title! : Key ?? "";
+}
 
 /// <summary>Reference to a live neuron control in the same brain.</summary>
 /// <param name="Kind">How the client hosts it ("slot" for a child of the view's screen).</param>
@@ -864,7 +874,12 @@ public sealed record AppShellNode(
     Node? Sidebar,
     Node Body,
     Node? Toolbar = null,
-    Node? Inspector = null) : Node;
+    Node? Inspector = null,
+    string AutomationName = "") : Node
+{
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : Key ?? "";
+}
 
 /// <summary>Navigation rail / sidebar item with icon, active indicator, and optional count/status badge.</summary>
 [ViewNode("navItem")]
@@ -902,7 +917,12 @@ public sealed record StatCardNode(
     string Value,
     string? Delta = null,
     BadgeTone Tone = BadgeTone.Neutral,
-    string? Icon = null) : Node;
+    string? Icon = null,
+    string AutomationName = "") : Node
+{
+    /// <summary>The accessible name: the given one, or <see cref="Label"/> / <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : !string.IsNullOrWhiteSpace(Label) ? Label : Key ?? "";
+}
 
 /// <summary>A conversation timeline, composer, waiting state, error banner, stop button, and empty state.</summary>
 [ViewNode("conversation")]
@@ -914,12 +934,17 @@ public sealed record Conversation(
     string Status = "ready",
     ErrorLineNode? Error = null,
     Button? Stop = null,
-    EmptyStateNode? Empty = null) : Node
+    EmptyStateNode? Empty = null,
+    string AutomationName = "") : Node
 {
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName) ? AutomationName : Key ?? "";
+
     /// <inheritdoc />
     public bool Equals(Conversation? other) =>
         other is not null
         && Key == other.Key
+        && AutomationName == other.AutomationName
         && Messages.SequenceEqual(other.Messages)
         && Equals(Composer, other.Composer)
         && Equals(Waiting, other.Waiting)
@@ -1120,8 +1145,9 @@ public static class Ui
         Node? sidebar,
         Node body,
         Node? toolbar = null,
-        Node? inspector = null) =>
-        new(key, sidebar, body, toolbar, inspector);
+        Node? inspector = null,
+        string automationName = "") =>
+        new(key, sidebar, body, toolbar, inspector, automationName);
 
     /// <summary>Creates a sidebar navigation item with a Lucide icon key, operation name, selection state, and optional badge.</summary>
     public static NavItemNode NavItem(
@@ -1142,8 +1168,9 @@ public static class Ui
         string value,
         string? delta = null,
         BadgeTone tone = BadgeTone.Neutral,
-        string? icon = null) =>
-        new(key, label, value, delta, tone, icon);
+        string? icon = null,
+        string automationName = "") =>
+        new(key, label, value, delta, tone, icon, automationName);
 
     /// <summary>Creates a declarative WASM / Web studio browser surface for <paramref name="url"/>.</summary>
     public static WebBrowser WebBrowser(
@@ -1151,8 +1178,9 @@ public static class Ui
         string? title = null,
         string key = "web-browser",
         double height = 520,
-        string executionMode = "wasm-ui") =>
-        new(key, url, title, height, executionMode);
+        string executionMode = "wasm-ui",
+        string automationName = "") =>
+        new(key, url, title, height, executionMode, automationName);
 
     /// <summary>Creates a micro-app telemetry tile with optional sparkline, threshold, and quick actions.</summary>
     public static MetricTileNode MetricTile(

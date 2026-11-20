@@ -496,7 +496,8 @@ internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.
         {
             return flowId;
         }
-        return $"{brainId}/{FeatureToPrFlow.Alias}/{flowId}";
+        var brain = brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId);
+        return new DigitalBrain.NeuronId(brain, FeatureToPrFlow.Alias, flowId).ToString();
     }
 
     private static string Kept(Dictionary<string, string> sidecars, string file) => sidecars.ContainsKey(file) ? "kept" : "missing";

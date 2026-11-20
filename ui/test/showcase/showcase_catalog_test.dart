@@ -59,13 +59,7 @@ final _keyedKinds = {
 
 /// Keyed kinds whose generated model has no `automationName` yet. It may only shrink:
 /// the test fails when a listed kind gains the field, so the entry must then be removed.
-const knownWithoutAutomationName = <String>{
-  'appShell',
-  'approvalCard',
-  'conversation',
-  'statCard',
-  'webBrowser',
-};
+const knownWithoutAutomationName = <String>{};
 
 /// Every keyed node inside an example (a map whose kind declares a `key` field).
 void _keyed(Object? json, List<Map<String, dynamic>> into) {
@@ -235,6 +229,51 @@ void main() {
         'automationName': 'x',
       });
     });
+
+    testWidgets(
+      'keyed container and card nodes expose their automationName semantics',
+      (tester) async {
+        await _check(tester, {
+          'kind': 'appShell',
+          'key': 'shell-main',
+          'automationName': 'Main workspace shell',
+          'body': {'kind': 'text', 'value': 'Ready'},
+        });
+        await _check(tester, {
+          'kind': 'approvalCard',
+          'key': 'approve-pr',
+          'id': 'plan-1',
+          'title': 'Publish Pull Request',
+          'summary': 'Push verified branch',
+          'rows': const <Map<String, dynamic>>[],
+          'automationName': 'Publish Pull Request',
+        });
+        await _check(tester, {
+          'kind': 'conversation',
+          'key': 'conv-main',
+          'automationName': 'Main conversation',
+          'messages': const <Map<String, dynamic>>[],
+          'composer': {
+            'key': 'composer-main',
+            'onSubmit': {'owner': '.', 'signal': 'Send'},
+          },
+        });
+        await _check(tester, {
+          'kind': 'statCard',
+          'key': 'stat-neurons',
+          'label': 'Active Neurons',
+          'value': '128',
+          'automationName': 'Active Neurons',
+        });
+        await _check(tester, {
+          'kind': 'webBrowser',
+          'key': 'browser-preview',
+          'url': 'https://intochat.io',
+          'title': 'Studio Preview',
+          'automationName': 'Studio Preview',
+        });
+      },
+    );
 
     testWidgets('an unknown kind is reported as unsupported', (tester) async {
       await _pump(tester, {'kind': 'doesNotExist'});

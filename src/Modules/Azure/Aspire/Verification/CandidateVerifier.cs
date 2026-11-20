@@ -22,7 +22,8 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(plan);
         var clock = Stopwatch.StartNew();
-        var server = brains.Get<IMcpServer>($"{brainId}/mcp/candidate-{sha}");
+        var brain = brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId);
+        var server = brains.Get<IMcpServer>(new DigitalBrain.NeuronId(brain, "mcp.server", $"mcp/candidate-{sha}").FullKey());
         List<VerificationCheck> checks = [];
         try { await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct); }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -72,7 +73,8 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         {
             // Features reconcile on the brain's activation without anyone waiting: reconciling here makes the
             // candidate's apps the catalog's versions before any plan call reads them.
-            var reconcile = JsonSerializer.Serialize(new { contract = ReconcilerContract, key = $"{brainId}/apps-reconciler", method = "Reconcile", arguments = "[]" });
+            var brain = brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId);
+            var reconcile = JsonSerializer.Serialize(new { contract = ReconcilerContract, key = new DigitalBrain.NeuronId(brain, "apps.reconciler", "apps-reconciler").FullKey(), method = "Reconcile", arguments = "[]" });
             var reconciled = await server.Run("neurons_call", reconcile, ct);
             if (reconciled.IsError) { return (false, $"reconciling features failed: {reconciled.Text}"); }
             var apps = await server.Run("neurons_list", JsonSerializer.Serialize(new { contract = AppContract }), ct);

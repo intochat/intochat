@@ -14,11 +14,11 @@ internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier ve
     : DigitalBrain.Neurons.Neuron<CandidateState>, ICandidate
 {
     private CandidateState Snapshot => State;
-    private string Key => $"{Id.Brain.Value}/{Id.Key}";
+    private string Key => Id.FullKey();
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);
     private T Peer<T>(string relative) where T : class
-        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), $"{Id.Brain.Value}/{relative}"));
+        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), new DigitalBrain.NeuronId(Id.Brain, Id.Type, relative).FullKey()));
     private ICandidates Index => Peer<ICandidates>(ICandidates.Relative);
     private IDeployment LiveCluster => Peer<IDeployment>(IDeployment.Relative);
 

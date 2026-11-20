@@ -69,10 +69,10 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     private readonly ConcurrentDictionary<string, LocalCloudStorage> _sandboxStorages = new(StringComparer.Ordinal);
 
     private static NeuronId LocalDiskId(BrainId brain) => new(brain, "local-disk", "main");
-    private static string LocalDiskConnectionKey(BrainId brain) => $"{brain.Value}/local-disk/main";
+    private static string LocalDiskConnectionKey(BrainId brain) => LocalDiskId(brain).ToString();
 
     public static NeuronId LocalCloudId(BrainId brain) => new(brain, LocalCloudNeuron.TypeName, "main");
-    public static string LocalCloudConnectionKey(BrainId brain) => $"{brain.Value}/{LocalCloudNeuron.TypeName}/main";
+    public static string LocalCloudConnectionKey(BrainId brain) => LocalCloudId(brain).ToString();
 
     public static string SandboxConnectionKey(BrainId brain, string connector = "sandbox")
         => ConnectionKeys.For(brain.Value, connector, SandboxConnectionId);

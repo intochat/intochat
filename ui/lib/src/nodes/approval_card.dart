@@ -12,37 +12,42 @@ import 'node_common.dart';
 Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
   final resolve = node.resolve;
   final canResolve = resolve != null && ctx.confirmation && ctx.interactive;
-  return ApprovalCard(
-    key: ValueKey('approval:${node.id}'),
-    source: cardSource(
-      node.systemName,
-      iconKey: node.icon,
-      capabilityLabel: node.capabilityLabel,
-      approvalFallbackShield: true,
+  return Semantics(
+    container: true,
+    explicitChildNodes: true,
+    label: controlNameOf(node.automationName, node.title, node.key),
+    child: ApprovalCard(
+      key: ValueKey('approval:${node.id}'),
+      source: cardSource(
+        node.systemName,
+        iconKey: node.icon,
+        capabilityLabel: node.capabilityLabel,
+        approvalFallbackShield: true,
+      ),
+      readOnly: !canResolve,
+      data: ApprovalData(
+        title: node.title,
+        summary: node.summary,
+        rows: [
+          for (final row in node.rows)
+            ApprovalRow(
+              label: row.label,
+              oldValue: row.oldValue,
+              newValue: row.newValue,
+              amount: row.amount,
+              warn: row.warn,
+            ),
+        ],
+        valueLabel: node.valueLabel,
+        systemName: node.systemName,
+      ),
+      state: parseApprovalState(node.status),
+      onApprove: canResolve
+          ? () => ctx.resolve(resolve.planId, approve: true)
+          : null,
+      onReject: canResolve
+          ? () => ctx.resolve(resolve.planId, approve: false)
+          : null,
     ),
-    readOnly: !canResolve,
-    data: ApprovalData(
-      title: node.title,
-      summary: node.summary,
-      rows: [
-        for (final row in node.rows)
-          ApprovalRow(
-            label: row.label,
-            oldValue: row.oldValue,
-            newValue: row.newValue,
-            amount: row.amount,
-            warn: row.warn,
-          ),
-      ],
-      valueLabel: node.valueLabel,
-      systemName: node.systemName,
-    ),
-    state: parseApprovalState(node.status),
-    onApprove: canResolve
-        ? () => ctx.resolve(resolve.planId, approve: true)
-        : null,
-    onReject: canResolve
-        ? () => ctx.resolve(resolve.planId, approve: false)
-        : null,
   );
 }

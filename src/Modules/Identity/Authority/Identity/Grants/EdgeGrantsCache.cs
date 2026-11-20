@@ -265,9 +265,9 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         {
             targets.Add(targetOrConnectionKey);
         }
-        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal))
+        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal) && !string.IsNullOrEmpty(canonicalKey) && TryParseOwnerBrain(ownerBrain, out var validOwner))
         {
-            targets.Add($"{ownerBrain}/{canonicalKey}");
+            targets.Add(new DigitalBrain.NeuronId(validOwner, "connection", canonicalKey).FullKey());
         }
 
         foreach (var target in targets)
@@ -329,11 +329,30 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             : PrincipalSet.For(caller);
         var targets = new List<string> { canonicalKey };
         if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal)) { targets.Add(targetOrConnectionKey); }
-        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal)) { targets.Add($"{ownerBrain}/{canonicalKey}"); }
+        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal) && !string.IsNullOrEmpty(canonicalKey) && TryParseOwnerBrain(ownerBrain, out var validOwnerInMemory))
+        {
+            targets.Add(new DigitalBrain.NeuronId(validOwnerInMemory, "connection", canonicalKey).FullKey());
+        }
         foreach (var target in targets)
         {
             if (GrantRules.IsGranted("use-via:" + callerAppKey, target, cached.Grants, principals, caller)) { return true; }
         }
+        return false;
+    }
+
+    private static bool TryParseOwnerBrain(string ownerBrain, out DigitalBrain.BrainId brain)
+    {
+        if (DigitalBrain.BrainId.IsValid(ownerBrain))
+        {
+            brain = new DigitalBrain.BrainId(ownerBrain);
+            return true;
+        }
+        if (ownerBrain is ['@', .. var sys] && DigitalBrain.BrainId.IsValid(sys))
+        {
+            brain = DigitalBrain.BrainId.System(sys);
+            return true;
+        }
+        brain = default;
         return false;
     }
 

@@ -932,7 +932,8 @@ internal sealed class AgentNeuron(
         }
     }
 
-    private string RunKeyOf(string runId) => $"{Scope}/agent.run/{runId}";
+    private string RunKeyOf(string runId)
+        => new DigitalBrain.NeuronId(Scope is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(Scope), "agent.run", runId).ToString();
 
     // The trace stored with the active run when it was admitted, else the trace of the call announcing it.
     private string? TraceOf(string runId)

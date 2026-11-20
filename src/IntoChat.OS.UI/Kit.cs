@@ -261,8 +261,9 @@ public static class Kit
         string? delta = null,
         BadgeTone tone = BadgeTone.Neutral,
         string? icon = null,
-        string? key = null)
-        => new(key ?? ButtonBuilder.SlugifyKey("metric", label), label, value, delta, tone, icon);
+        string? key = null,
+        string automationName = "")
+        => new(key ?? ButtonBuilder.SlugifyKey("metric", label), label, value, delta, tone, icon, automationName);
 
     /// <summary>Creates a tabular-numeral (<c>tnum</c>) KPI stat card (forwards to <see cref="DigitalBrain.UI.Ui.StatCard"/>).</summary>
     public static StatCardNode StatCard(
@@ -271,8 +272,9 @@ public static class Kit
         string value,
         string? delta = null,
         BadgeTone tone = BadgeTone.Neutral,
-        string? icon = null)
-        => Ui.StatCard(key, label, value, delta, tone, icon);
+        string? icon = null,
+        string automationName = "")
+        => Ui.StatCard(key, label, value, delta, tone, icon, automationName);
 
     /// <summary>Creates a studio-grade desktop app shell layout (forwards to <see cref="DigitalBrain.UI.Ui.AppShell"/>).</summary>
     public static AppShellNode AppShell(
@@ -280,8 +282,9 @@ public static class Kit
         Node? sidebar,
         Node body,
         Node? toolbar = null,
-        Node? inspector = null)
-        => Ui.AppShell(key, sidebar, body, toolbar, inspector);
+        Node? inspector = null,
+        string automationName = "")
+        => Ui.AppShell(key, sidebar, body, toolbar, inspector, automationName);
 
     /// <summary>Creates a sidebar navigation item (forwards to <see cref="DigitalBrain.UI.Ui.NavItem"/>).</summary>
     [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]
@@ -322,8 +325,9 @@ public static class Kit
         string? title = null,
         string key = "web-browser",
         double height = 520,
-        string executionMode = "wasm-ui")
-        => Ui.WebBrowser(url, title, key, height, executionMode);
+        string executionMode = "wasm-ui",
+        string automationName = "")
+        => Ui.WebBrowser(url, title, key, height, executionMode, automationName);
 
     /// <summary>Honest empty-state prompt (<see cref="EmptyStateNode"/>) with optional suggestion buttons.</summary>
     public static EmptyStateNode Empty(string title, string? body = null, params Button[] suggestions)
@@ -412,8 +416,9 @@ public static class Kit
         Resolve? resolve = null,
         string? sourceNeuronUri = null,
         string? icon = null,
-        string? capabilityLabel = null)
-        => new(key, id, title, summary, rows, valueLabel, systemName, status, resolve, sourceNeuronUri, icon, capabilityLabel);
+        string? capabilityLabel = null,
+        string automationName = "")
+        => new(key, id, title, summary, rows, valueLabel, systemName, status, resolve, sourceNeuronUri, icon, capabilityLabel, automationName);
 
     /// <summary>Disambiguation choice card (<see cref="ChoiceCardNode"/>).</summary>
     public static ChoiceCardNode ChoiceCard(
@@ -432,8 +437,9 @@ public static class Kit
         string status = "ready",
         ErrorLineNode? error = null,
         DigitalBrain.UI.Button? stop = null,
-        EmptyStateNode? empty = null)
-        => new(key, messages, composer, waiting, status, error, stop, empty);
+        EmptyStateNode? empty = null,
+        string automationName = "")
+        => new(key, messages, composer, waiting, status, error, stop, empty, automationName);
 
     /// <summary>Structured code diff preview card (<see cref="DiffCardNode"/>).</summary>
     public static DiffCardNode DiffCard(
