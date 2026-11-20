@@ -144,8 +144,8 @@
               "kind": "button",
               "key": "export-excalidraw",
               "label": "Export .excalidraw",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -162,6 +162,9 @@
               "intent": null,
               "enabled": true,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "export-excalidraw",
               "style": "secondary",
               "icon": "file-json",
               "small": true
@@ -170,8 +173,8 @@
               "kind": "button",
               "key": "export-svg",
               "label": "Export .svg",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -188,6 +191,9 @@
               "intent": null,
               "enabled": true,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "export-svg",
               "style": "secondary",
               "icon": "image",
               "small": true
@@ -196,8 +202,8 @@
               "kind": "button",
               "key": "diagram-crm-data",
               "label": "Diagram CRM Data",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -212,6 +218,9 @@
               "intent": null,
               "enabled": true,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "diagram-crm-data",
               "style": "secondary",
               "icon": "bar-chart-2",
               "small": true
@@ -220,8 +229,8 @@
               "kind": "button",
               "key": "save-to-files",
               "label": "Save to Files",
-              "emit": {
-                "owner": "app.markdraw",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -236,6 +245,9 @@
               "intent": null,
               "enabled": true,
               "tone": "accent",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "save-to-files",
               "style": "primary",
               "icon": "save",
               "small": true
@@ -289,8 +301,8 @@
                             "kind": "button",
                             "key": "tpl-architecture",
                             "label": "Architecture",
-                            "emit": {
-                              "owner": "app.markdraw",
+                            "command": {
+                              "target": ".",
                               "signal": "ui.command",
                               "args": {
                                 "target": "state",
@@ -307,6 +319,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "tpl-architecture",
                             "style": "ghost",
                             "small": true
                           },
@@ -314,8 +329,8 @@
                             "kind": "button",
                             "key": "tpl-pipeline",
                             "label": "Pipeline",
-                            "emit": {
-                              "owner": "app.markdraw",
+                            "command": {
+                              "target": ".",
                               "signal": "ui.command",
                               "args": {
                                 "target": "state",
@@ -332,6 +347,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "tpl-pipeline",
                             "style": "ghost",
                             "small": true
                           }
@@ -357,7 +375,9 @@
                     "gap": 4,
                     "padding": 0
                   }
-                ]
+                ],
+                "header": null,
+                "footer": null
               }
             ],
             "gap": 8,
@@ -378,7 +398,9 @@
                     "tabular": true,
                     "mono": false
                   }
-                ]
+                ],
+                "header": null,
+                "footer": null
               },
               {
                 "kind": "dataTable",

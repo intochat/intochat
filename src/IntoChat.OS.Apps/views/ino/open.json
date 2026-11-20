@@ -39,14 +39,17 @@
               "kind": "button",
               "key": null,
               "label": "+ New Session",
-              "emit": {
-                "owner": "apps/ino",
+              "command": {
+                "target": ".",
                 "signal": "new",
                 "args": null
               },
               "intent": null,
               "enabled": true,
               "tone": "accent",
+              "tooltip": null,
+              "visible": false,
+              "automationName": null,
               "style": "secondary",
               "icon": "plus",
               "small": true
@@ -123,30 +126,21 @@
   "main": {
     "title": "Ino",
     "root": {
-      "kind": "conversation",
-      "key": "conversation",
-      "messages": [],
-      "composer": {
-        "key": "composer",
-        "onSubmit": {
-          "owner": "app.ino",
-          "signal": "ino.send",
-          "args": {}
-        },
+      "kind": "neuronRef",
+      "refKind": "slot",
+      "neuronUri": "conversation",
+      "props": {
         "placeholder": "Ask anything.",
-        "enabled": true,
+        "canSend": true,
         "activeModelLabel": "Qwen 3.5 4B",
         "activeProviderIcon": "provider:ollama",
-        "dictation": false
-      },
-      "waiting": null,
-      "status": "ready",
-      "error": null,
-      "stop": null,
-      "empty": {
-        "title": "What do you need?",
-        "body": null,
-        "suggestions": null
+        "dictation": false,
+        "status": "ready",
+        "working": false,
+        "emptyText": "What do you need?",
+        "error": null,
+        "isEnabled": true,
+        "automationName": null
       }
     }
   }

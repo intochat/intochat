@@ -44,8 +44,8 @@
                         "kind": "button",
                         "key": "toggle-layer-0",
                         "label": "Hide · Subject Layer (100% · Nor…",
-                        "emit": {
-                          "owner": "app.photocraft",
+                        "command": {
+                          "target": ".",
                           "signal": "ui.command",
                           "args": {
                             "target": "state",
@@ -62,6 +62,9 @@
                         "intent": null,
                         "enabled": true,
                         "tone": "neutral",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "toggle-layer-0",
                         "style": "ghost",
                         "icon": "eye",
                         "small": true
@@ -70,8 +73,8 @@
                         "kind": "button",
                         "key": "toggle-layer-1",
                         "label": "Hide · Background Layer (Locked …",
-                        "emit": {
-                          "owner": "app.photocraft",
+                        "command": {
+                          "target": ".",
                           "signal": "ui.command",
                           "args": {
                             "target": "state",
@@ -88,6 +91,9 @@
                         "intent": null,
                         "enabled": true,
                         "tone": "neutral",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "toggle-layer-1",
                         "style": "ghost",
                         "icon": "eye",
                         "small": true
@@ -100,7 +106,9 @@
                 "gap": 4,
                 "padding": 0
               }
-            ]
+            ],
+            "header": null,
+            "footer": null
           }
         ],
         "gap": 12,
@@ -122,8 +130,8 @@
                 "kind": "button",
                 "key": "preset-warm",
                 "label": "Warm Cinema",
-                "emit": {
-                  "owner": "app.photocraft",
+                "command": {
+                  "target": ".",
                   "signal": "ui.command",
                   "args": {
                     "target": "screen",
@@ -140,6 +148,9 @@
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "preset-warm",
                 "style": "secondary",
                 "small": true
               },
@@ -147,8 +158,8 @@
                 "kind": "button",
                 "key": "preset-vivid",
                 "label": "Vivid Pop",
-                "emit": {
-                  "owner": "app.photocraft",
+                "command": {
+                  "target": ".",
                   "signal": "ui.command",
                   "args": {
                     "target": "screen",
@@ -165,6 +176,9 @@
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "preset-vivid",
                 "style": "secondary",
                 "small": true
               },
@@ -172,8 +186,8 @@
                 "kind": "button",
                 "key": "preset-mono",
                 "label": "Monochrome",
-                "emit": {
-                  "owner": "app.photocraft",
+                "command": {
+                  "target": ".",
                   "signal": "ui.command",
                   "args": {
                     "target": "screen",
@@ -190,6 +204,9 @@
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "preset-mono",
                 "style": "secondary",
                 "small": true
               },
@@ -197,8 +214,8 @@
                 "kind": "button",
                 "key": "preset-gradient",
                 "label": "Gradient Canvas",
-                "emit": {
-                  "owner": "app.photocraft",
+                "command": {
+                  "target": ".",
                   "signal": "ui.command",
                   "args": {
                     "target": "screen",
@@ -215,6 +232,9 @@
                 "intent": null,
                 "enabled": true,
                 "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "preset-gradient",
                 "style": "secondary",
                 "small": true
               }
@@ -267,8 +287,8 @@
             "kind": "button",
             "key": "mode-mcp",
             "label": "MCP",
-            "emit": {
-              "owner": "app.photocraft",
+            "command": {
+              "target": ".",
               "signal": "ui.command",
               "args": {
                 "target": "state",
@@ -285,6 +305,9 @@
             "intent": null,
             "enabled": true,
             "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "mode-mcp",
             "style": "secondary",
             "small": true
           },
@@ -292,8 +315,8 @@
             "kind": "button",
             "key": "mode-native-linux",
             "label": "CLI",
-            "emit": {
-              "owner": "app.photocraft",
+            "command": {
+              "target": ".",
               "signal": "ui.command",
               "args": {
                 "target": "state",
@@ -310,6 +333,9 @@
             "intent": null,
             "enabled": true,
             "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "mode-native-linux",
             "style": "ghost",
             "small": true
           },
@@ -317,8 +343,8 @@
             "kind": "button",
             "key": "mode-wasm-ui",
             "label": "WASM",
-            "emit": {
-              "owner": "app.photocraft",
+            "command": {
+              "target": ".",
               "signal": "ui.command",
               "args": {
                 "target": "state",
@@ -335,6 +361,9 @@
             "intent": null,
             "enabled": true,
             "tone": "neutral",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "mode-wasm-ui",
             "style": "ghost",
             "small": true
           },
@@ -342,8 +371,8 @@
             "kind": "button",
             "key": "preset-cutout",
             "label": "Remove Background",
-            "emit": {
-              "owner": "app.photocraft",
+            "command": {
+              "target": ".",
               "signal": "ui.command",
               "args": {
                 "target": "screen",
@@ -358,6 +387,9 @@
             "intent": null,
             "enabled": true,
             "tone": "accent",
+            "tooltip": null,
+            "visible": true,
+            "automationName": "preset-cutout",
             "style": "primary",
             "icon": "wand-sparkles",
             "small": true

@@ -191,8 +191,8 @@
                   "kind": "button",
                   "key": "dock-ino",
                   "label": "Ino",
-                  "emit": {
-                    "owner": "app.desktop",
+                  "command": {
+                    "target": ".",
                     "signal": "desktop.open",
                     "args": {
                       "app": "ino",
@@ -202,6 +202,9 @@
                   "intent": null,
                   "enabled": true,
                   "tone": "accent",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "dock-ino",
                   "style": "primary",
                   "icon": "ino",
                   "small": false
@@ -210,8 +213,8 @@
                   "kind": "button",
                   "key": "dock-files",
                   "label": "Files",
-                  "emit": {
-                    "owner": "app.desktop",
+                  "command": {
+                    "target": ".",
                     "signal": "desktop.open",
                     "args": {
                       "app": "files",
@@ -221,6 +224,9 @@
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "dock-files",
                   "style": "secondary",
                   "small": false
                 },
@@ -228,14 +234,17 @@
                   "kind": "button",
                   "key": "dock-settings",
                   "label": "Settings",
-                  "emit": {
-                    "owner": "app.desktop",
+                  "command": {
+                    "target": ".",
                     "signal": "desktop.settings",
                     "args": {}
                   },
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "dock-settings",
                   "style": "secondary",
                   "small": false
                 },
@@ -243,8 +252,8 @@
                   "kind": "button",
                   "key": "newtab",
                   "label": "New tab",
-                  "emit": {
-                    "owner": "app.desktop",
+                  "command": {
+                    "target": ".",
                     "signal": "desktop.newtab",
                     "args": {
                       "windowId": null
@@ -253,6 +262,9 @@
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "newtab",
                   "style": "secondary",
                   "icon": "plus",
                   "small": true
@@ -281,8 +293,8 @@
                   "kind": "button",
                   "key": "avatar",
                   "label": "You",
-                  "emit": {
-                    "owner": "app.desktop",
+                  "command": {
+                    "target": ".",
                     "signal": "desktop.open",
                     "args": {
                       "app": "friends",
@@ -292,6 +304,9 @@
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "avatar",
                   "style": "secondary",
                   "small": false
                 },
@@ -299,14 +314,17 @@
                   "kind": "button",
                   "key": "more-settings",
                   "label": "Settings",
-                  "emit": {
-                    "owner": "app.desktop",
+                  "command": {
+                    "target": ".",
                     "signal": "desktop.settings",
                     "args": {}
                   },
                   "intent": null,
                   "enabled": true,
                   "tone": "neutral",
+                  "tooltip": null,
+                  "visible": true,
+                  "automationName": "more-settings",
                   "style": "secondary",
                   "small": false
                 }

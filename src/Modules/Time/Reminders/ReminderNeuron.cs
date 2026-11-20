@@ -29,8 +29,8 @@ internal sealed class ReminderNeuron : DigitalBrain.Neurons.Neuron, IReminder
 
     protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
-        // The id is the os key "{brain}/{key}" callers address, as the grain neuron's was; feature scripts match ticks by it.
-        if (name == Name) { await Publish(new ReminderTick(Id.FullKey(), Context.Time.GetUtcNow())); }
+        // Publishes the reminder neuron's typed NeuronId so subscribers match ticks directly by Id.
+        if (name == Name) { await Publish(new ReminderTick(Id, Context.Time.GetUtcNow())); }
         else if (name == RetiredJob) { await Context.Reminders.Stop(name); }
     }
 }

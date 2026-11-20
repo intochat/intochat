@@ -123,7 +123,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
         await reminder.Stop();
         await reminder.Stop();
 
-        Assert.All(ticks, tick => Assert.Equal($"{id.Brain.Value}/live", tick.ReminderId));
+        Assert.All(ticks, tick => Assert.Equal(id, tick.ReminderId));
     }
 
     [Theory, MemberData(nameof(Kinds))]

@@ -112,7 +112,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         // Inject already-queued deliveries through Orleans, without invoking the neuron directly.
         await Remind(runtime.Services, host, "unrelated", ct);
         await Remind(runtime.Services, host, "tick", ct);
-        Assert.Equal($"{id.Brain.Value}/queued", Assert.Single(await runtime.Signals<ReminderTick>(id, ct)).ReminderId);
+        Assert.Equal(id, Assert.Single(await runtime.Signals<ReminderTick>(id, ct)).ReminderId);
         await Remind(runtime.Services, host, "tick", ct);
         Assert.Equal(2, (await runtime.Signals<ReminderTick>(id, ct)).Count);
         Assert.Empty((await control.Table.ReadRows(host, ct)).Reminders);

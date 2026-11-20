@@ -184,8 +184,8 @@
               "kind": "button",
               "key": "export-csv",
               "label": "Export CSV",
-              "emit": {
-                "owner": "app.data",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -200,6 +200,9 @@
               "intent": null,
               "enabled": false,
               "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "export-csv",
               "style": "secondary",
               "icon": "download",
               "small": true
@@ -208,8 +211,8 @@
               "kind": "button",
               "key": "diagram-in-markdraw",
               "label": "Diagram in Markdraw",
-              "emit": {
-                "owner": "app.data",
+              "command": {
+                "target": ".",
                 "signal": "ui.command",
                 "args": {
                   "target": "screen",
@@ -224,6 +227,9 @@
               "intent": null,
               "enabled": false,
               "tone": "accent",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "diagram-in-markdraw",
               "style": "primary",
               "icon": "pen-tool",
               "small": true
@@ -297,8 +303,8 @@
                       "kind": "button",
                       "key": "bar",
                       "label": "Bar",
-                      "emit": {
-                        "owner": "app.data",
+                      "command": {
+                        "target": ".",
                         "signal": "ui.command",
                         "args": {
                           "target": "state",
@@ -315,6 +321,9 @@
                       "intent": null,
                       "enabled": true,
                       "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "bar",
                       "style": "secondary",
                       "icon": "bar-chart-2",
                       "small": true
@@ -323,8 +332,8 @@
                       "kind": "button",
                       "key": "line",
                       "label": "Line",
-                      "emit": {
-                        "owner": "app.data",
+                      "command": {
+                        "target": ".",
                         "signal": "ui.command",
                         "args": {
                           "target": "state",
@@ -341,6 +350,9 @@
                       "intent": null,
                       "enabled": true,
                       "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "line",
                       "style": "secondary",
                       "icon": "trending-up",
                       "small": true
@@ -349,8 +361,8 @@
                       "kind": "button",
                       "key": "pie",
                       "label": "Pie",
-                      "emit": {
-                        "owner": "app.data",
+                      "command": {
+                        "target": ".",
                         "signal": "ui.command",
                         "args": {
                           "target": "state",
@@ -367,6 +379,9 @@
                       "intent": null,
                       "enabled": true,
                       "tone": "neutral",
+                      "tooltip": null,
+                      "visible": true,
+                      "automationName": "pie",
                       "style": "secondary",
                       "icon": "pie-chart",
                       "small": true
@@ -379,19 +394,14 @@
               "gap": 8,
               "padding": 0
             }
-          ]
+          ],
+          "header": null,
+          "footer": null
         },
         {
-          "kind": "chart",
-          "chartKind": "bar",
-          "title": "No Data ()",
-          "points": [],
-          "comparePoints": null,
-          "seriesName": "Current",
-          "compareName": "",
-          "sourceNeuronUri": "neuron://owner/data//empty",
-          "from": "",
-          "prefix": "€"
+          "kind": "neuronRef",
+          "refKind": "ui.chart",
+          "neuronUri": "data/charts/primary"
         },
         {
           "kind": "dataTable",

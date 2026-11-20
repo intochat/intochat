@@ -252,31 +252,30 @@
   "main": {
     "title": "Settings",
     "root": {
-      "kind": "splitPane",
-      "leading": {
+      "kind": "appShell",
+      "key": "settings-shell",
+      "sidebar": {
         "kind": "column",
         "children": [
           {
-            "kind": "field",
-            "key": "settings:search",
-            "name": "Search settings",
-            "fieldKind": "Search",
-            "placeholder": "Search settings…",
-            "onSubmit": {
-              "owner": "app.settings",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "Filter",
-                "args": [
-                  null
-                ],
-                "valueIndex": 0,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null,
-                "uiLive": true
-              }
+            "kind": "neuronRef",
+            "refKind": "slot",
+            "neuronUri": "search",
+            "props": {
+              "fields": [
+                {
+                  "key": "query",
+                  "label": "Search settings",
+                  "kind": "Text",
+                  "value": "",
+                  "placeholder": "Search settings…",
+                  "maxLength": 80,
+                  "isReadOnly": false
+                }
+              ],
+              "submitLabel": "Search",
+              "isEnabled": true,
+              "automationName": "Search settings"
             }
           },
           {
@@ -502,49 +501,9 @@
         "gap": 8,
         "padding": 0
       },
-      "trailing": {
+      "body": {
         "kind": "column",
         "children": [
-          {
-            "kind": "column",
-            "children": [
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "heading",
-                    "value": "General",
-                    "level": 2,
-                    "subtitle": "Settings (User · dark · qwen3.5:4b)"
-                  },
-                  {
-                    "kind": "spacer",
-                    "size": 0
-                  },
-                  {
-                    "kind": "tagPill",
-                    "label": "Preferences",
-                    "tone": "neutral",
-                    "icon": null
-                  },
-                  {
-                    "kind": "tagPill",
-                    "label": "fluent-acrylic · auto",
-                    "tone": "done",
-                    "icon": "check"
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "divider",
-                "label": null
-              }
-            ],
-            "gap": 4,
-            "padding": 0
-          },
           {
             "kind": "column",
             "children": [
@@ -589,62 +548,29 @@
                     "kind": "column",
                     "children": [
                       {
-                        "kind": "select",
-                        "label": "Appearance mode",
-                        "selected": "auto",
-                        "options": [
-                          {
-                            "key": "opt-theme-light",
-                            "id": "light",
-                            "label": "Light",
-                            "emit": {
-                              "owner": "app.settings",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "light",
-                                "qwen3.5:4b",
-                                "fluent-acrylic",
-                                "floating-glass",
-                                "light"
-                              ]
+                        "kind": "neuronRef",
+                        "refKind": "slot",
+                        "neuronUri": "theme-mode",
+                        "props": {
+                          "header": "Appearance mode",
+                          "options": [
+                            {
+                              "id": "light",
+                              "label": "Light"
+                            },
+                            {
+                              "id": "dark",
+                              "label": "Dark"
+                            },
+                            {
+                              "id": "auto",
+                              "label": "Auto (follow system)"
                             }
-                          },
-                          {
-                            "key": "opt-theme-dark",
-                            "id": "dark",
-                            "label": "Dark",
-                            "emit": {
-                              "owner": "app.settings",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "qwen3.5:4b",
-                                "fluent-acrylic",
-                                "floating-glass",
-                                "dark"
-                              ]
-                            }
-                          },
-                          {
-                            "key": "opt-theme-auto",
-                            "id": "auto",
-                            "label": "Auto (follow system)",
-                            "emit": {
-                              "owner": "app.settings",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "qwen3.5:4b",
-                                "fluent-acrylic",
-                                "floating-glass",
-                                "auto"
-                              ]
-                            }
-                          }
-                        ]
+                          ],
+                          "selectedId": "auto",
+                          "isEnabled": true,
+                          "automationName": "Appearance mode"
+                        }
                       },
                       {
                         "kind": "row",
@@ -653,8 +579,8 @@
                             "kind": "button",
                             "key": "pref-fluent-acrylic",
                             "label": "Fluent Acrylic",
-                            "emit": {
-                              "owner": "app.settings",
+                            "command": {
+                              "target": ".",
                               "signal": "save-preferences",
                               "args": [
                                 "User",
@@ -667,6 +593,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "accent",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "pref-fluent-acrylic",
                             "style": "primary",
                             "small": true
                           },
@@ -674,8 +603,8 @@
                             "kind": "button",
                             "key": "pref-spatial-glass",
                             "label": "Spatial Glass",
-                            "emit": {
-                              "owner": "app.settings",
+                            "command": {
+                              "target": ".",
                               "signal": "save-preferences",
                               "args": [
                                 "User",
@@ -688,6 +617,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "pref-spatial-glass",
                             "style": "secondary",
                             "small": true
                           },
@@ -695,8 +627,8 @@
                             "kind": "button",
                             "key": "pref-cyber-synaptic",
                             "label": "Cyber Synaptic",
-                            "emit": {
-                              "owner": "app.settings",
+                            "command": {
+                              "target": ".",
                               "signal": "save-preferences",
                               "args": [
                                 "User",
@@ -709,6 +641,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "pref-cyber-synaptic",
                             "style": "secondary",
                             "small": true
                           },
@@ -716,8 +651,8 @@
                             "kind": "button",
                             "key": "pref-warm-paper",
                             "label": "Warm Paper",
-                            "emit": {
-                              "owner": "app.settings",
+                            "command": {
+                              "target": ".",
                               "signal": "save-preferences",
                               "args": [
                                 "User",
@@ -730,6 +665,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "pref-warm-paper",
                             "style": "secondary",
                             "small": true
                           },
@@ -737,8 +675,8 @@
                             "kind": "button",
                             "key": "pref-midnight",
                             "label": "Midnight",
-                            "emit": {
-                              "owner": "app.settings",
+                            "command": {
+                              "target": ".",
                               "signal": "save-preferences",
                               "args": [
                                 "User",
@@ -751,6 +689,9 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "pref-midnight",
                             "style": "secondary",
                             "small": true
                           },
@@ -758,8 +699,8 @@
                             "kind": "button",
                             "key": "pref-nordic",
                             "label": "Nordic",
-                            "emit": {
-                              "owner": "app.settings",
+                            "command": {
+                              "target": ".",
                               "signal": "save-preferences",
                               "args": [
                                 "User",
@@ -772,12 +713,63 @@
                             "intent": null,
                             "enabled": true,
                             "tone": "neutral",
+                            "tooltip": null,
+                            "visible": true,
+                            "automationName": "pref-nordic",
                             "style": "secondary",
                             "small": true
                           }
                         ],
                         "gap": 8,
                         "padding": 0
+                      },
+                      {
+                        "kind": "neuronRef",
+                        "refKind": "slot",
+                        "neuronUri": "regional",
+                        "props": {
+                          "fields": [
+                            {
+                              "key": "displayName",
+                              "label": "Display name",
+                              "kind": "Text",
+                              "value": "User",
+                              "placeholder": null,
+                              "maxLength": 64,
+                              "isReadOnly": false
+                            },
+                            {
+                              "key": "language",
+                              "label": "Language",
+                              "kind": "Text",
+                              "value": "English",
+                              "placeholder": null,
+                              "maxLength": 32,
+                              "isReadOnly": false
+                            },
+                            {
+                              "key": "timeZone",
+                              "label": "Time zone",
+                              "kind": "Text",
+                              "value": "UTC",
+                              "placeholder": null,
+                              "maxLength": 64,
+                              "isReadOnly": false
+                            },
+                            {
+                              "key": "dateFormat",
+                              "label": "Date format",
+                              "kind": "Text",
+                              "value": "17 Oct 2026",
+                              "placeholder": null,
+                              "maxLength": 32,
+                              "isReadOnly": false
+                            }
+                          ],
+                          "submitLabel": "Save regional settings",
+                          "isEnabled": true,
+                          "automationName": "Regional settings"
+                        }
                       },
                       {
                         "kind": "dataTable",
@@ -833,13 +825,16 @@
                         "kind": "button",
                         "key": "intent:profile",
                         "label": "Open profile & 2FA",
-                        "emit": null,
+                        "command": null,
                         "intent": {
                           "intentKind": "OpenWindow",
                           "arg": "os://window/profile"
                         },
                         "enabled": true,
                         "tone": "accent",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "intent:profile",
                         "style": "primary",
                         "icon": "user",
                         "small": true
@@ -848,13 +843,16 @@
                         "kind": "button",
                         "key": "intent:vault",
                         "label": "Open secure vault",
-                        "emit": null,
+                        "command": null,
                         "intent": {
                           "intentKind": "OpenWindow",
                           "arg": "os://window/secure"
                         },
                         "enabled": true,
                         "tone": "neutral",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "intent:vault",
                         "style": "secondary",
                         "icon": "key-round",
                         "small": true
@@ -863,13 +861,16 @@
                         "kind": "button",
                         "key": "intent:install",
                         "label": "Install app by link",
-                        "emit": null,
+                        "command": null,
                         "intent": {
                           "intentKind": "OpenWindow",
                           "arg": "os://sheet/install"
                         },
                         "enabled": true,
                         "tone": "neutral",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "intent:install",
                         "style": "secondary",
                         "icon": "package-plus",
                         "small": true
@@ -878,13 +879,16 @@
                         "kind": "button",
                         "key": "intent:conflict",
                         "label": "Resolve file conflict",
-                        "emit": null,
+                        "command": null,
                         "intent": {
                           "intentKind": "OpenWindow",
                           "arg": "os://sheet/conflict"
                         },
                         "enabled": true,
                         "tone": "neutral",
+                        "tooltip": null,
+                        "visible": true,
+                        "automationName": "intent:conflict",
                         "style": "secondary",
                         "icon": "git-compare",
                         "small": true
@@ -893,7 +897,9 @@
                     "gap": 8,
                     "padding": 0
                   }
-                ]
+                ],
+                "header": null,
+                "footer": null
               }
             ],
             "gap": 12,
@@ -903,8 +909,47 @@
         "gap": 12,
         "padding": 0
       },
-      "leadingExtent": 248,
-      "gap": 16
+      "toolbar": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "heading",
+                "value": "General",
+                "level": 2,
+                "subtitle": "Settings (User · dark · qwen3.5:4b)"
+              },
+              {
+                "kind": "spacer",
+                "size": 0
+              },
+              {
+                "kind": "tagPill",
+                "label": "Preferences",
+                "tone": "neutral",
+                "icon": null
+              },
+              {
+                "kind": "tagPill",
+                "label": "fluent-acrylic · auto",
+                "tone": "done",
+                "icon": "check"
+              }
+            ],
+            "gap": 8,
+            "padding": 0
+          },
+          {
+            "kind": "divider",
+            "label": null
+          }
+        ],
+        "gap": 4,
+        "padding": 0
+      },
+      "inspector": null
     }
   }
 }
