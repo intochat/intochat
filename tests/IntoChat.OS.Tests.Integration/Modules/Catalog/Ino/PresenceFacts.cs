@@ -90,7 +90,7 @@ public sealed class PresenceFacts
     private static IDisposable As(INeuronRuntime runtime, Who kind)
         => runtime.As(kind, app: "test-app");
 
-    // An agent's tool call as ContractActions.Marked stamps it: the person's principal, the agent and the conversation.
+    // An agent's tool call as AgentTools.Marked stamps it: the person's principal, the agent and the conversation.
     private static IDisposable AsInoTool(INeuronRuntime runtime)
         => runtime.As(Who.Agent, conversation: Agent);
 

@@ -26,7 +26,7 @@ The model you chose in settings becomes the agent's model.
 
 ## Tools
 
-The model has five tools: `neurons_list`, `neurons_search`, `neurons_get`, `neurons_call` and `neurons_context`. It reaches every neuron method through `neurons_call`. The tools sit on `NeuronSurface`, the same surface the shell and MCP use. See [architecture](architecture.md).
+Each method on a contract in the agent definition is exposed directly as a typed tool (`ContractTool`, generated from `ToolSchema`) taking named JSON arguments; `ToolRouter` picks the top-K tools for each turn alongside `neurons_search`, `neurons_list`, and `neurons_context` (`AgentTools`). When the model calls `neurons_search`, matching allowed contracts are added to the turn's tools for the next step. All calls bind through `NeuronBinder` on `OsNeuronSurface`, the same surface MCP and gRPC use. See [architecture](architecture.md).
 
 The tools come only from the contracts in the agent definition. A context entry never adds a tool.
 
