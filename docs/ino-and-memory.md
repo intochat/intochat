@@ -12,7 +12,7 @@ Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/I
 - **Contracts.** The neuron contracts the model may act on, for example `IInoStudio`, `IInoData`, `IInoFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
 - **Contexts.** The context neurons the agent reads at the start of every turn.
 
-The model you chose in settings becomes the agent's model.
+Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Role` (`Chat`, `Think`, `Fast`, `Hear`, `Speak`, `Talk`, `Embed`, `Image`) through `IModelCatalog` (`List`, `Pick`, `SetRole`, `Roles`, `Availability`) and one `ILLM` neuron per model (`{brain}/llm/{modelId}`). Choosing a model in the composer switches that conversation; pinning it or choosing a role in Settings → AI updates the person's role override read by `ModelCatalog.Decide` ahead of the deployment `RoleMap` defaults.
 
 ## A turn
 

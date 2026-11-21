@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
     <IsPackable>true</IsPackable>
     <IsIntoChatOSModule>false</IsIntoChatOSModule>
     <IntoChatOSContractsHost>false</IntoChatOSContractsHost>

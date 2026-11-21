@@ -10,6 +10,7 @@ status, empty text and an error no message carries are props its parent writes o
 data node already exists; it draws as a chatThreadView with the conversation's renderer.
 */
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
@@ -21,8 +22,11 @@ namespace IntoChat.OS.Apps.Controls;
 
 /// <summary>A chat thread: it owns the messages and signals what the user asks of them.</summary>
 [Neuron("control.chatThread"), Emits(typeof(MessageAppended)), Emits(typeof(MessageUpdated)), Emits(typeof(RetryRequested)), Emits(typeof(Submitted)), Emits(typeof(StopRequested)), Emits(typeof(ChatModelSelected))]
-public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>
+public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>
 {
+    [JsonSerializable(typeof(Dictionary<string, bool>))]
+    [JsonSerializable(typeof(Dictionary<string, string>))]
+    private sealed partial class ChatThreadArgsJson : JsonSerializerContext;
     /// <summary>The reason a failed message draws when it carries none.</summary>
     public const string NoAnswer = "The model did not answer.";
 
@@ -47,7 +51,9 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
     /// <summary>The key of the error line's retry button.</summary>
     public const string ErrorRetryKey = "error-action";
 
-    private static readonly JsonElement PinModelArgs = JsonSerializer.SerializeToElement(new Dictionary<string, bool> { ["default"] = true });
+    private static readonly JsonElement PinModelArgs = JsonSerializer.SerializeToElement(
+        new Dictionary<string, bool> { ["default"] = true },
+        ChatThreadArgsJson.Default.DictionaryStringBoolean);
 
     /// <summary>The key of a message's retry button.</summary>
     public static string RetryKeyOf(string id) => $"retry:{id}";
@@ -186,7 +192,9 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
     }
 
     private static Command RetryCommand(string id)
-        => new(".", "control.retry", System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["id"] = id }));
+        => new(".", "control.retry", JsonSerializer.SerializeToElement(
+            new Dictionary<string, string> { ["id"] = id },
+            ChatThreadArgsJson.Default.DictionaryStringString));
 
     private static IReadOnlyList<ThreadMessage> Shown(IReadOnlyList<ThreadMessage> messages)
     {
