@@ -106,21 +106,22 @@ public static class DevicesHostingExtensions
         string? presenceToken,
         CancellationToken ct)
     {
-        using var thisRequest = new HttpRequestMessage(HttpMethod.Get, "/devices/this");
+        const string thisPath = "/brains/owner/devices/this";
+        using var thisRequest = new HttpRequestMessage(HttpMethod.Get, thisPath);
         AttachPresence(thisRequest, presenceToken);
         using var thisResponse = await http.SendAsync(thisRequest, ct).ConfigureAwait(false);
         if (!thisResponse.IsSuccessStatusCode)
         {
-            return CommandResults.Failure($"GET /devices/this returned {(int)thisResponse.StatusCode} {thisResponse.ReasonPhrase}.");
+            return CommandResults.Failure($"GET {thisPath} returned {(int)thisResponse.StatusCode} {thisResponse.ReasonPhrase}.");
         }
 
         var payload = await thisResponse.Content.ReadFromJsonAsync(DevicesHostingJson.Default.DeviceThisPayload, ct).ConfigureAwait(false);
         if (payload is null || string.IsNullOrWhiteSpace(payload.MachineId))
         {
-            return CommandResults.Failure("Kernel returned no machine id from /devices/this.");
+            return CommandResults.Failure($"Kernel returned no machine id from {thisPath}.");
         }
 
-        var installPath = $"/devices/{Uri.EscapeDataString(payload.MachineId.Trim())}/install";
+        var installPath = $"/brains/owner/devices/{Uri.EscapeDataString(payload.MachineId.Trim())}/install";
         using var installRequest = new HttpRequestMessage(HttpMethod.Post, installPath)
         {
             Content = JsonContent.Create(new DeviceInstallPayload(modelId.Trim()), DevicesHostingJson.Default.DeviceInstallPayload),

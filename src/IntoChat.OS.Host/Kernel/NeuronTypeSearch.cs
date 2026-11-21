@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS.Host.Logging;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -57,12 +58,22 @@ public sealed class NeuronTypeSearch(
         take = Math.Min(take, MaxTake);
         if (embeddings is null) { return ByWords(entries, query, take); }
         if (entries.Count == 0) { return []; }
-        var vectors = await Vectors(entries, ct).ConfigureAwait(false);
-        queryVector ??= (await embeddings.GenerateAsync([query], cancellationToken: ct).ConfigureAwait(false))[0].Vector.ToArray();
-        if (queryVector.Length != vectors[0].Length)
-        { throw new InvalidOperationException("The embedding provider returned a query vector of a different size than the type vectors."); }
-        return [.. entries.Select((type, index) => new NeuronTypeHit(type, Cosine(queryVector, vectors[index])))
-            .OrderByDescending(hit => hit.Score).ThenBy(hit => hit.Type.Id, StringComparer.Ordinal).Take(take)];
+        try
+        {
+            var vectors = await Vectors(entries, ct).ConfigureAwait(false);
+            queryVector ??= (await embeddings.GenerateAsync([query], cancellationToken: ct).ConfigureAwait(false))[0].Vector.ToArray();
+            if (queryVector.Length != vectors[0].Length)
+            { throw new InvalidOperationException("The embedding provider returned a query vector of a different size than the type vectors."); }
+            return [.. entries.Select((type, index) => new NeuronTypeHit(type, Cosine(queryVector, vectors[index])))
+                .OrderByDescending(hit => hit.Score).ThenBy(hit => hit.Type.Id, StringComparer.Ordinal).Take(take)];
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            (logger ?? OsConsoleLog.For<NeuronTypeSearch>()).LogWarning(
+                error,
+                "Embedding search failed; falling back to lexical search.");
+            return ByWords(entries, query, take);
+        }
     }
 
     public void Dispose() => _gate.Dispose();

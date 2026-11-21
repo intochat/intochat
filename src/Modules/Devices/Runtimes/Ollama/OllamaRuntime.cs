@@ -15,10 +15,18 @@ public sealed class OllamaRuntime : ILocalRuntime
 {
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(5);
+
+    private sealed record CachedProbe(Uri Endpoint, RuntimeStatus Status, long CapturedAt);
+    private sealed record CachedInstalled(Uri Endpoint, ModelCard[] Cards, long CapturedAt);
 
     private readonly HttpClient _http;
     private readonly IOptionsMonitor<DevicesOptions> _options;
     private readonly TimeProvider _clock;
+    private readonly SemaphoreSlim _probeGate = new(1, 1);
+    private readonly SemaphoreSlim _installedGate = new(1, 1);
+    private CachedProbe? _cachedProbe;
+    private CachedInstalled? _cachedInstalled;
 
     internal OllamaRuntime(HttpClient http, IOptionsMonitor<DevicesOptions> options, TimeProvider clock)
     {
@@ -34,9 +42,48 @@ public sealed class OllamaRuntime : ILocalRuntime
 
     private Uri Endpoint => DevicesOptions.ValidateHttpUrl(_options.CurrentValue.Ollama.Endpoint, "Ollama.Endpoint");
 
+    private void InvalidateCache()
+    {
+        Volatile.Write(ref _cachedProbe, null);
+        Volatile.Write(ref _cachedInstalled, null);
+    }
+
+    private bool IsKnownUnreachable(Uri endpoint)
+        => Volatile.Read(ref _cachedProbe) is { } cached
+            && Uri.Equals(cached.Endpoint, endpoint)
+            && _clock.GetElapsedTime(cached.CapturedAt) < CacheTtl
+            && !cached.Status.Reachable;
+
     public async Task<RuntimeStatus> Probe(CancellationToken ct)
     {
         var endpoint = Endpoint;
+        var cached = Volatile.Read(ref _cachedProbe);
+        if (cached is not null && Uri.Equals(cached.Endpoint, endpoint) && _clock.GetElapsedTime(cached.CapturedAt) < CacheTtl)
+        {
+            return cached.Status;
+        }
+
+        await _probeGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            cached = Volatile.Read(ref _cachedProbe);
+            if (cached is not null && Uri.Equals(cached.Endpoint, endpoint) && _clock.GetElapsedTime(cached.CapturedAt) < CacheTtl)
+            {
+                return cached.Status;
+            }
+
+            var status = await FetchProbeAsync(endpoint, ct).ConfigureAwait(false);
+            Volatile.Write(ref _cachedProbe, new CachedProbe(endpoint, status, _clock.GetTimestamp()));
+            return status;
+        }
+        finally
+        {
+            _probeGate.Release();
+        }
+    }
+
+    private async Task<RuntimeStatus> FetchProbeAsync(Uri endpoint, CancellationToken ct)
+    {
         using var timeout = new CancellationTokenSource(ProbeTimeout, _clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
         try
@@ -78,7 +125,54 @@ public sealed class OllamaRuntime : ILocalRuntime
 
     public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
     {
+        var cards = await ReadInstalledAsync(ct).ConfigureAwait(false);
+        foreach (var card in cards)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return card;
+        }
+    }
+
+    private async Task<ModelCard[]> ReadInstalledAsync(CancellationToken ct)
+    {
         var endpoint = Endpoint;
+        var cached = Volatile.Read(ref _cachedInstalled);
+        if (cached is not null && Uri.Equals(cached.Endpoint, endpoint) && _clock.GetElapsedTime(cached.CapturedAt) < CacheTtl)
+        {
+            return cached.Cards;
+        }
+
+        if (IsKnownUnreachable(endpoint))
+        {
+            return [];
+        }
+
+        await _installedGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            cached = Volatile.Read(ref _cachedInstalled);
+            if (cached is not null && Uri.Equals(cached.Endpoint, endpoint) && _clock.GetElapsedTime(cached.CapturedAt) < CacheTtl)
+            {
+                return cached.Cards;
+            }
+
+            if (IsKnownUnreachable(endpoint))
+            {
+                return [];
+            }
+
+            var cards = await FetchInstalledAsync(endpoint, ct).ConfigureAwait(false);
+            Volatile.Write(ref _cachedInstalled, new CachedInstalled(endpoint, cards, _clock.GetTimestamp()));
+            return cards;
+        }
+        finally
+        {
+            _installedGate.Release();
+        }
+    }
+
+    private async Task<ModelCard[]> FetchInstalledAsync(Uri endpoint, CancellationToken ct)
+    {
         TagsResponse? tags;
         try
         {
@@ -87,7 +181,7 @@ public sealed class OllamaRuntime : ILocalRuntime
             using var response = await _http.GetAsync(new Uri(endpoint, "/api/tags"), linked.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                yield break;
+                return [];
             }
             var body = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false);
             tags = JsonSerializer.Deserialize(body, OllamaJson.Default.TagsResponse);
@@ -99,14 +193,15 @@ public sealed class OllamaRuntime : ILocalRuntime
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or OperationCanceledException or JsonException)
         {
             OsConsoleLog.For<OllamaRuntime>().LogSwallowed(error, $"listing Ollama models from {endpoint}");
-            yield break;
+            return [];
         }
 
-        if (tags?.Models is null)
+        if (tags?.Models is null || tags.Models.Length == 0)
         {
-            yield break;
+            return [];
         }
 
+        var cards = new List<ModelCard>(tags.Models.Length);
         foreach (var tag in tags.Models)
         {
             ct.ThrowIfCancellationRequested();
@@ -117,18 +212,25 @@ public sealed class OllamaRuntime : ILocalRuntime
 
             if (OllamaCards.FindCatalogued(tag.Name) is not null)
             {
-                yield return OllamaCards.FromTag(tag, show: null);
+                cards.Add(OllamaCards.FromTag(tag, show: null));
                 continue;
             }
 
             var show = await ReadShowAsync(endpoint, tag.Name, ct).ConfigureAwait(false);
-            yield return OllamaCards.FromTag(tag, show);
+            cards.Add(OllamaCards.FromTag(tag, show));
         }
+
+        return [.. cards];
     }
 
     public async Task<IReadOnlyCollection<ModelId>> Loaded(CancellationToken ct)
     {
         var endpoint = Endpoint;
+        if (IsKnownUnreachable(endpoint))
+        {
+            return [];
+        }
+
         try
         {
             using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
@@ -155,8 +257,24 @@ public sealed class OllamaRuntime : ILocalRuntime
         }
     }
 
-    public IAsyncEnumerable<InstallProgress> Install(ModelId id, CancellationToken ct)
-        => PullAsync(_http, Endpoint, id, ct);
+    public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var progress in PullAsync(_http, Endpoint, id, ct).ConfigureAwait(false))
+            {
+                if (progress.State is InstallState.Ready or InstallState.Failed or InstallState.Cancelled)
+                {
+                    InvalidateCache();
+                }
+                yield return progress;
+            }
+        }
+        finally
+        {
+            InvalidateCache();
+        }
+    }
 
     public async Task Remove(ModelId id, CancellationToken ct)
     {
@@ -171,8 +289,15 @@ public sealed class OllamaRuntime : ILocalRuntime
         };
         using var timeout = new CancellationTokenSource(MetadataTimeout, _clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-        using var response = await _http.SendAsync(request, linked.Token).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        try
+        {
+            using var response = await _http.SendAsync(request, linked.Token).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            InvalidateCache();
+        }
     }
 
     public IChatClient Chat(ModelId id)

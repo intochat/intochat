@@ -1,11 +1,13 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.Capabilities.Compute;
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Tests.Unit.Modules.AI.Models;
@@ -228,5 +230,94 @@ public sealed class RuntimeCatalogFacts
         Assert.Equal(2, vector.Length);
         Assert.Equal(0.6f, vector[0], precision: 4);
         Assert.Equal(0.8f, vector[1], precision: 4);
+    }
+
+    private sealed class BarrierRuntime(
+        RuntimeId id,
+        TaskCompletionSource ownStarted,
+        TaskCompletionSource peerStarted) : ILocalRuntime
+    {
+        public RuntimeId Id { get; } = id;
+
+        public async Task<RuntimeStatus> Probe(CancellationToken ct)
+        {
+            ownStarted.TrySetResult();
+            await peerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            return new RuntimeStatus(Id, Reachable: true, Version: "1.0.0", Endpoint: new Uri("http://127.0.0.1:11434"));
+        }
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+        public IChatClient Chat(ModelId id) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task ModelCatalogProbesRuntimesInParallel()
+    {
+        var ollamaStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lmStudioStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ollama = new BarrierRuntime(RuntimeId.Ollama, ollamaStarted, lmStudioStarted);
+        var lmStudio = new BarrierRuntime(RuntimeId.OpenAiCompat("lmstudio"), lmStudioStarted, ollamaStarted);
+
+        var (sp, catalog) = CreateCatalog(ollama, lmStudio);
+        await using var _ = sp;
+
+        var cards = await catalog.List(ct: Ct);
+        Assert.NotEmpty(cards);
+        Assert.True(ollamaStarted.Task.IsCompletedSuccessfully);
+        Assert.True(lmStudioStarted.Task.IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task PickEmbedFallsBackToInstalledLocalEmbeddingModelWhenConfiguredIsNotInstalled()
+    {
+        var runtime = new FakeRuntime(RuntimeId.Ollama);
+        runtime.InstalledCards.Add(new ModelCard(
+            new ModelId("nomic-embed-text:latest"),
+            AiProvider.Ollama,
+            "Nomic",
+            "Nomic Embed",
+            Where.Device,
+            Abilities.Embed,
+            Tier.Fast));
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(config);
+        services.AddOptions<AIOptions>().Configure(ai => ai.Roles.Device[Role.Embed] = KnownModels.EmbeddingGemma.Id.Value);
+        services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
+        services.AddSingleton<IPriceList, ModelPriceList>();
+        services.AddSingleton<ILocalRuntime>(runtime);
+        AIClients.Add(services);
+        services.AddSingleton<ModelCatalog>();
+
+        await using var sp = services.BuildServiceProvider();
+        var catalog = sp.GetRequiredService<ModelCatalog>();
+
+        var picked = await catalog.Pick(brain: null, Role.Embed, turn: null, personSettingsReader: null, Ct);
+        Assert.Equal(new ModelId("nomic-embed-text:latest"), picked);
     }
 }

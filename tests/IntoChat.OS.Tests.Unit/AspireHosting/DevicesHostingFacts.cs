@@ -103,7 +103,7 @@ public sealed class DevicesHostingFacts
             var body = req.Content is not null ? await req.Content.ReadAsStringAsync(Ct) : null;
             requests.Add((req.Method, req.RequestUri!.AbsolutePath, presence, body));
 
-            if (req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath == "/devices/this")
+            if (req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath == "/brains/owner/devices/this")
             {
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
@@ -111,7 +111,7 @@ public sealed class DevicesHostingFacts
                 };
             }
 
-            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == "/devices/machine-42/install")
+            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == "/brains/owner/devices/machine-42/install")
             {
                 return new HttpResponseMessage(HttpStatusCode.Accepted);
             }
@@ -124,8 +124,8 @@ public sealed class DevicesHostingFacts
 
         Assert.True(result.Success);
         Assert.Equal(2, requests.Count);
-        Assert.Equal((HttpMethod.Get, "/devices/this", "presence-secret-token"), (requests[0].Method, requests[0].Path, requests[0].Presence));
-        Assert.Equal((HttpMethod.Post, "/devices/machine-42/install", "presence-secret-token"), (requests[1].Method, requests[1].Path, requests[1].Presence));
+        Assert.Equal((HttpMethod.Get, "/brains/owner/devices/this", "presence-secret-token"), (requests[0].Method, requests[0].Path, requests[0].Presence));
+        Assert.Equal((HttpMethod.Post, "/brains/owner/devices/machine-42/install", "presence-secret-token"), (requests[1].Method, requests[1].Path, requests[1].Presence));
         Assert.Equal("""{"model":"gemma4:e2b"}""", requests[1].Body);
     }
 

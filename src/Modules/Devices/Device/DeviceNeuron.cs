@@ -64,18 +64,13 @@ internal sealed class DeviceNeuron(
     {
         EnsureThisMachine();
 
-        var probes = new RuntimeStatus[_runtimes.Length];
-        var installedByRuntime = new List<(ILocalRuntime Runtime, List<ModelCard> Installed, HashSet<ModelId> Loaded, List<ModelCard> Catalog)>(_runtimes.Length);
-
-        for (var i = 0; i < _runtimes.Length; i++)
-        {
-            var runtime = _runtimes[i];
-            probes[i] = await SafeProbeAsync(runtime).ConfigureAwait(false);
-            var installed = await CollectSafeAsync(runtime.Installed(CancellationToken.None), runtime.Id, "installed").ConfigureAwait(false);
-            var loaded = await SafeLoadedAsync(runtime).ConfigureAwait(false);
-            var catalog = await CollectSafeAsync(runtime.Catalog(CancellationToken.None), runtime.Id, "catalog").ConfigureAwait(false);
-            installedByRuntime.Add((runtime, installed, loaded, catalog));
-        }
+        var results = _runtimes.Length == 0
+            ? []
+            : await Task.WhenAll(_runtimes.Select(ReadRuntimeAsync)).ConfigureAwait(false);
+        var probes = results.Select(static r => r.Probe).ToArray();
+        var installedByRuntime = results
+            .Select(static r => (r.Runtime, r.Installed, r.Loaded, r.Catalog))
+            .ToList();
 
         var hw = hardware.Read();
         var activeByModel = State.Queue
@@ -384,6 +379,15 @@ internal sealed class DeviceNeuron(
     private static ILocalRuntime[] OrderRuntimes(IEnumerable<ILocalRuntime> runtimes)
         => [.. runtimes.OrderBy(static r => r.Id == RuntimeId.Ollama ? 0 : r.Id == RuntimeId.FoundryLocal ? 1 : 2)
             .ThenBy(static r => r.Id.Value, StringComparer.Ordinal)];
+
+    private static async Task<(ILocalRuntime Runtime, RuntimeStatus Probe, List<ModelCard> Installed, HashSet<ModelId> Loaded, List<ModelCard> Catalog)> ReadRuntimeAsync(ILocalRuntime runtime)
+    {
+        var probe = await SafeProbeAsync(runtime).ConfigureAwait(false);
+        var installed = await CollectSafeAsync(runtime.Installed(CancellationToken.None), runtime.Id, "installed").ConfigureAwait(false);
+        var loaded = await SafeLoadedAsync(runtime).ConfigureAwait(false);
+        var catalog = await CollectSafeAsync(runtime.Catalog(CancellationToken.None), runtime.Id, "catalog").ConfigureAwait(false);
+        return (runtime, probe, installed, loaded, catalog);
+    }
 
     private static async Task<RuntimeStatus> SafeProbeAsync(ILocalRuntime runtime)
     {

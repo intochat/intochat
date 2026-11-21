@@ -655,9 +655,13 @@ public sealed class ModelCatalog
         var installedById = new Dictionary<string, InstalledLocalModel>(StringComparer.OrdinalIgnoreCase);
         var providerProbes = new Dictionary<AiProvider, ProviderProbeState>();
 
-        foreach (var runtime in ActiveRuntimes())
+        var runtimes = ActiveRuntimes();
+        var runtimeStates = runtimes.Length == 0
+            ? []
+            : await Task.WhenAll(runtimes.Select(runtime => ProbeAndCollectAsync(runtime, ct))).ConfigureAwait(false);
+
+        foreach (var (runtime, probe, installed) in runtimeStates)
         {
-            var probe = await SafeProbeAsync(runtime, ct).ConfigureAwait(false);
             var runtimeProvider = ProviderOf(runtime.Id);
 
             providerProbes[runtimeProvider] = providerProbes.TryGetValue(runtimeProvider, out var existingProbe)
@@ -671,7 +675,6 @@ public sealed class ModelCatalog
                 continue;
             }
 
-            var installed = await CollectInstalledSafeAsync(runtime, ct).ConfigureAwait(false);
             foreach (var localCard in installed)
             {
                 var canonical = KnownModels.Find(localCard.Id.Value);
@@ -699,6 +702,20 @@ public sealed class ModelCatalog
         }
 
         return new LocalRuntimeSnapshot([.. cards], installedById, providerProbes);
+    }
+
+    private static async Task<(ILocalRuntime Runtime, RuntimeStatus Probe, List<ModelCard> Installed)> ProbeAndCollectAsync(
+        ILocalRuntime runtime,
+        CancellationToken ct)
+    {
+        var probe = await SafeProbeAsync(runtime, ct).ConfigureAwait(false);
+        if (!probe.Reachable)
+        {
+            return (runtime, probe, []);
+        }
+
+        var installed = await CollectInstalledSafeAsync(runtime, ct).ConfigureAwait(false);
+        return (runtime, probe, installed);
     }
 
     private async Task<(bool Ready, string? Reason)> CheckCardAvailabilityAsync(
@@ -921,10 +938,11 @@ public sealed class ModelCatalog
         {
             return local.ProviderProbes.Any(static entry => IsDeviceChatProvider(entry.Key) && entry.Value.AnyReachable);
         }
-        foreach (var runtime in ActiveRuntimes())
+        var chatRuntimes = ActiveRuntimes().Where(static r => IsDeviceChatProvider(ProviderOf(r.Id))).ToArray();
+        if (chatRuntimes.Length > 0)
         {
-            if (IsDeviceChatProvider(ProviderOf(runtime.Id))
-                && (await SafeProbeAsync(runtime, ct).ConfigureAwait(false)).Reachable)
+            var probes = await Task.WhenAll(chatRuntimes.Select(r => SafeProbeAsync(r, ct))).ConfigureAwait(false);
+            if (probes.Any(static p => p.Reachable))
             {
                 return true;
             }

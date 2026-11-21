@@ -138,7 +138,8 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             services.AddSingleton<ILocalRuntime>(sp => new OpenAiCompatRuntime(
                 runtimeName,
                 endpoint,
-                sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.openai-compat")));
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.openai-compat"),
+                sp.GetRequiredService<TimeProvider>()));
         }
     }
 }

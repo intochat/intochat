@@ -17,6 +17,8 @@ public sealed record VoiceAbilities(bool Hear, bool Speak, bool Talk)
 
 internal sealed record InoCatalogSnapshot(ModelId? PickedChat, ModelCard[] Cards, ModelAvailability[] Availability);
 
+internal sealed record InoRuntimeSnapshot(InoCatalogSnapshot? Catalog, DeviceView? Device);
+
 internal sealed record InoSetupHost(
     Func<InoAppState> GetState,
     Func<InoAppState, Task> ShowState,
@@ -49,16 +51,21 @@ internal static class InoModelSetup
     public static bool IsSmart(UserSettingsState s)
         => s.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
 
-    public static async Task<VoiceAbilities> ReadVoiceAsync(InoSetupHost host)
+    public static async Task<VoiceAbilities> ReadVoiceAsync(InoSetupHost host, ModelAvailability[]? cachedAvailability = null)
     {
         try
         {
             var catalog = host.GetCatalog();
-            var availability = await catalog.Availability();
+            var availability = cachedAvailability ?? await catalog.Availability();
             var ready = availability
                 .Where(static a => a.Ready)
                 .Select(static a => a.Model.Value)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (ready.Count == 0)
+            {
+                return VoiceAbilities.None;
+            }
 
             var hear = await IsRoleReadyAsync(host, catalog, Role.Hear, ready);
             var speak = await IsRoleReadyAsync(host, catalog, Role.Speak, ready);
@@ -118,16 +125,19 @@ internal static class InoModelSetup
     public static Task EnsureProfileContextAsync(InoSetupHost host)
         => host.TryOptional("profile-context", () => host.GetProfileWriter().Ensure());
 
-    public static async Task<VoiceAbilities> InitializeViewAsync(InoSetupHost host)
+    public static async Task<VoiceAbilities> InitializeViewAsync(
+        InoSetupHost host,
+        InoRuntimeSnapshot? snapshot = null,
+        UserSettingsState? cachedSettings = null)
     {
-        var voice = await ReadVoiceAsync(host);
+        var voice = await ReadVoiceAsync(host, snapshot?.Catalog?.Availability);
         var current = host.GetState();
         if (!string.IsNullOrWhiteSpace(current.SelectedModel)) { return voice; }
 
-        var settings = await host.ReadSettingsOptional("settings-read", null, async () => await host.GetSettings().Read());
+        var settings = cachedSettings ?? await host.ReadSettingsOptional("settings-read", null, async () => await host.GetSettings().Read());
         if (settings is null) { return voice; }
 
-        var (_, _, displayModel) = await ResolveForSettingsAsync(host, settings);
+        var (_, _, displayModel) = await ResolveForSettingsAsync(host, settings, snapshot);
         await host.ShowState(current with
         {
             SelectedModel = displayModel,
@@ -317,10 +327,10 @@ internal static class InoModelSetup
         return retry;
     }
 
-    public static async Task SyncSettingsAsync(InoSetupHost host, UserSettingsChanged changed)
+    public static async Task SyncSettingsAsync(InoSetupHost host, UserSettingsChanged changed, InoRuntimeSnapshot? snapshot = null)
     {
         var settings = await host.GetSettings().Read();
-        var (_, effectiveModel, displayModel) = await ResolveForSettingsAsync(host, settings);
+        var (_, effectiveModel, displayModel) = await ResolveForSettingsAsync(host, settings, snapshot);
         await EnsureProfileContextAsync(host);
         var conversationId = host.GetState().ConversationId;
         await EnsureSeatedAsync(host, conversationId, settings, effectiveModel);
@@ -401,12 +411,6 @@ internal static class InoModelSetup
         return installed.Length > 0 ? installed[0] : null;
     }
 
-    public static async Task<(ModelCard[] Cards, ModelAvailability[] Availability)?> ReadPickerAsync(InoSetupHost host)
-    {
-        var snapshot = await ReadCatalogSnapshotAsync(host);
-        return snapshot is null ? null : (snapshot.Cards, snapshot.Availability);
-    }
-
     public static Task<InoCatalogSnapshot?> ReadCatalogSnapshotAsync(InoSetupHost host)
         => host.ReadCatalogOptional("model-catalog", null, async () =>
         {
@@ -432,23 +436,25 @@ internal static class InoModelSetup
 
     public static async Task<(DeviceView? Device, string? EffectiveModel, string DisplayModel)> ResolveForSettingsAsync(
         InoSetupHost host,
-        UserSettingsState settings)
+        UserSettingsState settings,
+        InoRuntimeSnapshot? snapshot = null)
     {
-        var device = await ReadDeviceAsync(host);
-        var (effective, display) = await ResolveEffectiveModelAsync(host, settings, device);
+        var device = snapshot is not null ? snapshot.Device : await ReadDeviceAsync(host);
+        var (effective, display) = await ResolveEffectiveModelAsync(host, settings, device, snapshot);
         return (device, effective, display);
     }
 
     public static async Task<(string? EffectiveModel, string DisplayModel)> ResolveEffectiveModelAsync(
         InoSetupHost host,
         UserSettingsState settings,
-        DeviceView? device)
+        DeviceView? device,
+        InoRuntimeSnapshot? runtimeSnapshot = null)
     {
         var personModel = settings.RoleOf(Role.Chat)?.Value;
         if (!string.IsNullOrWhiteSpace(personModel)) { return (personModel, personModel); }
 
         var preferredLocal = PreferredLocalModel(device);
-        var snapshot = await ReadCatalogSnapshotAsync(host);
+        var snapshot = runtimeSnapshot is not null ? runtimeSnapshot.Catalog : await ReadCatalogSnapshotAsync(host);
         if (snapshot is not null)
         {
             if (snapshot.PickedChat is { Value.Length: > 0 } picked)

@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Identity.Local.Machine;
@@ -20,11 +23,14 @@ using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
@@ -38,6 +44,8 @@ using IntoChat.OS.Modules.Identity.Grants;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -671,6 +679,160 @@ public sealed class InoAppFacts
             FakeDevice.Reset(string.Empty);
             if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
         }
+    }
+
+    [Fact]
+    public async Task OnActivateReusesASingleCatalogAndDeviceSnapshot()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-ino-snapshot-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretRedactor>(new NoSecrets())
+            .AddSingleton(machine)
+            .BuildServiceProvider();
+
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
+        BackgroundConversation.Reset();
+        FakeModelCatalog.Reset();
+        FakeDevice.Reset(machine.Value);
+        try
+        {
+            FakeModelCatalog.PickedChat = KnownModels.Qwen35.Id;
+            FakeModelCatalog.ListedCards = [KnownModels.Qwen35];
+            FakeModelCatalog.ListedAvailability =
+            [
+                new ModelAvailability(KnownModels.Qwen35.Id, Ready: true, Reason: null),
+            ];
+
+            await using var os = TestOS.Local(o => o.Services = services);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<BackgroundConversation>();
+            os.Register<FakeModelCatalog>();
+            os.Register<FakeDevice>();
+
+            var ino = await os.Install<InoApp>();
+
+            Assert.Equal(KnownModels.Qwen35.Id.Value, ino.App.State.SelectedModel);
+            Assert.Equal(1, FakeModelCatalog.ListCalls);
+            Assert.Equal(1, FakeModelCatalog.AvailabilityCalls);
+            Assert.Equal(1, FakeModelCatalog.PickChatCalls);
+            Assert.Equal(1, FakeDevice.ReadCalls);
+        }
+        finally
+        {
+            BackgroundConversation.Reset();
+            FakeModelCatalog.Reset();
+            FakeDevice.Reset(string.Empty);
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
+        }
+    }
+
+    [Fact]
+    public async Task OnActivateStaysWellUnderTimeoutWithAnUnreachableAttachedRuntime()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-ino-unreachable-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var unreachableProbes = 0;
+        using var slowUnreachableHandler = new SlowRefuseHandler(TimeSpan.FromMilliseconds(250), () => Interlocked.Increment(ref unreachableProbes));
+        using var unreachableHttp = new HttpClient(slowUnreachableHandler, disposeHandler: false);
+        var unreachableRuntime = new OpenAiCompatRuntime("lmstudio", new Uri("http://127.0.0.1:1234/v1"), unreachableHttp, TimeProvider.System);
+        var localOllama = new ReadyOllamaStub(KnownModels.Qwen35);
+        using var installer = new DeviceInstaller(IntoChat.OS.Tests.TestEdge.Authority);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
+            })
+            .Build();
+
+        var sc = new ServiceCollection();
+        sc.AddSingleton<IConfiguration>(config);
+        sc.AddSingleton<ISecretRedactor>(new NoSecrets());
+        sc.AddSingleton(TimeProvider.System);
+        sc.AddSingleton(machine);
+        sc.AddSingleton<IHardwareProbe>(new StubHardwareProbe());
+        sc.AddSingleton(installer);
+        sc.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority);
+        sc.AddSingleton<ILocalRuntime>(localOllama);
+        sc.AddSingleton<ILocalRuntime>(unreachableRuntime);
+        sc.AddOptions<AIOptions>();
+        sc.AddSingleton<IAiCredentials>(new FixedAiCredentials());
+        sc.AddSingleton<IPriceList, ModelPriceList>();
+        AIClients.Add(sc);
+        await using var services = sc.BuildServiceProvider();
+
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
+        BackgroundConversation.Reset();
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = services);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
+            os.Register<BackgroundConversation>();
+            os.Register<ModelCatalogNeuron>();
+            os.Register<DeviceNeuron>();
+
+            var started = Stopwatch.GetTimestamp();
+            var ino = await os.Install<InoApp>();
+            var elapsed = Stopwatch.GetElapsedTime(started);
+
+            Assert.Equal(KnownModels.Qwen35.Id.Value, ino.App.State.SelectedModel);
+            Assert.Equal(1, Volatile.Read(ref unreachableProbes));
+            Assert.True(elapsed < TimeSpan.FromSeconds(5), $"InoApp.OnActivate took {elapsed.TotalSeconds:F2}s with an unreachable runtime.");
+        }
+        finally
+        {
+            BackgroundConversation.Reset();
+            await installer.StopAsync(CancellationToken.None);
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
+        }
+    }
+
+    private sealed class SlowRefuseHandler(TimeSpan delay, Action onCall) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            onCall();
+            await Task.Delay(delay, cancellationToken);
+            throw new HttpRequestException("Connection refused");
+        }
+    }
+
+    private sealed class StubHardwareProbe : IHardwareProbe
+    {
+        public Hardware Read() => new(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]);
+        public void ReportNpu() { }
+    }
+
+    private sealed class ReadyOllamaStub(params ModelCard[] cards) : ILocalRuntime
+    {
+        public RuntimeId Id => RuntimeId.Ollama;
+
+        public Task<RuntimeStatus> Probe(CancellationToken ct)
+            => Task.FromResult(new RuntimeStatus(Id, Reachable: true, Version: "0.9.0", Endpoint: new Uri("http://127.0.0.1:11434")));
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in cards) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in cards) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+        public IChatClient Chat(ModelId id) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -1578,6 +1740,9 @@ public sealed class InoAppFacts
         public static Dictionary<Role, ModelId>? PickedRoles { get; set; }
         public static ModelCard[]? ListedCards { get; set; }
         public static ModelAvailability[]? ListedAvailability { get; set; }
+        public static int ListCalls { get; private set; }
+        public static int AvailabilityCalls { get; private set; }
+        public static int PickChatCalls { get; private set; }
 
         public static void Reset()
         {
@@ -1585,10 +1750,14 @@ public sealed class InoAppFacts
             PickedRoles = null;
             ListedCards = null;
             ListedAvailability = null;
+            ListCalls = 0;
+            AvailabilityCalls = 0;
+            PickChatCalls = 0;
         }
 
         public Task<ModelCard[]> List(Abilities need = Abilities.None)
         {
+            ListCalls++;
             if (ListedCards is { } cards)
             {
                 return Task.FromResult(cards.Where(c => need == Abilities.None || (c.Can & need) == need).ToArray());
@@ -1602,6 +1771,11 @@ public sealed class InoAppFacts
 
         public Task<ModelId> Pick(Role role, ModelId? turn = null)
         {
+            if (role == Role.Chat && turn is null)
+            {
+                PickChatCalls++;
+            }
+
             if (turn is { Value.Length: > 0 } t)
             {
                 return Task.FromResult(t);
@@ -1625,7 +1799,11 @@ public sealed class InoAppFacts
 
         public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
 
-        public Task<ModelAvailability[]> Availability() => Task.FromResult(ListedAvailability ?? []);
+        public Task<ModelAvailability[]> Availability()
+        {
+            AvailabilityCalls++;
+            return Task.FromResult(ListedAvailability ?? []);
+        }
 
         public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
@@ -1638,6 +1816,7 @@ public sealed class InoAppFacts
         public static List<(Role Role, ModelId Model)> Uses { get; } = [];
         public static Install[] QueueEntries { get; set; } = [];
         public static DeviceModel[] DeviceModels { get; set; } = [];
+        public static int ReadCalls { get; private set; }
 
         public static void Reset(string machineId)
         {
@@ -1645,6 +1824,7 @@ public sealed class InoAppFacts
             Installs.Clear();
             Uses.Clear();
             QueueEntries = [];
+            ReadCalls = 0;
             DeviceModels =
             [
                 new DeviceModel(KnownModels.Qwen35, RuntimeId.Ollama, InstallState.Ready, Fit.Good),
@@ -1653,12 +1833,15 @@ public sealed class InoAppFacts
         }
 
         public Task<DeviceView> Read()
-            => Task.FromResult(new DeviceView(
+        {
+            ReadCalls++;
+            return Task.FromResult(new DeviceView(
                 Machine,
                 new Hardware(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]),
                 [new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434"))],
                 DeviceModels,
                 QueueEntries));
+        }
 
         public Task Use(Role role, ModelId model)
         {

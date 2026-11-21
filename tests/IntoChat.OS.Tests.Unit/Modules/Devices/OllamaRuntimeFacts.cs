@@ -5,6 +5,7 @@ using IntoChat.OS.LocalSetup;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Tests.Unit.Modules.Devices;
 
@@ -53,10 +54,10 @@ public sealed class OllamaRuntimeFacts
         public IDisposable? OnChange(Action<DevicesOptions, string?> listener) => null;
     }
 
-    private static OllamaRuntime Runtime(HttpMessageHandler handler, string endpoint = "http://localhost:11434")
+    private static OllamaRuntime Runtime(HttpMessageHandler handler, string endpoint = "http://localhost:11434", TimeProvider? clock = null)
     {
         var options = new DevicesOptions { Ollama = new OllamaRuntimeOptions { Enabled = true, Endpoint = endpoint } };
-        return new OllamaRuntime(new HttpClient(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan }, new StaticOptions(options), TimeProvider.System);
+        return new OllamaRuntime(new HttpClient(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan }, new StaticOptions(options), clock ?? TimeProvider.System);
     }
 
     private static async Task<List<T>> Collect<T>(IAsyncEnumerable<T> source)
@@ -205,6 +206,112 @@ public sealed class OllamaRuntimeFacts
         var badEnv = FakeProbeEnvironment.FromJson(NoModelWithPull("{\"error\":\"nope\"}"));
         Assert.Equal(1, await Preflight.PullIfRequestedAsync(badEnv, LauncherCommand.Parse(["preflight", "--pull"]), await Collected(badEnv), writer, Ct));
         Assert.Contains("nope", writer.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProbeAndInstalledCacheWithinTtlAndRefreshAfterExpiry()
+    {
+        var clock = new FakeTimeProvider();
+        var versionCalls = 0;
+        var tagsCalls = 0;
+        var script = new Script((req, _) =>
+        {
+            var path = req.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path == "/api/version")
+            {
+                versionCalls++;
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"version":"0.9.0"}""", Encoding.UTF8) };
+            }
+            if (path == "/api/tags")
+            {
+                tagsCalls++;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"models":[{"name":"qwen3.5:4b","size":3400000000,"digest":"sha256:abc"}]}""", Encoding.UTF8),
+                };
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var runtime = Runtime(script, clock: clock);
+
+        Assert.True((await runtime.Probe(Ct)).Reachable);
+        Assert.True((await runtime.Probe(Ct)).Reachable);
+        Assert.Single(await Collect(runtime.Installed(Ct)));
+        Assert.Single(await Collect(runtime.Installed(Ct)));
+        Assert.Equal((1, 1), (versionCalls, tagsCalls));
+
+        clock.Advance(OllamaRuntime.CacheTtl + TimeSpan.FromSeconds(1));
+
+        Assert.True((await runtime.Probe(Ct)).Reachable);
+        Assert.Single(await Collect(runtime.Installed(Ct)));
+        Assert.Equal((2, 2), (versionCalls, tagsCalls));
+    }
+
+    [Fact]
+    public async Task InstallAndRemoveInvalidateCachedProbeAndInstalled()
+    {
+        var clock = new FakeTimeProvider();
+        var versionCalls = 0;
+        var tagsCalls = 0;
+        var script = new Script((req, _) =>
+        {
+            var path = req.RequestUri?.AbsolutePath ?? string.Empty;
+            return path switch
+            {
+                "/api/version" => Count(ref versionCalls, """{"version":"0.9.0"}"""),
+                "/api/tags" => Count(ref tagsCalls, """{"models":[{"name":"qwen3.5:4b","size":3400000000,"digest":"sha256:abc"}]}"""),
+                "/api/pull" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"status":"success"}""", Encoding.UTF8) },
+                "/api/delete" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}", Encoding.UTF8) },
+                _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+            };
+        });
+
+        static HttpResponseMessage Count(ref int counter, string body)
+        {
+            counter++;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8) };
+        }
+
+        var runtime = Runtime(script, clock: clock);
+
+        Assert.True((await runtime.Probe(Ct)).Reachable);
+        Assert.Single(await Collect(runtime.Installed(Ct)));
+        Assert.Equal((1, 1), (versionCalls, tagsCalls));
+
+        _ = await Collect(runtime.Install(new ModelId("qwen3.5:4b"), Ct));
+        Assert.True((await runtime.Probe(Ct)).Reachable);
+        Assert.Single(await Collect(runtime.Installed(Ct)));
+        Assert.Equal((2, 2), (versionCalls, tagsCalls));
+
+        await runtime.Remove(new ModelId("qwen3.5:4b"), Ct);
+        Assert.True((await runtime.Probe(Ct)).Reachable);
+        Assert.Single(await Collect(runtime.Installed(Ct)));
+        Assert.Equal((3, 3), (versionCalls, tagsCalls));
+    }
+
+    [Fact]
+    public async Task UnreachableProbeShortCircuitsInstalledAndLoadedWithinTtl()
+    {
+        var clock = new FakeTimeProvider();
+        var calls = 0;
+        var script = new Script((_, _) =>
+        {
+            calls++;
+            throw new HttpRequestException("Connection refused");
+        });
+
+        var runtime = Runtime(script, clock: clock);
+
+        Assert.False((await runtime.Probe(Ct)).Reachable);
+        Assert.False((await runtime.Probe(Ct)).Reachable);
+        Assert.Empty(await Collect(runtime.Installed(Ct)));
+        Assert.Empty(await runtime.Loaded(Ct));
+        Assert.Equal(1, calls);
+
+        clock.Advance(OllamaRuntime.CacheTtl + TimeSpan.FromSeconds(1));
+        Assert.False((await runtime.Probe(Ct)).Reachable);
+        Assert.Equal(2, calls);
     }
 
     private static Task<PreflightReport> Collected(IProbeEnvironment environment)

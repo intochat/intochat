@@ -298,12 +298,13 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             await TryOptionalAsync("device-installs", () => Follow<IDevice, InstallChanged>($"devices/{machine.Value}"));
         }
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
-        await RefreshPickerAsync();
-        Voice = await InoModelSetup.InitializeViewAsync(Setup);
+        var snapshot = await RefreshPickerAsync();
+        var settings = await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await Get<IUserSettings>("settings").Read());
+        Voice = await InoModelSetup.InitializeViewAsync(Setup, snapshot, settings);
         await InoModelSetup.OpenSessionAsync(Setup, State.ConversationId);
         var conversationKey = InoModel.ConversationKeyOf(State.ConversationId);
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
-        await TrySeatFromSettingsAsync(State.ConversationId);
+        await TrySeatFromSettingsAsync(State.ConversationId, settings, snapshot);
         await RefreshConversationAsync(full: true);
     }
 
@@ -312,14 +313,13 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     {
         ArgumentNullException.ThrowIfNull(request);
         var settings = await Get<IUserSettings>("settings").Read();
-        var (device, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
-        DeviceSnapshot = device;
-        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
+        var snapshot = await RefreshPickerAsync();
+        var (_, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings, snapshot);
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup, snapshot.Catalog?.Availability);
         var (nextState, migrate) = InoModel.DecideOpen(
             State, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
             await InoModelSetup.ReadApprovalsAsync(Setup, State.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries));
 
-        await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations);
         var devUi = string.Equals(request.Mode, "devui", StringComparison.OrdinalIgnoreCase) || State.DevUiMode;
         await Commit(nextState with { RecentConversations = recents, DevUiMode = devUi });
@@ -437,11 +437,14 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task OnInstallChanged(InstallChanged? changed)
     {
         if (changed is null) { return; }
-        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
         if (changed.State is InstallState.Ready or InstallState.Loaded or InstallState.Failed or InstallState.Cancelled)
         {
-            await RefreshPickerAsync();
-            Voice = await InoModelSetup.ReadVoiceAsync(Setup);
+            var snapshot = await RefreshPickerAsync();
+            Voice = await InoModelSetup.ReadVoiceAsync(Setup, snapshot.Catalog?.Availability);
+        }
+        else
+        {
+            DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
         }
         await Commit(State);
     }
@@ -459,8 +462,8 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             return;
         }
         var saved = await InoModelSetup.SaveProviderAsync(Setup, request);
-        await RefreshPickerAsync();
-        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
+        var snapshot = await RefreshPickerAsync();
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup, snapshot.Catalog?.Availability);
         if (saved) { await Retry(new InoRetry()); }
         if (State.HasUnsavedProviderDraft) { await Commit(State with { HasUnsavedProviderDraft = false }); }
     }
@@ -516,9 +519,9 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task OnSettingsChanged(UserSettingsChanged? changed)
     {
         if (changed is null || (string.IsNullOrEmpty(changed.DisplayName) && string.IsNullOrEmpty(changed.DefaultModel))) { return; }
-        await RefreshPickerAsync();
-        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
-        await InoModelSetup.SyncSettingsAsync(Setup, changed);
+        var snapshot = await RefreshPickerAsync();
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup, snapshot.Catalog?.Availability);
+        await InoModelSetup.SyncSettingsAsync(Setup, changed, snapshot);
     }
 
     private async Task RefreshConversationAsync(bool full)
@@ -657,22 +660,28 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         CompletedRunId = null;
     }
 
-    private async Task TrySeatFromSettingsAsync(string conversationId)
+    private async Task TrySeatFromSettingsAsync(
+        string conversationId,
+        UserSettingsState? cachedSettings = null,
+        InoRuntimeSnapshot? snapshot = null)
     {
-        var settings = await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await Get<IUserSettings>("settings").Read());
+        var settings = cachedSettings ?? await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await Get<IUserSettings>("settings").Read());
         if (settings is null) { return; }
-        var (_, effectiveModel, _) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
+        var (_, effectiveModel, _) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings, snapshot);
         await InoModelSetup.EnsureSeatedAsync(Setup, conversationId, settings, effectiveModel);
     }
 
-    private async Task RefreshPickerAsync()
+    private async Task<InoRuntimeSnapshot> RefreshPickerAsync()
     {
-        if (await InoModelSetup.ReadPickerAsync(Setup) is { } picker)
+        var catalog = await InoModelSetup.ReadCatalogSnapshotAsync(Setup);
+        if (catalog is not null)
         {
-            PickerCards = picker.Cards;
-            PickerAvailability = picker.Availability;
+            PickerCards = catalog.Cards;
+            PickerAvailability = catalog.Availability;
         }
-        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
+        var device = await InoModelSetup.ReadDeviceAsync(Setup);
+        DeviceSnapshot = device;
+        return new InoRuntimeSnapshot(catalog, device);
     }
 
     private IDevice? GetThisDevice()
@@ -712,10 +721,10 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         ResetConversationCache(conversationId);
         await InoModelSetup.OpenSessionAsync(Setup, conversationId);
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
-        await RefreshPickerAsync();
+        var snapshot = await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations);
         await Commit(InoModel.NewConversation(State, conversationId) with { RecentConversations = recents });
-        await TrySeatFromSettingsAsync(conversationId);
+        await TrySeatFromSettingsAsync(conversationId, snapshot: snapshot);
         await RefreshConversationAsync(full: true);
     }
 
@@ -734,10 +743,10 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         ResetConversationCache(conversationId);
         await InoModelSetup.OpenSessionAsync(Setup, conversationId);
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
-        await RefreshPickerAsync();
+        var snapshot = await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations);
         await Commit(InoModel.SwitchConversation(State, conversationId, recents) with { DraftPrompt = null });
-        await TrySeatFromSettingsAsync(conversationId);
+        await TrySeatFromSettingsAsync(conversationId, snapshot: snapshot);
         await RefreshConversationAsync(full: true);
     }
 
