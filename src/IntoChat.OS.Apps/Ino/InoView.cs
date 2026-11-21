@@ -104,7 +104,8 @@ public static partial class InoView
             EmptyText: emptyText,
             Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown),
             Models: cards is { Count: > 0 } ? Choices(cards, availability ?? []) : null,
-            ActiveModelId: activeModelId);
+            ActiveModelId: activeModelId,
+            Conversation: InoModel.ConversationKeyOf(s.ConversationId));
     }
 
     /// <summary>Projects text-capable model cards and availability into composer picker choices split into local and cloud sections.</summary>

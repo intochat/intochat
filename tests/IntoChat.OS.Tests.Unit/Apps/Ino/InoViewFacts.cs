@@ -551,6 +551,15 @@ public sealed class InoViewFacts
         Assert.Empty(nodes);
     }
 
+    [Fact]
+    public void ThreadPropsNameTheConversation()
+    {
+        var convId = "c-" + new string('a', 32);
+        var state = new InoAppState { ConversationId = convId };
+        Assert.Equal("conversations/" + convId, InoView.ThreadProps(state).Conversation);
+        Assert.Equal("conversations/main", InoView.ThreadProps(new InoAppState()).Conversation);
+    }
+
     private static IReadOnlyList<string> Texts(View view)
         => new PresentedView("main", view).Texts;
 
