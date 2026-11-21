@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -13,6 +14,7 @@ public interface IFocus
     // The context and entry the focus lives in.
     const string ContextKey = "context/ui.focus", EntryName = "ui.focus";
 
+    [Description("Point the user at a UI component or window without opening or changing it.")]
     Task<InoToolResult> Point(string target, FocusTone tone, string reason, FocusAction? action = null);
 
     Task<InoToolResult> Clear();

@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -12,6 +13,6 @@ public sealed class AIGrammarFacts
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         { ["IntoChatOS:Modules:ai:Options:Default:Model"] = "Fable5" }).Build();
 
-        Assert.Equal("Fable5", AIOptionsRuntime.Read(configuration).Default.Model);
+        Assert.Equal("claude-fable-5", AIOptionsRuntime.Read(configuration).Roles.Cloud[Role.Chat]);
     }
 }

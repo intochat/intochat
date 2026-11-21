@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
     <Description>Stateful UI component neurons and signals for IntoChat OS.</Description>
   </PropertyGroup>
   <ItemGroup>

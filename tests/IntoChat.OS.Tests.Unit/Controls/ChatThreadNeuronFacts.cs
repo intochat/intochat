@@ -5,6 +5,7 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Chat.Signals;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 
@@ -193,8 +194,52 @@ public sealed class ChatThreadNeuronFacts
     [Fact]
     public void The_props_wire_carries_no_slot_and_round_trips()
     {
-        var props = new ChatThreadProps("Ask anything.", CanSend: false, Status: "failed", Error: new ChatThreadError("Ino could not answer.", ActionLabel: "Try again", Retry: true));
+        var props = new ChatThreadProps(
+            "Ask anything.",
+            CanSend: false,
+            Status: "failed",
+            Error: new ChatThreadError("Ino could not answer.", ActionLabel: "Try again", Retry: true),
+            Models: [new ModelChoice("gpt-5.4", "GPT-5.4", "cloud", "provider:openai", ["tools", "vision"])],
+            ActiveModelId: "gpt-5.4");
         var json = JsonSerializer.Serialize(props, JsonSerializerOptions.Web);
         Assert.Equal(props, JsonSerializer.Deserialize<ChatThreadProps>(json, JsonSerializerOptions.Web));
+    }
+
+    [Fact]
+    public async Task SelectModelPublishesChatModelSelected()
+    {
+        await using var thread = new ControlHarness(typeof(ChatThreadNeuron));
+
+        await thread.Send(new SelectModel("claude-sonnet-5"));
+        await thread.Send(new SelectModel("   "));
+
+        var signal = Assert.IsType<ChatModelSelected>(Assert.Single(thread.Published()));
+        Assert.Equal(("claude-sonnet-5", false), (signal.ModelId, signal.MakeDefault));
+    }
+
+    [Fact]
+    public void TheThreadDrawsBothPickerNodes()
+    {
+        var view = ChatThreadNeuron.Draw("conversation", []);
+        Assert.Equal(ChatThreadNeuron.SelectModelKey, view.SelectModel!.Key);
+        Assert.Equal(ChatThreadNeuron.PinModelKey, view.PinModel!.Key);
+        Assert.True(view.PinModel.OnSubmit.Args!.Value.GetProperty("default").GetBoolean());
+    }
+
+    [Fact]
+    public async Task BothPickerNodesActivateOnTheThread()
+    {
+        await using var thread = new ControlHarness(typeof(ChatThreadNeuron));
+        await thread.Send(new ImportMessages([]));
+        var view = await thread.Screen.Read();
+
+        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadNeuron.SelectModelKey, "gpt-5.4");
+        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadNeuron.PinModelKey, "claude-sonnet-5");
+
+        var published = thread.Published();
+        var switched = Assert.IsType<ChatModelSelected>(published[0]);
+        Assert.Equal(("gpt-5.4", false), (switched.ModelId, switched.MakeDefault));
+        var pinned = Assert.IsType<ChatModelSelected>(published[1]);
+        Assert.Equal(("claude-sonnet-5", true), (pinned.ModelId, pinned.MakeDefault));
     }
 }

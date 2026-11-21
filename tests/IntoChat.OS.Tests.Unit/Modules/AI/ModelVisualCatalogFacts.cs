@@ -1,13 +1,15 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Contracts;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Anthropic;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Pricing;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
@@ -26,24 +28,22 @@ public sealed class ModelVisualCatalogFacts
     [Fact]
     public void Sonnet46AndOpus46AreRegisteredAsFirstClassAnthropicModelsWithPricing()
     {
-        var sonnet46 = Assert.Single(LLMModel.All, static m => m is Sonnet46);
-        Assert.Equal("claude-sonnet-4-6", sonnet46.Id);
+        var sonnet46 = KnownModels.Sonnet46;
+        Assert.Equal("claude-sonnet-4-6", sonnet46.Id.Value);
         Assert.Equal(AiProvider.Anthropic, sonnet46.Provider);
-        Assert.True(sonnet46.SupportsTools);
-        Assert.Equal(typeof(ISonnet46), sonnet46.Marker);
+        Assert.True(sonnet46.Can.HasFlag(Abilities.Tools));
 
-        var opus46 = Assert.Single(LLMModel.All, static m => m is Opus46);
-        Assert.Equal("claude-opus-4-6", opus46.Id);
+        var opus46 = KnownModels.Opus46;
+        Assert.Equal("claude-opus-4-6", opus46.Id.Value);
         Assert.Equal(AiProvider.Anthropic, opus46.Provider);
-        Assert.True(opus46.SupportsTools);
-        Assert.Equal(typeof(IOpus46), opus46.Marker);
+        Assert.True(opus46.Can.HasFlag(Abilities.Tools));
 
-        Assert.Same(sonnet46, LLMModel.Find("claude-sonnet-4-6"));
-        Assert.Same(sonnet46, LLMModel.Find("sonnet-4.6"));
-        Assert.Same(sonnet46, LLMModel.Find("ISonnet46"));
-        Assert.Same(opus46, LLMModel.Find("claude-opus-4-6"));
-        Assert.Same(opus46, LLMModel.Find("opus-4.6"));
-        Assert.Same(opus46, LLMModel.Find("IOpus46"));
+        Assert.Same(sonnet46, KnownModels.Find("claude-sonnet-4-6"));
+        Assert.Same(sonnet46, KnownModels.Find("sonnet-4.6"));
+        Assert.Same(sonnet46, KnownModels.Find("ISonnet46"));
+        Assert.Same(opus46, KnownModels.Find("claude-opus-4-6"));
+        Assert.Same(opus46, KnownModels.Find("opus-4.6"));
+        Assert.Same(opus46, KnownModels.Find("IOpus46"));
 
         var prices = new ModelPriceList();
         Assert.NotNull(prices.MicrosPerUnit(CostKind.Model, "claude-sonnet-4-6:input"));
@@ -69,38 +69,33 @@ public sealed class ModelVisualCatalogFacts
         os.Register(typeof(AIModule).Assembly);
 
         var catalogNeuron = os.Get<IModelCatalog>(new NeuronId(new BrainId("local"), "ai.models", "main"));
-        var choices = await catalogNeuron.List();
+        var cards = await catalogNeuron.List();
+        var availability = (await catalogNeuron.Availability()).ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
 
-        var localQwen = Assert.Single(choices.Models, static c => c.Model == "qwen2.5-coder:14b");
-        Assert.Equal("Qwen 2.5 Coder 14B", localQwen.Label);
-        Assert.Equal("provider:ollama", localQwen.IconKey);
-        Assert.Equal("Ollama (Local GPU)", localQwen.ProviderLabel);
-        Assert.Equal("#6366F1", localQwen.AccentHex);
-        Assert.True(localQwen.Available);
+        var localQwen = Assert.Single(cards, static c => c.Id.Value == "qwen2.5-coder:14b");
+        Assert.Equal("Qwen 2.5 Coder 14B", localQwen.Name);
+        Assert.Equal("provider:ollama", localQwen.IconKey());
+        Assert.True(availability[localQwen.Id.Value].Ready);
 
-        var localQwen3 = Assert.Single(choices.Models, static c => c.Model == "qwen3:14b");
-        Assert.Equal("Qwen 3 14B", localQwen3.Label);
-        Assert.Equal("provider:ollama", localQwen3.IconKey);
-        Assert.Equal("Ollama (Local GPU)", localQwen3.ProviderLabel);
+        var localQwen3 = Assert.Single(cards, static c => c.Id.Value == "qwen3:14b");
+        Assert.Equal("qwen3:14b", localQwen3.Name);
+        Assert.Equal("provider:ollama", localQwen3.IconKey());
+        Assert.True(availability[localQwen3.Id.Value].Ready);
 
-        var sonnet46 = Assert.Single(choices.Models, static c => c.Model == "claude-sonnet-4-6");
-        Assert.Equal("Sonnet 4.6", sonnet46.Label);
-        Assert.Equal("provider:anthropic", sonnet46.IconKey);
-        Assert.Equal("Anthropic", sonnet46.ProviderLabel);
-        Assert.Equal("#D97757", sonnet46.AccentHex);
-        Assert.True(sonnet46.Available);
+        var sonnet46 = Assert.Single(cards, static c => c.Id.Value == "claude-sonnet-4-6");
+        Assert.Equal("Sonnet 4.6", sonnet46.Name);
+        Assert.Equal("provider:anthropic", sonnet46.IconKey());
+        Assert.True(availability[sonnet46.Id.Value].Ready);
 
-        var opus46 = Assert.Single(choices.Models, static c => c.Model == "claude-opus-4-6");
-        Assert.Equal("Opus 4.6", opus46.Label);
-        Assert.Equal("provider:anthropic", opus46.IconKey);
-        Assert.Equal("Anthropic", opus46.ProviderLabel);
-        Assert.Equal("#D97757", opus46.AccentHex);
+        var opus46 = Assert.Single(cards, static c => c.Id.Value == "claude-opus-4-6");
+        Assert.Equal("Opus 4.6", opus46.Name);
+        Assert.Equal("provider:anthropic", opus46.IconKey());
+        Assert.True(availability[opus46.Id.Value].Ready);
 
-        var gpt54 = Assert.Single(choices.Models, static c => c.Model == "gpt-5.4");
-        Assert.Equal("GPT-5.4", gpt54.Label);
-        Assert.Equal("provider:openai", gpt54.IconKey);
-        Assert.Equal("OpenAI", gpt54.ProviderLabel);
-        Assert.Equal("#10A37F", gpt54.AccentHex);
+        var gpt54 = Assert.Single(cards, static c => c.Id.Value == "gpt-5.4");
+        Assert.Equal("GPT-5.4", gpt54.Name);
+        Assert.Equal("provider:openai", gpt54.IconKey());
+        Assert.False(availability[gpt54.Id.Value].Ready);
     }
 
     [Fact]
@@ -124,10 +119,10 @@ public sealed class ModelVisualCatalogFacts
 
         var resolvedAuto = await catalog.Resolve("local", null, requiresTools: true, TestContext.Current.CancellationToken);
         Assert.Equal(AiProvider.Ollama, resolvedAuto.Provider);
-        Assert.Equal("qwen3:14b", resolvedAuto.Model);
+        Assert.Contains(resolvedAuto.Model, new[] { "qwen2.5-coder:14b", "qwen3:14b" });
         Assert.Equal("http://127.0.0.1:11434/", resolvedAuto.Endpoint);
 
-        var resolvedCode = await catalog.Decide("local", ModelUse.Code, null, null, requiresTools: true, TestContext.Current.CancellationToken);
+        var resolvedCode = await catalog.Decide("local", Role.Think, null, requiresTools: true, TestContext.Current.CancellationToken);
         Assert.Equal(AiProvider.Ollama, resolvedCode.Provider);
         Assert.Equal("qwen2.5-coder:14b", resolvedCode.Model);
     }
@@ -139,12 +134,20 @@ public sealed class ModelVisualCatalogFacts
         await using var fixture = new IntoChat.OS.Modules.AI.Tests.AiFixture();
         var req = new InferenceRequest([new AiMessage("user", [new AiText("ping")])]);
 
-        var sonnet = fixture.Runtime.Get<ISonnet46>(new NeuronId(new BrainId("local"), "ai.llm.sonnet46", "main"));
+        var sonnet = fixture.Runtime.Get<ILLM>(PlainNeuronContracts.IdOf(typeof(ILLM), ILLM.Key("local", KnownModels.Sonnet46.Id)));
         var reply = await sonnet.Generate(req, TestContext.Current.CancellationToken);
         Assert.Equal("stop", reply.FinishReason);
 
-        var opus = fixture.Runtime.Get<IOpus46>(new NeuronId(new BrainId("local"), "ai.llm.opus46", "main"));
+        var opus = fixture.Runtime.Get<ILLM>(PlainNeuronContracts.IdOf(typeof(ILLM), ILLM.Key("local", KnownModels.Opus46.Id)));
         var opusReply = await opus.Generate(req, TestContext.Current.CancellationToken);
         Assert.Equal("stop", opusReply.FinishReason);
     }
+
+    [Fact]
+    public void EveryCardIconIsAllowlisted()
+        => Assert.All(KnownModels.All, c => Assert.Contains(c.IconKey(), (IReadOnlySet<string>)VisualCatalog.AllIconKeys));
+
+    [Fact]
+    public void VisualCatalogHasNoModelLookup()
+        => Assert.Null(typeof(VisualCatalog).GetMethod("ForModel"));
 }

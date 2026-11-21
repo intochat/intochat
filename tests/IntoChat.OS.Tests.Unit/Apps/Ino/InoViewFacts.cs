@@ -6,6 +6,7 @@ using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.Aspire;
@@ -367,9 +368,34 @@ public sealed class InoViewFacts
         var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
         Assert.Equal(("CodeGraph", "capability:codegraph", "#10B981"), (codeGraphVisual.Label, codeGraphVisual.IconKey, codeGraphVisual.AccentHex));
 
-        var modelVisual = InoView.ResolveModelVisual("claude-sonnet-4-6");
-        Assert.NotNull(modelVisual);
-        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (modelVisual.Value.Label, modelVisual.Value.IconKey));
+        var model = InoView.ResolveModel("claude-sonnet-4-6");
+        Assert.NotNull(model);
+        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (model.Name, model.IconKey()));
+    }
+
+    [Fact]
+    public void TheChipShowsTheCardsCleanName()
+    {
+        var props = InoView.ThreadProps(new InoAppState() with { SelectedModel = "IQwen35" });
+        Assert.Equal("Qwen 3.5 4B", props.ActiveModelLabel);
+        Assert.Equal("provider:ollama", props.ActiveProviderIcon);
+        Assert.Equal("qwen3.5:4b", props.ActiveModelId);
+    }
+
+    [Fact]
+    public void ChoicesSplitLocalAndCloudAndCarryTheReason()
+    {
+        var choices = InoView.Choices(
+            [KnownModels.Qwen35, KnownModels.Opus5, KnownModels.Whisper1],
+            [new(KnownModels.Qwen35.Id, true, null), new(KnownModels.Opus5.Id, false, "Add a key in API keys")]);
+
+        Assert.Equal(["local", "cloud"], choices.Select(static x => x.Section));
+        Assert.Equal("qwen3.5:4b", choices[0].Id);
+        Assert.True(choices[0].Available);
+        Assert.Null(choices[0].Note);
+        Assert.Equal("Add a key in API keys", choices[1].Note);
+        Assert.False(choices[1].Available);
+        Assert.Contains("reasoning", choices[1].Abilities!);
     }
 
     [Fact]

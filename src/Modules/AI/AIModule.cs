@@ -77,8 +77,9 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<OsNeuronSurface>();
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
         services.AddMediaNeurons();
-        AIClients.AddImageGeneration(services, options);
-        VoiceToTextHosting.Add(services, options);
+        var topology = configuration[IntoChatOSNames.TopologyKey];
+        AIClients.AddImageGeneration(services, options, topology);
+        VoiceToTextHosting.Add(services, options, topology);
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();

@@ -5,10 +5,6 @@ using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Anthropic;
-using IntoChat.OS.Modules.AI.Models.Google;
-using IntoChat.OS.Modules.AI.Models.OpenAI;
-using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -17,6 +13,8 @@ using Microsoft.Extensions.Logging;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Apps.Ino;
+
+internal sealed record InoCatalogSnapshot(ModelId? PickedChat, ModelCard[] Cards, ModelAvailability[] Availability);
 
 internal sealed record InoSetupHost(
     Func<InoAppState> GetState,
@@ -43,7 +41,7 @@ internal sealed record InoSetupHost(
     Func<string, string[], Func<Task<string[]>>, Task<string[]>> ReadStringArrayOptional,
     Func<string, UserSettingsState?, Func<Task<UserSettingsState?>>, Task<UserSettingsState?>> ReadSettingsOptional,
     Func<string, LocalModelSummary?, Func<Task<LocalModelSummary?>>, Task<LocalModelSummary?>> ReadLocalOptional,
-    Func<string, ModelChoices?, Func<Task<ModelChoices?>>, Task<ModelChoices?>> ReadChoicesOptional,
+    Func<string, InoCatalogSnapshot?, Func<Task<InoCatalogSnapshot?>>, Task<InoCatalogSnapshot?>> ReadCatalogOptional,
     Func<string, ChatState?, Func<Task<ChatState?>>, Task<ChatState?>> ReadChatOptional,
     Action<Exception, string> LogOptional,
     ILogger? Logger);
@@ -96,7 +94,7 @@ internal static class InoModelSetup
         {
             var uiKey = InoModel.UiChatKeyOf(state.ConversationId);
             var thread = host.GetUiChatThread(uiKey);
-            var activeModel = state.SelectedModel ?? state.DetectedLocalModel ?? ModelCatalog.DefaultChatModelId;
+            var activeModel = state.SelectedModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
             var modelOptions = (state.DetectedLocalModels ?? [])
                 .Prepend(activeModel)
                 .Where(static m => !string.IsNullOrWhiteSpace(m))
@@ -271,7 +269,12 @@ internal static class InoModelSetup
     {
         var state = host.GetState();
         var agentKey = InoModel.AgentKeyOf(state.ConversationId);
-        var (local, effectiveModel, displayModel) = await ResolveForSettingsAsync(host, settings);
+        var (local, resolvedEffective, resolvedDisplay) = await ResolveForSettingsAsync(host, settings);
+        var selectedTrimmed = string.IsNullOrWhiteSpace(state.SelectedModel) ? null : state.SelectedModel.Trim();
+        var hasConversationOverride = selectedTrimmed is not null
+            && !string.Equals(selectedTrimmed, resolvedDisplay, StringComparison.Ordinal);
+        var effectiveModel = hasConversationOverride ? selectedTrimmed : resolvedEffective;
+        var displayModel = hasConversationOverride ? selectedTrimmed! : resolvedDisplay;
         if (local is not null && (state.DetectedLocalModel != local.PreferredModel || state.DetectedLocalModels is null))
         {
             await host.ShowState(host.GetState() with { DetectedLocalModel = local.PreferredModel, DetectedLocalModels = local.InstalledModels });
@@ -305,11 +308,29 @@ internal static class InoModelSetup
         var local = await DetectLocalModelsAsync(host);
         var state = host.GetState();
         var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model.Trim()
-            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : local?.PreferredModel ?? state.DetectedLocalModel ?? ModelCatalog.DefaultChatModelId;
-        await PersistDefaultModelAsync(host, model, state.ConversationId);
+            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : local?.PreferredModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
+        var modelId = KnownModels.Find(model)?.Id ?? new ModelId(model);
+        await SetChatRoleAsync(host, modelId);
+        await ReconfigureAgentAsync(host, modelId.Value, state.ConversationId);
         var retry = host.GetState().Error?.Code is "no-provider" or "provider-rejected-key";
-        await host.ShowState(InoModel.ModelSelected(host.GetState(), model, $"Switched model to {model}", local));
+        await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, $"Switched model to {modelId.Value}", local));
         return retry;
+    }
+
+    public static async Task ChooseModelAsync(InoSetupHost host, string model, bool makeDefault)
+    {
+        var trimmed = model.Trim();
+        var modelId = KnownModels.Find(trimmed)?.Id ?? new ModelId(trimmed);
+        var state = host.GetState();
+        if (makeDefault)
+        {
+            await SetChatRoleAsync(host, modelId);
+        }
+
+        await ReconfigureAgentAsync(host, modelId.Value, state.ConversationId);
+        var label = KnownModels.Find(modelId.Value)?.Name ?? modelId.Value;
+        var status = makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}";
+        await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, status));
     }
 
     public static async Task<bool> SaveProviderAsync(InoSetupHost host, InoSaveProvider request)
@@ -324,9 +345,10 @@ internal static class InoModelSetup
             return false;
         }
         var defaultModel = DefaultModelForProvider(provider);
-        await PersistDefaultModelAsync(host, defaultModel, host.GetState().ConversationId);
+        await SetChatRoleAsync(host, defaultModel);
+        await ReconfigureAgentAsync(host, defaultModel.Value, host.GetState().ConversationId);
         var retry = host.GetState().Error?.Code is "no-provider" or "provider-rejected-key";
-        await host.ShowState(InoModel.ModelSelected(host.GetState(), defaultModel, $"Saved {provider} credential · Ready on {defaultModel}"));
+        await host.ShowState(InoModel.ModelSelected(host.GetState(), defaultModel.Value, $"Saved {provider} credential · Ready on {defaultModel.Value}"));
         return retry;
     }
 
@@ -384,9 +406,8 @@ internal static class InoModelSetup
             case "pin": await host.ShowState(InoModel.DecideSlashPin(state)); return;
             case "rename": await host.ShowState(InoModel.DecideSlashRename(state, arg)); return;
             case "model":
-                var nextModel = string.IsNullOrWhiteSpace(arg) ? ModelCatalog.DefaultChatModelId : arg.Trim();
-                await PersistDefaultModelAsync(host, nextModel, state.ConversationId);
-                await host.ShowState(InoModel.ModelSelected(host.GetState(), nextModel, $"Switched model to {nextModel}"));
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
+                await ChooseModelAsync(host, nextModel, makeDefault: true);
                 return;
             case "scenario" or "session": await host.ShowState(InoModel.DecideScenario(arg, settings)); return;
             default: await host.ShowState(InoModel.DecideSlashHelp(state, rawCommand, cmd)); return;
@@ -400,8 +421,34 @@ internal static class InoModelSetup
             return summary.Available ? summary : null;
         });
 
-    public static Task<ModelChoices?> ReadModelChoicesAsync(InoSetupHost host)
-        => host.ReadChoicesOptional("model-catalog", null, async () => await host.GetCatalog().List(null));
+    public static async Task<(ModelCard[] Cards, ModelAvailability[] Availability)?> ReadPickerAsync(InoSetupHost host)
+    {
+        var snapshot = await ReadCatalogSnapshotAsync(host);
+        return snapshot is null ? null : (snapshot.Cards, snapshot.Availability);
+    }
+
+    public static Task<InoCatalogSnapshot?> ReadCatalogSnapshotAsync(InoSetupHost host)
+        => host.ReadCatalogOptional("model-catalog", null, async () =>
+        {
+            var catalog = host.GetCatalog();
+            var cards = await catalog.List(Abilities.Text);
+            var availability = await catalog.Availability();
+            ModelId? picked = null;
+            try
+            {
+                var chosen = await catalog.Pick(Role.Chat);
+                if (!string.IsNullOrWhiteSpace(chosen.Value))
+                {
+                    picked = chosen;
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                host.LogOptional(error, "model-catalog-pick");
+            }
+
+            return new InoCatalogSnapshot(picked, cards, availability);
+        });
 
     public static async Task<(LocalModelSummary? Local, string? EffectiveModel, string DisplayModel)> ResolveForSettingsAsync(
         InoSetupHost host,
@@ -417,27 +464,43 @@ internal static class InoModelSetup
         UserSettingsState settings,
         LocalModelSummary? local)
     {
-        var personModel = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim();
-        if (personModel is not null) { return (personModel, personModel); }
+        var personModel = settings.RoleOf(Role.Chat)?.Value;
+        if (!string.IsNullOrWhiteSpace(personModel)) { return (personModel, personModel); }
 
-        var choices = await ReadModelChoicesAsync(host);
-        if (choices is not null)
+        var snapshot = await ReadCatalogSnapshotAsync(host);
+        if (snapshot is not null)
         {
-            var auto = choices.Automatic;
-            if (!string.IsNullOrWhiteSpace(auto.Model) && !string.IsNullOrWhiteSpace(auto.Provider)) { return (auto.Model, auto.Model); }
-            var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : ModelCatalog.DefaultChatModelId;
+            if (snapshot.PickedChat is { Value.Length: > 0 } picked)
+            {
+                return (picked.Value, picked.Value);
+            }
+            var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : KnownModels.Defaults.Device[Role.Chat].Value;
             return (null, fallbackDisplay);
         }
 
-        var fallback = local?.PreferredModel is { Length: > 0 } detected ? detected : ModelCatalog.DefaultChatModelId;
+        var fallback = local?.PreferredModel is { Length: > 0 } detected ? detected : KnownModels.Defaults.Device[Role.Chat].Value;
         return (fallback, fallback);
     }
 
     public static async Task<bool> IsMissingLocalOllamaAsync(InoSetupHost host, LocalModelSummary? local)
     {
-        var choices = await ReadModelChoicesAsync(host);
-        if (choices is null || !string.Equals(choices.Automatic.Provider, AiProvider.Ollama.ToString(), StringComparison.OrdinalIgnoreCase)) { return false; }
-        if (choices.Models.Any(m => m.Available && !string.Equals(m.Provider, AiProvider.Ollama.ToString(), StringComparison.OrdinalIgnoreCase))) { return false; }
+        var snapshot = await ReadCatalogSnapshotAsync(host);
+        if (snapshot?.PickedChat is not { Value.Length: > 0 } picked) { return false; }
+
+        var pickedCard = snapshot.Cards.FirstOrDefault(c => string.Equals(c.Id.Value, picked.Value, StringComparison.OrdinalIgnoreCase))
+            ?? KnownModels.Find(picked.Value);
+        if (pickedCard is not { Provider: AiProvider.Ollama }) { return false; }
+
+        var readyIds = snapshot.Availability
+            .Where(a => a.Ready)
+            .Select(a => a.Model.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (snapshot.Cards.Any(c => c.Provider != AiProvider.Ollama && c.Can.HasFlag(Abilities.Tools) && readyIds.Contains(c.Id.Value)))
+        {
+            return false;
+        }
+
         var detected = local ?? await DetectLocalModelsAsync(host);
         return detected is not { Available: true };
     }
@@ -471,13 +534,28 @@ internal static class InoModelSetup
         }
     }
 
-    public static async Task PersistDefaultModelAsync(InoSetupHost host, string model, string conversationId)
+    private static async Task SetChatRoleAsync(InoSetupHost host, ModelId model)
     {
-        var settingsNeuron = host.GetSettings();
-        var current = await settingsNeuron.Read();
-        var updated = await settingsNeuron.SetProfile(current.DisplayName, current.Theme, model);
+        var persisted = false;
+        await host.TryOptional("model-catalog-set-role", async () =>
+        {
+            await host.GetCatalog().SetRole(Role.Chat, model);
+            persisted = true;
+        });
+        if (!persisted)
+        {
+            await host.TryOptional("settings-set-role", () => host.GetSettings().SetRole(Role.Chat, model));
+        }
+    }
+
+    private static async Task ReconfigureAgentAsync(InoSetupHost host, string model, string conversationId)
+    {
+        var settings = await host.ReadSettingsOptional("settings-read", null, async () => await host.GetSettings().Read());
         await EnsureProfileContextAsync(host);
-        await host.TryOptional("agent", () => EnsureConfiguredAsync(host, host.GetAgent(InoModel.AgentKeyOf(conversationId)), updated, model, conversationId));
+        if (settings is not null)
+        {
+            await host.TryOptional("agent", () => EnsureConfiguredAsync(host, host.GetAgent(InoModel.AgentKeyOf(conversationId)), settings, model, conversationId));
+        }
     }
 
     public static string InferProviderFromCredential(string credential)
@@ -485,16 +563,14 @@ internal static class InoModelSetup
             : credential.StartsWith("sk-or-", StringComparison.OrdinalIgnoreCase) ? "openrouter"
             : credential.StartsWith("AIza", StringComparison.Ordinal) ? "google" : "openai";
 
-    public static string DefaultModelForProvider(string provider) => provider switch
+    public static ModelId DefaultModelForProvider(string provider)
     {
-        "anthropic" => CatalogId(typeof(ISonnet46)),
-        "google" => CatalogId(typeof(IGemini36Pro)),
-        "openrouter" => CatalogId(typeof(IDeepSeekV41Flash)),
-        _ => CatalogId(typeof(IGpt54)),
-    };
-
-    private static string CatalogId(Type marker)
-        => LLMModel.FindByMarker(marker)?.Id ?? ModelCatalog.DefaultChatModelId;
+        var parsed = Enum.TryParse<AiProvider>(provider, ignoreCase: true, out var p) ? p : AiProvider.OpenAI;
+        var card = KnownModels.All.FirstOrDefault(c => c.Provider == parsed && c.Can.HasFlag(Abilities.Tools) && c.Tier == Tier.Balanced)
+            ?? KnownModels.All.FirstOrDefault(c => c.Provider == parsed && c.Can.HasFlag(Abilities.Tools))
+            ?? KnownModels.Gpt54;
+        return card.Id;
+    }
 
     public static AppBundle BuildBundle(Type compiledType) => new(
         "ino",
@@ -510,6 +586,7 @@ internal static class InoModelSetup
                 new("stop", "Stop the running turn."),
                 new("smart", "Turn smart mode on or off."),
                 new("use-local", "Bind a locally detected Ollama model."),
+                new("choose-model", "Switch the conversation model, and optionally pin it as the Chat default."),
                 new("save-provider", "Save a cloud provider credential to the brain's Secure store."),
                 new("connect-db", "Connect a PostgreSQL database via connection string."),
                 new("query-db", "Execute a read-only SQL query against the connected database."),

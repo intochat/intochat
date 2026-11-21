@@ -502,7 +502,8 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
 
         if (!string.IsNullOrWhiteSpace(options.DefaultModel))
         {
-            SetNestedValue(root, AIKeys.DefaultModel, options.DefaultModel);
+            SetNestedValue(root, AIKeys.Role(IntoChat.OS.Modules.AI.Models.Where.Device, IntoChat.OS.Modules.AI.Models.Role.Chat), options.DefaultModel);
+            SetNestedValue(root, AIKeys.Role(IntoChat.OS.Modules.AI.Models.Where.Cloud, IntoChat.OS.Modules.AI.Models.Role.Chat), options.DefaultModel);
         }
 
         if (options.ExtraConfiguration is not null)

@@ -31,6 +31,7 @@ public sealed class ModuleUnitTierFacts
             .Where(name => name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
                 && !name.Contains(".Tests", StringComparison.Ordinal)
                 && !name.EndsWith(".Contracts", StringComparison.Ordinal)
+                && !name.EndsWith(".Generators", StringComparison.Ordinal)
                 && !name.EndsWith(".Testing", StringComparison.Ordinal)
                 && !name.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
                 && !name.EndsWith(".Sandbox", StringComparison.Ordinal))

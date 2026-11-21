@@ -33,10 +33,11 @@ internal abstract class OpenAICompatibleProviderFactory : ApiKeyProviderFactory
     }
 
     public override async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
-        EmbeddingModel model,
+        ModelCard card,
         AIOptions configuration,
-        IAiCredentials credentials, CancellationToken cancellationToken = default)
-        => (await CreateClient(configuration, credentials, null, cancellationToken)).GetEmbeddingClient(model.Id).AsIEmbeddingGenerator();
+        IAiCredentials credentials,
+        CancellationToken cancellationToken = default)
+        => (await CreateClient(configuration, credentials, null, cancellationToken)).GetEmbeddingClient(card.Id.Value).AsIEmbeddingGenerator();
 
     private async Task<OpenAIClient> CreateClient(AIOptions configuration, IAiCredentials credentials, string? pinnedEndpoint, CancellationToken cancellationToken)
     {

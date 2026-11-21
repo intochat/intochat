@@ -5,6 +5,7 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.UI;
@@ -67,11 +68,17 @@ public static partial class InoView
     }
 
     /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
-    public static ChatThreadProps ThreadProps(InoAppState s, bool dictation = false, string? threadFailure = null)
+    public static ChatThreadProps ThreadProps(
+        InoAppState s,
+        bool dictation = false,
+        string? threadFailure = null,
+        IReadOnlyList<ModelCard>? cards = null,
+        IReadOnlyList<ModelAvailability>? availability = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
-        var activeModelVisual = ResolveModelVisual(s.SelectedModel);
+        var activeModel = ResolveModel(s.SelectedModel);
+        var activeModelId = activeModel?.Id.Value ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel.Trim());
         var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
         var placeholder = hasDraft
             ? $"Ask Ino: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 96)}"
@@ -82,24 +89,83 @@ public static partial class InoView
         return new ChatThreadProps(
             Placeholder: placeholder,
             CanSend: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
-            ActiveModelLabel: activeModelVisual?.Label,
-            ActiveProviderIcon: activeModelVisual?.IconKey,
+            ActiveModelLabel: activeModel?.Name ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel),
+            ActiveProviderIcon: activeModel?.IconKey(),
             Dictation: dictation,
             Status: ConversationStatusOf(s),
             Working: s.ActiveRunId is not null,
             EmptyText: emptyText,
-            Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown));
+            Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown),
+            Models: cards is { Count: > 0 } ? Choices(cards, availability ?? []) : null,
+            ActiveModelId: activeModelId);
+    }
+
+    /// <summary>Projects text-capable model cards and availability into composer picker choices split into local and cloud sections.</summary>
+    public static IReadOnlyList<ModelChoice> Choices(IReadOnlyList<ModelCard> cards, IReadOnlyList<ModelAvailability> availability)
+    {
+        ArgumentNullException.ThrowIfNull(cards);
+        ArgumentNullException.ThrowIfNull(availability);
+
+        var byId = new Dictionary<string, ModelAvailability>(availability.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in availability)
+        {
+            byId[entry.Model.Value] = entry;
+        }
+
+        var result = new List<ModelChoice>(cards.Count);
+        foreach (var card in cards)
+        {
+            if (!card.Can.HasFlag(Abilities.Text))
+            {
+                continue;
+            }
+
+            var hasAvail = byId.TryGetValue(card.Id.Value, out var avail);
+            var ready = !hasAvail || avail!.Ready;
+            var note = ready ? null : avail!.Reason;
+
+            var abilities = new List<string>(4);
+            if (card.Can.HasFlag(Abilities.Tools)) { abilities.Add("tools"); }
+            if (card.Can.HasFlag(Abilities.Vision)) { abilities.Add("vision"); }
+            if ((card.Can & (Abilities.Hear | Abilities.Speak | Abilities.Talk)) != 0) { abilities.Add("voice"); }
+            if (card.Can.HasFlag(Abilities.Reasoning)) { abilities.Add("reasoning"); }
+
+            result.Add(new ModelChoice(
+                Id: card.Id.Value,
+                Label: card.Name,
+                Section: card.Where == Where.Device ? "local" : "cloud",
+                Icon: card.IconKey(),
+                Abilities: abilities.Count > 0 ? abilities : null,
+                Available: ready,
+                Note: note));
+        }
+
+        return result;
     }
 
     /// <summary>
     /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
     /// (approvals, model setup, cards no message carries).
     /// </summary>
-    public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null, Rejected? departureRejection = null)
-        => new("Ino", ScreenNode(s, dictation, thread, threadFailure, departureRejection));
+    public static View Screen(
+        InoAppState s,
+        bool dictation,
+        Func<ChatThreadProps, Node> thread,
+        string? threadFailure = null,
+        Rejected? departureRejection = null,
+        IReadOnlyList<ModelCard>? cards = null,
+        IReadOnlyList<ModelAvailability>? availability = null)
+        => new("Ino", ScreenNode(s, dictation, thread, threadFailure, departureRejection, cards, availability));
 
     /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
-    public static Node ScreenNode(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null, Rejected? departureRejection = null)
+    public static Node ScreenNode(
+        InoAppState s,
+        bool dictation,
+        Func<ChatThreadProps, Node> thread,
+        string? threadFailure = null,
+        Rejected? departureRejection = null,
+        IReadOnlyList<ModelCard>? cards = null,
+        IReadOnlyList<ModelAvailability>? availability = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
@@ -111,7 +177,7 @@ public static partial class InoView
         Node[] navAbove = RenderNavigationSeedNodes(s, departureRejection);
         var conversation = s.DevUiMode
             ? new NeuronRef("ui.chat", InoModel.UiChatKeyOf(s.ConversationId))
-            : thread(ThreadProps(s, dictation, threadFailure));
+            : thread(ThreadProps(s, dictation, threadFailure, cards, availability));
         if (HasUnprojectedVaultSecretPrompt(s))
         {
             Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];
@@ -224,12 +290,12 @@ public static partial class InoView
     private static ThreadMessage ToThreadMessage(InoMessage msg)
     {
         var (displayText, inlineSlots) = msg.Role == "assistant" ? InoCards.ExtractInlineSlots(msg.Text) : (msg.Text, Array.Empty<NeuronRef>());
-        var modelVisual = ResolveModelVisual(msg.Model);
+        var modelCard = ResolveModel(msg.Model);
         var failed = msg.Role == "assistant" && msg.Status is "failed" or "interrupted";
         return new ThreadMessage(msg.Id, msg.Role, displayText ?? string.Empty, msg.Status)
         {
-            Model = modelVisual?.Label ?? msg.Model,
-            ProviderIcon = modelVisual?.IconKey,
+            Model = modelCard?.Name ?? msg.Model,
+            ProviderIcon = modelCard?.IconKey(),
             Failure = failed ? InoErrors.Describe(msg.Failure ?? (msg.Status == "interrupted" ? "interrupted" : null)) ?? ChatThreadNeuron.NoAnswer : null,
             Activities = [.. msg.Activities.Select(ToActivityNode)],
             Cards = [.. msg.Cards.SelectMany(RenderCardNodes), .. inlineSlots],
@@ -251,7 +317,7 @@ public static partial class InoView
         ArgumentNullException.ThrowIfNull(state);
         var count = state.Messages is { Length: > 0 } msgs ? msgs.Count(m => m.Role == "user") : state.Turns.Length;
         var (statusKind, statusLabel) = ResolveSideStatus(state);
-        var activeModel = ResolveModelVisual(state.SelectedModel)?.Label ?? state.SelectedModel;
+        var activeModel = ResolveModel(state.SelectedModel)?.Name ?? state.SelectedModel;
 
         var recents = (state.RecentConversations ?? [])
             .Select(InoModel.ConversationIdOf)
@@ -329,8 +395,8 @@ public static partial class InoView
             : s.Error is not null || string.Equals(s.Status, InoModel.Failed, StringComparison.Ordinal) ? "failed"
             : "ready";
 
-    public static VisualDescriptor? ResolveModelVisual(string? model)
-        => string.IsNullOrWhiteSpace(model) ? null : VisualCatalog.ForModel(model);
+    public static ModelCard? ResolveModel(string? model)
+        => KnownModels.Find(model);
 
     public static VisualDescriptor ResolveApprovalVisual(string? sourceOrSubject)
         => VisualCatalog.ForApproval(sourceOrSubject);

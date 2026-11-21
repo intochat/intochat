@@ -1,5 +1,5 @@
-using System.Text.Json;
 using DigitalBrain.Capabilities.Compute;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Modules.AI.Pricing;
 
@@ -7,9 +7,7 @@ namespace IntoChat.OS.Modules.AI.Pricing;
 // Local models are priced at zero. Micros per million tokens = usd_per_million_tokens * 1_000_000.
 internal sealed class ModelPriceList : IPriceList
 {
-    internal const string ResourceName = "IntoChat.OS.Modules.AI.Pricing.models.prices.json";
     private const decimal MillionTokens = 1_000_000m;
-    private static readonly string[] TokenClasses = ["input", "cached", "reasoning", "output"];
     private static readonly Lazy<Dictionary<string, long>> MicrosPerMillion = new(Load);
 
     public long? MicrosPerUnit(CostKind kind, string item)
@@ -20,23 +18,19 @@ internal sealed class ModelPriceList : IPriceList
 
     private static Dictionary<string, long> Load()
     {
-        using var stream = typeof(ModelPriceList).Assembly.GetManifestResourceStream(ResourceName)
-            ?? throw new InvalidOperationException($"The embedded price list '{ResourceName}' is missing.");
-        using var document = JsonDocument.Parse(stream);
         var prices = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var model in document.RootElement.GetProperty("models").EnumerateArray())
+        foreach (var card in KnownModels.All)
         {
-            var id = model.GetProperty("id").GetString()!;
-            foreach (var tokenClass in TokenClasses)
-            {
-                prices[$"{id}:{tokenClass}"] = MicrosPerMillionTokens(model, tokenClass);
-            }
+            if (card.Price is not { } price) { continue; }
+            var id = card.Id.Value;
+            prices[$"{id}:input"] = ToMicros(price.InputPerMTok);
+            prices[$"{id}:cached"] = ToMicros(price.CachedInputPerMTok ?? 0m);
+            prices[$"{id}:reasoning"] = ToMicros(price.ReasoningPerMTok ?? 0m);
+            prices[$"{id}:output"] = ToMicros(price.OutputPerMTok);
         }
+
         return prices;
     }
 
-    private static long MicrosPerMillionTokens(JsonElement model, string tokenClass)
-        => model.TryGetProperty(tokenClass, out var rate) && rate.ValueKind is JsonValueKind.Number
-            ? (long)(rate.GetDecimal() * MillionTokens)
-            : 0L;
+    private static long ToMicros(decimal usdPerMillionTokens) => (long)(usdPerMillionTokens * MillionTokens);
 }

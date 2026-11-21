@@ -1,3 +1,5 @@
+using IntoChat.OS.Modules.AI.Models;
+
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
 public sealed class AIKeysFacts
@@ -7,7 +9,8 @@ public sealed class AIKeysFacts
     {
         string[] keys =
         [
-            AIKeys.DefaultModel, AIKeys.DefaultEmbedding, AIKeys.DefaultTranscription, AIKeys.DefaultImage, AIKeys.DefaultSystemOne,
+            AIKeys.Roles, AIKeys.LegacyDefault,
+            AIKeys.Role(Where.Device, Role.Chat), AIKeys.Role(Where.Cloud, Role.Embed),
             AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TavilyEnabled, AIKeys.TelemetryEnableSensitiveData,
         ];
 
@@ -20,7 +23,9 @@ public sealed class AIKeysFacts
     {
         string[] keys =
         [
-            AIKeys.DefaultModel, AIKeys.DefaultEmbedding, AIKeys.DefaultTranscription, AIKeys.DefaultImage, AIKeys.DefaultSystemOne,
+            AIKeys.Roles, AIKeys.LegacyDefault,
+            AIKeys.Role(Where.Device, Role.Chat), AIKeys.Role(Where.Cloud, Role.Chat),
+            AIKeys.Role(Where.Cloud, Role.Embed), AIKeys.Role(Where.Device, Role.Hear),
             AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TavilyEnabled, AIKeys.TelemetryEnableSensitiveData,
         ];
 
@@ -35,10 +40,10 @@ public sealed class AIKeysFacts
     }
 
     [Fact]
-    public void TheDefaultKeysNameTheirCapability()
+    public void RoleKeysNameTheirMapAndRole()
     {
-        Assert.EndsWith(":Default:Model", AIKeys.DefaultModel, StringComparison.Ordinal);
-        Assert.EndsWith(":Default:Embedding", AIKeys.DefaultEmbedding, StringComparison.Ordinal);
-        Assert.EndsWith(":Default:SystemOne", AIKeys.DefaultSystemOne, StringComparison.Ordinal);
+        Assert.EndsWith(":Roles:Device:Chat", AIKeys.Role(Where.Device, Role.Chat), StringComparison.Ordinal);
+        Assert.EndsWith(":Roles:Cloud:Embed", AIKeys.Role(Where.Cloud, Role.Embed), StringComparison.Ordinal);
+        Assert.EndsWith(":Default", AIKeys.LegacyDefault, StringComparison.Ordinal);
     }
 }

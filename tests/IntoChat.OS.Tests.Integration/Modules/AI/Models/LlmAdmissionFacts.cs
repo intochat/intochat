@@ -1,7 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.AI.Models.Signals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Models;
@@ -29,10 +28,10 @@ public sealed class LlmAdmissionFacts
     }
 
     [Fact]
-    public async Task ATypedModelKeepsTheSameRule()
+    public async Task AKeyedModelKeepsTheSameRule()
     {
-        var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "ai.llm.gpt56luna", "models");
-        var neuron = Attached<Gpt56LunaNeuron>(id);
+        var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "ai.llm", "llm/" + KnownModels.Gpt56Luna.Id.Value);
+        var neuron = Attached<LlmNeuron>(id);
         await NeuronAttachment.Admit(neuron, new(id.Brain, "agent", "agents/main"), [typeof(InferenceFailed)]);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             NeuronAttachment.Admit(neuron, new(new DigitalBrain.BrainId("other"), "agent", "agents/main"), [typeof(InferenceFailed)]));

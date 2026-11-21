@@ -332,7 +332,7 @@ public sealed record InoAppState(
         }
 
         var cleanProvider = provider.Trim().ToLowerInvariant();
-        var defaultModel = InoModelSetup.DefaultModelForProvider(cleanProvider);
+        var defaultModel = InoModelSetup.DefaultModelForProvider(cleanProvider).Value;
         return Decision.Accept(this with
         {
             SelectedModel = defaultModel,

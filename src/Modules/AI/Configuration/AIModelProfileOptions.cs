@@ -10,7 +10,7 @@ public sealed class AIModelProfileOptions
     public string? Endpoint { get; set; }
     public string? Reasoning { get; set; }
     public int? MaxOutputTokens { get; set; }
-    public LlmCapabilities? Capabilities { get; set; }
+    public Abilities? Capabilities { get; set; }
     public long? ContextWindowTokens { get; set; }
     public int? MaximumOutputTokens { get; set; }
     public bool? SupportsTemperature { get; set; }

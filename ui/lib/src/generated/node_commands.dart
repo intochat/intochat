@@ -29,6 +29,17 @@ Future<ActivationOutcome> actChatThreadRetry(
   required String id,
 }) => ctx.act(address, 'control.retry', {'id': id});
 
+/// Sends `SelectModel` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadSelectModel(
+  NodeContext ctx,
+  String address, {
+  required String? value,
+  required bool defaultValue,
+}) => ctx.act(address, 'control.selectModel', {
+  'value': value,
+  'default': defaultValue,
+});
+
 /// Sends `Stop` to the `chatThread` neuron at [address].
 Future<ActivationOutcome> actChatThreadStop(NodeContext ctx, String address) =>
     ctx.act(address, 'control.stop', {});

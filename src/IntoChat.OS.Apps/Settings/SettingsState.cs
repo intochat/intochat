@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
@@ -19,12 +18,22 @@ public sealed record SettingsSearchEntry(
     string Icon = "settings",
     string Group = "Preferences");
 
-public sealed record SettingsModelOption(
+public sealed record SettingsModelChoice(
     string Id,
     string Label,
     bool Available = true,
-    string? ProviderLabel = null,
     string? Reason = null);
+
+public sealed record SettingsRoleRow(
+    Role Role,
+    string? Selected,
+    SettingsModelChoice[] Choices);
+
+public sealed record SettingsProviderRow(
+    AiProvider Provider,
+    string Label,
+    string Icon,
+    string Status);
 
 /// <summary>
 /// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
@@ -92,7 +101,8 @@ public sealed record SettingsAppState(
     public bool ShowOsBarNotifications { get; init; } = true;
     public bool ShowOsBarComputeMeter { get; init; } = true;
     public bool ShowOsBarClock { get; init; } = true;
-    public IReadOnlyList<SettingsModelOption> AvailableModels { get; init; } = [];
+    public SettingsRoleRow[] Roles { get; init; } = [];
+    public SettingsProviderRow[] Providers { get; init; } = [];
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
 
     // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):
@@ -149,7 +159,7 @@ public sealed record SettingsAppState(
         "Settings",
         "User",
         "dark",
-        ModelCatalog.DefaultChatModelId,
+        KnownModels.Defaults.Device[Role.Chat].Value,
         "general",
         null,
         null,
@@ -380,7 +390,7 @@ public sealed record SettingsAppState(
     public Decision<SettingsAppState> ApplyPreferences(
         [Sample("Ada", "")] string? displayName = null,
         [Sample("dark", "neon-invalid")] string? theme = null,
-        [Sample(nameof(IQwen35))] string? defaultModel = null,
+        [Sample(nameof(KnownModels.Qwen35))] string? defaultModel = null,
         [Sample("fluent-acrylic")] string? stylePreset = null,
         [Sample("floating-glass")] string? barLayout = null,
         [Sample("auto")] string? themeMode = null,

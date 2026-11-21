@@ -2,11 +2,8 @@ using System.Diagnostics;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Voice;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
@@ -19,42 +16,40 @@ public static partial class AIHostingExtensions
         // Pinned: the image the container path was last verified against (ollama/ollama 0.40.6).
         internal const string OllamaImageTag = "0.40.6";
 
-        private readonly HashSet<Type> _markers = [];
-        private readonly Dictionary<Type, IResourceBuilder<OllamaModelResource>> _ollamaModels = [];
+        private readonly HashSet<ModelId> _models = [];
+        private readonly Dictionary<ModelId, IResourceBuilder<OllamaModelResource>> _ollamaModels = [];
+        private readonly Dictionary<(Where Map, Role Role), ModelId> _roles = [];
         private IResourceBuilder<OllamaResource>? _ollama;
-        private Type? _defaultLlmMarker;
-        private Type? _defaultEmbeddingMarker;
 
         internal bool EnableSensitiveData { get; set; }
 
-        internal void AddLlm(Type marker)
+        internal void AddModel(ModelCard card)
         {
-            var model = LLMModel.FindByMarker(marker)
-                ?? throw new NotSupportedException(
-                    $"{marker.FullName} is not a known LLM model marker. Add it to LLMModel.All first.");
+            ArgumentNullException.ThrowIfNull(card);
+            if (!_models.Add(card.Id))
+            {
+                return;
+            }
 
-            AddModel(marker, model.Provider, model.Id);
+            if (card.Provider == AiProvider.Ollama)
+            {
+                _ollamaModels[card.Id] = EnsureOllama().AddModel(brain.ResourceName(OllamaResourceName(card.Id.Value)), card.Id.Value);
+            }
         }
 
-        internal void AddEmbedding(Type marker)
+        internal void SetRoles(AIRoleOptions roles)
         {
-            var model = EmbeddingModel.FindByMarker(marker)
-                ?? throw new NotSupportedException(
-                    $"{marker.FullName} is not a known embedding model marker. Add it to EmbeddingModel.All first.");
+            ArgumentNullException.ThrowIfNull(roles);
+            var map = roles.ToRoleMap();
+            foreach (var (role, id) in map.Device)
+            {
+                _roles[(Where.Device, role)] = id;
+            }
 
-            AddModel(marker, model.Provider, model.Id);
-        }
-
-        internal void SetDefaultLlm(Type marker)
-        {
-            RequireAdded(marker);
-            _defaultLlmMarker = marker;
-        }
-
-        internal void SetDefaultEmbedding(Type marker)
-        {
-            RequireAdded(marker);
-            _defaultEmbeddingMarker = marker;
+            foreach (var (role, id) in map.Cloud)
+            {
+                _roles[(Where.Cloud, role)] = id;
+            }
         }
 
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
@@ -64,57 +59,25 @@ public static partial class AIHostingExtensions
             builder.WithEnvironment(
                 EnableSensitiveDataEnvironmentKey,
                 EnableSensitiveData ? "true" : "false")
-                // Keep standard SDK instrumentation and the module pipeline on one
-                // explicit host setting; an explicit false overrides ambient opt-ins.
                 .WithEnvironment("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
                     EnableSensitiveData ? "true" : "false");
 
-            foreach (var (marker, resource) in _ollamaModels)
+            foreach (var (modelId, resource) in _ollamaModels)
             {
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
                     .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
-                    .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{marker.Name}:Model"), resource.Resource.ModelName);
+                    .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{modelId.Value}:Model"), resource.Resource.ModelName);
             }
 
-            if (_defaultLlmMarker is { } llmMarker)
+            foreach (var ((where, role), modelId) in _roles)
             {
-                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.DefaultModel), llmMarker.Name);
-            }
-
-            if (_defaultEmbeddingMarker is { } embeddingMarker)
-            {
-                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.DefaultEmbedding), embeddingMarker.Name);
+                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.Role(where, role)), modelId.Value);
             }
         }
 
-        private void AddModel(Type marker, AiProvider provider, string id)
-        {
-            if (!_markers.Add(marker))
-            {
-                throw new InvalidOperationException(
-                    $"{marker.FullName} is already configured on brain '{brain.Name}'. Add each model exactly once.");
-            }
-
-            if (provider == AiProvider.Ollama)
-            {
-                _ollamaModels[marker] = EnsureOllama().AddModel(brain.ResourceName(OllamaResourceName(id)), id);
-            }
-        }
-
-        // An Ollama model that backs something other than an LLM/embedding neuron (the System One
-        // adapter). Not a marker: nothing is keyed by it, so it is not added to _markers.
         internal IResourceBuilder<OllamaModelResource> AddOllamaBackingModel(string id)
             => EnsureOllama().AddModel(brain.ResourceName(OllamaResourceName(id)), id);
-
-        private void RequireAdded(Type marker)
-        {
-            if (!_markers.Contains(marker))
-            {
-                throw new InvalidOperationException(
-                    $"{marker.Name} must be added with WithLlm/WithEmbedding before it can become the default.");
-            }
-        }
 
         private static string OllamaResourceName(string id)
             => id.ToLowerInvariant().Replace(':', '-').Replace('.', '-').Replace('/', '-');
@@ -170,44 +133,38 @@ public static partial class AIHostingExtensions
         IntoChatOSBuilder brain,
         IResourceBuilder<IntoChatOSModuleResource> module) : IntoChatOSModuleProjection
     {
-        // One key for every transcription model, matching the default model and
-        // embedding keys. The provider on the model picks the implementation.
-        private static readonly string TranscriptionEnvironmentKey =
-            ModuleConfiguration.EnvironmentName(AIKeys.DefaultTranscription);
-        private TranscriptionModel? _model;
+        private ModelCard? _card;
         private IResourceBuilder<FoundryLocalModelResource>? _whisper;
 
-        internal void SetModel(TranscriptionModel model)
+        internal void SetModel(ModelCard card)
         {
-            ArgumentNullException.ThrowIfNull(model);
-            if (_model is not null && !string.Equals(_model.Id, model.Id, StringComparison.Ordinal))
+            ArgumentNullException.ThrowIfNull(card);
+            if (_card is not null && _card.Id != card.Id)
             {
                 throw new InvalidOperationException(
-                    $"Voice-to-text is already configured on brain '{brain.Name}' as '{_model.Id}'. "
-                    + "Call WithVoiceToText once.");
+                    $"Voice-to-text is already configured on brain '{brain.Name}' as '{_card.Id}'. "
+                    + "Configure Role.Hear once.");
             }
 
-            _model = model;
+            _card = card;
         }
 
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            if (_model is null)
+            if (_card is null)
             {
                 return;
             }
 
-            builder.WithEnvironment(TranscriptionEnvironmentKey, _model.Marker.Name);
-
-            if (_model.Provider is not AiProvider.FoundryLocal)
+            if (_card.Provider is not AiProvider.FoundryLocal)
             {
                 return;
             }
 
             _whisper ??= brain.ApplicationBuilder.AddFoundryLocalModel(
-                brain.ResourceName(ResourceName(_model.Id)),
-                _model.Id,
+                brain.ResourceName(ResourceName(_card.Id.Value)),
+                _card.Id.Value,
                 module.Resource);
             builder.WithAnnotation(new WaitAnnotation(_whisper.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
         }

@@ -16,4 +16,6 @@ public enum AiProvider
     TypeSafe,
     // The deployment's registered IChatClient, used when nothing names a model and no provider is configured.
     Host,
+    // An OpenAI-compatible HTTP endpoint attached by URL (e.g. LM Studio, vLLM, LiteLLM).
+    OpenAICompatible,
 }

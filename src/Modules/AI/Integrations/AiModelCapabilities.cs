@@ -1,7 +1,6 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Options;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 
@@ -15,7 +14,12 @@ internal sealed class AiModelCapabilities(IModuleIntegrations<AIModule> integrat
     {
         var configuration = options.CurrentValue;
         var capabilities = new List<IntegrationCapability>();
-        foreach (var provider in LLMModel.All.Select(model => model.Provider).Distinct())
+        var textCards = KnownModels.All
+            .Where(static card => card.Can.HasFlag(Abilities.Text)
+                && (card.Provider == AiProvider.Ollama || AiIntegrations.KeyedProviders.Contains(card.Provider)))
+            .ToArray();
+
+        foreach (var provider in textCards.Select(static card => card.Provider).Distinct())
         {
             var integrationId = provider == AiProvider.Ollama ? "ollama" : AiIntegrations.IdOf(provider);
             if (provider != AiProvider.Ollama)
@@ -25,13 +29,17 @@ internal sealed class AiModelCapabilities(IModuleIntegrations<AIModule> integrat
             }
             else if (string.IsNullOrEmpty(configuration.Ollama.Endpoint)) { continue; }
 
-            capabilities.AddRange(LLMModel.All
-                .Where(model => model.Provider == provider)
-                // A local server being configured does not imply every compiled local model is installed.
-                .Where(model => provider != AiProvider.Ollama || configuration.Ollama.Models.ContainsKey(model.Marker.Name))
-                .Select(model => new IntegrationCapability(integrationId, LlmKind, model.Marker.Name, model.Id)));
+            capabilities.AddRange(textCards
+                .Where(card => card.Provider == provider)
+                // A local server being configured does not imply every catalogued local model is installed.
+                .Where(card => provider != AiProvider.Ollama || HasOllamaModel(configuration.Ollama, card))
+                .Select(card => new IntegrationCapability(integrationId, LlmKind, card.Id.Value, card.Name)));
         }
 
         return [.. capabilities];
     }
+
+    private static bool HasOllamaModel(OllamaOptions ollama, ModelCard card)
+        => ollama.Models.ContainsKey(card.Id.Value)
+            || ollama.Models.Keys.Any(key => KnownModels.Find(key)?.Id == card.Id);
 }
