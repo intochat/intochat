@@ -9,6 +9,8 @@ namespace IntoChat.OS.Modules.Apps;
 [NeuronAlias("ino.synapses"), DefaultNeuronType("ino.synapses")]
 public interface ISynapseStudio
 {
+    const string DefaultKey = "ino/synapses";
+
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "ino.synapses", "ino/synapses");
 
     // The task step capability the executor runs through Deploy: IdempotencyKey = StepKey(alias, source), Description = source.

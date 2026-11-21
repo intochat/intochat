@@ -212,7 +212,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
             RegisterProxy<IntoChat.OS.Modules.Apps.IDesktopRecords>(IntoChat.OS.Modules.Apps.IDesktopRecords.Key);
             RegisterProxy<IntoChat.OS.Modules.Apps.IInoRecords>("apps/ino/records");
             RegisterProxy<IntoChat.OS.Modules.Apps.ISynapseStudio>("ino/synapses");
-            RegisterProxy<IntoChat.OS.Modules.Apps.IInoData>("ino/data");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IData>("ino/data");
             RegisterProxy<IntoChat.OS.Modules.ArtCraft.IArtCraftStudio>("artcraft");
             RegisterProxy<IntoChat.OS.Modules.Apps.IArtCraftEngine>("apps/artcraft-engine");
             RegisterProxy<IntoChat.OS.Modules.Apps.IArtCraftEngine>("default");

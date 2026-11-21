@@ -8,7 +8,6 @@ internal static class AiIntegrations
 {
     internal const string ApiKeyField = "ApiKey";
     internal const string EndpointField = "Endpoint";
-    internal const string TavilyId = "tavily";
 
     internal static IntegrationSchema OpenAI { get; } = Provider("openai", "OpenAI");
     internal static IntegrationSchema OpenRouter { get; } = Provider("openrouter", "OpenRouter");
@@ -20,7 +19,6 @@ internal static class AiIntegrations
         Provider("google", "Google"),
         Provider("xai", "xAI"),
         OpenRouter,
-        IntegrationSchema.For(TavilyId, "Tavily").RequiresSecret(ApiKeyField),
     ];
 
     // The System One (Jev) integration is not a chat provider and ships no model connectors;

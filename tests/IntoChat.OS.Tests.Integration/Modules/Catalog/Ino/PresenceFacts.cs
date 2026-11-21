@@ -85,12 +85,12 @@ public sealed class PresenceFacts
 
     private static IAgentContext ContextOf(INeuronRuntime runtime, string name) => runtime.Get<IAgentContext>(new NeuronId(runtime.Brain, "agent-context", "context/" + name));
 
-    private static IInoFocus FocusTool(INeuronRuntime runtime) => runtime.Get<IInoFocus>(new NeuronId(runtime.Brain, "ino.focus", IInoFocus.DefaultKey));
+    private static IFocus FocusTool(INeuronRuntime runtime) => runtime.Get<IFocus>(new NeuronId(runtime.Brain, "ino.focus", IFocus.DefaultKey));
 
     private static IDisposable As(INeuronRuntime runtime, Who kind)
         => runtime.As(kind, app: "test-app");
 
-    // An agent's tool call as ContractActions.Marked stamps it: the person's principal, the agent and the conversation.
+    // An agent's tool call as AgentTools.Marked stamps it: the person's principal, the agent and the conversation.
     private static IDisposable AsInoTool(INeuronRuntime runtime)
         => runtime.As(Who.Agent, conversation: Agent);
 
@@ -158,7 +158,7 @@ public sealed class PresenceFacts
         using var person = runtime.As(Who.Person);
 
         await Pump(runtime).Started(Agent, "run-1", null);
-        await Pump(runtime).Tool(Agent, "run-1", "neuron_call", """{"contract":"IntoChat.OS.Modules.Apps.IInoData","method":"Search"}""", 1);
+        await Pump(runtime).Tool(Agent, "run-1", "neuron_call", """{"contract":"IntoChat.OS.Modules.Apps.IData","method":"Search"}""", 1);
 
         await Eventually(runtime, presence => presence.State == PresenceState.Searching);
     }
@@ -253,7 +253,7 @@ public sealed class PresenceFacts
 
         Assert.True(result.Ok, result.Text);
         var entry = Assert.Single((await ContextOf(runtime, "ui.focus").Read()).Entries);
-        Assert.Equal(IInoFocus.EntryName, entry.Name);
+        Assert.Equal(IFocus.EntryName, entry.Name);
         Assert.Equal([ContextTags.UiFocus], entry.EffectiveTags);
         using (var json = JsonDocument.Parse(entry.Text))
         {

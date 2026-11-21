@@ -30,6 +30,7 @@
     <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
     <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
+    <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" />
   </ItemGroup>
   <!-- Shipped unit sources: synapse units the OS deploys through the synapse studio, never compiled into this assembly. -->
   <ItemGroup>

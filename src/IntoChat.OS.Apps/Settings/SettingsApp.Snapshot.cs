@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Kernel;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
@@ -28,9 +29,11 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.Form.Signals;
+using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -48,6 +51,8 @@ public sealed partial class SettingsApp
         var teamFriends = await TryReadTeamFriendsAsync();
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
         var modelInfo = await TryReadModelCatalogAsync(user.DefaultModel);
+        var mcpServers = await TryReadMcpServersAsync(State.McpServers);
+        var (webProvider, searxngUrl) = ResolveWebSearchSettings(user.Variables ?? State.Variables ?? []);
         var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
             ? (modelInfo.AutomaticModel ?? KnownModels.Defaults.Device[Role.Chat].Value)
             : user.DefaultModel.Trim();
@@ -64,6 +69,9 @@ public sealed partial class SettingsApp
             Providers = modelInfo.Providers,
             LocalOllamaEndpoint = modelInfo.LocalEndpoint,
             Device = modelInfo.Device,
+            McpServers = mcpServers,
+            WebSearchProvider = webProvider,
+            WebSearxngUrl = searxngUrl,
         };
 
         var next = projected.ApplyUserSettings(
@@ -437,14 +445,16 @@ public sealed partial class SettingsApp
     {
         var dict = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         var vault = SecretVault ?? TryGetOptional<ISecretVault>("vault");
-        string[] secretKeys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"];
+        string[] secretKeys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "BRAVE_API_KEY", "TAVILY_API_KEY"];
         foreach (var key in secretKeys)
         {
             if (vault != null)
             {
                 try
                 {
-                    dict[key] = await vault.HasSecretAsync(key);
+                    var statusText = await vault.GetSecretStatusAsync(key);
+                    dict[key] = string.Equals(statusText, "Configured", StringComparison.OrdinalIgnoreCase)
+                        || await vault.HasSecretAsync(key);
                     continue;
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
@@ -548,6 +558,16 @@ public sealed partial class SettingsApp
                 LocalOllamaEndpoint = modelInfo.LocalEndpoint,
                 Device = modelInfo.Device,
             };
+
+            if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
+            {
+                next = await RefreshWebToolsProjectionAsync(next);
+            }
+        }
+        else if (string.Equals(next.Section, "keys", StringComparison.Ordinal))
+        {
+            var secrets = await InspectSecretStatusesAsync(next.Variables ?? []);
+            next = next with { SecretStatuses = secrets };
         }
         else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
         {
@@ -677,6 +697,363 @@ public sealed partial class SettingsApp
         var brainId = TryCurrentBrainId();
         var snapshot = await PortableBrainArchive.ExportAsync(brainId, Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
         await UpdateAsync(State.RecordExportedArchive(PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
+    }
+
+    [On]
+    public async Task McpAdd(SettingsMcpAdd request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Decision.Check(
+                "mcp-add",
+                SettingsAppState.ValidateMcpServerNameRule(request.Name),
+                SettingsAppState.ValidateMcpServerUrlRule(request.Url)) is { } rejected)
+        {
+            await ApplySettingsDecisionAsync(rejected);
+            return;
+        }
+
+        var name = request.Name!.Trim().ToLowerInvariant();
+        var url = request.Url!.Trim();
+        var title = string.IsNullOrWhiteSpace(request.Title) ? name : request.Title.Trim();
+
+        McpServerRow row;
+        string status;
+        if (TryBrainOrNull() is { Value.Length: > 0 } brain)
+        {
+            var serverId = new NeuronId(brain, "mcp.server", "mcp/" + name);
+            try
+            {
+                var connected = await Get<IMcpServer>(serverId).Connect(new McpServerSpec(title, url));
+                row = new McpServerRow(
+                    Name: name,
+                    Title: string.IsNullOrWhiteSpace(connected.Title) ? title : connected.Title,
+                    Url: string.IsNullOrWhiteSpace(connected.Url) ? url : connected.Url,
+                    Connected: connected.Connected,
+                    ToolCount: connected.Tools?.Length ?? 0,
+                    Error: connected.Error);
+                status = connected.Connected
+                    ? $"Connected MCP server '{row.Title}' ({row.ToolCount} tool(s))."
+                    : $"MCP server '{row.Title}' is disconnected.";
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogWarning(error, "Failed to connect MCP server '{ServerName}' at {Url}.", name, url);
+                row = new McpServerRow(name, title, url, Connected: false, ToolCount: 0, Error: error.Message);
+                status = $"Failed to connect MCP server '{name}': {error.Message}";
+            }
+        }
+        else
+        {
+            row = new McpServerRow(name, title, url, Connected: false, ToolCount: 0, Error: "Brain context is unavailable.");
+            status = $"Brain context is unavailable for MCP server '{name}'.";
+        }
+
+        await UpdateAsync(State with
+        {
+            McpServers = UpsertMcpRow(State.McpServers, row),
+            Status = status,
+        });
+    }
+
+    [On]
+    public async Task McpRemove(SettingsMcpRemove request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Decision.Check("mcp-remove", SettingsAppState.ValidateMcpServerNameRule(request.Name)) is { } rejected)
+        {
+            await ApplySettingsDecisionAsync(rejected);
+            return;
+        }
+
+        var name = request.Name!.Trim().ToLowerInvariant();
+        if (TryBrainOrNull() is { Value.Length: > 0 } brain)
+        {
+            var serverId = new NeuronId(brain, "mcp.server", "mcp/" + name);
+            try
+            {
+                await Get<IMcpServer>(serverId).Disconnect();
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogDebug(error, "IMcpServer.Disconnect failed for '{ServerName}' in minimal host.", name);
+            }
+        }
+
+        var updatedRows = (State.McpServers ?? [])
+            .Select(row => string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase)
+                ? row with { Connected = false }
+                : row)
+            .OrderBy(static r => r.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        await UpdateAsync(State with
+        {
+            McpServers = updatedRows,
+            Status = $"Disconnected MCP server '{name}'.",
+        });
+    }
+
+    private async Task SetWebSearchProviderAsync(string? rawProvider)
+    {
+        var normalized = SettingsControls.TryNormalizeSearchProvider(rawProvider);
+        if (normalized is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<UserVariableEntry> variables = State.Variables ?? [];
+        try
+        {
+            var updated = await Get<IUserSettings>("settings").SetVariable(SettingsControls.WebSearchProviderVariable, normalized);
+            variables = updated.Variables ?? [];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "Skipping web.search.provider persistence in minimal test host.");
+            variables = UpsertVariableEntry(variables, SettingsControls.WebSearchProviderVariable, normalized);
+        }
+
+        await UpdateAsync(State with
+        {
+            Variables = [.. variables.Where(static v => !string.IsNullOrWhiteSpace(v.Key))],
+            WebSearchProvider = normalized,
+            Status = $"Web search provider set to {normalized}.",
+        });
+    }
+
+    private async Task SetSearxngUrlAsync(string rawUrl)
+    {
+        if (Decision.Check("set-searxng-url", SettingsAppState.ValidateSearxngUrlRule(rawUrl)) is { } rejected)
+        {
+            await ApplySettingsDecisionAsync(rejected);
+            return;
+        }
+
+        var trimmed = rawUrl.Trim();
+        IReadOnlyList<UserVariableEntry> variables = State.Variables ?? [];
+        try
+        {
+            var updated = await Get<IUserSettings>("settings").SetVariable(SettingsControls.WebSearxngUrlVariable, trimmed);
+            variables = updated.Variables ?? [];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "Skipping web.search.searxng-url persistence in minimal test host.");
+            variables = UpsertVariableEntry(variables, SettingsControls.WebSearxngUrlVariable, trimmed);
+        }
+
+        await UpdateAsync(State with
+        {
+            Variables = [.. variables.Where(static v => !string.IsNullOrWhiteSpace(v.Key))],
+            WebSearxngUrl = trimmed,
+            Status = string.IsNullOrEmpty(trimmed) ? "Cleared SearXNG URL override." : $"Saved SearXNG URL ({trimmed}).",
+        });
+    }
+
+    private async Task<SettingsAppState> RefreshWebToolsProjectionAsync(SettingsAppState baseline)
+    {
+        IReadOnlyList<UserVariableEntry> variables = baseline.Variables ?? [];
+        try
+        {
+            var user = await Get<IUserSettings>("settings").Read();
+            if (user.Variables is not null)
+            {
+                variables = user.Variables;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "IUserSettings is optional when refreshing Web & tools in standalone tests.");
+        }
+
+        var secrets = await InspectSecretStatusesAsync(variables);
+        var servers = await TryReadMcpServersAsync(baseline.McpServers);
+        var (webProvider, searxngUrl) = ResolveWebSearchSettings(variables);
+
+        return baseline with
+        {
+            Variables = [.. variables.Where(static v => !string.IsNullOrWhiteSpace(v.Key))],
+            SecretStatuses = secrets,
+            McpServers = servers,
+            WebSearchProvider = webProvider,
+            WebSearxngUrl = searxngUrl,
+        };
+    }
+
+    private (string? Provider, string? SearxngUrl) ResolveWebSearchSettings(IReadOnlyList<UserVariableEntry> variables)
+    {
+        var configured = WebOptions?.Value;
+        var provider = configured?.Provider.ToString() ?? State.WebSearchProvider;
+        var searxngUrl = configured?.SearxngUrl?.ToString() ?? State.WebSearxngUrl;
+
+        foreach (var entry in variables)
+        {
+            if (string.Equals(entry.Key, SettingsControls.WebSearchProviderVariable, StringComparison.Ordinal)
+                && SettingsControls.TryNormalizeSearchProvider(entry.Value) is { } overrideProvider)
+            {
+                provider = overrideProvider;
+            }
+            else if (string.Equals(entry.Key, SettingsControls.WebSearxngUrlVariable, StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(entry.Value))
+            {
+                searxngUrl = entry.Value.Trim();
+            }
+        }
+
+        return (provider, searxngUrl);
+    }
+
+    private async Task<McpServerRow[]> TryReadMcpServersAsync(McpServerRow[]? existing)
+    {
+        var existingByName = (existing ?? [])
+            .Where(static r => !string.IsNullOrWhiteSpace(r.Name))
+            .GroupBy(static r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static g => g.Key, static g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        if (TryBrainOrNull() is not { Value.Length: > 0 } brain)
+        {
+            return [.. existingByName.Values.OrderBy(static r => r.Name, StringComparer.Ordinal)];
+        }
+
+        var candidates = new Dictionary<string, NeuronId>(StringComparer.OrdinalIgnoreCase);
+        var observer = Observer;
+        if (observer is not null)
+        {
+            try
+            {
+                await foreach (var instance in observer.Instances("mcp.server"))
+                {
+                    if (TryExtractMcpServer(brain, instance.Key, out var id, out var name))
+                    {
+                        candidates[name] = id;
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogDebug(error, "IBrainObserver.Instances(\"mcp.server\") failed while refreshing Settings Web & tools.");
+            }
+        }
+
+        if (McpOptions?.Value?.Servers is { Count: > 0 } configuredServers)
+        {
+            foreach (var name in configuredServers.Keys)
+            {
+                if (!string.IsNullOrWhiteSpace(name) && !candidates.ContainsKey(name))
+                {
+                    candidates[name] = new NeuronId(brain, "mcp.server", "mcp/" + name.Trim().ToLowerInvariant());
+                }
+            }
+        }
+
+        foreach (var name in existingByName.Keys)
+        {
+            if (!candidates.ContainsKey(name))
+            {
+                candidates[name] = new NeuronId(brain, "mcp.server", "mcp/" + name.Trim().ToLowerInvariant());
+            }
+        }
+
+        var rows = new Dictionary<string, McpServerRow>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, neuronId) in candidates)
+        {
+            try
+            {
+                var snapshot = await Get<IMcpServer>(neuronId).Read();
+                var hasData = !string.IsNullOrWhiteSpace(snapshot.Url)
+                    || !string.IsNullOrWhiteSpace(snapshot.Title)
+                    || snapshot.Connected
+                    || !string.IsNullOrWhiteSpace(snapshot.Error)
+                    || snapshot.RefreshedAt is not null;
+                if (hasData)
+                {
+                    rows[name] = new McpServerRow(
+                        Name: name,
+                        Title: string.IsNullOrWhiteSpace(snapshot.Title) ? name : snapshot.Title,
+                        Url: snapshot.Url,
+                        Connected: snapshot.Connected,
+                        ToolCount: snapshot.Tools?.Length ?? 0,
+                        Error: snapshot.Error);
+                }
+                else if (existingByName.TryGetValue(name, out var preserved))
+                {
+                    rows[name] = preserved;
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogDebug(error, "IMcpServer.Read is optional for '{ServerName}' in standalone tests.", name);
+                if (existingByName.TryGetValue(name, out var preserved))
+                {
+                    rows[name] = preserved;
+                }
+            }
+        }
+
+        return [.. rows.Values.OrderBy(static r => r.Name, StringComparer.Ordinal)];
+    }
+
+    private static bool TryExtractMcpServer(BrainId brain, string instanceKey, out NeuronId neuronId, out string name)
+    {
+        if (NeuronId.TryParse(instanceKey, out var parsed)
+            && string.Equals(parsed.Type, "mcp.server", StringComparison.Ordinal)
+            && parsed.Brain == brain)
+        {
+            neuronId = parsed;
+            name = ExtractMcpName(parsed.Key);
+            return !string.IsNullOrWhiteSpace(name);
+        }
+
+        var prefix = brain.Value + "/";
+        if (instanceKey.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            var localKey = instanceKey[prefix.Length..];
+            neuronId = new NeuronId(brain, "mcp.server", localKey);
+            name = ExtractMcpName(localKey);
+            return !string.IsNullOrWhiteSpace(name);
+        }
+
+        neuronId = default;
+        name = string.Empty;
+        return false;
+    }
+
+    private static string ExtractMcpName(string localKey)
+    {
+        var trimmed = localKey.Trim('/');
+        if (trimmed.StartsWith("mcp/", StringComparison.Ordinal))
+        {
+            return trimmed["mcp/".Length..];
+        }
+
+        var slash = trimmed.LastIndexOf('/');
+        return slash >= 0 ? trimmed[(slash + 1)..] : trimmed;
+    }
+
+    private static McpServerRow[] UpsertMcpRow(McpServerRow[]? existing, McpServerRow row)
+    {
+        var byName = (existing ?? [])
+            .Where(static r => !string.IsNullOrWhiteSpace(r.Name))
+            .GroupBy(static r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static g => g.Key, static g => g.First(), StringComparer.OrdinalIgnoreCase);
+        byName[row.Name] = row;
+        return [.. byName.Values.OrderBy(static r => r.Name, StringComparer.Ordinal)];
+    }
+
+    private static UserVariableEntry[] UpsertVariableEntry(IReadOnlyList<UserVariableEntry> existing, string key, string value)
+    {
+        var list = existing.ToList();
+        var idx = list.FindIndex(v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0)
+        {
+            list[idx] = new UserVariableEntry(key, value);
+        }
+        else
+        {
+            list.Add(new UserVariableEntry(key, value));
+        }
+
+        return [.. list];
     }
 
 }

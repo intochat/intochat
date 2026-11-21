@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using DigitalBrain.Contracts;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Agents;
@@ -24,7 +25,7 @@ internal static class AgentTelemetry
         return activity;
     }
 
-    internal static Activity? Tool(FunctionCallContent call, bool sensitive)
+    internal static Activity? Tool(FunctionCallContent call, bool sensitive, ToolSchema? schema = null)
     {
         var activity = Source.StartActivity($"execute_tool {call.Name}", ActivityKind.Internal);
         if (activity is null) { return null; }
@@ -32,8 +33,8 @@ internal static class AgentTelemetry
         activity.SetTag("gen_ai.tool.name", call.Name);
         activity.SetTag("gen_ai.tool.call.id", call.CallId);
         // The neuron surface names its target; that is what a reader of the trace needs to know.
-        if (Text(call, "contract") is { } contract) { activity.SetTag("intochat.contract", contract); }
-        if (Text(call, "method") is { } method) { activity.SetTag("intochat.method", method); }
+        if ((schema?.Contract ?? Text(call, "contract")) is { } contract) { activity.SetTag("intochat.contract", contract); }
+        if ((schema?.Method ?? Text(call, "method")) is { } method) { activity.SetTag("intochat.method", method); }
         if (Text(call, "key") is { } key) { activity.SetTag("intochat.key", key); }
         if (sensitive) { activity.SetTag("gen_ai.tool.call.arguments", Clip(JsonSerializer.Serialize(call.Arguments))); }
         return activity;

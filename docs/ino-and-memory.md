@@ -9,7 +9,7 @@ Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/I
 `InoAgentDefinition` builds the `AgentDefinition` that the app gives the agent. It holds three things:
 
 - **Instructions.** The persona, with your display name filled in from settings.
-- **Contracts.** The neuron contracts the model may act on, for example `IInoStudio`, `IInoData`, `IInoFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
+- **Contracts.** The neuron contracts the model may act on, for example `IStudio`, `IData`, `IFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
 - **Contexts.** The context neurons the agent reads at the start of every turn.
 
 Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Role` (`Chat`, `Think`, `Fast`, `Hear`, `Speak`, `Talk`, `Embed`, `Image`) through `IModelCatalog` (`List`, `Pick`, `SetRole`, `Roles`, `Availability`) and one `ILLM` neuron per model (`{brain}/llm/{modelId}`). Choosing a model in the composer switches that conversation; pinning it or choosing a role in Settings → AI updates the person's role override read by `ModelCatalog.Decide` ahead of the deployment `RoleMap` defaults.
@@ -26,7 +26,7 @@ Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Rol
 
 ## Tools
 
-The model has five tools: `neurons_list`, `neurons_search`, `neurons_get`, `neurons_call` and `neurons_context`. It reaches every neuron method through `neurons_call`. The tools sit on `NeuronSurface`, the same surface the shell and MCP use. See [architecture](architecture.md).
+Each method on a contract in the agent definition is exposed directly as a typed tool (`ContractTool`, generated from `ToolSchema`) taking named JSON arguments; `ToolRouter` picks the top-K tools for each turn alongside `neurons_search`, `neurons_list`, and `neurons_context` (`AgentTools`). When the model calls `neurons_search`, matching allowed contracts are added to the turn's tools for the next step. All calls bind through `NeuronBinder` on `OsNeuronSurface`, the same surface MCP and gRPC use. See [architecture](architecture.md).
 
 The tools come only from the contracts in the agent definition. A context entry never adds a tool.
 
@@ -43,7 +43,7 @@ Ino lists nine contexts, each under the key `context/` plus a name:
 | `conversation.inference`, `conversation.inference.tone` | What has been inferred about the conversation. `ToneObserverNeuron` writes the tone. |
 | `apps.capabilities` | What the apps in the brain can do. |
 | `security.posture` | The brain's security posture, written by `SecurityPostureNeuron`. |
-| `ui.focus`, `ui.state` | What you are looking at. `IInoFocus` writes the focus when Ino points you at something. |
+| `ui.focus`, `ui.state` | What you are looking at. `IFocus` writes the focus when Ino points you at something. |
 | `memory.recall` | What memory recalled for this turn. |
 
 Before each turn the agent reads every listed context. A context that is missing or fails is skipped; the turn still runs. Untagged entries reach the model as knowledge.

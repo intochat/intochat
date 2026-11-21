@@ -117,11 +117,11 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
         Assert.NotNull(await inoScreen.Read());
         var personaDef = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Owner", DefaultModel = "qwen2.5-coder:14b" });
         Assert.Contains(typeof(IFlows).FullName!, personaDef.Contracts);
-        Assert.Contains("StartEngineerRun", personaDef.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`flows_start_engineer_run`", personaDef.Instructions, StringComparison.Ordinal);
 
         // 1. Ino delegates a 2-worktree ContainerVolume IntoChat-Engineer run on behalf of the user.
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
         EngineerRunSummary started;
         using (os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), brain, conversation: "main")))
         {
@@ -175,7 +175,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
         Assert.Contains(waiting.Plan.Transcript, static t => t.Role == "architect");
         Assert.Contains(waiting.Plan.Transcript, static t => t.Role == "critic");
 
-        // Verify Ino's tool result card extraction & IInoStudio.ChangeStatus report the pending approval card cleanly.
+        // Verify Ino's tool result card extraction & IStudio.ChangeStatus report the pending approval card cleanly.
         var toolResultJson = JsonSerializer.Serialize(waiting, JsonSerializerOptions.Web);
         var projectedCard = Assert.Single(InoCards.FromToolCalls(
         [

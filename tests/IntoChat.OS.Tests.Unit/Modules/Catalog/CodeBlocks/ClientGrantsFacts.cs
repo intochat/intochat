@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
+using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.Apps.CodeBlocks;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -39,11 +40,25 @@ public sealed class ClientGrantsFacts
         Assert.Empty(await grants.Allowed("codeblock-2"));
 
         await grants.Record("codeblock-1", "IRuns.List", true);
-        await grants.Record("codeblock-1", "IInoFiles.Write", false);
-        Assert.Equal([("IRuns.List", true), ("IInoFiles.Write", false)], (await grants.Steps("codeblock-1")).Select(step => (step.Call, step.Allowed)));
+        await grants.Record("codeblock-1", "IFiles.Write", false);
+        Assert.Equal([("IRuns.List", true), ("IFiles.Write", false)], (await grants.Steps("codeblock-1")).Select(step => (step.Call, step.Allowed)));
 
         await grants.Release("codeblock-1");
         Assert.Empty(await grants.Allowed("codeblock-1"));
         Assert.Empty(await grants.Steps("codeblock-1"));
+    }
+
+    [Fact]
+    public async Task ACodeBlockApprovedForIInoFilesMayStillWrite()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
+        await using var os = NewOs();
+        var grants = Grants(os);
+        await grants.Bind("codeblock-1", "codeblocks/r1", ["IntoChat.OS.Modules.Apps.IInoFiles"]);
+
+        var run = await SandboxEdgeEndpoints.HoldToNeedsAsync("codeblock-1", "files", "Write", grants);
+
+        Assert.Equal("codeblocks/r1", run);
+        Assert.Equal([("IFiles.Write", true)], (await grants.Steps("codeblock-1")).Select(static step => (step.Call, step.Allowed)));
     }
 }

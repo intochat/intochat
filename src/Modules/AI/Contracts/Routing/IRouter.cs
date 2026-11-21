@@ -7,6 +7,8 @@ namespace IntoChat.OS.Modules.AI.Routing;
 [NeuronAlias("ai.router"), DefaultNeuronType("ai.router")]
 public interface IRouter
 {
+    const string DefaultKey = "main";
+
     // The brain's own router (R4-19: a brain-scoped singleton is keyed main); a script may key its own, {brain}/{name}.
     static string Key(string brainId) => $"{brainId}/main";
 

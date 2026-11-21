@@ -10,15 +10,12 @@ public static class HttpHosts
     private static readonly IdnMapping Idn = new();
 
     /// <summary>
-    /// Passes when <paramref name="url"/> is http or https, its host is public (never private, loopback, or link-local),
-    /// and its host equals an entry of <paramref name="allowed"/> or matches a <c>*.example.org</c> entry.
-    /// Hosts and entries are compared in their IDN (punycode) form, case-insensitively.
+    /// Passes when <paramref name="url"/> is http or https and its host is public (never private, loopback, or link-local).
     /// </summary>
     /// <exception cref="HostNotAllowedException">Anything else; its message carries the scheme and host only, never the path or query.</exception>
-    public static void Require(Uri url, IReadOnlyList<string> allowed)
+    public static void RequirePublic(Uri url)
     {
         ArgumentNullException.ThrowIfNull(url);
-        ArgumentNullException.ThrowIfNull(allowed);
         var host = url.IsAbsoluteUri ? url.IdnHost : string.Empty;
         var web = url.IsAbsoluteUri && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps);
         if (!web || host.Length == 0)
@@ -30,10 +27,23 @@ public static class HttpHosts
         {
             throw new HostNotAllowedException(host, url.IsAbsoluteUri ? url.Scheme : null);
         }
+    }
 
-        if (!allowed.Any(entry => Matches(entry, host)))
+    /// <summary>
+    /// Passes when <paramref name="url"/> is http or https, its host is public (never private, loopback, or link-local),
+    /// and its host equals an entry of <paramref name="allowed"/> or matches a <c>*.example.org</c> entry.
+    /// Hosts and entries are compared in their IDN (punycode) form, case-insensitively.
+    /// </summary>
+    /// <exception cref="HostNotAllowedException">Anything else; its message carries the scheme and host only, never the path or query.</exception>
+    public static void Require(Uri url, IReadOnlyList<string> allowed)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+        ArgumentNullException.ThrowIfNull(allowed);
+        RequirePublic(url);
+
+        if (!allowed.Any(entry => Matches(entry, url.IdnHost)))
         {
-            throw new HostNotAllowedException(host, url.IsAbsoluteUri ? url.Scheme : null);
+            throw new HostNotAllowedException(url.IdnHost, url.Scheme);
         }
     }
 
@@ -45,8 +55,10 @@ public static class HttpHosts
             return true;
         }
 
-        var clean = host.Trim('[', ']');
-        if (string.Equals(clean, "localhost", StringComparison.OrdinalIgnoreCase))
+        var clean = host.Trim('[', ']').TrimEnd('.');
+        if (string.Equals(clean, "localhost", StringComparison.OrdinalIgnoreCase)
+            || clean.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+            || clean.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

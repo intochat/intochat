@@ -593,7 +593,7 @@ public sealed class InoViewFacts
                 {
                     Cards =
                     [
-                        new InoCard("node-1", "node", "Fruit", "", IInoFocus.DefaultKey, "done") { Node = nodeJson },
+                        new InoCard("node-1", "node", "Fruit", "", IFocus.DefaultKey, "done") { Node = nodeJson },
                     ],
                 },
             ],
@@ -612,7 +612,7 @@ public sealed class InoViewFacts
     public void AnInvalidStoredNodeCardRendersNothing()
     {
         var nodes = InoView.RenderCardNodes(
-            new InoCard("node-bad", "node", "Hostile", "", IInoFocus.DefaultKey, "done")
+            new InoCard("node-bad", "node", "Hostile", "", IFocus.DefaultKey, "done")
             {
                 Node = """{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""",
             }).ToArray();

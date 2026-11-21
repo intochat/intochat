@@ -241,20 +241,34 @@ internal static class SandboxEdgeEndpoints
 
     // A code block reaches only the contracts its approved needs name; every call it makes, allowed or refused, is a step on its run.
     // The run of a code block whose call is within its needs; null for any other app. Runs as the kernel's code block module.
-    private static async Task<string?> HoldToNeedsAsync(VerifiedAppToken identity, EdgeInvokeRequest request, IServiceProvider services)
+    private static Task<string?> HoldToNeedsAsync(VerifiedAppToken identity, EdgeInvokeRequest request, IServiceProvider services)
     {
-        if (!identity.AppKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return null; }
+        if (!identity.AppKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return Task.FromResult<string?>(null); }
         var grants = SiloNeurons.Get<IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants>(services,
             new NeuronId(new BrainId(identity.BrainId), "client.grants", IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.DefaultKey));
+        return HoldToNeedsAsync(identity.AppKey, request.Contract, request.Method, grants);
+    }
+
+    internal static async Task<string?> HoldToNeedsAsync(
+        string appKey,
+        string requestedContract,
+        string method,
+        IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants grants)
+    {
+        if (!appKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return null; }
         // The sandbox names a contract by its neuron alias or its type; needs are type names, so compare the resolved type.
-        var contract = KernelInvocationSink.ContractOf(request.Contract)?.FullName ?? request.Contract;
-        var allowed = (await grants.Allowed(identity.AppKey).ConfigureAwait(false)).Contains(contract, StringComparer.Ordinal);
-        await grants.Record(identity.AppKey, $"{contract[(contract.LastIndexOf('.') + 1)..]}.{request.Method}", allowed).ConfigureAwait(false);
+        string[] prefixes = ["IntoChat.OS", "DigitalBrain"];
+        var contract = KernelInvocationSink.ContractOf(requestedContract)?.FullName
+            ?? DigitalBrain.Runtime.Http.Surface.LoadedContracts.CurrentName(requestedContract, prefixes);
+        var allowed = (await grants.Allowed(appKey).ConfigureAwait(false))
+            .Select(need => DigitalBrain.Runtime.Http.Surface.LoadedContracts.CurrentName(need, prefixes))
+            .Contains(contract, StringComparer.Ordinal);
+        await grants.Record(appKey, $"{contract[(contract.LastIndexOf('.') + 1)..]}.{method}", allowed).ConfigureAwait(false);
         if (!allowed)
         {
             throw new UnauthorizedAccessException($"{contract} is not among this code block's approved needs.");
         }
-        return await grants.RunOf(identity.AppKey).ConfigureAwait(false);
+        return await grants.RunOf(appKey).ConfigureAwait(false);
     }
 
     private static async Task<string?> DispatchNotificationsAsync(

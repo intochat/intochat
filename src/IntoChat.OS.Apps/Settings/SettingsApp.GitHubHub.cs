@@ -254,12 +254,12 @@ public sealed partial class SettingsApp
         {
             try
             {
-                var studio = Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+                var studio = Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
                 result = await studio.CreateIssueTriageSynapse(connectionKey, mode);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Log.LogDebug(error, "IInoStudio is optional when SettingsApp runs in standalone tests.");
+                Log.LogDebug(error, "IStudio is optional when SettingsApp runs in standalone tests.");
                 result = new InoToolResult($"Issue triage Synapse installer unavailable: {error.Message}", Ok: false);
             }
         }

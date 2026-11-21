@@ -1,11 +1,15 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Web;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -24,6 +28,7 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
 // before the agent has written what came before it. A failure becomes the last event; Run never throws.
 internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null)
 {
+    private static readonly string[] ContractAssemblyPrefixes = ["IntoChat.OS", "DigitalBrain"];
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
         using var turn = AgentTelemetry.Turn(AgentName(plan.Conversation), plan.Conversation, plan.RunId);
@@ -75,18 +80,61 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetService<OsNeuronSurface>();
         // B06: Callable tools come strictly from the agent definition's declared contracts; context entries never widen tools.
-        string[] composed = surface is null ? [] : [.. plan.Contracts];
+        string[] composed = surface is null
+            ? []
+            : [.. plan.Contracts.Select(static name => LoadedContracts.CurrentName(name, ContractAssemblyPrefixes)).Distinct(StringComparer.Ordinal)];
+        var contractTools = new List<ContractTool>();
+        var routableTools = new List<AIFunction>();
+        var allTools = new List<AIFunction>();
+        var activeTools = new List<AITool>();
+        OsNeuronSurface? restricted = null;
+        DigitalBrain.Access.EdgeAuthority? edge = null;
+        IReadOnlyList<AIFunction> meta = [];
         if (composed.Length > 0 && surface is not null)
         {
             var hosted = (await surface.Contracts(ct)).ToHashSet(StringComparer.Ordinal);
             composed = [.. composed.Where(hosted.Contains)];
+            if (composed.Length > 0)
+            {
+                restricted = await surface.Restrict(composed, ct);
+                edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
+                meta = AgentTools.Meta(edge, restricted, plan.Conversation);
+                Type[] contractTypes = [.. composed.Select(static name => LoadedContracts.Find(name, ContractAssemblyPrefixes))];
+                contractTools.AddRange(AgentTools.For(edge, restricted, contractTypes, plan.Conversation));
+                var sourceTools = await ToolSourceTools.For(restricted, contractTypes, edge, plan.Conversation, ct);
+                routableTools.AddRange(contractTools);
+                routableTools.AddRange(sourceTools);
+                allTools.AddRange(meta);
+                allTools.AddRange(routableTools);
+            }
         }
-        // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
-        var tools = composed.Length == 0 || surface is null ? new List<AIFunction>() : [.. ContractActions.Create(services.GetService<DigitalBrain.Access.EdgeAuthority>(), await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
         var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);
-        var resolved = await catalog.Resolve(plan.ScopeId, selection, tools.Count > 0, ct);
+        var resolved = await catalog.Resolve(plan.ScopeId, selection, allTools.Count > 0, ct);
+
+        if (restricted is not null)
+        {
+            var useNativeWebSearch = resolved.Provider == AiProvider.Anthropic
+                && composed.Contains(typeof(IWebSearch).FullName!, StringComparer.Ordinal)
+                && await IsNativeWebSearchEnabledAsync(restricted, edge, plan.Conversation, ct);
+            if (useNativeWebSearch)
+            {
+                contractTools.RemoveAll(IsWebSearchTool);
+                routableTools.RemoveAll(IsWebSearchTool);
+                allTools.RemoveAll(IsWebSearchTool);
+            }
+
+            var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
+            var router = new ToolRouter(routableTools, ResolveEmbeddings(services));
+            var routed = await router.Route(inputText, 8, ct);
+            activeTools.AddRange(meta);
+            activeTools.AddRange(routed);
+            if (useNativeWebSearch)
+            {
+                activeTools.Add(new HostedWebSearchTool());
+            }
+        }
         ChatOptions options;
         switch (resolved.Provider)
         {
@@ -108,7 +156,8 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         using var client = await catalog.CreateClient(plan.ScopeId, resolved, ct);
         options.Instructions = plan.Instructions;
-        options.Tools = [.. tools];
+        options.Tools = [.. activeTools];
+        options.ToolMode = activeTools.Count == 0 ? ChatToolMode.None : ChatToolMode.Auto;
         var messages = new List<ChatMessage>();
         // Only untagged entries are knowledge for the model; tagged ones are acted on above or belong to other consumers.
         foreach (var entry in contexts.Where(entry => entry.EffectiveTags.Length == 0 && entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
@@ -153,7 +202,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 if (string.IsNullOrWhiteSpace(call.CallId) || !calls.Add(call.CallId)) { throw new InvalidOperationException("The model reused or omitted a tool call identity."); }
                 // The consumer persists the started call before pulling the next event, so the tool never runs unrecorded.
                 yield return new AgentTurnEvent.ToolStarted(call.CallId, call.Name, JsonSerializer.Serialize(call.Arguments));
-                var tool = tools.SingleOrDefault(item => item.Name == call.Name);
+                var tool = allTools.SingleOrDefault(item => item.Name == call.Name);
                 if (tool is null)
                 {
                     var unavailable = new
@@ -174,7 +223,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 var serialized = "";
                 ExceptionDispatchInfo? fault = null;
                 var sensitive = SensitiveTelemetry;
-                var toolSpan = AgentTelemetry.Tool(call, sensitive);
+                var toolSpan = AgentTelemetry.Tool(call, sensitive, (tool as ContractTool)?.Schema);
                 try
                 {
                     result = await tool.InvokeAsync(new AIFunctionArguments(call.Arguments ?? new Dictionary<string, object?>()), ct);
@@ -198,6 +247,10 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                         cancelled ? "The tool call was interrupted." : fault.SourceException.Message);
                     fault.Throw();
                 }
+                if (string.Equals(tool.Name, AgentTools.SearchName, StringComparison.Ordinal))
+                {
+                    WidenToolsFromSearch(result, serialized, routableTools, activeTools, options);
+                }
                 var resultMessage = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, result)]);
                 messages.Add(resultMessage);
                 generated.Add(resultMessage);
@@ -209,6 +262,132 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
 
     internal static bool IsTrustedInterrupt(ContextEntry entry)
         => entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
+
+    private static IEmbeddingGenerator<string, Embedding<float>>? ResolveEmbeddings(IServiceProvider services)
+    {
+        try { return services.GetService<IEmbeddingGenerator<string, Embedding<float>>>(); }
+        catch (InvalidOperationException) { return null; }
+    }
+
+    private static bool IsWebSearchTool(AIFunction tool)
+        => tool is ContractTool contractTool
+           && string.Equals(contractTool.Schema.Contract, typeof(IWebSearch).FullName, StringComparison.Ordinal)
+           && string.Equals(contractTool.Schema.Method, nameof(IWebSearch.Search), StringComparison.Ordinal);
+
+    private static async Task<bool> IsNativeWebSearchEnabledAsync(
+        OsNeuronSurface restricted,
+        DigitalBrain.Access.EdgeAuthority? edge,
+        string conversation,
+        CancellationToken ct)
+    {
+        var brain = edge?.Current?.Brain.Value ?? DigitalBrain.Brains.BrainKey.BrainOf(conversation);
+        var key = string.IsNullOrWhiteSpace(brain) ? "{brain}/" + IWebSearch.DefaultKey : brain + "/" + IWebSearch.DefaultKey;
+        try
+        {
+            var raw = await restricted.Call(typeof(IWebSearch).FullName!, key, nameof(IWebSearch.Provider), "{}", ct).ConfigureAwait(false);
+            return raw is { } value && value.ValueKind switch
+            {
+                JsonValueKind.Number when value.TryGetInt32(out var code) => code == (int)SearchProvider.Native,
+                JsonValueKind.String => Enum.TryParse<SearchProvider>(value.GetString(), ignoreCase: true, out var parsed) && parsed == SearchProvider.Native,
+                _ => false,
+            };
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "reading IWebSearch.Provider for native search decision");
+            return false;
+        }
+    }
+
+    private static void WidenToolsFromSearch(
+        object? result,
+        string serialized,
+        IReadOnlyList<AIFunction> routableTools,
+        List<AITool> activeTools,
+        ChatOptions options)
+    {
+        var hitContracts = ExtractSearchHitContracts(result, serialized);
+        if (hitContracts.Count == 0) { return; }
+
+        var activeNames = activeTools.OfType<AIFunction>().Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var widened = false;
+        foreach (var candidate in routableTools)
+        {
+            var contract = candidate switch
+            {
+                ContractTool contractTool => contractTool.Schema.Contract,
+                ToolSourceTools.ToolSourceFunction sourceTool => sourceTool.ContractName,
+                _ => null,
+            };
+            if (contract is not null && hitContracts.Contains(contract) && activeNames.Add(candidate.Name))
+            {
+                activeTools.Add(candidate);
+                widened = true;
+            }
+        }
+        if (widened)
+        {
+            options.Tools = [.. activeTools];
+            options.ToolMode = ChatToolMode.Auto;
+        }
+    }
+
+    private static HashSet<string> ExtractSearchHitContracts(object? result, string serialized)
+    {
+        var contracts = new HashSet<string>(StringComparer.Ordinal);
+        if (result is IEnumerable<NeuronTypeHit> hits)
+        {
+            foreach (var hit in hits)
+            {
+                if (!string.IsNullOrWhiteSpace(hit.Type.Contract)) { contracts.Add(hit.Type.Contract); }
+            }
+            return contracts;
+        }
+
+        if (result is JsonElement element)
+        {
+            CollectContractsFromJson(element, contracts);
+            return contracts;
+        }
+
+        if (!string.IsNullOrWhiteSpace(serialized))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(serialized);
+                CollectContractsFromJson(doc.RootElement, contracts);
+            }
+            catch (JsonException error)
+            {
+                OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "parsing neurons_search result for tool widening");
+            }
+        }
+        return contracts;
+    }
+
+    private static void CollectContractsFromJson(JsonElement root, HashSet<string> contracts)
+    {
+        if (root.ValueKind != JsonValueKind.Array) { return; }
+        foreach (var item in root.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) { continue; }
+            if ((item.TryGetProperty("type", out var typeEl) || item.TryGetProperty("Type", out typeEl))
+                && typeEl.ValueKind == JsonValueKind.Object
+                && (typeEl.TryGetProperty("contract", out var nested) || typeEl.TryGetProperty("Contract", out nested))
+                && nested.ValueKind == JsonValueKind.String
+                && nested.GetString() is { Length: > 0 } nestedName)
+            {
+                contracts.Add(nestedName);
+                continue;
+            }
+            if ((item.TryGetProperty("contract", out var direct) || item.TryGetProperty("Contract", out direct))
+                && direct.ValueKind == JsonValueKind.String
+                && direct.GetString() is { Length: > 0 } directName)
+            {
+                contracts.Add(directName);
+            }
+        }
+    }
 
     // A context that is missing or fails leaves the turn without it rather than failing the turn.
     // A key that starts with "context/" is relative to the agent's own brain.

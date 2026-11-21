@@ -613,7 +613,8 @@ internal static class InoModelSetup
 
         if (current.ActiveRun is null
             && (!string.Equals(current.Definition.Model?.Model, definition.Model?.Model, StringComparison.Ordinal)
-                || !string.Equals(current.Definition.Instructions, definition.Instructions, StringComparison.Ordinal)))
+                || !string.Equals(current.Definition.Instructions, definition.Instructions, StringComparison.Ordinal)
+                || !current.Definition.Contracts.SequenceEqual(definition.Contracts, StringComparer.Ordinal)))
         {
             await host.TryOptional("agent-reconfigure-conflict", () => agent.Configure(definition, current.Revision));
         }

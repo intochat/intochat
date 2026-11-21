@@ -441,8 +441,8 @@ public sealed class GitHubIssueWebhookTriageJourneys
             Assert.Equal(ConnectionStatus.Connected, connected.Status);
             Assert.Equal("intochat/os", connected.Account);
 
-            // 2. 1-click turnkey installer: IInoStudio.CreateIssueTriageSynapse compiles, verifies & deploys gh-triage-main!
-            var inoStudio = SiloNeurons.Get<IInoStudio>(host.Services, new NeuronId(brainId, "ino.studio", "ino/studio"));
+            // 2. 1-click turnkey installer: IStudio.CreateIssueTriageSynapse compiles, verifies & deploys gh-triage-main!
+            var inoStudio = SiloNeurons.Get<IStudio>(host.Services, new NeuronId(brainId, "ino.studio", "ino/studio"));
             var installed = await inoStudio.CreateIssueTriageSynapse("connection/github/main", "DraftForApproval", Ct);
             Assert.True(installed.Ok, installed.Text);
             Assert.NotNull(installed.Card);

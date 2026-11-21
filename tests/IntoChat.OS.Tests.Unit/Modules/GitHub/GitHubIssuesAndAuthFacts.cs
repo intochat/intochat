@@ -479,9 +479,9 @@ public sealed class GitHubIssuesAndAuthFacts
     {
         var definition = InoAgentDefinition.For(new UserSettingsState { DisplayName = "Ada" });
         Assert.Contains(typeof(IRepository).FullName!, definition.Contracts);
-        Assert.Contains("PreviewIssueComment", definition.Instructions, StringComparison.Ordinal);
-        Assert.Contains("CommentOnIssue", definition.Instructions, StringComparison.Ordinal);
-        Assert.Contains("IssueChanged", definition.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`github_repository_preview_issue_comment`", definition.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`github_repository_comment_on_issue`", definition.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`studio_create_issue_triage_synapse`", definition.Instructions, StringComparison.Ordinal);
         Assert.Contains(IssueRead.UntrustedEvidenceHeader, definition.Instructions, StringComparison.Ordinal);
 
         Assert.Contains("github.issue-changed", AgentPrompts.AuthorUnit, StringComparison.Ordinal);

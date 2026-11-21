@@ -10,7 +10,6 @@ internal static class ModelConnectors
 
     private static ConnectorDefinition Connector(IntegrationSchema schema)
     {
-        if (schema.Id == AiIntegrations.TavilyId) { return new(schema.Id, schema.DisplayName, ["api-key"], [schema.Id]); }
         var provider = AiIntegrations.KeyedProviders.Single(provider => AiIntegrations.IdOf(provider) == schema.Id);
         Type[] media = provider switch
         {

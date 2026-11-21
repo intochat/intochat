@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsIntoChatOSModule>false</IsIntoChatOSModule>
+    <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
+    <PackageId>IntoChat.OS.Modules.Web.Contracts</PackageId>
+    <Description>Wire contracts and records of the IntoChat OS web module: web search and web page reading.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/IntoChat.OS.csproj" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

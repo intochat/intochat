@@ -31,6 +31,10 @@
     <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" IsAspireProjectResource="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Hosting/Modules/Web/searxng/settings.yml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />

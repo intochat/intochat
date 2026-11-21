@@ -7,9 +7,9 @@ using IntoChat.OS.Host.Logging;
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.focus"), DigitalBrain.Neurons.StatelessNeuron]
-internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
+internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IFocus
 {
-    private IAgentContext Focus => Get<IAgentContext>(new DigitalBrain.NeuronId(Id.Brain, "agent-context", IInoFocus.ContextKey));
+    private IAgentContext Focus => Get<IAgentContext>(new DigitalBrain.NeuronId(Id.Brain, "agent-context", IFocus.ContextKey));
 
     public async Task<InoToolResult> Point(string target, FocusTone tone, string reason, FocusAction? action = null)
     {
@@ -22,7 +22,7 @@ internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
         }
         var text = JsonSerializer.Serialize(new FocusJson(target.Trim(), tone.ToString(), reason,
             action is null ? null : new FocusActionJson(action.Kind, action.Argument ?? "")), PresenceText.Json);
-        try { await Focus.Set(new ContextEntry(IInoFocus.EntryName, text, [], [ContextTags.UiFocus])); }
+        try { await Focus.Set(new ContextEntry(IFocus.EntryName, text, [], [ContextTags.UiFocus])); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             OsConsoleLog.For<InoFocusNeuron>().LogSwallowed(error, "pointing Ino focus");
@@ -33,7 +33,7 @@ internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
 
     public async Task<InoToolResult> Clear()
     {
-        try { await Focus.Remove(IInoFocus.EntryName); }
+        try { await Focus.Remove(IFocus.EntryName); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             OsConsoleLog.For<InoFocusNeuron>().LogSwallowed(error, "clearing Ino focus");
@@ -55,7 +55,7 @@ internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
         }
 
         var id = $"node-{Guid.NewGuid():N}";
-        var card = new InoCard(id, "node", title.Trim(), string.Empty, IInoFocus.DefaultKey, "done") { Node = node };
+        var card = new InoCard(id, "node", title.Trim(), string.Empty, IFocus.DefaultKey, "done") { Node = node };
         return Task.FromResult(new InoToolResult("Shown.", card));
     }
 }

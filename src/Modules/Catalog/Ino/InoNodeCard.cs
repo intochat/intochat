@@ -9,7 +9,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
-/// Validates model-supplied <see cref="Node"/> trees for <see cref="IInoFocus.Show"/> and for rendering
+/// Validates model-supplied <see cref="Node"/> trees for <see cref="IFocus.Show"/> and for rendering
 /// stored <c>node</c> cards: bounded size (16 KiB) and depth (12), no <see cref="NeuronRef"/>, no
 /// <see cref="WebBrowser"/>, no interactive control views or actions (emits, commands, intents, submits,
 /// or resolve handlers), and non-null required collections.

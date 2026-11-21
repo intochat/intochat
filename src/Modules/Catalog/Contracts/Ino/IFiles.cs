@@ -16,9 +16,11 @@ public sealed record InoFileWriteRequested(string Operation, string Conversation
 [DigitalBrain.Signal("ino.files.write-reported")]
 public sealed record InoFileWriteReported(string Operation, string Outcome) : DigitalBrain.Signal;
 
-[NeuronAlias("ino.files"), DefaultNeuronType("ino.files")]
-public interface IInoFiles
+[NeuronAlias("files", Formerly = ["ino.files", "IntoChat.OS.Modules.Apps.IInoFiles"]), DefaultNeuronType("ino.files")]
+public interface IFiles
 {
+    const string DefaultKey = "ino/files";
+
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoToolResult> Find(string pattern);
 

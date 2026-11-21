@@ -10,9 +10,11 @@ public sealed record InoDataState(string? ConnectedDatabase, InoCard[] Charts)
 [DigitalBrain.Signal("ino.data.changed")]
 public sealed record InoDataChanged(long Revision) : DigitalBrain.Signal;
 
-[NeuronAlias("ino.data"), DefaultNeuronType("ino.data")]
-public interface IInoData
+[NeuronAlias("data", Formerly = ["ino.data", "IntoChat.OS.Modules.Apps.IInoData"]), DefaultNeuronType("ino.data")]
+public interface IData
 {
+    const string DefaultKey = "ino/data";
+
     Task<InoToolResult> Connect(string connection);
 
     Task<InoToolResult> Query(string sql);

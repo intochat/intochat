@@ -30,7 +30,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         SeedConnectedRepository(os, connId);
 
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
 
         var installed = await studio.CreateIssueTriageSynapse("main", "DraftForApproval", Ct);
         await os.Idle();
@@ -117,7 +117,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         SeedConnectedRepository(os, connId);
 
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
 
         var installed = await studio.CreateIssueTriageSynapse("connection/github/main", "AutoComment", Ct);
         await os.Idle();
@@ -215,7 +215,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         await using var os = CreateTriageTestOs(source);
 
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
 
         foreach (var badKey in new[] { "", "   ", "otherbrain/connection/github/main", "connection/gitlab/main", "bad slug!", "-leadingdash" })
         {
@@ -281,7 +281,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         {
             minimalOs.Confirmations.ApproveAll();
             using var minimalPerson = minimalOs.Edge.Enter(minimalOs.Edge.Person("owner", "owner", minimalBrain));
-            var minimalStudio = minimalOs.Get<IInoStudio>(new NeuronId(minimalBrain, "ino.studio", "ino/studio"));
+            var minimalStudio = minimalOs.Get<IStudio>(new NeuronId(minimalBrain, "ino.studio", "ino/studio"));
             var standaloneResult = await minimalStudio.CreateIssueTriageSynapse("connection/github/main", "DraftForApproval", Ct);
             Assert.True(standaloneResult.Ok, standaloneResult.Text);
             Assert.Equal("gh-triage-main", standaloneResult.Card!.Id);
@@ -297,7 +297,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         SeedConnectedRepository(os, connId);
 
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
 
         var first = await studio.CreateIssueTriageSynapse("triageswitch/connection/github/main", "DraftForApproval", Ct);
         Assert.True(first.Ok, first.Text);

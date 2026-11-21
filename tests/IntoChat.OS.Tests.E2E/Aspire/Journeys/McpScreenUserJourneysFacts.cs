@@ -23,10 +23,12 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         await InitializeMcpAsync(ct);
 
         using var listResult = await SendMcpAsync("tools/list", new { }, ct);
-        var toolNames = listResult.RootElement
+        var tools = listResult.RootElement
             .GetProperty("result")
             .GetProperty("tools")
             .EnumerateArray()
+            .ToArray();
+        var toolNames = tools
             .Select(t => t.GetProperty("name").GetString() ?? "")
             .ToHashSet(StringComparer.Ordinal);
 
@@ -36,6 +38,10 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         Assert.Contains("screen_approve", toolNames);
         Assert.Contains("neurons_list", toolNames);
         Assert.Contains("neurons_call", toolNames);
+
+        var neuronsCall = tools.Single(t => t.GetProperty("name").GetString() == "neurons_call");
+        var argsDescription = neuronsCall.GetProperty("inputSchema").GetProperty("properties").GetProperty("arguments").GetProperty("description").GetString();
+        Assert.Contains("named", argsDescription, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

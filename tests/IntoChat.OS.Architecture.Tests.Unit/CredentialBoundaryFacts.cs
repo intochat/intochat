@@ -45,7 +45,7 @@ public sealed class CredentialBoundaryFacts
     }
 
     // IBrainProviderKeys releases a brain's plaintext provider key to whoever injects it, so only the
-    // AI module (its one consumer) and the identity module (its implementation) may reference it.
+    // AI and Web modules (its consumers) and the identity module (its implementation) may reference it.
     [Fact]
     public void BrainProviderKeysLivesInTheIdentityModule()
         => Assert.Equal("IntoChat.OS.Modules.Identity.Contracts", typeof(IBrainProviderKeys).Assembly.GetName().Name);
@@ -54,7 +54,7 @@ public sealed class CredentialBoundaryFacts
     public void OnlyTheAiModuleAndTheIdentityModuleTouchBrainProviderKeys()
     {
         var keys = typeof(IBrainProviderKeys);
-        string[] allowed = ["IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.AI"];
+        string[] allowed = ["IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Web"];
         var offenders = ProductionArchitecture.Assemblies.Where(a => !allowed.Contains(a.GetName().Name))
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

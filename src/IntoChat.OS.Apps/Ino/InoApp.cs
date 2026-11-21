@@ -480,7 +480,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        try { var data = Get<IInoData>(DataKey); var result = await data.Connect(request.ConnectionString ?? string.Empty); await Commit(InoModel.DecideConnectDb(Current, (await data.Read()).ConnectedDatabase, result.Text, result.Card)); }
+        try { var data = Get<IData>(DataKey); var result = await data.Connect(request.ConnectionString ?? string.Empty); await Commit(InoModel.DecideConnectDb(Current, (await data.Read()).ConnectedDatabase, result.Text, result.Card)); }
         catch (Exception error) when (error is not OperationCanceledException) { if (Logger is { } log) { InoLog.LogDatabaseFailed(log, error, "connect-db"); } await Commit(Current with { Status = $"Could not connect: {error.Message}" }); }
     }
 

@@ -15,7 +15,7 @@ message CallRequest {
   string contract = 2;   // full contract type name, as neurons_list prints it
   string key = 3;        // grain key
   string method = 4;
-  bytes arguments = 5;   // JSON array, one element per argument, CancellationToken omitted
+  bytes arguments = 5;   // JSON object of named arguments, or an array of positional ones; CancellationToken omitted
 }
 
 message CallReply {

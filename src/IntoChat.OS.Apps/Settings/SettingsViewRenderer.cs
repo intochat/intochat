@@ -4,6 +4,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
@@ -744,6 +745,11 @@ internal static class SettingsViewRenderer
 
     private static Node RenderModelsSection(SettingsAppState state, string? subPage, SettingsSlots slots)
     {
+        if (string.Equals(subPage, "web-tools", StringComparison.OrdinalIgnoreCase))
+        {
+            return RenderWebToolsSubPage(state, slots);
+        }
+
         if (string.Equals(subPage, "local-server", StringComparison.OrdinalIgnoreCase))
         {
             return DetailSubPage(
@@ -844,6 +850,10 @@ internal static class SettingsViewRenderer
                         .Key("models:local-server")
                         .Small()
                         .Emits(AppSignals.Emit("settings", "navigate", "models", "local-server")),
+                    Button("Web & tools", "globe")
+                        .Key("models:web-tools")
+                        .Small()
+                        .Emits(AppSignals.Emit("settings", "navigate", "models", "web-tools")),
                     Button("Configure endpoint sheet", Icons.Sliders)
                         .Key("models:endpoint-sheet")
                         .Small()
@@ -857,6 +867,115 @@ internal static class SettingsViewRenderer
         ];
     }
 
+    private static Node RenderWebToolsSubPage(SettingsAppState state, SettingsSlots slots)
+    {
+        var selectedProvider = SettingsControls.ResolveWebSearchProvider(state);
+        var braveConfigured = IsSecretConfigured(state, "BRAVE_API_KEY", "brave");
+        var tavilyConfigured = IsSecretConfigured(state, "TAVILY_API_KEY", "tavily");
+
+        var servers = (state.McpServers ?? [])
+            .Where(static s => !string.IsNullOrWhiteSpace(s.Name))
+            .GroupBy(static s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(static g => g.First())
+            .OrderBy(static s => s.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        var mcpRows = servers
+            .Select(static s => (IReadOnlyList<string>)
+            [
+                string.IsNullOrWhiteSpace(s.Title) ? s.Name : s.Title,
+                s.Url,
+                s.Connected ? "Connected" : "Disconnected",
+                s.ToolCount.ToString(CultureInfo.InvariantCulture),
+                s.Error ?? "",
+            ])
+            .ToArray();
+
+        var mcpActionRows = servers
+            .Select(static server => (Node)HStack(Space.Sm)[
+                Text(string.IsNullOrWhiteSpace(server.Title) ? server.Name : server.Title),
+                MutedText(server.Url),
+                FlexSpacer(),
+                StatusPill(
+                    server.Connected
+                        ? StatusKind.Done
+                        : !string.IsNullOrWhiteSpace(server.Error)
+                            ? StatusKind.Error
+                            : StatusKind.Idle,
+                    server.Connected
+                        ? $"Connected · {server.ToolCount} tool(s)"
+                        : !string.IsNullOrWhiteSpace(server.Error)
+                            ? server.Error!
+                            : "Disconnected"),
+                DangerButton("Remove", Icons.Trash2)
+                    .Key($"mcp:{server.Name}")
+                    .Small()
+                    .Emits(AppSignals.Emits("settings", new SettingsMcpRemove(server.Name)))
+            ])
+            .ToArray();
+
+        return Surface(SurfaceKind.Elevated, "AI / Web & tools", "Web search provider, search API keys, and connected MCP tool servers")[
+            VStack(Space.Md)[
+                Card("Web search", "Choose how Ino searches the web. External pages and MCP results are fenced as untrusted content.")[
+                    VStack(Space.Sm)[
+                        SettingsControls.ComboBox(slots, state, SettingsControls.WebSearchProvider, "Web search provider",
+                        [
+                            new ComboBoxOption(nameof(SearchProvider.Off), "Off"),
+                            new ComboBoxOption(nameof(SearchProvider.Searxng), "SearXNG — free"),
+                            new ComboBoxOption(nameof(SearchProvider.Brave), "Brave — ≈ $5 / 1k"),
+                            new ComboBoxOption(nameof(SearchProvider.Tavily), "Tavily — 1k free / month"),
+                            new ComboBoxOption(nameof(SearchProvider.Native), "Chat model's own search — billed by the provider"),
+                        ]),
+                        string.Equals(selectedProvider, nameof(SearchProvider.Searxng), StringComparison.OrdinalIgnoreCase)
+                            ? SettingsControls.SearxngUrlForm(slots, state)
+                            : null,
+                        Divider("Search API keys"),
+                        HStack(Space.Sm)[
+                            Text("Brave Search"),
+                            MutedText("BRAVE_API_KEY · ≈ $5 / 1k"),
+                            FlexSpacer(),
+                            StatusPill(braveConfigured ? StatusKind.Done : StatusKind.Idle, braveConfigured ? "Configured" : "Not set")
+                        ],
+                        HStack(Space.Sm)[
+                            Text("Tavily"),
+                            MutedText("TAVILY_API_KEY · 1k free / month"),
+                            FlexSpacer(),
+                            StatusPill(tavilyConfigured ? StatusKind.Done : StatusKind.Idle, tavilyConfigured ? "Configured" : "Not set")
+                        ],
+                        HStack(Space.Sm)[
+                            Button("API keys & vault", Icons.KeyRound)
+                                .Key("models:open-keys")
+                                .Small()
+                                .Emits(AppSignals.Emit("settings", "navigate", "keys"))
+                        ]
+                    ]
+                ],
+                Card("MCP tool servers", "Streamable HTTP MCP servers whose tools reach Ino")[
+                    VStack(Space.Sm)[
+                        servers.Length > 0
+                            ? Table("MCP servers", ["Title", "URL", "Status", "Tools", "Error"], mcpRows)
+                            : MutedText("No MCP servers configured yet.").ToNode(),
+                        mcpActionRows.Length > 0
+                            ? VStack(Space.Xs, mcpActionRows).ToNode()
+                            : null,
+                        Divider("Add MCP server"),
+                        SettingsControls.McpAddFormControl(slots, state)
+                    ]
+                ],
+                HStack(Space.Sm)[
+                    Button("Back to AI", "arrow-left")
+                        .Key("back-to-ai-web-tools")
+                        .Small()
+                        .Emits(AppSignals.Emit("settings", "go-back"))
+                ]
+            ]
+        ];
+    }
+
+    private static bool IsSecretConfigured(SettingsAppState state, string secretName, string connectionKey)
+        => (state.SecretStatuses != null && state.SecretStatuses.TryGetValue(secretName, out var configured) && configured)
+           || HasVaultEntry(state, secretName, connectionKey);
+
     private static Node RenderKeysSection(SettingsAppState state)
     {
         (string Provider, string Detail, string SecretName, string Connection, string ButtonId, string ButtonLabel)[] vaults =
@@ -864,6 +983,8 @@ internal static class SettingsViewRenderer
             ("Anthropic", "Used for Claude Sonnet & Opus models", "ANTHROPIC_API_KEY", "anthropic", "seal-anthropic-key", "Seal Anthropic key"),
             ("OpenAI", "Used for GPT-5 & reasoning models", "OPENAI_API_KEY", "openai", "seal-openai-key", "Seal OpenAI key"),
             ("Google Gemini", "Used for Gemini 2.5 Pro & Flash", "GOOGLE_API_KEY", "google", "seal-google-key", "Seal Google key"),
+            ("Brave Search", "Web search for agents · ≈ $5 per 1 000 searches", "BRAVE_API_KEY", "brave", "seal-brave-key", "Seal Brave key"),
+            ("Tavily", "Web search for agents · 1 000 free per month", "TAVILY_API_KEY", "tavily", "seal-tavily-key", "Seal Tavily key"),
         ];
 
         var cards = vaults.Select(v =>

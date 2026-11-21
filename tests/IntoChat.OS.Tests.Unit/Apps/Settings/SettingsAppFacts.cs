@@ -709,6 +709,73 @@ public sealed class SettingsAppFacts
     }
 
     [Fact]
+    public void WebToolsPageShowsProviderKeysAndServers()
+    {
+        var state = new SettingsAppState().Navigate("models", "web-tools") with
+        {
+            WebSearchProvider = "Searxng",
+            WebSearxngUrl = "http://localhost:8080",
+            McpServers =
+            [
+                new McpServerRow(
+                    Name: "microsoft-learn",
+                    Title: "Microsoft Learn",
+                    Url: "https://learn.microsoft.com/api/mcp",
+                    Connected: true,
+                    ToolCount: 3),
+            ],
+        };
+
+        var node = AggregateExplorer<SettingsAppState>.PreviewNode<SettingsApp>(state);
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            node,
+            DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(Node)));
+
+        Assert.Contains("web-search-provider", json, StringComparison.Ordinal);
+        Assert.Contains("web-searxng-url", json, StringComparison.Ordinal);
+        Assert.Contains("\"key\":\"models:open-keys\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"key\":\"mcp:microsoft-learn\"", json, StringComparison.Ordinal);
+        Assert.Contains("Microsoft Learn", json, StringComparison.Ordinal);
+        Assert.Contains("https://learn.microsoft.com/api/mcp", json, StringComparison.Ordinal);
+        Assert.Contains("Brave", json, StringComparison.Ordinal);
+        Assert.Contains("Tavily", json, StringComparison.Ordinal);
+        Assert.Contains("Chat model", json, StringComparison.Ordinal);
+
+        var filtered = SettingsApp.FilterSections("searxng");
+        Assert.Contains(filtered, entry => entry.SectionId == "models");
+    }
+
+    [Fact]
+    public async Task ChoosingBraveWritesTheBrainVariable()
+    {
+        var brain = new BrainId("local");
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
+
+        using (os.Edge.Enter(os.Edge.Person("local", "local", brain)))
+        {
+            var select = new DigitalBrain.UI.Commands.Select("Brave");
+            await settings.Screen.Dispatch(new DigitalBrain.UI.Command(
+                SettingsControls.WebSearchProvider,
+                "control.select",
+                System.Text.Json.JsonSerializer.SerializeToElement(select, System.Text.Json.JsonSerializerOptions.Web)));
+        }
+
+        await os.Idle();
+
+        Assert.Equal("models", settings.App.State.Section);
+        Assert.Equal("web-tools", settings.App.State.SubPage);
+        Assert.Equal("Brave", settings.App.State.WebSearchProvider);
+
+        using (os.Edge.Enter(os.Edge.Person("local", "local", brain)))
+        {
+            var stored = await os.Get<IUserSettings>(new NeuronId(brain, "os.settings", "settings")).Read();
+            Assert.Contains(stored.Variables ?? [], v => v.Key == "web.search.provider" && v.Value == "Brave");
+        }
+    }
+
+    [Fact]
     public async Task SettingsInstallModelFormCallsDeviceInstall()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-settings-device-{Guid.NewGuid():N}");
@@ -774,4 +841,211 @@ public sealed class SettingsAppFacts
         public Task Cancel(ModelId model) => Task.CompletedTask;
         public Task Remove(ModelId model) => Task.CompletedTask;
     }
+
+    [Fact]
+    public async Task AddingAServerConnectsIt()
+    {
+        var brain = new BrainId("local");
+        RecordingMcpServerNeuron.Reset();
+        try
+        {
+            await using var os = TestOS.Local()
+                .Register(typeof(AppsModule).Assembly)
+                .Register<RecordingMcpServerNeuron>();
+            var settings = await os.Install<SettingsApp>();
+            await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
+
+            await settings.Request("mcp-add", new SettingsMcpAdd("docs", "https://example.org/mcp"));
+            await os.Idle();
+
+            Assert.Equal(
+                new IntoChat.OS.Modules.Mcp.McpServerSpec("docs", "https://example.org/mcp"),
+                RecordingMcpServerNeuron.LastConnectedSpec);
+            Assert.Equal("mcp/docs", RecordingMcpServerNeuron.LastConnectedKey);
+            Assert.Contains(settings.App.State.McpServers, row =>
+                row.Name == "docs"
+                && row.Url == "https://example.org/mcp"
+                && row.Connected
+                && row.ToolCount == 1);
+
+            await settings.Request("mcp-remove", new SettingsMcpRemove("docs"));
+            await os.Idle();
+
+            Assert.Equal("mcp/docs", RecordingMcpServerNeuron.LastDisconnectedKey);
+            Assert.Contains(settings.App.State.McpServers, row => row.Name == "docs" && !row.Connected);
+        }
+        finally
+        {
+            RecordingMcpServerNeuron.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task KeysPageListsBraveAndTavily()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        var vault = new MemorySecretVault();
+        settings.App.SecretVault = vault;
+
+        await settings.App.Navigate(new SettingsNavigate("keys"));
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            settings.App.Render(),
+            new System.Text.Json.JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            });
+
+        Assert.Contains("Brave Search", json, StringComparison.Ordinal);
+        Assert.Contains("BRAVE_API_KEY", json, StringComparison.Ordinal);
+        Assert.Contains("Tavily", json, StringComparison.Ordinal);
+        Assert.Contains("TAVILY_API_KEY", json, StringComparison.Ordinal);
+
+        vault.SetSecret("BRAVE_API_KEY");
+        await settings.Request("open", new SettingsOpen("keys"));
+        await settings.App.Navigate(new SettingsNavigate("keys"));
+        var updatedJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("\"Status\":\"saved\"", updatedJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OldSettingsStateWithoutTheNewMembersLoads()
+    {
+        const string legacyJson = """
+            {
+              "title": "Settings",
+              "status": "Settings",
+              "displayName": "Ada",
+              "theme": "dark",
+              "defaultModel": "qwen3.5:4b",
+              "section": "models"
+            }
+            """;
+
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<SettingsAppState>(
+            legacyJson,
+            System.Text.Json.JsonSerializerOptions.Web);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Ada", loaded.DisplayName);
+        Assert.Empty(loaded.McpServers);
+        Assert.Null(loaded.WebSearchProvider);
+    }
+
+    [Fact]
+    public async Task SearxngUrlFormAndMcpAddFormAndObserverWorkEndToEnd()
+    {
+        var brain = new BrainId("local");
+        RecordingMcpServerNeuron.Reset();
+        try
+        {
+            await using var os = TestOS.Local()
+                .Register(typeof(AppsModule).Assembly)
+                .Register<RecordingMcpServerNeuron>();
+            var settings = await os.Install<SettingsApp>();
+            settings.App.Observer = os;
+            settings.App.WebOptions = Microsoft.Extensions.Options.Options.Create(new IntoChat.OS.Modules.Web.WebModuleOptions
+            {
+                Provider = IntoChat.OS.Modules.Web.SearchProvider.Searxng,
+                SearxngUrl = new Uri("http://localhost:8080"),
+            });
+
+            await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
+            Assert.Equal("Searxng", settings.App.State.WebSearchProvider);
+            Assert.Equal("http://localhost:8080/", settings.App.State.WebSearxngUrl);
+
+            using (os.Edge.Enter(os.Edge.Person("local", "local", brain)))
+            {
+                var submitUrl = new DigitalBrain.UI.Commands.Submit(new Dictionary<string, string>
+                {
+                    ["url"] = "http://localhost:8888",
+                });
+                await settings.Screen.Dispatch(new DigitalBrain.UI.Command(
+                    SettingsControls.SearxngUrl,
+                    "control.submit",
+                    System.Text.Json.JsonSerializer.SerializeToElement(submitUrl, System.Text.Json.JsonSerializerOptions.Web)));
+
+                var submitMcp = new DigitalBrain.UI.Commands.Submit(new Dictionary<string, string>
+                {
+                    ["name"] = "learn",
+                    ["url"] = "https://learn.microsoft.com/api/mcp",
+                });
+                await settings.Screen.Dispatch(new DigitalBrain.UI.Command(
+                    SettingsControls.McpAddForm,
+                    "control.submit",
+                    System.Text.Json.JsonSerializer.SerializeToElement(submitMcp, System.Text.Json.JsonSerializerOptions.Web)));
+            }
+
+            await os.Idle();
+
+            using (os.Edge.Enter(os.Edge.Person("local", "local", brain)))
+            {
+                var stored = await os.Get<IUserSettings>(new NeuronId(brain, "os.settings", "settings")).Read();
+                Assert.Contains(stored.Variables ?? [], v => v.Key == "web.search.searxng-url" && v.Value == "http://localhost:8888");
+            }
+
+            Assert.Equal(
+                new IntoChat.OS.Modules.Mcp.McpServerSpec("learn", "https://learn.microsoft.com/api/mcp"),
+                RecordingMcpServerNeuron.LastConnectedSpec);
+
+            // Re-navigating refreshes servers from IBrainObserver + IMcpServer.Read()
+            await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
+            Assert.Contains(settings.App.State.McpServers, r => r.Name == "learn" && r.Connected && r.ToolCount == 1);
+        }
+        finally
+        {
+            RecordingMcpServerNeuron.Reset();
+        }
+    }
+}
+
+[DigitalBrain.Neurons.Neuron("mcp.server"), DigitalBrain.Neurons.StatelessNeuron]
+internal sealed class RecordingMcpServerNeuron : DigitalBrain.Neurons.Neuron, IntoChat.OS.Modules.Mcp.IMcpServer
+{
+    public static IntoChat.OS.Modules.Mcp.McpServerSpec? LastConnectedSpec { get; private set; }
+    public static string? LastConnectedKey { get; private set; }
+    public static string? LastDisconnectedKey { get; private set; }
+
+    public static void Reset()
+    {
+        LastConnectedSpec = null;
+        LastConnectedKey = null;
+        LastDisconnectedKey = null;
+    }
+
+    public Task<IntoChat.OS.Modules.Mcp.McpServerState> Connect(IntoChat.OS.Modules.Mcp.McpServerSpec spec, CancellationToken ct = default)
+    {
+        LastConnectedSpec = spec;
+        LastConnectedKey = Id.Key;
+        return Task.FromResult(new IntoChat.OS.Modules.Mcp.McpServerState(
+            spec.Title,
+            spec.Url,
+            Connected: true,
+            Tools: [new IntoChat.OS.Modules.Tools.ToolDescriptor("search", "Search", "Search docs", "{}", true)],
+            Error: null,
+            RefreshedAt: DateTimeOffset.UtcNow));
+    }
+
+    public Task Disconnect(CancellationToken ct = default)
+    {
+        LastDisconnectedKey = Id.Key;
+        return Task.CompletedTask;
+    }
+
+    public Task<IntoChat.OS.Modules.Mcp.McpServerState> Read()
+        => Task.FromResult(LastConnectedSpec is { } spec && LastDisconnectedKey != Id.Key
+            ? new IntoChat.OS.Modules.Mcp.McpServerState(
+                spec.Title,
+                spec.Url,
+                Connected: true,
+                Tools: [new IntoChat.OS.Modules.Tools.ToolDescriptor("search", "Search", "Search docs", "{}", true)],
+                Error: null,
+                RefreshedAt: DateTimeOffset.UtcNow)
+            : new IntoChat.OS.Modules.Mcp.McpServerState("", "", false, [], null, null));
+
+    public Task<IntoChat.OS.Modules.Tools.ToolSet> Tools(CancellationToken ct = default)
+        => Task.FromResult(new IntoChat.OS.Modules.Tools.ToolSet("", []));
+
+    public Task<IntoChat.OS.Modules.Tools.ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
+        => Task.FromResult(new IntoChat.OS.Modules.Tools.ToolResult(false, "", []));
 }
