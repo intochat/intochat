@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../components/kit/ui_kit_button.dart';
+import '../../ui/mix/ui_mix_button.dart';
 import '../../ui/mix/ui_mix_surface.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_icon.dart';

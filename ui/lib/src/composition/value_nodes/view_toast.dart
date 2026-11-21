@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../components/kit/kit_toast.dart';
+import '../../ui/mix/ui_mix_toast.dart';
 
 /// Toast value node: bottom-centre overlay that hides itself after 4 s,
 /// taking its single action button with it.

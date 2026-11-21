@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../components/kit/kit_toast.dart';
-import '../components/kit/ui_kit_button.dart';
-import '../components/kit/ui_kit_field.dart';
+import '../ui/mix/ui_mix_toast.dart';
+import '../ui/mix/ui_mix_button.dart';
+import '../ui/mix/ui_mix_field.dart';
 import '../composition/value_nodes/view_badge.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';

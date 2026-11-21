@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:mix/mix.dart';
 
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_shadows.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
-import '../../ui/mix/ui_mix_surface.dart';
+import 'ui_mix_surface.dart';
 
 /// Status tone. Indices equal the C# `UiTone` wire ints (Neutral 0, Done 1,
 /// Working 2, Error 3); do not reorder.
@@ -34,7 +35,6 @@ void _hide() {
   _timer = null;
   final entry = _current;
   _current = null;
-  // A live _current is still in its overlay: teardown clears it first.
   entry?.remove();
 }
 
@@ -60,7 +60,6 @@ void showKitToast(
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (context) => _Lifetime(
-      // The overlay unmounting (app torn down) clears the globals.
       onDispose: () {
         if (identical(_current, entry)) {
           _timer?.cancel();
@@ -73,7 +72,7 @@ void showKitToast(
         right: 0,
         bottom: 22,
         child: Center(
-          child: KitToastBody(
+          child: UiMixToastBody(
             message: message,
             tone: tone,
             actionLabel: actionLabel,
@@ -114,17 +113,20 @@ class _LifetimeState extends State<_Lifetime> {
   Widget build(BuildContext context) => widget.child;
 }
 
-/// The Figma `.toast` box: radius controlRadius (10), padding 10x12,
-/// `strong` fill, `page` text in [UiType.toast], shadow-lg. A non-neutral
-/// tone adds a leading status dot. Shared by [showKitToast] and ViewToast.
-final class KitToastBody extends StatelessWidget {
-  const KitToastBody({
+/// Legacy alias for [UiMixToastBody].
+typedef KitToastBody = UiMixToastBody;
+
+/// Option B `mix` Toast box: radius `controlRadius` (10), padding 10x12,
+/// `strong` fill, `page` text in [UiType.toast], shadow-lg.
+final class UiMixToastBody extends StatelessWidget {
+  const UiMixToastBody({
     super.key,
     required this.message,
     this.tone = UiTone.neutral,
     this.actionLabel,
     this.onAction,
   });
+
   final String message;
   final UiTone tone;
   final String? actionLabel;
@@ -142,18 +144,31 @@ final class KitToastBody extends StatelessWidget {
       UiTone.error => c.error,
     };
     final label = actionLabel;
+    final shadows = UiShadows.lg(uiKitShadowBase(context));
+
     return Material(
       type: MaterialType.transparency,
       child: Semantics(
         liveRegion: true,
-        child: Container(
+        child: Box(
           key: const ValueKey('ui_kit_toast'),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: c.strong,
-            borderRadius: BorderRadius.circular(tokens.controlRadius),
-            boxShadow: UiShadows.lg(uiKitShadowBase(context)),
-          ),
+          style: BoxStyler()
+              .color(c.strong)
+              .padding(
+                EdgeInsetsGeometryMix.symmetric(horizontal: 12, vertical: 10),
+              )
+              .borderRadius(
+                BorderRadiusGeometryMix.circular(tokens.controlRadius),
+              )
+              .shadows([
+                for (final s in shadows)
+                  BoxShadowMix(
+                    color: s.color,
+                    offset: s.offset,
+                    blurRadius: s.blurRadius,
+                    spreadRadius: s.spreadRadius,
+                  ),
+              ]),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'button.dart';
@@ -7,7 +7,7 @@ import 'node_renderer.dart';
 
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../components/kit/kit_toast.dart';
+import '../ui/mix/ui_mix_toast.dart';
 import '../design/cards/card_shell.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';

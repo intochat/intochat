@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../components/kit/kit_toast.dart';
-import '../components/kit/ui_kit_button.dart';
-import '../components/kit/ui_kit_field.dart';
-import '../components/kit/ui_kit_select.dart';
 import '../ui/mix/ui_mix_controls.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';

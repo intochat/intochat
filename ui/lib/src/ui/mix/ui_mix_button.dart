@@ -8,18 +8,22 @@ import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 
 /// Button styles. The order mirrors a C# enum by index; do not reorder.
-enum UiKitButtonStyle { primary, secondary, ghost, danger, link }
+typedef UiKitButtonStyle = UiMixButtonStyle;
+
+enum UiMixButtonStyle { primary, secondary, ghost, danger, link }
 
 /// Desktop-dense button unified with `Btn` (`controls.dart`):
 /// 36px standard / 30px compact height, 14px/10px horizontal padding,
 /// 10px radius, 13px w600 Inter label, 15px Lucide icon, 1px press translate,
 /// [SelectionRing] focus, and `DESIGN.md` §10.8 guard/hint [Tooltip] support.
-final class UiKitButton extends StatefulWidget {
-  const UiKitButton({
+typedef UiKitButton = UiMixActionButton;
+
+final class UiMixActionButton extends StatefulWidget {
+  const UiMixActionButton({
     super.key,
     required this.label,
     this.onPressed,
-    this.style = UiKitButtonStyle.primary,
+    this.style = UiMixButtonStyle.primary,
     this.icon,
     this.compact = false,
     this.fullWidth = false,
@@ -29,7 +33,7 @@ final class UiKitButton extends StatefulWidget {
 
   final String label;
   final VoidCallback? onPressed;
-  final UiKitButtonStyle style;
+  final UiMixButtonStyle style;
   final String? icon;
   final bool compact;
   final bool fullWidth;
@@ -41,10 +45,10 @@ final class UiKitButton extends StatefulWidget {
   final String? tooltip;
 
   @override
-  State<UiKitButton> createState() => _UiKitButtonState();
+  State<UiMixActionButton> createState() => _UiMixActionButtonState();
 }
 
-class _UiKitButtonState extends State<UiKitButton> {
+class _UiMixActionButtonState extends State<UiMixActionButton> {
   bool _hover = false, _pressed = false, _focused = false;
 
   bool get _enabled => widget.onPressed != null;
@@ -59,27 +63,27 @@ class _UiKitButtonState extends State<UiKitButton> {
     final tokens = UiTokens.of(context);
     final hover = _hover && _enabled;
     final (Color? fill, Color ink, Border? border) = switch (widget.style) {
-      UiKitButtonStyle.primary => (
+      UiMixButtonStyle.primary => (
         hover ? c.accentHover : c.accent,
         c.onAccent,
         null,
       ),
-      UiKitButtonStyle.secondary => (
+      UiMixButtonStyle.secondary => (
         hover ? c.surfaceSunk : c.surfaceCard,
         c.textStrong,
         Border.all(color: c.borderInput),
       ),
-      UiKitButtonStyle.ghost => (
+      UiMixButtonStyle.ghost => (
         hover ? c.surfaceSunk : Colors.transparent,
         c.textBody,
         null,
       ),
-      UiKitButtonStyle.danger => (
+      UiMixButtonStyle.danger => (
         hover ? c.errorBg : Colors.transparent,
         c.textStrong,
         Border.all(color: c.error),
       ),
-      UiKitButtonStyle.link => (
+      UiMixButtonStyle.link => (
         null,
         hover ? c.accentCopyHover : c.accentCopy,
         null,
@@ -111,7 +115,7 @@ class _UiKitButtonState extends State<UiKitButton> {
       ],
     );
 
-    if (widget.style != UiKitButtonStyle.link) {
+    if (widget.style != UiMixButtonStyle.link) {
       final ringActive = _focused;
       final decorated = DecoratedBox(
         decoration: BoxDecoration(
@@ -138,7 +142,7 @@ class _UiKitButtonState extends State<UiKitButton> {
     final tip = widget.tooltip?.trim();
     Widget result = Stop(
       onActivate: widget.onPressed,
-      isDefault: widget.style == UiKitButtonStyle.primary,
+      isDefault: widget.style == UiMixButtonStyle.primary,
       builder: (context, stopView) => Opacity(
         opacity: _enabled ? 1 : 0.45,
         child: Semantics(

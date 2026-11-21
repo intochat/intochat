@@ -4,12 +4,8 @@ export 'src/chat/conversation_view.dart';
 export 'src/chat/model_picker.dart';
 export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
-export 'src/components/kit/kit_toast.dart';
 export 'src/theme/ui_icon.dart'
     show uiIcon, uiIconSize, UiIconEntry, uiIconCatalog, uiIconCategories;
-export 'src/components/kit/ui_kit_button.dart';
-export 'src/components/kit/ui_kit_field.dart';
-export 'src/components/kit/ui_kit_select.dart';
 export 'src/composition/value_nodes/view_badge.dart' show ViewBadge;
 export 'src/components/image/ui_image.dart';
 export 'src/components/infobar/ui_info_bar.dart';

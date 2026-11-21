@@ -7,13 +7,15 @@ import '../../theme/ui_icon.dart';
 import '../../theme/ui_shadows.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
-import '../../ui/mix/ui_mix_surface.dart';
+import 'ui_mix_surface.dart';
 
 /// Desktop-dense text field: 13/600 label, 6 gap, then a 36px single-line box
 /// with radius 12, `inputBorder` border, `surface` fill and xs shadow. Focus
 /// turns the border `accent` and adds a 3px `focus` ring outside.
-final class UiKitField extends StatefulWidget {
-  const UiKitField({
+typedef UiKitField = UiMixField;
+
+final class UiMixField extends StatefulWidget {
+  const UiMixField({
     super.key,
     required this.label,
     this.controller,
@@ -77,10 +79,10 @@ final class UiKitField extends StatefulWidget {
   final Widget? suffix;
 
   @override
-  State<UiKitField> createState() => _UiKitFieldState();
+  State<UiMixField> createState() => _UiMixFieldState();
 }
 
-class _UiKitFieldState extends State<UiKitField> {
+class _UiMixFieldState extends State<UiMixField> {
   FocusNode? _ownFocus;
   TextEditingController? _ownController;
   bool _hover = false;
@@ -98,7 +100,7 @@ class _UiKitFieldState extends State<UiKitField> {
   }
 
   @override
-  void didUpdateWidget(UiKitField old) {
+  void didUpdateWidget(UiMixField old) {
     super.didUpdateWidget(old);
     if (old.secret != widget.secret) {
       _obscured = widget.secret;

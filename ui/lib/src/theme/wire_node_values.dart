@@ -1,7 +1,7 @@
 import 'package:flutter/painting.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../components/kit/ui_kit_button.dart';
+import '../ui/mix/ui_mix_button.dart';
 import '../design/app_tile.dart';
 import '../design/cards/approval_card.dart';
 import '../design/cards/chart_card.dart';

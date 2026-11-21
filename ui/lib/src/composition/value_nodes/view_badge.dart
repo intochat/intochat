@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../components/kit/kit_toast.dart';
+import '../../ui/mix/ui_mix_toast.dart';
 import '../../design/controls.dart' show WorkingSpinner;
 import '../../nodes/node_common.dart';
 import '../../theme/brand_visuals.dart';

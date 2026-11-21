@@ -4,12 +4,14 @@ import '../../theme/ui_colors.dart';
 import '../../theme/ui_shadows.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
-import '../../ui/mix/ui_mix_surface.dart';
+import 'ui_mix_surface.dart';
 
 /// One choice in a [UiKitSelect]. A disabled item is listed but cannot be
 /// chosen; [detail] explains why or adds context under the label.
-final class UiKitSelectItem<T> {
-  const UiKitSelectItem(
+typedef UiKitSelectItem<T> = UiMixSelectItem<T>;
+
+final class UiMixSelectItem<T> {
+  const UiMixSelectItem(
     this.value,
     this.label, {
     this.enabled = true,
@@ -29,8 +31,10 @@ final class UiKitSelectItem<T> {
 /// [itemBuilder] replaces the default row (label and detail); it receives the
 /// width available for the row. [triggerBuilder] replaces the box, for
 /// callers that supply their own trigger.
-final class UiKitSelect<T> extends StatefulWidget {
-  const UiKitSelect({
+typedef UiKitSelect<T> = UiMixSelect<T>;
+
+final class UiMixSelect<T> extends StatefulWidget {
+  const UiMixSelect({
     super.key,
     required this.value,
     required this.items,
@@ -42,13 +46,13 @@ final class UiKitSelect<T> extends StatefulWidget {
   });
 
   final T? value;
-  final List<UiKitSelectItem<T>> items;
+  final List<UiMixSelectItem<T>> items;
   final ValueChanged<T>? onChanged;
   final String? label;
   final String? hint;
   final Widget Function(
     BuildContext context,
-    UiKitSelectItem<T> item,
+    UiMixSelectItem<T> item,
     double width,
   )?
   itemBuilder;
@@ -56,10 +60,10 @@ final class UiKitSelect<T> extends StatefulWidget {
   triggerBuilder;
 
   @override
-  State<UiKitSelect<T>> createState() => _UiKitSelectState<T>();
+  State<UiMixSelect<T>> createState() => _UiMixSelectState<T>();
 }
 
-class _UiKitSelectState<T> extends State<UiKitSelect<T>> {
+class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
   final _menu = MenuController();
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
@@ -73,7 +77,7 @@ class _UiKitSelectState<T> extends State<UiKitSelect<T>> {
     super.dispose();
   }
 
-  void _choose(UiKitSelectItem<T> item) {
+  void _choose(UiMixSelectItem<T> item) {
     if (!item.enabled) return;
     _menu.close();
     widget.onChanged?.call(item.value);
@@ -232,7 +236,7 @@ class _UiKitSelectState<T> extends State<UiKitSelect<T>> {
     );
   }
 
-  Widget _box(BuildContext context, UiKitSelectItem<T>? selected, bool full) {
+  Widget _box(BuildContext context, UiMixSelectItem<T>? selected, bool full) {
     final c = UiColors.of(context);
     final type = UiType.of(context);
     final radius = UiTokens.of(context).fieldRadius;
@@ -292,7 +296,7 @@ class _UiKitSelectState<T> extends State<UiKitSelect<T>> {
     );
   }
 
-  Widget _row(UiKitSelectItem<T> item, UiTypeSet type, double width) =>
+  Widget _row(UiMixSelectItem<T> item, UiTypeSet type, double width) =>
       SizedBox(
         width: width,
         child: Column(
