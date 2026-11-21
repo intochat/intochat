@@ -182,7 +182,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = runtime.As(Who.Person);
 
-        var studio = runtime.Get<IInoStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
+        var studio = runtime.Get<IStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
 
         InoToolResult proposedResult;
         using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
@@ -299,7 +299,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, home: siloHome);
         using var person = runtime.As(Who.Person);
 
-        var studio = runtime.Get<IInoStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
+        var studio = runtime.Get<IStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
         InoToolResult proposed;
         using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
         {

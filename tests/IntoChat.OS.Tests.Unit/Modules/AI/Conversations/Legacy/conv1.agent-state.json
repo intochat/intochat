@@ -1,0 +1,65 @@
+{
+  "revision": 1,
+  "definition": {
+    "displayName": "Ino",
+    "description": "The brain's personal assistant.",
+    "instructions": "You are Ino, the personal AI assistant of IntoChat OS (user: User).",
+    "model": {
+      "model": "claude-sonnet-4-5",
+      "reasoning": null,
+      "maxOutputTokens": null
+    },
+    "contracts": [
+      "IntoChat.OS.Modules.Apps.IInoStudio",
+      "IntoChat.OS.Modules.Apps.IInoData",
+      "IntoChat.OS.Modules.Apps.IInoSettings",
+      "IntoChat.OS.Modules.Apps.IInoFiles",
+      "IntoChat.OS.Modules.Apps.ISynapseStudio",
+      "IntoChat.OS.Modules.Apps.IInoFocus",
+      "IntoChat.OS.Modules.AI.Memory.IMemory",
+      "IntoChat.OS.Modules.AI.Routing.IRouter"
+    ],
+    "capabilities": [],
+    "routingExamples": [],
+    "maxModelCalls": 16,
+    "timeout": "00:02:00",
+    "maxHistoryMessages": 256,
+    "compactionThreshold": 40,
+    "compactionRecentWindow": 20,
+    "useModelSummarizer": false,
+    "options": null,
+    "contexts": [
+      "context/user.profile",
+      "context/conversation.inference.tone",
+      "context/conversation.summary",
+      "context/conversation.inference",
+      "context/apps.capabilities",
+      "context/security.posture",
+      "context/ui.focus",
+      "context/ui.state",
+      "context/memory.recall"
+    ]
+  },
+  "summary": null,
+  "activeRun": null,
+  "runs": [
+    {
+      "runId": "e598d2c227bf4a019fca8e3434d63edb",
+      "status": 2,
+      "userText": "Prompt #1",
+      "startedAt": "2026-11-09T04:31:41.7383809+00:00",
+      "endedAt": "2026-11-09T04:31:41.8675799+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #1.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    }
+  ],
+  "version": 3,
+  "blocked": false
+}

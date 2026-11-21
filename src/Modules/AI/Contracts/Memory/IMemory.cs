@@ -73,6 +73,8 @@ public sealed record MemoryChanged(
 [Description("Durable hybrid memory of owner preferences, facts, episodes, and entity links for a brain, persisted locally with zero external database dependency.")]
 public interface IMemory
 {
+    const string DefaultKey = "memory";
+
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<MemorySnapshot> Read();
 

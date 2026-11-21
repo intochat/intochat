@@ -2,13 +2,12 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Host.Http;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using IntoChat.OS.Host.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Settings;
 
@@ -27,28 +26,25 @@ internal static class ChatEndpoints
         group.MapPost("/{id}/unarchive", Unarchive);
     }
 
-    // Copy of InoApp.DataKey in src/IntoChat.OS.Apps/Ino/InoApp.cs: the Ino app's ChatDataApp setting when set, else its own
-    // key, plus "/chats". ChatEndpointFacts pins the rule.
-    internal static string IndexKey(string brain, AppSnapshot ino)
-    {
-        ArgumentNullException.ThrowIfNull(ino);
-        var data = ino.Settings.GetValueOrDefault("ChatDataApp");
-        return (data is { Length: > 0 } ? data : IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "ino").Key) + "/chats";
-    }
+    internal static string IndexKey(string brain)
+        => new DigitalBrain.NeuronId(
+            brain is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brain),
+            Sessions.Type,
+            ISessionList.DefaultKey).FullKey();
 
-    internal static async Task<IResult> List(HttpContext http, INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = ChatIndex.MaxPage)
+    internal static async Task<IResult> List(HttpContext http, INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = Sessions.MaxPage)
     {
         if (Refused(http)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-        if (skip < 0 || take is < 1 or > ChatIndex.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
-        var page = await (await Index(brain, ct)).List(archived, skip, take).WaitAsync(ct);
+        if (skip < 0 || take is < 1 or > Sessions.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
+        var page = await Index(brain).List(archived, skip, take).WaitAsync(ct);
         return Results.Ok(new ChatPage([.. page.Entries.Select(entry => new Chat(entry.Id, entry.Title, entry.UpdatedAt))], page.Total));
     }
 
     internal static async Task<IResult> Unarchive(HttpContext http, string id, INeuronProxies brain, CancellationToken ct)
     {
         if (Refused(http)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-        var index = await Index(brain, ct);
-        if (!ChatIndex.IsId(id) || await index.Get(id).WaitAsync(ct) is null)
+        var index = Index(brain);
+        if (!Sessions.IsId(id) || await index.Get(id).WaitAsync(ct) is null)
         { return Results.NotFound(new { error = "That chat no longer exists." }); }
         await index.Unarchive(id).WaitAsync(ct);
         return Results.NoContent();
@@ -58,10 +54,6 @@ internal static class ChatEndpoints
     private static bool Refused(HttpContext http)
         => DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(http) is not { } caller || DigitalBrain.Access.CallerRules.IsApp(caller, out _);
 
-    private static async Task<IChatIndex> Index(INeuronProxies brain, CancellationToken ct)
-    {
-        var brainId = BrainScope.CurrentId();
-        var ino = await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), "ino").Key).Read().WaitAsync(ct);
-        return brain.Get<IChatIndex>(IndexKey(brainId, ino));
-    }
+    private static ISessionList Index(INeuronProxies brain)
+        => brain.Get<ISessionList>(IndexKey(BrainScope.CurrentId()));
 }

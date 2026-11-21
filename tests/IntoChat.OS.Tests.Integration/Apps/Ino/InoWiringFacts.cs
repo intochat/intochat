@@ -119,7 +119,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
             v => PresentedView.From(v).Texts.Contains("Still here."),
             Ct);
 
-        // Re-open the app on a fresh screen proxy and verify transcript persists via ChatNeuron/AgentState!
+        // Re-open the app on a fresh screen proxy and verify transcript persists via ConversationNeuron!
         await screen.Request("ino.open", JsonSerializer.SerializeToElement(new InoOpen()));
         var reopened = await fixture.WaitForScreenAsync(
             screen,

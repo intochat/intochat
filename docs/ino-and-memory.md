@@ -2,14 +2,14 @@
 
 Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/IntoChat.OS.Apps/Ino`. The agent itself, its contexts and its memory come from the AI module in `src/Modules/AI`.
 
-## The app and the agent
+## The app and the conversation
 
-`InoApp` is the chat window. It does not call a model. Each conversation has its own agent neuron, addressed through the `IAgent` contract. The key is built from the conversation id by `InoModel.AgentKeyOf`.
+`InoApp` is the chat window. It does not call a model and stores no copy of the transcript. Each conversation is a `ConversationNeuron`, addressed through the `IConversation` contract under the key `InoModel.ConversationKeyOf` (`conversations/{id}`), with `ISessionList` tracking the list of sessions and the active conversation.
 
-`InoAgentDefinition` builds the `AgentDefinition` that the app gives the agent. It holds three things:
+`InoAgentDefinition` builds the `AgentDefinition` that the app seats on the conversation (`IConversation.Seat`). It holds three things:
 
 - **Instructions.** The persona, with your display name filled in from settings.
-- **Contracts.** The neuron contracts the model may act on, for example `IInoStudio`, `IInoData`, `IInoFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
+- **Contracts.** The neuron contracts the model may act on, for example `IStudio`, `IData`, `IFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
 - **Contexts.** The context neurons the agent reads at the start of every turn.
 
 Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Role` (`Chat`, `Think`, `Fast`, `Hear`, `Speak`, `Talk`, `Embed`, `Image`) through `IModelCatalog` (`List`, `Pick`, `SetRole`, `Roles`, `Availability`) and one `ILLM` neuron per model (`{brain}/llm/{modelId}`). Choosing a model in the composer switches that conversation; pinning it or choosing a role in Settings → AI updates the person's role override read by `ModelCatalog.Decide` ahead of the deployment `RoleMap` defaults.
@@ -18,15 +18,15 @@ Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Rol
 
 1. You send a message. `InoApp` receives it as an `InoSend` signal.
 2. A message that starts with `/` is handled as a command. If the compute budget is exceeded, the turn stops there.
-3. `InoApp` configures the agent and calls `IAgent.Start`. The call returns a run id at once.
-4. The agent runs the turn in `AgentTurnLoop`. The agent keeps the transcript.
-5. The agent reports the turn as signals. `InoApp` follows `ChatChanged` and `ChatRunChanged` and projects the chat into its state. The shell draws the new view.
+3. `InoApp` ensures Ino is seated on the conversation and calls `IConversation.Say`. The conversation appends the person's `Said` entry and starts a run at once.
+4. `ConversationNeuron` runs the turn through `TurnRunner` and `AgentTurnLoop`, appending `Called`, `Returned`, optional `Summarized`, and the reply `Said` entry to the conversation's own log.
+5. `ConversationNeuron` publishes `ConversationChanged`. `InoApp` reads `ConversationView` and projects the person view through `InoThread`, and the shell draws the updated view.
 
-`InoStop` cancels the active run. `InoNew` starts a new conversation with a new agent key.
+`InoStop` calls `IConversation.Stop` to cancel the active run while preserving partial text; retrying a failed or cancelled bubble calls `IConversation.Regenerate`. `InoNew` opens a fresh conversation id in `ISessionList`, and `InoShowChats` toggles the sessions list.
 
 ## Tools
 
-The model has five tools: `neurons_list`, `neurons_search`, `neurons_get`, `neurons_call` and `neurons_context`. It reaches every neuron method through `neurons_call`. The tools sit on `NeuronSurface`, the same surface the shell and MCP use. See [architecture](architecture.md).
+Each method on a contract in the agent definition is exposed directly as a typed tool (`ContractTool`, generated from `ToolSchema`) taking named JSON arguments; `ToolRouter` picks the top-K tools for each turn alongside `neurons_search`, `neurons_list`, and `neurons_context` (`AgentTools`). When the model calls `neurons_search`, matching allowed contracts are added to the turn's tools for the next step. All calls bind through `NeuronBinder` on `OsNeuronSurface`, the same surface MCP and gRPC use. See [architecture](architecture.md).
 
 The tools come only from the contracts in the agent definition. A context entry never adds a tool.
 
@@ -43,7 +43,7 @@ Ino lists nine contexts, each under the key `context/` plus a name:
 | `conversation.inference`, `conversation.inference.tone` | What has been inferred about the conversation. `ToneObserverNeuron` writes the tone. |
 | `apps.capabilities` | What the apps in the brain can do. |
 | `security.posture` | The brain's security posture, written by `SecurityPostureNeuron`. |
-| `ui.focus`, `ui.state` | What you are looking at. `IInoFocus` writes the focus when Ino points you at something. |
+| `ui.focus`, `ui.state` | What you are looking at. `IFocus` writes the focus when Ino points you at something. |
 | `memory.recall` | What memory recalled for this turn. |
 
 Before each turn the agent reads every listed context. A context that is missing or fails is skipped; the turn still runs. Untagged entries reach the model as knowledge.

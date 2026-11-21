@@ -21,11 +21,11 @@ public sealed class NeuronSurfaceFacts
     public async Task CallingPointWithWrongArityNamesTheExpectedParameters()
     {
         var ct = TestContext.Current.CancellationToken;
-        var compiled = new CompiledTypes([typeof(IInoFocus).Assembly]);
+        var compiled = new CompiledTypes([typeof(IFocus).Assembly]);
         var surface = new OsNeuronSurface(null!, new StubBrainObserver(compiled.Entries), null!);
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() =>
-            surface.Call(typeof(IInoFocus).FullName!, "owner/ino/focus", "Point", """["window:settings", "Info"]""", ct));
+            surface.Call(typeof(IFocus).FullName!, "owner/ino/focus", "Point", """["window:settings", "Info"]""", ct));
 
         Assert.Contains("Point(target, tone, reason[, action])", error.Message, StringComparison.Ordinal);
     }

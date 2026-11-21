@@ -475,6 +475,11 @@
         "name": "activeModelId",
         "type": "String?",
         "default": null
+      },
+      {
+        "name": "conversation",
+        "type": "String?",
+        "default": null
       }
     ],
     "state": [

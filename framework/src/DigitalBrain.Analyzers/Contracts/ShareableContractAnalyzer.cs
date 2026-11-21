@@ -46,7 +46,7 @@ public sealed class ShareableContractAnalyzer : DiagnosticAnalyzer
 
         foreach (var member in type.GetMembers())
         {
-            if (member is IMethodSymbol method && (method.MethodKind == MethodKind.Ordinary || method.MethodKind == MethodKind.ExplicitInterfaceImplementation))
+            if (member is IMethodSymbol method && !method.IsStatic && (method.MethodKind == MethodKind.Ordinary || method.MethodKind == MethodKind.ExplicitInterfaceImplementation))
             {
                 var loc = method.Locations.Length > 0 ? method.Locations[0] : Location.None;
 

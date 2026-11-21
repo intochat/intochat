@@ -58,6 +58,9 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
     /// <summary>The key of a message's retry button.</summary>
     public static string RetryKeyOf(string id) => $"retry:{id}";
 
+    /// <summary>The key of a completed reply's regenerate button.</summary>
+    public static string RegenerateKeyOf(string id) => $"regenerate:{id}";
+
     [On]
     public Task AppendMessage(AppendMessage command)
     {
@@ -177,6 +180,12 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
     private static MessageNode DrawMessage(ThreadMessage message)
     {
         var failed = message.IsFailed && message.Role == "assistant";
+        var canRegenerate = !failed && message.CanRegenerate && message.Role == "assistant" && message.Status == "completed";
+        var retry = failed
+            ? new Button(RetryKeyOf(message.Id), "Try again", RetryCommand(message.Id), AutomationName: "Try again")
+            : canRegenerate
+                ? new Button(RegenerateKeyOf(message.Id), "Regenerate", RetryCommand(message.Id), AutomationName: "Regenerate")
+                : null;
         return new MessageNode(
             message.Id,
             message.Role,
@@ -185,7 +194,7 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
             Activities: message.Activities.Count > 0 ? message.Activities : null,
             Status: message.Status,
             Model: message.Model,
-            Retry: failed ? new Button(RetryKeyOf(message.Id), "Try again", RetryCommand(message.Id), AutomationName: "Try again") : null,
+            Retry: retry,
             ModelLabel: message.Model,
             ProviderIcon: message.ProviderIcon,
             Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? NoAnswer : message.Failure) : null);

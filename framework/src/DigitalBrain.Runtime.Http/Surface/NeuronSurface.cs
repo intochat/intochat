@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
@@ -15,8 +14,6 @@ public sealed record NeuronInstance(string Contract, string Key, DateTimeOffset 
 /// </summary>
 public sealed class NeuronSurface(IRuntimeInvocationDispatcher dispatcher, IReadOnlySet<string>? allowed = null)
 {
-    private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
-
     public NeuronSurface Restrict(IReadOnlyCollection<string> names)
         => new(dispatcher, names.ToHashSet(StringComparer.Ordinal));
 
@@ -35,25 +32,28 @@ public sealed class NeuronSurface(IRuntimeInvocationDispatcher dispatcher, IRead
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         var type = LoadedContracts.Find(contract);
-        JsonElement[] payload;
-        try { payload = JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
-        catch (JsonException error) { throw new ArgumentException("arguments must be a JSON array: " + error.Message, nameof(arguments)); }
-
-        var target = type.GetMethods().Concat(type.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
-            .Where(candidate => candidate.Name == method)
-            .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == payload.Length)
-            ?? throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.");
+        ArrangedCall arranged;
+        try
+        {
+            using var parsed = string.IsNullOrWhiteSpace(arguments) ? null : JsonDocument.Parse(arguments);
+            arranged = NeuronBinder.Arrange(type, method, parsed is null ? default : parsed.RootElement);
+        }
+        catch (JsonException error)
+        {
+            throw new ArgumentException("arguments must be a JSON object or array: " + error.Message, nameof(arguments), error);
+        }
+        catch (BindingException error)
+        {
+            throw new ArgumentException(error.Message, nameof(arguments), error);
+        }
 
         var invocation = new RuntimeInvocation(
             Contract: contract,
             Key: key,
             Method: method,
-            Arguments: payload,
+            Arguments: arranged.Arguments,
             Behavior: string.Empty);
 
         return await dispatcher.DispatchAsync(brainId, invocation, ct).ConfigureAwait(false);
     }
-
-    private static bool IsArgument(ParameterInfo parameter)
-        => parameter.ParameterType != typeof(CancellationToken);
 }

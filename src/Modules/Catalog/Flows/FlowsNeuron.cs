@@ -11,9 +11,11 @@ using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps.Flows.Rules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Callers;
 using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
@@ -52,14 +54,14 @@ internal sealed class FlowsNeuron(
         string[] contexts = ["context/security.posture"];
         try
         {
-            var current = (await Context.Get<IInoConversations>(new NeuronId(Id.Brain, "ino.conversations", IInoConversations.DefaultKey)).Current()).FirstOrDefault();
-            if (current is not null)
+            var current = await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current();
+            if (!string.IsNullOrWhiteSpace(current) && ConversationId.TryParse(current, out var convId))
             {
-                var state = await Context.Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, current)).Read();
-                contexts = [.. contexts, .. state.Definition.Contexts];
+                var view = await Context.Get<IConversation>(new NeuronId(Id.Brain, IConversation.Type, IConversation.KeyOf(convId))).Read();
+                contexts = [.. contexts, .. view.Contexts];
             }
         }
-        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptsUnread(Logger(), error, "agent"); }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptsUnread(Logger(), error, "conversation"); }
         foreach (var key in contexts.Select(key => key.StartsWith(prefix, StringComparison.Ordinal) ? key[prefix.Length..] : key).Distinct(StringComparer.Ordinal))
         {
             try

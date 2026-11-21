@@ -65,7 +65,7 @@ internal static partial class InoCards
         return Slot(uri, resolved);
     }
 
-    private static InoCard? FromResult(string result)
+    internal static InoCard? FromResult(string result)
     {
         try
         {

@@ -424,7 +424,7 @@ public sealed class FlowsNeuronFacts
 
     private static IDisposable AsPerson(INeuronRuntime runtime) => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
-    // An agent's tool call as ContractActions.Marked stamps it; an MCP client is the same with the conversation "mcp".
+    // An agent's tool call as AgentTools.Marked stamps it; an MCP client is the same with the conversation "mcp".
     private static IDisposable AsAgent(INeuronRuntime runtime, string conversation = "ino/conversations/main")
         => runtime.Edge.Enter(runtime.Edge.Agent(new Actor.Person("person", "person"), runtime.Brain, conversation: conversation));
 

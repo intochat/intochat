@@ -65,7 +65,7 @@ public sealed record InoAppState(
     public const int MaxPendingApprovals = 16;
     public const int MinProviderCredentialLength = 4;
 
-    public static readonly string[] SupportedSections = ["chat", "approvals", "setup", "data"];
+    public static readonly string[] SupportedSections = ["chat", "chats", "approvals", "setup", "data"];
     public static readonly string[] SupportedProviders = ["openai", "anthropic", "google", "openrouter", "ollama"];
 
     private readonly InoTurn[] _turns = Turns ?? [];
@@ -109,7 +109,9 @@ public sealed record InoAppState(
     [JsonIgnore]
     public InoCard[] ActiveCards => _cards;
 
+    // Legacy, unwritten; read by nothing, see OWED.md.
     public InoMessage[]? Messages { get; init; }
+    // Legacy, unwritten; read by nothing, see OWED.md.
     public long ChatRevision { get; init; }
     public InoPending? Pending { get; init; }
     public InoError? Error { get; init; }
@@ -153,7 +155,7 @@ public sealed record InoAppState(
         !string.IsNullOrWhiteSpace(ConversationId)
         && !string.IsNullOrWhiteSpace(Title);
 
-    [Invariant("ActiveSection is always chat, approvals, setup, or data."), JsonIgnore]
+    [Invariant("ActiveSection is always chat, chats, approvals, setup, or data."), JsonIgnore]
     public bool ValidActiveSectionInvariant =>
         SupportedSections.Contains(ActiveSection, StringComparer.Ordinal);
 
@@ -184,7 +186,7 @@ public sealed record InoAppState(
         "invalid_section",
         section,
         static s => string.IsNullOrWhiteSpace(s) || !SupportedSections.Contains(s.Trim().ToLowerInvariant(), StringComparer.Ordinal),
-        "Active Ino section must be chat, approvals, setup, or data.");
+        "Active Ino section must be chat, chats, approvals, setup, or data.");
 
     public static Rule ValidThreadSelectionRule(string? conversationId) => Decision.Rule(
         "invalid_thread_id",

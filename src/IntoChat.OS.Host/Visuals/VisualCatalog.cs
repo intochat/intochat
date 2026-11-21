@@ -337,7 +337,7 @@ public static class VisualCatalog
             "ICodeGraph", "IRoslyn", "roslyn.codegraph", "roslyn/codegraph", "microsoft.roslyn", "codegraph", "roslyn", "capability:codegraph");
 
         Add(new("Ino Studio", "brand:intochat", "#6366F1", "Studio"),
-            "IInoStudio", "ISynapseStudio", "ino.studio", "ino/studio", "synapse.studio", "ino", "brand:intochat");
+            "IStudio", "ISynapseStudio", "studio", "ino.studio", "ino/studio", "synapse.studio", "ino", "brand:intochat");
 
         Add(new("System Traces", "capability:traces", "#F59E0B", "Diagnostics"),
             "ITraceReader", "trace.reader", "traces", "capability:traces");
@@ -352,7 +352,7 @@ public static class VisualCatalog
             "IConfirmations", "IApprovals", "confirmations", "os.confirmations", "approvals", "capability:shield");
 
         Add(new("Files", "capability:files", "#3B82F6", "System"),
-            "IInoFiles", "IFilesWorkspace", "IFilesNeuron", "IFilesVfsService", "files", "files.vfs", "capability:files");
+            "IFiles", "IFilesWorkspace", "IFilesNeuron", "IFilesVfsService", "files", "files.vfs", "capability:files");
 
         Add(new("App Studio", "capability:studio", "#6366F1", "Studio"),
             "IAppStudio", "creator", "capability:studio");

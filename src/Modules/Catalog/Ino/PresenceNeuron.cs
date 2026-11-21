@@ -4,26 +4,23 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Kernel;
 using DigitalBrain.Signals;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The sphere's fold. It holds brain-wide synapses on the current conversation agent's turn signals, context changes, the
-// confirmation inbox and the flows index, and derives one Presence with a fixed precedence: a trusted interrupt pauses; an approval
-// Ino waits on; a tool in flight (searching for search/read tools); a turn under 2 s old with no tool listens; a failed Ino flow
-// under 10 s old needs attention; else idle. A timer recomputes when the listening or attention window closes. It saves only when
-// the derived record changes. What it folds from is kept in memory; on activation and when the conversation changes it is rebuilt
-// from the agent (its active run and blocked flag), the agent's listed contexts (trusted interrupts, the focus) and the approvals.
-// The last failure is not rebuilt. A flow is Ino's when an agent's tool call started it (App "assistant"). A focus lapses when a
-// turn of the current agent starts after it was written.
+// The sphere's fold. It holds brain-wide synapses on conversation changes, session changes, legacy agent turn signals,
+// context changes, the confirmation inbox and the flows index, and derives one Presence with a fixed precedence:
+// a trusted interrupt pauses; an approval Ino waits on; a tool in flight (searching for search/read tools); a turn
+// under 2 s old with no tool listens; a failed Ino flow under 10 s old needs attention; else idle.
 [DigitalBrain.Neurons.Neuron("ino.presence")]
 internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<Presence>, IPresence
 {
@@ -41,7 +38,7 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
     private sealed record Failure(string FlowId, string FlowType, string? Detail, DateTimeOffset At);
 
     private readonly Dictionary<(string Context, string Name), string> _interrupts = [];
-    private string? _agent;
+    private string? _conversationId;
     private Run? _run;
     private string? _lastTrace;
     private DateTimeOffset _turnStarted = DateTimeOffset.MinValue;
@@ -54,15 +51,24 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Wires.EnsureBrainWide([.. AgentSignals.All, typeof(InoConversationsChanged), typeof(ContextUpdated), typeof(ContextRemoved),
-            typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged), typeof(FlowDone)]);
-        await Quietly(async () => _agent = (await Get<IInoConversations>(new NeuronId(Id.Brain, "ino.conversations", IInoConversations.DefaultKey)).Current()).FirstOrDefault(), "conversations");
+        await Context.Wires.EnsureBrainWide([
+            .. AgentSignals.All,
+            typeof(ConversationChanged),
+            typeof(SessionsChanged),
+            typeof(ContextUpdated),
+            typeof(ContextRemoved),
+            typeof(ConfirmationRequested),
+            typeof(ConfirmationResolved),
+            typeof(FlowsChanged),
+            typeof(FlowDone),
+        ]);
+        await Quietly(async () => _conversationId = await Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current(), "sessions");
         await Rebuild();
     }
 
     protected override Task OnReminder(string name, CancellationToken cancellationToken) => name == WindowTimer ? Recompute() : Task.CompletedTask;
 
-    // Re-reads what the fold keeps in memory: the current agent's run and blocked flag, its contexts and the approvals; then recomputes.
+    // Re-reads what the fold keeps in memory: the current conversation's active run, blocked flag, contexts and approvals; then recomputes.
     private async Task Rebuild()
     {
         _run = null;
@@ -71,23 +77,15 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         _interrupts.Clear();
         _focus = null;
         _focusAt = null;
-        string[] contexts = [IInoFocus.ContextKey];
-        if (_agent is { } agent)
+        string[] contexts = [IFocus.ContextKey];
+        if (!string.IsNullOrWhiteSpace(_conversationId) && ConversationId.TryParse(_conversationId, out var convId))
         {
             await Quietly(async () =>
             {
-                var state = await Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, agent)).Read();
-                _blocked = state.Blocked;
-                if (state.ActiveRun is { } active)
-                {
-                    var tool = active.ToolCalls.LastOrDefault(call => call is { Result: null, Code: null, Error: null });
-                    _run = new Run(active.RunId, active.StartedAt, active.TraceId, tool?.Name, tool?.Arguments);
-                }
-                _lastTrace = state.ActiveRun?.TraceId ?? state.Runs.LastOrDefault(run => run.TraceId is not null)?.TraceId;
-                var started = state.ActiveRun?.StartedAt ?? state.Runs.LastOrDefault()?.StartedAt;
-                if (started is { } at && at > _turnStarted) { _turnStarted = at; }
-                contexts = [.. contexts, .. state.Definition.Contexts];
-            }, "agent");
+                var view = await Get<IConversation>(new NeuronId(Id.Brain, IConversation.Type, IConversation.KeyOf(convId))).Read();
+                ApplyConversationView(view);
+                contexts = [.. contexts, .. view.Contexts];
+            }, "conversation");
         }
         var prefix = Id.Brain.Value + "/";
         foreach (var key in contexts.Select(key => key.StartsWith(prefix, StringComparison.Ordinal) ? key[prefix.Length..] : key).Distinct(StringComparer.Ordinal))
@@ -98,15 +96,51 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         await Recompute();
     }
 
+    private void ApplyConversationView(ConversationView view)
+    {
+        _blocked = view.Blocked;
+        if (view.Active is { } active)
+        {
+            var tool = active.ToolCalls.LastOrDefault(call => call is { Result: null, Code: null, Error: null });
+            _run = new Run(active.RunId, active.StartedAt, active.TraceId, tool?.Name, tool?.Arguments);
+        }
+        else
+        {
+            _run = null;
+        }
+        _lastTrace = view.Active?.TraceId ?? view.Runs.LastOrDefault(run => run.TraceId is not null)?.TraceId ?? _lastTrace;
+        var started = view.Active?.StartedAt ?? view.Runs.LastOrDefault()?.StartedAt;
+        if (started is { } at && at > _turnStarted) { _turnStarted = at; }
+    }
+
     public Task<Presence> Read(CancellationToken ct = default) => Task.FromResult(State);
 
     [On]
-    public Task OnConversationsChanged(InoConversationsChanged changed)
+    public async Task OnSessionsChanged(SessionsChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        if (changed.Current == _agent) { return Task.CompletedTask; }
-        _agent = changed.Current;
-        return Rebuild();
+        string? next = _conversationId;
+        await Quietly(async () => next = await Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey)).Current(), "sessions");
+        if (string.Equals(next, _conversationId, StringComparison.Ordinal)) { return; }
+        _conversationId = next;
+        await Rebuild();
+    }
+
+    [On]
+    public async Task OnConversationChanged(ConversationChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        if (string.IsNullOrWhiteSpace(_conversationId) || !string.Equals(changed.Id.Value, _conversationId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await Quietly(async () =>
+        {
+            var view = await Get<IConversation>(new NeuronId(Id.Brain, IConversation.Type, IConversation.KeyOf(changed.Id))).Read();
+            ApplyConversationView(view);
+        }, "conversation");
+        await Recompute();
     }
 
     [On]
@@ -237,13 +271,26 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         return Recompute();
     }
 
-    private bool IsCurrent(string agentId) => _agent is not null && agentId == _agent;
+    private bool IsCurrent(string agentOrConversationKey)
+    {
+        if (string.IsNullOrWhiteSpace(_conversationId)) { return false; }
+        return string.Equals(agentOrConversationKey, _conversationId, StringComparison.Ordinal)
+            || string.Equals(agentOrConversationKey, "ino/conversations/" + _conversationId, StringComparison.Ordinal)
+            || string.Equals(agentOrConversationKey, "conversations/" + _conversationId, StringComparison.Ordinal);
+    }
 
     private static bool IsInoOwned(FlowView flow) => flow.App == AssistantApp;
 
-    // The agent's conversation id is its key, or its key under the brain.
     private bool IsCurrentConversation(FlowView flow)
-        => !string.IsNullOrEmpty(_agent) && (flow.Conversation == _agent || flow.Conversation == new DigitalBrain.NeuronId(Id.Brain, "agent", _agent).FullKey());
+    {
+        if (string.IsNullOrWhiteSpace(_conversationId) || string.IsNullOrWhiteSpace(flow.Conversation)) { return false; }
+        var convKey = "conversations/" + _conversationId;
+        var legacyKey = "ino/conversations/" + _conversationId;
+        return flow.Conversation == convKey
+            || flow.Conversation == legacyKey
+            || flow.Conversation == new NeuronId(Id.Brain, IConversation.Type, convKey).FullKey()
+            || flow.Conversation == new NeuronId(Id.Brain, "agent", legacyKey).FullKey();
+    }
 
     // Reads every entry of a context of this brain (keys "{brain}/{key}").
     private async Task ReadContextEntries(string contextId)
@@ -304,7 +351,11 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         string? flowId = null, step = null, flowType = null, reason = null;
         if (_interrupts.Count > 0 || _blocked) { state = PresenceState.Paused; reason = _interrupts.Values.FirstOrDefault(); }
         else if (_wait is { } wait) { state = PresenceState.Waiting; (flowId, step, flowType, reason) = (wait.FlowId, wait.Step, wait.FlowType, wait.Reason); }
-        else if (_run is { Tool: not null } tool) { state = IsSearch(tool) ? PresenceState.Searching : PresenceState.Working; }
+        else if (_run is { Tool: not null } tool)
+        {
+            state = IsSearch(tool) ? PresenceState.Searching : PresenceState.Working;
+            reason = string.IsNullOrWhiteSpace(tool.Tool) ? null : tool.Tool;
+        }
         else if (_run is { } run && now - run.Started < ListeningWindow) { state = PresenceState.Listening; }
         else if (_failure is { } failure && now - failure.At < AttentionWindow)
         {
@@ -333,7 +384,10 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
     private static bool IsSearch(Run run)
     {
         static bool Reads(string? name) => name is not null
-            && (name.StartsWith("search", StringComparison.OrdinalIgnoreCase) || name.StartsWith("read", StringComparison.OrdinalIgnoreCase));
+            && (name.StartsWith("search", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("read", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("_search", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("_read", StringComparison.OrdinalIgnoreCase));
         if (Reads(run.Tool)) { return true; }
         if (string.IsNullOrEmpty(run.Arguments)) { return false; }
         try
@@ -345,13 +399,13 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         catch (JsonException) { return false; }
     }
 
-    // The kind of the neuron that last published on the trace, other than this one and the agent's own turn signals.
+    // The kind of the neuron that last published on the trace, other than this one and turn/conversation signals.
     private async Task<string?> NeuronKindOn(string traceId)
     {
         try
         {
             var page = await history.ReadTrace(traceId, 0, SignalPage.MaxLimit, CancellationToken.None);
-            return page.Signals.LastOrDefault(item => item.Publisher != Id && !IsAgentSignal(item.Signal))?.Publisher.Type;
+            return page.Signals.LastOrDefault(item => item.Publisher != Id && !IsTurnSignal(item.Signal))?.Publisher.Type;
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -360,7 +414,8 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
         }
     }
 
-    private static bool IsAgentSignal(DigitalBrain.Signal signal) => Array.IndexOf(AgentSignals.All, signal.GetType()) >= 0;
+    private static bool IsTurnSignal(Signal signal)
+        => signal is ConversationChanged || Array.IndexOf(AgentSignals.All, signal.GetType()) >= 0;
 
     private async Task Quietly(Func<Task> read, string what)
     {

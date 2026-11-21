@@ -1,16 +1,31 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Flows;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using IntoChat.OS.Host.Kernel;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
@@ -66,7 +81,7 @@ public sealed class PresenceFacts
 
     private sealed class PresenceFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlutterModule), typeof(FlowsFactsModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
@@ -75,6 +90,7 @@ public sealed class PresenceFacts
             services.AddJournalPayloads(typeof(FlowStarted).Assembly);
             services.AddJournalPayloads(typeof(TestFlow).Assembly);
             services.AddJournalPayloads(typeof(TurnStarted).Assembly);
+            services.AddJournalPayloads(typeof(ConversationChanged).Assembly);
             services.TryAddSingleton(TimeProvider.System);
         }
     }
@@ -85,21 +101,21 @@ public sealed class PresenceFacts
 
     private static IAgentContext ContextOf(INeuronRuntime runtime, string name) => runtime.Get<IAgentContext>(new NeuronId(runtime.Brain, "agent-context", "context/" + name));
 
-    private static IInoFocus FocusTool(INeuronRuntime runtime) => runtime.Get<IInoFocus>(new NeuronId(runtime.Brain, "ino.focus", IInoFocus.DefaultKey));
+    private static IFocus FocusTool(INeuronRuntime runtime) => runtime.Get<IFocus>(new NeuronId(runtime.Brain, "ino.focus", IFocus.DefaultKey));
 
     private static IDisposable As(INeuronRuntime runtime, Who kind)
         => runtime.As(kind, app: "test-app");
 
-    // An agent's tool call as ContractActions.Marked stamps it: the person's principal, the agent and the conversation.
+    // An agent's tool call as AgentTools.Marked stamps it: the person's principal, the agent and the conversation.
     private static IDisposable AsInoTool(INeuronRuntime runtime)
         => runtime.As(Who.Agent, conversation: Agent);
 
-    // Makes Agent the current conversation and activates the presence, so its synapses hold before the facts publish.
-    private static async Task<INeuronRuntime> Started(PresenceFixture fixture)
+    // Makes "main" the current conversation and activates the presence, so its synapses hold before the facts publish.
+    private static async Task<INeuronRuntime> Started(PresenceFixture fixture, Action<IServiceCollection>? siloServices = null)
     {
-        var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, siloServices: siloServices);
         using var person = runtime.As(Who.Person);
-        await runtime.Get<IInoConversations>(new NeuronId(runtime.Brain, "ino.conversations", IInoConversations.DefaultKey)).Use(Agent);
+        await runtime.Get<ISessionList>(new NeuronId(runtime.Brain, Sessions.Type, ISessionList.DefaultKey)).Open("main");
         await Presence(runtime).Read(Ct);
         return runtime;
     }
@@ -158,7 +174,7 @@ public sealed class PresenceFacts
         using var person = runtime.As(Who.Person);
 
         await Pump(runtime).Started(Agent, "run-1", null);
-        await Pump(runtime).Tool(Agent, "run-1", "neuron_call", """{"contract":"IntoChat.OS.Modules.Apps.IInoData","method":"Search"}""", 1);
+        await Pump(runtime).Tool(Agent, "run-1", "neuron_call", """{"contract":"IntoChat.OS.Modules.Apps.IData","method":"Search"}""", 1);
 
         await Eventually(runtime, presence => presence.State == PresenceState.Searching);
     }
@@ -253,7 +269,7 @@ public sealed class PresenceFacts
 
         Assert.True(result.Ok, result.Text);
         var entry = Assert.Single((await ContextOf(runtime, "ui.focus").Read()).Entries);
-        Assert.Equal(IInoFocus.EntryName, entry.Name);
+        Assert.Equal(IFocus.EntryName, entry.Name);
         Assert.Equal([ContextTags.UiFocus], entry.EffectiveTags);
         using (var json = JsonDocument.Parse(entry.Text))
         {
@@ -301,5 +317,133 @@ public sealed class PresenceFacts
 
         var presence = await Eventually(runtime, presence => presence.NeuronKind == PresenceWorker.Alias);
         Assert.Equal(trace.TraceId, presence.TraceId);
+    }
+
+    [Fact]
+    public async Task ARunningConversationTurnShowsItsTool()
+    {
+        var compiled = new CompiledTypes([typeof(IAgentContext).Assembly]);
+        var observer = new HoldingBrainObserver(compiled.Entries);
+        var client = new ToolStubChatClient();
+
+        await using var fixture = new PresenceFixture();
+        await using var runtime = await Started(fixture, siloServices: services =>
+        {
+            services.AddSingleton<IChatClient>(client);
+            services.AddSingleton(sp => new OsNeuronSurface(
+                sp.GetRequiredService<INeuronProxies>(),
+                observer,
+                new NeuronTypeSearch(observer, [], null),
+                plain: sp));
+            services.AddSingleton<IAiCredentials, NoProviders>();
+            services.AddSingleton<ISecretRedactor, NoSecrets>();
+            services.AddOptions<AIOptions>();
+            services.AddSingleton<ModelCatalog>();
+        });
+
+        using var person = runtime.As(Who.Person);
+        var conversation = runtime.Get<IConversation>(new NeuronId(runtime.Brain, IConversation.Type, IConversation.KeyOf(ConversationId.Parse("main"))));
+        await conversation.Seat("ino", new AgentDefinition
+        {
+            Instructions = "list available neurons",
+            Contracts = [typeof(IAgentContext).FullName!],
+        });
+
+        await conversation.Say("list neurons");
+        await observer.Entered.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
+        try
+        {
+            var working = await Eventually(runtime, presence => presence.State == PresenceState.Working && presence.Reason == "neurons_list");
+            Assert.Equal(PresenceState.Working, working.State);
+            Assert.Equal("neurons_list", working.Reason);
+        }
+        finally
+        {
+            observer.Release();
+        }
+
+        await Eventually(runtime, presence => presence.State == PresenceState.Idle);
+    }
+
+    private sealed class ToolStubChatClient : IChatClient
+    {
+        private int _step;
+
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _step) == 1)
+            {
+                var call = new FunctionCallContent("c-1", "neurons_list", new Dictionary<string, object?>());
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, [call])));
+            }
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")));
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            if (Interlocked.Increment(ref _step) == 1)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("c-1", "neurons_list", new Dictionary<string, object?>())]);
+                yield break;
+            }
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+
+    private sealed class HoldingBrainObserver(BrainType[] types) : IBrainObserver
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Entered => _entered.Task;
+
+        public void Release() => _release.TrySetResult();
+
+        public IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken) where T : class
+            => AsyncEnumerable.Empty<BrainInstance>();
+
+        public async IAsyncEnumerable<BrainInstance> Instances(string? type, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _entered.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+            yield break;
+        }
+
+        public Task<BrainType[]> Types(CancellationToken cancellationToken = default) => Task.FromResult(types);
+
+        public Task<string[]> Brains(CancellationToken cancellationToken = default) => Task.FromResult<string[]>([]);
+
+        public Task<ObservedWire[]> Wires(CancellationToken cancellationToken = default) => Task.FromResult<ObservedWire[]>([]);
+
+        public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)
+            => AsyncEnumerable.Empty<SignalDelivery>();
+
+        public Task<JsonElement?> State(NeuronId id, CancellationToken cancellationToken = default)
+            => Task.FromResult<JsonElement?>(null);
+    }
+
+    private sealed class NoProviders : IAiCredentials
+    {
+        public Task<IntegrationSnapshot> StatusOf(string integrationId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new IntegrationSnapshot { IntegrationId = integrationId, Status = IntegrationStatus.Unconfigured });
+        public Task<long> GenerationOf(string integrationId, CancellationToken cancellationToken = default) => Task.FromResult(0L);
+        public Task<ReleasedIntegration> MaterializeAsync(string integrationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class NoSecrets : ISecretRedactor
+    {
+        public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken) => ValueTask.FromResult(text);
+        public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 }

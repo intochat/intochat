@@ -45,7 +45,6 @@ public static class OsAppsHosting
         }
         services.AddSingleton<OsAppsRegistered>();
         services.TryAddSingleton<IntoChat.OS.Modules.Flutter.IUiRootProvider, OsWorkspaceRoot>();
-        services.TryAddSingleton<IntoChat.OS.Modules.Flutter.Chat.IChatAgentSource, AgentChatSource>();
         return services.AddOperatingSystemBoot(configure);
     }
 

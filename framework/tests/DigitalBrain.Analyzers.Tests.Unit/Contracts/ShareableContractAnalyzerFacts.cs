@@ -354,5 +354,17 @@ public sealed class ShareableContractAnalyzerFacts
             Task<IUnannotatedService> {|DB0031:GetService|}();
         }
         """);
+
+    [Fact]
+    public Task Static_helper_method_on_shareable_interface_reports_nothing() => Verify<ShareableContractAnalyzer>.Diagnostics("""
+        using System.Threading.Tasks;
+        using DigitalBrain.Access;
+        [Shareable]
+        public interface IHelperContract
+        {
+            static string KeyOf(string id) => "items/" + id;
+            Task<string> Read();
+        }
+        """);
 }
 

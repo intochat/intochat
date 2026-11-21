@@ -50,7 +50,12 @@ internal sealed class NeuronTools(OsNeuronSurface surface, McpCaller caller)
     }
 
     [McpServerTool(Name = NeuronSurfaceTools.CallName), Description(NeuronSurfaceTools.CallDescription)]
-    public async Task<CallToolResult> Call(string contract, string key, string method, string arguments = "[]", CancellationToken cancellationToken = default)
+    public async Task<CallToolResult> Call(
+        string contract,
+        string key,
+        string method,
+        [Description("JSON object of named arguments (or an array of positional arguments), omitting CancellationToken.")] string arguments = "{}",
+        CancellationToken cancellationToken = default)
     {
         try
         {

@@ -178,7 +178,7 @@ public sealed class XWatchEndToEndFacts
         await using var fixture = new Fixture(new XConnection(x));
         await using var runtime = await fixture.Start(NeuronRuntimeKind.TestOS, Ct);
         using var person = runtime.As(Who.Person);
-        var ino = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
+        var ino = runtime.Get<IStudio>(runtime.Id("ino.studio", "ino/studio"));
 
         // 1. The sentence: Ino starts the build flow, which runs author, draft, verify, deploy and waits on install.
         var made = await ino.Make("track elonmusk on X every 6 minutes and show the unseen count");

@@ -131,7 +131,7 @@ internal static class AgentHistoryCompactor
         else
         {
             var effectiveThreshold = Math.Min(Math.Max(2, definition.MaxHistoryMessages), Math.Max(2, definition.CompactionThreshold));
-            if (messages.Length <= effectiveThreshold && messages.Sum(MessageSize) <= AgentNeuron.MaxHistoryCharacters)
+            if (messages.Length <= effectiveThreshold && messages.Sum(MessageSize) <= TurnRunner.MaxHistoryCharacters)
             {
                 return (messages, existingSummary ?? "", 0);
             }
@@ -143,7 +143,7 @@ internal static class AgentHistoryCompactor
         var evicted = messages[..drop];
         var kept = drop >= messages.Length
             ? []
-            : BuildKeptMessages(evicted, messages[drop..], AgentNeuron.MaxHistoryCharacters);
+            : BuildKeptMessages(evicted, messages[drop..], TurnRunner.MaxHistoryCharacters);
 
         string? summary = null;
         if (definition.UseModelSummarizer && evicted.Length > 0)

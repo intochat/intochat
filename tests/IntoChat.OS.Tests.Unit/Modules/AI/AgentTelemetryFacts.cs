@@ -10,7 +10,7 @@ public sealed class AgentTelemetryFacts
 {
     private static FunctionCallContent Call() => new("c1", "neurons_call", new Dictionary<string, object?>
     {
-        ["contract"] = "IntoChat.OS.Modules.Apps.IInoFiles",
+        ["contract"] = "IntoChat.OS.Modules.Apps.IFiles",
         ["key"] = "{brain}/ino/files",
         ["method"] = "Write",
         ["arguments"] = "[\"a.txt\",\"secret\"]",
@@ -40,7 +40,7 @@ public sealed class AgentTelemetryFacts
         }
         var tool = Assert.Single(stopped);
         Assert.Equal("execute_tool neurons_call", tool.DisplayName);
-        Assert.Equal("IntoChat.OS.Modules.Apps.IInoFiles", tool.GetTagItem("intochat.contract"));
+        Assert.Equal("IntoChat.OS.Modules.Apps.IFiles", tool.GetTagItem("intochat.contract"));
         Assert.Equal("Write", tool.GetTagItem("intochat.method"));
         Assert.Null(tool.GetTagItem("gen_ai.tool.call.arguments"));
         Assert.Null(tool.GetTagItem("gen_ai.tool.call.result"));
@@ -65,4 +65,20 @@ public sealed class AgentTelemetryFacts
     [InlineData("owner/ino/conversations/main", "ino")]
     [InlineData("solo", "solo")]
     public void TheAgentIsNamedByItsApp(string conversation, string expected) => Assert.Equal(expected, AgentTurnLoop.AgentName(conversation));
+
+    [Fact]
+    public void FirstTokenIsAnEventOnTheTurn()
+    {
+        var stopped = Listen(out var listener);
+        using (listener)
+        {
+            using var turn = AgentTelemetry.Turn("ino", "conversations/c-1", "r1");
+            AgentTelemetry.FirstToken(turn, TimeSpan.FromMilliseconds(420));
+            Assert.Equal(
+                420d,
+                Assert.Single(turn!.Events, e => e.Name == "gen_ai.first_token")
+                    .Tags.Single(t => t.Key == "intochat.first_token_ms").Value);
+        }
+        Assert.Single(stopped);
+    }
 }

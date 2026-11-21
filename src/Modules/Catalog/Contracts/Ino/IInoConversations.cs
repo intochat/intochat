@@ -2,27 +2,18 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The user's Ino conversation agents, current first. Ino's set watch selects the current one, so it follows /new.
+// Legacy registry kept for two releases after S3 so SessionListNeuron can lazily import old conversation order. See OWED.md.
 public sealed record InoConversationsState(string[] Agents)
 {
     public InoConversationsState() : this([]) { }
 }
-
-[DigitalBrain.Signal("ino.conversations.changed")]
-public sealed record InoConversationsChanged(string Current) : DigitalBrain.Signal;
 
 [NeuronAlias("ino.conversations"), DefaultNeuronType("ino.conversations")]
 public interface IInoConversations
 {
     const string DefaultKey = "ino/conversations";
 
-    // Makes agentKey the current conversation agent; emits InoConversationsChanged only when it changes.
-    Task Use(string agentKey);
-
-    [DigitalBrain.Contracts.ReadOnlyCall]
-    Task<string[]> Current();
-
-    /// <summary>Returns all tracked conversation agent keys (most recent first, up to 64).</summary>
+    /// <summary>Returns all legacy tracked conversation agent keys (most recent first, up to 64).</summary>
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<string[]> List();
 }

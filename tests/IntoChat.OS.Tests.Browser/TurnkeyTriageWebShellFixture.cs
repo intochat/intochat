@@ -178,7 +178,7 @@ public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
                 Response: """{"auth_kind":"pat"}"""));
             Assert.Equal(ConnectionStatus.Connected, connected.Status);
 
-            var studio = SiloNeurons.Get<IInoStudio>(Services, new NeuronId(brainId, "ino.studio", "ino/studio"));
+            var studio = SiloNeurons.Get<IStudio>(Services, new NeuronId(brainId, "ino.studio", "ino/studio"));
             var installed = await studio.CreateIssueTriageSynapse("connection/github/main", "DraftForApproval", ct);
             Assert.True(installed.Ok, installed.Text);
 

@@ -16,6 +16,7 @@
     <Content Include="../../src/Assets/wire/*.json" Link="wire/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Modules/Windows/hostile-paths.json" Link="hostile-paths.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Modules/Catalog/Apps/AppStateV1.bin" CopyToOutputDirectory="PreserveNewest" Link="AppStateV1.bin" />
+    <None Update="Modules/AI/Conversations/Legacy/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />

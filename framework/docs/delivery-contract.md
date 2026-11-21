@@ -3,7 +3,7 @@
 How a journaled signal reaches the neurons that hold a synapse to its publisher.
 
 ## Guarantees
-Signals a neuron publishes with `Save(next, signals)` or `Publish(signal)` are written to the brain journal and delivered **at-least-once** to every subscriber. `PublishEphemeral(signal)` is not journaled and is outside this contract.
+Signals a neuron publishes with `Save(next, signals)` or `Publish(signal)` are written to the brain journal and delivered **at-least-once** to every subscriber. `PublishEphemeral(signal)` (and any `[EphemeralSignal]` passed to `Publish`) is not journaled and is outside this durable contract: it reaches silo-local listeners and subscribed session synapses (`runtime.session`) best-effort with sequence `0`, and is dropped if a session's pending queue is full. Durable neuron synapses never receive ephemeral offers.
 
 ## Payload
 The journal keeps each signal as a `JournaledSignal`: the publisher's `NeuronId`, the publisher sequence, the typed `Signal`, the time, the trace id and the causation id. A typed reaction gets the `Signal`. An alias reaction gets a `SignalEnvelope` with the alias and the raw JSON payload.

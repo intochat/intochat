@@ -1,0 +1,50 @@
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Read the long report"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "call-trunc-1",
+        "name": "files_open",
+        "argumentsJson": "{\"path\":\"report.txt\"}"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "call-trunc-1",
+        "resultJson": "{\"truncated\":true,\"characters\":9000,\"preview\":\"Large report preview...\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Here is the summary of the report."
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Pasted workspace link."
+      }
+    ]
+  }
+]

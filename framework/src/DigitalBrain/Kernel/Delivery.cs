@@ -13,13 +13,16 @@ internal class DeliveryCounters(Action<NeuronId, NeuronId?, Position, Exception>
     private long _duplicates;
     private long _reads;
     private long _failures;
+    private long _ephemeralOffersDropped;
 
     public long DuplicatesDropped => Interlocked.Read(ref _duplicates);
     public long HistoryReads => Interlocked.Read(ref _reads);
     public long ReactionFailures => Interlocked.Read(ref _failures);
+    public long EphemeralOffersDropped => Interlocked.Read(ref _ephemeralOffersDropped);
 
     public void Duplicate() => Interlocked.Increment(ref _duplicates);
     public void Read() => Interlocked.Increment(ref _reads);
+    public void EphemeralOfferDropped() => Interlocked.Increment(ref _ephemeralOffersDropped);
 
     public void Failure(NeuronId subscriber, NeuronId? source, Position position, Exception error)
     {

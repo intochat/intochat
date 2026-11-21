@@ -358,7 +358,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
                 new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
                 new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
                 new("set-github-triage-policy", "Adopt, update, or reset the github.issue.comment governance PolicyRule preset."),
-                new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IInoStudio."),
+                new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IStudio."),
                 new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
             ],
             Settings: [],

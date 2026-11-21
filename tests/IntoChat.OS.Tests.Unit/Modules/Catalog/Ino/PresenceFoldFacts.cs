@@ -1,52 +1,47 @@
 using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
+using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Ino;
 
-public sealed record FakeAgentState(AgentState? Agent)
+public sealed record FakeConversationState(ConversationView? View)
 {
-    public FakeAgentState() : this((AgentState?)null) { }
+    public FakeConversationState() : this((ConversationView?)null) { }
 }
 
-public interface IFakeAgent : IAgent
+public interface IFakeConversation : IConversation
 {
-    Task Seed(AgentState state);
-
-    Task Publish(TurnStarted started);
+    Task Seed(ConversationView view);
 }
 
-// Stands in for the agent neuron: Read answers the seeded state, and the facts publish its turn signals.
-[DigitalBrain.Neurons.Neuron(AgentSignals.NeuronType)]
-public sealed class FakeAgent : DigitalBrain.Neurons.Neuron<FakeAgentState>, IFakeAgent
+// Stands in for the conversation neuron: Read answers the seeded view and publishes ConversationChanged.
+[DigitalBrain.Neurons.Neuron(IConversation.Type)]
+public sealed class FakeConversation : DigitalBrain.Neurons.Neuron<FakeConversationState>, IFakeConversation
 {
-    public Task Seed(AgentState state) => Save(State with { Agent = state }, new AgentConfigured(Id.Key, 1));
+    private ConversationId ConvId
+        => ConversationId.Parse(Id.Key.StartsWith("conversations/", StringComparison.Ordinal) ? Id.Key["conversations/".Length..] : Id.Key);
 
-    public Task Publish(TurnStarted started) => Save(State, started);
+    public Task Seed(ConversationView view)
+        => Save(State with { View = view }, new ConversationChanged(view.Id, view.Revision));
 
-    public Task<AgentState> Read() => Task.FromResult(State.Agent ?? new AgentState(0, new AgentDefinition(), null, null, []));
+    public Task<ConversationView> Read(long? sinceRevision = null)
+        => Task.FromResult(State.View ?? new ConversationView(ConvId, 0, [], [], null, [], false, []));
 
-    public Task Configure(AgentDefinition definition, long expectedRevision) => throw new NotSupportedException();
-
-    public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default) => throw new NotSupportedException();
-
-    public Task<string> Start(AgentTurn turn, string? flowId = null) => throw new NotSupportedException();
-
-    public Task Cancel() => throw new NotSupportedException();
-
-    public Task CancelRun(string runId) => throw new NotSupportedException();
-
-    public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([]);
-
-    public Task Clear() => throw new NotSupportedException();
-
-    public Task Post(string text, string id) => throw new NotSupportedException();
+    public Task Seat(string agentId, AgentDefinition definition) => Task.CompletedTask;
+    public Task Say(string text, ModelId? model = null) => throw new NotSupportedException();
+    public Task Stop() => Task.CompletedTask;
+    public Task Regenerate(EntryId reply) => throw new NotSupportedException();
+    public Task Post(string text, string id) => Task.CompletedTask;
+    public Task Invite(AccountId friend) => throw new NotSupportedException();
 }
 
 public sealed record FakeContextState(ContextEntry[] Entries)
@@ -61,7 +56,6 @@ public sealed class FakeAgentContext : DigitalBrain.Neurons.Neuron<FakeContextSt
     public Task Set(ContextEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        // TestOS does not carry a stamped caller into the turn, so a fact names the trust on the entry it sets.
         var kept = entry with { Provenance = entry.Provenance ?? new EntryProvenance("", DateTimeOffset.UtcNow, ContextTrust.App) };
         var entries = State.Entries.Where(item => item.Name != entry.Name).Append(kept).ToArray();
         return Save(State with { Entries = entries }, new ContextUpdated(Id.ToString(), entries.Length, entry.Name));
@@ -86,8 +80,6 @@ public interface IFakeFlows : IFlows
     Task Seed(FlowView flow);
 }
 
-// Stands in for the flows index: Read answers seeded views. TestOS does not carry a stamped caller into a neuron's turn, so the
-// facts seed the App and Conversation that FlowsNeuron records from it (FlowsNeuronFacts proves that part on a silo).
 [DigitalBrain.Neurons.Neuron("flows")]
 public sealed class FakeFlows : DigitalBrain.Neurons.Neuron<FakeFlowsState>, IFakeFlows
 {
@@ -128,21 +120,27 @@ public sealed class FlowDonePump : DigitalBrain.Neurons.Neuron<FlowDonePumpState
 public sealed class PresenceFoldFacts
 {
     private static readonly BrainId Brain = new("local");
-
-    private const string Agent = "ino/conversations/main";
-
+    private const string ConvId = "main";
+    private const string LegacyAgent = "ino/conversations/main";
     private static readonly NeuronId PresenceId = IPresence.Key(Brain.Value);
 
     private static async Task<TestOS> Started()
     {
         var os = TestOS.Local();
-        os.Register<PresenceNeuron>().Register<InoConversationsNeuron>().Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
-            .Register<FakeAgent>().Register<FakeAgentContext>().Register<FakeFlows>().Register<FlowDonePump>();
-        await os.Get<IInoConversations>(new NeuronId(Brain, "ino.conversations", IInoConversations.DefaultKey)).Use(Agent);
+        os.Register<PresenceNeuron>()
+            .Register<SessionListNeuron>()
+            .Register<InoConversationsNeuron>()
+            .Register<IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron>()
+            .Register<FakeConversation>()
+            .Register<FakeAgentContext>()
+            .Register<FakeFlows>()
+            .Register<FlowDonePump>();
+        await os.Get<ISessionList>(new NeuronId(Brain, Sessions.Type, ISessionList.DefaultKey)).Open(ConvId);
         return os;
     }
 
-    private static IFakeAgent AgentOf(TestOS os) => os.Get<IFakeAgent>(new NeuronId(Brain, AgentSignals.NeuronType, Agent));
+    private static IFakeConversation ConversationOf(TestOS os)
+        => os.Get<IFakeConversation>(new NeuronId(Brain, IConversation.Type, IConversation.KeyOf(ConversationId.Parse(ConvId))));
 
     private static IPresence Presence(TestOS os) => os.Get<IPresence>(PresenceId);
 
@@ -153,15 +151,16 @@ public sealed class PresenceFoldFacts
     }
 
     [Fact]
-    public async Task ReactivationRebuildsPresenceFromAgentAndContexts()
+    public async Task ReactivationRebuildsPresenceFromConversationAndContexts()
     {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
         await using var os = await Started();
         var run = new AgentRun("run-1", AgentRunStatus.Running, "hi", os.Clock.GetUtcNow())
         {
-            ToolCalls = [new AgentToolCall("c1", "neuron_call", """{"method":"Write"}""")],
+            ToolCalls = [new AgentToolCall("c1", "files_write", """{"name":"a.txt"}""")],
         };
-        await AgentOf(os).Seed(new AgentState(1, new AgentDefinition { Contexts = ["context/security.posture"] }, null, run, []));
+        await ConversationOf(os).Seed(new ConversationView(
+            ConversationId.Parse(ConvId), 1, [], [], run, [], false, ["context/security.posture"]));
         await os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/security.posture"))
             .Set(new ContextEntry("stop", "Stop now.", [], [ContextTags.Interrupt], new EntryProvenance("person", DateTimeOffset.UtcNow, ContextTrust.User)));
 
@@ -178,17 +177,20 @@ public sealed class PresenceFoldFacts
         await os.Deactivate(PresenceId);
         await os.Idle();
 
-        Assert.Equal(PresenceState.Working, (await Settled(os)).State);
+        var working = await Settled(os);
+        Assert.Equal(PresenceState.Working, working.State);
+        Assert.Equal("files_write", working.Reason);
     }
 
     [Fact]
     public async Task ListeningExpiresAfterTwoSeconds()
     {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
         await using var os = await Started();
         await Settled(os);
 
-        await AgentOf(os).Publish(new TurnStarted(Agent, "run-1", "hi"));
+        var run = new AgentRun("run-1", AgentRunStatus.Running, "hi", os.Clock.GetUtcNow());
+        await ConversationOf(os).Seed(new ConversationView(ConversationId.Parse(ConvId), 1, [], [], run, [], false, []));
         Assert.Equal(PresenceState.Listening, (await Settled(os)).State);
 
         os.Clock.Advance(TimeSpan.FromSeconds(2.1));
@@ -199,12 +201,12 @@ public sealed class PresenceFoldFacts
     [Fact]
     public async Task AttentionExpiresAfterTenSeconds()
     {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
         await using var os = await Started();
         await Settled(os);
         const string flowId = "local/test.flow/f1";
         await os.Get<IFakeFlows>(IFlows.Key(Brain.Value)).Seed(new FlowView(flowId, "test.flow", "Report", "person", "t1", FlowStatus.Waiting, ["only"], [],
-            "only", null, null, null, 0, [], [], null, os.Clock.GetUtcNow(), null, null, "assistant", Agent));
+            "only", null, null, null, 0, [], [], null, os.Clock.GetUtcNow(), null, null, "assistant", LegacyAgent));
         await os.Idle();
 
         await os.Get<IFlowDonePump>(new NeuronId(Brain, FlowDonePump.Alias, "pump")).Failed(flowId, "boom");

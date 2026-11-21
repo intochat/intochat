@@ -8,8 +8,13 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Tests.Unit.Ino;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
 
@@ -91,28 +96,27 @@ public sealed class InoReactorViewFacts
     [Fact]
     public void AssistantTurnsRenderLiveInlineSlotsFromBracketTagsSlotUrisAndStructuredAppletCards()
     {
-        var state = new InoAppState() with
-        {
-            Status = InoModel.Ready,
-            Messages =
+        var owner = new Participant.Human(new AccountId("local"));
+        var ino = new Participant.Assistant("ino");
+        var slotCard = new InoCard("slot-usage", "slot", "Usage Live", "Live usage stream", "neuron://local/apps/usage/view", "ready");
+        var appletCard = new InoCard("app-scratch", "applet", "Live App: scratch", "Interactive scratchpad", "neuron://local/apps/scratch", "running");
+        var viewData = new ConversationView(
+            ConversationId.Parse("main"),
+            1,
+            [owner, ino],
             [
-                new InoMessage("r1/user", "user", "Build a live FX monitor and open calculator"),
-                new InoMessage(
-                    "r1/assistant",
-                    "assistant",
-                    "Here are your live surfaces:\n[slot:unit.fx.rates] and slot://apps/calculator/view")
-                {
-                    Model = "claude-sonnet-4-6",
-                    Cards =
-                    [
-                        new InoCard("slot-usage", "slot", "Usage Live", "Live usage stream", "neuron://local/apps/usage/view", "ready"),
-                        new InoCard("app-scratch", "applet", "Live App: scratch", "Interactive scratchpad", "neuron://local/apps/scratch", "running"),
-                    ],
-                },
+                new Said(EntryIds.Said("r1"), owner, At, "Build a live FX monitor and open calculator"),
+                new Returned(EntryIds.Result("r1", "c1"), ino, At, "studio_make", JsonSerializer.Serialize(new InoToolResult("ok", slotCard), JsonSerializerOptions.Web), true, null),
+                new Returned(EntryIds.Result("r1", "c2"), ino, At, "studio_make", JsonSerializer.Serialize(new InoToolResult("ok", appletCard), JsonSerializerOptions.Web), true, null),
+                new Said(EntryIds.Reply("r1"), ino, At, "Here are your live surfaces:\n[slot:unit.fx.rates] and slot://apps/calculator/view", new ModelId("claude-sonnet-4-6")),
             ],
-        };
+            null,
+            [],
+            false,
+            []);
+        var state = new InoAppState() { Status = InoModel.Ready };
 
-        var view = InoDrawing.Screen(state);
+        var view = InoDrawing.Screen(state, view: viewData);
         var conversation = Assert.IsType<Conversation>(Assert.Single(Assert.IsType<Column>(view.Root).Children));
         var assistant = conversation.Messages[1];
 
@@ -178,7 +182,7 @@ public sealed class InoReactorViewFacts
     }
 
     [Fact]
-    public void EmptyWorkingNeedsApprovalAndErrorStatesRenderCleanKitChromeAndStatusPills()
+    public void EmptyWorkingNeedsApprovalAndErrorStatesRenderCleanKitChrome()
     {
         // 1. Empty state
         var emptyState = new InoAppState() with { SelectedModel = "claude-sonnet-4-6" };
@@ -187,9 +191,6 @@ public sealed class InoReactorViewFacts
         Assert.Equal("What do you need?", emptyConv.Empty?.Title);
         Assert.True(emptyConv.Composer.Enabled);
         Assert.Equal("Sonnet 4.6", emptyConv.Composer.ActiveModelLabel);
-        var emptySidePill = FindFirst<TagPill>(InoView.Side(emptyState).Root);
-        Assert.NotNull(emptySidePill);
-        Assert.Equal(("done", "check", "Ready"), (emptySidePill!.Tone, emptySidePill.Icon, emptySidePill.Label));
 
         // 2. Working state
         var workingState = InoModel.Started(InoModel.Sent(emptyState, "Analyze pipeline", "p1", At), "run-42", "claude-sonnet-4-6");
@@ -198,9 +199,6 @@ public sealed class InoReactorViewFacts
         Assert.False(workingConv.Composer.Enabled);
         Assert.NotNull(workingConv.Stop);
         Assert.Equal(InoView.StopKey, workingConv.Stop!.Key);
-        var workingSidePill = FindFirst<TagPill>(InoView.Side(workingState).Root);
-        Assert.NotNull(workingSidePill);
-        Assert.Equal(("working", "loader-circle", "Working"), (workingSidePill!.Tone, workingSidePill.Icon, workingSidePill.Label));
 
         // 3. Needs-approval docked prompt state
         var approvalState = emptyState with
@@ -213,39 +211,38 @@ public sealed class InoReactorViewFacts
         // The approval waits under the conversation thread, in Ino's own screen (its actions are Ino's, not the thread's).
         var dockedApproval = Assert.IsType<ApprovalCardNode>(FindFirst<ApprovalCardNode>(InoDrawing.Screen(approvalState).Root));
         Assert.Null(dockedApproval.Resolve);
-        var approvalSidePill = FindFirst<TagPill>(InoView.Side(approvalState).Root);
-        Assert.NotNull(approvalSidePill);
-        Assert.Equal(("accent", "hand", "Needs you"), (approvalSidePill!.Tone, approvalSidePill.Icon, approvalSidePill.Label));
 
         // 4. Error + inline Kit SecretField setup state
+        var owner = new Participant.Human(new AccountId("local"));
+        var ino = new Participant.Assistant("ino");
+        var errorView = new ConversationView(
+            ConversationId.Parse("main"),
+            1,
+            [owner, ino],
+            [new Said(EntryIds.Said("r1"), owner, At, "Explain architecture")],
+            null,
+            [new AgentRun("r1", AgentRunStatus.Failed, "Explain architecture", At) { Failure = AgentFailure.NoProvider }],
+            false,
+            []);
         var errorState = emptyState with
         {
             Status = InoModel.Failed,
             Error = new InoError("no-provider"),
             DetectedLocalModel = "qwen2.5-coder:14b",
-            Messages =
-            [
-                new InoMessage("r1/user", "user", "Explain architecture"),
-                new InoMessage("r1/assistant", "assistant", string.Empty, "failed") { Failure = "no-provider" },
-            ],
         };
-        var errorConv = InoDrawing.Conversation(errorState);
+        var errorConv = InoDrawing.Conversation(errorState, view: errorView);
         Assert.Equal("failed", errorConv.Status);
         Assert.Equal("Ino has no model to answer with.", errorConv.Error?.What);
-        Assert.Equal(ChatThreadNeuron.RetryKeyOf("r1/assistant"), errorConv.Messages[^1].Retry?.Key);
+        Assert.Equal(ChatThreadNeuron.RetryKeyOf(EntryIds.Reply("r1").Value), errorConv.Messages[^1].Retry?.Key);
         Assert.Equal("Ino has no model to answer with.", errorConv.Messages[^1].Error?.What);
 
         // Model setup is Ino's own (its actions reach Ino): it is drawn under the conversation thread.
-        var setupCard = Assert.IsType<Card>(FindFirst<Card>(InoDrawing.Screen(errorState).Root));
+        var setupCard = Assert.IsType<Card>(FindFirst<Card>(InoDrawing.Screen(errorState, view: errorView).Root));
         var useLocalBtn = Assert.Single(setupCard.Children.OfType<Button>());
         Assert.Equal(InoView.UseLocalKey, useLocalBtn.Key);
         var secretField = Assert.Single(setupCard.Children.OfType<Field>());
         Assert.Equal(InoView.ProviderCredentialKey, secretField.Key);
         Assert.Equal(FieldKind.Secret, secretField.Kind);
-
-        var errorSidePill = FindFirst<TagPill>(InoView.Side(errorState).Root);
-        Assert.NotNull(errorSidePill);
-        Assert.Equal(("error", "triangle-alert", "Attention"), (errorSidePill!.Tone, errorSidePill.Icon, errorSidePill.Label));
     }
 
     private static IEnumerable<NeuronRef> CollectNeuronRefs(IEnumerable<Node> nodes)

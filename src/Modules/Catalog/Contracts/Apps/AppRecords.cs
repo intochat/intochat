@@ -37,6 +37,7 @@ public sealed record InoLink(string Request, string App, string Input);
 public interface IInoRecords
 {
     const string Key = "apps/ino/records";
+    const int MaxLinksKept = 200;
 
     [DigitalBrain.Contracts.ReadOnlyCall] Task<InoRecords> Read();
     Task Write(InoRecords records);

@@ -1,15 +1,19 @@
-using DigitalBrain;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Xml.Linq;
+using DigitalBrain;
 using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +23,11 @@ namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 public sealed class InoViewFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant Ino = new("ino");
+
+    private static ConversationView ViewOf(AgentRun? active = null, AgentRun[]? runs = null, params ConversationEntry[] entries)
+        => new(ConversationId.Parse("main"), 1, [Owner, Ino], entries, active, runs ?? [], false, []);
 
     [Fact]
     public void AnEmptyConversationHasAnEmptyState()
@@ -34,18 +43,16 @@ public sealed class InoViewFacts
     [Fact]
     public void MyPendingMessageIsDrawnLastAndMarkedSending()
     {
-        var s = InoModel.Sent(
-            new InoAppState() with
-            {
-                Messages = [new("r0/user", "user", "earlier"), new("r0/assistant", "assistant", "ok")],
-            },
-            "hello",
-            "p1",
-            At);
+        var view = ViewOf(entries:
+        [
+            new Said(EntryIds.Said("r0"), Owner, At, "earlier"),
+            new Said(EntryIds.Reply("r0"), Ino, At, "ok"),
+        ]);
+        var s = InoModel.Sent(new InoAppState(), "hello", "p1", At);
 
-        var c = InoDrawing.Conversation(s);
+        var c = InoDrawing.Conversation(s, view: view);
         Assert.Equal(("user", "hello", "sending"), (c.Messages[^1].Role, c.Messages[^1].Text, c.Messages[^1].Status));
-        Assert.Contains("hello", Texts(InoDrawing.Screen(s)));
+        Assert.Contains("hello", Texts(InoDrawing.Screen(s, view: view)));
     }
 
     [Fact]
@@ -58,20 +65,18 @@ public sealed class InoViewFacts
     [Fact]
     public void NoProviderWithDetectedLocalRtxModelOffersOneClickChoiceAndInlineKeySetup()
     {
+        var view = ViewOf(
+            runs: [new AgentRun("r1", AgentRunStatus.Failed, "Write a migration", At) { Failure = AgentFailure.NoProvider }],
+            entries: [new Said(EntryIds.Said("r1"), Owner, At, "Write a migration")]);
         var s = new InoAppState() with
         {
             Error = new InoError("no-provider"),
             Status = InoModel.Failed,
             DetectedLocalModel = "qwen2.5-coder:14b",
             DetectedLocalModels = ["qwen2.5-coder:14b", "qwen3.5:4b"],
-            Messages =
-            [
-                new InoMessage("r1/user", "user", "Write a migration"),
-                new InoMessage("r1/assistant", "assistant", "", "failed") { Failure = "no-provider" },
-            ],
         };
 
-        var screen = InoDrawing.Screen(s);
+        var screen = InoDrawing.Screen(s, view: view);
         var texts = Texts(screen);
         Assert.Contains("Ino has no model to answer with.", texts);
         Assert.Contains("Use local model (qwen2.5-coder:14b)", texts);
@@ -102,19 +107,23 @@ public sealed class InoViewFacts
     public void AViewOf512LongMessagesStaysUnderTheLimit()
     {
         var many = Enumerable.Range(0, 512)
-            .Select(i => new InoMessage($"m{i}", i % 2 == 0 ? "user" : "assistant", new string('x', 8_000)))
+            .Select(i => (ConversationEntry)(i % 2 == 0
+                ? new Said(EntryIds.Said($"r{i}"), Owner, At, new string('x', 8_000))
+                : new Said(EntryIds.Reply($"r{i - 1}"), Ino, At, new string('x', 8_000))))
             .ToArray();
-        var s = new InoAppState() with { Messages = many };
-        Assert.True(InoView.Shown(s).Count <= InoView.MaxRenderedMessages);
-        Assert.True(JsonSerializer.SerializeToUtf8Bytes(InoDrawing.Screen(s), JsonSerializerOptions.Web).Length < 2 * 1024 * 1024);
-        Assert.Equal("m511", InoView.Shown(s)[^1].Id);
+        var view = ViewOf(entries: many);
+        var s = new InoAppState();
+        var thread = InoView.Thread(s, view);
+        Assert.True(thread.Count <= InoView.MaxRenderedMessages);
+        Assert.True(JsonSerializer.SerializeToUtf8Bytes(InoDrawing.Screen(s, view: view), JsonSerializerOptions.Web).Length < 2 * 1024 * 1024);
+        Assert.Equal("r510/reply", thread[^1].Id);
     }
 
     [Fact]
     public void OneEnormousReplyIsCutNotDropped()
     {
-        var s = new InoAppState() with { Messages = [new("m0", "assistant", new string('x', 3_000_000))] };
-        Assert.Equal(InoView.MaxRenderedChars, InoView.Shown(s).Single().Text.Length);
+        var view = ViewOf(entries: [new Said(EntryIds.Reply("r0"), Ino, At, new string('x', 3_000_000))]);
+        Assert.Equal(InoView.MaxRenderedChars, InoView.Thread(new InoAppState(), view).Single().Text.Length);
     }
 
     [Theory]
@@ -125,9 +134,9 @@ public sealed class InoViewFacts
     [InlineData("InoApp")]
     public void NoInternalVocabularyReachesThePerson(string forbidden)
     {
-        foreach (var s in States.All)
+        foreach (var (s, v) in States.All)
         {
-            var texts = Texts(InoDrawing.Screen(s));
+            var texts = Texts(InoDrawing.Screen(s, view: v));
             Assert.DoesNotContain(texts, t => t.Contains(forbidden, StringComparison.Ordinal));
         }
     }
@@ -197,7 +206,7 @@ public sealed class InoViewFacts
             .BuildServiceProvider();
         await using var os = TestOS.Local(o => o.Services = services)
             .Register(typeof(AspireModule).Assembly);
-        var neuron = os.Get<IAspire>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "aspire", "default"));
+        var neuron = os.Get<IAspire>(new NeuronId(new BrainId("owner"), "aspire", "default"));
         var resources = await neuron.GetResourcesAsync();
         Assert.Contains(resources, r => r.Name == "ollama" && r.Endpoint == "http://127.0.0.1:11434" && !r.Endpoint.Contains("pw123", StringComparison.Ordinal));
 
@@ -240,6 +249,21 @@ public sealed class InoViewFacts
     [Fact]
     public void OnePlanHasOneApproveControlInTheInoConversation()
     {
+        var approvalCard = new InoCard(
+            "plan-42",
+            "approval",
+            "Waiting for your approval: Add Multiply (0123abcd)",
+            "1 file(s) on ino/add-multiply (+1 / -0)",
+            "neuron://local/runtime.confirmations/confirmations",
+            "pending",
+            "neuron://local/apps/tasks#change-flow-42");
+        var view = ViewOf(entries:
+        [
+            new Said(EntryIds.Said("r1"), Owner, At, "Add Multiply"),
+            new Returned(EntryIds.Result("r1", "c1"), Ino, At, "studio_propose_change",
+                JsonSerializer.Serialize(new InoToolResult("Waiting.", approvalCard), JsonSerializerOptions.Web), true, null),
+            new Said(EntryIds.Reply("r1"), Ino, At, "The change waits for your approval."),
+        ]);
         var state = new InoAppState() with
         {
             Approvals =
@@ -254,27 +278,9 @@ public sealed class InoViewFacts
                     At.AddDays(2),
                     "trace-42"),
             ],
-            Messages =
-            [
-                new InoMessage("r1/user", "user", "Add Multiply"),
-                new InoMessage("r1/assistant", "assistant", "The change waits for your approval.")
-                {
-                    Cards =
-                    [
-                        new InoCard(
-                            "plan-42",
-                            "approval",
-                            "Waiting for your approval: Add Multiply (0123abcd)",
-                            "1 file(s) on ino/add-multiply (+1 / -0)",
-                            "neuron://local/runtime.confirmations/confirmations",
-                            "pending",
-                            "neuron://local/apps/tasks#change-flow-42"),
-                    ],
-                },
-            ],
         };
 
-        var screen = InoDrawing.Screen(state);
+        var screen = InoDrawing.Screen(state, view: view);
         var resolving = new PresentedView("main", screen).Nodes
             .OfType<ApprovalCardNode>()
             .Where(card => card.Resolve?.PlanId == "plan-42")
@@ -290,34 +296,26 @@ public sealed class InoViewFacts
     public void ManifestHasNoVoiceOperationAndNoToolbar()
     {
         Assert.DoesNotContain(InoApp.Bundle.Manifest.Operations, static op => op.Name == "voice");
+        Assert.Contains(InoApp.Bundle.Manifest.Operations, static op => op.Name == "chats");
         Assert.Null(InoApp.Bundle.Manifest.Toolbar);
     }
 
     [Fact]
     public void ConversationFormatsActivityTitlesAndModelBadgesUsingVisualCatalog()
     {
-        var state = new InoAppState() with
-        {
-            SelectedModel = "claude-sonnet-4-6",
-            Messages =
-            [
-                new InoMessage("r1/user", "user", "Inspect cluster and symbols"),
-                new InoMessage("r1/assistant", "assistant", "All green.")
-                {
-                    Model = "claude-sonnet-4-6",
-                    Activities =
-                    [
-                        new InoActivity("a1", "IAspire.GetResourcesAsync", "3 healthy"),
-                        new InoActivity("a2", "aspire"),
-                        new InoActivity("a3", "ino.studio"),
-                        new InoActivity("a4", "IWorkTree"),
-                        new InoActivity("a5", "ICodeGraph.SearchSymbols", "4 matches"),
-                    ],
-                },
-            ],
-        };
+        var view = ViewOf(entries:
+        [
+            new Said(EntryIds.Said("r1"), Owner, At, "Inspect cluster and symbols"),
+            new Returned(EntryIds.Result("r1", "a1"), Ino, At, "IAspire.GetResourcesAsync", "3 healthy", true, null),
+            new Returned(EntryIds.Result("r1", "a2"), Ino, At, "aspire", "", true, null),
+            new Returned(EntryIds.Result("r1", "a3"), Ino, At, "ino.studio", "", true, null),
+            new Returned(EntryIds.Result("r1", "a4"), Ino, At, "IWorkTree", "", true, null),
+            new Returned(EntryIds.Result("r1", "a5"), Ino, At, "ICodeGraph.SearchSymbols", "4 matches", true, null),
+            new Said(EntryIds.Reply("r1"), Ino, At, "All green.", new ModelId("claude-sonnet-4-6")),
+        ]);
+        var state = new InoAppState() with { SelectedModel = "claude-sonnet-4-6" };
 
-        var conversation = InoDrawing.Conversation(state);
+        var conversation = InoDrawing.Conversation(state, view: view);
         Assert.Equal("Sonnet 4.6", conversation.Composer.ActiveModelLabel);
         Assert.Equal("provider:anthropic", conversation.Composer.ActiveProviderIcon);
 
@@ -460,47 +458,32 @@ public sealed class InoViewFacts
     }
 
     [Fact]
-    public void ProjectedChatFormatsNeuronsCallJsonIntoBrandActivityLabels()
+    public void ConversationFormatsNeuronsCallJsonIntoBrandActivityLabels()
     {
-        var chat = new IntoChat.OS.Modules.Flutter.Chat.ChatState
+        var run = new AgentRun("r1", AgentRunStatus.Completed, "check health", At, Reply: "Healthy")
         {
-            Name = "local/ino/chats/main",
-            Revision = 1,
-            Selection = new IntoChat.OS.Modules.Flutter.Chat.ChatSelection("local/ino/conversations/main", 1),
-            Projection = new IntoChat.OS.Modules.Flutter.Chat.ChatProjection(
-                "local/ino/conversations/main",
-                1,
-                1,
-                [
-                    new IntoChat.OS.Modules.Flutter.Chat.ChatEntry("r1/user", IntoChat.OS.Modules.Flutter.Chat.ChatRole.User, "check health"),
-                    new IntoChat.OS.Modules.Flutter.Chat.ChatEntry("r1/assistant", IntoChat.OS.Modules.Flutter.Chat.ChatRole.Assistant, "Healthy")
-                    {
-                        Model = "qwen2.5-coder:14b",
-                        Activities =
-                        [
-                            new IntoChat.OS.Modules.Flutter.Chat.ChatActivity(
-                                "call-1",
-                                "neurons_call",
-                                """{"contract":"IntoChat.OS.Modules.Microsoft.Aspire.IAspire","key":"local/aspire","method":"GetResourcesAsync"}""",
-                                "ok"),
-                            new IntoChat.OS.Modules.Flutter.Chat.ChatActivity(
-                                "call-2",
-                                "neurons_call",
-                                """{"contract":"IntoChat.OS.Modules.ArtCraft.IArtCraftStudio","key":"local/artcraft/photocraft","method":"ExecuteCommand"}""",
-                                "done"),
-                        ],
-                    },
-                ]),
-            Run = new IntoChat.OS.Modules.Flutter.Chat.ChatRunSnapshot(
-                "local/ino/conversations/main",
-                1,
-                1,
-                "r1",
-                IntoChat.OS.Modules.Flutter.Chat.ChatRunStatus.Completed),
+            ToolCalls =
+            [
+                new AgentToolCall("call-1", "neurons_call",
+                    """{"contract":"IntoChat.OS.Modules.Microsoft.Aspire.IAspire","key":"local/aspire","method":"GetResourcesAsync"}""",
+                    "ok"),
+                new AgentToolCall("call-2", "neurons_call",
+                    """{"contract":"IntoChat.OS.Modules.ArtCraft.IArtCraftStudio","key":"local/artcraft/photocraft","method":"ExecuteCommand"}""",
+                    "done"),
+            ],
         };
+        var view = ViewOf(
+            runs: [run],
+            entries:
+            [
+                new Said(EntryIds.Said("r1"), Owner, At, "check health"),
+                new Returned(EntryIds.Result("r1", "call-1"), Ino, At, "neurons_call", "ok", true, null),
+                new Returned(EntryIds.Result("r1", "call-2"), Ino, At, "neurons_call", "done", true, null),
+                new Said(EntryIds.Reply("r1"), Ino, At, "Healthy", new ModelId("qwen2.5-coder:14b")),
+            ]);
 
-        var projected = InoModel.Projected(new InoAppState(), chat, "local/ino/conversations/main");
-        var conversation = InoDrawing.Conversation(projected);
+        var projected = InoModel.FromConversation(new InoAppState(), view);
+        var conversation = InoDrawing.Conversation(projected, view: view);
         var assistant = conversation.Messages[1];
 
         Assert.Equal("Qwen 2.5 Coder 14B", assistant.Model);
@@ -581,25 +564,34 @@ public sealed class InoViewFacts
     }
 
     [Fact]
+    public void SessionsSectionDrawsNewestConversationsFirstAboveTheThread()
+    {
+        var page = new SessionPage(
+        [
+            new ConversationSession("main", "Current chat", At, false),
+            new ConversationSession("c-6c8edd77", "Bergen trip", At.AddMinutes(-5), false),
+        ], 2);
+        var state = new InoAppState() with { ActiveSection = "chats" };
+
+        var screen = InoDrawing.Screen(state, sessions: page);
+        var presented = new PresentedView("main", screen);
+        var collection = Assert.Single(presented.Nodes.OfType<Collection>());
+        Assert.Equal(["main", "c-6c8edd77"], collection.Entries.Select(static e => e.Id));
+        Assert.Contains(presented.Nodes.OfType<NavItemNode>(), n => n.Key == "session-c-6c8edd77");
+    }
+
+    [Fact]
     public void ANodeCardIsDrawnInsideACardFrame()
     {
         const string nodeJson = """{"kind":"column","children":[{"kind":"text","value":"Apple"}]}""";
-        var state = new InoAppState() with
-        {
-            Messages =
-            [
-                new InoMessage("r1/user", "user", "Show fruit"),
-                new InoMessage("r1/assistant", "assistant", "Here is the card.")
-                {
-                    Cards =
-                    [
-                        new InoCard("node-1", "node", "Fruit", "", IInoFocus.DefaultKey, "done") { Node = nodeJson },
-                    ],
-                },
-            ],
-        };
+        var view = ViewOf(entries:
+        [
+            new Said(EntryIds.Said("r1"), Owner, At, "Show fruit"),
+            new Returned(EntryIds.Result("r1", "c1"), Ino, At, "focus_show", """{"text":"Shown.","ok":true}""", true, new CardEntry("node", "Fruit", nodeJson)),
+            new Said(EntryIds.Reply("r1"), Ino, At, "Here is the card."),
+        ]);
 
-        var conversation = InoDrawing.Conversation(state);
+        var conversation = InoDrawing.Conversation(new InoAppState(), view: view);
         var assistant = conversation.Messages[1];
         var card = Assert.IsType<Card>(Assert.Single(assistant.Cards!));
         Assert.Equal("Fruit", card.Title);
@@ -612,12 +604,21 @@ public sealed class InoViewFacts
     public void AnInvalidStoredNodeCardRendersNothing()
     {
         var nodes = InoView.RenderCardNodes(
-            new InoCard("node-bad", "node", "Hostile", "", IInoFocus.DefaultKey, "done")
+            new InoCard("node-bad", "node", "Hostile", "", IFocus.DefaultKey, "done")
             {
                 Node = """{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""",
             }).ToArray();
 
         Assert.Empty(nodes);
+    }
+
+    [Fact]
+    public void ThreadPropsNameTheConversation()
+    {
+        var convId = "c-" + new string('a', 32);
+        var state = new InoAppState { ConversationId = convId };
+        Assert.Equal("conversations/" + convId, InoView.ThreadProps(state).Conversation);
+        Assert.Equal("conversations/main", InoView.ThreadProps(new InoAppState()).Conversation);
     }
 
     private static IReadOnlyList<string> Texts(View view)

@@ -44,10 +44,6 @@ public sealed class InstalledApp<TApp> where TApp : Neuron
     {
         get
         {
-            if (_app is IntoChat.OS.Apps.Ino.InoApp ino)
-            {
-                return new PresentedView("side", ino.RenderSide());
-            }
             if (_app is IntoChat.OS.Apps.Tasks.TasksApp tasks)
             {
                 return new PresentedView("side", tasks.RenderSide());

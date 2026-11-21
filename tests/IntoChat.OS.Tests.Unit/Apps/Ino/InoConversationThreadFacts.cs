@@ -1,33 +1,30 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Invocation;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
-// Ino's messages live in its conversation thread (a control.chatThread slot under "conversation"), never in Ino's stored state.
+// Ino's messages live in its conversation aggregate and draw through its chatThread slot, never in Ino's stored state.
 public sealed class InoConversationThreadFacts
 {
     private static readonly BrainId Brain = new("local");
     private static readonly NeuronId InoId = new(Brain, "app.ino", "default");
     private static readonly NeuronId ThreadId = new(Brain, "control.chatThread", ScreenExtensions.ChildAddress(InoId, InoView.ConversationKey));
-
-    private static readonly InoMessage[] Legacy =
-    [
-        new("r1/user", "user", "first question"),
-        new("r1/assistant", "assistant", "", "failed") { Failure = "timed-out" },
-        new("r2/user", "user", "second question"),
-        new("r2/assistant", "assistant", "An answer."),
-    ];
+    private static readonly DateTimeOffset At = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant Ino = new("ino");
 
     private sealed class NoSecrets : ISecretRedactor
     {
@@ -35,9 +32,7 @@ public sealed class InoConversationThreadFacts
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 
-    private static TestOS SeededOs(InoAppState state) => SeededOs(JsonSerializer.Serialize(state, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
-
-    private static TestOS SeededOs(string stateJson)
+    private static TestOS CreateOs(InoAppState? state = null)
     {
         var services = new ServiceCollection()
             .AddSingleton<ISecretRedactor, NoSecrets>()
@@ -46,8 +41,12 @@ public sealed class InoConversationThreadFacts
         var os = TestOS.Local(options => options.Services = services);
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly);
         os.Register<InoApp>();
-        os.SeedStoredState(InoId, stateJson);
+        if (state is not null)
+        {
+            os.SeedStoredState(InoId, JsonSerializer.Serialize(state, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
+        }
         return os;
     }
 
@@ -58,77 +57,56 @@ public sealed class InoConversationThreadFacts
     }
 
     [Fact]
-    public async Task Ino_migrates_once_and_clears_state()
+    public async Task Ino_loads_messages_from_the_conversation_and_never_stores_them_in_state()
     {
-        await using var os = SeededOs(new InoAppState() with { Messages = Legacy });
-
+        await using var os = CreateOs();
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+        var conv = os.Get<IConversation>(new NeuronId(Brain, IConversation.Type, InoModel.ConversationKeyOf("main")));
+        await conv.Post("Welcome back.", "welcome");
+
         var ino = await os.Install<InoApp>();
 
         Assert.Null(ino.App.State.Messages);
-        var migrated = await ThreadOf(os);
-        Assert.Equal(Legacy.Select(m => m.Id), migrated.Messages.Select(m => m.Id));
-        Assert.Equal("The model provider did not answer.", migrated.Messages[1].Error?.What);
+        var thread = await ThreadOf(os);
+        var msg = Assert.Single(thread.Messages);
+        Assert.Equal("Welcome back.", msg.Text);
 
         await ino.Request("open", new InoOpen());
-        await ino.Request("open", new InoOpen());
-
         Assert.Null(ino.App.State.Messages);
-        Assert.Equal(Legacy.Select(m => m.Id), (await ThreadOf(os)).Messages.Select(m => m.Id));
     }
 
-    // Ino's stored state exactly as the build before the conversation thread (a2fab86c0) wrote it: messages inside the state record,
-    // web-cased, with a failed reply, a reply that ran a tool and a pending prompt. It loads, migrates into the thread and loses none.
-    private const string PreThreadState = """
-        {"conversationId":"main","title":"first question","status":"Ready","voiceStatus":"idle","turns":[],"cards":[],"connectedDatabase":null,
-         "isPinned":true,"agentKey":"agent-main","activeRunId":null,"blocked":false,"grantSummaries":null,"blockedReason":null,"seenProgress":null,
-         "messages":[
-           {"id":"r1/user","role":"user","text":"first question","status":"completed","model":null,"failure":null,"activities":[],"cards":[]},
-           {"id":"r1/assistant","role":"assistant","text":"","status":"failed","model":"gpt","failure":"timed-out","activities":[],"cards":[]},
-           {"id":"r2/user","role":"user","text":"second question","status":"completed","model":null,"failure":null,"activities":[],"cards":[]},
-           {"id":"r2/assistant","role":"assistant","text":"An answer.","status":"completed","model":"gpt","failure":null,
-            "activities":[{"id":"t1","title":"Read files","result":"2 files","error":null}],"cards":[]}],
-         "chatRevision":7,"pending":null,"error":null,"approvals":null,"smart":false,"selectedModel":null,"detectedLocalModel":null,"detectedLocalModels":null}
-        """;
-
     [Fact]
-    public async Task A_conversation_stored_before_the_thread_loads_migrated_with_no_message_lost()
+    public async Task Legacy_stored_state_with_messages_still_loads_and_clears_messages_on_save()
     {
-        await using var os = SeededOs(PreThreadState);
+        const string preThreadState = """
+            {"conversationId":"main","title":"first question","status":"Ready","voiceStatus":"idle","turns":[],"cards":[],"connectedDatabase":null,
+             "isPinned":true,"agentKey":"agent-main","activeRunId":null,"blocked":false,"grantSummaries":null,"blockedReason":null,"seenProgress":null,
+             "messages":[{"id":"r1/user","role":"user","text":"first question","status":"completed"}],
+             "chatRevision":7,"pending":null,"error":null,"approvals":null,"smart":false,"selectedModel":null,"detectedLocalModel":null,"detectedLocalModels":null}
+            """;
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretRedactor, NoSecrets>()
+            .AddSingleton(TimeProvider.System)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(options => options.Services = services);
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly);
+        os.Register<InoApp>();
+        os.SeedStoredState(InoId, preThreadState);
+
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
         var ino = await os.Install<InoApp>();
 
-        Assert.Null(ino.App.State.Messages);
         Assert.Equal("main", ino.App.State.ConversationId);
         Assert.Equal("first question", ino.App.State.Title);
-        var thread = await ThreadOf(os);
-        Assert.Equal(["r1/user", "r1/assistant", "r2/user", "r2/assistant"], thread.Messages.Select(m => m.Id));
-        Assert.Contains(thread.Messages, m => m.Id == "r1/user" && m.Text.Contains("first question", StringComparison.Ordinal));
-        Assert.Contains(thread.Messages, m => m.Id == "r2/assistant" && m.Text.Contains("An answer.", StringComparison.Ordinal));
-        Assert.NotNull(thread.Messages[1].Error);
+        Assert.Null(ino.App.State.Messages);
     }
 
     [Fact]
-    public async Task Retry_on_older_message_resends_that_turn()
+    public async Task The_composer_sends_through_the_thread_to_the_conversation()
     {
-        await using var os = SeededOs(new InoAppState() with { Messages = Legacy });
-        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
-        var ino = await os.Install<InoApp>();
-        var thread = os.Get<IScreen>(ThreadId);
-        var view = await thread.Read();
-
-        await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.RetryKeyOf("r1/assistant"));
-        await os.Idle();
-
-        var agent = new NeuronId(Brain, AgentSignals.NeuronType, InoModel.AgentKeyOf(ino.App.State.ConversationId));
-        var started = Assert.Single(os.Journal(Brain).Signals(agent).Select(entry => entry.Signal).OfType<TurnStarted>());
-        Assert.Equal("first question", started.UserText);
-    }
-
-    [Fact]
-    public async Task The_composer_sends_through_the_thread()
-    {
-        await using var os = SeededOs(new InoAppState());
+        await using var os = CreateOs(new InoAppState());
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
         var ino = await os.Install<InoApp>();
         var thread = os.Get<IScreen>(ThreadId);
@@ -137,15 +115,16 @@ public sealed class InoConversationThreadFacts
         await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.ComposerKey, "hello there");
         await os.Idle();
 
-        var agent = new NeuronId(Brain, AgentSignals.NeuronType, InoModel.AgentKeyOf(ino.App.State.ConversationId));
-        Assert.Equal("hello there", Assert.Single(os.Journal(Brain).Signals(agent).Select(entry => entry.Signal).OfType<TurnStarted>()).UserText);
+        var conv = os.Get<IConversation>(new NeuronId(Brain, IConversation.Type, InoModel.ConversationKeyOf(ino.App.State.ConversationId)));
+        var said = Assert.Single((await conv.Read()).Entries.OfType<Said>(), static e => e.By is Participant.Human);
+        Assert.Equal("hello there", said.Text);
     }
 
     [Fact]
     public async Task A_thread_that_cannot_be_written_is_said_in_the_slot_props()
     {
         // No chat thread neuron is registered: every write to the thread fails.
-        await using var os = SeededOs(new InoAppState());
+        await using var os = CreateOs(new InoAppState());
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
         await os.Activate(InoId);
         var ino = os.Get<IScreen>(InoId);
@@ -160,25 +139,27 @@ public sealed class InoConversationThreadFacts
     [Fact]
     public void Every_failed_reply_says_why_in_Ino_words()
     {
-        var s = new InoAppState() with
+        var runs = new[]
         {
-            Messages =
-            [
-                new("r1/user", "user", "a"),
-                new("r1/assistant", "assistant", "", "failed"),
-                new("r2/user", "user", "b"),
-                new("r2/assistant", "assistant", "", "failed") { Failure = "" },
-                new("r3/user", "user", "c"),
-                new("r3/assistant", "assistant", "partial", "interrupted"),
-                new("r4/user", "user", "d"),
-                new("r4/assistant", "assistant", "", "failed") { Failure = "provider-unavailable" },
-            ],
+            new AgentRun("r1", AgentRunStatus.Failed, "a", At) { Failure = AgentFailure.Unknown },
+            new AgentRun("r2", AgentRunStatus.Cancelled, "b", At, Reply: "partial"),
+            new AgentRun("r3", AgentRunStatus.Interrupted, "c", At, Reply: "partial"),
+            new AgentRun("r4", AgentRunStatus.Failed, "d", At) { Failure = AgentFailure.ProviderUnavailable },
         };
+        ConversationEntry[] entries =
+        [
+            new Said(EntryIds.Said("r1"), Owner, At, "a"),
+            new Said(EntryIds.Said("r2"), Owner, At, "b"),
+            new Said(EntryIds.Said("r3"), Owner, At, "c"),
+            new Said(EntryIds.Said("r4"), Owner, At, "d"),
+        ];
+        var view = new ConversationView(ConversationId.Parse("main"), 1, [Owner, Ino], entries, null, runs, false, []);
+        var thread = InoView.Thread(new InoAppState(), view);
 
-        var failures = InoView.Thread(s).Where(m => m.Role == "assistant").Select(m => m.Failure).ToArray();
+        var failures = thread.Where(m => m.Role == "assistant").Select(m => m.Failure).ToArray();
 
-        Assert.Equal([ChatThreadNeuron.NoAnswer, ChatThreadNeuron.NoAnswer, "Ino was interrupted.", "The model provider did not answer."], failures);
-        Assert.All(ChatThreadNeuron.Draw("conversation", InoView.Thread(s)).Messages.Where(m => m.Role == "assistant"),
+        Assert.Equal(["Ino could not answer.", "Stopped.", "Ino was interrupted.", "The model provider did not answer."], failures);
+        Assert.All(ChatThreadNeuron.Draw("conversation", thread).Messages.Where(m => m.Role == "assistant"),
             m => Assert.NotNull(m.Retry));
     }
 }

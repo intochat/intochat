@@ -108,6 +108,14 @@ public sealed class ChatThreadNeuronFacts
     }
 
     [Fact]
+    public void ACompletedReplyThatCanRegenerateDrawsRegenerate()
+    {
+        var view = ChatThreadNeuron.Draw("t", [new ThreadMessage("m2", "assistant", "hi") { CanRegenerate = true }]);
+        Assert.Equal(("regenerate:m2", "Regenerate"), (view.Messages[0].Retry!.Key, view.Messages[0].Retry!.Label));
+        Assert.Null(view.Messages[0].Error);
+    }
+
+    [Fact]
     public async Task No_failed_message_renders_blank()
     {
         string?[] reasons = [null, "", "  ", "The model provider did not answer."];

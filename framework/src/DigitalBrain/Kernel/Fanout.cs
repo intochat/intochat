@@ -18,6 +18,7 @@ internal interface IJournalView
 internal interface INudge
 {
     void Nudge(NeuronId subscriber, Position upTo);
+    void Offer(NeuronId subscriber, NeuronId publisher, Signal signal) { }
 }
 
 internal sealed class Fanout(
@@ -44,6 +45,10 @@ internal sealed class Fanout(
     public Task Offered(NeuronId publisher, Signal signal, CancellationToken ct)
     {
         listeners(publisher, [signal]);
+        foreach (var subscriber in journal.Subscriptions.Hearing(publisher, [SignalAliases.Of(signal)], typeOf))
+        {
+            nudge.Offer(subscriber, publisher, signal);
+        }
         return Task.CompletedTask;
     }
 

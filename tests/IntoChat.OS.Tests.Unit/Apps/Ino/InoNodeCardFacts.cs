@@ -125,7 +125,7 @@ public sealed class InoNodeCardFacts
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
-        var focus = os.Get<IInoFocus>(new NeuronId(new BrainId("local"), "ino.focus", IInoFocus.DefaultKey));
+        var focus = os.Get<IFocus>(new NeuronId(new BrainId("local"), "ino.focus", IFocus.DefaultKey));
 
         const string validJson = """{"kind":"column","children":[{"kind":"text","value":"Apple"}]}""";
         var ok = await focus.Show("Fruit", validJson);
@@ -134,7 +134,7 @@ public sealed class InoNodeCardFacts
         Assert.NotNull(ok.Card);
         Assert.Equal("node", ok.Card!.Kind);
         Assert.Equal("Fruit", ok.Card.Title);
-        Assert.Equal(IInoFocus.DefaultKey, ok.Card.SourceNeuronUri);
+        Assert.Equal(IFocus.DefaultKey, ok.Card.SourceNeuronUri);
         Assert.Equal("done", ok.Card.Status);
         Assert.Equal(validJson, ok.Card.Node);
 
@@ -149,4 +149,15 @@ public sealed class InoNodeCardFacts
         Assert.Null(bad.Card);
         Assert.Contains("neuronRef", bad.Text, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void AButtonThatPostsBackIsAccepted() =>
+        Assert.True(InoNodeCard.TryRead("""{"kind":"button","key":"yes","label":"Yes","command":{"target":".","signal":"control.submitText","args":{"value":"Yes, book it"}}}""", out _, out _));
+
+    [Theory]
+    [InlineData("""{"kind":"button","label":"x","command":{"target":"apps/files","signal":"control.submitText","args":{"value":"v"}}}""")]
+    [InlineData("""{"kind":"button","label":"x","command":{"target":".","signal":"control.stop"}}""")]
+    [InlineData("""{"kind":"button","label":"x","command":{"target":".","signal":"control.submitText","args":{"value":""}}}""")]
+    public void AnyOtherCommandIsStillRefused(string json) =>
+        Assert.False(InoNodeCard.TryRead(json, out _, out _));
 }

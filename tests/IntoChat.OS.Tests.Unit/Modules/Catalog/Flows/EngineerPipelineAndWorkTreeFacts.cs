@@ -734,8 +734,8 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.Equal("approval", waiting.Card!.Kind);
         Assert.Contains("neuron://owner/apps/engineer#owner/flow.engineer/inodeleg01", waiting.EngineerAppUri, StringComparison.Ordinal);
 
-        // IInoStudio.ChangeStatus also inspects flow.engineer runs seamlessly!
-        var studio = os.Get<IInoStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
+        // IStudio.ChangeStatus also inspects flow.engineer runs seamlessly!
+        var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
         var studioStatus = await studio.ChangeStatus("inodeleg01", Ct);
         Assert.True(studioStatus.Ok, studioStatus.Text);
         Assert.NotNull(studioStatus.Card);

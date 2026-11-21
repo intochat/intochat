@@ -149,19 +149,13 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         var model = host.Ollama.Models[0];
 
         host.Ollama.EnqueueToolCall(
-            "neurons_call",
+            "ai_memory_remember_preference",
             new
             {
-                contract = typeof(IMemory).FullName,
-                key = $"{host.Scope}/memory",
-                method = nameof(IMemory.RememberPreference),
-                arguments = new object[]
-                {
-                    "owner",
-                    "indentation-style",
-                    "Always format C# files with 4 spaces indentation and no tabs.",
-                    9,
-                },
+                scope = "owner",
+                subject = "indentation-style",
+                body = "Always format C# files with 4 spaces indentation and no tabs.",
+                importance = 9,
             },
             model: model);
         host.Ollama.EnqueueReply("Saved your 4-space C# indentation preference to durable memory.", model);
@@ -243,13 +237,13 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
                     var args = JsonSerializer.SerializeToElement(
                         new
                         {
-                            contract = typeof(IFlows).FullName,
-                            key = $"{host.Scope}/flows",
-                            method = nameof(IFlows.Start),
-                            arguments = new object?[] { PlanFlow.Alias, "Release Checklist", null, innerJson },
+                            type = PlanFlow.Alias,
+                            title = "Release Checklist",
+                            parentFlowId = (string?)null,
+                            innerJson,
                         },
                         JsonSerializerOptions.Web);
-                    return new ScriptedOllamaOutcome.ToolCall("neurons_call", args, Model: model);
+                    return new ScriptedOllamaOutcome.ToolCall("flows_start", args, Model: model);
                 }
 
                 return new ScriptedOllamaOutcome.Reply("Release Checklist plan started; review the pending approval.", model);
@@ -412,11 +406,22 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
     {
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
-        // The conversation thread is drawn in place of its slot: clean is a thread with no message and nothing waiting under it.
-        return root.TryGetProperty("view", out var view)
-            && view.TryGetProperty("root", out var conversation)
-            && conversation.TryGetProperty("kind", out var kind) && kind.GetString() == "chatThreadView"
-            && conversation.TryGetProperty("messages", out var messages)
+        if (!root.TryGetProperty("view", out var view) || !view.TryGetProperty("root", out var node))
+        {
+            return false;
+        }
+
+        // The thread may be wrapped in a single-child filling column; clean means nothing above/below it and no messages yet.
+        if (node.TryGetProperty("kind", out var rootKind) && rootKind.GetString() == "column"
+            && node.TryGetProperty("children", out var children)
+            && children.ValueKind == JsonValueKind.Array
+            && children.GetArrayLength() == 1)
+        {
+            node = children[0];
+        }
+
+        return node.TryGetProperty("kind", out var kind) && kind.GetString() == "chatThreadView"
+            && node.TryGetProperty("messages", out var messages)
             && messages.ValueKind == JsonValueKind.Array
             && messages.GetArrayLength() == 0;
     }

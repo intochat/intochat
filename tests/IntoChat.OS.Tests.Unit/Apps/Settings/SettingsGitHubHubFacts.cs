@@ -131,7 +131,7 @@ public sealed class FakeGitHubHubNeuron : Neuron, IConnection, IConnectionInboun
 }
 
 [Neuron("ino.studio")]
-public sealed class FakeIssueTriageInoStudioNeuron : Neuron, IInoStudio
+public sealed class FakeIssueTriageInoStudioNeuron : Neuron, IStudio
 {
     public static List<(string ConnectionKey, string Mode)> Calls { get; } = [];
 
