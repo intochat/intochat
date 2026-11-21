@@ -33,7 +33,10 @@ final _thread = <String, dynamic>{
   },
 };
 
-List<Map<String, dynamic>> _sampleModels({double? progressOnLocal}) => [
+List<Map<String, dynamic>> _sampleModels({
+  double? progressOnLocal,
+  Map<String, double>? progress,
+}) => [
   {
     'id': 'qwen3.5:4b',
     'label': 'Qwen 3.5 4B',
@@ -42,7 +45,7 @@ List<Map<String, dynamic>> _sampleModels({double? progressOnLocal}) => [
     'abilities': ['tools', 'vision'],
     'available': true,
     'note': null,
-    'progress': progressOnLocal,
+    'progress': progress?['qwen3.5:4b'] ?? progressOnLocal,
   },
   {
     'id': 'qwen2.5-coder:14b',
@@ -52,6 +55,28 @@ List<Map<String, dynamic>> _sampleModels({double? progressOnLocal}) => [
     'abilities': ['tools'],
     'available': true,
     'note': null,
+    'progress': progress?['qwen2.5-coder:14b'],
+  },
+  {
+    'id': 'gemma4:e2b',
+    'label': 'Gemma 4 E2B',
+    'section': 'local',
+    'icon': 'provider:ollama',
+    'abilities': ['tools', 'vision'],
+    'available': false,
+    'note': progress?['gemma4:e2b'] != null
+        ? 'Downloading ${(progress!['gemma4:e2b']! * 100).round()}%'
+        : 'Install · 2.5 GB · Good',
+    'progress': progress?['gemma4:e2b'],
+  },
+  {
+    'id': 'huge-local:70b',
+    'label': 'Huge Local 70B',
+    'section': 'local',
+    'icon': 'provider:ollama',
+    'abilities': ['tools'],
+    'available': false,
+    'note': 'Too big for this device',
     'progress': null,
   },
   {
@@ -89,6 +114,7 @@ List<Map<String, dynamic>> _sampleModels({double? progressOnLocal}) => [
 Future<List<Map<String, dynamic>>> _pumpPicker(
   WidgetTester tester, {
   double? progressOnLocal,
+  Map<String, double>? progress,
 }) async {
   tester.view.physicalSize = const Size(1200, 800);
   tester.view.devicePixelRatio = 1.0;
@@ -112,7 +138,10 @@ Future<List<Map<String, dynamic>>> _pumpPicker(
               'activeModelId': 'qwen3.5:4b',
               'activeModelLabel': 'Qwen 3.5 4B',
               'activeProviderIcon': 'provider:ollama',
-              'models': _sampleModels(progressOnLocal: progressOnLocal),
+              'models': _sampleModels(
+                progressOnLocal: progressOnLocal,
+                progress: progress,
+              ),
             },
             send: (event) async {
               sent.add(Map<String, dynamic>.from(event));
@@ -130,8 +159,13 @@ Future<List<Map<String, dynamic>>> _pumpPicker(
 Future<List<Map<String, dynamic>>> _openPicker(
   WidgetTester tester, {
   double? progressOnLocal,
+  Map<String, double>? progress,
 }) async {
-  final sent = await _pumpPicker(tester, progressOnLocal: progressOnLocal);
+  final sent = await _pumpPicker(
+    tester,
+    progressOnLocal: progressOnLocal,
+    progress: progress,
+  );
   await tester.tap(find.byKey(const ValueKey('composer-active-model')));
   await tester.pumpAndSettle();
   return sent;
@@ -181,8 +215,11 @@ void main() {
   ) async {
     final sent = await _openPicker(tester);
 
+    final row = find.byKey(const ValueKey('model-row:claude-opus-5'));
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     expect(find.text('Add a key in API keys'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('model-row:claude-opus-5')));
+    await tester.tap(row);
     await tester.pumpAndSettle();
 
     expect(sent, isEmpty);
@@ -226,6 +263,49 @@ void main() {
       tester.widget<LinearProgressIndicator>(bar).value,
       closeTo(0.45, 0.001),
     );
+  });
+
+  testWidgets('a downloading row draws a progress bar', (tester) async {
+    await _openPicker(tester, progress: {'gemma4:e2b': 0.42});
+
+    final bar = find.descendant(
+      of: find.byKey(const ValueKey('model-row:gemma4:e2b')),
+      matching: find.byType(LinearProgressIndicator),
+    );
+    expect(bar, findsOneWidget);
+    expect(
+      tester.widget<LinearProgressIndicator>(bar).value,
+      closeTo(0.42, 0.001),
+    );
+  });
+
+  testWidgets('an installable row shows an install button that activates composer-model', (
+    tester,
+  ) async {
+    final sent = await _openPicker(tester);
+
+    final installButton = find.byKey(const ValueKey('model-install:gemma4:e2b'));
+    expect(installButton, findsOneWidget);
+    await tester.tap(installButton);
+    await tester.pumpAndSettle();
+
+    expect(sent, hasLength(1));
+    expect(sent.single['kind'], 'view');
+    expect(sent.single['key'], 'composer-model');
+    expect(sent.single['value'], 'gemma4:e2b');
+  });
+
+  testWidgets('a too big model row shows no install button and cannot be chosen', (
+    tester,
+  ) async {
+    final sent = await _openPicker(tester);
+
+    expect(find.byKey(const ValueKey('model-install:huge-local:70b')), findsNothing);
+    expect(find.text('Too big for this device'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('model-row:huge-local:70b')));
+    await tester.pumpAndSettle();
+
+    expect(sent, isEmpty);
   });
 
   testWidgets('picker trigger stays vertically centered with field and send', (

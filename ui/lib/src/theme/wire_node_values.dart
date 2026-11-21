@@ -143,6 +143,9 @@ WireModelAbility? parseModelAbility(String ability) =>
       _ => null,
     };
 
+bool isInstallableModelNote(String? note) =>
+    note != null && note.trimLeft().startsWith('Install');
+
 ApprovalState parseApprovalState(String status) =>
     switch (status.trim().toLowerCase()) {
       'approved' => ApprovalState.approved,

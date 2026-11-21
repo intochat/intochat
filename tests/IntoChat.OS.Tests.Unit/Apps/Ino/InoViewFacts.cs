@@ -9,6 +9,7 @@ using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -396,6 +397,66 @@ public sealed class InoViewFacts
         Assert.Equal("Add a key in API keys", choices[1].Note);
         Assert.False(choices[1].Available);
         Assert.Contains("reasoning", choices[1].Abilities!);
+    }
+
+    [Fact]
+    public void ADownloadingRowShowsItsPercent()
+    {
+        var device = new DeviceView(
+            "m1",
+            new Hardware(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]),
+            [new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434"))],
+            [new DeviceModel(KnownModels.Gemma4, RuntimeId.Ollama, InstallState.Downloading, Fit.Good)],
+            [new Install(KnownModels.Gemma4.Id, RuntimeId.Ollama, InstallState.Downloading, 42, 420, 1000, null, null)]);
+
+        var choices = InoView.Choices(
+            [KnownModels.Gemma4],
+            [new(KnownModels.Gemma4.Id, false, "Not installed")],
+            device);
+
+        Assert.Equal(("Downloading 42%", 0.42), (choices[0].Note, choices[0].Progress));
+        Assert.False(choices[0].Available);
+    }
+
+    [Fact]
+    public void ATooBigModelCannotBeChosen()
+    {
+        var device = new DeviceView(
+            "m1",
+            new Hardware(16L * 1024 * 1024 * 1024, 0, [Accelerator.Cpu]),
+            [new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434"))],
+            [new DeviceModel(KnownModels.Qwen25Coder14B, RuntimeId.Ollama, InstallState.Available, Fit.WontFit)],
+            []);
+
+        var choices = InoView.Choices(
+            [KnownModels.Qwen25Coder14B],
+            [new(KnownModels.Qwen25Coder14B.Id, false, "Not installed")],
+            device);
+
+        Assert.Equal("Too big for this device", choices[0].Note);
+        Assert.False(choices[0].Available);
+        Assert.Null(choices[0].Progress);
+    }
+
+    [Fact]
+    public void ANotInstalledDeviceModelShowsInstallSizeAndFit()
+    {
+        var card = KnownModels.Gemma4 with { Bytes = 2L * 1024 * 1024 * 1024 };
+        var device = new DeviceView(
+            "m1",
+            new Hardware(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]),
+            [new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434"))],
+            [new DeviceModel(card, RuntimeId.Ollama, InstallState.Available, Fit.Good)],
+            []);
+
+        var choices = InoView.Choices(
+            [card],
+            [new(card.Id, false, "Not installed")],
+            device);
+
+        Assert.False(choices[0].Available);
+        Assert.Equal("Install · 2 GB · Good", choices[0].Note);
+        Assert.Null(choices[0].Progress);
     }
 
     [Fact]

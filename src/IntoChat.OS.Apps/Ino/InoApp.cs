@@ -181,7 +181,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var thread = InoView.Thread(next);
         if (!ThreadKnown && thread.Count == 0) { return; }
         // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
-        var props = InoView.ThreadProps(next, CanDictate, ThreadFailureText, PickerCards, PickerAvailability);
+        var props = InoView.ThreadProps(next, CanDictate, ThreadFailureText, PickerCards, PickerAvailability, DeviceSnapshot);
         if (SyncedThread is { } synced && synced.SequenceEqual(thread) && Equals(props, SyncedProps)) { return; }
         // Ino's own save stands when the thread cannot be written: the slot's props say so (to the person and to MCP readers), and the
         // next save writes the thread again.
@@ -283,6 +283,10 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             await FollowSlot<ChatThreadNeuron, ChatModelSelected>(InoView.ConversationKey);
         });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
+        if (ThisMachine is { Value.Length: > 0 } machine)
+        {
+            await TryOptionalAsync("device-installs", () => Follow<IDevice, InstallChanged>($"devices/{machine.Value}"));
+        }
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         await RefreshPickerAsync();
         CanDictate = await InoModelSetup.InitializeViewAsync(Setup);
@@ -400,11 +404,22 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             return;
         }
 
-        if (request.MakeDefault)
+        await RefreshPickerAsync();
+        await InoModelSetup.ChooseModelAsync(Setup, request.Model!, request.MakeDefault, PickerAvailability, DeviceSnapshot);
+        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
+        await Commit(Current);
+    }
+
+    [On]
+    public async Task OnInstallChanged(InstallChanged? changed)
+    {
+        if (changed is null) { return; }
+        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
+        if (changed.State is InstallState.Ready or InstallState.Loaded or InstallState.Failed or InstallState.Cancelled)
         {
             await RefreshPickerAsync();
         }
-        await InoModelSetup.ChooseModelAsync(Setup, request.Model!, request.MakeDefault);
+        await Commit(Current);
     }
 
     [On]

@@ -63,6 +63,7 @@ public sealed partial class SettingsApp
             Roles = modelInfo.Roles,
             Providers = modelInfo.Providers,
             LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+            Device = modelInfo.Device,
         };
 
         var next = projected.ApplyUserSettings(
@@ -144,11 +145,53 @@ public sealed partial class SettingsApp
             Roles = updatedRoles,
             Providers = modelInfo.Providers.Length > 0 ? modelInfo.Providers : State.Providers,
             LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+            Device = modelInfo.Device ?? State.Device,
             Status = $"Updated {role} model to {KnownModels.Find(trimmed)?.Name ?? trimmed}.",
         });
     }
 
-    private async Task<(SettingsRoleRow[] Roles, SettingsProviderRow[] Providers, string? AutomaticModel, string LocalEndpoint)> TryReadModelCatalogAsync(string? personModel)
+    private async Task InstallModelAsync(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            return;
+        }
+
+        var trimmed = model.Trim();
+        var modelId = KnownModels.Find(trimmed)?.Id ?? new ModelId(trimmed);
+        if (TryBrainOrNull() is not { Value.Length: > 0 } brain || ThisMachine is not { Value.Length: > 0 } machine)
+        {
+            await UpdateAsync(State with { Status = "Device runtime is unavailable in this host." });
+            return;
+        }
+
+        try
+        {
+            var device = Get<IDevice>(new NeuronId(brain, "devices.device", $"devices/{machine.Value}"));
+            await device.Install(modelId);
+            var snapshot = await device.Read();
+            var modelInfo = await TryReadModelCatalogAsync(State.DefaultModel);
+            await UpdateAsync(State with
+            {
+                Roles = modelInfo.Roles.Length > 0 ? modelInfo.Roles : State.Roles,
+                Providers = modelInfo.Providers.Length > 0 ? modelInfo.Providers : State.Providers,
+                LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+                Device = snapshot,
+                Status = $"Queued install for {modelId.Value}.",
+            });
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+        {
+            await UpdateAsync(State with { Status = error.Message });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "IDevice.Install failed while installing {ModelId} from Settings.", modelId.Value);
+            await UpdateAsync(State with { Status = $"Could not install {modelId.Value}." });
+        }
+    }
+
+    private async Task<(SettingsRoleRow[] Roles, SettingsProviderRow[] Providers, string? AutomaticModel, string LocalEndpoint, DeviceView? Device)> TryReadModelCatalogAsync(string? personModel)
     {
         BrainId brain = default;
         try
@@ -158,13 +201,33 @@ public sealed partial class SettingsApp
         catch (InvalidOperationException error)
         {
             Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
-            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint);
+            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint, State.Device);
         }
 
         if (string.IsNullOrWhiteSpace(brain.Value))
         {
-            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint);
+            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint, State.Device);
         }
+
+        DeviceView? deviceView = null;
+        if (ThisMachine is { Value.Length: > 0 } machine)
+        {
+            try
+            {
+                deviceView = await Get<IDevice>(new NeuronId(brain, "devices.device", $"devices/{machine.Value}")).Read();
+            }
+            catch (Exception deviceError) when (deviceError is not OperationCanceledException)
+            {
+                Log.LogDebug(deviceError, "IDevice.Read failed while refreshing Settings AI section.");
+            }
+        }
+
+        var ollamaEndpoint = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.Ollama)?.Endpoint?.ToString();
+        var endpoint = !string.IsNullOrWhiteSpace(ollamaEndpoint)
+            ? ollamaEndpoint
+            : string.IsNullOrWhiteSpace(State.LocalOllamaEndpoint)
+                ? IntoChatOSNames.LocalOllamaEndpoint
+                : State.LocalOllamaEndpoint;
 
         try
         {
@@ -174,25 +237,6 @@ public sealed partial class SettingsApp
                 .ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
             var roleMap = await catalog.Roles();
 
-            DeviceView? deviceView = null;
-            if (ThisMachine is { Value.Length: > 0 } machine)
-            {
-                try
-                {
-                    deviceView = await Get<IDevice>(new NeuronId(brain, "devices.device", $"devices/{machine.Value}")).Read();
-                }
-                catch (Exception deviceError) when (deviceError is not OperationCanceledException)
-                {
-                    Log.LogDebug(deviceError, "IDevice.Read failed while refreshing Settings AI section.");
-                }
-            }
-
-            var ollamaEndpoint = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.Ollama)?.Endpoint?.ToString();
-            var endpoint = !string.IsNullOrWhiteSpace(ollamaEndpoint)
-                ? ollamaEndpoint
-                : string.IsNullOrWhiteSpace(State.LocalOllamaEndpoint)
-                    ? IntoChatOSNames.LocalOllamaEndpoint
-                    : State.LocalOllamaEndpoint;
             var roles = BuildRoleRows(cards, availability, roleMap, personModel);
             var providers = BuildProviderRows(cards, availability, deviceView, endpoint);
 
@@ -210,12 +254,15 @@ public sealed partial class SettingsApp
                 Log.LogDebug(pickError, "IModelCatalog.Pick did not resolve an automatic chat model.");
             }
 
-            return (roles, providers, autoModel, endpoint);
+            return (roles, providers, autoModel, endpoint, deviceView);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Log.LogDebug(error, "IModelCatalog is optional when SettingsApp runs in standalone tests.");
-            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint);
+            var providers = deviceView is not null
+                ? BuildProviderRows([], new Dictionary<string, ModelAvailability>(StringComparer.OrdinalIgnoreCase), deviceView, endpoint)
+                : State.Providers;
+            return (State.Roles, providers, null, endpoint, deviceView);
         }
     }
 
@@ -285,10 +332,9 @@ public sealed partial class SettingsApp
         DeviceView? deviceView,
         string localEndpoint)
     {
-        var rows = new SettingsProviderRow[SettingsProviders.Length];
-        for (var i = 0; i < SettingsProviders.Length; i++)
+        var rows = new List<SettingsProviderRow>(SettingsProviders.Length + (deviceView?.Runtimes.Length ?? 0));
+        foreach (var provider in SettingsProviders)
         {
-            var provider = SettingsProviders[i];
             var visual = VisualCatalog.ForProvider(provider.ToString());
             var label = provider switch
             {
@@ -303,9 +349,7 @@ public sealed partial class SettingsApp
                 var foundry = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.FoundryLocal);
                 var installedCount = deviceView?.Models.Count(static m =>
                     m.Runtime == RuntimeId.FoundryLocal && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
-                status = foundry is { Reachable: true }
-                    ? $"Ready · {foundry.Version ?? "local"} · {installedCount} installed"
-                    : "Not available";
+                status = FormatRuntimeStatus(foundry, installedCount, fallbackUnavailable: "Not available");
             }
             else if (provider == AiProvider.Ollama)
             {
@@ -316,8 +360,8 @@ public sealed partial class SettingsApp
                     c.Provider == AiProvider.Ollama
                     && availability.TryGetValue(c.Id.Value, out var a)
                     && a.Ready);
-                status = ollama is { Reachable: true }
-                    ? $"Ready · {ollama.Endpoint?.ToString() ?? localEndpoint} · {installedOnDevice} installed"
+                status = ollama is not null
+                    ? FormatRuntimeStatus(ollama, installedOnDevice, fallbackUnavailable: $"Not detected · {ollama.Endpoint?.ToString() ?? localEndpoint}")
                     : readyLocalCount > 0
                         ? $"Ready · {localEndpoint} · {readyLocalCount} installed"
                         : $"Not detected · {localEndpoint}";
@@ -331,11 +375,63 @@ public sealed partial class SettingsApp
                 status = anyReady ? "Ready" : "Add a key in API keys";
             }
 
-            rows[i] = new SettingsProviderRow(provider, label, visual.IconKey, status);
+            rows.Add(new SettingsProviderRow(provider, label, visual.IconKey, status));
+
+            if (provider == AiProvider.FoundryLocal && deviceView is not null)
+            {
+                var compatVisual = VisualCatalog.ForProvider(nameof(AiProvider.OpenAICompatible));
+                foreach (var runtime in deviceView.Runtimes)
+                {
+                    if (runtime.Id == RuntimeId.Ollama || runtime.Id == RuntimeId.FoundryLocal)
+                    {
+                        continue;
+                    }
+                    var installedCount = deviceView.Models.Count(m =>
+                        m.Runtime == runtime.Id && m.State is InstallState.Ready or InstallState.Loaded);
+                    rows.Add(new SettingsProviderRow(
+                        AiProvider.OpenAICompatible,
+                        FormatAttachedRuntimeLabel(runtime.Id),
+                        compatVisual.IconKey,
+                        FormatRuntimeStatus(runtime, installedCount, fallbackUnavailable: FormatUnavailableRuntime(runtime))));
+                }
+            }
         }
 
-        return rows;
+        return [.. rows];
     }
+
+    internal static string FormatAttachedRuntimeLabel(RuntimeId id)
+    {
+        const string prefix = "openai-compat:";
+        return id.Value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && id.Value.Length > prefix.Length
+            ? id.Value[prefix.Length..]
+            : id.Value;
+    }
+
+    internal static string FormatRuntimeStatus(RuntimeStatus? runtime, int installedCount, string fallbackUnavailable)
+    {
+        if (runtime is not { Reachable: true })
+        {
+            return fallbackUnavailable;
+        }
+
+        var parts = new List<string>(4) { "Ready" };
+        if (!string.IsNullOrWhiteSpace(runtime.Version))
+        {
+            parts.Add($"v{runtime.Version.TrimStart('v', 'V')}");
+        }
+        if (runtime.Endpoint is not null)
+        {
+            parts.Add(runtime.Endpoint.ToString().TrimEnd('/'));
+        }
+        parts.Add($"{installedCount} installed");
+        return string.Join(" · ", parts);
+    }
+
+    internal static string FormatUnavailableRuntime(RuntimeStatus runtime)
+        => runtime.Endpoint is not null
+            ? $"Unreachable · {runtime.Endpoint.ToString().TrimEnd('/')}"
+            : "Unreachable";
 
     private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync(IReadOnlyList<UserVariableEntry> variables)
     {
@@ -450,6 +546,7 @@ public sealed partial class SettingsApp
                 Roles = modelInfo.Roles,
                 Providers = modelInfo.Providers,
                 LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+                Device = modelInfo.Device,
             };
         }
         else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))

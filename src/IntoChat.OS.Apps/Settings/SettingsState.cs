@@ -4,6 +4,7 @@ using DigitalBrain.Rules;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Configuration;
@@ -104,6 +105,7 @@ public sealed record SettingsAppState(
     public SettingsRoleRow[] Roles { get; init; } = [];
     public SettingsProviderRow[] Providers { get; init; } = [];
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
+    public DeviceView? Device { get; init; }
 
     // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):
     [Id(40)]

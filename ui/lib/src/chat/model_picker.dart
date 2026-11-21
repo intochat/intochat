@@ -444,14 +444,16 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
     final choice = widget.choice;
-    final canChoose = choice.available && widget.onSelect != null;
-    final canPin = choice.available && widget.onPin != null;
+    final note = choice.note?.trim();
+    final hasNote = note != null && note.isNotEmpty;
+    final isInstallable = !choice.available && isInstallableModelNote(note);
+    final canChoose =
+        (choice.available || isInstallable) && widget.onSelect != null;
+    final canPin = (choice.available || isInstallable) && widget.onPin != null;
     final spec = BrandVisuals.fromNode(
       label: choice.label,
       iconKey: choice.icon,
     );
-    final note = choice.note?.trim();
-    final hasNote = note != null && note.isNotEmpty;
     final abilities = [
       for (final ability in choice.abilities ?? const <String>[])
         ?_abilityIcon(ability),
@@ -574,6 +576,61 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
                       ),
                     ),
                   ),
+                  if (isInstallable && widget.onSelect != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Tooltip(
+                        message: 'Install ${choice.label}',
+                        child: Semantics(
+                          container: true,
+                          button: true,
+                          enabled: true,
+                          label: 'Install ${choice.label}',
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              key: ValueKey('model-install:${choice.id}'),
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => widget.onSelect!(choice.id),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: c.accentTint,
+                                  borderRadius: BorderRadius.circular(
+                                    IcRadius.xs,
+                                  ),
+                                  border: Border.all(
+                                    color: c.accent.withValues(alpha: 0.35),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      LucideIcons.download,
+                                      size: 11.5,
+                                      color: c.accent,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Install',
+                                      style: IcType.text(
+                                        11,
+                                        weight: FontWeight.w600,
+                                        color: c.accent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   if (widget.onPin != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 4),

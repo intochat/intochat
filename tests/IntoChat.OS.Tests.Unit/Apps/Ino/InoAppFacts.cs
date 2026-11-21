@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Screens;
@@ -26,6 +27,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.UI;
@@ -490,6 +492,140 @@ public sealed class InoAppFacts
         finally
         {
             FakeModelCatalog.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task ChoosingANotInstalledModelInstallsIt()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-ino-device-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretRedactor>(new NoSecrets())
+            .AddSingleton(machine)
+            .BuildServiceProvider();
+
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        FakeModelCatalog.Reset();
+        FakeDevice.Reset(machine.Value);
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = services);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<BackgroundAgent>();
+            os.Register<BackgroundChat>();
+            os.Register<FakeModelCatalog>();
+            os.Register<FakeDevice>();
+
+            var ino = await os.Install<InoApp>();
+            var previousModel = ino.App.State.SelectedModel;
+            var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
+            var view = await thread.Read();
+
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.SelectModelKey, KnownModels.Gemma4.Id.Value);
+            await os.Idle();
+
+            Assert.Equal(KnownModels.Gemma4.Id, Assert.Single(FakeDevice.Installs));
+            Assert.Empty(FakeDevice.Uses);
+            Assert.Equal(previousModel, ino.App.State.SelectedModel);
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+            FakeDevice.Reset(string.Empty);
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
+        }
+    }
+
+    [Fact]
+    public async Task MakeDefaultOnANotInstalledModelUsesIt()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-ino-device-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretRedactor>(new NoSecrets())
+            .AddSingleton(machine)
+            .BuildServiceProvider();
+
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        FakeModelCatalog.Reset();
+        FakeDevice.Reset(machine.Value);
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = services);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<BackgroundAgent>();
+            os.Register<BackgroundChat>();
+            os.Register<FakeModelCatalog>();
+            os.Register<FakeDevice>();
+
+            var ino = await os.Install<InoApp>();
+            var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
+            var view = await thread.Read();
+
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.PinModelKey, KnownModels.Gemma4.Id.Value);
+            await os.Idle();
+
+            Assert.Equal((Role.Chat, KnownModels.Gemma4.Id), Assert.Single(FakeDevice.Uses));
+            Assert.Empty(FakeDevice.Installs);
+            var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
+            Assert.Null(settings.RoleOf(Role.Chat));
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+            FakeDevice.Reset(string.Empty);
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
+        }
+    }
+
+    [Fact]
+    public async Task InstallChangedRedrawsThePickerWithProgress()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-ino-device-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var services = new ServiceCollection()
+            .AddSingleton<ISecretRedactor>(new NoSecrets())
+            .AddSingleton(machine)
+            .BuildServiceProvider();
+
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        FakeModelCatalog.Reset();
+        FakeModelCatalog.ListedCards = [KnownModels.Qwen35, KnownModels.Gemma4];
+        FakeModelCatalog.ListedAvailability =
+        [
+            new(KnownModels.Qwen35.Id, true, null),
+            new(KnownModels.Gemma4.Id, false, "Not installed"),
+        ];
+        FakeDevice.Reset(machine.Value);
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = services);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<BackgroundAgent>();
+            os.Register<BackgroundChat>();
+            os.Register<FakeModelCatalog>();
+            os.Register<FakeDevice>();
+
+            var ino = await os.Install<InoApp>();
+            FakeDevice.QueueEntries =
+            [
+                new Install(KnownModels.Gemma4.Id, RuntimeId.Ollama, InstallState.Downloading, 42, 420, 1000, null, null),
+            ];
+
+            await os.Get<IDevice>(new NeuronId(Brain, "devices.device", $"devices/{machine.Value}")).Install(KnownModels.Gemma4.Id);
+            await os.Idle();
+
+            var props = InoDrawing.PropsOf(ino.App.Render());
+            var gemma = Assert.Single(props.Models!, static m => m.Id == KnownModels.Gemma4.Id.Value);
+            Assert.Equal("Downloading 42%", gemma.Note);
+            Assert.Equal(0.42, gemma.Progress);
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+            FakeDevice.Reset(string.Empty);
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
         }
     }
 
@@ -1318,17 +1454,28 @@ public sealed class InoAppFacts
     private sealed class FakeModelCatalog : Neuron, IModelCatalog
     {
         public static ModelId? PickedChat { get; set; }
+        public static ModelCard[]? ListedCards { get; set; }
+        public static ModelAvailability[]? ListedAvailability { get; set; }
 
         public static void Reset()
         {
             PickedChat = null;
+            ListedCards = null;
+            ListedAvailability = null;
         }
 
         public Task<ModelCard[]> List(Abilities need = Abilities.None)
-            => Task.FromResult<ModelCard[]>(PickedChat is { } id && KnownModels.Find(id.Value) is { } card
+        {
+            if (ListedCards is { } cards)
+            {
+                return Task.FromResult(cards.Where(c => need == Abilities.None || (c.Can & need) == need).ToArray());
+            }
+
+            return Task.FromResult<ModelCard[]>(PickedChat is { } id && KnownModels.Find(id.Value) is { } card
                 && (need == Abilities.None || (card.Can & need) == need)
                 ? [card]
                 : []);
+        }
 
         public Task<ModelId> Pick(Role role, ModelId? turn = null)
             => turn is { Value.Length: > 0 } t ? Task.FromResult(t)
@@ -1340,8 +1487,58 @@ public sealed class InoAppFacts
 
         public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
 
-        public Task<ModelAvailability[]> Availability() => Task.FromResult<ModelAvailability[]>([]);
+        public Task<ModelAvailability[]> Availability() => Task.FromResult(ListedAvailability ?? []);
 
         public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
+    }
+
+    [Neuron("devices.device")]
+    private sealed class FakeDevice : Neuron, IDevice
+    {
+        public static string Machine { get; private set; } = "m1";
+        public static List<ModelId> Installs { get; } = [];
+        public static List<(Role Role, ModelId Model)> Uses { get; } = [];
+        public static Install[] QueueEntries { get; set; } = [];
+        public static DeviceModel[] DeviceModels { get; set; } = [];
+
+        public static void Reset(string machineId)
+        {
+            Machine = string.IsNullOrEmpty(machineId) ? "m1" : machineId;
+            Installs.Clear();
+            Uses.Clear();
+            QueueEntries = [];
+            DeviceModels =
+            [
+                new DeviceModel(KnownModels.Qwen35, RuntimeId.Ollama, InstallState.Ready, Fit.Good),
+                new DeviceModel(KnownModels.Gemma4, RuntimeId.Ollama, InstallState.Available, Fit.Good),
+            ];
+        }
+
+        public Task<DeviceView> Read()
+            => Task.FromResult(new DeviceView(
+                Machine,
+                new Hardware(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]),
+                [new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434"))],
+                DeviceModels,
+                QueueEntries));
+
+        public Task Use(Role role, ModelId model)
+        {
+            Uses.Add((role, model));
+            return Task.CompletedTask;
+        }
+
+        public Task Install(ModelId model)
+        {
+            Installs.Add(model);
+            var active = QueueEntries.FirstOrDefault(e => e.Model == model);
+            return active is not null
+                ? Publish(new InstallChanged(active.Model, active.State, active.Percent))
+                : Task.CompletedTask;
+        }
+
+        public Task Cancel(ModelId model) => Task.CompletedTask;
+
+        public Task Remove(ModelId model) => Task.CompletedTask;
     }
 }

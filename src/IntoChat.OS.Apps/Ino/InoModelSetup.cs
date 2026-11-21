@@ -316,10 +316,23 @@ internal static class InoModelSetup
         return retry;
     }
 
-    public static async Task ChooseModelAsync(InoSetupHost host, string model, bool makeDefault)
+    public static async Task ChooseModelAsync(
+        InoSetupHost host,
+        string model,
+        bool makeDefault,
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
     {
         var trimmed = model.Trim();
-        var modelId = KnownModels.Find(trimmed)?.Id ?? new ModelId(trimmed);
+        var card = KnownModels.Find(trimmed);
+        var modelId = card?.Id ?? new ModelId(trimmed);
+        var label = card?.Name ?? modelId.Value;
+
+        if (await TryInstallDeviceModelAsync(host, modelId, card, label, makeDefault, availability, device))
+        {
+            return;
+        }
+
         var state = host.GetState();
         if (makeDefault)
         {
@@ -327,9 +340,59 @@ internal static class InoModelSetup
         }
 
         await ReconfigureAgentAsync(host, modelId.Value, state.ConversationId);
-        var label = KnownModels.Find(modelId.Value)?.Name ?? modelId.Value;
         var status = makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}";
         await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, status));
+    }
+
+    private static async Task<bool> TryInstallDeviceModelAsync(
+        InoSetupHost host,
+        ModelId modelId,
+        ModelCard? card,
+        string label,
+        bool makeDefault,
+        IReadOnlyList<ModelAvailability>? availability,
+        DeviceView? cachedDevice)
+    {
+        var deviceNeuron = host.GetDevice();
+        if (deviceNeuron is null || card is { Where: not Where.Device })
+        {
+            return false;
+        }
+
+        var deviceView = cachedDevice ?? await ReadDeviceAsync(host);
+        var deviceModel = deviceView?.Models.FirstOrDefault(m => string.Equals(m.Card.Id.Value, modelId.Value, StringComparison.OrdinalIgnoreCase));
+        if (deviceModel is { State: InstallState.Ready or InstallState.Loaded })
+        {
+            return false;
+        }
+
+        if (deviceModel is null && availability?.FirstOrDefault(a => string.Equals(a.Model.Value, modelId.Value, StringComparison.OrdinalIgnoreCase)) is { Ready: true })
+        {
+            return false;
+        }
+
+        if (deviceModel is null && card is null)
+        {
+            return false;
+        }
+
+        if (deviceModel is { Fit: Fit.WontFit })
+        {
+            await host.ShowState(host.GetState() with { Status = $"{label} is too big for this device." });
+            return true;
+        }
+
+        if (makeDefault)
+        {
+            await deviceNeuron.Use(Role.Chat, modelId);
+        }
+        else
+        {
+            await deviceNeuron.Install(modelId);
+        }
+
+        await host.ShowState(host.GetState() with { Error = null, Status = $"Installing {label}…" });
+        return true;
     }
 
     public static async Task<bool> SaveProviderAsync(InoSetupHost host, InoSaveProvider request)
