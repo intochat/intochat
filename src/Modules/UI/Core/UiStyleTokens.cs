@@ -49,8 +49,10 @@ public enum UiSurfaceTone
 }
 
 /// <summary>
-/// Declarative theme, typography, iconography, elevation, and motion attachment
-/// carried uniformly by every UI control neuron.
+/// Declarative theme, layout, typography, iconography, elevation, and motion attachment
+/// carried uniformly by every UI control neuron. When layout values (e.g. <see cref="PaddingX"/>,
+/// <see cref="PaddingY"/>, <see cref="Radius"/>) are specified in C#, Flutter's <c>UiStyleMapper</c>
+/// renders the exact same pixel metrics via <c>mix</c>.
 /// </summary>
 [GenerateSerializer, Alias("ui.core.style-ref")]
 public sealed record UiStyleRef(
@@ -58,4 +60,8 @@ public sealed record UiStyleRef(
     [property: Id(1)] UiTypeRole Typography = UiTypeRole.Body,
     [property: Id(2)] UiElevation Elevation = UiElevation.Flat,
     [property: Id(3)] string? Icon = null,
-    [property: Id(4)] UiMotionPreset Motion = UiMotionPreset.Standard);
+    [property: Id(4)] UiMotionPreset Motion = UiMotionPreset.Standard,
+    [property: Id(5)] double? PaddingX = null,
+    [property: Id(6)] double? PaddingY = null,
+    [property: Id(7)] double? Gap = null,
+    [property: Id(8)] double? Radius = null);

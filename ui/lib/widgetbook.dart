@@ -7,6 +7,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 // ignore: depend_on_referenced_packages
 import 'package:widgetbook/widgetbook.dart';
 
+import 'src/ui/mix/ui_mix_style.dart';
 import 'src/ui/ui_control_surface.dart';
 
 /// Free, open-source IntoChat.OS UI Kit & Neuron Widgetbook workbench.
@@ -99,6 +100,10 @@ final class IntoChatWidgetbookApp extends StatelessWidget {
                 WidgetbookUseCase(
                   name: 'UiControlSurface Playground',
                   builder: (_) => const _ControlSurfacePlayground(),
+                ),
+                WidgetbookUseCase(
+                  name: 'Mix + NakedButton (C# UiStyle Parity)',
+                  builder: (_) => const _MixButtonPlayground(),
                 ),
               ],
             ),
@@ -304,6 +309,101 @@ class _ControlSurfacePlaygroundState extends State<_ControlSurfacePlayground> {
           for (final item in _log)
             Text(
               item,
+              style: const TextStyle(
+                fontFamily: 'JetBrains Mono',
+                fontSize: 12,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _MixButtonPlayground extends StatefulWidget {
+  const _MixButtonPlayground();
+
+  @override
+  State<_MixButtonPlayground> createState() => _MixButtonPlaygroundState();
+}
+
+class _MixButtonPlaygroundState extends State<_MixButtonPlayground> {
+  final List<String> _events = [];
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.knobs.string(
+      label: 'Label',
+      initialValue: 'Deploy Neuron',
+    );
+    final paddingX = context.knobs.double.slider(
+      label: 'C# PaddingX (px)',
+      min: 4,
+      max: 48,
+      initialValue: 20,
+    );
+    final paddingY = context.knobs.double.slider(
+      label: 'C# PaddingY (px)',
+      min: 4,
+      max: 28,
+      initialValue: 12,
+    );
+    final radius = context.knobs.double.slider(
+      label: 'C# Radius (px)',
+      min: 0,
+      max: 24,
+      initialValue: 10,
+    );
+    final tone = context.knobs.object.dropdown<String>(
+      label: 'C# SurfaceTone',
+      options: const ['accent', 'success', 'warning', 'danger', 'subtle', 'card'],
+      initialOption: 'accent',
+    );
+    final motion = context.knobs.object.dropdown<UiMotionPreset>(
+      label: 'C# MotionPreset',
+      options: UiMotionPreset.values,
+      initialOption: UiMotionPreset.spring,
+      labelBuilder: (p) => p.name,
+    );
+    final enabled = context.knobs.boolean(
+      label: 'Enabled',
+      initialValue: true,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          UiMixButton(
+            label: label,
+            enabled: enabled,
+            eventMask: UiEventMask.all,
+            semanticsId: 'widgetbook:mix-button',
+            style: UiStyleData(
+              tone: tone,
+              paddingX: paddingX,
+              paddingY: paddingY,
+              radius: radius,
+              motion: motion,
+            ),
+            onPressed: () {
+              setState(() {
+                _events.insert(0, 'OnClick("$label")');
+                if (_events.length > 6) _events.removeLast();
+              });
+            },
+            onEmit: (method, _) async {
+              setState(() {
+                _events.insert(0, method);
+                if (_events.length > 6) _events.removeLast();
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          for (final e in _events)
+            Text(
+              e,
               style: const TextStyle(
                 fontFamily: 'JetBrains Mono',
                 fontSize: 12,
