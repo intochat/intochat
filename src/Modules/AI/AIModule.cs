@@ -93,9 +93,29 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapGet("/ai/models", async (HttpContext http, INeuronProxies brain) => Results.Ok(await brain.Get<IModelCatalog>(
             CatalogKey(StampedCaller(http))).List()));
-        endpoints.MapPost("/ai/transcriptions", TranscribeAsync);
-        endpoints.MapPost("/ai/speech", SpeechEndpoint.HandleAsync);
-        endpoints.Map("/ai/talk", TalkEndpoint.Run);
+        endpoints.MapPost("/ai/transcriptions", async http =>
+        {
+            var result = await TranscribeAsync(
+                http,
+                http.RequestServices.GetRequiredService<IVoiceClients>(),
+                http.RequestServices.GetService<IAudioConverter>(),
+                http.RequestAborted).ConfigureAwait(false);
+            await result.ExecuteAsync(http).ConfigureAwait(false);
+        });
+        endpoints.MapPost("/ai/speech", async http =>
+        {
+            var result = await SpeechEndpoint.HandleAsync(
+                http,
+                http.RequestServices.GetRequiredService<IVoiceClients>(),
+                http.RequestAborted).ConfigureAwait(false);
+            await result.ExecuteAsync(http).ConfigureAwait(false);
+        });
+        endpoints.Map("/ai/talk", http => TalkEndpoint.Run(
+            http,
+            http.RequestServices.GetRequiredService<INeuronProxies>(),
+            http.RequestServices.GetRequiredService<IVoiceClients>(),
+            http.RequestServices.GetRequiredService<IntoChat.OS.Host.Brains.IIntoChatOSBrains>(),
+            http.RequestAborted));
     }
 
     internal static Caller? StampedCaller(HttpContext http) => http.RequestServices.GetService<ICallerAmbient>()?.Current;

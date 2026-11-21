@@ -1,4 +1,6 @@
 using IntoChat.OS.Tests;
+using System.ClientModel;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
@@ -15,9 +17,11 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Runs;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Surface;
+using OpenAI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -79,8 +83,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = new LoopbackServer();
-        var received = server.ReplyOnce("application/x-ndjson",
-            """{"model":"stub-b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"ok"},"done":true,"done_reason":"stop"}""" + "\n", ct);
+        var received = server.ReplyOnce("application/json", OpenAiChatCompletion("stub-b", "ok"), ct);
         await using var runtime = await Start(StubChatClient.Replying("host"), ct, options => options.ModelProfiles["stub-b"] = new()
         { Provider = "Ollama", Model = "stub-b", Endpoint = server.Url });
         // The person picks the model.
@@ -201,9 +204,10 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = new LoopbackServer();
-        var qwenReply = server.ReplyOnce("application/x-ndjson",
-            """{"model":"qwen3.5:4b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"from qwen"},"done":true,"done_reason":"stop"}""" + "\n", ct);
-        await using var runtime = await Start(StubChatClient.Replying("host"), ct, options => options.Ollama.Endpoint = server.Url);
+        var qwenReply = server.ReplyOnce("application/json", OpenAiChatCompletion("qwen3.5:4b", "from qwen"), ct);
+        var localOllama = new LoopbackOllamaRuntime(new Uri(server.Url), KnownModels.Qwen35, KnownModels.Gemma4);
+        await using var runtime = await Start(StubChatClient.Replying("host"), ct,
+            configureServices: services => services.AddSingleton<ILocalRuntime>(localOllama));
         using var person = runtime.As(Who.Person);
         var catalog = runtime.Services.GetRequiredService<ModelCatalog>();
 
@@ -229,8 +233,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         Assert.Contains("anthropic", failed.Message, StringComparison.OrdinalIgnoreCase);
 
         // 4. Switch model at runtime to another local Ollama tag ("gemma4:e2b") and verify ModelSelected updates immediately
-        var gemmaReply = server.ReplyOnce("application/x-ndjson",
-            """{"model":"gemma4:e2b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"from gemma"},"done":true,"done_reason":"stop"}""" + "\n", ct);
+        var gemmaReply = server.ReplyOnce("application/json", OpenAiChatCompletion("gemma4:e2b", "from gemma"), ct);
         await Write(runtime, "user.profile", new("inference", """{"model":"gemma4:e2b"}""", [], [ContextTags.Inference]));
         var thirdTurnEvents = await TurnLoops.Collect(runtime.Services, "hello gemma", [], ct, [Key(runtime, "user.profile")]);
         var selectedGemma = Assert.Single(thirdTurnEvents.OfType<AgentTurnEvent.ModelSelected>());
@@ -333,7 +336,12 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         });
     }
 
-    private async Task<INeuronRuntime> Start(StubChatClient client, CancellationToken ct, Action<AIOptions>? configure = null, OsNeuronSurface? surface = null)
+    private async Task<INeuronRuntime> Start(
+        StubChatClient client,
+        CancellationToken ct,
+        Action<AIOptions>? configure = null,
+        OsNeuronSurface? surface = null,
+        Action<IServiceCollection>? configureServices = null)
         => await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(client);
@@ -344,7 +352,59 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
             services.AddOptions<AIOptions>();
             services.AddSingleton<ModelCatalog>();
             if (configure is not null) { services.Configure(configure); }
+            configureServices?.Invoke(services);
         });
+
+    private static string OpenAiChatCompletion(string model, string content)
+        => JsonSerializer.Serialize(new
+        {
+            id = "chatcmpl-test",
+            @object = "chat.completion",
+            created = 1700000000,
+            model,
+            choices = new[]
+            {
+                new
+                {
+                    index = 0,
+                    message = new { role = "assistant", content },
+                    finish_reason = "stop",
+                },
+            },
+        });
+
+    private sealed class LoopbackOllamaRuntime(Uri endpoint, params ModelCard[] installed) : ILocalRuntime
+    {
+        public RuntimeId Id => RuntimeId.Ollama;
+
+        public Task<RuntimeStatus> Probe(CancellationToken ct)
+            => Task.FromResult(new RuntimeStatus(Id, Reachable: true, Version: "0.9.0", Endpoint: endpoint));
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in installed) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in installed) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+
+        public IChatClient Chat(ModelId id)
+            => new OpenAIClient(new ApiKeyCredential("local"), new OpenAIClientOptions { Endpoint = endpoint })
+                .GetChatClient(id.Value)
+                .AsIChatClient();
+    }
 
     private static NeuronId Id(INeuronRuntime runtime, string name) => runtime.Id("agent-context", "context/" + name);
 

@@ -8,7 +8,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 
 | Folder | Module id | What it does |
 | --- | --- | --- |
-| `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice transcription. Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
+| `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients). Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
 | `Azure` | `azure`, `aspire` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager. `AspireModule` reads runtime resources, logs and traces. |
 | `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |

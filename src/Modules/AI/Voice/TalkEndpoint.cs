@@ -32,7 +32,7 @@ internal static class TalkEndpoint
     private static readonly TimeSpan SilenceTimeout = TimeSpan.FromMinutes(2);
 
     private const string DefaultPersona =
-        "You are Ino, a helpful voice assistant. Keep spoken answers clear, natural, and concise.";
+        "You are a helpful voice assistant. Keep spoken answers clear, natural, and concise.";
 
     public static async Task Run(
         HttpContext http,

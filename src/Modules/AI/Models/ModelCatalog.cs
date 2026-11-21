@@ -489,7 +489,7 @@ public sealed class ModelCatalog
             var factory = AIClients.Factory(provider);
             if (!await factory.IsConfigured(configuration, credentials, ct).ConfigureAwait(false))
             {
-                if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct).ConfigureAwait(false))
+                if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, local, ct).ConfigureAwait(false))
                 {
                     var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty,
                         declared ?? preset?.Can ?? (Abilities.Text | Abilities.Tools), NormalizeReasoning(reasoning), maxTokens);
@@ -524,7 +524,7 @@ public sealed class ModelCatalog
             {
                 endpoint = providerProbe!.FirstEndpoint?.AbsoluteUri;
             }
-            else if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct).ConfigureAwait(false))
+            else if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, local, ct).ConfigureAwait(false))
             {
                 var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty,
                     declared ?? preset?.Can ?? (Abilities.Text | Abilities.Tools), NormalizeReasoning(reasoning), maxTokens);
@@ -835,21 +835,37 @@ public sealed class ModelCatalog
     private static bool IsDeviceProvider(AiProvider provider)
         => provider is AiProvider.Ollama or AiProvider.FoundryLocal or AiProvider.OpenAICompatible or AiProvider.SherpaOnnx;
 
+    private static bool IsDeviceChatProvider(AiProvider provider)
+        => provider is AiProvider.Ollama or AiProvider.FoundryLocal or AiProvider.OpenAICompatible;
+
     private static AiProvider ProviderOf(RuntimeId id)
         => id == RuntimeId.Ollama ? AiProvider.Ollama
             : id == RuntimeId.FoundryLocal ? AiProvider.FoundryLocal
             : string.Equals(id.Value, "sherpa-onnx", StringComparison.OrdinalIgnoreCase) ? AiProvider.SherpaOnnx
             : AiProvider.OpenAICompatible;
 
-    private static async Task<bool> AnyProviderConfigured(
+    private async Task<bool> AnyProviderConfigured(
         AIOptions configuration,
         IAiCredentials credentials,
+        LocalRuntimeSnapshot? local,
         CancellationToken ct)
     {
         if (configuration.ModelProfiles.Values.Any(profile => !string.IsNullOrWhiteSpace(profile.Endpoint))) { return true; }
         foreach (var provider in CloudChatProviders)
         {
             if (await AIClients.Factory(provider).IsConfigured(configuration, credentials, ct).ConfigureAwait(false)) { return true; }
+        }
+        if (local is not null)
+        {
+            return local.ProviderProbes.Any(static entry => IsDeviceChatProvider(entry.Key) && entry.Value.AnyReachable);
+        }
+        foreach (var runtime in ActiveRuntimes())
+        {
+            if (IsDeviceChatProvider(ProviderOf(runtime.Id))
+                && (await SafeProbeAsync(runtime, ct).ConfigureAwait(false)).Reachable)
+            {
+                return true;
+            }
         }
         return false;
     }

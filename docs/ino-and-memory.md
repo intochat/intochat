@@ -69,3 +69,13 @@ Memory is one neuron per brain with the `IMemory` contract, implemented by `Memo
 The agent writes both into the `memory.recall` context, so the turn reads them like any other context. If recall fails, the turn runs without it.
 
 Embeddings come from a local Ollama endpoint when one answers in time. Otherwise `HybridMemoryEmbedder` computes a deterministic local embedding, so recall works with no model service.
+
+## Voice
+
+Ino hears, speaks and holds live voice conversations through Microsoft.Extensions.AI's speech and realtime interfaces (`ISpeechToTextClient`, `ITextToSpeechClient` and `IRealtimeClient`), routed by `Role.Hear`, `Role.Speak` and `Role.Talk` via `IModelCatalog` and `VoiceClients`:
+
+- **Dictation (`POST /ai/transcriptions`).** Uploads audio (including OGG/Opus converted through `IAudioConverter`) to the picked `Role.Hear` model — locally through `FoundryLocalRuntime` (`KnownModels.WhisperLargeV3Turbo`) or in the cloud through OpenAI Audio (`KnownModels.Gpt4oTranscribe`).
+- **Read-aloud (`POST /ai/speech`).** Synthesizes a reply through `SpeechEndpoint` and the picked `Role.Speak` model — locally through `SherpaOnnxRuntime` (`KnownModels.Kokoro82M`, 24 kHz PCM wrapped as WAV) or in the cloud through OpenAI TTS (`KnownModels.Gpt4oMiniTts`).
+- **Voice mode (`GET /ai/talk?conversation={id}`).** Opens a full-duplex WebSocket handled by `TalkEndpoint` carrying 16 kHz PCM16 LE mono input, 24 kHz PCM16 LE mono output and `TalkJson` control frames (`TalkEvent`). On the device, an unbound `Role.Talk` runs `LocalTalk` (Silero `IVoiceActivityDetector` → Hear → `ConversationChatClient` over `IConversation.Say` and `TextDelta` → Speak) with barge-in that cancels the active conversation run via `IConversation.Stop`. When `Role.Talk` is bound to a cloud card (`KnownModels.GptRealtime`), `VoiceClients` opens an `OpenAIRealtimeClient` and `TalkEndpoint` records each completed exchange once via `IConversation.Voiced` (`EntryIds.Heard` and `EntryIds.Spoken`).
+
+`InoModelSetup.ReadVoiceAsync` checks `IModelCatalog.Availability` for the voice roles and `InoView.ThreadProps` exposes the result on `ChatThreadProps` (`Dictation`, `ReadAloud` and `TalkConversation`).
