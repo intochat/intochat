@@ -143,6 +143,8 @@ WireModelAbility? parseModelAbility(String ability) =>
       _ => null,
     };
 
+bool isRegenerateRetryKey(String key) => key.startsWith('regenerate:');
+
 ApprovalState parseApprovalState(String status) =>
     switch (status.trim().toLowerCase()) {
       'approved' => ApprovalState.approved,

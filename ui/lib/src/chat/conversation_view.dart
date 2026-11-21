@@ -726,7 +726,9 @@ class _AssistantMessageItem extends StatelessWidget {
                       retry.key,
                       Btn(
                         label: retry.label,
-                        icon: LucideIcons.rotateCcw,
+                        icon: isRegenerateRetryKey(retry.key)
+                            ? LucideIcons.refreshCw
+                            : LucideIcons.rotateCcw,
                         small: true,
                         onTap: retry.enabled && ctx.interactive
                             ? () => pressCommand(
