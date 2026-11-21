@@ -19,16 +19,17 @@ internal sealed class LocalTalk(
 {
     public static readonly RealtimeServerMessageType Interrupted = new("interrupted");
 
-    internal ISpeechToTextClient Hear => hear;
-    internal IChatClient Chat => chat;
-    internal ITextToSpeechClient Speak => speak;
-    internal IVoiceActivityDetector Vad => vad;
-    internal LocalTalkOptions Options => options ?? new LocalTalkOptions();
+    private readonly LocalTalkOptions _options = options ?? new LocalTalkOptions();
 
     public Task<IRealtimeClientSession> CreateSessionAsync(
         RealtimeSessionOptions? sessionOptions = null,
         CancellationToken cancellationToken = default)
-        => throw new NotSupportedException("LocalTalk session pipeline is not implemented yet.");
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var activity = vad.Open(LocalTalkSession.InputSampleRate);
+        IRealtimeClientSession session = new LocalTalkSession(hear, chat, speak, activity, _options, sessionOptions);
+        return Task.FromResult(session);
+    }
 
     public object? GetService(Type serviceType, object? serviceKey = null)
     {
