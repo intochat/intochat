@@ -3,8 +3,10 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices.Aspire.Hosting;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
@@ -152,6 +154,14 @@ public static partial class AIHostingExtensions
         {
             ArgumentNullException.ThrowIfNull(builder);
             if (_card is null || _card.Where != Where.Device)
+            {
+                return;
+            }
+
+            var config = brain.ApplicationBuilder.Configuration;
+            var devicesSection = ModuleConfiguration.ModuleSection("devices");
+            if (!LocalRunDefaults.IsEnabled(config, "devices")
+                || config.GetValue<bool>(devicesSection + ":ReplaceOptions"))
             {
                 return;
             }

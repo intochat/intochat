@@ -135,6 +135,7 @@ public sealed class IntoChatOSBuilder
     public string GrainStateContainer { get; internal init; } = null!;
     public string? Environment { get; internal init; }
     public string? ClusteringResourceName { get; set; }
+    public DeploymentProfile? Profile { get; internal set; }
 
     public string ResourceName(string name) => $"{Name}-{name}";
 
