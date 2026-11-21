@@ -97,7 +97,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
 
             var nudge = (ISignalNudge?)log?.Fanout ?? new Fanout(
                 view,
-                new GrainNudge(grains, types),
+                new GrainNudge(grains, types, ServiceProvider.GetService<JournalPayloads>()),
                 alias => types.TryGetRegistration(alias, out var r) ? r.Class : null,
                 (pub, sigs) =>
                 {
@@ -331,6 +331,17 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         if (_delivery is { } delivery)
         {
             await delivery.Nudged(new Position(upTo)).ConfigureAwait(true);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task Offer(NeuronId publisher, JournaledSignalPayload payload, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (_neuron is IEphemeralSink sink)
+        {
+            var payloads = ServiceProvider.GetRequiredService<JournalPayloads>();
+            await sink.Offer(new JournaledSignal(publisher, 0, payloads.DecodeSignal(payload), at, payload.TraceId, payload.CausationId)).ConfigureAwait(true);
         }
     }
 

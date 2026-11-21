@@ -12,3 +12,12 @@ internal interface ISignalSink
     /// <summary>Takes one signal in order. Throwing leaves the cursor before it; the next reference retries.</summary>
     Task Deliver(JournaledSignal item);
 }
+
+/// <summary>
+/// A runtime service that accepts ephemeral signals directly without a journal position (<see cref="JournaledSignal.Sequence"/> is 0).
+/// </summary>
+internal interface IEphemeralSink
+{
+    /// <summary>Accepts one ephemeral signal. A full queue drops it rather than throwing to the publisher.</summary>
+    Task Offer(JournaledSignal item);
+}

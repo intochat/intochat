@@ -9,7 +9,9 @@ public sealed class FanoutFacts
     private sealed class FakeNudge : INudge
     {
         public List<(NeuronId Sub, Position UpTo)> Nudges { get; } = [];
+        public List<(NeuronId Sub, NeuronId Pub, Signal Signal)> Offers { get; } = [];
         public void Nudge(NeuronId subscriber, Position upTo) => Nudges.Add((subscriber, upTo));
+        public void Offer(NeuronId subscriber, NeuronId publisher, Signal signal) => Offers.Add((subscriber, publisher, signal));
     }
 
     private sealed class FakeView : IJournalView
@@ -50,5 +52,28 @@ public sealed class FanoutFacts
         Assert.Equal(sub1, nudge.Nudges[0].Sub);
         Assert.Equal(new Position(10), nudge.Nudges[0].UpTo);
         Assert.Single(list);
+    }
+
+    [Fact]
+    public async Task Offered_offers_hearing_subscribers_without_a_position()
+    {
+        var view = new FakeView();
+        var nudge = new FakeNudge();
+        var pub = NeuronId.Parse("b1/pub/1");
+        var sub1 = NeuronId.Parse("b1/sub/1");
+        var sub2 = NeuronId.Parse("b1/sub/2");
+
+        var alias = SignalAliases.Of(typeof(TestSignal));
+        view.Subscriptions.Fold(sub1, Subscriptions.None(sub1).Add(pub, [alias], new Position(0), DateTimeOffset.UtcNow).Encode(), StateChange.Write);
+        view.Subscriptions.Fold(sub2, Subscriptions.None(sub2).Add(pub, ["other.alias"], new Position(0), DateTimeOffset.UtcNow).Encode(), StateChange.Write);
+
+        var listened = new List<Signal>();
+        var fanout = new Fanout(view, nudge, a => a == alias ? typeof(TestSignal) : null, (_, sigs) => listened.AddRange(sigs));
+
+        await fanout.Offered(pub, new TestSignal("x"), CancellationToken.None);
+
+        Assert.Equal([(sub1, pub)], nudge.Offers.Select(o => (o.Sub, o.Pub)));
+        Assert.Empty(nudge.Nudges);
+        Assert.Single(listened);
     }
 }

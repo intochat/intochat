@@ -21,8 +21,8 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 /// <remarks>Queue changes happen only between awaits on the activation's scheduler; the long-poll completes through <see cref="_wake"/>.</remarks>
 [Neuron(SessionSynapses.NeuronType)]
 internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, JournalPayloads payloads,
-    IOptions<OrleansSdk.Configuration.SiloMessagingOptions> messaging)
-    : Neuron, ISessionSynapses, ISignalSink
+    IOptions<OrleansSdk.Configuration.SiloMessagingOptions> messaging, DeliveryCounters? counters = null)
+    : Neuron, ISessionSynapses, ISignalSink, IEphemeralSink
 {
     internal const string SweepTimer = "session.ttl";
 
@@ -152,11 +152,29 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         {
             throw new SessionLimitException($"Session {Id} has {_pending.Count} signals waiting for Next; delivery resumes after an ack.");
         }
+        Enqueue(item);
+        return Task.CompletedTask;
+    }
+
+    public Task Offer(JournaledSignal item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (_ended) { return Task.CompletedTask; }
+        if (_pending.Count >= _options.MaxPendingSignals)
+        {
+            counters?.EphemeralOfferDropped();
+            return Task.CompletedTask;
+        }
+        Enqueue(item);
+        return Task.CompletedTask;
+    }
+
+    private void Enqueue(JournaledSignal item)
+    {
         var encoded = payloads.EncodeSignal(item.Signal);
         using var json = JsonDocument.Parse(encoded.Json);
         _pending.Add(new SessionSignal(item.Publisher.ToString(), item.Sequence, encoded.Type, json.RootElement.Clone(), item.At, item.TraceId, item.CausationId));
         Wake();
-        return Task.CompletedTask;
     }
 
     protected override async Task OnReminder(string name, CancellationToken cancellationToken)
