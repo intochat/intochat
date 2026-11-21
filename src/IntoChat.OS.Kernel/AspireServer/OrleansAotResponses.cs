@@ -28,6 +28,7 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.Sdk.NotificationPriority>(services);
         AddEnum<IntoChat.OS.Modules.Identity.Contracts.Authority.InvitationKind>(services);
         AddEnum<EntryKind>(services);
+        AddEnum<IntoChat.OS.Modules.Identity.Contracts.Codes.CodePurpose>(services);
         AddEnum<IntoChat.OS.Host.Modules.ModuleState>(services);
         AddEnum<IntoChat.OS.Host.ServiceDefaults.BindKind>(services);
         AddEnum<IntoChat.OS.Kernel.Composition.Registry.RegistryTier>(services);
@@ -61,6 +62,8 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.Modules.Google.Gmail.GmailAccountingStatus>(services);
         AddEnum<IntoChat.OS.Modules.Postgres.PostgresIsolation>(services);
 
+        AddValue<IntoChat.OS.Runtime.Code>(services);
+        AddNullableValue<IntoChat.OS.Runtime.Code>(services);
         AddValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
         AddNullableValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
         AddValue<IntoChat.OS.Modules.AI.Models.ModelId>(services);

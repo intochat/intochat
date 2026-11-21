@@ -58,18 +58,6 @@ internal sealed record MachineIsUnbound(string? BoundAccountId) : Rule("circles.
     public override string Message => "This machine is already bound to an account.";
 }
 
-internal sealed record InviteCodeIsAvailable(InviteCodeRecord? Held) : Rule("circles.invite-code-available")
-{
-    public override bool Broken => Held is not null;
-    public override string Message => "This invite code is already in use.";
-}
-
-internal sealed record InviteHmacKeyIsLongEnough(int Length) : Rule("circles.invite-hmac-key-length")
-{
-    public override bool Broken => Length < 32;
-    public override string Message => $"{IInviteKey.Configuration} must be at least 32 bytes.";
-}
-
 internal sealed record ComputeSharePercentIsInRange(int Percent) : Rule("circles.compute-share-in-range")
 {
     public override bool Broken => Percent is < 0 or > ICircle.MaxComputeSharePercent;

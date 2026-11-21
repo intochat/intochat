@@ -29,7 +29,9 @@ public static class PlatformHosting
         var services = silo.Services;
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
+        DigitalBrain.Invocation.RuntimeProtocol.Register(IntoChat.OS.Modules.Identity.Codes.CodesJson.Default);
         services.AddIdentity();
+        services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Codes.ICodeBook, IntoChat.OS.Modules.Identity.Codes.CodeBook>();
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();

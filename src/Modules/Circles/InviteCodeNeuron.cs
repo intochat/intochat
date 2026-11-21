@@ -1,98 +1,9 @@
-using System.Security.Cryptography;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Modules.Circles.Rules;
-using Microsoft.Extensions.Configuration;
+using IntoChat.OS.Modules.Identity.Contracts.Codes;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Circles;
-
-// D-10, the InviteTokenNeuron pattern: one neuron per code hash names the circle brain and invite it opens. The key
-// is the HMAC of the code; the code itself is never stored. A plain neuron (06-08) of the system brain, "system/{hash}"
-// (a cluster-scoped neuron lives in the reserved system brain, R4-19; clean break).
-[DigitalBrain.Contracts.NeuronAlias("circles.invite-code"), DigitalBrain.Contracts.DefaultNeuronType(Type)]
-[Internal]
-internal interface IInviteCode
-{
-    const string Type = "circles.invite-code";
-
-    Task Bind(string circleBrainId, string inviteId, DateTimeOffset expiresAt);
-    Task<RedeemOutcome> Redeem(RedeemInvite request);
-
-    static string Key(string codeHash) => $"system/{codeHash}";
-
-}
-
-internal sealed class InviteCodeRecord
-{
-    public string CircleBrainId { get; set; } = "";
-    public string InviteId { get; set; } = "";
-    public DateTimeOffset ExpiresAt { get; set; }
-}
-
-[DigitalBrain.Neurons.Neuron(IInviteCode.Type)]
-internal sealed class InviteCodeNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron<InviteCodeRecord>, IInviteCode
-{
-    private InviteCodeRecord? Record => State.ExpiresAt == default ? null : State;
-
-    public async Task Bind(string circleBrainId, string inviteId, DateTimeOffset expiresAt)
-    {
-        // 60 random bits: a collision is refused rather than overwritten.
-        await Check("Bind", new InviteCodeIsAvailable(Record));
-        var next = new InviteCodeRecord { CircleBrainId = circleBrainId, InviteId = inviteId, ExpiresAt = expiresAt };
-        await Store(next);
-    }
-
-    public Task<RedeemOutcome> Redeem(RedeemInvite request)
-    {
-        return Record is null ? Task.FromResult(RedeemOutcome.Rejected)
-            // The circle brain's invites, reached through the host seam (a neuron's own Get stays in its brain).
-            : SiloNeurons.Get<ICircleInvites>(services, ICircleInvites.Key(Record.CircleBrainId)).Redeem(Record.InviteId, request);
-    }
-}
-
-// The deployment's invite HMAC key: IntoChatOS:Circles:InviteHmacKey (base64, at least 32 bytes) when configured,
-// otherwise 32 random bytes created on first use and kept in this neuron's record (never exported with a brain).
-// A plain neuron (06-08), the system brain's singleton "system/main" (R4-19; clean break: a new key, so codes minted before the
-// break no longer redeem).
-[DigitalBrain.Contracts.NeuronAlias("circles.invite-key"), DigitalBrain.Contracts.DefaultNeuronType(Type)]
-[Internal]
-internal interface IInviteKey
-{
-    const string Type = "circles.invite-key";
-    const string Key = "system/main";
-    const string Configuration = "IntoChatOS:Circles:InviteHmacKey";
-
-    Task<byte[]> Get();
-}
-
-internal sealed class InviteKeyRecord
-{
-    public byte[] Key { get; set; } = [];
-}
-
-[DigitalBrain.Neurons.Neuron(IInviteKey.Type)]
-internal sealed class InviteKeyNeuron(IConfiguration? configuration = null) : DigitalBrain.Neurons.Neuron<InviteKeyRecord>, IInviteKey
-{
-    private InviteKeyRecord Record => State;
-
-    public async Task<byte[]> Get()
-    {
-        if (configuration?[IInviteKey.Configuration] is { Length: > 0 } configured)
-        {
-            var key = Convert.FromBase64String(configured);
-            await Check("Get", new InviteHmacKeyIsLongEnough(key.Length));
-            return key;
-        }
-        if (Record.Key.Length == 0)
-        {
-            var next = new InviteKeyRecord { Key = RandomNumberGenerator.GetBytes(32) };
-            await Store(next);
-            return next.Key;
-        }
-        return Record.Key;
-    }
-}
 
 internal sealed class CircleInviteRedeemer(IServiceProvider plain) : ICircleInviteRedeemer
 {
@@ -102,8 +13,11 @@ internal sealed class CircleInviteRedeemer(IServiceProvider plain) : ICircleInvi
         var edge = plain.GetService<EdgeAuthority>();
         using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
-            var hash = InviteCode.Hash(normalized, await SiloNeurons.Get<IInviteKey>(plain, IInviteKey.Key).Get());
-            return await SiloNeurons.Get<IInviteCode>(plain, IInviteCode.Key(hash)).Redeem(new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));
+            var hash = InviteCode.Hash(normalized, await SiloNeurons.Get<ICodeKey>(plain, ICodeKey.Key).Get());
+            var target = await SiloNeurons.Get<ICodeIndex>(plain, ICodeIndex.Key(hash)).Resolve(CodePurpose.Device);
+            if (target is null) { return RedeemOutcome.Rejected; }
+            return await SiloNeurons.Get<ICircleInvites>(plain, ICircleInvites.Key(target.Brain.Value))
+                .Redeem(target.Reference, new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));
         }
     }
 }

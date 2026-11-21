@@ -1484,8 +1484,6 @@ public sealed class HouseRules22Facts
             "IConsentFacet",
             "IFilesVfsService",
             "IWithFilesVfs",
-            "IInviteCode",
-            "IInviteKey",
             "ISpeechSynthesisTransport",
             "ITypeTable",
             "IConditionallyAvailable",

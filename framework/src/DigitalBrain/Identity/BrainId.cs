@@ -1,6 +1,8 @@
 using DigitalBrain.Brains;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DigitalBrain;
 
@@ -10,6 +12,7 @@ namespace DigitalBrain;
 /// system scope (<see cref="Kernel"/>); such ids come only from <see cref="System(string)"/>, so user
 /// input never names a system scope.
 /// </remarks>
+[JsonConverter(typeof(BrainIdJsonConverter))]
 public readonly record struct BrainId
 {
     private static readonly SearchValues<char> DisallowedCompoundChars = SearchValues.Create("!?*<>|\"@");
@@ -75,4 +78,33 @@ public readonly record struct BrainId
 
     /// <inheritdoc />
     public override string ToString() => Value ?? string.Empty;
+}
+
+/// <summary>Serializes <see cref="BrainId"/> as a bare JSON string.</summary>
+public sealed class BrainIdJsonConverter : JsonConverter<BrainId>
+{
+    /// <inheritdoc />
+    public override BrainId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException("A brain id must be a JSON string.");
+        }
+        var text = reader.GetString();
+        if (string.IsNullOrEmpty(text))
+        {
+            return default;
+        }
+        if (text[0] == '@' && text.Length <= 200 && BrainId.IsValid(text[1..]))
+        {
+            return BrainId.System(text[1..]);
+        }
+        return BrainId.IsValid(text)
+            ? new BrainId(text)
+            : throw new JsonException("A brain id has 1-200 characters without control characters, '/', '\\', ':' or a leading '@'.");
+    }
+
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, BrainId value, JsonSerializerOptions options)
+        => writer.WriteStringValue(value.ToString());
 }

@@ -5,6 +5,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Circles.Rules;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.Identity.Contracts.Codes;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -70,7 +71,7 @@ internal sealed class CircleInvitesNeuron(
         var edge = services?.GetService<EdgeAuthority>();
         using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
-            hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(services!, IInviteKey.Key).Get());
+            hash = InviteCode.Hash(code, await SiloNeurons.Get<ICodeKey>(services!, ICodeKey.Key).Get());
         }
         var invite = new CircleCodeInvite
         {
@@ -88,7 +89,7 @@ internal sealed class CircleInvitesNeuron(
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. kept, invite] });
         using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
-            await SiloNeurons.Get<IInviteCode>(services!, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
+            await SiloNeurons.Get<ICodeIndex>(services!, ICodeIndex.Key(hash)).Bind(CodePurpose.Device, CircleBrain, invite.Id, expiresAt);
         }
         return new MintedInvite(code, expiresAt);
     }
