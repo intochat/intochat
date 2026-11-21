@@ -6,6 +6,7 @@ using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.Aspire;
@@ -367,9 +368,17 @@ public sealed class InoViewFacts
         var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
         Assert.Equal(("CodeGraph", "capability:codegraph", "#10B981"), (codeGraphVisual.Label, codeGraphVisual.IconKey, codeGraphVisual.AccentHex));
 
-        var modelVisual = InoView.ResolveModelVisual("claude-sonnet-4-6");
-        Assert.NotNull(modelVisual);
-        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (modelVisual.Value.Label, modelVisual.Value.IconKey));
+        var model = InoView.ResolveModel("claude-sonnet-4-6");
+        Assert.NotNull(model);
+        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (model.Name, model.IconKey()));
+    }
+
+    [Fact]
+    public void TheChipShowsTheCardsCleanName()
+    {
+        var props = InoView.ThreadProps(new InoAppState() with { SelectedModel = "IQwen35" });
+        Assert.Equal("Qwen 3.5 4B", props.ActiveModelLabel);
+        Assert.Equal("provider:ollama", props.ActiveProviderIcon);
     }
 
     [Fact]

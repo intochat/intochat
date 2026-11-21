@@ -87,6 +87,8 @@ enum NeuronIconKind {
     'provider:xai': xai,
     'provider:openrouter': openrouter,
     'provider:foundry': foundry,
+    'provider:foundrylocal': foundry,
+    'provider:openaicompatible': openai,
     'capability:memory': memory,
     'capability:codegraph': architecture,
     'capability:traces': traces,

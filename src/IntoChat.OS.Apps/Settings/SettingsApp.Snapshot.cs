@@ -78,17 +78,6 @@ public sealed partial class SettingsApp
         await UpdateAsync(next);
     }
 
-    internal static IReadOnlyList<SettingsModelOption> CatalogFallbackOptions() =>
-    [
-        .. KnownModels.All
-            .Where(static m => m.Can.HasFlag(Abilities.Tools) && (m.Provider != AiProvider.Ollama || m.Id == KnownModels.Defaults.Device[Role.Chat]))
-            .Select(static m =>
-            {
-                var visual = VisualCatalog.ForModel(m.Id.Value, m.Provider.ToString());
-                return new SettingsModelOption(m.Id.Value, visual.Label, true, visual.Category);
-            }),
-    ];
-
     private async Task<(IReadOnlyList<SettingsModelOption> Options, string? AutomaticModel, string LocalEndpoint)> TryReadModelCatalogAsync(string? personModel)
     {
         BrainId brain = default;
@@ -99,12 +88,12 @@ public sealed partial class SettingsApp
         catch (InvalidOperationException error)
         {
             Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
-            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+            return (State.AvailableModels, null, State.LocalOllamaEndpoint);
         }
 
         if (string.IsNullOrWhiteSpace(brain.Value))
         {
-            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+            return (State.AvailableModels, null, State.LocalOllamaEndpoint);
         }
 
         try
@@ -142,13 +131,13 @@ public sealed partial class SettingsApp
                 Log.LogDebug(pickError, "IModelCatalog.Pick did not resolve an automatic chat model.");
             }
 
-            IReadOnlyList<SettingsModelOption> resolvedOptions = deduped.Count > 0 ? [.. deduped.Values] : CatalogFallbackOptions();
+            IReadOnlyList<SettingsModelOption> resolvedOptions = [.. deduped.Values];
             return (resolvedOptions, autoModel, IntoChatOSNames.LocalOllamaEndpoint);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Log.LogDebug(error, "IModelCatalog is optional when SettingsApp runs in standalone tests.");
-            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+            return (State.AvailableModels, null, State.LocalOllamaEndpoint);
         }
     }
 

@@ -24,6 +24,8 @@ public sealed class VisualCatalogFacts
         "provider:xai",
         "provider:openrouter",
         "provider:foundry",
+        "provider:foundrylocal",
+        "provider:openaicompatible",
         // Capabilities
         "capability:memory",
         "capability:codegraph",
@@ -54,9 +56,9 @@ public sealed class VisualCatalogFacts
     ];
 
     [Fact]
-    public void FrozenIconVocabularyMatchesTheCanonical41Keys()
+    public void FrozenIconVocabularyMatchesTheCanonical43Keys()
     {
-        Assert.Equal(41, ExpectedFrozenIconKeys.Length);
+        Assert.Equal(43, ExpectedFrozenIconKeys.Length);
         Assert.Equal(
             ExpectedFrozenIconKeys.OrderBy(static k => k, StringComparer.Ordinal),
             VisualCatalog.AllIconKeys.OrderBy(static k => k, StringComparer.Ordinal));
@@ -138,34 +140,29 @@ public sealed class VisualCatalogFacts
     }
 
     [Theory]
-    [InlineData("claude-sonnet-4-6", null, "Sonnet 4.6", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("sonnet-4.6", null, "Sonnet 4.6", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("ISonnet46", null, "Sonnet 4.6", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("claude-opus-4-6", null, "Opus 4.6", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("IOpus46", null, "Opus 4.6", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("claude-sonnet-5", null, "Sonnet 5", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("claude-haiku-4-5", null, "Haiku 4.5", "provider:anthropic", "#D97757", "Anthropic")]
-    [InlineData("gpt-5.4", null, "GPT-5.4", "provider:openai", "#10A37F", "OpenAI")]
-    [InlineData("gpt-5", null, "GPT-5", "provider:openai", "#10A37F", "OpenAI")]
-    [InlineData("gpt-4o", null, "GPT-4o", "provider:openai", "#10A37F", "OpenAI")]
-    [InlineData("gemini-3.6-pro", null, "Gemini 3.6 Pro", "provider:google", "#4285F4", "Google")]
-    [InlineData("gemini-3.6-flash", null, "Gemini 3.6 Flash", "provider:google", "#4285F4", "Google")]
-    [InlineData("gemini-2.5-pro", null, "Gemini 2.5 Pro", "provider:google", "#4285F4", "Google")]
-    [InlineData("qwen2.5-coder:14b", null, "Qwen 2.5 Coder 14B", "provider:ollama", "#6366F1", "Ollama (Local GPU)")]
-    [InlineData("qwen3:14b", null, "Qwen 3 14B", "provider:ollama", "#6366F1", "Ollama (Local GPU)")]
-    [InlineData("grok-4.6", "xai", "Grok 4.6", "provider:xai", "#18181B", "xAI")]
-    [InlineData("openrouter/anthropic/claude-sonnet-4-6", "openrouter", "Sonnet 4.6", "provider:openrouter", "#6467F2", "OpenRouter")]
-    [InlineData("phi-4-mini", "foundry", "Phi 4 Mini", "provider:foundry", "#0078D4", "Foundry Local")]
-    public void ForModelResolvesFirstClassModelsAndProviders(
-        string modelId,
-        string? provider,
+    [InlineData("anthropic", "Anthropic", "provider:anthropic", "#D97757", "Anthropic")]
+    [InlineData("openai", "OpenAI", "provider:openai", "#10A37F", "OpenAI")]
+    [InlineData("google", "Google", "provider:google", "#4285F4", "Google")]
+    [InlineData("ollama", "Ollama (Local GPU)", "provider:ollama", "#6366F1", "Ollama (Local GPU)")]
+    [InlineData("xai", "xAI", "provider:xai", "#18181B", "xAI")]
+    [InlineData("openrouter", "OpenRouter", "provider:openrouter", "#6467F2", "OpenRouter")]
+    [InlineData("foundry", "Foundry Local", "provider:foundry", "#0078D4", "Foundry Local")]
+    [InlineData("provider:foundrylocal", "Foundry Local", "provider:foundry", "#0078D4", "Foundry Local")]
+    [InlineData("openaicompatible", "OpenAI-Compatible", "provider:openaicompatible", "#10A37F", "OpenAI-Compatible")]
+    [InlineData("provider:openaicompatible", "OpenAI-Compatible", "provider:openaicompatible", "#10A37F", "OpenAI-Compatible")]
+    public void ForProviderResolvesCanonicalAndAliasProviders(
+        string provider,
         string expectedLabel,
         string expectedIconKey,
         string expectedAccent,
         string expectedCategory)
     {
-        var visual = VisualCatalog.ForModel(modelId, provider);
+        var visual = VisualCatalog.ForProvider(provider);
         Assert.Equal(new VisualDescriptor(expectedLabel, expectedIconKey, expectedAccent, expectedCategory), visual);
         Assert.Contains(visual.IconKey, (IReadOnlySet<string>)VisualCatalog.AllIconKeys);
     }
+
+    [Fact]
+    public void VisualCatalogHasNoModelLookup()
+        => Assert.Null(typeof(VisualCatalog).GetMethod("ForModel"));
 }

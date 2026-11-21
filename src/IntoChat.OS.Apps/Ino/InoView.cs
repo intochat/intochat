@@ -5,6 +5,7 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.UI;
@@ -71,7 +72,7 @@ public static partial class InoView
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
-        var activeModelVisual = ResolveModelVisual(s.SelectedModel);
+        var activeModel = ResolveModel(s.SelectedModel);
         var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
         var placeholder = hasDraft
             ? $"Ask Ino: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 96)}"
@@ -82,8 +83,8 @@ public static partial class InoView
         return new ChatThreadProps(
             Placeholder: placeholder,
             CanSend: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
-            ActiveModelLabel: activeModelVisual?.Label,
-            ActiveProviderIcon: activeModelVisual?.IconKey,
+            ActiveModelLabel: activeModel?.Name ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel),
+            ActiveProviderIcon: activeModel?.IconKey(),
             Dictation: dictation,
             Status: ConversationStatusOf(s),
             Working: s.ActiveRunId is not null,
@@ -224,12 +225,12 @@ public static partial class InoView
     private static ThreadMessage ToThreadMessage(InoMessage msg)
     {
         var (displayText, inlineSlots) = msg.Role == "assistant" ? InoCards.ExtractInlineSlots(msg.Text) : (msg.Text, Array.Empty<NeuronRef>());
-        var modelVisual = ResolveModelVisual(msg.Model);
+        var modelCard = ResolveModel(msg.Model);
         var failed = msg.Role == "assistant" && msg.Status is "failed" or "interrupted";
         return new ThreadMessage(msg.Id, msg.Role, displayText ?? string.Empty, msg.Status)
         {
-            Model = modelVisual?.Label ?? msg.Model,
-            ProviderIcon = modelVisual?.IconKey,
+            Model = modelCard?.Name ?? msg.Model,
+            ProviderIcon = modelCard?.IconKey(),
             Failure = failed ? InoErrors.Describe(msg.Failure ?? (msg.Status == "interrupted" ? "interrupted" : null)) ?? ChatThreadNeuron.NoAnswer : null,
             Activities = [.. msg.Activities.Select(ToActivityNode)],
             Cards = [.. msg.Cards.SelectMany(RenderCardNodes), .. inlineSlots],
@@ -251,7 +252,7 @@ public static partial class InoView
         ArgumentNullException.ThrowIfNull(state);
         var count = state.Messages is { Length: > 0 } msgs ? msgs.Count(m => m.Role == "user") : state.Turns.Length;
         var (statusKind, statusLabel) = ResolveSideStatus(state);
-        var activeModel = ResolveModelVisual(state.SelectedModel)?.Label ?? state.SelectedModel;
+        var activeModel = ResolveModel(state.SelectedModel)?.Name ?? state.SelectedModel;
 
         var recents = (state.RecentConversations ?? [])
             .Select(InoModel.ConversationIdOf)
@@ -329,8 +330,8 @@ public static partial class InoView
             : s.Error is not null || string.Equals(s.Status, InoModel.Failed, StringComparison.Ordinal) ? "failed"
             : "ready";
 
-    public static VisualDescriptor? ResolveModelVisual(string? model)
-        => string.IsNullOrWhiteSpace(model) ? null : VisualCatalog.ForModel(model);
+    public static ModelCard? ResolveModel(string? model)
+        => KnownModels.Find(model);
 
     public static VisualDescriptor ResolveApprovalVisual(string? sourceOrSubject)
         => VisualCatalog.ForApproval(sourceOrSubject);

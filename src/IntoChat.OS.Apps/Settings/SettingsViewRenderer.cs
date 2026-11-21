@@ -574,9 +574,11 @@ internal static class SettingsViewRenderer
                 "Back to AI models");
         }
 
-        var models = state.AvailableModels is { Count: > 0 }
+        IReadOnlyList<SettingsModelOption> models = state.AvailableModels is { Count: > 0 }
             ? state.AvailableModels
-            : SettingsApp.CatalogFallbackOptions();
+            : [.. IntoChat.OS.Modules.AI.Models.KnownModels.All
+                .Where(static c => c.Can.HasFlag(IntoChat.OS.Modules.AI.Models.Abilities.Tools))
+                .Select(static c => new SettingsModelOption(c.Id.Value, c.Name, true, IntoChat.OS.Host.Visuals.VisualCatalog.ForProvider(c.Provider.ToString()).Category))];
         var options = models.Select(opt =>
         {
             var label = string.IsNullOrWhiteSpace(opt.ProviderLabel)
