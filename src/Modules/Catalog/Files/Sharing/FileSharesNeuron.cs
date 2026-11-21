@@ -1,6 +1,7 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.State;
+using IntoChat.OS.Modules.Identity.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -32,7 +33,10 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         if (!Enum.IsDefined(role)) { throw new ArgumentException("The role is Viewer or Editor.", nameof(role)); }
         if (string.Equals(account, owner, StringComparison.Ordinal)) { throw new ArgumentException("A share names another person.", nameof(account)); }
 
-        _ = await Friend(account) ?? throw new UnauthorizedAccessException("Share only with a confirmed friend.");
+        // IFriends.IsFriend is [Interleaves], so a concurrent Friends.Unfriend -> DropAccount turn cannot deadlock here.
+#pragma warning disable DB0033
+        if (!await Friends.IsFriend(new AccountId(account))) { throw new UnauthorizedAccessException("Share only with a confirmed friend."); }
+#pragma warning restore DB0033
         var canonical = SharePath.Normalize(path);
         var item = await Files(vfs => vfs.Stat(canonical))
             ?? throw new ArgumentException("There is no file or folder at that path.", nameof(path));
@@ -58,7 +62,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
 
     public async Task DropAccount(string account)
     {
-        if (Context.Caller?.Via is not { Type: FriendLinksDefaults.TypeName } via || via.Brain != Id.Brain) { throw PersonActs.Refused(); }
+        if (Context.Caller?.Via is not { Type: FriendsDefaults.TypeName } via || via.Brain != Id.Brain) { throw PersonActs.Refused(); }
         await Remove(account);
     }
 
@@ -68,11 +72,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         await Commit([.. State.Shares.Where(share => share.Account != account)], State.Saves);
     }
 
-    private async Task<ProfileFriend?> Friend(string account)
-    {
-        var profile = await Get<IProfile>(new DigitalBrain.NeuronId(Id.Brain, "os.profile", "profile")).Read();
-        return (profile.Friends ?? []).FirstOrDefault(friend => friend.Confirmed && friend.Account == account);
-    }
+    private IFriends Friends => Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
 
     public async Task<WorkspaceShare[]> Shares()
     {

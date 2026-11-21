@@ -57,7 +57,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(account);
         ArgumentException.ThrowIfNullOrWhiteSpace(friendBrainId);
-        if (Context.Caller?.Via is not { Type: FriendLinksDefaults.TypeName } via || via.Brain != Id.Brain)
+        if (Context.Caller?.Via is not { Type: FriendsDefaults.TypeName } via || via.Brain != Id.Brain)
         {
             throw new UnauthorizedAccessException("A friend is confirmed only by this brain's friend links.");
         }
@@ -78,7 +78,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
     public async Task<ProfileState> RemoveFriendAccount(string account)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(account);
-        if (Context.Caller?.Via is not { Type: FriendLinksDefaults.TypeName } via || via.Brain != Id.Brain)
+        if (Context.Caller?.Via is not { Type: FriendsDefaults.TypeName } via || via.Brain != Id.Brain)
         {
             throw new UnauthorizedAccessException("A friend is removed by account only by this brain's friend links.");
         }

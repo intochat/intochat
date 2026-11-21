@@ -44,6 +44,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+        DigitalBrain.Invocation.RuntimeProtocol.Register(FriendsJson.Default);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
         services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));

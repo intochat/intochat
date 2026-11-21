@@ -33,20 +33,20 @@ internal sealed class SharedWithMeNeuron(IServiceProvider services) : Neuron<Sha
     public async Task<SharedPointer[]> Refresh()
     {
         await Person();
-        var profile = await Get<IProfile>(new DigitalBrain.NeuronId(Id.Brain, "os.profile", "profile")).Read();
+        var friends = await Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value)).List();
         var pointers = new List<SharedPointer>();
-        foreach (var friend in (profile.Friends ?? []).Where(friend => friend.Confirmed))
+        foreach (var friend in friends)
         {
             // A friend whose door refuses shares nothing; one that cannot be reached keeps the pointers it had.
             try
             {
-                var shares = await Door(friend.BrainId).SharedWithCaller();
-                pointers.AddRange(shares.Select(share => new SharedPointer(friend.BrainId, friend.Account, share.Id, share.Path, share.IsFolder, share.Role)));
+                var shares = await Door(friend.Brain.Value).SharedWithCaller();
+                pointers.AddRange(shares.Select(share => new SharedPointer(friend.Brain.Value, friend.Account.Value, share.Id, share.Path, share.IsFolder, share.Role)));
             }
             catch (UnauthorizedAccessException refused) { OsConsoleLog.For<SharedWithMeNeuron>().LogSwallowed(refused, "a friend's door shares nothing with this brain"); }
             catch (Exception error) when (error is TimeoutException or IOException)
             {
-                pointers.AddRange(State.Pointers.Where(pointer => pointer.OwnerBrain == friend.BrainId));
+                pointers.AddRange(State.Pointers.Where(pointer => pointer.OwnerBrain == friend.Brain.Value));
             }
         }
 

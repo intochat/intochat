@@ -13,6 +13,10 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Identity;
+using IntoChat.OS.Modules.Identity.Codes;
+using IntoChat.OS.Modules.Identity.Contracts.Codes;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -282,13 +286,20 @@ public sealed class FileSharesDoorFacts
     {
         internal static EdgeAuthority Edge { get; private set; } = null!;
 
-        public static async Task<World> Start(DigitalBrain.Testing.Conformance.Host.OffsetClock? clock = null)
+        public static async Task<World> Start(
+            DigitalBrain.Testing.Conformance.Host.OffsetClock? clock = null,
+            string? seedProfileFriends = null,
+            string? forAccount = null)
         {
             var fixture = new DoorFixture();
             var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct,
                 siloServices: clock is null ? null : DigitalBrain.Testing.Conformance.Host.OrleansRun.ClockServices(clock));
             var world = new World(fixture, runtime);
             Edge = runtime.Edge;
+            if (!string.IsNullOrWhiteSpace(seedProfileFriends) && !string.IsNullOrWhiteSpace(forAccount))
+            {
+                await world.SeedProfileFriends(forAccount, seedProfileFriends);
+            }
             await world.Seed();
             await world.Befriend(Ada, Ben);
             return world;
@@ -296,7 +307,7 @@ public sealed class FileSharesDoorFacts
 
         public IFileShares Door(string brain) => SiloNeurons.Get<IFileShares>(runtime.Services, FileSharesDefaults.Id(brain));
         public ISharedWithMe Mine(string brain) => SiloNeurons.Get<ISharedWithMe>(runtime.Services, SharedWithMeDefaults.Key(brain));
-        public IFriendLinks Links(string brain) => SiloNeurons.Get<IFriendLinks>(runtime.Services, FriendLinksDefaults.Id(brain));
+        public IFriends Friends(string brain) => SiloNeurons.Get<IFriends>(runtime.Services, FriendsDefaults.Id(brain));
         public IProfile Profile(string brain) => SiloNeurons.Get<IProfile>(runtime.Services, new NeuronId(new BrainId(brain), "os.profile", "profile"));
         public IUserSettings Settings(string brain) => SiloNeurons.Get<IUserSettings>(runtime.Services, IUserSettings.Key(new BrainId(brain)));
         public ISynapseStudio Studio(string brain) => SiloNeurons.Get<ISynapseStudio>(runtime.Services, ISynapseStudio.Key(brain));
@@ -304,9 +315,23 @@ public sealed class FileSharesDoorFacts
         // One makes a code, the other redeems it.
         public async Task Befriend(string minter, string redeemer)
         {
-            FriendCode code;
-            using (As(minter)) { code = await Links(minter).Mint(); }
-            using (As(redeemer)) { await Links(redeemer).Redeem(code.Code); }
+            Code code;
+            using (As(minter)) { code = await Friends(minter).Mint(); }
+            using (As(redeemer)) { await Friends(redeemer).Redeem(code); }
+        }
+
+        private async Task SeedProfileFriends(string account, string friendsArrayJson)
+        {
+            var journal = runtime.Services.GetRequiredService<IBrainJournalWriter>();
+            await journal.Claim(account, Ct);
+            var profileJson = $$"""{"handle":"{{account}}","displayName":"{{account}}","bio":"","pinnedApps":[],"posts":[],"avatarUrl":"","friends":{{friendsArrayJson}},"sharedApps":[]}""";
+            var grainId = $"neuron.host/{account}/os.profile/profile";
+            await journal.Append(
+                account,
+                new JournalStateWrite(grainId, "state", JournalStateChange.Write, null, Encoding.UTF8.GetBytes(profileJson), null),
+                "",
+                [],
+                Ct);
         }
 
         public IProber Prober(string brain) => SiloNeurons.Get<IProber>(runtime.Services, $"{brain}/outer");
@@ -379,13 +404,15 @@ public sealed class FileSharesDoorFacts
     {
         public override BrainId Brain { get; } = new(Ada);
 
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
+        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(IdentityModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
             services.Configure<Orleans.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
             services.Configure<Orleans.Configuration.ClientMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
             services.AddSingleton<IBrainOwners, SameNameOwners>();
+            DigitalBrain.Invocation.RuntimeProtocol.Register(CodesJson.Default);
+            services.TryAddSingleton<ICodeBook, CodeBook>();
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);

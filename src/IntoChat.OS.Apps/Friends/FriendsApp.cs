@@ -186,7 +186,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     public const string TextField = "shared-text";
     public static string FieldKey(string field) => $"apps/friends/{field}";
 
-    private IFriendLinks Links => Get<IFriendLinks>(FriendLinksDefaults.KeyPart);
+    private IFriends Friends => Get<IFriends>(FriendsDefaults.KeyPart);
     private IFileShares Door => Get<IFileShares>(FileSharesDefaults.KeyPart);
     private ISharedWithMe Mine => Get<ISharedWithMe>(SharedWithMeDefaults.KeyPart);
 
@@ -196,8 +196,8 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("make a friend code", async () =>
         {
-            var code = await Links.Mint();
-            return State with { FriendCode = code.Code, Status = $"Send this code to your friend. It works once, until {code.ExpiresAt:u}." };
+            var code = await Friends.Mint();
+            return State with { FriendCode = code.Value, Status = "Send this code to your friend. It works once, for 24 hours." };
         });
     }
 
@@ -207,10 +207,19 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("add that friend", async () =>
         {
-            var code = await Typed(request.Code, CodeField);
-            var friend = await Links.Redeem(code);
+            var raw = await Typed(request.Code, CodeField);
+            if (!IntoChat.OS.Runtime.Code.TryParse(raw, out var code))
+            {
+                return State with
+                {
+                    Status = raw.Contains('.', StringComparison.Ordinal)
+                        ? "That code is from before the update; ask for a new one."
+                        : "That is not a valid friend code.",
+                };
+            }
+            var friend = await Friends.Redeem(code);
             var profile = await Get<IProfile>("profile").Read();
-            return await WithShares(State.ApplyProfile(profile, $"@{friend.Handle} is now a friend."));
+            return await WithShares(State.ApplyProfile(profile, $"{friend.Name} is now a friend."));
         });
     }
 
@@ -220,7 +229,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("remove that friend", async () =>
         {
-            await Links.Unfriend(request.Account);
+            await Friends.Unfriend(new IntoChat.OS.Modules.Identity.Contracts.AccountId(request.Account));
             var profile = await Get<IProfile>("profile").Read();
             return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.") with { Opened = null });
         });
