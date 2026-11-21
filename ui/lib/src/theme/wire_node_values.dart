@@ -461,3 +461,26 @@ String shellBodyTransitionSignature(Node body, String transition) {
 
   return '${parseViewTransition(transition).name}:${describe(body, 0)}';
 }
+
+/// Parsed components of a `device:{name}/{modelId}` wire model identifier,
+/// or `null` when [raw] is not a valid device model id.
+final class ParsedDeviceModelId {
+  const ParsedDeviceModelId(this.device, this.modelId);
+
+  final String device;
+  final String modelId;
+}
+
+final RegExp _deviceModelNamePattern = RegExp(r'^[A-Za-z0-9._-]{1,64}$');
+
+ParsedDeviceModelId? parseDeviceModelId(String raw) {
+  if (!raw.startsWith('device:')) return null;
+  final rest = raw.substring('device:'.length);
+  final slash = rest.indexOf('/');
+  if (slash < 1 || slash > 64 || slash >= rest.length - 1) return null;
+  final device = rest.substring(0, slash);
+  final modelId = rest.substring(slash + 1);
+  if (!_deviceModelNamePattern.hasMatch(device)) return null;
+  if (modelId.trim().isEmpty) return null;
+  return ParsedDeviceModelId(device, modelId);
+}

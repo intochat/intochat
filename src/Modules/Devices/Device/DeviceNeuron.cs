@@ -6,6 +6,7 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices.Link;
 
 namespace IntoChat.OS.Modules.Devices;
 
@@ -15,7 +16,8 @@ internal sealed class DeviceNeuron(
     IHardwareProbe hardware,
     IEnumerable<ILocalRuntime> runtimes,
     DeviceInstaller installer,
-    EdgeAuthority? edge = null) : Neuron<DeviceState>, IDevice, IDeviceInstallReports
+    EdgeAuthority? edge = null,
+    DeviceWorker? worker = null) : Neuron<DeviceState>, IDevice, IDeviceInstallReports
 {
     private const int MaxRecent = 20;
 
@@ -190,6 +192,7 @@ internal sealed class DeviceNeuron(
             ?? throw new ArgumentException($"No runtime on this device offers '{model.Value}'.", nameof(model));
 
         await resolved.Runtime.Remove(model, CancellationToken.None).ConfigureAwait(false);
+        worker?.NotifyModelsChanged();
     }
 
     public async Task Report(InstallProgress progress)
@@ -240,9 +243,11 @@ internal sealed class DeviceNeuron(
 
         var remaining = State.Queue.Where((_, i) => i != index).ToArray();
         var recent = PrependRecent(updated);
+        var completedSignal = new InstallChanged(updated.Model, updated.State, updated.Percent);
         await Save(
             State with { Queue = remaining, Recent = recent },
-            new InstallChanged(updated.Model, updated.State, updated.Percent)).ConfigureAwait(false);
+            completedSignal).ConfigureAwait(false);
+        worker?.NotifyInstallChanged(completedSignal);
 
         if (progress.State == InstallState.Ready && existing.SwitchWhenReady is { } targetRole)
         {

@@ -7,6 +7,7 @@ using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using static IntoChat.OS.UI.Kit;
@@ -412,7 +413,7 @@ public static class InoThread
         {
             rawModel = run.Posted ? null : run.Model?.Model;
         }
-        var modelCard = InoView.ResolveModel(rawModel);
+        var (displayModel, providerIcon) = FormatModelChip(rawModel);
 
         var (activities, cards) = runId is not null && returnedByRun.TryGetValue(runId, out var returns)
             ? BuildStepVisuals(runId, returns, toolArgs, apps)
@@ -432,11 +433,28 @@ public static class InoThread
 
         return new ThreadMessage(said.Id.Value, "assistant", displayText, "completed")
         {
-            Model = modelCard?.Name ?? (string.IsNullOrWhiteSpace(rawModel) ? null : rawModel),
-            ProviderIcon = modelCard?.IconKey(),
+            Model = displayModel,
+            ProviderIcon = providerIcon,
             Activities = activities,
             Cards = cards,
         };
+    }
+
+    private static (string? Label, string? ProviderIcon) FormatModelChip(string? rawModel)
+    {
+        if (string.IsNullOrWhiteSpace(rawModel))
+        {
+            return (null, null);
+        }
+
+        if (DeviceModelRef.TryParse(rawModel, out var deviceRef))
+        {
+            var inner = InoView.ResolveModel(deviceRef.Model.Value);
+            return ($"{inner?.Name ?? deviceRef.Model.Value} · {deviceRef.Device}", inner?.IconKey() ?? "provider:device");
+        }
+
+        var card = InoView.ResolveModel(rawModel);
+        return (card?.Name ?? rawModel, card?.IconKey());
     }
 
     private static ThreadMessage BuildNonCompletedReply(
@@ -461,7 +479,7 @@ public static class InoThread
         var failureText = InoErrors.Describe(failureCode) ?? ChatThreadNeuron.NoAnswer;
 
         var rawModel = run.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } resolved ? resolved.Model : null;
-        var modelCard = InoView.ResolveModel(rawModel);
+        var (displayModel, providerIcon) = FormatModelChip(rawModel);
 
         var (activities, cards) = returnedByRun.TryGetValue(run.RunId, out var returns)
             ? BuildStepVisuals(run.RunId, returns, toolArgs, apps)
@@ -474,8 +492,8 @@ public static class InoThread
 
         return new ThreadMessage(EntryIds.Reply(run.RunId).Value, "assistant", displayText, status)
         {
-            Model = modelCard?.Name ?? rawModel,
-            ProviderIcon = modelCard?.IconKey(),
+            Model = displayModel,
+            ProviderIcon = providerIcon,
             Failure = failureText,
             Activities = activities,
             Cards = cards,
@@ -490,7 +508,7 @@ public static class InoThread
     {
         var (displayText, inlineSlots) = InoCards.ExtractInlineSlots(active.Reply);
         var rawModel = active.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } resolved ? resolved.Model : null;
-        var modelCard = InoView.ResolveModel(rawModel);
+        var (displayModel, providerIcon) = FormatModelChip(rawModel);
 
         var (activities, cards) = returnedByRun.TryGetValue(active.RunId, out var returns)
             ? BuildStepVisuals(active.RunId, returns, toolArgs, apps)
@@ -503,8 +521,8 @@ public static class InoThread
 
         return new ThreadMessage(EntryIds.Reply(active.RunId).Value, "assistant", displayText, "running")
         {
-            Model = modelCard?.Name ?? rawModel,
-            ProviderIcon = modelCard?.IconKey(),
+            Model = displayModel,
+            ProviderIcon = providerIcon,
             Activities = activities,
             Cards = cards,
         };

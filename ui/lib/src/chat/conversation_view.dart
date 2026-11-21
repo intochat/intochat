@@ -18,6 +18,7 @@ import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
 import '../voice_input/ui_voice_input.dart';
+import 'model_label.dart';
 import 'model_picker.dart';
 import 'ui_copyable_message.dart';
 
@@ -318,6 +319,7 @@ class _ConversationViewState extends State<ConversationView> {
     ];
     final hasError = error != null;
     final itemCount = visibleMessages.length + (hasError ? 1 : 0);
+    final modelNames = _buildModelNames(widget.models);
 
     return ListView.builder(
       controller: _scrollController,
@@ -358,12 +360,26 @@ class _ConversationViewState extends State<ConversationView> {
                   : _AssistantMessageItem(
                       message: msg,
                       ctx: widget.ctx.deeper(),
+                      modelNames: modelNames,
                     ),
             ),
           ),
         );
       },
     );
+  }
+
+  static Map<String, String> _buildModelNames(List<ModelChoice>? choices) {
+    if (choices == null || choices.isEmpty) return const <String, String>{};
+    final names = <String, String>{};
+    for (final choice in choices) {
+      names[choice.id] = choice.label;
+      final parsed = parseDeviceModelId(choice.id);
+      if (parsed != null) {
+        names.putIfAbsent(parsed.modelId, () => choice.label);
+      }
+    }
+    return names;
   }
 
   static bool _isEmptyFailedAssistantStub(MessageNode msg) {
@@ -615,10 +631,15 @@ class _UserMessageItem extends StatelessWidget {
 }
 
 class _AssistantMessageItem extends StatelessWidget {
-  const _AssistantMessageItem({required this.message, required this.ctx});
+  const _AssistantMessageItem({
+    required this.message,
+    required this.ctx,
+    this.modelNames = const <String, String>{},
+  });
 
   final MessageNode message;
   final NodeContext ctx;
+  final Map<String, String> modelNames;
 
   @override
   Widget build(BuildContext context) {
@@ -628,12 +649,19 @@ class _AssistantMessageItem extends StatelessWidget {
     final isRunning =
         parseMessageStatus(message.status) == WireMessageStatus.running;
     final model = message.model;
-    final modelLabel = message.modelLabel;
+    final explicitModelLabel = message.modelLabel;
     final providerIcon = message.providerIcon;
     final hasModelInfo =
         (model != null && model.trim().isNotEmpty) ||
-        (modelLabel != null && modelLabel.trim().isNotEmpty) ||
+        (explicitModelLabel != null && explicitModelLabel.trim().isNotEmpty) ||
         (providerIcon != null && providerIcon.trim().isNotEmpty);
+    final rawChipModel =
+        (explicitModelLabel != null && explicitModelLabel.trim().isNotEmpty)
+        ? explicitModelLabel
+        : model;
+    final formattedChipLabel = rawChipModel != null
+        ? modelLabel(rawChipModel, modelNames)
+        : null;
     final retry = message.retry;
 
     return Align(
@@ -711,11 +739,7 @@ class _AssistantMessageItem extends StatelessWidget {
                       child: IcBrandChip(
                         key: ValueKey('msg-model:${message.id}'),
                         spec: BrandVisuals.fromNode(
-                          label:
-                              (modelLabel != null &&
-                                  modelLabel.trim().isNotEmpty)
-                              ? modelLabel
-                              : model,
+                          label: formattedChipLabel,
                           iconKey: providerIcon,
                         ),
                       ),

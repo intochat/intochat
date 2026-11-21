@@ -83,6 +83,8 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());
+        services.TryAddSingleton<DeviceWorker>();
+        services.AddHostedService(static sp => sp.GetRequiredService<DeviceWorker>());
         services.AddHostedService<DevicePrefetch>();
         services.AddHttpClient("devices.ollama", static client => client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddHttpClient("devices.openai-compat");
