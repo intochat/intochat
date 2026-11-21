@@ -61,18 +61,26 @@ internal static class ArtCraftWebEndpoints
                 supportedExtensions = d.SupportedExtensions,
                 defaultLayersOrTracks = d.DefaultLayersOrTracks,
             })))
+            .AllowAnonymous()
             .WithOrder(-100);
 
         endpoints.MapGet("/artcraft/{appId}", static (string appId, HttpContext context, IWebHostEnvironment env, CancellationToken ct) =>
             ServeStudioPageAsync(appId, context, env, ct))
+            .AllowAnonymous()
             .WithOrder(-100);
 
         endpoints.MapGet("/artcraft/{appId}/index.html", static (string appId, HttpContext context, IWebHostEnvironment env, CancellationToken ct) =>
             ServeStudioPageAsync(appId, context, env, ct))
+            .AllowAnonymous()
             .WithOrder(-100);
 
-        endpoints.MapPost("/artcraft/{appId}/install", static async (string appId, CancellationToken ct) =>
+        endpoints.MapPost("/artcraft/{appId}/install", static async (string appId, HttpContext context, CancellationToken ct) =>
         {
+            if (context.Connection.RemoteIpAddress is { } remoteIp && !IPAddress.IsLoopback(remoteIp))
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
             var normalized = ArtCraftCatalog.NormalizeAppId(appId);
             if (!ArtCraftCatalog.TryGet(normalized, out var descriptor))
             {
@@ -83,10 +91,11 @@ internal static class ArtCraftWebEndpoints
             return result.Installed
                 ? Results.Ok(new { installed = true, appId = descriptor.Id, path = descriptor.StaticWebPath })
                 : Results.Problem(detail: result.Error, statusCode: StatusCodes.Status502BadGateway);
-        }).WithOrder(-100);
+        }).AllowAnonymous().WithOrder(-100);
 
         endpoints.MapGet("/artcraft/{appId}/{**assetPath}", static (string appId, string assetPath, HttpContext context, IWebHostEnvironment env, CancellationToken ct) =>
             ServeStudioAssetAsync(appId, assetPath, context, env, ct))
+            .AllowAnonymous()
             .WithOrder(-100);
     }
 
