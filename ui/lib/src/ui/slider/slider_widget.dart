@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.Slider.ISlider`.
@@ -49,9 +50,6 @@ class _SliderWidgetState extends State<SliderWidget> {
         final value = (_draftValue ?? serverValue).clamp(min, max);
         final unit = '${state['unit'] ?? ''}';
         final isEnabled = state['isEnabled'] != false;
-        final divisions = step > 0 && max > min
-            ? ((max - min) / step).round().clamp(1, 200)
-            : null;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -81,11 +79,13 @@ class _SliderWidgetState extends State<SliderWidget> {
                 ),
               ],
             ),
-            Slider(
+            UiMixSlider(
               value: value,
               min: min,
               max: max > min ? max : min + 1,
-              divisions: divisions,
+              step: step > 0 ? step : 1.0,
+              enabled: isEnabled,
+              semanticsId: widget.neuronKey,
               onChanged: isEnabled
                   ? (v) => setState(() => _draftValue = v)
                   : null,

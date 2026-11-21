@@ -169,4 +169,81 @@ void main() {
       expect(checked, isTrue);
     },
   );
+
+  testWidgets(
+    'UiMixIconButton, UiMixRadio, UiMixSlider, and UiMixChip handle interaction cleanly',
+    (tester) async {
+      var iconClicks = 0;
+      var radioValue = 'a';
+      var sliderValue = 20.0;
+      var chipSelected = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  UiMixIconButton(
+                    icon: Icons.star,
+                    tooltip: 'Favorite',
+                    semanticsId: 'key:mix:icon-btn',
+                    onPressed: () => setState(() => iconClicks++),
+                  ),
+                  UiMixRadio<String>(
+                    value: 'a',
+                    groupValue: radioValue,
+                    label: 'Option A',
+                    onChanged: (v) => setState(() => radioValue = v),
+                  ),
+                  UiMixRadio<String>(
+                    value: 'b',
+                    groupValue: radioValue,
+                    label: 'Option B',
+                    onChanged: (v) => setState(() => radioValue = v),
+                  ),
+                  SizedBox(
+                    width: 200,
+                    child: UiMixSlider(
+                      value: sliderValue,
+                      min: 0,
+                      max: 100,
+                      step: 10,
+                      semanticsId: 'key:mix:slider',
+                      onChanged: (v) => setState(() => sliderValue = v),
+                    ),
+                  ),
+                  UiMixChip(
+                    label: 'Active Filter',
+                    icon: Icons.filter_list,
+                    selected: chipSelected,
+                    semanticsId: 'key:mix:chip',
+                    onSelected: (v) => setState(() => chipSelected = v),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(UiMixIconButton));
+      await tester.pumpAndSettle();
+      expect(iconClicks, 1);
+
+      await tester.tap(find.text('Option B'));
+      await tester.pumpAndSettle();
+      expect(radioValue, 'b');
+
+      await tester.tap(find.byType(UiMixSlider));
+      await tester.pumpAndSettle();
+      expect(sliderValue, greaterThan(20.0));
+
+      await tester.tap(find.text('Active Filter'));
+      await tester.pumpAndSettle();
+      expect(chipSelected, isTrue);
+    },
+  );
 }

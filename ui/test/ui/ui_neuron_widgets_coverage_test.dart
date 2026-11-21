@@ -185,7 +185,7 @@ void main() {
       await tester.pumpWidget(wrap(widget));
       await tester.pumpAndSettle();
 
-      final sliderFinder = find.byType(Slider);
+      final sliderFinder = find.byType(UiMixSlider);
       expect(sliderFinder, findsOneWidget);
 
       await tester.drag(sliderFinder, const Offset(120, 0));

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.InfoBar.IInfoBar`.
@@ -77,9 +78,11 @@ class InfoBarWidget extends StatelessWidget {
                 ),
               ),
               if (isClosable)
-                IconButton(
+                UiMixIconButton(
                   tooltip: 'Dismiss',
-                  icon: Icon(LucideIcons.x, size: 15, color: c.textMuted),
+                  icon: LucideIcons.x,
+                  iconSize: 15,
+                  iconColor: c.textMuted,
                   onPressed: () => unawaited(invoke('Dismiss')),
                 ),
             ],

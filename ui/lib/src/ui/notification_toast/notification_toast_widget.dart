@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive WinUI 3 AppNotification / Toast presenter for `IntoChat.OS.Modules.UI.NotificationToast.INotificationToast`.
@@ -161,11 +162,13 @@ class _ToastCard extends StatelessWidget {
               const SizedBox(width: 8),
               TextButton(onPressed: onAction, child: Text(actionLabel)),
             ],
-            IconButton(
+            UiMixIconButton(
               tooltip: 'Dismiss',
-              visualDensity: VisualDensity.compact,
+              size: 28,
+              icon: LucideIcons.x,
+              iconSize: 14,
+              iconColor: colors.textMuted,
               onPressed: onDismiss,
-              icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
             ),
           ],
         ),

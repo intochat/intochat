@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive WinUI 3 PipsPager presenter for `IntoChat.OS.Modules.UI.PipsPager.IPipsPager`.
@@ -50,30 +51,28 @@ class PipsPagerNeuronWidget extends StatelessWidget {
         final start = (selected - half).clamp(0, pageCount - windowCount);
         final end = start + windowCount;
 
-        final prevButton = IconButton(
+        final prevButton = UiMixIconButton(
           tooltip: 'Previous page',
-          visualDensity: VisualDensity.compact,
+          size: 28,
+          enabled: selected > 0,
           onPressed: selected > 0
               ? () => unawaited(invoke('Previous', const []))
               : null,
-          icon: Icon(
-            isVertical ? LucideIcons.chevronUp : LucideIcons.chevronLeft,
-            size: 15,
-            color: selected > 0 ? c.textStrong : c.textSubtle,
-          ),
+          icon: isVertical ? LucideIcons.chevronUp : LucideIcons.chevronLeft,
+          iconSize: 15,
+          iconColor: selected > 0 ? c.textStrong : c.textSubtle,
         );
 
-        final nextButton = IconButton(
+        final nextButton = UiMixIconButton(
           tooltip: 'Next page',
-          visualDensity: VisualDensity.compact,
+          size: 28,
+          enabled: selected < pageCount - 1,
           onPressed: selected < pageCount - 1
               ? () => unawaited(invoke('Next', const []))
               : null,
-          icon: Icon(
-            isVertical ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-            size: 15,
-            color: selected < pageCount - 1 ? c.textStrong : c.textSubtle,
-          ),
+          icon: isVertical ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+          iconSize: 15,
+          iconColor: selected < pageCount - 1 ? c.textStrong : c.textSubtle,
         );
 
         final pips = <Widget>[

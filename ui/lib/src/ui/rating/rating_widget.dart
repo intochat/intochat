@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.Rating.IRating`.
@@ -44,15 +45,13 @@ class RatingWidget extends StatelessWidget {
               const SizedBox(width: 10),
             ],
             for (var i = 1; i <= max; i++)
-              IconButton(
+              UiMixIconButton(
                 tooltip: '$i of $max',
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(),
-                icon: Icon(
-                  LucideIcons.star,
-                  size: 20,
-                  color: i <= value ? c.working : c.textMuted,
-                ),
+                size: 28,
+                icon: LucideIcons.star,
+                iconSize: 20,
+                iconColor: i <= value ? c.working : c.textMuted,
+                enabled: isEnabled,
                 onPressed: isEnabled
                     ? () => unawaited(invoke('SetValue', [i]))
                     : null,
