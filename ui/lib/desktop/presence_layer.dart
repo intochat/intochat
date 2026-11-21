@@ -7,6 +7,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
+import '../src/ui/ino/ino_orb_v2.dart';
+
 /// How long the sphere flies to a focus; a cut under reduced motion.
 const presenceFlight = Duration(milliseconds: 420);
 
@@ -303,6 +305,10 @@ class PresenceLayerState extends State<PresenceLayer>
                           key: const ValueKey('presence-sphere'),
                           behavior: HitTestBehavior.opaque,
                           onTap: widget.onOpenIno,
+                          child: InoOrbV2(
+                            state: state,
+                            size: sphereRadius * 2,
+                          ),
                         ),
                       ),
                     ),
