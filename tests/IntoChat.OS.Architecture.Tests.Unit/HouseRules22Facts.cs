@@ -1457,6 +1457,7 @@ public sealed class HouseRules22Facts
             "ISalesforceProvider",
             "IAudioTranscriptionService",
             "IAudioConverter",
+            "IVoiceClients",
             "IFoundryLocalApi",
             "ISherpaApi",
             "ISherpaTts",

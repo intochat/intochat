@@ -18,6 +18,7 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Modules.AI.Testing;
+using IntoChat.OS.Modules.AI.Voice;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -79,6 +80,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         var topology = configuration[IntoChatOSNames.TopologyKey];
         AIClients.AddImageGeneration(services, options, topology);
         VoiceToTextHosting.Add(services, options, topology);
+        services.TryAddSingleton<IVoiceClients, VoiceClients>();
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();
