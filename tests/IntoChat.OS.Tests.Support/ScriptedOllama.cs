@@ -183,6 +183,18 @@ public sealed class ScriptedOllama : IAsyncDisposable
                     return;
                 }
 
+                if (string.Equals(request.Path, "/api/version", StringComparison.Ordinal))
+                {
+                    await WritePlainResponseAsync(stream, HttpStatusCode.OK, "application/json", """{"version":"0.9.0"}""", close: true, ct).ConfigureAwait(false);
+                    return;
+                }
+
+                if (string.Equals(request.Path, "/api/ps", StringComparison.Ordinal))
+                {
+                    await WritePlainResponseAsync(stream, HttpStatusCode.OK, "application/json", """{"models":[]}""", close: true, ct).ConfigureAwait(false);
+                    return;
+                }
+
                 if (string.Equals(request.Path, "/api/tags", StringComparison.Ordinal))
                 {
                     var tagsJson = BuildTagsResponse();

@@ -28,6 +28,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         "azure",
         "roslyn",
         "sandbox",
+        "webtools",
     ];
 
     private readonly TestHome _home = new();
@@ -73,6 +74,8 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
             $"--{IntoChatOSNames.ShellEnabledKey}=false",
             $"--{IntoChatOSNames.FrontEnabledKey}=false",
+            $"--{ModuleConfiguration.ModuleSection("devices")}:ReplaceOptions=true",
+            $"--{ModuleConfiguration.ModuleSection("devices")}:Options:FoundryLocal:Enabled=false",
         };
         foreach (var module in DisabledModules)
         {

@@ -32,7 +32,7 @@ namespace IntoChat.OS.Tests.Browser.Scenarios;
 // lets the shell sign in with the presence token. Test tier only: the production host and FlutterHostOptions are unchanged.
 public sealed class WebShellHost : IAsyncLifetime
 {
-    private static readonly string[] DisabledModules = ["artcraft", "playwright", "postgres", "qdrant", "clickhouse", "supabase", "azure", "roslyn", "sandbox"];
+    private static readonly string[] DisabledModules = ["artcraft", "playwright", "postgres", "qdrant", "clickhouse", "supabase", "azure", "roslyn", "sandbox", "webtools"];
     private readonly TestHome _home = new();
     private IDistributedApplicationTestingBuilder? _builder;
     private WebApplication? _origin;
@@ -64,6 +64,8 @@ public sealed class WebShellHost : IAsyncLifetime
             $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
             $"--{IntoChatOSNames.ShellEnabledKey}=false",
             $"--{IntoChatOSNames.FrontEnabledKey}=false",
+            $"--{ModuleConfiguration.ModuleSection("devices")}:ReplaceOptions=true",
+            $"--{ModuleConfiguration.ModuleSection("devices")}:Options:FoundryLocal:Enabled=false",
             $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
         ];
         args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
