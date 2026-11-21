@@ -1130,6 +1130,7 @@ public sealed class HouseRules22Facts
             // Cross-assembly app/kernel/unit composition or Orleans-activated grains
             "IntoChat.OS.Modules.AI.Agents.AgentFailures",
             "IntoChat.OS.Modules.AI.Models.ModelCatalog",
+            "IntoChat.OS.Modules.Devices.OllamaRuntime",
             // A host registers the workflows it offers; it carries an Agent Framework factory, so it is not a contract.
             "IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition",
             "IntoChat.OS.Modules.Microsoft.Azure.ArmAzure",

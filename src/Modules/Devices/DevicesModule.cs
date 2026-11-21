@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Devices;
 
@@ -55,6 +56,17 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             })
             .ValidateOnStart();
 
+        services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
+        services.AddHttpClient("devices.ollama", static client => client.Timeout = Timeout.InfiniteTimeSpan);
+
+        var initial = section.Get<DevicesOptions>() ?? new DevicesOptions();
+        if (initial.Ollama.Enabled)
+        {
+            services.AddSingleton<ILocalRuntime>(static sp => new OllamaRuntime(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.ollama"),
+                sp.GetRequiredService<IOptionsMonitor<DevicesOptions>>(),
+                sp.GetRequiredService<TimeProvider>()));
+        }
     }
 }
