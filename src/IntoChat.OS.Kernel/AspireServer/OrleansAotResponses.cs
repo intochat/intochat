@@ -53,6 +53,7 @@ internal static class OrleansAotResponses
         AddEnum<PresenceState>(services);
         AddEnum<FocusTone>(services);
         AddEnum<IntoChat.OS.Modules.Circles.RedeemResult>(services);
+        AddEnum<IntoChat.OS.Modules.Flutter.Conversations.Visibility>(services);
         AddEnum<IntoChat.OS.Modules.Google.Gmail.GmailDraftOperationStatus>(services);
         AddEnum<IntoChat.OS.Modules.Google.Gmail.GmailAccountingStatus>(services);
         AddEnum<IntoChat.OS.Modules.Postgres.PostgresIsolation>(services);
@@ -61,6 +62,10 @@ internal static class OrleansAotResponses
         AddNullableValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
         AddValue<IntoChat.OS.Modules.AI.Models.ModelId>(services);
         AddNullableValue<IntoChat.OS.Modules.AI.Models.ModelId>(services);
+        AddValue<IntoChat.OS.Modules.Identity.Contracts.AccountId>(services);
+        AddNullableValue<IntoChat.OS.Modules.Identity.Contracts.AccountId>(services);
+        AddValue<IntoChat.OS.Modules.Flutter.Conversations.EntryId>(services);
+        AddNullableValue<IntoChat.OS.Modules.Flutter.Conversations.EntryId>(services);
         AddValue<IntoChat.OS.Host.Primitives.SafeRelativePath>(services);
         AddNullableValue<IntoChat.OS.Host.Primitives.SafeRelativePath>(services);
 

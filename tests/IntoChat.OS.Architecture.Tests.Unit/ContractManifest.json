@@ -282,7 +282,6 @@
     "IntoChat.OS.Modules.Circles.Signals.CircleSpoke": "CircleSpoke",
     "IntoChat.OS.Modules.Flutter.Chat.ChatActionActivated": "ChatActionActivated",
     "IntoChat.OS.Modules.Flutter.Chat.ChatChanged": "ChatChanged",
-    "IntoChat.OS.Modules.Flutter.Chat.ChatIndexChanged": "ChatIndexChanged",
     "IntoChat.OS.Modules.Flutter.Chat.ChatReceiptRecorded": "ChatReceiptRecorded",
     "IntoChat.OS.Modules.Flutter.Chat.ChatRunChanged": "ChatRunChanged",
     "IntoChat.OS.Modules.Flutter.Chat.ChatSelectionChanged": "ChatSelectionChanged",

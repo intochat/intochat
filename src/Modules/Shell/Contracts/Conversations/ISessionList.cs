@@ -4,41 +4,46 @@ using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Contracts;
 
-namespace IntoChat.OS.Modules.Flutter.Chat;
+namespace IntoChat.OS.Modules.Flutter.Conversations;
 
-// One entry per conversation of an assistant, at `{DataKey}/chats`. Each conversation stays an agent at
-// `{DataKey}/conversations/{Id}`; the index only names, orders and archives them.
-[NeuronAlias("chat-index"), DefaultNeuronType(ChatIndex.GrainType)]
-public interface IChatIndex
+// One entry per conversation of an assistant, at `{DefaultKey}` ("apps/ino/chats"). Each conversation lives at
+// `conversations/{Id}`; the session list names, orders, tracks the current one, and archives them.
+[NeuronAlias("chat-index"), DefaultNeuronType(Sessions.Type)]
+public interface ISessionList
 {
+    const string DefaultKey = "apps/ino/chats";
+
     // Unarchived (archived: false) or archived (archived: true) entries, newest first; only the newest MaxListed are reachable.
-    [DigitalBrain.Contracts.ReadOnlyCall] Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage);
+    [ReadOnlyCall] Task<SessionPage> List(bool archived, int skip = 0, int take = Sessions.MaxPage);
     // Idempotent by id: an existing entry is returned unchanged.
-    Task<ChatIndexEntry> Create(string id, string title);
+    Task<ConversationSession> Create(string id, string title);
+    // Creates the entry when missing, then makes it the current conversation.
+    Task<ConversationSession> Open(string id);
+    [ReadOnlyCall] Task<string?> Current();
     Task Rename(string id, string title);
     Task Archive(string id);
     Task Unarchive(string id);
     // Marks activity, creating the entry when missing; titles a still-default entry from the first message.
     Task Touch(string id, string? firstMessage);
     Task SetModel(string id, string? modelChoice);
-    [DigitalBrain.Contracts.ReadOnlyCall] Task<ChatIndexEntry?> Get(string id);
+    [ReadOnlyCall] Task<ConversationSession?> Get(string id);
 }
 
-public sealed record ChatIndexEntry(
+public sealed record ConversationSession(
     string Id,
     string Title,
     DateTimeOffset UpdatedAt,
     bool Archived,
     string? ModelChoice = null);
 
-public sealed record ChatIndexPage(ChatIndexEntry[] Entries, int Total);
+public sealed record SessionPage(ConversationSession[] Entries, int Total);
 
 [Signal("ui.chat-index-changed")]
-public sealed record ChatIndexChanged(string Name, long Revision) : DigitalBrain.Signal;
+public sealed record SessionsChanged(string Name, long Revision) : Signal;
 
-public static partial class ChatIndex
+public static partial class Sessions
 {
-    public const string GrainType = "chat-index";
+    public const string Type = "chat-index";
     public const int MaxListed = 500;
     public const int MaxPage = 100;
     public const int TitleClip = 52;
@@ -47,7 +52,7 @@ public static partial class ChatIndex
     public const string NewChat = "New chat";
     public const string Untitled = "Untitled";
 
-    [GeneratedRegex("^(main|c-[0-9a-f]{32})$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^(main|c-[0-9a-f]{8}|c-[0-9a-f]{32})$", RegexOptions.CultureInvariant)]
     private static partial Regex IdPattern();
 
     public static bool IsId(string? id) => id is not null && IdPattern().IsMatch(id);

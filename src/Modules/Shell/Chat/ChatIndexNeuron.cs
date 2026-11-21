@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.State;
-using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
@@ -10,41 +10,46 @@ namespace IntoChat.OS.Modules.Flutter.Chat;
 internal sealed record ChatIndexState
 {
     [Id(0)] public long Revision { get; init; }
-    [Id(1)] public ChatIndexEntry[] Entries { get; init; } = [];
+    [Id(1)] public ConversationSession[] Entries { get; init; } = [];
 }
 
-[Neuron(ChatIndex.GrainType)]
+[Neuron(Sessions.Type)]
 internal sealed class ChatIndexNeuron
-    : UiNeuron<ChatIndexState>, IChatIndex
+    : UiNeuron<ChatIndexState>, ISessionList
 {
     [DigitalBrain.Contracts.ReadOnlyCall]
-    public Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage)
+    public Task<SessionPage> List(bool archived, int skip = 0, int take = Sessions.MaxPage)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(skip);
         ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(take, ChatIndex.MaxPage);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(take, Sessions.MaxPage);
         var reachable = Snapshot.Entries.Where(entry => entry.Archived == archived)
             .OrderByDescending(entry => entry.UpdatedAt).ThenBy(entry => entry.Id, StringComparer.Ordinal)
-            .Take(ChatIndex.MaxListed).ToArray();
-        return Task.FromResult(new ChatIndexPage([.. reachable.Skip(skip).Take(take)], reachable.Length));
+            .Take(Sessions.MaxListed).ToArray();
+        return Task.FromResult(new SessionPage([.. reachable.Skip(skip).Take(take)], reachable.Length));
     }
 
     [DigitalBrain.Contracts.ReadOnlyCall]
-    public Task<ChatIndexEntry?> Get(string id) => Task.FromResult(Find(ValidId(id)));
+    public Task<ConversationSession?> Get(string id) => Task.FromResult(Find(ValidId(id)));
 
-    public async Task<ChatIndexEntry> Create(string id, string title)
+    public async Task<ConversationSession> Create(string id, string title)
     {
         ValidId(id);
-        var valid = ChatIndex.ValidTitle(title);
+        var valid = Sessions.ValidTitle(title);
         if (Find(id) is { } existing) { return existing; }
-        var entry = new ChatIndexEntry(id, valid, Now(), false);
+        var entry = new ConversationSession(id, valid, Now(), false);
         await Write([.. Snapshot.Entries, entry]);
         return entry;
     }
 
+    public Task<ConversationSession> Open(string id) => Create(id, Sessions.NewChat);
+
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    public Task<string?> Current() => Task.FromResult(Snapshot.Entries.OrderByDescending(entry => entry.UpdatedAt).FirstOrDefault()?.Id);
+
     public Task Rename(string id, string title)
     {
-        var valid = ChatIndex.ValidTitle(title);
+        var valid = Sessions.ValidTitle(title);
         return Update(id, entry => entry.Title == valid ? entry : entry with { Title = valid });
     }
 
@@ -58,23 +63,23 @@ internal sealed class ChatIndexNeuron
         var at = Now();
         if (Find(id) is not { } entry)
         {
-            await Write([.. Snapshot.Entries, new ChatIndexEntry(id, ChatIndex.TitleFrom(firstMessage), at, false)]);
+            await Write([.. Snapshot.Entries, new ConversationSession(id, Sessions.TitleFrom(firstMessage), at, false)]);
             return;
         }
-        var title = entry.Title is ChatIndex.NewChat or ChatIndex.Untitled && firstMessage is not null
-            && ChatIndex.TitleFrom(firstMessage) is var from && from != ChatIndex.NewChat ? from : entry.Title;
+        var title = entry.Title is Sessions.NewChat or Sessions.Untitled && firstMessage is not null
+            && Sessions.TitleFrom(firstMessage) is var from && from != Sessions.NewChat ? from : entry.Title;
         await Write(Replace(entry with { Title = title, UpdatedAt = at }));
     }
 
     public Task SetModel(string id, string? modelChoice)
     {
-        if (modelChoice is not null && (string.IsNullOrWhiteSpace(modelChoice) || modelChoice.Length > ChatIndex.ModelChoiceMax
+        if (modelChoice is not null && (string.IsNullOrWhiteSpace(modelChoice) || modelChoice.Length > Sessions.ModelChoiceMax
             || modelChoice.Any(char.IsControl)))
-        { throw new ArgumentException($"A model choice is null or 1 to {ChatIndex.ModelChoiceMax} characters.", nameof(modelChoice)); }
+        { throw new ArgumentException($"A model choice is null or 1 to {Sessions.ModelChoiceMax} characters.", nameof(modelChoice)); }
         return Update(id, entry => entry.ModelChoice == modelChoice ? entry : entry with { ModelChoice = modelChoice });
     }
 
-    private async Task Update(string id, Func<ChatIndexEntry, ChatIndexEntry> change)
+    private async Task Update(string id, Func<ConversationSession, ConversationSession> change)
     {
         ValidId(id);
         var entry = Find(id) ?? throw new KeyNotFoundException($"No chat '{id}' is indexed.");
@@ -82,16 +87,16 @@ internal sealed class ChatIndexNeuron
         if (next != entry) { await Write(Replace(next)); }
     }
 
-    private Task Write(ChatIndexEntry[] entries)
+    private Task Write(ConversationSession[] entries)
     {
         var next = new ChatIndexState { Revision = Snapshot.Revision + 1, Entries = entries };
-        return Save(next, new ChatIndexChanged(FullKey, next.Revision));
+        return Save(next, new SessionsChanged(FullKey, next.Revision));
     }
 
-    private ChatIndexEntry[] Replace(ChatIndexEntry next)
+    private ConversationSession[] Replace(ConversationSession next)
         => [.. Snapshot.Entries.Select(entry => entry.Id == next.Id ? next : entry)];
 
-    private ChatIndexEntry? Find(string id) => Array.Find(Snapshot.Entries, entry => entry.Id == id);
+    private ConversationSession? Find(string id) => Array.Find(Snapshot.Entries, entry => entry.Id == id);
 
     // Strictly increasing, so entries written in one tick still order newest first.
     private DateTimeOffset Now()
@@ -102,5 +107,5 @@ internal sealed class ChatIndexNeuron
     }
 
     private static string ValidId(string id)
-        => ChatIndex.IsId(id) ? id : throw new ArgumentException("A chat id is \"main\" or \"c-\" and 32 hex digits.", nameof(id));
+        => Sessions.IsId(id) ? id : throw new ArgumentException("A chat id is \"main\" or \"c-\" and 8 or 32 hex digits.", nameof(id));
 }
