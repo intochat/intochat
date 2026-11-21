@@ -177,6 +177,7 @@ public static class ServerHostingExtensions
         if (!((IApplicationBuilder)app).Properties.TryAdd("IntoChat.OS.Mapped", true)) { throw new InvalidOperationException("MapIntoChatOSServer runs once per application."); }
         UseStaticWebShell(app);
         app.UsePlatformHttp(beforeAccountSession: beforeAccountSession);
+        app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
         // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
         app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }

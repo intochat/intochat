@@ -21,7 +21,7 @@ public sealed class ModelsGenerator : IIncrementalGenerator
 
     private static readonly HashSet<string> ValidProviders = new(StringComparer.Ordinal)
     {
-        "OpenAI", "Anthropic", "Google", "XAI", "Ollama", "FoundryLocal", "OpenRouter", "TypeSafe", "Host", "OpenAICompatible",
+        "OpenAI", "Anthropic", "Google", "XAI", "Ollama", "FoundryLocal", "OpenRouter", "TypeSafe", "Host", "OpenAICompatible", "SherpaOnnx",
     };
 
     private static readonly HashSet<string> ValidWheres = new(StringComparer.Ordinal)

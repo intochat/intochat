@@ -68,12 +68,15 @@ class LiveDesktopShell extends StatefulWidget {
     this.localPreferences,
     this.profileMenu,
     this.read,
+    this.watchSignal,
     this.callNeuron,
     this.requestApp,
     this.notificationsClient,
     this.installedApps = const <String>[],
     this.onDynamicAppsChanged,
     this.transcribe,
+    this.talk,
+    this.speak,
     required this.knowsApp,
   });
 
@@ -116,6 +119,9 @@ class LiveDesktopShell extends StatefulWidget {
   )?
   read;
 
+  /// Watches one signal type on a neuron contract, yielding decoded payloads.
+  final NeuronSignalWatcher? watchSignal;
+
   /// Invokes any typed method on a neuron contract over `NeuronChannel` (gRPC).
   final NeuronMethodCaller? callNeuron;
 
@@ -130,6 +136,12 @@ class LiveDesktopShell extends StatefulWidget {
 
   /// Host capability used by dictation composers to transcribe captured audio into a draft.
   final VoiceTranscriber? transcribe;
+
+  /// Host capability used to open full-duplex voice mode on a conversation.
+  final VoiceTalker? talk;
+
+  /// Host capability used by read-aloud controls to synthesize assistant replies.
+  final VoiceSpeaker? speak;
 
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
@@ -200,6 +212,22 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   IntoChatOSUiClient? get _notificationsClient =>
       widget.notificationsClient ?? widget.entries?.call(widget.brain).client;
+
+  NeuronSignalWatcher? get _watchSignal {
+    if (widget.watchSignal != null) return widget.watchSignal;
+    final client = _notificationsClient;
+    if (client == null) return null;
+    return (contract, key, signal) => client
+        .watches(widget.brain)
+        .watch(
+          WatchSourceSpec(
+            contract,
+            key.startsWith('${widget.brain}/') ? key : '${widget.brain}/$key',
+            [signal],
+          ),
+        )
+        .map((s) => s.payload);
+  }
 
   void _subscribeNotifications() {
     _notificationsSub?.cancel();
@@ -1445,10 +1473,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         name: widget.name,
         load: widget.load,
         watch: widget.watch,
+        watchSignal: _watchSignal,
         callNeuron: widget.callNeuron,
         onAction: (event) => _intentTracker.wrapAction(event, widget.onAction),
         knowsApp: widget.knowsApp,
         transcribe: widget.transcribe,
+        talk: widget.talk,
+        speak: widget.speak,
         onActivate: widget.onActivate,
       );
     }
@@ -1779,6 +1810,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         name: w.viewportRef['name'] as String,
                                         load: widget.load,
                                         watch: widget.watch,
+                                        watchSignal: _watchSignal,
                                         callNeuron: widget.callNeuron,
                                         onAction: (event) =>
                                             _intentTracker.wrapAction(
@@ -1789,6 +1821,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                             ),
                                         knowsApp: _knowsDesktopApp,
                                         transcribe: widget.transcribe,
+                                        talk: widget.talk,
+                                        speak: widget.speak,
                                         signals: _journalFor(
                                           w.viewportRef['name'] as String,
                                         ),
@@ -1810,6 +1844,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 name: spec.viewportRef['name'] as String,
                                 load: widget.load,
                                 watch: widget.watch,
+                                watchSignal: _watchSignal,
                                 callNeuron: widget.callNeuron,
                                 onAction: (event) => _intentTracker.wrapAction(
                                   event,
@@ -1819,6 +1854,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 ),
                                 knowsApp: _knowsDesktopApp,
                                 transcribe: widget.transcribe,
+                                talk: widget.talk,
+                                speak: widget.speak,
                                 signals: _journalFor(
                                   spec.viewportRef['name'] as String,
                                 ),

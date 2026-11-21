@@ -18,12 +18,13 @@ internal static class InoDrawing
         ConversationView? view = null,
         SessionPage? sessions = null,
         IReadOnlyDictionary<string, AppManifest?>? apps = null,
-        string? links = null)
-        => InoView.Screen(s, dictation, props => Thread(s, view, apps, links, props), view, sessions);
+        string? links = null,
+        VoiceAbilities? voice = null)
+        => InoView.Screen(s, voice ?? new VoiceAbilities(dictation, false, false), props => Thread(s, view, apps, links, props), view, sessions);
 
     // What a running Ino shows: its state with the conversation view it last read (messages live in the thread, never in stored state).
     internal static View Screen(InoApp app)
-        => Screen(app.State, app.CanDictate, app.CurrentView, app.CurrentSessions, app.CurrentApps, app.CurrentLinks);
+        => Screen(app.State, app.Voice.Hear, app.CurrentView, app.CurrentSessions, app.CurrentApps, app.CurrentLinks, app.Voice);
 
     internal static Conversation Conversation(
         InoAppState s,
@@ -31,7 +32,7 @@ internal static class InoDrawing
         ConversationView? view = null,
         IReadOnlyDictionary<string, AppManifest?>? apps = null,
         string? links = null)
-        => Thread(s, view, apps, links, InoView.ThreadProps(s, view, dictation));
+        => Thread(s, view, apps, links, InoView.ThreadProps(s, view, new VoiceAbilities(dictation, false, false)));
 
     // The thread as Ino writes it: its messages, and the stop and the error's retry the routed props show.
     private static Conversation Thread(

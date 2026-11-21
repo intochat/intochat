@@ -1,6 +1,5 @@
 using DigitalBrain;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
@@ -10,6 +9,11 @@ using IntoChat.OS.Modules.Identity.Contracts.Grants;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Ino;
+
+public sealed record VoiceAbilities(bool Hear, bool Speak, bool Talk)
+{
+    public static VoiceAbilities None { get; } = new(false, false, false);
+}
 
 internal sealed record InoCatalogSnapshot(ModelId? PickedChat, ModelCard[] Cards, ModelAvailability[] Availability);
 
@@ -22,7 +26,6 @@ internal sealed record InoSetupHost(
     Func<IUserSettings> GetSettings,
     Func<string, IConversation> GetConversation,
     Func<ISessionList> GetSessions,
-    Func<ISpeechRecognizer> GetSpeechRecognizer,
     Func<IGrantsNeuron> GetGrants,
     Func<IApprovals> GetApprovals,
     Func<IProfileContextWriter> GetProfileWriter,
@@ -46,8 +49,46 @@ internal static class InoModelSetup
     public static bool IsSmart(UserSettingsState s)
         => s.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
 
-    public static Task<bool> ReadCanDictateAsync(InoSetupHost host)
-        => host.ReadBoolOptional("speech-recognizer", false, async () => (await host.GetSpeechRecognizer().Describe()).Available);
+    public static async Task<VoiceAbilities> ReadVoiceAsync(InoSetupHost host)
+    {
+        try
+        {
+            var catalog = host.GetCatalog();
+            var availability = await catalog.Availability();
+            var ready = availability
+                .Where(static a => a.Ready)
+                .Select(static a => a.Model.Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var hear = await IsRoleReadyAsync(host, catalog, Role.Hear, ready);
+            var speak = await IsRoleReadyAsync(host, catalog, Role.Speak, ready);
+            var talkBoundReady = await IsRoleReadyAsync(host, catalog, Role.Talk, ready);
+            return new VoiceAbilities(hear, speak, talkBoundReady || (hear && speak));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            host.LogOptional(error, "voice-abilities");
+            return VoiceAbilities.None;
+        }
+    }
+
+    private static async Task<bool> IsRoleReadyAsync(
+        InoSetupHost host,
+        IModelCatalog catalog,
+        Role role,
+        HashSet<string> ready)
+    {
+        try
+        {
+            var picked = await catalog.Pick(role);
+            return picked is { Value.Length: > 0 } && ready.Contains(picked.Value);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            host.LogOptional(error, $"voice-role-{role}");
+            return false;
+        }
+    }
 
     public static Task<Approval[]> ReadApprovalsAsync(InoSetupHost host, Approval[]? fallback)
         => host.ReadApprovalsOptional("approvals", fallback ?? [], async () => [.. await host.GetApprovals().Pending()]);
@@ -77,14 +118,14 @@ internal static class InoModelSetup
     public static Task EnsureProfileContextAsync(InoSetupHost host)
         => host.TryOptional("profile-context", () => host.GetProfileWriter().Ensure());
 
-    public static async Task<bool> InitializeViewAsync(InoSetupHost host)
+    public static async Task<VoiceAbilities> InitializeViewAsync(InoSetupHost host)
     {
-        var canDictate = await ReadCanDictateAsync(host);
+        var voice = await ReadVoiceAsync(host);
         var current = host.GetState();
-        if (!string.IsNullOrWhiteSpace(current.SelectedModel)) { return canDictate; }
+        if (!string.IsNullOrWhiteSpace(current.SelectedModel)) { return voice; }
 
         var settings = await host.ReadSettingsOptional("settings-read", null, async () => await host.GetSettings().Read());
-        if (settings is null) { return canDictate; }
+        if (settings is null) { return voice; }
 
         var (_, _, displayModel) = await ResolveForSettingsAsync(host, settings);
         await host.ShowState(current with
@@ -95,7 +136,7 @@ internal static class InoModelSetup
             GrantSummaries = await ReadGrantSummariesAsync(host, current.GrantSummaries),
             RecentConversations = await ReadRecentConversationsAsync(host, current.RecentConversations),
         });
-        return canDictate;
+        return voice;
     }
 
     public static async Task ConfigureOpenConversationAsync(
@@ -330,7 +371,7 @@ internal static class InoModelSetup
 
             case "model":
                 var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
-                await ChooseModelAsync(host, nextModel, makeDefault: true, statusOverride: $"Switched model to {nextModel}");
+                await ChooseModelAsync(host, nextModel, makeDefault: true);
                 return;
 
             default:

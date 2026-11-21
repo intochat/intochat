@@ -876,6 +876,19 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
+                                watchSignal: (contract, key, signal) => widget
+                                    .programmingClient!
+                                    .watches(_brain!)
+                                    .watch(
+                                      WatchSourceSpec(
+                                        contract,
+                                        key.startsWith('$_brain/')
+                                            ? key
+                                            : '$_brain/$key',
+                                        [signal],
+                                      ),
+                                    )
+                                    .map((s) => s.payload),
                                 onAction: (event) => widget.programmingClient!
                                     .uiEvent(_brain!, event),
                                 knowsApp: (app) =>
@@ -922,6 +935,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 ),
                                 transcribe:
                                     widget.programmingClient!.transcribe,
+                                talk: widget.programmingClient!.talk,
+                                speak: widget.programmingClient!.speak,
                                 journal: (brain, since) => widget
                                     .programmingClient!
                                     .watchJournal(brain, since: since),
@@ -961,6 +976,19 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
+                                watchSignal: (contract, key, signal) => widget
+                                    .programmingClient!
+                                    .watches(_brain!)
+                                    .watch(
+                                      WatchSourceSpec(
+                                        contract,
+                                        key.startsWith('$_brain/')
+                                            ? key
+                                            : '$_brain/$key',
+                                        [signal],
+                                      ),
+                                    )
+                                    .map((s) => s.payload),
                                 callNeuron: (contract, key, method, args) =>
                                     widget.programmingClient!.channel.call(
                                       _brain!,
@@ -986,6 +1014,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     unawaited(_activate(action)),
                                 transcribe:
                                     widget.programmingClient!.transcribe,
+                                talk: widget.programmingClient!.talk,
+                                speak: widget.programmingClient!.speak,
                                 knowsApp: (app) =>
                                     _knownApps.contains(app) ||
                                     _knownApps.contains(app.toLowerCase()),

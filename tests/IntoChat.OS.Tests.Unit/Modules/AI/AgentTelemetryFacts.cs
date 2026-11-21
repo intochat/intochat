@@ -65,4 +65,20 @@ public sealed class AgentTelemetryFacts
     [InlineData("owner/ino/conversations/main", "ino")]
     [InlineData("solo", "solo")]
     public void TheAgentIsNamedByItsApp(string conversation, string expected) => Assert.Equal(expected, AgentTurnLoop.AgentName(conversation));
+
+    [Fact]
+    public void FirstTokenIsAnEventOnTheTurn()
+    {
+        var stopped = Listen(out var listener);
+        using (listener)
+        {
+            using var turn = AgentTelemetry.Turn("ino", "conversations/c-1", "r1");
+            AgentTelemetry.FirstToken(turn, TimeSpan.FromMilliseconds(420));
+            Assert.Equal(
+                420d,
+                Assert.Single(turn!.Events, e => e.Name == "gen_ai.first_token")
+                    .Tags.Single(t => t.Key == "intochat.first_token_ms").Value);
+        }
+        Assert.Single(stopped);
+    }
 }

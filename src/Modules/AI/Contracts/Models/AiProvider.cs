@@ -20,4 +20,6 @@ public enum AiProvider
     OpenAICompatible,
     // An enrolled owner device serving its local model over the cloud relay ("device:{name}/{modelId}").
     Device,
+    // In-process sherpa-onnx runtime serving Kokoro TTS and Silero VAD on the local device.
+    SherpaOnnx,
 }

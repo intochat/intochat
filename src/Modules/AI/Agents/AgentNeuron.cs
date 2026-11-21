@@ -384,7 +384,7 @@ internal sealed class AgentNeuron(
             }
         }
 
-        var sink = new TurnSink(async run =>
+        var sink = new AgentTurnSink(async run =>
         {
             await Persist(State with { ActiveRun = run });
             await Announce();
@@ -644,6 +644,11 @@ internal sealed class AgentNeuron(
         };
         try { await Publish(signal); }
         catch (Exception error) { Logger.LogWarning(error, "Agent signal delivery failed; consumers can reconcile through Read and Transcript."); }
+    }
+
+    private sealed class AgentTurnSink(Func<AgentRun, Task> store) : ITurnSink
+    {
+        public Task Store(AgentRun run) => store(run);
     }
 }
 

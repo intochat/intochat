@@ -18,6 +18,9 @@ import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
 import '../voice_input/ui_voice_input.dart';
+import '../voice_mode/audio_out.dart';
+import '../voice_mode/mic_stream.dart';
+import '../voice_mode/voice_mode_view.dart';
 import 'model_label.dart';
 import 'model_picker.dart';
 import 'ui_copyable_message.dart';
@@ -36,6 +39,10 @@ class ConversationView extends StatefulWidget {
     this.activeModelId,
     this.selectModelKey,
     this.pinModelKey,
+    this.readAloud = false,
+    this.talkConversation,
+    this.deltas,
+    this.readConversation,
   });
 
   final ConversationNode node;
@@ -57,6 +64,21 @@ class ConversationView extends StatefulWidget {
   /// Key activated with the chosen model id to pin it as the Chat default.
   final String? pinModelKey;
 
+  /// When true (and [NodeContext.speak] is available), completed assistant
+  /// replies expose a read-aloud control beside the copy action.
+  final bool readAloud;
+
+  /// Conversation id that can open full-duplex voice mode when [NodeContext.talk]
+  /// is available; null hides the voice-mode button.
+  final String? talkConversation;
+
+  /// Ephemeral `TextDelta` signal payloads (`{id, entry, delta, at}`).
+  final Stream<Map<String, dynamic>>? deltas;
+
+  /// Reads the full `ConversationView` (`IConversation.Read(sinceRevision: null)`)
+  /// when a delta offset indicates a gap.
+  final Future<Map<String, dynamic>?> Function()? readConversation;
+
   @override
   State<ConversationView> createState() => _ConversationViewState();
 }
@@ -75,12 +97,23 @@ class _ConversationViewState extends State<ConversationView> {
   bool _hadWaiting = false;
   bool _suppressWaitingDefault = false;
 
+  StreamSubscription<Map<String, dynamic>>? _deltaSub;
+  ({String entry, String text})? _pending;
+  final List<WireTextDelta> _queuedDeltas = <WireTextDelta>[];
+  bool _healing = false;
+  int _healEpoch = 0;
+
+  AudioOut? _readAloudOut;
+  String? _readingMessageId;
+  int _readAloudEpoch = 0;
+
   @override
   void initState() {
     super.initState();
     _hadWaiting = widget.node.waiting != null;
     _composerFocus.addListener(_onFocusChange);
     _controller.addListener(_onDraftChange);
+    _subscribeDeltas();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.node.waiting != null && !_suppressWaitingDefault) {
@@ -92,6 +125,12 @@ class _ConversationViewState extends State<ConversationView> {
   @override
   void didUpdateWidget(covariant ConversationView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.deltas != oldWidget.deltas) {
+      _clearPending();
+      _subscribeDeltas();
+    } else {
+      _syncPendingWithNode();
+    }
     final hasWaiting = widget.node.waiting != null;
     if (hasWaiting && !_hadWaiting) {
       // Never steal focus or preselect the default option when a prompt arrives over an active draft.
@@ -130,6 +169,13 @@ class _ConversationViewState extends State<ConversationView> {
 
   @override
   void dispose() {
+    _readAloudEpoch++;
+    final readAloudOut = _readAloudOut;
+    _readAloudOut = null;
+    if (readAloudOut != null) {
+      unawaited(readAloudOut.stop().catchError((Object _) {}));
+    }
+    _deltaSub?.cancel();
     _composerFocus.removeListener(_onFocusChange);
     _controller.removeListener(_onDraftChange);
     _controller.dispose();
@@ -137,6 +183,130 @@ class _ConversationViewState extends State<ConversationView> {
     _dockFocus.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _subscribeDeltas() {
+    _deltaSub?.cancel();
+    _deltaSub = widget.deltas?.listen(_onDelta, onError: (Object _) {});
+  }
+
+  void _clearPending() {
+    _pending = null;
+    _queuedDeltas.clear();
+    _healing = false;
+    _healEpoch++;
+  }
+
+  MessageNode? _findMessage(String id) {
+    for (final msg in widget.node.messages) {
+      if (msg.id == id) return msg;
+    }
+    return null;
+  }
+
+  void _syncPendingWithNode() {
+    final pending = _pending;
+    if (pending == null) return;
+    final msg = _findMessage(pending.entry);
+    if (msg == null) return;
+    if (parseMessageStatus(msg.status) != WireMessageStatus.running) {
+      _clearPending();
+      return;
+    }
+    if (msg.text.length > pending.text.length) {
+      _pending = (entry: msg.id, text: msg.text);
+    }
+  }
+
+  void _onDelta(Map<String, dynamic> payload) {
+    final parsed = parseTextDelta(payload);
+    if (parsed == null || parsed.delta.isEmpty) return;
+
+    final existing = _findMessage(parsed.entry);
+    if (existing != null &&
+        parseMessageStatus(existing.status) != WireMessageStatus.running) {
+      return;
+    }
+
+    if (_pending == null || _pending!.entry != parsed.entry) {
+      _queuedDeltas.clear();
+      _healing = false;
+      _healEpoch++;
+      _pending = (entry: parsed.entry, text: existing?.text ?? '');
+    }
+
+    if (_healing) {
+      _queuedDeltas.add(parsed);
+      return;
+    }
+
+    final current = _pending!.text;
+    if (parsed.at > current.length) {
+      _queuedDeltas.add(parsed);
+      unawaited(_healGap(parsed.entry));
+      return;
+    }
+
+    if (_applyDelta(parsed) && mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _applyDelta(WireTextDelta delta) {
+    final pending = _pending;
+    if (pending == null || pending.entry != delta.entry) return false;
+    final current = pending.text;
+    if (delta.at == current.length) {
+      _pending = (entry: pending.entry, text: '$current${delta.delta}');
+      return true;
+    }
+    if (delta.at < current.length) {
+      final overlap = current.length - delta.at;
+      if (overlap < delta.delta.length) {
+        final suffix = delta.delta.substring(overlap);
+        _pending = (entry: pending.entry, text: '$current$suffix');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _healGap(String entry) async {
+    final reader = widget.readConversation;
+    if (reader == null) {
+      _queuedDeltas.clear();
+      return;
+    }
+    _healing = true;
+    final epoch = _healEpoch;
+    try {
+      final view = await reader();
+      if (!mounted || epoch != _healEpoch) return;
+      final reply = parseActiveConversationReply(view, entry);
+      var changed = false;
+      if (reply != null &&
+          _pending != null &&
+          _pending!.entry == entry &&
+          reply.length > _pending!.text.length) {
+        _pending = (entry: entry, text: reply);
+        changed = true;
+      }
+      _queuedDeltas.sort((a, b) => a.at.compareTo(b.at));
+      final queued = List<WireTextDelta>.of(_queuedDeltas);
+      _queuedDeltas.clear();
+      for (final delta in queued) {
+        if (_applyDelta(delta)) changed = true;
+      }
+      if (changed && mounted) setState(() {});
+    } catch (_) {
+      if (epoch == _healEpoch) {
+        _queuedDeltas.clear();
+      }
+    } finally {
+      if (epoch == _healEpoch) {
+        _healing = false;
+      }
+    }
   }
 
   void _onFocusChange() {
@@ -217,6 +387,65 @@ class _ConversationViewState extends State<ConversationView> {
     final stop = widget.node.stop;
     if (stop == null || !stop.enabled || !widget.ctx.interactive) return;
     unawaited(widget.ctx.activate(stop.key, context: context));
+  }
+
+  Future<void> _stopReadAloud() async {
+    _readAloudEpoch++;
+    if (mounted && _readingMessageId != null) {
+      setState(() => _readingMessageId = null);
+    }
+    final out = _readAloudOut;
+    if (out != null) {
+      await out.stop().catchError((Object _) {});
+    }
+  }
+
+  Future<void> _toggleReadAloud(String messageId, String text) async {
+    final speak = widget.ctx.speak;
+    if (speak == null) return;
+    if (_readingMessageId == messageId) {
+      await _stopReadAloud();
+      return;
+    }
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final epoch = ++_readAloudEpoch;
+    await _readAloudOut?.stop().catchError((Object _) {});
+    if (!mounted || epoch != _readAloudEpoch) return;
+    setState(() => _readingMessageId = messageId);
+    final out = _readAloudOut ??=
+        (widget.ctx.createAudioOut ?? SoLoudAudioOut.new)();
+    try {
+      final wav = await speak(trimmed);
+      if (!mounted || epoch != _readAloudEpoch) return;
+      await out.playClip(wav);
+    } catch (_) {
+      // Recover button state cleanly when synthesis or playback fails.
+    } finally {
+      if (mounted && epoch == _readAloudEpoch) {
+        setState(() => _readingMessageId = null);
+      }
+    }
+  }
+
+  void _openVoiceMode(String conversation) {
+    final talk = widget.ctx.talk;
+    if (talk == null) return;
+    unawaited(_stopReadAloud());
+    final mic = (widget.ctx.createMicStream ?? RecordMicStream.new)();
+    final out = (widget.ctx.createAudioOut ?? SoLoudAudioOut.new)();
+    unawaited(
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          fullscreenDialog: true,
+          builder: (_) => VoiceModeView(
+            connect: () => talk(conversation),
+            mic: mic,
+            out: out,
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _selectModel(String key, String modelId) async {
@@ -349,6 +578,14 @@ class _ConversationViewState extends State<ConversationView> {
         final msgOffset = hasError ? reversedIndex - 1 : reversedIndex;
         final messageIndex = visibleMessages.length - 1 - msgOffset;
         final msg = visibleMessages[messageIndex];
+        final pending = _pending;
+        final pendingText =
+            pending != null &&
+                pending.entry == msg.id &&
+                parseMessageStatus(msg.status) == WireMessageStatus.running &&
+                pending.text.length > msg.text.length
+            ? pending.text
+            : null;
         return Padding(
           key: ValueKey('msg:${msg.id}'),
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -361,6 +598,11 @@ class _ConversationViewState extends State<ConversationView> {
                       message: msg,
                       ctx: widget.ctx.deeper(),
                       modelNames: modelNames,
+                      textOverride: pendingText,
+                      readAloud: widget.readAloud,
+                      reading: _readingMessageId == msg.id,
+                      onReadAloud: (text) =>
+                          unawaited(_toggleReadAloud(msg.id, text)),
                     ),
             ),
           ),
@@ -409,6 +651,12 @@ class _ConversationViewState extends State<ConversationView> {
             composer.activeProviderIcon!.trim().isNotEmpty);
     final models = widget.models ?? const <ModelChoice>[];
     final showModelChip = hasActiveModel || models.isNotEmpty;
+    final rawTalkConversation = widget.talkConversation?.trim();
+    final talkConversation =
+        rawTalkConversation != null && rawTalkConversation.isNotEmpty
+        ? rawTalkConversation
+        : null;
+    final showVoiceMode = talkConversation != null && widget.ctx.talk != null;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
@@ -545,6 +793,14 @@ class _ConversationViewState extends State<ConversationView> {
                               onDraft: _appendDictationDraft,
                             ),
                           ],
+                          if (showVoiceMode) ...[
+                            const SizedBox(width: 8),
+                            _VoiceModeIconButton(
+                              key: const ValueKey('composer-voice-mode'),
+                              enabled: widget.ctx.enabled,
+                              onTap: () => _openVoiceMode(talkConversation),
+                            ),
+                          ],
                           const SizedBox(width: 8),
                           _SendIconButton(
                             key: const ValueKey('composer-send'),
@@ -635,15 +891,24 @@ class _AssistantMessageItem extends StatelessWidget {
     required this.message,
     required this.ctx,
     this.modelNames = const <String, String>{},
+    this.textOverride,
+    this.readAloud = false,
+    this.reading = false,
+    this.onReadAloud,
   });
 
   final MessageNode message;
   final NodeContext ctx;
   final Map<String, String> modelNames;
+  final String? textOverride;
+  final bool readAloud;
+  final bool reading;
+  final ValueChanged<String>? onReadAloud;
 
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
+    final text = textOverride ?? message.text;
     final activities = message.activities ?? const <ActivityNode>[];
     final cards = message.cards ?? const <Node>[];
     final isRunning =
@@ -682,17 +947,29 @@ class _AssistantMessageItem extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
-            if (message.text.isNotEmpty || isRunning)
+            if (text.isNotEmpty || isRunning)
               UiCopyableMessage(
-                copyText: (_) => message.text,
+                copyText: (_) => text,
+                keepActionsVisible: reading,
+                actions: [
+                  if (readAloud &&
+                      ctx.speak != null &&
+                      !isRunning &&
+                      text.trim().isNotEmpty)
+                    _ReadAloudActionButton(
+                      key: ValueKey('message-read-aloud:${message.id}'),
+                      playing: reading,
+                      onTap: () => onReadAloud?.call(text),
+                    ),
+                ],
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (message.text.isNotEmpty)
+                    if (text.isNotEmpty)
                       Flexible(
                         child: GptMarkdown(
-                          message.text,
+                          text,
                           style: IcType.text(
                             14,
                             color: c.textBody,
@@ -701,22 +978,21 @@ class _AssistantMessageItem extends StatelessWidget {
                         ),
                       ),
                     if (isRunning) ...[
-                      if (message.text.isNotEmpty) const SizedBox(width: 8),
+                      if (text.isNotEmpty) const SizedBox(width: 8),
                       WorkingSpinner(size: 14, color: c.working),
                     ],
                   ],
                 ),
               ),
             if (cards.isNotEmpty) ...[
-              if (message.text.isNotEmpty || isRunning)
-                const SizedBox(height: 10),
+              if (text.isNotEmpty || isRunning) const SizedBox(height: 10),
               for (var i = 0; i < cards.length; i++) ...[
                 if (i > 0) const SizedBox(height: 10),
                 NodeRenderer.render(cards[i], ctx),
               ],
             ],
             if (message.error case final error?) ...[
-              if (message.text.isNotEmpty || cards.isNotEmpty)
+              if (text.isNotEmpty || cards.isNotEmpty)
                 const SizedBox(height: 8),
               // Why the reply failed; the retry below asks for this turn again.
               ErrorLineView(
@@ -750,7 +1026,9 @@ class _AssistantMessageItem extends StatelessWidget {
                       retry.key,
                       Btn(
                         label: retry.label,
-                        icon: LucideIcons.rotateCcw,
+                        icon: isRegenerateRetryKey(retry.key)
+                            ? LucideIcons.refreshCw
+                            : LucideIcons.rotateCcw,
                         small: true,
                         onTap: retry.enabled && ctx.interactive
                             ? () => pressCommand(
@@ -910,6 +1188,94 @@ class _StopHintBar extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReadAloudActionButton extends StatelessWidget {
+  const _ReadAloudActionButton({
+    super.key,
+    required this.playing,
+    required this.onTap,
+  });
+
+  final bool playing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      container: true,
+      button: true,
+      label: playing ? 'Stop reading aloud' : 'Read aloud',
+      child: Material(
+        color: colors.surfaceContainerHigh.withValues(alpha: 0.92),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Tooltip(
+            message: playing ? 'Stop reading' : 'Read aloud',
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(
+                playing ? LucideIcons.square : LucideIcons.volume2,
+                size: 14,
+                color: playing ? colors.primary : colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VoiceModeIconButton extends StatelessWidget {
+  const _VoiceModeIconButton({
+    super.key,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: enabled,
+      label: 'Voice mode',
+      child: Tooltip(
+        message: 'Voice mode',
+        child: MouseRegion(
+          cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+          child: GestureDetector(
+            onTap: enabled ? onTap : null,
+            child: AnimatedContainer(
+              duration: IcMotion.fast,
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: c.surfaceSunk,
+                borderRadius: BorderRadius.circular(IcRadius.button),
+                border: Border.all(color: c.borderHairline),
+              ),
+              child: Center(
+                child: Icon(
+                  LucideIcons.audioLines,
+                  size: 16,
+                  color: enabled ? c.textStrong : c.textSubtle,
+                ),
+              ),
             ),
           ),
         ),

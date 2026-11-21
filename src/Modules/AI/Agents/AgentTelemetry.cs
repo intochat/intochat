@@ -54,6 +54,15 @@ internal static class AgentTelemetry
         activity?.AddException(error);
     }
 
+    internal static void FirstToken(Activity? turn, TimeSpan elapsed)
+    {
+        if (turn is null) { return; }
+        turn.AddEvent(new ActivityEvent("gen_ai.first_token", tags: new ActivityTagsCollection
+        {
+            ["intochat.first_token_ms"] = elapsed.TotalMilliseconds,
+        }));
+    }
+
     private static string? Text(FunctionCallContent call, string name)
         => call.Arguments?.TryGetValue(name, out var value) == true ? value?.ToString() : null;
 

@@ -26,6 +26,7 @@ public sealed class ModelCardFacts
         Assert.Equal(7, (int)AiProvider.TypeSafe);
         Assert.Equal(8, (int)AiProvider.Host);
         Assert.Equal(9, (int)AiProvider.OpenAICompatible);
+        Assert.Equal(10, (int)AiProvider.SherpaOnnx);
     }
 
     [Theory]
@@ -39,6 +40,7 @@ public sealed class ModelCardFacts
     [InlineData(AiProvider.TypeSafe, "brand:intochat")]
     [InlineData(AiProvider.Host, "brand:intochat")]
     [InlineData(AiProvider.OpenAICompatible, "provider:openaicompatible")]
+    [InlineData(AiProvider.SherpaOnnx, "provider:sherpaonnx")]
     public void IconKeyMatchesCanonicalProviderVocabulary(AiProvider provider, string key) =>
         Assert.Equal(key, new ModelCard(new("x"), provider, "F", "N", Where.Device, Abilities.Text, Tier.Fast).IconKey());
 

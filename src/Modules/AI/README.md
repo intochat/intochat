@@ -34,6 +34,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `ApiKey` | yes |
 | `ApiKey` | yes |
 
-Contracts: assembly `IntoChat.OS.Modules.AI.Contracts` (`IAgentContext`, `IAgent`, `IEmbeddingModel`, `IGroupChat`, `IImageGeneration`, `IImageGenerator`, `IIntentUsage`, `IKnowledgeStore`, `ILLM`, `IMemory`, `IModelCatalog`, `IModelInference`, `IRouter`, `ISecurityPosture`, `ISessionJournal`, `ISpeechRecognizer`, `ISpeechSynthesizer`, `ISystemOne`, `ITestVerificationNeuron`, `ITestVerificationService`, `IToneObserver`, `IUiIntrospector`, `IVectorIndex`, `IWorkflowRun`, `IWorkingMemory`).
+Contracts: assembly `IntoChat.OS.Modules.AI.Contracts` (`IAgentContext`, `IAgent`, `IEmbeddingModel`, `IGroupChat`, `IImageGeneration`, `IImageGenerator`, `IIntentUsage`, `IKnowledgeStore`, `ILLM`, `IMemory`, `IModelCatalog`, `IModelInference`, `IRouter`, `ISecurityPosture`, `ISessionJournal`, `ISystemOne`, `ITestVerificationNeuron`, `ITestVerificationService`, `IToneObserver`, `IUiIntrospector`, `IVectorIndex`, `IWorkflowRun`, `IWorkingMemory`).
 Hosting: runs in process.
 <!-- END GENERATED -->

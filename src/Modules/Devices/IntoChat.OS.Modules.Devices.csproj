@@ -29,5 +29,6 @@
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
     <PackageReference Include="OllamaSharp" />
     <PackageReference Include="Microsoft.AI.Foundry.Local" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" />
   </ItemGroup>
 </Project>

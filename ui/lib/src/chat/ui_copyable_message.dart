@@ -22,17 +22,22 @@ final class UiStreamCopy extends InheritedNotifier<ChangeNotifier> {
   }
 }
 
-/// Selectable message body plus a whole-message copy control.
+/// Selectable message body plus a whole-message copy control and optional
+/// extra inline message actions (e.g. read-aloud).
 final class UiCopyableMessage extends StatefulWidget {
   const UiCopyableMessage({
     super.key,
     required this.copyText,
     required this.child,
+    this.actions = const <Widget>[],
+    this.keepActionsVisible = false,
   });
 
   /// Resolved on build (button visibility) and again on tap (latest stream text).
   final String Function(BuildContext context) copyText;
   final Widget child;
+  final List<Widget> actions;
+  final bool keepActionsVisible;
 
   @override
   State<UiCopyableMessage> createState() => _UiCopyableMessageState();
@@ -71,6 +76,7 @@ final class _UiCopyableMessageState extends State<UiCopyableMessage> {
   Widget build(BuildContext context) {
     final text = widget.copyText(context);
     final canCopy = text.trim().isNotEmpty;
+    final actionCount = (canCopy ? 1 : 0) + widget.actions.length;
     final colors = Theme.of(context).colorScheme;
     final tokens = UiTokens.of(context);
     return MouseRegion(
@@ -80,10 +86,12 @@ final class _UiCopyableMessageState extends State<UiCopyableMessage> {
         clipBehavior: Clip.none,
         children: [
           Padding(
-            padding: EdgeInsets.only(right: canCopy ? 32 : 0),
+            padding: EdgeInsets.only(
+              right: actionCount > 0 ? actionCount * 32.0 : 0,
+            ),
             child: SelectionArea(child: widget.child),
           ),
-          if (canCopy)
+          if (actionCount > 0)
             Positioned(
               top: 2,
               right: 2,
@@ -91,28 +99,46 @@ final class _UiCopyableMessageState extends State<UiCopyableMessage> {
                 duration: MediaQuery.disableAnimationsOf(context)
                     ? Duration.zero
                     : tokens.quick,
-                opacity: _hovered || _copied ? 1 : 0.55,
-                child: Material(
-                  color: colors.surfaceContainerHigh.withValues(alpha: 0.92),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    key: const Key('ui_copy_message'),
-                    customBorder: const CircleBorder(),
-                    onTap: _copy,
-                    child: Tooltip(
-                      message: _copied ? 'Copied' : 'Copy message',
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Icon(
-                          _copied ? Icons.check_rounded : Icons.copy_outlined,
-                          size: 14,
-                          color: _copied
-                              ? colors.primary
-                              : colors.onSurfaceVariant,
+                opacity: _hovered || _copied || widget.keepActionsVisible
+                    ? 1
+                    : 0.55,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < widget.actions.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 4),
+                      widget.actions[i],
+                    ],
+                    if (canCopy) ...[
+                      if (widget.actions.isNotEmpty) const SizedBox(width: 4),
+                      Material(
+                        color: colors.surfaceContainerHigh.withValues(
+                          alpha: 0.92,
+                        ),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          key: const Key('ui_copy_message'),
+                          customBorder: const CircleBorder(),
+                          onTap: _copy,
+                          child: Tooltip(
+                            message: _copied ? 'Copied' : 'Copy message',
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(
+                                _copied
+                                    ? Icons.check_rounded
+                                    : Icons.copy_outlined,
+                                size: 14,
+                                color: _copied
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    ],
+                  ],
                 ),
               ),
             ),

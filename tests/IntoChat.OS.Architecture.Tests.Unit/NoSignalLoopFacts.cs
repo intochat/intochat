@@ -12,6 +12,7 @@ public sealed partial class NoSignalLoopFacts
     private static readonly string[] ClientAndPrompt =
     [
         "IntoChat.OS/Runtime/Watch/Sources.cs",
+        "IntoChat.OS.Modules.AI/Voice/ConversationChatClient.cs",
         "IntoChat.OS.Modules.Shell/Workspace/LiveSignalEndpoints.cs",
         "IntoChat.OS.Modules.Catalog/Authoring/AgentPrompts.cs",
     ];

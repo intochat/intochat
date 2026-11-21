@@ -78,7 +78,7 @@ public static class BrainStorageHosting
                 var grains = sp.GetService<IGrainFactory>();
                 var faults = sp.GetService<Synapses.PublishFaults>();
                 var nudge = sp.GetService<DigitalBrain.Kernel.INudge>()
-                    ?? (grains is not null && types is not null ? new Synapses.GrainNudge(grains, types, faults) : null);
+                    ?? (grains is not null && types is not null ? new Synapses.GrainNudge(grains, types, sp.GetService<JournalPayloads>(), faults) : null);
                 var listeners = sp.GetService<Signalling.BrainListeners>();
                 if (nudge is not null)
                 {

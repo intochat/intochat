@@ -37,7 +37,6 @@ public sealed class InoFormerNamesFacts
             GetSettings: static () => null!,
             GetConversation: _ => fake,
             GetSessions: static () => null!,
-            GetSpeechRecognizer: static () => null!,
             GetGrants: static () => null!,
             GetApprovals: static () => null!,
             GetProfileWriter: static () => null!,
@@ -77,6 +76,7 @@ public sealed class InoFormerNamesFacts
         public Task Stop() => Task.CompletedTask;
         public Task Regenerate(EntryId reply) => throw new NotSupportedException();
         public Task Post(string text, string id) => Task.CompletedTask;
+        public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
         public Task<ConversationView> Read(long? sinceRevision = null) => Task.FromResult(new ConversationView(ConversationId.Parse("main"), 0, [], [], null, [], false, []));
         public Task Invite(AccountId friend) => throw new NotSupportedException();
     }

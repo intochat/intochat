@@ -612,6 +612,32 @@ public sealed class InoViewFacts
         Assert.Empty(nodes);
     }
 
+    [Fact]
+    public void ThreadPropsNameTheConversation()
+    {
+        var convId = "c-" + new string('a', 32);
+        var state = new InoAppState { ConversationId = convId };
+        Assert.Equal("conversations/" + convId, InoView.ThreadProps(state).Conversation);
+        Assert.Equal("conversations/main", InoView.ThreadProps(new InoAppState()).Conversation);
+    }
+
+    [Fact]
+    public void VoiceModeNeedsTalk()
+        => Assert.Null(InoView.ThreadProps(new InoAppState(), new VoiceAbilities(Hear: true, Speak: true, Talk: false), "c-1").TalkConversation);
+
+    [Fact]
+    public void VoiceModeTalksToTheCurrentConversation()
+        => Assert.Equal("c-1", InoView.ThreadProps(new InoAppState(), new VoiceAbilities(Hear: true, Speak: true, Talk: true), "c-1").TalkConversation);
+
+    [Fact]
+    public void ReadAloudFollowsSpeak()
+    {
+        var props = InoView.ThreadProps(new InoAppState(), new VoiceAbilities(Hear: false, Speak: true, Talk: false), "c-1");
+        Assert.True(props.ReadAloud);
+        Assert.False(props.Dictation);
+        Assert.Null(props.TalkConversation);
+    }
+
     private static IReadOnlyList<string> Texts(View view)
         => new PresentedView("main", view).Texts;
 

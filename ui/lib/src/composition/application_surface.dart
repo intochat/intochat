@@ -72,6 +72,18 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
             widget.client.appRequest(widget.workspace, appNodePath(kind, name)),
         watch: (kind, name) =>
             widget.client.watchNode(widget.workspace, kind, name).map((_) {}),
+        watchSignal: (contract, key, signal) => widget.client
+            .watches(widget.workspace)
+            .watch(
+              WatchSourceSpec(
+                contract,
+                key.startsWith('${widget.workspace}/')
+                    ? key
+                    : '${widget.workspace}/$key',
+                [signal],
+              ),
+            )
+            .map((s) => s.payload),
         callNeuron: (contract, key, method, args) => widget.client.channel.call(
           widget.workspace,
           contract,
@@ -85,6 +97,8 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,
         transcribe: widget.client.transcribe,
+        talk: widget.client.talk,
+        speak: widget.client.speak,
       );
     },
   );

@@ -21,6 +21,10 @@ internal interface ISynapseHost : IGrainWithStringKey
     [OrleansSdk.Concurrency.OneWay, Alias("nudge")]
     Task Nudge(long upTo);
 
+    /// <summary>Offers an ephemeral signal to a session subscriber without a journal position.</summary>
+    [OrleansSdk.Concurrency.OneWay, Alias("offer")]
+    Task Offer(NeuronId publisher, JournaledSignalPayload payload, DateTimeOffset at);
+
     /// <summary>Catches up every source of this subscriber from its cursor.</summary>
     [OrleansSdk.Concurrency.OneWay, Alias("catch-up")]
     Task CatchUp();

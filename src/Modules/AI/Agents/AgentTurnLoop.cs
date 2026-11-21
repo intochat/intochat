@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
@@ -38,7 +39,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             ? plan.Conversation[(plan.ScopeId.Length + 1)..]
             : plan.Conversation;
         using var turn = AgentTelemetry.Turn(plan.AgentName ?? AgentName(plan.Conversation), telemetryConversation, plan.RunId);
-        await using var steps = Steps(plan, ct).GetAsyncEnumerator(ct);
+        await using var steps = Steps(plan, turn, ct).GetAsyncEnumerator(ct);
         AgentTurnEvent.TurnFailed? failure = null;
         while (true)
         {
@@ -70,7 +71,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
 
     private bool SensitiveTelemetry => services.GetService<global::Microsoft.Extensions.Options.IOptions<AIOptions>>()?.Value.Telemetry.EnableSensitiveData ?? false;
 
-    private async IAsyncEnumerable<AgentTurnEvent> Steps(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
+    private async IAsyncEnumerable<AgentTurnEvent> Steps(TurnPlan plan, Activity? turn, [EnumeratorCancellation] CancellationToken ct)
     {
         if (plan.MaxModelCalls is < 1 or > 512) { throw new ArgumentOutOfRangeException(nameof(plan), "MaxModelCalls must be between 1 and 512."); }
         if (plan.Contracts.Distinct(StringComparer.Ordinal).Count() != plan.Contracts.Length) { throw new ArgumentException("Contracts must be unique.", nameof(plan)); }
@@ -143,10 +144,13 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         var generated = new List<ChatMessage>();
         UsageDetails? usage = null;
         var calls = new HashSet<string>(StringComparer.Ordinal);
+        var firstTokenRecorded = false;
+        var modelStart = Stopwatch.GetTimestamp();
         try
         {
             for (var step = 0; step < plan.MaxModelCalls; step++)
             {
+                if (step == 0) { modelStart = Stopwatch.GetTimestamp(); }
                 ChatResponse response;
                 if (plan.Streaming)
                 {
@@ -173,6 +177,11 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                             if (!string.IsNullOrEmpty(update.Text))
                             {
                                 receivedFirstDelta = true;
+                                if (!firstTokenRecorded)
+                                {
+                                    firstTokenRecorded = true;
+                                    AgentTelemetry.FirstToken(turn ?? Activity.Current, Stopwatch.GetElapsedTime(modelStart));
+                                }
                                 yield return new AgentTurnEvent.TextChunk(update.Text);
                             }
                             else if (update.Contents.Any(static c => c is not UsageContent))
@@ -195,7 +204,15 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                         await foreach (var update in client.GetStreamingResponseAsync(messages, options, ct))
                         {
                             updates.Add(update);
-                            if (!string.IsNullOrEmpty(update.Text)) { yield return new AgentTurnEvent.TextChunk(update.Text); }
+                            if (!string.IsNullOrEmpty(update.Text))
+                            {
+                                if (!firstTokenRecorded)
+                                {
+                                    firstTokenRecorded = true;
+                                    AgentTelemetry.FirstToken(turn ?? Activity.Current, Stopwatch.GetElapsedTime(modelStart));
+                                }
+                                yield return new AgentTurnEvent.TextChunk(update.Text);
+                            }
                         }
                     }
 
@@ -226,7 +243,15 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                         response = await client.GetResponseAsync(messages, options, ct);
                     }
 
-                    if (!string.IsNullOrEmpty(response.Text)) { yield return new AgentTurnEvent.TextChunk(response.Text); }
+                    if (!string.IsNullOrEmpty(response.Text))
+                    {
+                        if (!firstTokenRecorded)
+                        {
+                            firstTokenRecorded = true;
+                            AgentTelemetry.FirstToken(turn ?? Activity.Current, Stopwatch.GetElapsedTime(modelStart));
+                        }
+                        yield return new AgentTurnEvent.TextChunk(response.Text);
+                    }
                 }
                 ct.ThrowIfCancellationRequested();
                 if (response.Usage is not null) { (usage ??= new()).Add(response.Usage); }

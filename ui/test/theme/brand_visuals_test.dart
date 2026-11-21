@@ -42,6 +42,7 @@ void main() {
         'provider:foundry',
         'provider:foundrylocal',
         'provider:openaicompatible',
+        'provider:sherpaonnx',
       ]) {
         final spec = BrandVisuals.tryForIconKey(
           providerKey,

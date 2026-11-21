@@ -110,6 +110,24 @@ public sealed class ModelsFacts
         Assert.Null(KnownModels.Find(null));
         Assert.Null(KnownModels.Find("   "));
     }
+
+    [Fact]
+    public void KokoroIsADeviceSpeakCard() =>
+        Assert.Equal(
+            (Where.Device, Abilities.Speak, AiProvider.SherpaOnnx),
+            (KnownModels.Kokoro82M.Where, KnownModels.Kokoro82M.Can, KnownModels.Kokoro82M.Provider));
+
+    [Fact]
+    public void TheCloudTalksThroughGptRealtime() =>
+        Assert.Equal(KnownModels.GptRealtime.Id, KnownModels.Defaults.Cloud[Role.Talk]);
+
+    [Fact]
+    public void TheDeviceHasNoTalkCard() =>
+        Assert.False(KnownModels.Defaults.Device.ContainsKey(Role.Talk));
+
+    [Fact]
+    public void ProviderNumbersNeverMove() =>
+        Assert.Equal(8, (int)AiProvider.Host);
 }
 
 public sealed class ModelsGeneratorFacts

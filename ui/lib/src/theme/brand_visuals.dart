@@ -69,6 +69,7 @@ abstract final class BrandVisuals {
     'provider:foundry': 'assets/brands/providers/foundry.svg',
     'provider:foundrylocal': 'assets/brands/providers/foundry.svg',
     'provider:openaicompatible': 'assets/brands/providers/openai.svg',
+    'provider:sherpaonnx': 'assets/brands/providers/openai.svg',
     'brand:aspire': 'assets/brands/aspire-icon-32.svg',
     'brand:github': 'assets/brands/github.svg',
     'brand:gmail': 'assets/brands/gmail.svg',
@@ -82,6 +83,7 @@ abstract final class BrandVisuals {
   static const Set<String> monochromeSvgKeys = {
     'provider:openai',
     'provider:openaicompatible',
+    'provider:sherpaonnx',
     'provider:ollama',
     'provider:xai',
     'brand:github',

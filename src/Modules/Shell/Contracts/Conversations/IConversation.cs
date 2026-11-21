@@ -27,4 +27,6 @@ public interface IConversation
     [Interleaves] Task Seat(string agentId, AgentDefinition definition);
 
     [Interleaves] Task Post(string text, string id);
+
+    [Interleaves] Task Voiced(string heard, string reply, ModelId model, string id);
 }

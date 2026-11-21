@@ -16,7 +16,6 @@ using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -69,7 +68,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         ThisMachine = thisMachine;
     }
 
-    public bool CanDictate { get; private set; }
+    public VoiceAbilities Voice { get; private set; } = VoiceAbilities.None;
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
     public static AppBundle Bundle { get; } = InoModelSetup.BuildBundle(typeof(InoApp));
@@ -86,7 +85,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     protected override Node Render(InoAppState state)
         => InoView.ScreenNode(
             state,
-            CanDictate,
+            Voice,
             props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
             ConversationView,
             SessionsPage,
@@ -170,7 +169,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var viewKnown = ConversationView is not null;
         if (!viewKnown && thread.Count == 0) { return; }
         // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
-        var props = InoView.ThreadProps(clean, ConversationView, CanDictate, ThreadFailureText, PickerCards, PickerAvailability, DeviceSnapshot);
+        var props = InoView.ThreadProps(clean, Voice, clean.ConversationId, ThreadFailureText, ConversationView, PickerCards, PickerAvailability, DeviceSnapshot);
         if (SyncedThread is { } synced && synced.SequenceEqual(thread) && Equals(props, SyncedProps)) { return; }
         try
         {
@@ -300,7 +299,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         }
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         await RefreshPickerAsync();
-        CanDictate = await InoModelSetup.InitializeViewAsync(Setup);
+        Voice = await InoModelSetup.InitializeViewAsync(Setup);
         await InoModelSetup.OpenSessionAsync(Setup, State.ConversationId);
         var conversationKey = InoModel.ConversationKeyOf(State.ConversationId);
         await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
@@ -315,7 +314,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var settings = await Get<IUserSettings>("settings").Read();
         var (device, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
         DeviceSnapshot = device;
-        CanDictate = await InoModelSetup.ReadCanDictateAsync(Setup);
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         var (nextState, migrate) = InoModel.DecideOpen(
             State, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
             await InoModelSetup.ReadApprovalsAsync(Setup, State.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries));
@@ -442,6 +441,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         if (changed.State is InstallState.Ready or InstallState.Loaded or InstallState.Failed or InstallState.Cancelled)
         {
             await RefreshPickerAsync();
+            Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         }
         await Commit(State);
     }
@@ -460,6 +460,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         }
         var saved = await InoModelSetup.SaveProviderAsync(Setup, request);
         await RefreshPickerAsync();
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         if (saved) { await Retry(new InoRetry()); }
         if (State.HasUnsavedProviderDraft) { await Commit(State with { HasUnsavedProviderDraft = false }); }
     }
@@ -516,6 +517,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     {
         if (changed is null || (string.IsNullOrEmpty(changed.DisplayName) && string.IsNullOrEmpty(changed.DefaultModel))) { return; }
         await RefreshPickerAsync();
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         await InoModelSetup.SyncSettingsAsync(Setup, changed);
     }
 
@@ -687,7 +689,6 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         () => Get<IUserSettings>("settings"),
         Get<IConversation>,
         () => Get<ISessionList>(ISessionList.DefaultKey),
-        () => Get<ISpeechRecognizer>("default"),
         () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey),
         () => Get<IApprovals>(ApprovalsKey),
         () => Get<IProfileContextWriter>("ino/profile-writer"),

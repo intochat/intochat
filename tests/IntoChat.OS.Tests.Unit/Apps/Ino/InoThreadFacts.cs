@@ -134,4 +134,20 @@ public sealed class InoThreadFacts
             new InoLinkCard("notes", "Notes", "notebook", true, "page-7"),
             InoThread.Named(appCard!, apps["notes"]));
     }
+
+    [Fact]
+    public void OnlyTheLatestCompletedReplyCanRegenerateAndNotWhileRunning()
+    {
+        Assert.Equal(
+            [false, true],
+            InoThread.Messages(View(Said("r1", "a"), Reply("r1", "b"), Said("r2", "c"), Reply("r2", "d")), NoApps, null)
+                .Where(m => m.Role == "assistant")
+                .Select(m => m.CanRegenerate));
+        Assert.DoesNotContain(
+            InoThread.Messages(View(Said("r1", "a"), Reply("r1", "b"), Said("r2", "c")) with { Active = Running("r2", "") }, NoApps, null),
+            m => m.CanRegenerate);
+        Assert.DoesNotContain(
+            InoThread.Messages(View(new Said(EntryIds.Post("welcome"), Ino, At, "Welcome!")), NoApps, null),
+            m => m.CanRegenerate);
+    }
 }

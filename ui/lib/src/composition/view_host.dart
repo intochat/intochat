@@ -43,9 +43,12 @@ class ViewHost extends StatefulWidget {
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
+    this.watchSignal,
     this.callNeuron,
     this.signals,
     this.transcribe,
+    this.talk,
+    this.speak,
     this.embedded = false,
   });
   final String kind, name;
@@ -91,6 +94,9 @@ class ViewHost extends StatefulWidget {
   /// The node's change events. With a watch the host never polls: it reads once on mount and
   /// once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
+
+  /// Watches one signal type on a neuron contract, yielding decoded payloads.
+  final NeuronSignalWatcher? watchSignal;
   final NeuronMethodCaller? callNeuron;
 
   /// The brain's journal tail from its head: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
@@ -99,6 +105,12 @@ class ViewHost extends StatefulWidget {
 
   /// Host capability used by dictation composers to transcribe captured audio into a draft.
   final VoiceTranscriber? transcribe;
+
+  /// Host capability used to open full-duplex voice mode on a conversation.
+  final VoiceTalker? talk;
+
+  /// Host capability used by read-aloud controls to synthesize assistant replies.
+  final VoiceSpeaker? speak;
 
   @override
   State<ViewHost> createState() => _ViewHostState();
@@ -313,6 +325,7 @@ class _ViewHostState extends State<ViewHost> {
     events: _events,
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
+    watchSignal: widget.watchSignal,
     callNeuron: widget.callNeuron,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     slotDepth: widget.slotDepth,
@@ -320,6 +333,8 @@ class _ViewHostState extends State<ViewHost> {
     revision: widget.revision,
     enabled: widget.enabled,
     transcribe: widget.transcribe,
+    talk: widget.talk,
+    speak: widget.speak,
     embedded: true,
   );
 
@@ -427,6 +442,7 @@ class _ViewHostState extends State<ViewHost> {
       knowsApp: widget.knowsApp,
       events: _events,
       refreshEvery: widget.refreshEvery,
+      watchSignal: widget.watchSignal,
       callNeuron: widget.callNeuron,
       // A slot child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
       watch: isChild ? null : widget.watch,
@@ -436,6 +452,8 @@ class _ViewHostState extends State<ViewHost> {
       revision: widget.revision,
       enabled: widget.enabled,
       transcribe: widget.transcribe,
+      talk: widget.talk,
+      speak: widget.speak,
       embedded: true,
       inlineSlot: true,
     );
@@ -516,6 +534,8 @@ class _ViewHostState extends State<ViewHost> {
           load: widget.load,
           reload: _reload,
           watch: widget.watch,
+          watchSignal: widget.watchSignal,
+          callNeuron: widget.callNeuron,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
           reference: (kind, name, props) =>
@@ -532,6 +552,8 @@ class _ViewHostState extends State<ViewHost> {
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
           transcribe: widget.transcribe,
+          talk: widget.talk,
+          speak: widget.speak,
         );
         ViewHost.debugOnContext?.call(widget.name, ctx);
         final appView = AppView.fromJson(normalizedView);

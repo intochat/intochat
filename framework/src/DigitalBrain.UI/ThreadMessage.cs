@@ -24,17 +24,20 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     /// <summary>The cards shown with it (data nodes).</summary>
     public IReadOnlyList<Node> Cards { get; init; } = [];
 
+    /// <summary>True on the latest completed assistant reply when no turn is active: draws a Regenerate action.</summary>
+    public bool CanRegenerate { get; init; }
+
     /// <summary>Whether the message failed, was interrupted or was cancelled: it draws a reason and a retry.</summary>
     [JsonIgnore]
     public bool IsFailed => Status is "failed" or "interrupted" or "cancelled";
 
     /// <inheritdoc />
     public bool Equals(ThreadMessage? other) => other is not null && Id == other.Id && Role == other.Role && Text == other.Text && Status == other.Status
-        && Model == other.Model && ProviderIcon == other.ProviderIcon && Failure == other.Failure
+        && Model == other.Model && ProviderIcon == other.ProviderIcon && Failure == other.Failure && CanRegenerate == other.CanRegenerate
         && Activities.SequenceEqual(other.Activities) && Cards.SequenceEqual(other.Cards);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status, Failure);
+    public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status, Failure, CanRegenerate);
 }
 
 /// <summary>A change to a held message: each member set replaces that member; null leaves it.</summary>

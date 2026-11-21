@@ -151,7 +151,29 @@ public static class InoThread
             messages.Add(BuildRunningReply(active, returnedByRun, toolArgs, apps));
         }
 
+        if (view.Active is null)
+        {
+            MarkLatestCompletedReplyRegenerable(messages);
+        }
+
         return messages;
+    }
+
+    private static void MarkLatestCompletedReplyRegenerable(List<ThreadMessage> messages)
+    {
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            var entryId = new EntryId(messages[i].Id);
+            if (EntryIds.RunOf(entryId) is not { Length: > 0 } runId)
+            {
+                continue;
+            }
+            if (messages[i] is { Role: "assistant", Status: "completed" } && entryId == EntryIds.Reply(runId))
+            {
+                messages[i] = messages[i] with { CanRegenerate = true };
+            }
+            break;
+        }
     }
 
     internal static HashSet<EntryId> SupersededIds(ConversationView view)

@@ -399,28 +399,41 @@ public sealed class InoAppFacts
     }
 
     [Fact]
-    public async Task OpenComputesCanDictateWithoutPersistingIt()
+    public async Task DictationFollowsTheHearRole()
     {
-        FakeSpeechRecognizer.AvailableResult = true;
+        FakeModelCatalog.Reset();
         try
         {
+            FakeModelCatalog.PickedRoles = new Dictionary<Role, ModelId>
+            {
+                [Role.Hear] = KnownModels.WhisperLargeV3Turbo.Id,
+            };
+            FakeModelCatalog.ListedAvailability =
+            [
+                new ModelAvailability(KnownModels.WhisperLargeV3Turbo.Id, Ready: true, Reason: null),
+            ];
+
             await using var os = BackgroundOs();
-            os.Register<FakeSpeechRecognizer>();
+            os.Register<FakeModelCatalog>();
             var ino = await os.Install<InoApp>();
             await ino.Request("open", new InoOpen());
 
-            Assert.True(ino.App.CanDictate);
+            Assert.True(ino.App.Voice.Hear);
             Assert.True(InoDrawing.PropsOf(ino.App.Render()).Dictation);
+            Assert.Null(typeof(InoAppState).GetProperty("Voice"));
             Assert.Null(typeof(InoAppState).GetProperty("CanDictate"));
 
-            FakeSpeechRecognizer.AvailableResult = false;
+            FakeModelCatalog.ListedAvailability =
+            [
+                new ModelAvailability(KnownModels.WhisperLargeV3Turbo.Id, Ready: false, Reason: "Not installed"),
+            ];
             await ino.Request("open", new InoOpen());
-            Assert.False(ino.App.CanDictate);
+            Assert.False(ino.App.Voice.Hear);
             Assert.False(InoDrawing.PropsOf(ino.App.Render()).Dictation);
         }
         finally
         {
-            FakeSpeechRecognizer.AvailableResult = false;
+            FakeModelCatalog.Reset();
         }
     }
 
@@ -653,6 +666,7 @@ public sealed class InoAppFacts
         }
         finally
         {
+            BackgroundConversation.Reset();
             FakeModelCatalog.Reset();
             FakeDevice.Reset(string.Empty);
             if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
@@ -696,6 +710,7 @@ public sealed class InoAppFacts
         }
         finally
         {
+            BackgroundConversation.Reset();
             FakeModelCatalog.Reset();
             FakeDevice.Reset(string.Empty);
             if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
@@ -747,6 +762,7 @@ public sealed class InoAppFacts
         }
         finally
         {
+            BackgroundConversation.Reset();
             FakeModelCatalog.Reset();
             FakeDevice.Reset(string.Empty);
             if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
@@ -1400,6 +1416,7 @@ public sealed class InoAppFacts
         }
 
         public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     }
 
     [Neuron(IConversation.Type)]
@@ -1537,6 +1554,7 @@ public sealed class InoAppFacts
             => Task.FromResult(GetOrEmpty(ConvIdValue));
 
         public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     }
 
     [Neuron("ui.compute")]
@@ -1553,33 +1571,18 @@ public sealed class InoAppFacts
         }
     }
 
-    [Neuron("speechrecognizerneuron")]
-    private sealed class FakeSpeechRecognizer : Neuron, IntoChat.OS.Modules.AI.Media.ISpeechRecognizer
-    {
-        public static bool AvailableResult { get; set; }
-
-        public Task<IntoChat.OS.Modules.AI.Media.MediaCapabilities> Describe()
-            => Task.FromResult(new IntoChat.OS.Modules.AI.Media.MediaCapabilities(
-                IntoChat.OS.Modules.AI.Media.MediaOperation.SpeechRecognition,
-                AvailableResult,
-                1024));
-
-        public Task<IntoChat.OS.Modules.AI.Media.SpeechRecognitionResult> Recognize(
-            IntoChat.OS.Modules.AI.Media.SpeechRecognitionRequest request,
-            CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-    }
-
     [Neuron("ai.models")]
     private sealed class FakeModelCatalog : Neuron, IModelCatalog
     {
         public static ModelId? PickedChat { get; set; }
+        public static Dictionary<Role, ModelId>? PickedRoles { get; set; }
         public static ModelCard[]? ListedCards { get; set; }
         public static ModelAvailability[]? ListedAvailability { get; set; }
 
         public static void Reset()
         {
             PickedChat = null;
+            PickedRoles = null;
             ListedCards = null;
             ListedAvailability = null;
         }
@@ -1598,9 +1601,24 @@ public sealed class InoAppFacts
         }
 
         public Task<ModelId> Pick(Role role, ModelId? turn = null)
-            => turn is { Value.Length: > 0 } t ? Task.FromResult(t)
-                : PickedChat is { Value.Length: > 0 } picked ? Task.FromResult(picked)
-                : Task.FromResult(new ModelId(string.Empty));
+        {
+            if (turn is { Value.Length: > 0 } t)
+            {
+                return Task.FromResult(t);
+            }
+
+            if (PickedRoles is not null && PickedRoles.TryGetValue(role, out var byRole))
+            {
+                return Task.FromResult(byRole);
+            }
+
+            if (role == Role.Chat && PickedChat is { Value.Length: > 0 } picked)
+            {
+                return Task.FromResult(picked);
+            }
+
+            return Task.FromResult(new ModelId(string.Empty));
+        }
 
         public Task SetRole(Role role, ModelId model)
             => Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).SetRole(role, model);

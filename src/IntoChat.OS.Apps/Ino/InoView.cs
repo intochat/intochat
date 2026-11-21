@@ -64,6 +64,10 @@ public static partial class InoView
         selected.Reverse();
         if (s.Pending is { } pending)
         {
+            for (var i = 0; i < selected.Count; i++)
+            {
+                if (selected[i].CanRegenerate) { selected[i] = selected[i] with { CanRegenerate = false }; }
+            }
             var pendingText = pending.Text.Length > MaxRenderedChars ? pending.Text[..MaxRenderedChars] : pending.Text;
             selected.Add(new ThreadMessage($"pending/{pending.Id}", "user", pendingText, "sending"));
         }
@@ -74,14 +78,16 @@ public static partial class InoView
     /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
     public static ChatThreadProps ThreadProps(
         InoAppState s,
-        ConversationView? view = null,
-        bool dictation = false,
+        VoiceAbilities voice,
+        string? conversation,
         string? threadFailure = null,
+        ConversationView? view = null,
         IReadOnlyList<ModelCard>? cards = null,
         IReadOnlyList<ModelAvailability>? availability = null,
         DeviceView? device = null)
     {
         ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(voice);
         var shown = Thread(s, view);
         var activeModel = ResolveModel(s.SelectedModel);
         var activeModelId = activeModel?.Id.Value ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel.Trim());
@@ -97,13 +103,30 @@ public static partial class InoView
             CanSend: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
             ActiveModelLabel: activeModel?.Name ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel),
             ActiveProviderIcon: activeModel?.IconKey(),
-            Dictation: dictation,
+            Dictation: voice.Hear,
             Status: ConversationStatusOf(s),
             Working: s.ActiveRunId is not null,
             EmptyText: emptyText,
             Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown),
             Models: cards is { Count: > 0 } ? Choices(cards, availability ?? [], device) : null,
-            ActiveModelId: activeModelId);
+            ActiveModelId: activeModelId,
+            Conversation: InoModel.ConversationKeyOf(s.ConversationId),
+            ReadAloud: voice.Speak,
+            TalkConversation: voice.Talk && !string.IsNullOrWhiteSpace(conversation) ? conversation : null);
+    }
+
+    /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
+    public static ChatThreadProps ThreadProps(
+        InoAppState s,
+        ConversationView? view = null,
+        VoiceAbilities? voice = null,
+        string? threadFailure = null,
+        IReadOnlyList<ModelCard>? cards = null,
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return ThreadProps(s, voice ?? VoiceAbilities.None, s.ConversationId, threadFailure, view, cards, availability, device);
     }
 
     /// <summary>Projects text-capable model cards and availability into composer picker choices split into local and cloud sections.</summary>
@@ -210,6 +233,30 @@ public static partial class InoView
         return result;
     }
 
+    private static string FormatInstallNote(long? bytes, Fit? fit)
+    {
+        var parts = new List<string>(3) { "Install" };
+        if (bytes is > 0)
+        {
+            const long mib = 1024L * 1024L;
+            const long gib = 1024L * mib;
+            parts.Add(bytes.Value >= gib
+                ? string.Create(CultureInfo.InvariantCulture, $"{bytes.Value / (double)gib:0.#} GB")
+                : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(1L, bytes.Value / mib)} MB"));
+        }
+
+        if (fit is { } value)
+        {
+            parts.Add(value switch
+            {
+                Fit.Good => "Good",
+                Fit.Slow => "Slow",
+                _ => value.ToString(),
+            });
+        }
+
+        return string.Join(" · ", parts);
+    }
     /// <summary>The 20 newest sessions drawn when Ino's <c>chats</c> section is open, each switching conversation.</summary>
     public static Node Sessions(SessionPage page, string current)
     {
@@ -258,38 +305,13 @@ public static partial class InoView
         ];
     }
 
-    private static string FormatInstallNote(long? bytes, Fit? fit)
-    {
-        var parts = new List<string>(3) { "Install" };
-        if (bytes is > 0)
-        {
-            const long mib = 1024L * 1024L;
-            const long gib = 1024L * mib;
-            parts.Add(bytes.Value >= gib
-                ? string.Create(CultureInfo.InvariantCulture, $"{bytes.Value / (double)gib:0.#} GB")
-                : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(1L, bytes.Value / mib)} MB"));
-        }
-
-        if (fit is { } value)
-        {
-            parts.Add(value switch
-            {
-                Fit.Good => "Good",
-                Fit.Slow => "Slow",
-                _ => value.ToString(),
-            });
-        }
-
-        return string.Join(" · ", parts);
-    }
-
     /// <summary>
     /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
     /// (approvals, model setup, cards no message carries).
     /// </summary>
     public static View Screen(
         InoAppState s,
-        bool dictation,
+        VoiceAbilities voice,
         Func<ChatThreadProps, Node> thread,
         ConversationView? view = null,
         SessionPage? sessions = null,
@@ -298,12 +320,12 @@ public static partial class InoView
         IReadOnlyList<ModelCard>? cards = null,
         IReadOnlyList<ModelAvailability>? availability = null,
         DeviceView? device = null)
-        => new("Ino", ScreenNode(s, dictation, thread, view, sessions, threadFailure, departureRejection, cards, availability, device));
+        => new("Ino", ScreenNode(s, voice, thread, view, sessions, threadFailure, departureRejection, cards, availability, device));
 
     /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
     public static Node ScreenNode(
         InoAppState s,
-        bool dictation,
+        VoiceAbilities voice,
         Func<ChatThreadProps, Node> thread,
         ConversationView? view = null,
         SessionPage? sessions = null,
@@ -314,6 +336,7 @@ public static partial class InoView
         DeviceView? device = null)
     {
         ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(voice);
         ArgumentNullException.ThrowIfNull(thread);
 
         var projectedCardIds = view is not null ? InoThread.ProjectedCardIds(view) : [];
@@ -328,7 +351,7 @@ public static partial class InoView
         navAboveList.AddRange(RenderNavigationSeedNodes(s, departureRejection));
         Node[] navAbove = [.. navAboveList];
 
-        var conversation = thread(ThreadProps(s, view, dictation, threadFailure, cards, availability, device));
+        var conversation = thread(ThreadProps(s, voice, s.ConversationId, threadFailure, view, cards, availability, device));
         if (HasUnprojectedVaultSecretPrompt(s, view))
         {
             Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];

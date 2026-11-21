@@ -41,6 +41,7 @@ public sealed class FakeConversation : DigitalBrain.Neurons.Neuron<FakeConversat
     public Task Stop() => Task.CompletedTask;
     public Task Regenerate(EntryId reply) => throw new NotSupportedException();
     public Task Post(string text, string id) => Task.CompletedTask;
+    public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     public Task Invite(AccountId friend) => throw new NotSupportedException();
 }
 

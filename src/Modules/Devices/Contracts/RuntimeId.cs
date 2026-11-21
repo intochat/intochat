@@ -8,6 +8,7 @@ public readonly record struct RuntimeId([property: Id(0)] string Value)
 {
     public static readonly RuntimeId Ollama = new("ollama");
     public static readonly RuntimeId FoundryLocal = new("foundry-local");
+    public static readonly RuntimeId SherpaOnnx = new("sherpa-onnx");
 
     public static RuntimeId OpenAiCompat(string name) => new($"openai-compat:{name}");
 
