@@ -59,7 +59,7 @@ void main() {
 
     expect(find.text('On'), findsNothing);
     expect(find.text('Off'), findsNothing);
-    await tester.tap(find.byType(UiKitSwitch));
+    await tester.tap(find.byType(UiMixToggle));
     await tester.pumpAndSettle();
     expect(sent.single['signal'], 'control.setChecked');
   });

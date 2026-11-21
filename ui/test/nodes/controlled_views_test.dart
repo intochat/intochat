@@ -53,7 +53,7 @@ void main() {
     );
 
     expect(find.text('On'), findsOneWidget);
-    await tester.tap(find.byType(UiKitSwitch));
+    await tester.tap(find.byType(UiMixToggle));
     await tester.pumpAndSettle();
 
     expect(sent.single['args'], {'isOn': false});

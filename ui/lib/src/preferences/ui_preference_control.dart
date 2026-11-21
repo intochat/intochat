@@ -4,7 +4,7 @@ import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_button.dart';
 import '../components/kit/ui_kit_field.dart';
 import '../components/kit/ui_kit_select.dart';
-import '../components/kit/ui_kit_switch.dart';
+import '../ui/mix/ui_mix_controls.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import 'local_preferences.dart';
@@ -131,8 +131,9 @@ class _UiPreferenceControlState extends State<UiPreferenceControl> {
           key: const Key('preference-toggle'),
           children: [
             Expanded(child: label),
-            UiKitSwitch(
+            UiMixToggle(
               value: on,
+              enabled: _canWrite,
               semanticLabel: widget.label,
               onChanged: _canWrite ? (v) => _save(v ? 'on' : 'off') : null,
             ),

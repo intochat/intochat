@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../components/kit/ui_kit_switch.dart';
 import '../generated/node_commands.dart';
+import '../ui/mix/ui_mix_controls.dart';
 import 'node_context.dart';
 
 /// What a toggle switch neuron draws: its value from the neuron's view, its
@@ -19,8 +19,9 @@ Widget renderToggleSwitchView(ToggleSwitchViewNode node, NodeContext ctx) {
       Expanded(child: Text(props.label)),
       if (content != null && content.isNotEmpty)
         Padding(padding: const EdgeInsets.only(right: 8), child: Text(content)),
-      UiKitSwitch(
+      UiMixToggle(
         value: isOn,
+        enabled: props.isEnabled && ctx.interactive,
         semanticLabel: controlNameOf(
           props.automationName,
           props.label,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
 import 'ui_colors.dart';
@@ -566,40 +565,9 @@ final class UiThemeScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final data = FThemeData(
-      debugLabel: 'IntoChat.OS',
-      touch: true,
-      colors:
-          (theme.brightness == Brightness.light
-                  ? FColors.neutralLight
-                  : FColors.neutralDark)
-              .copyWith(
-                background: theme.scaffoldBackgroundColor,
-                foreground: colors.onSurface,
-                primary: colors.primary,
-                primaryForeground: colors.onPrimary,
-                secondary: colors.primaryContainer,
-                secondaryForeground: colors.onPrimaryContainer,
-                muted: colors.surfaceContainer,
-                mutedForeground: colors.onSurfaceVariant,
-                card: colors.surface,
-                border: colors.outlineVariant,
-                destructive: colors.error,
-                error: colors.error,
-              ),
-    );
-    return Localizations.override(
-      context: context,
-      delegates: FLocalizations.localizationsDelegates,
-      child: material.Theme(
-        data: data.toApproximateMaterialTheme(),
-        child: material.Material(
-          type: material.MaterialType.transparency,
-          child: FTheme(data: data, child: child),
-        ),
-      ),
+    return material.Material(
+      type: material.MaterialType.transparency,
+      child: child,
     );
   }
 }

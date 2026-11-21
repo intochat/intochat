@@ -3,7 +3,6 @@ import 'package:intochat_os_flutter_shell/src/theme/ui_tokens.dart';
 import 'package:intochat_os_flutter_shell/src/components/workspace/ui_workspace_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:forui/forui.dart';
 
 Widget host(Widget child, {bool reduced = false, ThemeData? theme}) =>
     MaterialApp(
@@ -92,7 +91,7 @@ void main() {
         UiThemeScope(
           child: Builder(
             builder: (context) {
-              primary = FTheme.of(context).colors.primary;
+              primary = Theme.of(context).colorScheme.primary;
               return const Text('Control');
             },
           ),

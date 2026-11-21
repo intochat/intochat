@@ -220,7 +220,7 @@ void main() {
         'args': {'page': 'overview'},
       });
 
-      await tester.tap(find.byType(UiKitSwitch));
+      await tester.tap(find.byType(UiMixToggle));
       await tester.pumpAndSettle();
       expect(sent.last, {
         'kind': 'act',

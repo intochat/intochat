@@ -37,7 +37,7 @@ void main() {
 
     expect(find.text('Dark mode'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
-    await tester.tap(find.byType(UiKitSwitch));
+    await tester.tap(find.byType(UiMixToggle));
     await tester.pumpAndSettle();
 
     expect(sent, [
@@ -75,7 +75,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(UiKitSwitch));
+    await tester.tap(find.byType(UiMixToggle));
     await tester.pumpAndSettle();
 
     expect(sent, isEmpty);

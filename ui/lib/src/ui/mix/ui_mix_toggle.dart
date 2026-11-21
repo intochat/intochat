@@ -25,16 +25,18 @@ final class UiMixToggle extends StatefulWidget {
     this.eventMask = UiEventMask.click,
     this.onEmit,
     this.semanticsId,
+    this.semanticLabel,
   });
 
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
   final String label;
   final bool enabled;
   final UiStyleData style;
   final int eventMask;
   final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
+  final String? semanticLabel;
 
   @override
   State<UiMixToggle> createState() => _UiMixToggleState();
@@ -61,12 +63,15 @@ class _UiMixToggleState extends State<UiMixToggle> {
     final duration = widget.style.motion.duration;
     final curve = widget.style.motion.curve;
 
+    final isInteractive = widget.enabled && widget.onChanged != null;
     final toggle = NakedToggle(
       value: widget.value,
-      enabled: widget.enabled,
+      enabled: isInteractive,
       asSwitch: true,
-      semanticLabel: widget.label.isEmpty ? 'Toggle' : widget.label,
-      onChanged: widget.onChanged,
+      semanticLabel:
+          widget.semanticLabel ??
+          (widget.label.isEmpty ? 'Toggle' : widget.label),
+      onChanged: isInteractive ? widget.onChanged : null,
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);

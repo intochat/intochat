@@ -58,7 +58,7 @@ void main() {
     expect(find.text('Live telemetry'), findsOneWidget);
     expect(find.text('Paused'), findsOneWidget);
 
-    await tester.tap(find.byType(UiKitSwitch));
+    await tester.tap(find.byType(UiMixToggle));
     await tester.pumpAndSettle();
 
     expect(calls, contains('IntoChat.OS.Modules.UI.Toggle.IToggle.Toggle'));
