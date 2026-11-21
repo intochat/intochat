@@ -6,7 +6,7 @@ namespace DigitalBrain.UI;
 /// <param name="Id">The message id; a thread holds each id once.</param>
 /// <param name="Role">Who wrote it: user, assistant or system.</param>
 /// <param name="Text">The message text.</param>
-/// <param name="Status">completed, sending, running, failed or interrupted.</param>
+/// <param name="Status">completed, sending, running, failed, interrupted or cancelled.</param>
 public sealed record ThreadMessage(string Id, string Role, string Text, string Status = "completed")
 {
     /// <summary>The model that wrote it, as the user reads it; null when unknown.</summary>
@@ -15,7 +15,7 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     /// <summary>The brand icon key of <see cref="Model"/>; null when unknown.</summary>
     public string? ProviderIcon { get; init; }
 
-    /// <summary>Why a failed or interrupted message has no answer, as the user reads it; null or blank draws "The model did not answer."</summary>
+    /// <summary>Why a failed, interrupted or cancelled message has no answer, as the user reads it; null or blank draws "The model did not answer."</summary>
     public string? Failure { get; init; }
 
     /// <summary>The tool steps taken while writing it.</summary>
@@ -24,9 +24,9 @@ public sealed record ThreadMessage(string Id, string Role, string Text, string S
     /// <summary>The cards shown with it (data nodes).</summary>
     public IReadOnlyList<Node> Cards { get; init; } = [];
 
-    /// <summary>Whether the message failed or was interrupted: it draws a reason and a retry.</summary>
+    /// <summary>Whether the message failed, was interrupted or was cancelled: it draws a reason and a retry.</summary>
     [JsonIgnore]
-    public bool IsFailed => Status is "failed" or "interrupted";
+    public bool IsFailed => Status is "failed" or "interrupted" or "cancelled";
 
     /// <inheritdoc />
     public bool Equals(ThreadMessage? other) => other is not null && Id == other.Id && Role == other.Role && Text == other.Text && Status == other.Status

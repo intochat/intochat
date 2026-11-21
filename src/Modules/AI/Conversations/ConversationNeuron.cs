@@ -396,7 +396,8 @@ internal sealed class ConversationNeuron(
             Replacing = reply,
         });
 
-        var modelOverride = latestRun.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } prevModel
+        var modelOverride = latestRun.Status != AgentRunStatus.Failed
+            && latestRun.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } prevModel
             ? prevModel.Model
             : null;
         try
@@ -430,6 +431,7 @@ internal sealed class ConversationNeuron(
             AllContexts(state))
         {
             Replacing = state.Replacing,
+            BlockedReason = _blocked ? _interrupt : null,
         };
     }
 

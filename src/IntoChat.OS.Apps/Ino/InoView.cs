@@ -5,12 +5,14 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.UI;
-using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
+using UIEntry = DigitalBrain.UI.Entry;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -29,14 +31,21 @@ public static partial class InoView
     public const int MaxRenderedMessages = 100;
     public const int MaxRenderedChars = 1_000_000;
 
-    public static IReadOnlyList<InoMessage> Shown(InoAppState s)
+    private static readonly IReadOnlyDictionary<string, AppManifest?> EmptyApps = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
+
+    /// <summary>The messages the conversation thread holds for <paramref name="s"/> and <paramref name="view"/>, capped to the tail budget plus any pending prompt.</summary>
+    public static IReadOnlyList<ThreadMessage> Thread(
+        InoAppState s,
+        ConversationView? view = null,
+        IReadOnlyDictionary<string, AppManifest?>? apps = null,
+        string? links = null)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var source = s.Messages ?? [];
-        var selected = new List<InoMessage>(Math.Min(source.Length + 1, MaxRenderedMessages + 1));
+        var source = view is not null ? InoThread.Messages(view, apps ?? EmptyApps, links) : [];
+        var selected = new List<ThreadMessage>(Math.Min(source.Count + 1, MaxRenderedMessages + 1));
         var totalChars = 0;
 
-        for (var i = source.Length - 1; i >= 0 && selected.Count < MaxRenderedMessages; i--)
+        for (var i = source.Count - 1; i >= 0 && selected.Count < MaxRenderedMessages; i--)
         {
             var msg = source[i];
             var text = msg.Text ?? string.Empty;
@@ -54,29 +63,23 @@ public static partial class InoView
         if (s.Pending is { } pending)
         {
             var pendingText = pending.Text.Length > MaxRenderedChars ? pending.Text[..MaxRenderedChars] : pending.Text;
-            selected.Add(new InoMessage($"pending/{pending.Id}", "user", pendingText, "sending"));
+            selected.Add(new ThreadMessage($"pending/{pending.Id}", "user", pendingText, "sending"));
         }
 
         return selected;
     }
 
-    /// <summary>The messages the conversation thread holds for <paramref name="s"/>: the shown ones and the pending prompt, each failed reply with its reason.</summary>
-    public static IReadOnlyList<ThreadMessage> Thread(InoAppState s)
-    {
-        ArgumentNullException.ThrowIfNull(s);
-        return [.. Shown(s).Select(ToThreadMessage)];
-    }
-
     /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
     public static ChatThreadProps ThreadProps(
         InoAppState s,
+        ConversationView? view = null,
         bool dictation = false,
         string? threadFailure = null,
         IReadOnlyList<ModelCard>? cards = null,
         IReadOnlyList<ModelAvailability>? availability = null)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var shown = Shown(s);
+        var shown = Thread(s, view);
         var activeModel = ResolveModel(s.SelectedModel);
         var activeModelId = activeModel?.Id.Value ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel.Trim());
         var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
@@ -143,6 +146,54 @@ public static partial class InoView
         return result;
     }
 
+    /// <summary>The 20 newest sessions drawn when Ino's <c>chats</c> section is open, each switching conversation.</summary>
+    public static Node Sessions(SessionPage page, string current)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        var items = page.Entries.Take(20).ToArray();
+        Node[] navs =
+        [
+            .. items.Select(session =>
+            {
+                var isCurrent = string.Equals(session.Id, current, StringComparison.Ordinal);
+                var label = string.IsNullOrWhiteSpace(session.Title)
+                    ? $"Chat · {session.Id[..Math.Min(8, session.Id.Length)]}"
+                    : session.Title;
+                return NavItem(
+                    $"session-{session.Id}",
+                    label,
+                    Icons.Sparkles,
+                    "switch-conversation",
+                    selected: isCurrent,
+                    badge: isCurrent ? "Current" : null,
+                    emit: AppSignals.Emits("ino", new InoSwitchConversation(session.Id)));
+            }),
+        ];
+
+        var collection = new Collection(
+        [
+            .. items.Select(session =>
+            {
+                var isCurrent = string.Equals(session.Id, current, StringComparison.Ordinal);
+                var label = string.IsNullOrWhiteSpace(session.Title)
+                    ? $"Chat · {session.Id[..Math.Min(8, session.Id.Length)]}"
+                    : session.Title;
+                return new UIEntry(session.Id, label, isCurrent ? "Current" : "Switch");
+            }),
+        ]);
+
+        return Surface(SurfaceKind.Acrylic)[
+            VStack(Space.Xs)[
+                HStack(Space.Xs)[
+                    Heading($"Chats ({items.Length})", 3),
+                    PrimaryButton("+ New", Icons.Plus).Small().Key(NewKey).Emits(AppSignals.Emit("ino", "new")).ToNode()
+                ],
+                VStack(Space.Xs, navs),
+                collection
+            ]
+        ];
+    }
+
     /// <summary>
     /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
     /// (approvals, model setup, cards no message carries).
@@ -151,17 +202,21 @@ public static partial class InoView
         InoAppState s,
         bool dictation,
         Func<ChatThreadProps, Node> thread,
+        ConversationView? view = null,
+        SessionPage? sessions = null,
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
         IReadOnlyList<ModelAvailability>? availability = null)
-        => new("Ino", ScreenNode(s, dictation, thread, threadFailure, departureRejection, cards, availability));
+        => new("Ino", ScreenNode(s, dictation, thread, view, sessions, threadFailure, departureRejection, cards, availability));
 
     /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
     public static Node ScreenNode(
         InoAppState s,
         bool dictation,
         Func<ChatThreadProps, Node> thread,
+        ConversationView? view = null,
+        SessionPage? sessions = null,
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
@@ -169,16 +224,22 @@ public static partial class InoView
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
-        var shown = Shown(s);
-        var projectedCardIds = new HashSet<string>(shown.SelectMany(m => m.Cards).Select(c => c.Id), StringComparer.Ordinal);
+
+        var projectedCardIds = view is not null ? InoThread.ProjectedCardIds(view) : [];
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
-        Node[] navAbove = RenderNavigationSeedNodes(s, departureRejection);
-        var conversation = s.DevUiMode
-            ? new NeuronRef("ui.chat", InoModel.UiChatKeyOf(s.ConversationId))
-            : thread(ThreadProps(s, dictation, threadFailure, cards, availability));
-        if (HasUnprojectedVaultSecretPrompt(s))
+
+        var navAboveList = new List<Node>();
+        if (string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
+        {
+            navAboveList.Add(Sessions(sessions, s.ConversationId));
+        }
+        navAboveList.AddRange(RenderNavigationSeedNodes(s, departureRejection));
+        Node[] navAbove = [.. navAboveList];
+
+        var conversation = thread(ThreadProps(s, view, dictation, threadFailure, cards, availability));
+        if (HasUnprojectedVaultSecretPrompt(s, view))
         {
             Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];
             Node[] below = [.. approvals, .. setup];
@@ -287,103 +348,25 @@ public static partial class InoView
     private static Node Filling(Node[] above, Node thread, Node[] below)
         => VStack(Space.Md, [.. above, thread, .. below]).Extents([.. above.Select(static _ => -1d), 1d, .. below.Select(static _ => -1d)]);
 
-    private static ThreadMessage ToThreadMessage(InoMessage msg)
-    {
-        var (displayText, inlineSlots) = msg.Role == "assistant" ? InoCards.ExtractInlineSlots(msg.Text) : (msg.Text, Array.Empty<NeuronRef>());
-        var modelCard = ResolveModel(msg.Model);
-        var failed = msg.Role == "assistant" && msg.Status is "failed" or "interrupted";
-        return new ThreadMessage(msg.Id, msg.Role, displayText ?? string.Empty, msg.Status)
-        {
-            Model = modelCard?.Name ?? msg.Model,
-            ProviderIcon = modelCard?.IconKey(),
-            Failure = failed ? InoErrors.Describe(msg.Failure ?? (msg.Status == "interrupted" ? "interrupted" : null)) ?? ChatThreadNeuron.NoAnswer : null,
-            Activities = [.. msg.Activities.Select(ToActivityNode)],
-            Cards = [.. msg.Cards.SelectMany(RenderCardNodes), .. inlineSlots],
-        };
-    }
-
     // The error drawn under the messages: none when the last message is a failed reply that already says why and offers a retry.
-    private static ChatThreadError? ThreadError(InoAppState s, IReadOnlyList<InoMessage> shown)
+    private static ChatThreadError? ThreadError(InoAppState s, IReadOnlyList<ThreadMessage> shown)
     {
         if (s.Error is not { } error) { return null; }
         var line = InoErrors.Of(error);
         var last = shown.Count > 0 ? shown[^1] : null;
-        if (line.Retry && last is { Role: "assistant", Status: "failed" or "interrupted" }) { return null; }
+        if (line.Retry && last is { Role: "assistant", IsFailed: true }) { return null; }
         return new ChatThreadError(line.What, line.Detail, line.ActionLabel, line.Open, line.Retry);
     }
-
-    public static View Side(InoAppState state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        var count = state.Messages is { Length: > 0 } msgs ? msgs.Count(m => m.Role == "user") : state.Turns.Length;
-        var (statusKind, statusLabel) = ResolveSideStatus(state);
-        var activeModel = ResolveModel(state.SelectedModel)?.Name ?? state.SelectedModel;
-
-        var recents = (state.RecentConversations ?? [])
-            .Select(InoModel.ConversationIdOf)
-            .Where(static id => !string.IsNullOrWhiteSpace(id))
-            .Prepend(state.ConversationId)
-            .Distinct(StringComparer.Ordinal)
-            .Take(64)
-            .ToArray();
-
-        Node[] sessionNavs = [.. recents.Select(convId =>
-        {
-            var isCurrent = string.Equals(convId, state.ConversationId, StringComparison.Ordinal);
-            var label = isCurrent ? state.Title : $"Chat · {convId[..Math.Min(8, convId.Length)]}";
-            return NavItem(
-                $"session-{convId}",
-                label,
-                Icons.Sparkles,
-                "switch-conversation",
-                selected: isCurrent,
-                badge: isCurrent ? $"{count}" : null,
-                emit: AppSignals.Emits("ino", new InoSwitchConversation(convId)));
-        })];
-
-        return new View(
-            "Chats",
-            VStack(Space.Sm)[
-                Surface(SurfaceKind.Acrylic)[
-                    VStack(Space.Sm)[
-                        HeaderBar(state.Title, activeModel, StatusPill(statusKind, statusLabel)),
-                        MutedText(state.Status).Tabular(),
-                        HStack(Space.Xs)[
-                            PrimaryButton("+ New Session", Icons.Plus).Small().Key("new-session").Emits(AppSignals.Emit("ino", "new")).ToNode(),
-                            (state.DevUiMode ? PrimaryButton("DevUI On", Icons.Sliders) : Button("DevUI", Icons.Sliders)).Small().Key("toggle-devui").Emits(AppSignals.Emits("ino", new InoToggleDevUi())).ToNode()
-                        ]
-                    ]
-                ],
-                Divider($"SESSIONS ({recents.Length})"),
-                VStack(Space.Xs, sessionNavs),
-                new Collection([.. recents.Select(convId =>
-                {
-                    var isCurrent = string.Equals(convId, state.ConversationId, StringComparison.Ordinal);
-                    return new Entry(convId, isCurrent ? state.Title : $"Chat · {convId[..Math.Min(8, convId.Length)]}", isCurrent ? $"{count} turn(s)" : "Switch");
-                })]),
-                Divider("WHAT INO MAY DO"),
-                new Collection([.. (state.GrantSummaries ?? []).Select((summary, i) => new Entry($"grant-{i}", summary, null))])
-            ]);
-    }
-
-    internal static (StatusKind Kind, string Label) ResolveSideStatus(InoAppState s) =>
-        (s.Approvals is { Length: > 0 }) || s.ActiveCards.Any(static c => c.IsWaiting) || s.Blocked || string.Equals(s.Status, InoModel.Paused, StringComparison.Ordinal)
-            ? (StatusKind.NeedsYou, s.Blocked ? "Paused" : "Needs you")
-        : s.ActiveRunId is not null || s.Pending is not null || string.Equals(s.Status, InoModel.Working, StringComparison.Ordinal)
-            ? (StatusKind.Working, "Working")
-        : s.Error is not null || string.Equals(s.Status, InoModel.Failed, StringComparison.Ordinal)
-            ? (StatusKind.Error, "Attention")
-        : (StatusKind.Done, "Ready");
 
     internal static bool IsVaultSecretUri(string? uri)
         => !string.IsNullOrWhiteSpace(uri) && uri.Contains("/vault/secrets", StringComparison.OrdinalIgnoreCase);
 
-    internal static bool HasUnprojectedVaultSecretPrompt(InoAppState s)
-        => (s.Messages is null or { Length: 0 })
+    internal static bool HasUnprojectedVaultSecretPrompt(InoAppState s, ConversationView? view = null)
+        => (view is null || view.Entries.Length == 0)
             && s.Pending is null
             && s.ActiveCards.Any(static c => string.Equals(c.Kind, "secret", StringComparison.Ordinal) && IsVaultSecretUri(c.SourceNeuronUri));
 
-    private static ActivityNode ToActivityNode(InoActivity a)
+    internal static ActivityNode ToActivityNode(InoActivity a)
     {
         var (visual, detail) = ResolveActivityPresentation(a);
         return new ActivityNode(a.Id, visual.Label, a.Error is { Length: > 0 } ? "failed" : "done", detail, visual.IconKey, visual.Category);
@@ -694,7 +677,4 @@ public static partial class InoView
 
     private static Button EmitsOrIntent(this ButtonBuilder builder, Intent intent)
         => builder.WithIntent(intent.Kind, intent.Arg).ToButton();
-
-    internal static InoAppState BuildScenarioSessionState(string scenarioId, UserSettingsState settings)
-        => InoModel.DecideScenario(scenarioId, settings);
 }

@@ -1,13 +1,18 @@
 using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts;
+using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
 public sealed class InoModelFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
-    private const string Agent = "local/ino/conversations/main";
+    private static readonly Participant.Person Owner = new(new AccountId("local"));
+    private static readonly Participant.Agent Ino = new("ino");
 
     [Fact]
     public void SendingShowsMyMessageAtOnce()
@@ -40,67 +45,61 @@ public sealed class InoModelFacts
     }
 
     [Fact]
-    public void AProjectionReplacesThePendingMessageWithTheRealOnes()
+    public void FromConversationClearsPendingAndNeverWritesMessages()
     {
         var sent = InoModel.Sent(new InoAppState(), "hello", "p1", At);
-        var next = InoModel.Projected(sent, Chat(1, ChatRunStatus.Completed, User("hello"), Answer("Hi.")), Agent);
+        var view = View("main", 1, null, [new AgentRun("r1", AgentRunStatus.Completed, "hello", At, Reply: "Hi.")], User("hello"), Answer("Hi."));
+        var next = InoModel.FromConversation(sent, view);
+
         Assert.Null(next.Pending);
-        Assert.Equal([("user", "hello"), ("assistant", "Hi.")], next.Messages!.Select(m => (m.Role, m.Text)));
+        Assert.Null(next.Messages);
         Assert.Equal(InoModel.Ready, next.Status);
         Assert.Null(next.ActiveRunId);
-        Assert.Equal(1L, next.ChatRevision);
     }
 
     [Fact]
     public void ARunningReplyKeepsInoWorking()
     {
-        var next = InoModel.Projected(new InoAppState(), Chat(1, ChatRunStatus.Running, User("hello"), Answer("Hi", "running")), Agent);
+        var active = new AgentRun("r1", AgentRunStatus.Running, "hello", At, Reply: "Hi");
+        var next = InoModel.FromConversation(new InoAppState(), View("main", 1, active, [], User("hello")));
         Assert.Equal((InoModel.Working, "r1"), (next.Status, next.ActiveRunId));
     }
 
     [Fact]
-    public void AnOlderOrRepeatedProjectionChangesNothing()
-    {
-        var current = InoModel.Projected(new InoAppState(), Chat(2, ChatRunStatus.Completed, User("hello"), Answer("Hi.")), Agent);
-        Assert.Same(current, InoModel.Projected(current, Chat(2, ChatRunStatus.Completed, User("hello"), Answer("Hi.")), Agent));
-        Assert.Same(current, InoModel.Projected(current, Chat(1, ChatRunStatus.Running, User("hello")), Agent));
-    }
-
-    [Fact]
-    public void AProjectionOfAnotherConversationChangesNothing()
+    public void AViewOfAnotherConversationChangesNothing()
     {
         var current = new InoAppState();
-        Assert.Same(current, InoModel.Projected(current, Chat(5, ChatRunStatus.Completed, User("old"), Answer("old reply")), "local/ino/conversations/earlier"));
+        var other = View("earlier", 5, null, [new AgentRun("r1", AgentRunStatus.Completed, "old", At, Reply: "old reply")], User("old"), Answer("old reply"));
+        Assert.Same(current, InoModel.FromConversation(current, other));
     }
 
     [Fact]
     public void AFailedReplyBecomesAnErrorWithItsCause()
     {
-        var next = InoModel.Projected(new InoAppState(), Chat(1, ChatRunStatus.Failed, User("hello"), Answer("", "failed", "no-provider")), Agent);
+        var failed = new AgentRun("r1", AgentRunStatus.Failed, "hello", At, Error: "opaque") { Failure = AgentFailure.NoProvider };
+        var next = InoModel.FromConversation(new InoAppState(), View("main", 1, null, [failed], User("hello")));
         Assert.Equal(InoModel.Failed, next.Status);
         Assert.Equal("no-provider", next.Error?.Code);
         Assert.Null(next.ActiveRunId);
     }
 
     [Fact]
-    public void ProjectedReadsFailureFromTypedChatEntryFailureEvenWithoutMatchingErrorText()
+    public void FromConversationReadsTypedRunFailureEvenWithoutMatchingErrorText()
     {
-        var entry = new ChatEntry("r1/assistant", ChatRole.Assistant, "")
+        var failed = new AgentRun("r1", AgentRunStatus.Failed, "hello", At, Error: "completely opaque vendor payload 9999")
         {
-            Status = "failed",
-            Error = "completely opaque vendor payload 9999",
-            Failure = "provider-rejected-key",
+            Failure = AgentFailure.ProviderRejectedKey,
         };
-        var next = InoModel.Projected(new InoAppState(), Chat(1, ChatRunStatus.Failed, User("hello"), entry), Agent);
+        var next = InoModel.FromConversation(new InoAppState(), View("main", 1, null, [failed], User("hello")));
         Assert.Equal(InoModel.Failed, next.Status);
         Assert.Equal("provider-rejected-key", next.Error?.Code);
-        Assert.Equal("provider-rejected-key", next.Messages![^1].Failure);
     }
 
     [Fact]
     public void AnInterruptedReplyCanBeTriedAgain()
     {
-        var next = InoModel.Projected(new InoAppState(), Chat(1, ChatRunStatus.Interrupted, User("hello"), Answer("Hi", "interrupted")), Agent);
+        var interrupted = new AgentRun("r1", AgentRunStatus.Interrupted, "hello", At, Reply: "Hi");
+        var next = InoModel.FromConversation(new InoAppState(), View("main", 1, null, [interrupted], User("hello")));
         Assert.Equal(InoModel.Failed, next.Status);
         Assert.Equal("interrupted", next.Error?.Code);
         Assert.Null(next.ActiveRunId);
@@ -140,42 +139,32 @@ public sealed class InoModelFacts
         var started = InoModel.Started(opened, "r1", "qwen3.5:4b");
         Assert.Equal("qwen3.5:4b", started.SelectedModel);
 
-        var entryWithTurnModel = new ChatEntry("r1/assistant", ChatRole.Assistant, "Answered on Qwen 3 14B.")
-        {
-            Status = "completed",
-            Model = "qwen3:14b",
-        };
-        var projected = InoModel.Projected(started, Chat(1, ChatRunStatus.Completed, User("hello"), entryWithTurnModel), Agent);
+        var view = View("main", 1, null,
+            [new AgentRun("r1", AgentRunStatus.Completed, "hello", At, Reply: "Answered on Qwen 3 14B.")],
+            User("hello"),
+            Answer("Answered on Qwen 3 14B.", new ModelId("qwen3:14b")));
+        var projected = InoModel.FromConversation(started, view);
         Assert.Equal("qwen3:14b", projected.SelectedModel);
     }
 
     [Fact]
     public void ANewConversationKeepsNothingOfTheOld()
     {
-        var old = InoModel.Projected(new InoAppState(), Chat(3, ChatRunStatus.Completed, User("hello"), Answer("Hi.")), Agent)
+        var old = InoModel.FromConversation(
+            new InoAppState(),
+            View("main", 3, null, [new AgentRun("r1", AgentRunStatus.Completed, "hello", At, Reply: "Hi.")], User("hello"), Answer("Hi.")))
             with
         { GrantSummaries = ["read · files"] };
         var next = InoModel.NewConversation(old, "c2");
         Assert.Equal(("c2", "New chat", 0L, InoModel.Ready), (next.ConversationId, next.Title, next.ChatRevision, next.Status));
-        Assert.Empty(next.Messages ?? []);
+        Assert.Null(next.Messages);
         Assert.Equal(["read · files"], next.GrantSummaries!);
     }
 
-    private static ChatState Chat(long revision, ChatRunStatus status, params ChatEntry[] entries) => new()
-    {
-        Name = "local/ino/chats/main",
-        Revision = revision,
-        Selection = new ChatSelection(Agent, 1),
-        Projection = new ChatProjection(Agent, 1, revision, entries),
-        Run = new ChatRunSnapshot(Agent, 1, revision, "r1", status),
-    };
+    private static ConversationView View(string id, long revision, AgentRun? active, AgentRun[] runs, params ConversationEntry[] entries)
+        => new(ConversationId.Parse(id), revision, [Owner, Ino], entries, active, runs, false, []);
 
-    private static ChatEntry User(string text) => new("r1/user", ChatRole.User, text);
+    private static Said User(string text) => new(EntryIds.Said("r1"), Owner, At, text);
 
-    private static ChatEntry Answer(string text, string status = "completed", string? failure = null)
-        => new("r1/assistant", ChatRole.Assistant, text)
-        {
-            Status = status,
-            Failure = failure,
-        };
+    private static Said Answer(string text, ModelId? model = null) => new(EntryIds.Reply("r1"), Ino, At, text, model);
 }

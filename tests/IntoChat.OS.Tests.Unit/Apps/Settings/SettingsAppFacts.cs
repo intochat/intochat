@@ -376,7 +376,6 @@ public sealed class SettingsAppFacts
         View[] initialViews =
         [
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Ino.InoApp, View>(app => app.Render()),
-            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Ino.InoApp, View>(app => app.RenderSide()),
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Desktop.DesktopApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<SettingsApp, View>(app => app.Render()),
             IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Usage.UsageApp, View>(app => app.Render()),

@@ -14,4 +14,5 @@ public sealed record ConversationView(
     string[] Contexts)
 {
     public EntryId? Replacing { get; init; }
+    public string? BlockedReason { get; init; }
 }

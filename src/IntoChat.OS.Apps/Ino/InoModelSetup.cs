@@ -1,16 +1,12 @@
 using DigitalBrain;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Agents.Observers;
-using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
-using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.UI.Chat;
-using Microsoft.Extensions.Logging;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -22,19 +18,14 @@ internal sealed record InoSetupHost(
     Func<BrainId> GetBrain,
     Func<IModelCatalog> GetCatalog,
     Func<IUserSettings> GetSettings,
-    Func<string, IAgent> GetAgent,
-    Func<string, IChat> GetChat,
-    Func<string, IToneObserver> GetToneObserver,
+    Func<string, IConversation> GetConversation,
+    Func<ISessionList> GetSessions,
     Func<ISpeechRecognizer> GetSpeechRecognizer,
     Func<IGrantsNeuron> GetGrants,
     Func<IApprovals> GetApprovals,
-    Func<IInoConversations> GetConversations,
     Func<IProfileContextWriter> GetProfileWriter,
-    Func<string, IAgentContext> GetAgentContext,
-    Func<string, IChatThread> GetUiChatThread,
-    Func<string, Task> FollowAgentBlocked,
-    Func<string, Task> FollowChatSignals,
-    Func<string, Task> FollowUiChatSignals,
+    Func<string, Task> FollowConversation,
+    Func<bool, Task> RefreshConversation,
     Func<string, Func<Task>, Task> TryOptional,
     Func<string, bool, Func<Task<bool>>, Task<bool>> ReadBoolOptional,
     Func<string, Approval[], Func<Task<Approval[]>>, Task<Approval[]>> ReadApprovalsOptional,
@@ -42,7 +33,7 @@ internal sealed record InoSetupHost(
     Func<string, UserSettingsState?, Func<Task<UserSettingsState?>>, Task<UserSettingsState?>> ReadSettingsOptional,
     Func<string, LocalModelSummary?, Func<Task<LocalModelSummary?>>, Task<LocalModelSummary?>> ReadLocalOptional,
     Func<string, InoCatalogSnapshot?, Func<Task<InoCatalogSnapshot?>>, Task<InoCatalogSnapshot?>> ReadCatalogOptional,
-    Func<string, ChatState?, Func<Task<ChatState?>>, Task<ChatState?>> ReadChatOptional,
+    Func<string, SessionPage?, Func<Task<SessionPage?>>, Task<SessionPage?>> ReadSessionPageOptional,
     Action<Exception, string> LogOptional,
     ILogger? Logger);
 
@@ -63,127 +54,26 @@ internal static class InoModelSetup
         => host.ReadStringArrayOptional("grants", fallback ?? [], async () =>
         {
             var grants = await host.GetGrants().List();
-            return InoModel.SummarizeGrants(grants, IntoChat.OS.Modules.Identity.Contracts.Grants.CallerApps.Assistant);
+            return InoModel.SummarizeGrants(grants, CallerApps.Assistant);
         });
+
+    public static Task<SessionPage?> ReadSessionsAsync(InoSetupHost host, int take = 20)
+        => host.ReadSessionPageOptional("sessions-list", null, async () => await host.GetSessions().List(archived: false, skip: 0, take: take));
 
     public static Task<string[]> ReadRecentConversationsAsync(InoSetupHost host, string[]? fallback = null)
-        => host.ReadStringArrayOptional("conversations-list", fallback ?? [], () => host.GetConversations().List());
-
-    public static async Task<long> ReadLastRunTokensAsync(InoSetupHost host, string agentKey, long fallback)
-    {
-        try
+        => host.ReadStringArrayOptional("sessions-recent", fallback ?? [], async () =>
         {
-            var agentState = await host.GetAgent(agentKey).Read();
-            var lastUsage = agentState.Runs.LastOrDefault(static r => r.Usage is not null)?.Usage;
-            if (lastUsage is not null)
-            {
-                var total = lastUsage.TotalTokens ?? ((lastUsage.InputTokens ?? 0L) + (lastUsage.OutputTokens ?? 0L));
-                if (total > 0) { return total; }
-            }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            host.LogOptional(error, "agent-usage");
-        }
-        return fallback;
-    }
-
-    public static async Task SyncUiChatThreadAsync(InoSetupHost host, InoAppState state, bool canDictate)
-    {
-        await host.TryOptional("ui-chat-sync", async () =>
-        {
-            var uiKey = InoModel.UiChatKeyOf(state.ConversationId);
-            var thread = host.GetUiChatThread(uiKey);
-            var activeModel = state.SelectedModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
-            var modelOptions = (state.DetectedLocalModels ?? [])
-                .Prepend(activeModel)
-                .Where(static m => !string.IsNullOrWhiteSpace(m))
-                .Distinct(StringComparer.Ordinal)
-                .Select(static m => new ChatModelOption(m, m))
-                .ToArray();
-
-            await thread.Configure(state.ConversationId, state.Title, activeModel, modelOptions, voiceAvailable: canDictate);
-
-            foreach (var msg in InoView.Shown(state))
-            {
-                var toolCalls = msg.Activities.Select(static a => new ChatToolCall(
-                    a.Id,
-                    a.Title,
-                    "{}",
-                    ResultJson: a.Error ?? a.Result,
-                    Status: string.IsNullOrWhiteSpace(a.Error) ? "done" : "failed")).ToArray();
-
-                var slots = msg.Cards
-                    .Where(static c => string.Equals(c.Kind, "chart", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(c.SourceNeuronUri))
-                    .Select(static c => new ChatInlineSlot("ui.chart", InoView.StripNeuronUri(c.SourceNeuronUri)))
-                    .ToArray();
-
-                await thread.AppendMessage(new ChatMessage(
-                    msg.Id,
-                    msg.Role,
-                    msg.Text ?? string.Empty,
-                    ToolCalls: toolCalls.Length > 0 ? toolCalls : null,
-                    Slots: slots.Length > 0 ? slots : null,
-                    Status: msg.Status,
-                    Error: msg.Failure));
-            }
-
-            await thread.SetWorking(state.ActiveRunId is not null || state.Pending is not null, state.Error?.Detail ?? state.Error?.Code);
-
-            long totalIn = 0, totalOut = 0;
-            string? summary = state.ContextSummary;
-            try
-            {
-                var agentState = await host.GetAgent(InoModel.AgentKeyOf(state.ConversationId)).Read();
-                foreach (var run in agentState.Runs)
-                {
-                    if (run.Usage is { } u)
-                    {
-                        totalIn += u.InputTokens ?? 0L;
-                        totalOut += u.OutputTokens ?? 0L;
-                    }
-                }
-                if (string.IsNullOrWhiteSpace(summary) && !string.IsNullOrWhiteSpace(agentState.Summary))
-                {
-                    summary = agentState.Summary;
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                host.LogOptional(error, "ui-chat-agent-usage");
-            }
-
-            List<ChatContextItem> contextItems = [];
-            try
-            {
-                var snap = await host.GetAgentContext("default").Read();
-                foreach (var entry in snap.Entries.Take(24))
-                {
-                    var preview = entry.Text.Length > 120 ? entry.Text[..117] + "..." : entry.Text;
-                    contextItems.Add(new ChatContextItem(
-                        entry.Name,
-                        preview,
-                        entry.Provenance?.Trust ?? ContextTrust.Platform,
-                        Math.Max(1, entry.Text.Length / 4)));
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                host.LogOptional(error, "ui-chat-context");
-            }
-
-            await thread.SetContext(contextItems, summary, totalIn, totalOut);
+            var page = await host.GetSessions().List(archived: false, skip: 0, take: InoAppState.MaxRecentConversations);
+            return [.. page.Entries.Select(static e => e.Id)];
         });
-    }
+
+    public static Task OpenSessionAsync(InoSetupHost host, string conversationId)
+        => Sessions.IsId(conversationId)
+            ? host.TryOptional("session-open", () => host.GetSessions().Open(conversationId))
+            : Task.CompletedTask;
 
     public static Task EnsureProfileContextAsync(InoSetupHost host)
         => host.TryOptional("profile-context", () => host.GetProfileWriter().Ensure());
-
-    public static async Task FollowAgentControlSignalsAsync(InoSetupHost host, string agentKey)
-    {
-        await host.TryOptional("conversations-registry", () => host.GetConversations().Use(agentKey));
-        await host.TryOptional("agent-synapses", () => host.FollowAgentBlocked(agentKey));
-    }
 
     public static async Task<bool> InitializeViewAsync(InoSetupHost host)
     {
@@ -208,67 +98,30 @@ internal static class InoModelSetup
         return canDictate;
     }
 
-    private static string FullAgentKey(BrainId brain, string agentKey)
-        => brain.Value is { Length: > 0 }
-            ? new NeuronId(brain, AgentSignals.NeuronType, agentKey).FullKey()
-            : $"/{agentKey}";
-
-    public static async Task<bool> EnsureChatAsync(InoSetupHost host, string agentKey)
-    {
-        var state = host.GetState();
-        var chatKey = InoModel.ChatKeyOf(state.ConversationId);
-        var fullAgentKey = FullAgentKey(host.GetBrain(), agentKey);
-        try
-        {
-            var chat = host.GetChat(chatKey);
-            var current = await chat.Read();
-            if (!string.Equals(current.Selection?.Agent, fullAgentKey, StringComparison.Ordinal))
-            {
-                await chat.SelectAgent(fullAgentKey, current.Selection?.Revision ?? 0, Guid.NewGuid());
-            }
-            await host.FollowChatSignals(chatKey);
-            return true;
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            host.LogOptional(error, "chat");
-            return false;
-        }
-    }
-
-    public static async Task ProjectCurrentChatAsync(InoSetupHost host, string agentKey)
-    {
-        var state = host.GetState();
-        var chatState = await host.ReadChatOptional("chat-read", null, () => host.GetChat(InoModel.ChatKeyOf(state.ConversationId)).Read()!);
-        if (chatState is null) { return; }
-        var next = InoModel.Projected(state, chatState, FullAgentKey(host.GetBrain(), agentKey));
-        if (next.Error?.Code == "provider-unavailable" && await IsMissingLocalOllamaAsync(host, null))
-        {
-            next = next with { Error = new InoError("no-provider") };
-        }
-        if (!ReferenceEquals(next, state)) { await host.ShowState(next); }
-    }
-
-    public static async Task ConfigureOpenAgentAsync(InoSetupHost host, string agentKey, UserSettingsState settings, string? effectiveModel, bool migrate)
+    public static async Task ConfigureOpenConversationAsync(
+        InoSetupHost host,
+        string conversationId,
+        UserSettingsState settings,
+        string? effectiveModel,
+        bool migrate)
     {
         await EnsureProfileContextAsync(host);
-        var agent = host.GetAgent(agentKey);
+        var conversationKey = InoModel.ConversationKeyOf(conversationId);
+        var conversation = host.GetConversation(conversationKey);
         if (migrate)
         {
-            await agent.Post(InoModel.MigrationNote, InoModel.MigrationId);
-            await host.ShowState(host.GetState() with { AgentKey = agentKey });
+            await conversation.Post(InoModel.MigrationNote, InoModel.MigrationId);
+            await host.ShowState(host.GetState() with { AgentKey = InoModel.AgentKeyOf(conversationId) });
         }
-        await EnsureConfiguredAsync(host, agent, settings, effectiveModel, host.GetState().ConversationId);
-        await FollowAgentControlSignalsAsync(host, agentKey);
-        var read = await agent.Read();
-        if (read.Blocked) { await host.ShowState(InoModel.Pause(host.GetState(), host.GetState().BlockedReason)); }
-        else if (host.GetState().Blocked) { await host.ShowState(InoModel.Resume(host.GetState())); }
+        await EnsureSeatedAsync(host, conversationId, settings, effectiveModel);
+        await OpenSessionAsync(host, conversationId);
+        await host.TryOptional("conversation-synapses", () => host.FollowConversation(conversationKey));
     }
 
     public static async Task ExecuteTurnAsync(InoSetupHost host, UserSettingsState settings, InoPending pending)
     {
         var state = host.GetState();
-        var agentKey = InoModel.AgentKeyOf(state.ConversationId);
+        var conversationKey = InoModel.ConversationKeyOf(state.ConversationId);
         var (local, resolvedEffective, resolvedDisplay) = await ResolveForSettingsAsync(host, settings);
         var selectedTrimmed = string.IsNullOrWhiteSpace(state.SelectedModel) ? null : state.SelectedModel.Trim();
         var hasConversationOverride = selectedTrimmed is not null
@@ -280,15 +133,21 @@ internal static class InoModelSetup
             await host.ShowState(host.GetState() with { DetectedLocalModel = local.PreferredModel, DetectedLocalModels = local.InstalledModels });
         }
 
-        await EnsureChatAsync(host, agentKey);
         try
         {
             await EnsureProfileContextAsync(host);
-            var agent = host.GetAgent(agentKey);
-            await EnsureConfiguredAsync(host, agent, settings, effectiveModel, host.GetState().ConversationId);
-            await FollowAgentControlSignalsAsync(host, agentKey);
-            var runId = await agent.Start(AgentTurn.Text(pending.Text, model: effectiveModel));
-            await host.ShowState(InoModel.Started(host.GetState(), runId, displayModel));
+            var conversation = host.GetConversation(conversationKey);
+            await EnsureSeatedAsync(host, state.ConversationId, settings, effectiveModel);
+            await OpenSessionAsync(host, state.ConversationId);
+            await host.TryOptional("conversation-synapses", () => host.FollowConversation(conversationKey));
+
+            ModelId? turnModel = string.IsNullOrWhiteSpace(effectiveModel) ? null : new ModelId(effectiveModel);
+            await conversation.Say(pending.Text, turnModel);
+            if (!string.Equals(host.GetState().SelectedModel, displayModel, StringComparison.Ordinal))
+            {
+                await host.ShowState(host.GetState() with { SelectedModel = displayModel });
+            }
+            await host.RefreshConversation(false);
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(InoModel.BlockedPrefix, StringComparison.Ordinal))
         {
@@ -296,7 +155,7 @@ internal static class InoModelSetup
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            if (host.Logger is { } log) { InoLog.LogTurnStartFailed(log, error, agentKey); }
+            if (host.Logger is { } log) { InoLog.LogTurnStartFailed(log, error, conversationKey); }
             var code = AgentFailures.CodeOf(AgentFailures.Classify(error));
             if (code == "provider-unavailable" && await IsMissingLocalOllamaAsync(host, local)) { code = "no-provider"; }
             await host.ShowState(InoModel.StartFailed(host.GetState(), new InoError(code)));
@@ -311,7 +170,7 @@ internal static class InoModelSetup
             : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : local?.PreferredModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
         var modelId = KnownModels.Find(model)?.Id ?? new ModelId(model);
         await SetChatRoleAsync(host, modelId);
-        await ReconfigureAgentAsync(host, modelId.Value, state.ConversationId);
+        await ReseatConversationAsync(host, modelId.Value, state.ConversationId);
         var retry = host.GetState().Error?.Code is "no-provider" or "provider-rejected-key";
         await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, $"Switched model to {modelId.Value}", local));
         return retry;
@@ -327,7 +186,11 @@ internal static class InoModelSetup
             await SetChatRoleAsync(host, modelId);
         }
 
-        await ReconfigureAgentAsync(host, modelId.Value, state.ConversationId);
+        await ReseatConversationAsync(host, modelId.Value, state.ConversationId);
+        if (Sessions.IsId(state.ConversationId))
+        {
+            await host.TryOptional("session-model", () => host.GetSessions().SetModel(state.ConversationId, modelId.Value));
+        }
         var label = KnownModels.Find(modelId.Value)?.Name ?? modelId.Value;
         var status = makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}";
         await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, status));
@@ -346,7 +209,7 @@ internal static class InoModelSetup
         }
         var defaultModel = DefaultModelForProvider(provider);
         await SetChatRoleAsync(host, defaultModel);
-        await ReconfigureAgentAsync(host, defaultModel.Value, host.GetState().ConversationId);
+        await ReseatConversationAsync(host, defaultModel.Value, host.GetState().ConversationId);
         var retry = host.GetState().Error?.Code is "no-provider" or "provider-rejected-key";
         await host.ShowState(InoModel.ModelSelected(host.GetState(), defaultModel.Value, $"Saved {provider} credential · Ready on {defaultModel.Value}"));
         return retry;
@@ -358,7 +221,7 @@ internal static class InoModelSetup
         var (_, effectiveModel, displayModel) = await ResolveForSettingsAsync(host, settings);
         await EnsureProfileContextAsync(host);
         var conversationId = host.GetState().ConversationId;
-        await host.TryOptional("agent", () => EnsureConfiguredAsync(host, host.GetAgent(InoModel.AgentKeyOf(conversationId)), settings, effectiveModel, conversationId));
+        await EnsureSeatedAsync(host, conversationId, settings, effectiveModel);
         await host.ShowState(InoModel.SyncedSettings(host.GetState(), IsSmart(settings), displayModel, changed.DisplayName, displayModel));
     }
 
@@ -370,47 +233,48 @@ internal static class InoModelSetup
         var state = host.GetState();
         switch (cmd)
         {
-            case "new" or "clear": await startConversation(); return;
+            case "new" or "clear":
+                await startConversation();
+                return;
+
             case "compact":
-                var messages = state.Messages ?? [];
-                AgentCompactionResult? agentCompacted = null;
+                var conversationKey = InoModel.ConversationKeyOf(state.ConversationId);
                 try
                 {
-                    agentCompacted = await host.GetAgent(InoModel.AgentKeyOf(state.ConversationId)).Compact(string.IsNullOrWhiteSpace(arg) ? null : arg);
+                    var conversation = host.GetConversation(conversationKey);
+                    await EnsureSeatedAsync(host, state.ConversationId, settings, state.SelectedModel);
+                    await host.TryOptional("conversation-synapses", () => host.FollowConversation(conversationKey));
+                    await conversation.Say(rawCommand.Trim());
+                    await host.RefreshConversation(false);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    host.LogOptional(error, "agent-compact");
+                    host.LogOptional(error, "conversation-compact");
+                    await host.ShowState(state with { Status = "Could not compact conversation." });
                 }
-
-                if (messages.Length == 0 && (agentCompacted is null || agentCompacted.PreviousMessageCount == 0))
-                {
-                    await host.ShowState(state with { Status = "No messages to compact yet." });
-                    return;
-                }
-
-                var summary = agentCompacted is { Summary.Length: > 0 }
-                    ? agentCompacted.Summary
-                    : InoModel.BuildCompactSummary(messages, state.ContextSummary);
-                await host.TryOptional("compact-context", () => host.GetAgentContext("context/conversation.summary").Upsert(
-                    new ContextEntry("summary", "Earlier conversation summary: " + summary, [])));
-                var compactedCount = agentCompacted is { PreviousMessageCount: > 0 }
-                    ? agentCompacted.PreviousMessageCount - agentCompacted.KeptMessageCount
-                    : messages.Length;
-                await host.ShowState(state with
-                {
-                    ContextSummary = summary,
-                    Status = $"Compacted {compactedCount} message(s) into conversation summary.",
-                });
                 return;
-            case "pin": await host.ShowState(InoModel.DecideSlashPin(state)); return;
-            case "rename": await host.ShowState(InoModel.DecideSlashRename(state, arg)); return;
+
+            case "pin":
+                await host.ShowState(InoModel.DecideSlashPin(state));
+                return;
+
+            case "rename":
+                var renamed = InoModel.DecideSlashRename(state, arg);
+                if (Sessions.IsId(state.ConversationId))
+                {
+                    await host.TryOptional("session-rename", () => host.GetSessions().Rename(state.ConversationId, renamed.Title));
+                }
+                await host.ShowState(renamed);
+                return;
+
             case "model":
                 var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
                 await ChooseModelAsync(host, nextModel, makeDefault: true);
                 return;
-            case "scenario" or "session": await host.ShowState(InoModel.DecideScenario(arg, settings)); return;
-            default: await host.ShowState(InoModel.DecideSlashHelp(state, rawCommand, cmd)); return;
+
+            default:
+                await host.ShowState(InoModel.DecideSlashHelp(state, cmd));
+                return;
         }
     }
 
@@ -505,33 +369,17 @@ internal static class InoModelSetup
         return detected is not { Available: true };
     }
 
-    public static async Task EnsureConfiguredAsync(
+    public static Task EnsureSeatedAsync(
         InoSetupHost host,
-        IAgent agent,
+        string conversationId,
         UserSettingsState settings,
-        string? effectiveModel,
-        string conversationId)
+        string? effectiveModel)
     {
         var effectiveSettings = string.IsNullOrWhiteSpace(effectiveModel)
             ? settings
             : settings with { DefaultModel = effectiveModel.Trim() };
-
-        var current = await agent.Read();
         var definition = InoAgentDefinition.For(effectiveSettings);
-        if (current.Revision == 0)
-        {
-            await host.TryOptional("agent-configure-conflict", () => agent.Configure(definition, 0));
-            await host.TryOptional("tone-observer", () => host.GetToneObserver(InoModel.ToneKeyOf(conversationId)).Follow(InoModel.AgentKeyOf(conversationId)));
-            return;
-        }
-
-        if (current.ActiveRun is null
-            && (!string.Equals(current.Definition.Model?.Model, definition.Model?.Model, StringComparison.Ordinal)
-                || !string.Equals(current.Definition.Instructions, definition.Instructions, StringComparison.Ordinal)
-                || !current.Definition.Contracts.SequenceEqual(definition.Contracts, StringComparer.Ordinal)))
-        {
-            await host.TryOptional("agent-reconfigure-conflict", () => agent.Configure(definition, current.Revision));
-        }
+        return host.TryOptional("conversation-seat", () => host.GetConversation(InoModel.ConversationKeyOf(conversationId)).Seat("ino", definition));
     }
 
     private static async Task SetChatRoleAsync(InoSetupHost host, ModelId model)
@@ -548,13 +396,13 @@ internal static class InoModelSetup
         }
     }
 
-    private static async Task ReconfigureAgentAsync(InoSetupHost host, string model, string conversationId)
+    private static async Task ReseatConversationAsync(InoSetupHost host, string model, string conversationId)
     {
         var settings = await host.ReadSettingsOptional("settings-read", null, async () => await host.GetSettings().Read());
         await EnsureProfileContextAsync(host);
         if (settings is not null)
         {
-            await host.TryOptional("agent", () => EnsureConfiguredAsync(host, host.GetAgent(InoModel.AgentKeyOf(conversationId)), settings, model, conversationId));
+            await EnsureSeatedAsync(host, conversationId, settings, model);
         }
     }
 
@@ -581,8 +429,8 @@ internal static class InoModelSetup
             Operations:
             [
                 new("open", "Show Ino."),
-                new("send", "Send a message to Ino's agent."),
-                new("retry", "Send the last message again."),
+                new("send", "Send a message to Ino's conversation."),
+                new("retry", "Regenerate the last reply."),
                 new("stop", "Stop the running turn."),
                 new("smart", "Turn smart mode on or off."),
                 new("use-local", "Bind a locally detected Ollama model."),
@@ -593,7 +441,8 @@ internal static class InoModelSetup
                 new("new", "Start a new conversation."),
                 new("new-conversation", "Alias for new."),
                 new("switch-conversation", "Switch to an existing conversation."),
-                new("toggle-devui", "Toggle native Modules.UI DevUI chat view."),
+                new("chats", "Show or hide the recent conversations list."),
+                new("toggle-devui", "Toggle DevUI flag."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
                 new("link", "Post a pasted workspace link: its app, opaque input and text."),
                 new(IntoChat.OS.UI.UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
@@ -614,8 +463,8 @@ internal static partial class InoLog
     [LoggerMessage(Level = LogLevel.Debug, Message = "Ino optional dependency '{Target}' was not available.")]
     public static partial void LogOptionalUnavailable(ILogger logger, Exception exception, string target);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Ino failed to start turn on agent '{AgentKey}'.")]
-    public static partial void LogTurnStartFailed(ILogger logger, Exception exception, string agentKey);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Ino failed to start turn on conversation '{ConversationKey}'.")]
+    public static partial void LogTurnStartFailed(ILogger logger, Exception exception, string conversationKey);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ino database operation '{Operation}' failed.")]
     public static partial void LogDatabaseFailed(ILogger logger, Exception exception, string operation);

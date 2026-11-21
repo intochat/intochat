@@ -11,13 +11,16 @@ namespace IntoChat.OS.Modules.Apps;
 /// <summary>
 /// Validates model-supplied <see cref="Node"/> trees for <see cref="IFocus.Show"/> and for rendering
 /// stored <c>node</c> cards: bounded size (16 KiB) and depth (12), no <see cref="NeuronRef"/>, no
-/// <see cref="WebBrowser"/>, no interactive control views or actions (emits, commands, intents, submits,
-/// or resolve handlers), and non-null required collections.
+/// <see cref="WebBrowser"/>, no interactive control views or arbitrary actions (only a <see cref="Button"/>
+/// whose command posts back to the thread via <c>control.submitText</c> with a 1–2,000 character
+/// <c>value</c> is allowed), and non-null required collections.
 /// </summary>
 public static class InoNodeCard
 {
     public const int MaxBytes = 16_384;
     public const int MaxDepth = 12;
+    public const int MaxPostBackChars = 2_000;
+    public const string PostBackSignal = "control.submitText";
 
     public static bool TryRead(string? json, [NotNullWhen(true)] out Node? node, [NotNullWhen(false)] out string? refusal)
     {
@@ -145,9 +148,14 @@ public static class InoNodeCard
             return true;
         }
 
-        if (kind is "button" or "iconButton" or "intent")
+        if (kind is "iconButton" or "intent")
         {
             refusal = $"Node kind '{kind}' is not allowed: interactive actions (buttons, intents, emits, commands, or submits) are forbidden in chat cards.";
+            return true;
+        }
+
+        if (kind == "button" && ValidateRawButton(element, out refusal))
+        {
             return true;
         }
 
@@ -207,6 +215,90 @@ public static class InoNodeCard
         return false;
     }
 
+    private static bool ValidateRawButton(JsonElement element, [NotNullWhen(true)] out string? refusal)
+    {
+        if (element.TryGetProperty("intent", out var intentProp) && intentProp.ValueKind != JsonValueKind.Null)
+        {
+            refusal = "Button intent actions are not allowed in chat cards: only post-back buttons targeting '.' with 'control.submitText' are permitted.";
+            return true;
+        }
+
+        if (element.TryGetProperty("emit", out var emitProp) && emitProp.ValueKind != JsonValueKind.Null)
+        {
+            refusal = "Button emit actions are not allowed in chat cards: only post-back command actions targeting '.' with 'control.submitText' are permitted.";
+            return true;
+        }
+
+        if (!element.TryGetProperty("command", out var commandProp) || commandProp.ValueKind != JsonValueKind.Object)
+        {
+            refusal = "Button action is not allowed in chat cards: only command {target:'.', signal:'control.submitText', args:{value:1..2000 chars}} is permitted.";
+            return true;
+        }
+
+        var target = commandProp.TryGetProperty("target", out var targetProp) && targetProp.ValueKind == JsonValueKind.String
+            ? targetProp.GetString()
+            : null;
+        var signal = commandProp.TryGetProperty("signal", out var signalProp) && signalProp.ValueKind == JsonValueKind.String
+            ? signalProp.GetString()
+            : null;
+        if (!string.Equals(target, ".", StringComparison.Ordinal)
+            || !string.Equals(signal, PostBackSignal, StringComparison.Ordinal)
+            || !commandProp.TryGetProperty("args", out var argsProp)
+            || !IsValidPostBackArgs(argsProp))
+        {
+            refusal = "Button action is not allowed in chat cards: only command {target:'.', signal:'control.submitText', args:{value:1..2000 chars}} is permitted.";
+            return true;
+        }
+
+        refusal = null;
+        return false;
+    }
+
+    private static bool ValidateButton(Button button, [NotNullWhen(true)] out string? refusal)
+    {
+        if (button.Intent is not null
+            || button.Command is not { Target: ".", Signal: PostBackSignal } command
+            || command.Args is not { } args
+            || !IsValidPostBackArgs(args))
+        {
+            refusal = "Button action is not allowed in chat cards: only command {target:'.', signal:'control.submitText', args:{value:1..2000 chars}} is permitted.";
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(button.Key) || string.IsNullOrWhiteSpace(button.Label))
+        {
+            refusal = "Post-back button action requires a non-empty 'key' and 'label'.";
+            return true;
+        }
+
+        refusal = null;
+        return false;
+    }
+
+    private static bool IsValidPostBackArgs(JsonElement args)
+    {
+        if (args.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        string? value = null;
+        var count = 0;
+        foreach (var prop in args.EnumerateObject())
+        {
+            count++;
+            if (!string.Equals(prop.Name, "value", StringComparison.Ordinal) || prop.Value.ValueKind != JsonValueKind.String)
+            {
+                return false;
+            }
+            value = prop.Value.GetString();
+        }
+
+        return count == 1
+            && !string.IsNullOrWhiteSpace(value)
+            && value.Length is >= 1 and <= MaxPostBackChars;
+    }
+
     private static bool ValidateOptionalRawChild(JsonElement parent, string propertyName, int depth, [NotNullWhen(true)] out string? refusal)
     {
         if (parent.TryGetProperty(propertyName, out var child) && child.ValueKind != JsonValueKind.Null)
@@ -250,9 +342,16 @@ public static class InoNodeCard
                 refusal = "Interactive control view nodes are not allowed: interactive actions are forbidden in chat cards.";
                 return true;
 
-            case Button or IconButton or Intent:
+            case IconButton or Intent:
                 refusal = "Interactive actions (buttons, intents, emits, commands, or submits) are not allowed in chat cards.";
                 return true;
+
+            case Button button:
+                if (ValidateButton(button, out refusal))
+                {
+                    return true;
+                }
+                break;
 
             case Field { OnSubmit: not null }:
                 refusal = "Field submit actions (onSubmit) are not allowed in chat cards.";

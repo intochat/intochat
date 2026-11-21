@@ -27,6 +27,7 @@ public static class InoErrors
             "paused" => new("Ino is paused.", error.Detail, null, null, null, Retry: false),
             "too-long" => new("That message is too long.", null, null, null, null, Retry: false),
             "interrupted" => RetryLine("Ino was interrupted."),
+            "cancelled" => RetryLine("Stopped."),
             _ => RetryLine("Ino could not answer."),
         };
     }

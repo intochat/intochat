@@ -2,13 +2,14 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
+using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
-using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.Identity.Contracts.Grants;
 using IntoChat.OS.UI;
-using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -105,26 +106,15 @@ public sealed record InoSession(
     public InoSession TogglePin() => this with { IsPinned = !IsPinned };
 
     [IgnoreExplore]
-    public InoAppState ToAppState()
-    {
-        var messages = new List<InoMessage>(2);
-        if (!string.IsNullOrEmpty(LastUserPrompt) && PendingPrompt is null)
+    public InoAppState ToAppState() =>
+        new(ConversationId, Title, Status, "idle", [], IsPinned: IsPinned, AgentKey: InoModel.AgentKeyOf(ConversationId), ActiveRunId: ActiveRunId, Blocked: Blocked, BlockedReason: BlockedReason)
         {
-            messages.Add(new InoMessage("r1/user", "user", LastUserPrompt));
-            if (LastReply is not null) { messages.Add(new InoMessage("r1/assistant", "assistant", LastReply) { Model = SelectedModel }); }
-            else if (ErrorCode is not null and not "paused") { messages.Add(new InoMessage("r1/assistant", "assistant", string.Empty, "failed") { Failure = ErrorCode }); }
-        }
-
-        return new InoAppState(ConversationId, Title, Status, "idle", [], IsPinned: IsPinned, AgentKey: InoModel.AgentKeyOf(ConversationId), ActiveRunId: ActiveRunId, Blocked: Blocked, BlockedReason: BlockedReason)
-        {
-            Messages = messages.Count > 0 ? [.. messages] : null,
             Pending = PendingPrompt is { } p ? new InoPending("p1", p, DateTimeOffset.UnixEpoch) : null,
             Error = ErrorCode is { } code ? new InoError(code, code == "paused" ? BlockedReason : null) : null,
             SelectedModel = SelectedModel,
             DetectedLocalModel = DetectedLocalModel,
             DetectedLocalModels = DetectedLocalModel is { } m ? [m] : null,
         };
-    }
 
     public static InoSession FromState(InoAppState s)
     {
@@ -139,8 +129,8 @@ public sealed record InoSession(
             s.Blocked,
             s.BlockedReason,
             s.Error?.Code,
-            s.Pending?.Text ?? (s.Messages ?? []).LastOrDefault(m => m.Role == "user")?.Text,
-            (s.Messages ?? []).LastOrDefault(m => m.Role == "assistant" && m.Status == "completed")?.Text,
+            s.Pending?.Text,
+            null,
             s.SelectedModel,
             s.DetectedLocalModel);
     }
@@ -160,9 +150,11 @@ public static class InoModel
     public const string MigrationNote = "Earlier conversation is in the archive.";
     public const string MigrationId = "migration";
 
+    public static string ConversationKeyOf(string conversationId)
+        => IConversation.KeyOf(ConversationId.Parse(ConversationIdOf(conversationId)));
+
+    // Retained only for legacy import references and the tone observer.
     public static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
-    public static string ChatKeyOf(string conversationId) => $"ino/chats/{conversationId}";
-    public static string UiChatKeyOf(string conversationId) => $"ino/chat/{conversationId}";
     public static string ToneKeyOf(string conversationId) => $"observer/tone/{AgentKeyOf(conversationId)}";
     public static string MintConversationId() => ConversationId.New().Value;
 
@@ -170,8 +162,11 @@ public static class InoModel
     {
         if (string.IsNullOrWhiteSpace(keyOrId)) { return "main"; }
         var trimmed = keyOrId.Trim();
-        const string prefix = "ino/conversations/";
-        return trimmed.StartsWith(prefix, StringComparison.Ordinal) ? trimmed[prefix.Length..] : trimmed;
+        const string legacyPrefix = "ino/conversations/";
+        if (trimmed.StartsWith(legacyPrefix, StringComparison.Ordinal)) { return trimmed[legacyPrefix.Length..]; }
+        const string currentPrefix = "conversations/";
+        if (trimmed.StartsWith(currentPrefix, StringComparison.Ordinal)) { return trimmed[currentPrefix.Length..]; }
+        return trimmed;
     }
 
     public static InoAppState SwitchConversation(InoAppState s, string conversationId, string[]? recentConversations = null)
@@ -187,36 +182,9 @@ public static class InoModel
             ActiveRunId = null,
             Pending = null,
             Error = null,
-            Messages = null,
-            ChatRevision = 0,
+            ActiveSection = "chat",
             RecentConversations = recentConversations ?? s.RecentConversations,
         };
-    }
-
-    public static string BuildCompactSummary(IReadOnlyList<InoMessage> messages, string? existingSummary = null)
-    {
-        var sb = new System.Text.StringBuilder();
-        if (!string.IsNullOrWhiteSpace(existingSummary))
-        {
-            sb.AppendLine(existingSummary.Trim());
-            sb.AppendLine();
-        }
-        var userTurns = messages.Where(static m => string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase)).ToList();
-        var assistantTurns = messages.Where(static m => string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(m.Text)).ToList();
-        sb.AppendLine($"Compacted {messages.Count} message(s) ({userTurns.Count} user, {assistantTurns.Count} assistant).");
-        foreach (var turn in userTurns.TakeLast(5))
-        {
-            var snippet = turn.Text.ReplaceLineEndings(" ").Trim();
-            if (snippet.Length > 140) { snippet = snippet[..137] + "..."; }
-            sb.AppendLine($"- User: {snippet}");
-        }
-        if (assistantTurns.LastOrDefault() is { } lastReply)
-        {
-            var replySnippet = lastReply.Text.ReplaceLineEndings(" ").Trim();
-            if (replySnippet.Length > 200) { replySnippet = replySnippet[..197] + "..."; }
-            sb.AppendLine($"- Latest reply: {replySnippet}");
-        }
-        return sb.ToString().Trim();
     }
 
     public static Rule IdleRule(InoSession session)
@@ -261,23 +229,32 @@ public static class InoModel
         });
     }
 
-    public static Decision<string> DecideRetryPrompt(InoAppState s)
+    public static Decision<string> DecideRetryPrompt(InoAppState s, ConversationView? view = null)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var lastUser = (s.Messages ?? []).LastOrDefault(m => m.Role == "user")?.Text;
+        var lastUser = view?.Entries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Person)?.Text
+            ?? view?.Runs.LastOrDefault(static r => !r.Posted && !string.IsNullOrWhiteSpace(r.UserText))?.UserText;
         var refusal = Decision.Check("retry", IdleRule(s), Decision.Rule("has_prior_prompt", lastUser, static u => string.IsNullOrWhiteSpace(u), "No prior message to try again."));
         return refusal is not null ? refusal : Decision.Accept(lastUser!);
     }
 
-    /// <summary>The prompt of the turn message <paramref name="id"/> belongs to: a user message's own text, a reply's prompt before it; null when there is none.</summary>
-    public static string? PromptOf(InoAppState s, string id)
+    /// <summary>The prompt text for message <paramref name="id"/> in <paramref name="view"/>, or null when none exists.</summary>
+    public static string? PromptOf(ConversationView? view, string id)
     {
-        ArgumentNullException.ThrowIfNull(s);
-        var messages = s.Messages ?? [];
-        var index = Array.FindIndex(messages, m => string.Equals(m.Id, id, StringComparison.Ordinal));
-        if (index < 0) { return null; }
-        var prompt = messages[index].Role == "user" ? messages[index].Text : messages.Take(index).LastOrDefault(m => m.Role == "user")?.Text;
-        return string.IsNullOrWhiteSpace(prompt) ? null : prompt;
+        if (view is null || string.IsNullOrWhiteSpace(id)) { return null; }
+        var targetId = new EntryId(id);
+        var runId = EntryIds.RunOf(targetId);
+        if (!string.IsNullOrEmpty(runId))
+        {
+            var promptId = EntryIds.Said(runId);
+            var said = view.Entries.OfType<Said>().FirstOrDefault(e => e.Id == promptId);
+            if (!string.IsNullOrWhiteSpace(said?.Text)) { return said.Text; }
+            var run = view.Runs.FirstOrDefault(r => string.Equals(r.RunId, runId, StringComparison.Ordinal));
+            if (!string.IsNullOrWhiteSpace(run?.UserText)) { return run.UserText; }
+        }
+
+        var direct = view.Entries.OfType<Said>().FirstOrDefault(e => e.Id == targetId && e.By is Participant.Person);
+        return string.IsNullOrWhiteSpace(direct?.Text) ? null : direct.Text;
     }
 
     internal static string DeriveTitle(string trimmed) => trimmed.Length <= 52 ? trimmed : trimmed[..52];
@@ -355,40 +332,50 @@ public static class InoModel
         };
     }
 
-    public static InoAppState Projected(InoAppState s, ChatState chat, string fullAgentKey)
+    /// <summary>
+    /// Folds the live <see cref="ConversationView"/> into Ino's screen state without ever copying messages into <see cref="InoAppState.Messages"/>.
+    /// </summary>
+    public static InoAppState FromConversation(InoAppState s, ConversationView view)
     {
         ArgumentNullException.ThrowIfNull(s);
-        ArgumentNullException.ThrowIfNull(chat);
-        if (chat.Revision <= s.ChatRevision || !string.Equals(chat.Selection?.Agent, fullAgentKey, StringComparison.Ordinal))
+        ArgumentNullException.ThrowIfNull(view);
+        if (!string.Equals(view.Id.Value, s.ConversationId, StringComparison.Ordinal))
         {
             return s;
         }
 
-        var entries = chat.Projection?.Messages ?? [];
-        var messages = entries.Select(ToMessage).ToArray();
-        var isRunning = chat.Run?.Status == ChatRunStatus.Running;
-        var priorMatches = s.Pending is { } prior ? CountUserMatches(s.Messages, prior.Text) : 0;
-        var currentMatches = s.Pending is { } curr ? CountUserMatches(messages, curr.Text) : 0;
-        var pending = s.Pending is not null && currentMatches > priorMatches ? null : s.Pending;
-        var activeRunId = isRunning ? chat.Run?.RunId
-            : s.ActiveRunId is { } started && !string.Equals(chat.Run?.RunId, started, StringComparison.Ordinal) ? started : null;
-        var (status, error) = ResolveProjectedStatus(s, chat.Run, messages, isRunning || pending is not null || activeRunId is not null);
+        var blocked = view.Blocked;
+        var blockedReason = blocked ? NormalizeBlockReason(view.BlockedReason ?? s.BlockedReason) : null;
+        var activeRunId = blocked ? null : view.Active?.RunId;
+        var pending = blocked || s.Pending is null
+            ? null
+            : HasPersonSaid(view, s.Pending.Text) || activeRunId is not null
+                ? null
+                : s.Pending;
 
-        var activeTurnModel = entries.LastOrDefault(m => m.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(m.Model))?.Model;
-        var selectedModel = !string.IsNullOrWhiteSpace(activeTurnModel)
-            && !string.Equals(activeTurnModel, "default", StringComparison.OrdinalIgnoreCase)
-            ? activeTurnModel
+        var superseded = InoThread.SupersededIds(view);
+        var (status, error) = ResolveConversationStatus(view, superseded, blocked, blockedReason, activeRunId is not null || pending is not null);
+
+        var latestModel = LatestTurnModel(view, superseded);
+        var selectedModel = !string.IsNullOrWhiteSpace(latestModel)
+            && !string.Equals(latestModel, "default", StringComparison.OrdinalIgnoreCase)
+            ? latestModel
             : s.SelectedModel;
 
-        var projectedCards = InoCards.FromToolCalls(entries.SelectMany(e => e.Activities.Select(a => new AgentToolCall(a.Id, a.Title, a.Input, a.Result, a.Error))));
+        var projectedCards = view.Entries
+            .OfType<Returned>()
+            .Where(static r => r.Ok && r.Card?.Kind != "node" && !string.IsNullOrWhiteSpace(r.ResultJson))
+            .Select(static r => InoCards.FromResult(r.ResultJson))
+            .OfType<InoCard>()
+            .ToArray();
         var manualCards = s.ActiveCards.Where(existing => projectedCards.All(p => !string.Equals(p.Id, existing.Id, StringComparison.Ordinal))).ToArray();
 
         return s with
         {
-            ChatRevision = chat.Revision,
-            Messages = messages,
             Pending = pending,
             ActiveRunId = activeRunId,
+            Blocked = blocked,
+            BlockedReason = blockedReason,
             Status = status,
             Error = error,
             SelectedModel = selectedModel,
@@ -396,18 +383,45 @@ public static class InoModel
         };
     }
 
-    private static int CountUserMatches(IReadOnlyList<InoMessage>? messages, string text)
-        => (messages ?? []).Count(m => m.Role == "user" && string.Equals(m.Text, text, StringComparison.Ordinal));
+    private static bool HasPersonSaid(ConversationView view, string text)
+        => view.Entries.OfType<Said>().Any(e => e.By is Participant.Person && string.Equals(e.Text, text, StringComparison.Ordinal));
 
-    private static (string Status, InoError? Error) ResolveProjectedStatus(
-        InoAppState s, ChatRunSnapshot? run, InoMessage[] messages, bool busy)
+    private static string? LatestTurnModel(ConversationView view, HashSet<EntryId> superseded)
     {
-        if (s.Blocked) { return (Paused, new InoError("paused", s.BlockedReason ?? "An interrupt holds the agent.")); }
+        for (var i = view.Entries.Length - 1; i >= 0; i--)
+        {
+            if (view.Entries[i] is Said { By: Participant.Agent, Model: { Value.Length: > 0 } model } said
+                && !superseded.Contains(said.Id))
+            {
+                return model.Value;
+            }
+        }
+        var lastRunModel = view.Runs.LastOrDefault(static r => !r.Posted && r.Model is { Provider: not AiProvider.Host, Model.Length: > 0 })?.Model?.Model;
+        return lastRunModel;
+    }
+
+    private static (string Status, InoError? Error) ResolveConversationStatus(
+        ConversationView view,
+        HashSet<EntryId> superseded,
+        bool blocked,
+        string? blockedReason,
+        bool busy)
+    {
+        if (blocked) { return (Paused, new InoError("paused", blockedReason ?? "An interrupt holds the agent.")); }
         if (busy) { return (Working, null); }
-        var lastAssistant = messages.LastOrDefault(m => m.Role == "assistant");
-        if (lastAssistant is { Status: "failed" }) { return (Failed, new InoError(lastAssistant.Failure ?? "unknown")); }
-        if (lastAssistant is { Status: "interrupted" } || run?.Status == ChatRunStatus.Interrupted) { return (Failed, new InoError("interrupted")); }
-        if (run?.Status == ChatRunStatus.Failed) { return (Failed, new InoError("unknown")); }
+
+        var latestRun = view.Runs.LastOrDefault(static r => !r.Posted);
+        if (latestRun is not null && !superseded.Contains(EntryIds.Reply(latestRun.RunId)))
+        {
+            if (latestRun.Status == AgentRunStatus.Failed)
+            {
+                return (Failed, new InoError(AgentFailures.CodeOf(latestRun.Failure)));
+            }
+            if (latestRun.Status == AgentRunStatus.Interrupted)
+            {
+                return (Failed, new InoError("interrupted"));
+            }
+        }
 
         return (Ready, null);
     }
@@ -448,6 +462,7 @@ public static class InoModel
             SelectedModel = s.SelectedModel,
             DetectedLocalModel = s.DetectedLocalModel,
             DetectedLocalModels = s.DetectedLocalModels,
+            ActiveSection = "chat",
         };
     }
 
@@ -468,7 +483,10 @@ public static class InoModel
     {
         ArgumentNullException.ThrowIfNull(s);
         var nextModel = string.IsNullOrWhiteSpace(defaultModel) ? s.SelectedModel : defaultModel.Trim();
-        return s.Status.StartsWith("Switched model to ", StringComparison.Ordinal)
+        var keepStatus = s.Status.StartsWith("Switched model to ", StringComparison.Ordinal)
+            || s.Status.StartsWith("Default Chat model set to ", StringComparison.Ordinal)
+            || s.Status.StartsWith("Switched conversation to ", StringComparison.Ordinal);
+        return keepStatus
             ? s with { Smart = smart, SelectedModel = nextModel }
             : s with { Smart = smart, SelectedModel = nextModel, Status = $"Synced settings: {displayName} ({changedModel})" };
     }
@@ -482,41 +500,8 @@ public static class InoModel
         return s with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" };
     }
 
-    public static InoAppState DecideSlashHelp(InoAppState s, string rawCommand, string cmd)
-        => s with { Status = $"Executed /{cmd}", Turns = [.. s.Turns, new InoTurn(rawCommand, "Commands: `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)] };
-
-    public static InoAppState DecideScenario(string? scenarioId, UserSettingsState settings)
-    {
-        var model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? KnownModels.Defaults.Device[Role.Chat].Value : settings.DefaultModel.Trim();
-        var id = string.IsNullOrWhiteSpace(scenarioId) ? "q4-renewal" : scenarioId.Trim().ToLowerInvariant();
-        if (id == "morning-brief")
-        {
-            return new(id, "Morning Brief", $"Scenario: Morning Brief ({model})", "idle",
-                [new InoTurn("Prepare my Morning Brief", "Good morning! You have **3 meetings**, **2 Q4 renewals**, and **1 pending review**.", "scenario:morning-brief", 2)],
-                [new InoCard("choice-brief", "choice", "Which workspace should receive the Q4 renewal brief?", "Select a target Group (1..2) or press Enter.", "neuron://local/circles/primary", "pending", "neuron://local/apps/ino#choice-brief")]);
-        }
-
-        if (id.StartsWith("invoice", StringComparison.Ordinal) || id.Contains("vault", StringComparison.Ordinal) || id.Contains("tripletex", StringComparison.Ordinal))
-        {
-            return new(id, "Tripletex Invoice Check", "Waiting on Secure Vault credential", "idle",
-                [new InoTurn("Check overdue Q4 invoices in Tripletex", "I need your **Tripletex Session Token** to read the Q4 ledger. Enter it in the **Secure Vault** window so it never touches the LLM.", "vault:secret", 0)],
-                [new InoCard("secret-tripletex", "secret", "Tripletex Session Token", "Zero-leakage credential request · Sealed in Secure Vault", "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN", "pending", "neuron://local/apps/ino#secret-tripletex")]);
-        }
-
-        if (id == "first-run")
-        {
-            return new(id, "Ino Setup · First Run", "Guided onboarding · 3 steps", "idle",
-                [new InoTurn("/scenario first-run", $"Welcome to **IntoChat OS**! Let's verify your default AI model (`{model}`), connect your **Files** vault, and seal API keys in **Secure**.", "onboarding:setup", 0)],
-                [new InoCard("setup-record", "record", "IntoChat OS First-Run Checklist", "All 3 local brain capabilities online", "neuron://local/os.settings/settings", "ready", "neuron://local/apps/ino#setup-record")]);
-        }
-
-        return new("q4-renewal", "Quarterly Enterprise Renewal", "Waiting for approval · CloseDate -> 15 Nov 2026", "idle",
-            [new InoTurn("Update quarterly enterprise renewal close date to 15 Nov 2026", "Confirmed moving the **Quarterly Enterprise** renewal to **15 Nov 2026**. Please approve the CRM update below.", $"agent:{model}", 1)],
-            [
-                new InoCard("card-1", "approval", "Update close date on quarterly renewal to 15 Nov 2026?", "Ino matched the incoming email to your open CRM opportunity.", "neuron://local/os.confirmations/inbox", "pending", "neuron://local/apps/ino#card-1"),
-                new InoCard("draft-1", "draft", "Quarterly Enterprise Renewal — 15 Nov confirmation", "Confirmed: we updated the Q4 renewal close date to 15 Nov 2026.", "neuron://local/apps/ino#draft-1", "pending", "neuron://local/apps/ino#draft-1"),
-            ]);
-    }
+    public static InoAppState DecideSlashHelp(InoAppState s, string cmd)
+        => s with { Status = $"Unknown command /{cmd}. Commands: /new, /rename <title>, /pin, /model <id>, /compact, /clear." };
 
     public static InoAppState DecideMake(InoAppState s, string target, string sentence, string brainId)
     {
@@ -544,23 +529,6 @@ public static class InoModel
             ConnectedDatabase = database,
             Status = $"Visualized {result.Rows.Length} row(s) & {result.ChartPoints.Length} chart point(s) from {database}",
             Cards = [.. s.ActiveCards, table, chart],
-        };
-    }
-
-    private static InoMessage ToMessage(ChatEntry entry)
-    {
-        var role = entry.Role == ChatRole.User ? "user" : "assistant";
-        var entryCards = InoCards.FromToolCalls(entry.Activities.Select(a => new AgentToolCall(a.Id, a.Title, a.Input, a.Result, a.Error)));
-        var failure = role == "assistant" && string.Equals(entry.Status, "failed", StringComparison.Ordinal)
-            ? entry.Failure ?? "unknown"
-            : null;
-
-        return new InoMessage(entry.Id, role, entry.Text, entry.Status)
-        {
-            Model = entry.Model,
-            Failure = failure,
-            Activities = [.. entry.Activities.Select(a => new InoActivity(a.Id, FormatActivityTitle(a.Title, a.Input), a.Result, a.Error))],
-            Cards = entryCards,
         };
     }
 

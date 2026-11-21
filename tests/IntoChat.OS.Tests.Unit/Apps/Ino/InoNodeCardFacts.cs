@@ -149,4 +149,15 @@ public sealed class InoNodeCardFacts
         Assert.Null(bad.Card);
         Assert.Contains("neuronRef", bad.Text, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void AButtonThatPostsBackIsAccepted() =>
+        Assert.True(InoNodeCard.TryRead("""{"kind":"button","key":"yes","label":"Yes","command":{"target":".","signal":"control.submitText","args":{"value":"Yes, book it"}}}""", out _, out _));
+
+    [Theory]
+    [InlineData("""{"kind":"button","label":"x","command":{"target":"apps/files","signal":"control.submitText","args":{"value":"v"}}}""")]
+    [InlineData("""{"kind":"button","label":"x","command":{"target":".","signal":"control.stop"}}""")]
+    [InlineData("""{"kind":"button","label":"x","command":{"target":".","signal":"control.submitText","args":{"value":""}}}""")]
+    public void AnyOtherCommandIsStillRefused(string json) =>
+        Assert.False(InoNodeCard.TryRead(json, out _, out _));
 }
