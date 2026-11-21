@@ -310,6 +310,64 @@ internal sealed class ConversationNeuron(
         finally { _mutating = false; }
     }
 
+    public async Task Voiced(string heard, string reply, ModelId model, string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(heard);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reply);
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (string.IsNullOrWhiteSpace(model.Value))
+        {
+            throw new ArgumentException("Voice exchange requires a model id.", nameof(model));
+        }
+
+        if (Context.Caller is { Actor: not Actor.Person })
+        {
+            throw new DigitalBrain.Rules.RuleViolationException(
+                new DigitalBrain.Rules.Rejected("voiced", ["person-only"], ["Only a person participating in the conversation may record a voice exchange."]));
+        }
+
+        Authorize();
+        await Fresh();
+        await EnsureImportedAsync();
+
+        if (_mutating || _active is not null || State.ActiveRun is not null)
+        {
+            throw new InvalidOperationException("This conversation already has an active run.");
+        }
+
+        var heardId = EntryIds.Heard(id);
+        var spokenId = EntryIds.Spoken(id);
+        if (State.Log.Any(item => item.Entry.Id == heardId || item.Entry.Id == spokenId))
+        {
+            return;
+        }
+
+        _mutating = true;
+        string maskedHeard;
+        try
+        {
+            maskedHeard = await Runner.Mask(heard);
+            var maskedReply = await Runner.Mask(reply);
+            var now = Clock.GetUtcNow();
+            var speaker = new Participant.Human(CallerAccount());
+            var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
+            var assistant = new Participant.Assistant(agentId);
+            var heardEntry = new Said(heardId, speaker, now, maskedHeard);
+            var spokenEntry = new Said(spokenId, assistant, now, maskedReply, model);
+            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, heardEntry, spokenEntry);
+            var participants = WithParticipants(State.Participants, speaker, assistant);
+
+            await Persist(State with
+            {
+                Participants = participants,
+                Log = nextLog,
+            });
+        }
+        finally { _mutating = false; }
+
+        await TouchSessionListBestEffortAsync(maskedHeard);
+    }
+
     public async Task Say(string text, ModelId? model = null)
     {
         Authorize();

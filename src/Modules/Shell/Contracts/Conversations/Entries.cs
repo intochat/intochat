@@ -81,6 +81,7 @@ public sealed record CardEntry(string Kind, string Title, string? NodeJson);
 public static class EntryIds
 {
     private const string PostPrefix = "post/";
+    private const string VoicePrefix = "voice/";
 
     public static EntryId Said(string runId) => new(runId + "/said");
     public static EntryId Reply(string runId) => new(runId + "/reply");
@@ -88,11 +89,15 @@ public static class EntryIds
     public static EntryId Result(string runId, string callId) => new($"{runId}/result/{callId}");
     public static EntryId Summary(string runId) => new(runId + "/summary");
     public static EntryId Post(string id) => new(PostPrefix + id);
+    public static EntryId Heard(string id) => new($"{VoicePrefix}{id}/heard");
+    public static EntryId Spoken(string id) => new($"{VoicePrefix}{id}/spoken");
 
     public static string? RunOf(EntryId id)
     {
         var value = id.Value;
-        if (string.IsNullOrEmpty(value) || value.StartsWith(PostPrefix, StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(value)
+            || value.StartsWith(PostPrefix, StringComparison.Ordinal)
+            || value.StartsWith(VoicePrefix, StringComparison.Ordinal))
         {
             return null;
         }
@@ -103,7 +108,9 @@ public static class EntryIds
     public static string? CallOf(EntryId id)
     {
         var value = id.Value;
-        if (string.IsNullOrEmpty(value) || value.StartsWith(PostPrefix, StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(value)
+            || value.StartsWith(PostPrefix, StringComparison.Ordinal)
+            || value.StartsWith(VoicePrefix, StringComparison.Ordinal))
         {
             return null;
         }

@@ -1,14 +1,17 @@
 using System.ClientModel;
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS;
+using IntoChat.OS.Host.Brains;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Devices.Voice;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -41,7 +44,7 @@ internal sealed class VoiceClients : IVoiceClients
         ProviderPublicEndpoints? publicEndpoints = null,
         IVoiceActivityDetector? vad = null,
         ILoggerFactory? loggerFactory = null)
-        : this(neurons, runtimes, credentials, configuration, vad, publicEndpoints, DefaultChatFactory(services), loggerFactory)
+        : this(neurons, runtimes, credentials, configuration, vad, publicEndpoints, DefaultChatFactory(neurons, services), loggerFactory)
     {
     }
 
@@ -331,11 +334,22 @@ internal sealed class VoiceClients : IVoiceClients
         return new OpenAIClient(new ApiKeyCredential(apiKey), options).GetAudioClient(id.Value);
     }
 
-    private static Func<string, ConversationId, CancellationToken, Task<IChatClient?>> DefaultChatFactory(IServiceProvider services)
+    private static Func<string, ConversationId, CancellationToken, Task<IChatClient?>> DefaultChatFactory(
+        INeuronProxies neurons,
+        IServiceProvider services)
     {
+        ArgumentNullException.ThrowIfNull(neurons);
         ArgumentNullException.ThrowIfNull(services);
-        return async (brain, _, ct) =>
+        return async (brain, conversation, ct) =>
         {
+            var brains = services.GetService<IIntoChatOSBrains>();
+            if (brains is not null && BrainScope.IsValidId(brain))
+            {
+                var conv = neurons.Get<IConversation>(new NeuronId(new BrainId(brain), IConversation.Type, IConversation.KeyOf(conversation)));
+                var watch = brains.Open(brain);
+                return new ConversationChatClient(conv, watch);
+            }
+
             var catalog = services.GetService<ModelCatalog>();
             if (catalog is null)
             {

@@ -1413,6 +1413,7 @@ public sealed class InoAppFacts
         }
 
         public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     }
 
     [Neuron(IConversation.Type)]
@@ -1550,6 +1551,7 @@ public sealed class InoAppFacts
             => Task.FromResult(GetOrEmpty(ConvIdValue));
 
         public Task Invite(AccountId friend) => throw new NotSupportedException();
+        public Task Voiced(string heard, string reply, ModelId model, string id) => Task.CompletedTask;
     }
 
     [Neuron("ui.compute")]

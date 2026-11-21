@@ -716,6 +716,81 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
         Assert.All(received, r => Assert.EndsWith("/reply", r.Entry ?? string.Empty, StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task VoicedIsRecordedOncePerId()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await Start(StubChatClient.Replying("unused"), ct);
+        using var person = runtime.As(Who.Person);
+        var convId = ConversationId.New();
+        var id = runtime.Id(IConversation.Type, IConversation.KeyOf(convId));
+        var conversation = runtime.Get<IConversation>(id);
+
+        await conversation.Voiced("what time is it", "Ten past three.", KnownModels.GptRealtime.Id, "resp_1");
+        await conversation.Voiced("what time is it", "Ten past three.", KnownModels.GptRealtime.Id, "resp_1");
+
+        var view = await conversation.Read();
+        var said = view.Entries.OfType<Said>().ToArray();
+        Assert.Equal(["what time is it", "Ten past three."], said.Select(s => s.Text));
+        Assert.Equal(EntryIds.Heard("resp_1"), said[0].Id);
+        Assert.Equal(EntryIds.Spoken("resp_1"), said[1].Id);
+        Assert.Null(EntryIds.RunOf(said[0].Id));
+        Assert.Null(EntryIds.RunOf(said[1].Id));
+        Assert.IsType<Participant.Human>(said[0].By);
+        Assert.IsType<Participant.Assistant>(said[1].By);
+        Assert.Equal(KnownModels.GptRealtime.Id, said[1].Model);
+        Assert.Empty(view.Runs);
+    }
+
+    [Fact]
+    public async Task VoicedIsRefusedWhileARunIsActive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async IAsyncEnumerable<ChatResponseUpdate> Held(
+            IReadOnlyList<ChatMessage> _,
+            ChatOptions? __,
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "thinking...");
+            started.TrySetResult();
+            await release.Task.WaitAsync(token);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, " done");
+        }
+
+        await using var runtime = await Start(StubChatClient.StreamingOnly(Held), ct);
+        using var person = runtime.As(Who.Person);
+        var convId = ConversationId.New();
+        var id = runtime.Id(IConversation.Type, IConversation.KeyOf(convId));
+        var conversation = runtime.Get<IConversation>(id);
+
+        await conversation.Seat("ino", new AgentDefinition { Instructions = "x" });
+        await conversation.Say("hold");
+        await started.Task.WaitAsync(Within, ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            conversation.Voiced("heard", "reply", KnownModels.GptRealtime.Id, "resp_active"));
+
+        release.TrySetResult();
+        await WaitUntilIdle(conversation, minRuns: 1, ct);
+    }
+
+    [Fact]
+    public async Task AnAgentCannotVoice()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await Start(StubChatClient.Replying("unused"), ct);
+        var convId = ConversationId.New();
+        var id = runtime.Id(IConversation.Type, IConversation.KeyOf(convId));
+        var conversation = runtime.Get<IConversation>(id);
+
+        using var agent = runtime.As(Who.Agent);
+        await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(() =>
+            conversation.Voiced("heard", "reply", KnownModels.GptRealtime.Id, "resp_agent"));
+    }
+
     private static IEnumerable<string> AllText(ConversationView view)
     {
         foreach (var entry in view.Entries)
