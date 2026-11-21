@@ -95,6 +95,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
             CatalogKey(StampedCaller(http))).List()));
         endpoints.MapPost("/ai/transcriptions", TranscribeAsync);
         endpoints.MapPost("/ai/speech", SpeechEndpoint.HandleAsync);
+        endpoints.Map("/ai/talk", TalkEndpoint.Run);
     }
 
     internal static Caller? StampedCaller(HttpContext http) => http.RequestServices.GetService<ICallerAmbient>()?.Current;

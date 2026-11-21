@@ -83,6 +83,12 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
                 HandleAudioChunk(append.Content.Data.Span);
                 return Task.CompletedTask;
 
+#pragma warning disable OPENAI002 // OpenAI.Realtime cancel command forwarded by TalkEndpoint on tap-to-interrupt.
+            case RealtimeClientMessage { RawRepresentation: OpenAI.Realtime.RealtimeClientCommandResponseCancel }:
+                TryTriggerBargeIn();
+                return Task.CompletedTask;
+#pragma warning restore OPENAI002
+
             default:
                 return Task.CompletedTask;
         }
