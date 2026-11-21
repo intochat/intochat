@@ -27,12 +27,12 @@ public sealed class EntryIdJsonConverter : JsonConverter<EntryId>
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$by")]
-[JsonDerivedType(typeof(Participant.Person), "person")]
-[JsonDerivedType(typeof(Participant.Agent), "agent")]
+[JsonDerivedType(typeof(Participant.Human), "person")]
+[JsonDerivedType(typeof(Participant.Assistant), "agent")]
 public abstract record Participant
 {
-    public sealed record Person(AccountId Account) : Participant;
-    public sealed record Agent(string AgentId) : Participant;
+    public sealed record Human(AccountId Account) : Participant;
+    public sealed record Assistant(string AgentId) : Participant;
 }
 
 public enum Visibility { Everyone, Agents, Owner }
@@ -42,7 +42,7 @@ public enum Visibility { Everyone, Agents, Owner }
 [JsonDerivedType(typeof(Called), "called")]
 [JsonDerivedType(typeof(Returned), "returned")]
 [JsonDerivedType(typeof(Summarized), "summarized")]
-public abstract record Entry(EntryId Id, Participant By, DateTimeOffset At, Visibility Visible);
+public abstract record ConversationEntry(EntryId Id, Participant By, DateTimeOffset At, Visibility Visible);
 
 public sealed record Said(
     EntryId Id,
@@ -50,14 +50,14 @@ public sealed record Said(
     DateTimeOffset At,
     string Text,
     ModelId? Model = null,
-    EntryId? Replaces = null) : Entry(Id, By, At, Visibility.Everyone);
+    EntryId? Replaces = null) : ConversationEntry(Id, By, At, Visibility.Everyone);
 
 public sealed record Called(
     EntryId Id,
     Participant By,
     DateTimeOffset At,
     string Tool,
-    string ArgsJson) : Entry(Id, By, At, Visibility.Agents);
+    string ArgsJson) : ConversationEntry(Id, By, At, Visibility.Agents);
 
 public sealed record Returned(
     EntryId Id,
@@ -66,14 +66,14 @@ public sealed record Returned(
     string Tool,
     string ResultJson,
     bool Ok,
-    CardEntry? Card) : Entry(Id, By, At, Visibility.Everyone);
+    CardEntry? Card) : ConversationEntry(Id, By, At, Visibility.Everyone);
 
 public sealed record Summarized(
     EntryId Id,
     Participant By,
     DateTimeOffset At,
     string Summary,
-    EntryId UpTo) : Entry(Id, By, At, Visibility.Agents);
+    EntryId UpTo) : ConversationEntry(Id, By, At, Visibility.Agents);
 
 public sealed record CardEntry(string Kind, string Title, string? NodeJson);
 

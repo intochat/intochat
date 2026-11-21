@@ -14,7 +14,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using Microsoft.Extensions.DependencyInjection;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -25,8 +24,8 @@ public sealed class InoConversationThreadFacts
     private static readonly NeuronId InoId = new(Brain, "app.ino", "default");
     private static readonly NeuronId ThreadId = new(Brain, "control.chatThread", ScreenExtensions.ChildAddress(InoId, InoView.ConversationKey));
     private static readonly DateTimeOffset At = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant.Person Owner = new(new AccountId("local"));
-    private static readonly Participant.Agent Ino = new("ino");
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant Ino = new("ino");
 
     private sealed class NoSecrets : ISecretRedactor
     {
@@ -125,7 +124,7 @@ public sealed class InoConversationThreadFacts
         await os.Idle();
 
         var conv = os.Get<IConversation>(new NeuronId(Brain, IConversation.Type, InoModel.ConversationKeyOf(ino.App.State.ConversationId)));
-        var said = Assert.Single((await conv.Read()).Entries.OfType<Said>(), static e => e.By is Participant.Person);
+        var said = Assert.Single((await conv.Read()).Entries.OfType<Said>(), static e => e.By is Participant.Human);
         Assert.Equal("hello there", said.Text);
     }
 

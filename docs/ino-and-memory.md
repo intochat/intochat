@@ -2,11 +2,11 @@
 
 Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/IntoChat.OS.Apps/Ino`. The agent itself, its contexts and its memory come from the AI module in `src/Modules/AI`.
 
-## The app and the agent
+## The app and the conversation
 
-`InoApp` is the chat window. It does not call a model. Each conversation has its own agent neuron, addressed through the `IAgent` contract. The key is built from the conversation id by `InoModel.AgentKeyOf`.
+`InoApp` is the chat window. It does not call a model and stores no copy of the transcript. Each conversation is a `ConversationNeuron`, addressed through the `IConversation` contract under the key `InoModel.ConversationKeyOf` (`conversations/{id}`), with `ISessionList` tracking the list of sessions and the active conversation.
 
-`InoAgentDefinition` builds the `AgentDefinition` that the app gives the agent. It holds three things:
+`InoAgentDefinition` builds the `AgentDefinition` that the app seats on the conversation (`IConversation.Seat`). It holds three things:
 
 - **Instructions.** The persona, with your display name filled in from settings.
 - **Contracts.** The neuron contracts the model may act on, for example `IStudio`, `IData`, `IFocus`, `ISynapseStudio`, `IMemory`, `IFlows` and `ICodeGraph`.
@@ -18,11 +18,11 @@ Models are catalogued as `ModelCard` entries in `KnownModels` and routed by `Rol
 
 1. You send a message. `InoApp` receives it as an `InoSend` signal.
 2. A message that starts with `/` is handled as a command. If the compute budget is exceeded, the turn stops there.
-3. `InoApp` configures the agent and calls `IAgent.Start`. The call returns a run id at once.
-4. The agent runs the turn in `AgentTurnLoop`. The agent keeps the transcript.
-5. The agent reports the turn as signals. `InoApp` follows `ChatChanged` and `ChatRunChanged` and projects the chat into its state. The shell draws the new view.
+3. `InoApp` ensures Ino is seated on the conversation and calls `IConversation.Say`. The conversation appends the person's `Said` entry and starts a run at once.
+4. `ConversationNeuron` runs the turn through `TurnRunner` and `AgentTurnLoop`, appending `Called`, `Returned`, optional `Summarized`, and the reply `Said` entry to the conversation's own log.
+5. `ConversationNeuron` publishes `ConversationChanged`. `InoApp` reads `ConversationView` and projects the person view through `InoThread`, and the shell draws the updated view.
 
-`InoStop` cancels the active run. `InoNew` starts a new conversation with a new agent key.
+`InoStop` calls `IConversation.Stop` to cancel the active run while preserving partial text; retrying a failed or cancelled bubble calls `IConversation.Regenerate`. `InoNew` opens a fresh conversation id in `ISessionList`, and `InoShowChats` toggles the sessions list.
 
 ## Tools
 

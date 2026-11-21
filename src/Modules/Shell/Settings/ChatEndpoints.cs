@@ -26,7 +26,11 @@ internal static class ChatEndpoints
         group.MapPost("/{id}/unarchive", Unarchive);
     }
 
-    internal static string IndexKey(string brain) => $"{brain}/{ISessionList.DefaultKey}";
+    internal static string IndexKey(string brain)
+        => new DigitalBrain.NeuronId(
+            brain is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brain),
+            Sessions.Type,
+            ISessionList.DefaultKey).FullKey();
 
     internal static async Task<IResult> List(HttpContext http, INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = Sessions.MaxPage)
     {

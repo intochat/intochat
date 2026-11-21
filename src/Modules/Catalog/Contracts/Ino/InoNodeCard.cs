@@ -21,6 +21,7 @@ public static class InoNodeCard
     public const int MaxDepth = 12;
     public const int MaxPostBackChars = 2_000;
     public const string PostBackSignal = "control.submitText";
+    public const string PostBackTarget = ".";
 
     public static bool TryRead(string? json, [NotNullWhen(true)] out Node? node, [NotNullWhen(false)] out string? refusal)
     {
@@ -241,7 +242,7 @@ public static class InoNodeCard
         var signal = commandProp.TryGetProperty("signal", out var signalProp) && signalProp.ValueKind == JsonValueKind.String
             ? signalProp.GetString()
             : null;
-        if (!string.Equals(target, ".", StringComparison.Ordinal)
+        if (!string.Equals(target, PostBackTarget, StringComparison.Ordinal)
             || !string.Equals(signal, PostBackSignal, StringComparison.Ordinal)
             || !commandProp.TryGetProperty("args", out var argsProp)
             || !IsValidPostBackArgs(argsProp))
@@ -257,7 +258,9 @@ public static class InoNodeCard
     private static bool ValidateButton(Button button, [NotNullWhen(true)] out string? refusal)
     {
         if (button.Intent is not null
-            || button.Command is not { Target: ".", Signal: PostBackSignal } command
+            || button.Command is not { } command
+            || !string.Equals(command.Target, PostBackTarget, StringComparison.Ordinal)
+            || !string.Equals(command.Signal, PostBackSignal, StringComparison.Ordinal)
             || command.Args is not { } args
             || !IsValidPostBackArgs(args))
         {

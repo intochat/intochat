@@ -39,15 +39,14 @@ using IntoChat.OS.Modules.UI;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
 public sealed class InoAppFacts
 {
     private static readonly BrainId Brain = new("local");
-    private static readonly Participant.Person Owner = new(new AccountId("local"));
-    private static readonly Participant.Agent InoAgent = new("ino");
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant InoAgent = new("ino");
 
     private sealed class NoSecrets : ISecretRedactor
     {
@@ -133,7 +132,7 @@ public sealed class InoAppFacts
         await Deliver(ino, new ConversationChanged(ConversationId.Parse("main"), BackgroundConversation.Revision));
 
         var convView = await os.Get<IConversation>(ConversationOf(ino.App)).Read();
-        var replacement = Assert.Single(convView.Entries.OfType<Said>(), static s => s.By is Participant.Agent);
+        var replacement = Assert.Single(convView.Entries.OfType<Said>(), static s => s.By is Participant.Assistant);
         Assert.Equal(EntryIds.Reply("run-1"), replacement.Replaces);
         Assert.Equal("Recovered answer.", replacement.Text);
         Assert.Contains("Recovered answer.", Texts(InoDrawing.Screen(ino.App)));
@@ -341,7 +340,7 @@ public sealed class InoAppFacts
         await os.Idle();
 
         var view = await os.Get<IConversation>(ConversationOf(ino.App)).Read();
-        var said = Assert.Single(view.Entries.OfType<Said>(), static e => e.By is Participant.Person);
+        var said = Assert.Single(view.Entries.OfType<Said>(), static e => e.By is Participant.Human);
         Assert.Equal("hello there", said.Text);
         if (ino.App.State.ActiveRunId is not null)
         {

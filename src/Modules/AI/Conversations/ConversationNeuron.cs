@@ -138,7 +138,7 @@ internal sealed class ConversationNeuron(
             return true;
         }
         if (caller.Actor is Actor.Person person
-            && State.Participants.OfType<Participant.Person>().Any(p => string.Equals(p.Account.Value, person.Account, StringComparison.Ordinal)))
+            && State.Participants.OfType<Participant.Human>().Any(p => string.Equals(p.Account.Value, person.Account, StringComparison.Ordinal)))
         {
             return false;
         }
@@ -207,7 +207,7 @@ internal sealed class ConversationNeuron(
                 await Context.Wires.Ensure<ContextRemoved>(ctxId);
             }
 
-            var nextParticipants = WithParticipants(State.Participants, new Participant.Person(ownerAccount), new Participant.Agent(DefaultAgentId));
+            var nextParticipants = WithParticipants(State.Participants, new Participant.Human(ownerAccount), new Participant.Assistant(DefaultAgentId));
             var nextRevision = State.Revision + 1;
             var nextLog = importedEntries.Length > 0
                 ? ConversationLog.Append(State.Log, nextRevision, importedEntries)
@@ -264,7 +264,7 @@ internal sealed class ConversationNeuron(
         if (existingIndex >= 0) { agents[existingIndex] = seated; }
         else { agents.Add(seated); }
 
-        var participants = WithParticipants(State.Participants, new Participant.Agent(trimmedId));
+        var participants = WithParticipants(State.Participants, new Participant.Assistant(trimmedId));
         _mutating = true;
         try
         {
@@ -293,9 +293,9 @@ internal sealed class ConversationNeuron(
 
         var masked = await Runner.Mask(text);
         var agentId = State.Agents.FirstOrDefault()?.AgentId ?? DefaultAgentId;
-        var entry = new Said(entryId, new Participant.Agent(agentId), Clock.GetUtcNow(), masked);
+        var entry = new Said(entryId, new Participant.Assistant(agentId), Clock.GetUtcNow(), masked);
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, entry);
-        var participants = WithParticipants(State.Participants, new Participant.Agent(agentId));
+        var participants = WithParticipants(State.Participants, new Participant.Assistant(agentId));
 
         _mutating = true;
         try
@@ -325,7 +325,7 @@ internal sealed class ConversationNeuron(
         var masked = await Runner.Mask(text);
         var runId = Guid.NewGuid().ToString("N");
         var now = Clock.GetUtcNow();
-        var speaker = new Participant.Person(CallerAccount());
+        var speaker = new Participant.Human(CallerAccount());
         var said = new Said(EntryIds.Said(runId), speaker, now, masked);
         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
         var participants = WithParticipants(State.Participants, speaker);
@@ -438,11 +438,6 @@ internal sealed class ConversationNeuron(
     public Task Invite(AccountId friend)
         => throw new NotSupportedException("Group conversations arrive with Friends (S8).");
 
-    private sealed class ConversationTurnSink(Func<AgentRun, Task> store) : ITurnSink
-    {
-        public Task Store(AgentRun run) => store(run);
-    }
-
     public async Task Drive(string runId, string? model, string? replaces)
     {
         if (State.ActiveRun?.RunId != runId || _active is not null)
@@ -453,7 +448,7 @@ internal sealed class ConversationNeuron(
 
         var seated = State.Agents.FirstOrDefault() ?? new SeatedAgent(DefaultAgentId, new AgentDefinition());
         var definition = seated.Definition;
-        var agentParticipant = new Participant.Agent(seated.AgentId);
+        var agentParticipant = new Participant.Assistant(seated.AgentId);
         EntryId? replacingId = string.IsNullOrWhiteSpace(replaces) ? null : new EntryId(replaces);
 
         using var timeout = new CancellationTokenSource(definition.Timeout);
@@ -466,7 +461,7 @@ internal sealed class ConversationNeuron(
         var turnState = new TurnState(State.ActiveRun);
         var committed = false;
 
-        var sink = new ConversationTurnSink(async updatedRun =>
+        var sink = new TurnSink(async updatedRun =>
         {
             await Persist(State with { ActiveRun = updatedRun });
         });
@@ -498,7 +493,7 @@ internal sealed class ConversationNeuron(
                 var now = Clock.GetUtcNow();
                 turnState.Run = turnState.Run with { Status = AgentRunStatus.Completed, EndedAt = now, Reply = maskedReply };
 
-                var entriesToAppend = new List<Entry>(2);
+                var entriesToAppend = new List<ConversationEntry>(2);
                 if (maskedSummary.Length > 0 && compacted.EvictedCount > 0)
                 {
                     var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
@@ -596,7 +591,7 @@ internal sealed class ConversationNeuron(
                         var summarized = nextSummary != window.Summary && nextSummary is { Length: > 0 };
 
                         var now = Clock.GetUtcNow();
-                        var newEntries = new List<Entry>(2);
+                        var newEntries = new List<ConversationEntry>(2);
                         if (summarized)
                         {
                             var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
@@ -691,7 +686,7 @@ internal sealed class ConversationNeuron(
     {
         for (var i = log.Length - 1; i >= 0; i--)
         {
-            if (log[i].Entry is Said { By: Participant.Person })
+            if (log[i].Entry is Said { By: Participant.Human })
             {
                 return log[..i];
             }

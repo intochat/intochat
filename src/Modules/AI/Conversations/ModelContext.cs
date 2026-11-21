@@ -82,7 +82,7 @@ internal static class ModelContext
                         continue;
                     }
                     FlushPendingCalls();
-                    var role = said.By is Participant.Person ? "user" : "assistant";
+                    var role = said.By is Participant.Human ? "user" : "assistant";
                     messages.Add(new AiMessage(role, [new AiText(said.Text)]));
                     sources.Add(said.Id);
                     break;

@@ -23,11 +23,11 @@ internal sealed class TurnState(AgentRun run)
     public AgentRun Streamed => Visible.Length > 0 ? Run with { Reply = Visible } : Run;
 }
 
-internal interface ITurnSink
+internal sealed class TurnSink(Func<AgentRun, Task> store)
 {
     // The run so far; called for the first words, then at most once per TurnRunner.ProgressInterval, at model selection,
     // at each tool step, and when the provider stalls with unstored text. A throw on a stall store is logged, not fatal.
-    Task Store(AgentRun run);
+    public Task Store(AgentRun run) => store(run);
 }
 
 internal sealed class TurnRunner(
@@ -335,7 +335,7 @@ internal sealed class TurnRunner(
 
     // The loop with masking, tail hold-back, cadence and stall stores. Yields the loop's events with masked payloads; tool events
     // update turn.Run.ToolCalls before they are yielded; Completed carries masked, Compacted messages and sets turn.Completed.
-    public async IAsyncEnumerable<AgentTurnEvent> Stream(TurnPlan plan, TurnState turn, ITurnSink sink, [EnumeratorCancellation] CancellationToken ct)
+    public async IAsyncEnumerable<AgentTurnEvent> Stream(TurnPlan plan, TurnState turn, TurnSink sink, [EnumeratorCancellation] CancellationToken ct)
     {
         var seen = 0;
         var stored = 0L;

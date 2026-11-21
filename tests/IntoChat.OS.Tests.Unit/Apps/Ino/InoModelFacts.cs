@@ -4,15 +4,14 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
 public sealed class InoModelFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant.Person Owner = new(new AccountId("local"));
-    private static readonly Participant.Agent Ino = new("ino");
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant Ino = new("ino");
 
     [Fact]
     public void SendingShowsMyMessageAtOnce()

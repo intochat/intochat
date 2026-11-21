@@ -62,4 +62,6 @@ An app is a DigitalBrain app that runs in a brain. There are two kinds:
 
 Ino is the agent that does work for you. It is a system app, `InoApp`, in `src/IntoChat.OS.Apps/Ino`. `InoAgentDefinition` holds its persona, the contracts it may act on and the contexts it reads each turn.
 
+Each conversation is one aggregate neuron (`ConversationNeuron`, addressed through `IConversation` at `conversations/{id}` and listed by `ISessionList`). It owns one append-only log of `ConversationEntry` records (`Said`, `Called`, `Returned`, `Summarized`) together with its seated agents and active run; `TurnRunner` executes each agent turn against a projected model context, while `InoApp` follows `ConversationChanged` and renders `InoThread` directly from `ConversationView` without keeping a second copy of messages.
+
 Ino acts through neurons in your brain, like any other app. It cannot approve a confirmation that is meant for a person. See [Ino and memory](ino-and-memory.md).

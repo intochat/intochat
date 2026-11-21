@@ -7,15 +7,14 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
 internal static class States
 {
     private static readonly DateTimeOffset At = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant.Person Owner = new(new AccountId("local"));
-    private static readonly Participant.Agent Ino = new("ino");
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant Ino = new("ino");
 
     private static ConversationView ViewOf(AgentRun? active = null, AgentRun[]? runs = null, params ConversationEntry[] entries)
         => new(ConversationId.Parse("main"), 1, [Owner, Ino], entries, active, runs ?? [], false, []);

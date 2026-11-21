@@ -1492,6 +1492,7 @@ public sealed class HouseRules22Facts
             "IConditionallyAvailable",
             "IAiCredentials",
             "IAgentDriver",
+            "IConversationDriver",
             "IAppRestore",
             "IPostgresProvider",
             "IConnectionPostgresProviderFactory",

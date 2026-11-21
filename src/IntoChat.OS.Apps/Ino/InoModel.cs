@@ -232,7 +232,7 @@ public static class InoModel
     public static Decision<string> DecideRetryPrompt(InoAppState s, ConversationView? view = null)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var lastUser = view?.Entries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Person)?.Text
+        var lastUser = view?.Entries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Human)?.Text
             ?? view?.Runs.LastOrDefault(static r => !r.Posted && !string.IsNullOrWhiteSpace(r.UserText))?.UserText;
         var refusal = Decision.Check("retry", IdleRule(s), Decision.Rule("has_prior_prompt", lastUser, static u => string.IsNullOrWhiteSpace(u), "No prior message to try again."));
         return refusal is not null ? refusal : Decision.Accept(lastUser!);
@@ -253,7 +253,7 @@ public static class InoModel
             if (!string.IsNullOrWhiteSpace(run?.UserText)) { return run.UserText; }
         }
 
-        var direct = view.Entries.OfType<Said>().FirstOrDefault(e => e.Id == targetId && e.By is Participant.Person);
+        var direct = view.Entries.OfType<Said>().FirstOrDefault(e => e.Id == targetId && e.By is Participant.Human);
         return string.IsNullOrWhiteSpace(direct?.Text) ? null : direct.Text;
     }
 
@@ -384,13 +384,13 @@ public static class InoModel
     }
 
     private static bool HasPersonSaid(ConversationView view, string text)
-        => view.Entries.OfType<Said>().Any(e => e.By is Participant.Person && string.Equals(e.Text, text, StringComparison.Ordinal));
+        => view.Entries.OfType<Said>().Any(e => e.By is Participant.Human && string.Equals(e.Text, text, StringComparison.Ordinal));
 
     private static string? LatestTurnModel(ConversationView view, HashSet<EntryId> superseded)
     {
         for (var i = view.Entries.Length - 1; i >= 0; i--)
         {
-            if (view.Entries[i] is Said { By: Participant.Agent, Model: { Value.Length: > 0 } model } said
+            if (view.Entries[i] is Said { By: Participant.Assistant, Model: { Value.Length: > 0 } model } said
                 && !superseded.Contains(said.Id))
             {
                 return model.Value;

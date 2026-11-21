@@ -329,11 +329,6 @@ internal sealed class AgentNeuron(
 
     public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default) => Execute(turn, null, ct);
 
-    private sealed class AgentTurnSink(Func<AgentRun, Task> store) : ITurnSink
-    {
-        public Task Store(AgentRun run) => store(run);
-    }
-
     // started is the run id Start already admitted and recorded as active; null admits the turn here.
     private async IAsyncEnumerable<AgentTurnEvent> Execute(AgentTurn turn, string? started, [EnumeratorCancellation] CancellationToken ct)
     {
@@ -389,7 +384,7 @@ internal sealed class AgentNeuron(
             }
         }
 
-        var sink = new AgentTurnSink(async run =>
+        var sink = new TurnSink(async run =>
         {
             await Persist(State with { ActiveRun = run });
             await Announce();

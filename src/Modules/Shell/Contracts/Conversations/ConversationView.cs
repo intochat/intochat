@@ -7,7 +7,7 @@ public sealed record ConversationView(
     ConversationId Id,
     long Revision,
     Participant[] Participants,
-    Entry[] Entries,
+    ConversationEntry[] Entries,
     AgentRun? Active,
     AgentRun[] Runs,
     bool Blocked,

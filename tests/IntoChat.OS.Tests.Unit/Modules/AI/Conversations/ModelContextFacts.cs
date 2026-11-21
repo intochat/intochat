@@ -8,16 +8,16 @@ namespace IntoChat.OS.Tests.Unit.Modules.AI.Conversations;
 public sealed class ModelContextFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant Person = new Participant.Person(new AccountId("a1"));
-    private static readonly Participant Agent = new Participant.Agent("ino");
+    private static readonly Participant Person = new Participant.Human(new AccountId("a1"));
+    private static readonly Participant Agent = new Participant.Assistant("ino");
 
-    private static Entry Said(string runId, string text) => new Said(EntryIds.Said(runId), Person, At, text);
-    private static Entry Reply(string runId, string text) => new Said(EntryIds.Reply(runId), Agent, At, text);
-    private static Entry ReplyReplacing(string runId, string text, EntryId replaces) => new Said(EntryIds.Reply(runId), Agent, At, text, Replaces: replaces);
-    private static Entry Call(string runId, string callId, string tool) => new Called(EntryIds.Call(runId, callId), Agent, At, tool, "{}");
-    private static Entry Result(string runId, string callId, string json) => new Returned(EntryIds.Result(runId, callId), Agent, At, "t", json, true, null);
-    private static Entry Summary(string runId, string summary, EntryId upTo) => new Summarized(EntryIds.Summary(runId), Agent, At, summary, upTo);
-    private static LoggedEntry[] Log(params Entry[] entries) => ConversationLog.Append([], 1, entries);
+    private static ConversationEntry Said(string runId, string text) => new Said(EntryIds.Said(runId), Person, At, text);
+    private static ConversationEntry Reply(string runId, string text) => new Said(EntryIds.Reply(runId), Agent, At, text);
+    private static ConversationEntry ReplyReplacing(string runId, string text, EntryId replaces) => new Said(EntryIds.Reply(runId), Agent, At, text, Replaces: replaces);
+    private static ConversationEntry Call(string runId, string callId, string tool) => new Called(EntryIds.Call(runId, callId), Agent, At, tool, "{}");
+    private static ConversationEntry Result(string runId, string callId, string json) => new Returned(EntryIds.Result(runId, callId), Agent, At, "t", json, true, null);
+    private static ConversationEntry Summary(string runId, string summary, EntryId upTo) => new Summarized(EntryIds.Summary(runId), Agent, At, summary, upTo);
+    private static LoggedEntry[] Log(params ConversationEntry[] entries) => ConversationLog.Append([], 1, entries);
 
     [Fact]
     public void CallsAndResultsPairByCallId()

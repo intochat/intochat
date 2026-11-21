@@ -8,13 +8,13 @@ namespace IntoChat.OS.Modules.AI.Conversations;
 
 internal static class LegacyImport
 {
-    public static (Entry[] Entries, AgentRun[] Runs) From(AgentState state, AiMessage[] transcript, AccountId owner, string agentId)
+    public static (ConversationEntry[] Entries, AgentRun[] Runs) From(AgentState state, AiMessage[] transcript, AccountId owner, string agentId)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(transcript);
 
-        var person = new Participant.Person(owner);
-        var agent = new Participant.Agent(agentId);
+        var person = new Participant.Human(owner);
+        var agent = new Participant.Assistant(agentId);
 
         // Transcript is only a fallback for tool results missing on the run record; it never overrides the run.
         var transcriptResults = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -29,11 +29,11 @@ internal static class LegacyImport
             }
         }
 
-        var entries = new List<Entry>();
+        var entries = new List<ConversationEntry>();
         var usedIds = new HashSet<EntryId>();
         var lastAt = DateTimeOffset.MinValue;
 
-        void AddEntry(Entry entry)
+        void AddEntry(ConversationEntry entry)
         {
             if (usedIds.Add(entry.Id))
             {

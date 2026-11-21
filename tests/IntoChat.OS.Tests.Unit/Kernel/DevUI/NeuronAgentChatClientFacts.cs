@@ -120,9 +120,9 @@ public sealed class NeuronAgentChatClientFacts
         var view = await conversation.Read();
         var said = view.Entries.OfType<Said>().ToArray();
         Assert.Equal(2, said.Length);
-        Assert.IsType<Participant.Person>(said[0].By);
+        Assert.IsType<Participant.Human>(said[0].By);
         Assert.Equal("hi from devui", said[0].Text);
-        Assert.IsType<Participant.Agent>(said[1].By);
+        Assert.IsType<Participant.Assistant>(said[1].By);
         Assert.Equal("Hello from conversation.", said[1].Text);
     }
 }

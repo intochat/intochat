@@ -70,7 +70,7 @@ internal sealed class NeuronAgentChatClient : IChatClient
         var emittedLength = 0;
         var seenToolStarts = new HashSet<string>(StringComparer.Ordinal);
         var seenToolFailures = new HashSet<string>(StringComparer.Ordinal);
-        var seenEntries = new List<Entry>();
+        var seenEntries = new List<ConversationEntry>();
         string? targetRunId = null;
 
         while (true)
@@ -87,7 +87,7 @@ internal sealed class NeuronAgentChatClient : IChatClient
             }
 
             targetRunId ??= view.Active?.RunId
-                ?? (seenEntries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Person) is { } personSaid
+                ?? (seenEntries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Human) is { } personSaid
                     ? EntryIds.RunOf(personSaid.Id)
                     : view.Runs.LastOrDefault(static r => !r.Posted)?.RunId);
 
@@ -117,8 +117,8 @@ internal sealed class NeuronAgentChatClient : IChatClient
 
             // Active run has ended: yield any remaining text from the reply entry or closed run, or throw on failure.
             Said? finalReply = targetRunId is not null
-                ? seenEntries.OfType<Said>().LastOrDefault(e => e.By is Participant.Agent && e.Id == EntryIds.Reply(targetRunId))
-                : seenEntries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Agent);
+                ? seenEntries.OfType<Said>().LastOrDefault(e => e.By is Participant.Assistant && e.Id == EntryIds.Reply(targetRunId))
+                : seenEntries.OfType<Said>().LastOrDefault(static e => e.By is Participant.Assistant);
 
             if (finalReply is not null)
             {

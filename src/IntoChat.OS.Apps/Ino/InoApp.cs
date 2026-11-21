@@ -27,7 +27,6 @@ using IntoChat.OS.Modules.Identity.Contracts.Grants;
 using IntoChat.OS.Modules.UI.Chat.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -560,7 +559,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
                 var records = await Get<IInoRecords>(IInoRecords.Key).Read();
                 LinksJson = records.Links.Length == 0
                     ? null
-                    : JsonSerializer.Serialize(records.Links, JsonSerializerOptions.Web);
+                    : InoLinkCard.SerializeLinks(records.Links);
             });
         }
 

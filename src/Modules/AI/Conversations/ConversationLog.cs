@@ -5,14 +5,14 @@ using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.AI.Conversations;
 
-internal sealed record LoggedEntry(long Revision, Entry Entry);
+internal sealed record LoggedEntry(long Revision, ConversationEntry Entry);
 
 internal static class ConversationLog
 {
     public const int MaxEntries = 1_024;
     public const int CoveredPreview = 512;
 
-    public static LoggedEntry[] Append(LoggedEntry[] log, long revision, params Entry[] entries)
+    public static LoggedEntry[] Append(LoggedEntry[] log, long revision, params ConversationEntry[] entries)
     {
         ArgumentNullException.ThrowIfNull(log);
         ArgumentNullException.ThrowIfNull(entries);
@@ -59,10 +59,10 @@ internal static class ConversationLog
         return combined;
     }
 
-    public static Entry[] Visible(LoggedEntry[] log, long? since, bool owner)
+    public static ConversationEntry[] Visible(LoggedEntry[] log, long? since, bool owner)
     {
         ArgumentNullException.ThrowIfNull(log);
-        var result = new List<Entry>(log.Length);
+        var result = new List<ConversationEntry>(log.Length);
         foreach (var item in log)
         {
             if (since is { } rev && item.Revision <= rev)

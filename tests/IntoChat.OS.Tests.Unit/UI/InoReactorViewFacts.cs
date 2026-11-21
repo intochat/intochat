@@ -17,7 +17,6 @@ using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Tests.Unit.UI;
 
@@ -97,8 +96,8 @@ public sealed class InoReactorViewFacts
     [Fact]
     public void AssistantTurnsRenderLiveInlineSlotsFromBracketTagsSlotUrisAndStructuredAppletCards()
     {
-        var owner = new Participant.Person(new AccountId("local"));
-        var ino = new Participant.Agent("ino");
+        var owner = new Participant.Human(new AccountId("local"));
+        var ino = new Participant.Assistant("ino");
         var slotCard = new InoCard("slot-usage", "slot", "Usage Live", "Live usage stream", "neuron://local/apps/usage/view", "ready");
         var appletCard = new InoCard("app-scratch", "applet", "Live App: scratch", "Interactive scratchpad", "neuron://local/apps/scratch", "running");
         var viewData = new ConversationView(
@@ -214,8 +213,8 @@ public sealed class InoReactorViewFacts
         Assert.Null(dockedApproval.Resolve);
 
         // 4. Error + inline Kit SecretField setup state
-        var owner = new Participant.Person(new AccountId("local"));
-        var ino = new Participant.Agent("ino");
+        var owner = new Participant.Human(new AccountId("local"));
+        var ino = new Participant.Assistant("ino");
         var errorView = new ConversationView(
             ConversationId.Parse("main"),
             1,

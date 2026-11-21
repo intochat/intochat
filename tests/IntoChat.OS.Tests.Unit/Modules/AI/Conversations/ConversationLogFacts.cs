@@ -8,17 +8,17 @@ namespace IntoChat.OS.Tests.Unit.Modules.AI.Conversations;
 public sealed class ConversationLogFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant Person = new Participant.Person(new AccountId("a1"));
-    private static readonly Participant Agent = new Participant.Agent("ino");
+    private static readonly Participant Person = new Participant.Human(new AccountId("a1"));
+    private static readonly Participant Agent = new Participant.Assistant("ino");
 
-    private static Entry Said(string runId, string text) => new Said(EntryIds.Said(runId), Person, At, text);
-    private static Entry Reply(string runId, string text) => new Said(EntryIds.Reply(runId), Agent, At, text);
-    private static Entry Call(string runId, string callId, string tool, string args = "{}") => new Called(EntryIds.Call(runId, callId), Agent, At, tool, args);
-    private static Entry Result(string runId, string callId, string tool, string resultJson) => new Returned(EntryIds.Result(runId, callId), Agent, At, tool, resultJson, true, null);
+    private static ConversationEntry Said(string runId, string text) => new Said(EntryIds.Said(runId), Person, At, text);
+    private static ConversationEntry Reply(string runId, string text) => new Said(EntryIds.Reply(runId), Agent, At, text);
+    private static ConversationEntry Call(string runId, string callId, string tool, string args = "{}") => new Called(EntryIds.Call(runId, callId), Agent, At, tool, args);
+    private static ConversationEntry Result(string runId, string callId, string tool, string resultJson) => new Returned(EntryIds.Result(runId, callId), Agent, At, tool, resultJson, true, null);
 
-    private static LoggedEntry[] Log(params Entry[] entries) => ConversationLog.Append([], 1, entries);
+    private static LoggedEntry[] Log(params ConversationEntry[] entries) => ConversationLog.Append([], 1, entries);
 
-    private static LoggedEntry[] LogAt(params (long Rev, Entry Entry)[] items)
+    private static LoggedEntry[] LogAt(params (long Rev, ConversationEntry Entry)[] items)
     {
         LoggedEntry[] log = [];
         foreach (var (rev, entry) in items)

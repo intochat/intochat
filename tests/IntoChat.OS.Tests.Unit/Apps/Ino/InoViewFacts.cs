@@ -16,15 +16,14 @@ using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
 public sealed class InoViewFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant.Person Owner = new(new AccountId("local"));
-    private static readonly Participant.Agent Ino = new("ino");
+    private static readonly Participant.Human Owner = new(new AccountId("local"));
+    private static readonly Participant.Assistant Ino = new("ino");
 
     private static ConversationView ViewOf(AgentRun? active = null, AgentRun[]? runs = null, params ConversationEntry[] entries)
         => new(ConversationId.Parse("main"), 1, [Owner, Ino], entries, active, runs ?? [], false, []);

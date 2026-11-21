@@ -6,15 +6,14 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
 public sealed class InoThreadFacts
 {
     private static readonly DateTimeOffset At = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
-    private static readonly Participant.Person Owner = new(new AccountId("owner"));
-    private static readonly Participant.Agent Ino = new("ino");
+    private static readonly Participant.Human Owner = new(new AccountId("owner"));
+    private static readonly Participant.Assistant Ino = new("ino");
     private static readonly IReadOnlyDictionary<string, AppManifest?> NoApps = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
 
     private static ConversationView View(params ConversationEntry[] entries) =>

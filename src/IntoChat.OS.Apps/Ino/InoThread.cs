@@ -1,6 +1,8 @@
 using System.Text.Json;
+using DigitalBrain.Log;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
@@ -8,7 +10,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using static IntoChat.OS.UI.Kit;
-using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -72,7 +73,7 @@ public static class InoThread
                     }
                     break;
 
-                case Said { By: Participant.Agent } agentSaid:
+                case Said { By: Participant.Assistant } agentSaid:
                     if (EntryIds.RunOf(agentSaid.Id) is { } repRun && agentSaid.Id == EntryIds.Reply(repRun))
                     {
                         replyRunIds.Add(repRun);
@@ -91,7 +92,7 @@ public static class InoThread
                 continue;
             }
 
-            if (said.By is Participant.Person)
+            if (said.By is Participant.Human)
             {
                 messages.Add(new ThreadMessage(said.Id.Value, "user", said.Text, "completed"));
 
@@ -109,7 +110,7 @@ public static class InoThread
                 continue;
             }
 
-            if (said.By is Participant.Agent)
+            if (said.By is Participant.Assistant)
             {
                 if (superseded.Contains(said.Id))
                 {
@@ -331,7 +332,7 @@ public static class InoThread
                     if (InoLinkCard.IsAppName(name)) { return new InoLinkCard(name!, name!, "", true); }
                 }
             }
-            catch (JsonException) { }
+            catch (JsonException exception) { OsConsoleLog.For(typeof(InoThread)).LogSwallowed(exception, "Unreadable studio_launch arguments"); }
         }
 
         if (!string.IsNullOrWhiteSpace(resultJson))
@@ -349,7 +350,7 @@ public static class InoThread
                     }
                 }
             }
-            catch (JsonException) { }
+            catch (JsonException exception) { OsConsoleLog.For(typeof(InoThread)).LogSwallowed(exception, "Unreadable studio_launch result"); }
         }
 
         return null;
@@ -379,7 +380,7 @@ public static class InoThread
                 return InoLinkCard.IsAppName(name) ? new InoLinkCard(name!, name!, "", true) : null;
             }
         }
-        catch (JsonException) { }
+        catch (JsonException exception) { OsConsoleLog.For(typeof(InoThread)).LogSwallowed(exception, "Unreadable legacy tool-call arguments"); }
         return null;
     }
 
@@ -590,7 +591,7 @@ public static class InoThread
                 if (GetString(doc.RootElement, "message") is { Length: > 0 } msg) { return msg; }
             }
         }
-        catch (JsonException) { }
+        catch (JsonException exception) { OsConsoleLog.For(typeof(InoThread)).LogSwallowed(exception, "Unreadable tool error payload"); }
         return resultJson;
     }
 

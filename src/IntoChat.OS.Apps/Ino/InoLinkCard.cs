@@ -65,6 +65,25 @@ internal sealed partial record InoLinkCard(
         catch (JsonException) { return []; }
     }
 
+    public static string SerializeLinks(IReadOnlyList<InoLink> links)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartArray();
+            foreach (var link in links)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("request", link.Request);
+                writer.WriteString("app", link.App);
+                writer.WriteString("input", link.Input);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
+
     // Adds one link (a repeat of the same request keeps the first) and keeps the newest MaxLinksKept.
     public static string RememberLink(string? json, Guid request, string app, string input)
     {

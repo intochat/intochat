@@ -33,7 +33,7 @@ public sealed class LegacyImportFacts
     {
         var (state, transcript) = LoadLegacy(name);
         var (entries, runs) = LegacyImport.From(state, transcript, new AccountId("a1"), "ino");
-        Assert.Equal(state.Runs.Count(r => !r.Posted), entries.OfType<Said>().Count(s => s.By is Participant.Person));
+        Assert.Equal(state.Runs.Count(r => !r.Posted), entries.OfType<Said>().Count(s => s.By is Participant.Human));
         Assert.Equal(state.Runs.Count(r => r.Status == AgentRunStatus.Completed && !r.Posted), entries.OfType<Said>().Count(s => s.Id.Value.EndsWith("/reply", StringComparison.Ordinal)));
         Assert.Equal(state.Runs.Length, runs.Length);
         Assert.True(entries.Select(e => e.At).SequenceEqual(entries.Select(e => e.At).Order()));
