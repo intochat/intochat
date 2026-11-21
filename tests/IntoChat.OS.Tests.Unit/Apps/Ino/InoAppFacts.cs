@@ -29,7 +29,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
@@ -912,8 +911,8 @@ public sealed class InoAppFacts
         var records = await os.Get<IInoRecords>(new NeuronId(Brain, "apps.ino-records", IInoRecords.Key)).Read();
         Assert.Equal(new InoLink(request.ToString("N"), "notes", "page=3"), Assert.Single(records.Links));
         var stored = JsonSerializer.Serialize(records.Links, JsonSerializerOptions.Web);
-        Assert.Equal("page=3", ChatAppCard.FindLink(stored, request)?.Input);
-        Assert.Contains(RecordingConversation.Posts, post => post == ("Notes, page 3", ChatAppCard.LinkPostId(request)));
+        Assert.Equal("page=3", InoLinkCard.FindLink(stored, request)?.Input);
+        Assert.Contains(RecordingConversation.Posts, post => post == ("Notes, page 3", InoLinkCard.LinkPostId(request)));
     }
 
     [Fact]

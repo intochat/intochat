@@ -21,7 +21,6 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
@@ -344,18 +343,18 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task Link(InoPasteLink request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Request == Guid.Empty || !ChatAppCard.IsAppName(request.App)) { return; }
+        if (request.Request == Guid.Empty || !InoLinkCard.IsAppName(request.App)) { return; }
         var input = request.Input ?? string.Empty;
-        if (input.Length > ChatAppCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
+        if (input.Length > InoLinkCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
         var id = request.Request.ToString("N");
         var records = Get<IInoRecords>(IInoRecords.Key);
         var kept = await records.Read();
         if (!kept.Links.Any(link => link.Request == id))
         {
-            await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] });
+            await records.Write(kept with { Links = [.. kept.Links.TakeLast(InoLinkCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] });
         }
         await Get<IConversation>(InoModel.ConversationKeyOf(State.ConversationId))
-            .Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
+            .Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, InoLinkCard.LinkPostId(request.Request));
     }
 
     [On]

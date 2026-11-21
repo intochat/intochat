@@ -28,7 +28,7 @@ internal sealed class InoRecordsNeuron : DigitalBrain.Neurons.Neuron<InoRecords>
         ArgumentNullException.ThrowIfNull(records.Links);
         AppRecordsOwner.Require(Id.FullKey(), Context.Caller);
         // Ino keeps the newest links only.
-        await Save(records with { Links = [.. records.Links.TakeLast(IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.MaxLinksKept)] }, new InoRecordsChanged());
+        await Save(records with { Links = [.. records.Links.TakeLast(IInoRecords.MaxLinksKept)] }, new InoRecordsChanged());
     }
 }
 

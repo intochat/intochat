@@ -4,7 +4,6 @@ using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using ConversationEntry = IntoChat.OS.Modules.Flutter.Conversations.Entry;
@@ -131,9 +130,9 @@ public sealed class InoThreadFacts
         Assert.NotNull(card.Open);
 
         var appCard = InoThread.Opened(returned, call.Arguments);
-        Assert.Equal(new ChatAppCard("notes", "notes", "", true, "page-7"), appCard);
+        Assert.Equal(new InoLinkCard("notes", "notes", "", true, "page-7"), appCard);
         Assert.Equal(
-            new ChatAppCard("notes", "Notes", "notebook", true, "page-7"),
+            new InoLinkCard("notes", "Notes", "notebook", true, "page-7"),
             InoThread.Named(appCard!, apps["notes"]));
     }
 }

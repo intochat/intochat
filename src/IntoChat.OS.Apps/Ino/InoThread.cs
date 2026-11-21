@@ -5,7 +5,6 @@ using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using static IntoChat.OS.UI.Kit;
@@ -171,7 +170,7 @@ public static class InoThread
     }
 
     internal static bool HasLinkPosts(ConversationView view)
-        => view.Entries.OfType<Said>().Any(static s => ChatAppCard.TryReadLinkPost(s.Id.Value, out _));
+        => view.Entries.OfType<Said>().Any(static s => InoLinkCard.TryReadLinkPost(s.Id.Value, out _));
 
     internal static HashSet<string> ReferencedAppNames(ConversationView view, string? links)
     {
@@ -215,8 +214,8 @@ public static class InoThread
                     }
                     break;
 
-                case Said said when ChatAppCard.TryReadLinkPost(said.Id.Value, out var request):
-                    if (ChatAppCard.FindLink(links, request) is { } linkCard)
+                case Said said when InoLinkCard.TryReadLinkPost(said.Id.Value, out var request):
+                    if (InoLinkCard.FindLink(links, request) is { } linkCard)
                     {
                         names.Add(linkCard.App);
                     }
@@ -242,13 +241,13 @@ public static class InoThread
     }
 
     // Absorbs AgentChatSource.Named: an app without a titled manifest is not installed.
-    internal static ChatAppCard Named(ChatAppCard card, AppManifest? manifest)
+    internal static InoLinkCard Named(InoLinkCard card, AppManifest? manifest)
         => manifest is { Title.Length: > 0 }
             ? card with { Title = manifest.Title, Icon = manifest.Icon ?? "", Installed = true }
             : card with { Title = card.App, Installed = false };
 
     // Absorbs AgentChatSource.Published: prefers publisher "os", else first listed publisher.
-    internal static ChatAppCard Published(ChatAppCard card, IReadOnlyList<(string Publisher, string Name)> listings)
+    internal static InoLinkCard Published(InoLinkCard card, IReadOnlyList<(string Publisher, string Name)> listings)
     {
         var apps = listings.Where(listing => listing.Name == card.App).Select(listing => listing.Publisher).ToList();
         var publisher = apps.Contains("os") ? "os" : apps.FirstOrDefault();
@@ -256,7 +255,7 @@ public static class InoThread
     }
 
     // Absorbs AgentChatSource.Opened for both S2 typed tools and legacy neurons_call.
-    internal static ChatAppCard? Opened(Returned returned, string? argsJson = null)
+    internal static InoLinkCard? Opened(Returned returned, string? argsJson = null)
     {
         if (!returned.Ok)
         {
@@ -286,7 +285,7 @@ public static class InoThread
         return null;
     }
 
-    private static ChatAppCard? OpenedFromAppRequest(string? json)
+    private static InoLinkCard? OpenedFromAppRequest(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) { return null; }
         try
@@ -298,14 +297,14 @@ public static class InoThread
             if (!string.Equals(op, "open", StringComparison.Ordinal)) { return null; }
             var rawKey = GetString(root, "key") ?? GetString(root, "app");
             var name = ExtractAppName(rawKey);
-            if (!ChatAppCard.IsAppName(name)) { return null; }
+            if (!InoLinkCard.IsAppName(name)) { return null; }
             var input = GetString(root, "input") ?? string.Empty;
-            return new ChatAppCard(name!, name!, "", true, input);
+            return new InoLinkCard(name!, name!, "", true, input);
         }
         catch (JsonException) { return null; }
     }
 
-    private static ChatAppCard? OpenedFromWorkspaceShow(string? json)
+    private static InoLinkCard? OpenedFromWorkspaceShow(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) { return null; }
         try
@@ -314,12 +313,12 @@ public static class InoThread
             if (doc.RootElement.ValueKind != JsonValueKind.Object) { return null; }
             var rawApp = GetString(doc.RootElement, "app");
             var name = ExtractAppName(rawApp);
-            return ChatAppCard.IsAppName(name) ? new ChatAppCard(name!, name!, "", true) : null;
+            return InoLinkCard.IsAppName(name) ? new InoLinkCard(name!, name!, "", true) : null;
         }
         catch (JsonException) { return null; }
     }
 
-    private static ChatAppCard? OpenedFromStudioLaunch(string? argsJson, string? resultJson)
+    private static InoLinkCard? OpenedFromStudioLaunch(string? argsJson, string? resultJson)
     {
         if (!string.IsNullOrWhiteSpace(argsJson))
         {
@@ -329,7 +328,7 @@ public static class InoThread
                 if (doc.RootElement.ValueKind == JsonValueKind.Object)
                 {
                     var name = ExtractAppName(GetString(doc.RootElement, "appId"));
-                    if (ChatAppCard.IsAppName(name)) { return new ChatAppCard(name!, name!, "", true); }
+                    if (InoLinkCard.IsAppName(name)) { return new InoLinkCard(name!, name!, "", true); }
                 }
             }
             catch (JsonException) { }
@@ -346,7 +345,7 @@ public static class InoThread
                     if (text is not null && text.StartsWith("Opened ", StringComparison.Ordinal) && text.EndsWith('.'))
                     {
                         var candidate = text["Opened ".Length..^1].Trim();
-                        if (ChatAppCard.IsAppName(candidate)) { return new ChatAppCard(candidate, candidate, "", true); }
+                        if (InoLinkCard.IsAppName(candidate)) { return new InoLinkCard(candidate, candidate, "", true); }
                     }
                 }
             }
@@ -356,7 +355,7 @@ public static class InoThread
         return null;
     }
 
-    private static ChatAppCard? OpenedFromLegacyNeuronsCall(string argsJson)
+    private static InoLinkCard? OpenedFromLegacyNeuronsCall(string argsJson)
     {
         try
         {
@@ -372,12 +371,12 @@ public static class InoThread
             if (contract == typeof(IApp).FullName && method == nameof(IApp.Request) && At(0) == "open")
             {
                 var name = ExtractAppName(GetString(root, "key"));
-                return ChatAppCard.IsAppName(name) ? new ChatAppCard(name!, name!, "", true, At(1) ?? "") : null;
+                return InoLinkCard.IsAppName(name) ? new InoLinkCard(name!, name!, "", true, At(1) ?? "") : null;
             }
             if (contract == typeof(IWorkspace).FullName && method == nameof(IWorkspace.Show))
             {
                 var name = ExtractAppName(At(0));
-                return ChatAppCard.IsAppName(name) ? new ChatAppCard(name!, name!, "", true) : null;
+                return InoLinkCard.IsAppName(name) ? new InoLinkCard(name!, name!, "", true) : null;
             }
         }
         catch (JsonException) { }
@@ -418,8 +417,8 @@ public static class InoThread
             ? BuildStepVisuals(runId, returns, toolArgs, apps)
             : (Array.Empty<ActivityNode>(), new List<Node>());
 
-        if (ChatAppCard.TryReadLinkPost(said.Id.Value, out var linkRequest)
-            && ChatAppCard.FindLink(links, linkRequest) is { } linkCard)
+        if (InoLinkCard.TryReadLinkPost(said.Id.Value, out var linkRequest)
+            && InoLinkCard.FindLink(links, linkRequest) is { } linkCard)
         {
             apps.TryGetValue(linkCard.App, out var manifest);
             cards.Add(RenderAppCard(Named(linkCard, manifest)));
@@ -518,7 +517,7 @@ public static class InoThread
     {
         var activities = new ActivityNode[returns.Count];
         var cards = new List<Node>();
-        ChatAppCard? lastOpenedApp = null;
+        InoLinkCard? lastOpenedApp = null;
 
         for (var i = 0; i < returns.Count; i++)
         {
@@ -561,7 +560,7 @@ public static class InoThread
         return (activities, cards);
     }
 
-    private static Node RenderAppCard(ChatAppCard card) => new RecordCardNode(
+    private static Node RenderAppCard(InoLinkCard card) => new RecordCardNode(
         "App",
         card.Title,
         [
