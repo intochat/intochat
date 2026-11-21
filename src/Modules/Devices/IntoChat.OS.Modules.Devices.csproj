@@ -26,7 +26,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
-    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="OllamaSharp" />
     <PackageReference Include="Microsoft.AI.Foundry.Local" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
   </ItemGroup>

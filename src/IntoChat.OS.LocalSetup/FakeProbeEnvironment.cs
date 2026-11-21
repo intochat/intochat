@@ -1,13 +1,30 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace IntoChat.OS.LocalSetup;
+
+internal sealed record FakeMachine(
+    string? Os,
+    Dictionary<string, FakeCommand>? Commands,
+    Dictionary<string, FakeResponse>? Http,
+    Dictionary<string, long>? FreeBytes,
+    int[]? BoundPorts,
+    Dictionary<string, string>? Env,
+    Dictionary<string, string>? Files);
+
+internal sealed record FakeCommand(int Exit, string? Stdout, string? StdoutBase64, string? Stderr);
+
+internal sealed record FakeResponse(int Status, string? Body);
+
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(FakeMachine))]
+internal sealed partial class FakeProbeJson : JsonSerializerContext;
 
 // A recorded machine: JSON fixture of command results, HTTP answers, free space, bound ports, OS, environment and files.
 // Command key is "file arg arg"; HTTP key is "METHOD absolute-url". Unknown commands exit 127; unknown URLs refuse the connection.
 public sealed class FakeProbeEnvironment : IProbeEnvironment
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly FakeMachine _machine;
 
     private FakeProbeEnvironment(FakeMachine machine)
@@ -23,7 +40,7 @@ public sealed class FakeProbeEnvironment : IProbeEnvironment
     public static FakeProbeEnvironment Load(string path) => FromJson(File.ReadAllText(path));
 
     public static FakeProbeEnvironment FromJson(string json)
-        => new(JsonSerializer.Deserialize<FakeMachine>(json, JsonOptions) ?? throw new JsonException("Empty fixture."));
+        => new(JsonSerializer.Deserialize(json, FakeProbeJson.Default.FakeMachine) ?? throw new JsonException("Empty fixture."));
 
     public Task<ProcessResult> RunAsync(string file, IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
@@ -48,19 +65,6 @@ public sealed class FakeProbeEnvironment : IProbeEnvironment
     public string? Env(string name) => _machine.Env is not null && _machine.Env.TryGetValue(name, out var value) ? value : null;
 
     public string? ReadFile(string path) => _machine.Files is not null && _machine.Files.TryGetValue(path, out var value) ? value : null;
-
-    private sealed record FakeMachine(
-        string? Os,
-        Dictionary<string, FakeCommand>? Commands,
-        Dictionary<string, FakeResponse>? Http,
-        Dictionary<string, long>? FreeBytes,
-        int[]? BoundPorts,
-        Dictionary<string, string>? Env,
-        Dictionary<string, string>? Files);
-
-    private sealed record FakeCommand(int Exit, string? Stdout, string? StdoutBase64, string? Stderr);
-
-    private sealed record FakeResponse(int Status, string? Body);
 
     private sealed class FakeHandler(Dictionary<string, FakeResponse> responses) : HttpMessageHandler
     {
