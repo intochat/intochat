@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>AI module: multi-provider LLM and embedding clients, agents, and voice transcription.</Description>
-    <NoWarn>$(NoWarn);CA1812</NoWarn>
+    <NoWarn>$(NoWarn);CA1812;MEAI001</NoWarn>
     <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
@@ -28,7 +28,6 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
     <PackageReference Include="OllamaSharp" />
-    <PackageReference Include="Microsoft.AI.Foundry.Local" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
     <PackageReference Include="Concentus" />
     <PackageReference Include="Concentus.Oggfile" />
     <PackageReference Include="NAudio" />
@@ -42,6 +41,7 @@
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
+    <ProjectReference Include="../Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />

@@ -18,8 +18,19 @@ internal sealed class HardwareProbe : IHardwareProbe
     private const string DisplayAdapterClassKey = @"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
 
     private readonly Lazy<Hardware> _cached = new(ProbeOnce, LazyThreadSafetyMode.ExecutionAndPublication);
+    private int _npuDetected;
 
-    public Hardware Read() => _cached.Value;
+    public Hardware Read()
+    {
+        var hw = _cached.Value;
+        if (Volatile.Read(ref _npuDetected) == 0 || hw.Accelerators.Contains(Accelerator.Npu))
+        {
+            return hw;
+        }
+        return hw with { Accelerators = [.. hw.Accelerators, Accelerator.Npu] };
+    }
+
+    public void ReportNpu() => Interlocked.Exchange(ref _npuDetected, 1);
 
     internal static long ParseNvidiaSmi(string? output)
     {

@@ -3,6 +3,7 @@ using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
+using IntoChat.OS.Modules.Devices.Runtimes.FoundryLocal;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,6 +69,15 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.ollama"),
                 sp.GetRequiredService<IOptionsMonitor<DevicesOptions>>(),
                 sp.GetRequiredService<TimeProvider>()));
+        }
+
+        if (initial.FoundryLocal.Enabled)
+        {
+            services.TryAddSingleton<IFoundryLocalApi, SdkFoundryLocalApi>();
+            services.TryAddSingleton<FoundryLocalHost>();
+            services.AddSingleton<ILocalRuntime>(static sp => new FoundryLocalRuntime(
+                sp.GetRequiredService<FoundryLocalHost>(),
+                sp.GetRequiredService<IHardwareProbe>()));
         }
 
         foreach (var (name, entry) in initial.Attach)

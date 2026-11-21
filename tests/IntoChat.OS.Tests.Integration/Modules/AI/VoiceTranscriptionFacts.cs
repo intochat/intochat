@@ -1,3 +1,5 @@
+#pragma warning disable MEAI001
+using System.Runtime.CompilerServices;
 using DigitalBrain.Access;
 using DigitalBrain;
 using System.Globalization;
@@ -11,9 +13,11 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -116,12 +120,12 @@ public sealed class VoiceTranscriptionFacts
     public async Task FoundryLocalStartAsyncDoesNotLoadModelBeforeFirstUse()
     {
         var options = Options.Create(new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo, Where.Device));
-        var runtime = new FakeFoundryWhisperRuntime("hello world");
+        var runtime = new FakeFoundryRuntime("hello world");
         await using var service = new FoundryLocalTranscriptionService(
             options,
             NullLogger<FoundryLocalTranscriptionService>.Instance,
-            audioConverter: null,
-            runtime);
+            [runtime],
+            audioConverter: null);
 
         await service.StartAsync(Ct);
 
@@ -151,12 +155,12 @@ public sealed class VoiceTranscriptionFacts
     public async Task FoundryLocalLazyLoadFailureReturns503WithReason()
     {
         var options = Options.Create(new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo, Where.Device));
-        var failingRuntime = new FailingFoundryWhisperRuntime("Foundry Local catalog unreachable");
+        var failingRuntime = new FailingFoundryRuntime("Foundry Local catalog unreachable");
         await using var service = new FoundryLocalTranscriptionService(
             options,
             NullLogger<FoundryLocalTranscriptionService>.Instance,
-            audioConverter: null,
-            failingRuntime);
+            [failingRuntime],
+            audioConverter: null);
 
         await service.StartAsync(Ct);
         Assert.True(await service.IsReadyAsync(Ct));
@@ -228,45 +232,68 @@ public sealed class VoiceTranscriptionFacts
         Assert.Equal(0, stub.Calls);
     }
 
-    private sealed class FakeFoundryWhisperRuntime(string transcript) : IFoundryWhisperRuntime
+    private sealed class FakeFoundryRuntime(string transcript) : ILocalRuntime
     {
         private int _loadCount;
         private int _transcribeCount;
         private int _unloadCount;
 
+        public RuntimeId Id => RuntimeId.FoundryLocal;
         public int LoadCount => Volatile.Read(ref _loadCount);
         public int TranscribeCount => Volatile.Read(ref _transcribeCount);
         public int UnloadCount => Volatile.Read(ref _unloadCount);
 
-        public async Task<ILoadedWhisperModel> LoadModelAsync(AIOptions options, global::Microsoft.Extensions.Logging.ILogger logger, CancellationToken cancellationToken)
+        public async Task<RuntimeStatus> Probe(CancellationToken ct)
         {
-            Interlocked.Increment(ref _loadCount);
-            await Task.Delay(25, cancellationToken);
-            return new FakeModel(this, transcript);
+            await Task.Delay(25, ct);
+            return new RuntimeStatus(Id, Reachable: true, Version: "2.5.0", Endpoint: null);
         }
 
-        private sealed class FakeModel(FakeFoundryWhisperRuntime owner, string transcript) : ILoadedWhisperModel
-        {
-            public string Id => "whisper-large-v3-turbo";
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct) { await Task.CompletedTask; yield break; }
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct) { await Task.CompletedTask; yield break; }
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct) { await Task.CompletedTask; yield break; }
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+        public IChatClient Chat(ModelId id) => throw new NotSupportedException();
 
-            public Task<string> TranscribeAsync(string audioFilePath, CancellationToken cancellationToken)
+        public ISpeechToTextClient? Hear(ModelId id)
+        {
+            Interlocked.Increment(ref _loadCount);
+            return new FakeSpeechClient(this, transcript);
+        }
+
+        private sealed class FakeSpeechClient(FakeFoundryRuntime owner, string transcript) : ISpeechToTextClient, IAsyncDisposable
+        {
+            public Task<SpeechToTextResponse> GetTextAsync(Stream audioSpeechStream, SpeechToTextOptions? options = null, CancellationToken cancellationToken = default)
             {
                 Interlocked.Increment(ref owner._transcribeCount);
-                return Task.FromResult(transcript);
+                return Task.FromResult(new SpeechToTextResponse(transcript) { ModelId = "whisper-large-v3-turbo" });
             }
 
-            public Task UnloadAsync(global::Microsoft.Extensions.Logging.ILogger logger)
+            public async IAsyncEnumerable<SpeechToTextResponseUpdate> GetStreamingTextAsync(Stream audioSpeechStream, SpeechToTextOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+            {
+                await Task.CompletedTask;
+                yield return new SpeechToTextResponseUpdate(transcript);
+            }
+
+            public object? GetService(Type serviceType, object? serviceKey = null) => null;
+            public void Dispose() { }
+            public ValueTask DisposeAsync()
             {
                 Interlocked.Increment(ref owner._unloadCount);
-                return Task.CompletedTask;
+                return ValueTask.CompletedTask;
             }
         }
     }
 
-    private sealed class FailingFoundryWhisperRuntime(string reason) : IFoundryWhisperRuntime
+    private sealed class FailingFoundryRuntime(string reason) : ILocalRuntime
     {
-        public Task<ILoadedWhisperModel> LoadModelAsync(AIOptions options, global::Microsoft.Extensions.Logging.ILogger logger, CancellationToken cancellationToken)
-            => Task.FromException<ILoadedWhisperModel>(new InvalidOperationException(reason));
+        public RuntimeId Id => RuntimeId.FoundryLocal;
+        public Task<RuntimeStatus> Probe(CancellationToken ct) => Task.FromException<RuntimeStatus>(new InvalidOperationException(reason));
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct) { await Task.CompletedTask; yield break; }
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct) { await Task.CompletedTask; yield break; }
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct) { await Task.CompletedTask; yield break; }
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+        public IChatClient Chat(ModelId id) => throw new NotSupportedException();
     }
 
     private sealed class StubTranscriptionService(string text, string modelId) : IAudioTranscriptionService
