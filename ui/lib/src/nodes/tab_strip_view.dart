@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../components/kit/ui_kit_tabs.dart';
+import '../ui/mix/ui_mix_tabs.dart';
 import '../generated/node_commands.dart';
 import 'node_context.dart';
 
@@ -19,7 +19,7 @@ Widget renderTabStripView(TabStripViewNode node, NodeContext ctx) {
   return Semantics(
     label: controlNameOf(props.automationName, '', node.key),
     enabled: enabled,
-    child: UiKitTabs(
+    child: UiMixTabs(
       labels: [for (final item in props.items) item.label],
       // A selected id that names no tab of the props selects none.
       index: index,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
-import '../components/kit/ui_kit_surface.dart';
+import '../ui/mix/ui_mix_surface.dart';
 import 'node_common.dart';
 import 'node_renderer.dart';
 
@@ -19,7 +19,7 @@ Widget renderCard(CardNode node, NodeContext ctx) => LayoutBuilder(
         constraints.maxHeight.isFinite &&
         constraints.maxHeight >= 180;
     final renderedChildren = renderAll(node.children, ctx);
-    return UiKitSurface(
+    return UiMixSurface(
       child: Column(
         mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

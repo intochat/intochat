@@ -3,7 +3,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
 import 'node_common.dart';
-import '../components/kit/ui_kit_surface.dart';
+import '../ui/mix/ui_mix_surface.dart';
 import '../composition/value_nodes/view_badge.dart';
 import '../theme/ui_theme.dart';
 
@@ -14,7 +14,7 @@ Widget renderStatCard(StatCardNode node, NodeContext ctx) => Semantics(
   child: Builder(
     builder: (context) {
       final text = Theme.of(context).textTheme;
-      return UiKitSurface(
+      return UiMixSurface(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

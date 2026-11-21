@@ -6,7 +6,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../components/image/ui_image.dart';
-import '../components/kit/ui_kit_surface.dart';
+import '../ui/mix/ui_mix_surface.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';
@@ -342,7 +342,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
             constraints.hasBoundedHeight &&
             constraints.maxHeight.isFinite &&
             constraints.maxHeight >= 180;
-        return UiKitSurface(
+        return UiMixSurface(
           padding: EdgeInsets.all(node.padding.clamp(0, 128)),
           color: color,
           borderColor: borderColor,

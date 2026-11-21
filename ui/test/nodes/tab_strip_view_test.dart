@@ -88,7 +88,7 @@ void main() {
       'Select', (tester) async {
     final sent = await _pump(tester, {'items': _items}, selectedId: 'gone');
 
-    final tabs = tester.widget<UiKitTabs>(find.byType(UiKitTabs));
+    final tabs = tester.widget<UiMixTabs>(find.byType(UiMixTabs));
     expect(tabs.index, -1);
     await tester.tap(find.text('General'));
     await tester.pumpAndSettle();

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mix/mix.dart';
+import 'package:naked_ui/naked_ui.dart';
 
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
@@ -10,14 +12,11 @@ class _StepTabIntent extends Intent {
   final int delta;
 }
 
-/// Figma `.tabs`: a 4 px gap over a 1 px `hairline` bottom border. Each tab
-/// has 9x10 padding, 12 px `muted` text and a 2 px transparent bottom
-/// border; the active one is `strong`, 700, with an `accent` border. The row
-/// scrolls horizontally when it overflows and keeps the active tab in view.
-/// Supports `←` / `→` roving keyboard navigation (`UK-14`).
-/// Indexes in [disabled] are dimmed and ignore taps.
-final class UiKitTabs extends StatefulWidget {
-  const UiKitTabs({
+/// Option B `naked_ui` (`NakedButton`) + `mix` Tabs control with roving
+/// `←` / `→` keyboard navigation, horizontal overflow scrolling, active tab
+/// reveal, and disabled tab support.
+final class UiMixTabs extends StatefulWidget {
+  const UiMixTabs({
     super.key,
     required this.labels,
     required this.index,
@@ -31,13 +30,14 @@ final class UiKitTabs extends StatefulWidget {
   final Set<int> disabled;
 
   @override
-  State<UiKitTabs> createState() => _UiKitTabsState();
+  State<UiMixTabs> createState() => _UiMixTabsState();
 }
 
-class _UiKitTabsState extends State<UiKitTabs> {
+class _UiMixTabsState extends State<UiMixTabs> {
   List<GlobalKey> _keys = [];
   final List<FocusNode> _focusNodes = [];
   int? _focusedIndex;
+  int? _hoveredIndex;
 
   List<String> get labels => widget.labels;
   int get index => widget.index;
@@ -64,7 +64,7 @@ class _UiKitTabsState extends State<UiKitTabs> {
   }
 
   @override
-  void didUpdateWidget(UiKitTabs oldWidget) {
+  void didUpdateWidget(UiMixTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncNodes();
     if (oldWidget.index != widget.index ||
@@ -95,13 +95,11 @@ class _UiKitTabsState extends State<UiKitTabs> {
     }
   }
 
-  // After layout, scroll the row just enough to show the active tab.
   void _reveal(Duration duration) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || index < 0 || index >= _keys.length) return;
       final tab = _keys[index].currentContext;
       if (tab == null) return;
-      // Centred, clamped at the row's ends.
       Scrollable.ensureVisible(
         tab,
         alignment: 0.5,
@@ -116,9 +114,9 @@ class _UiKitTabsState extends State<UiKitTabs> {
     _syncNodes();
     final c = UiColors.of(context);
     final type = UiType.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: c.hairline)),
+    return Box(
+      style: BoxStyler().border(
+        BorderMix(bottom: BorderSideMix.color(c.hairline).width(1.0)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -139,63 +137,76 @@ class _UiKitTabsState extends State<UiKitTabs> {
     final active = i == index;
     final off = disabled.contains(i);
     final focused = _focusedIndex == i;
+    final hovered = _hoveredIndex == i;
+
     return Semantics(
       key: _keys[i],
       button: true,
       selected: active,
       enabled: !off,
-      child: FocusableActionDetector(
-        focusNode: _focusNodes[i],
-        enabled: !off,
-        mouseCursor: off ? SystemMouseCursors.basic : SystemMouseCursors.click,
-        onShowFocusHighlight: (f) {
-          setState(() {
-            if (f) {
-              _focusedIndex = i;
-            } else if (_focusedIndex == i) {
-              _focusedIndex = null;
-            }
-          });
-        },
+      child: Shortcuts(
         shortcuts: const {
           SingleActivator(LogicalKeyboardKey.arrowLeft): _StepTabIntent(-1),
           SingleActivator(LogicalKeyboardKey.arrowRight): _StepTabIntent(1),
         },
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) {
-              onChanged(i);
-              return null;
+        child: Actions(
+          actions: {
+            _StepTabIntent: CallbackAction<_StepTabIntent>(
+              onInvoke: (intent) {
+                if (!off) _stepFrom(i, intent.delta);
+                return null;
+              },
+            ),
+          },
+          child: NakedButton(
+            focusNode: _focusNodes[i],
+            enabled: !off,
+            onPressed: off ? null : () => onChanged(i),
+            onHoverChange: (h) {
+              if (!mounted) return;
+              setState(() {
+                if (h) {
+                  _hoveredIndex = i;
+                } else if (_hoveredIndex == i) {
+                  _hoveredIndex = null;
+                }
+              });
             },
-          ),
-          _StepTabIntent: CallbackAction<_StepTabIntent>(
-            onInvoke: (intent) {
-              _stepFrom(i, intent.delta);
-              return null;
+            onFocusChange: (f) {
+              if (!mounted) return;
+              setState(() {
+                if (f) {
+                  _focusedIndex = i;
+                } else if (_focusedIndex == i) {
+                  _focusedIndex = null;
+                }
+              });
             },
-          ),
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: off ? null : () => onChanged(i),
-          child: Opacity(
-            opacity: off ? 0.45 : 1,
-            child: DecoratedBox(
-              key: ValueKey('ui_kit_tab_$i'),
-              decoration: BoxDecoration(
-                color: focused ? c.accentTint : null,
-                border: Border(
-                  bottom: BorderSide(
-                    width: 2,
-                    color: active ? c.accent : Colors.transparent,
-                  ),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 9,
-                  horizontal: 10,
-                ),
+            child: Opacity(
+              opacity: off ? 0.45 : 1.0,
+              child: Box(
+                key: ValueKey('ui_mix_tab_$i'),
+                style: BoxStyler()
+                    .color(
+                      focused
+                          ? c.accentTint
+                          : hovered && !off
+                          ? c.recessed.withValues(alpha: 0.6)
+                          : Colors.transparent,
+                    )
+                    .padding(
+                      EdgeInsetsGeometryMix.symmetric(
+                        vertical: 9,
+                        horizontal: 10,
+                      ),
+                    )
+                    .border(
+                      BorderMix(
+                        bottom: BorderSideMix.color(
+                          active ? c.accent : Colors.transparent,
+                        ).width(2.0),
+                      ),
+                    ),
                 child: Text(
                   labels[i],
                   style: type.body.copyWith(

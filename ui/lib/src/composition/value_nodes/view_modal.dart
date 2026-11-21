@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../components/kit/ui_kit_surface.dart';
+import '../../ui/mix/ui_mix_surface.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_shadows.dart';
 import '../../theme/ui_theme.dart';

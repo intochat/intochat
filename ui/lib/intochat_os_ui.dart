@@ -10,8 +10,6 @@ export 'src/theme/ui_icon.dart'
 export 'src/components/kit/ui_kit_button.dart';
 export 'src/components/kit/ui_kit_field.dart';
 export 'src/components/kit/ui_kit_select.dart';
-export 'src/components/kit/ui_kit_surface.dart';
-export 'src/components/kit/ui_kit_tabs.dart';
 export 'src/composition/value_nodes/view_badge.dart' show ViewBadge;
 export 'src/components/image/ui_image.dart';
 export 'src/components/infobar/ui_info_bar.dart';

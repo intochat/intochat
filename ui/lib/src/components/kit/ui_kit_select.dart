@@ -4,7 +4,7 @@ import '../../theme/ui_colors.dart';
 import '../../theme/ui_shadows.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
-import 'ui_kit_surface.dart';
+import '../../ui/mix/ui_mix_surface.dart';
 
 /// One choice in a [UiKitSelect]. A disabled item is listed but cannot be
 /// chosen; [detail] explains why or adds context under the label.

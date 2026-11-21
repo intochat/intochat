@@ -707,7 +707,7 @@ void main() {
           ],
         });
         final surfaces = tester
-            .widgetList<UiKitSurface>(find.byType(UiKitSurface))
+            .widgetList<UiMixSurface>(find.byType(UiMixSurface))
             .toList();
         expect(surfaces, hasLength(4));
         expect(surfaces[0].color, c.elevated);

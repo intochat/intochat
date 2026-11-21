@@ -5,4 +5,5 @@ export 'ui_mix_icon_button.dart';
 export 'ui_mix_radio.dart';
 export 'ui_mix_slider.dart';
 export 'ui_mix_surface.dart';
+export 'ui_mix_tabs.dart';
 export 'ui_mix_toggle.dart';

@@ -2,12 +2,12 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
-import '../components/kit/ui_kit_tabs.dart';
+import '../ui/mix/ui_mix_tabs.dart';
 
 /// Tab items carry a key but no kind: a pick activates the item's key.
 Widget renderTabs(TabsNode node, NodeContext ctx) {
   final index = node.items.indexWhere((item) => item.id == node.selectedId);
-  return UiKitTabs(
+  return UiMixTabs(
     labels: [for (final item in node.items) item.label],
     index: index < 0 ? 0 : index,
     disabled: ctx.interactive

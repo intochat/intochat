@@ -144,7 +144,7 @@ class KitSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         section('CARD', [
-          UiKitSurface(
+          UiMixSurface(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

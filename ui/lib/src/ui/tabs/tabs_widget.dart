@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../components/kit/ui_kit_tabs.dart';
+import '../mix/ui_mix_tabs.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.Tabs.ITabs`.
@@ -43,7 +43,7 @@ class TabsWidget extends StatelessWidget {
         final isEnabled = state['isEnabled'] != false;
         final index = selectedId == null ? 0 : ids.indexOf(selectedId);
 
-        return UiKitTabs(
+        return UiMixTabs(
           labels: labels,
           index: index < 0 ? 0 : index,
           disabled: isEnabled

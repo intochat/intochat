@@ -313,7 +313,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(sidebarPane, findsNothing);
 
-        final fullBodyRect = tester.getRect(find.byType(UiKitSurface));
+        final fullBodyRect = tester.getRect(find.byType(UiMixSurface));
         expect(fullBodyRect.width, greaterThanOrEqualTo(1420));
 
         // Re-expand both panes:
