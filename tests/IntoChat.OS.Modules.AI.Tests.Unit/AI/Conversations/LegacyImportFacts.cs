@@ -9,7 +9,7 @@ namespace IntoChat.OS.Tests.Unit.Modules.AI.Conversations;
 
 public sealed class LegacyImportFacts
 {
-    private static readonly string LegacyDir = Path.Combine(AppContext.BaseDirectory, "Modules", "AI", "Conversations", "Legacy");
+    private static readonly string LegacyDir = Path.Combine(AppContext.BaseDirectory, "AI", "Conversations", "Legacy");
 
     public static TheoryData<string> Captured => new()
     {

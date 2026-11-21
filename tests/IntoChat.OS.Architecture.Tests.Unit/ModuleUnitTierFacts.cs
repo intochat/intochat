@@ -23,7 +23,8 @@ public sealed class ModuleUnitTierFacts
     }
 
     private static bool HasUnitTier(string module)
-        => Directory.Exists(Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Modules", module));
+        => Directory.Exists(Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Modules", module))
+            || Repository.Projects.ContainsKey($"IntoChat.OS.Modules.{module}.Tests.Unit");
 
     // Module main projects: IntoChat.OS.Modules.<Name>, not contracts, hosting, sandbox, shared fixtures or tests.
     private static IEnumerable<string> Modules()

@@ -44,6 +44,14 @@ public sealed partial class ModuleTestTierFacts
         foreach (var module in NeuronModules())
         {
             var shortName = module["IntoChat.OS.Modules.".Length..];
+            if (Repository.Projects.TryGetValue($"{module}.Tests.Unit", out var dedicated))
+            {
+                var dedicatedClosure = Closure(dedicated.Path);
+                Assert.True(dedicatedClosure.Contains("DigitalBrain.Testing") || dedicatedClosure.Contains("DigitalBrain.Testing.Silo"),
+                    $"{dedicated.Name}: does not reach DigitalBrain.Testing (TestOS)");
+                Assert.DoesNotContain(Repository.PackageReferences(dedicated.Path), package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal));
+                continue;
+            }
             if (!Directory.Exists(Path.Combine(unitTestsDir, shortName)))
             {
                 offenders.Add($"{module}: no tests under tests/IntoChat.OS.Tests.Unit/Modules/{shortName}");
