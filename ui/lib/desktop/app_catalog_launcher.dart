@@ -51,7 +51,6 @@ const _defaultSmartAppIds = <String>[
   'engineer',
   'gallery',
   'friends',
-  'circles',
   'workspace',
   'settings',
 ];
@@ -91,7 +90,6 @@ const _coreSmartAppIds = <String>[
   'orleans',
   'trace',
   'friends',
-  'circles',
 ];
 
 final List<SmartAppTileSpec> defaultSmartAppSpecs = List.unmodifiable([

@@ -112,38 +112,3 @@ final class BrainEntry {
     kind: json['kind'] as String? ?? 'Personal',
   );
 }
-
-// Something that happened inside one circle brain, from that brain's own live feed: a line spoken (the
-// CircleSpoke signal) or the circle changed (CircleChanged). Ready marks one circle's feed connected.
-final class CircleActivity {
-  const CircleActivity({
-    required this.circle,
-    required this.kind,
-    this.sequence,
-    this.replay = false,
-  }) : ready = false;
-
-  const CircleActivity.ready(this.circle)
-    : kind = '',
-      sequence = null,
-      replay = false,
-      ready = true;
-
-  final String circle, kind;
-  final int? sequence;
-  final bool replay, ready;
-
-  factory CircleActivity.fromEnvelope(String circle, LiveEnvelope envelope) =>
-      envelope.isReady
-      ? CircleActivity.ready(circle)
-      : CircleActivity(
-          circle: circle,
-          kind:
-              (envelope.type == 'CircleSpoke' ||
-                  envelope.type == 'ProfileChanged')
-              ? 'spoke'
-              : 'changed',
-          sequence: envelope.sequence,
-          replay: envelope.replay,
-        );
-}
