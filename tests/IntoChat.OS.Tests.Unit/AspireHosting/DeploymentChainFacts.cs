@@ -30,10 +30,7 @@ public sealed class DeploymentChainFacts
             Args = [.. args],
             DisableDashboard = true,
         });
-        var profile = DeploymentProfile.From(builder);
-        var os = builder.AddIntoChatOS("Modules", IntoChatOSHostingOptions.Named(builder.Configuration, "os"));
-        os.Profile = profile;
-        return os;
+        return builder.AddIntoChatOS("Modules");
     }
 
     [Theory]

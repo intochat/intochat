@@ -34,7 +34,7 @@ public sealed class DevicesHostingFacts
     public void TheKernelHasAnInstallModelCommand()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions());
         var kernel = builder.AddExecutable("OperatingSystem", "unused", ".").WithReference(brain);
 
         var command = Assert.Single(
@@ -49,7 +49,7 @@ public sealed class DevicesHostingFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var ai = new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo);
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
             .WithHosting<AIModuleHosting, AIOptions>(ai);
         var kernel = builder.AddExecutable("OperatingSystem", "unused", ".").WithReference(brain);
 
@@ -69,7 +69,7 @@ public sealed class DevicesHostingFacts
 
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var ai = new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo);
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
             .WithHosting<AIModuleHosting, AIOptions>(ai);
         _ = builder.AddExecutable("OperatingSystem", "unused", ".").WithReference(brain);
 
@@ -83,7 +83,7 @@ public sealed class DevicesHostingFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var ai = new AIOptions().WithModel(KnownModels.Qwen35);
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
             .WithHosting<AIModuleHosting, AIOptions>(ai);
         var kernel = builder.AddExecutable("OperatingSystem", "unused", ".").WithReference(brain);
 
@@ -138,7 +138,7 @@ public sealed class DevicesHostingFacts
             var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
             builder.Configuration["IntoChatOS:Home"] = tempHome;
             var front = builder.AddExecutable("front", "unused", ".").WithHttpEndpoint(name: "http");
-            var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+            var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
                 .WithShellFront(front);
 
             Assert.Null(ShellHostingExtensions.TryGetPresenceToken(brain));
@@ -168,7 +168,7 @@ public sealed class DevicesHostingFacts
             var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
             builder.Configuration["IntoChatOS:Home"] = tempHome;
             var front = builder.AddExecutable("front", "unused", ".").WithHttpEndpoint(name: "http");
-            var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+            var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
                 .WithShellFront(front);
 
             Assert.Null(ShellHostingExtensions.TryGetPresenceToken(brain));
@@ -195,7 +195,7 @@ public sealed class DevicesHostingFacts
 
             var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
             builder.Configuration["IntoChatOS:Home"] = tempHome;
-            var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
+            var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions());
 
             Assert.Equal(expected, DevicesHostingExtensions.ResolvePresenceToken(brain));
         }

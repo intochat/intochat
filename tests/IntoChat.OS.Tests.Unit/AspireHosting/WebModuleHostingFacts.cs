@@ -13,14 +13,11 @@ public sealed class WebModuleHostingFacts
     [Fact]
     public async Task LocalTopologyAddsSearxngAndProjectsItsUrl()
     {
-        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--IntoChatOS:Shell:Enabled=false"], DisableDashboard = true });
         builder.Configuration[IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal;
-        var profile = DeploymentProfile.From(builder);
 
-        Assert.Equal(SearchProvider.Searxng, profile.Web.Provider);
-
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
-        brain = profile.Apply(brain);
+        var brain = builder.AddIntoChatOS("modules")
+            .WithAI(ai => ai.Web(w => w.SearXng().Brave(cloudOnly: true)));
 
         var searxng = Assert.Single(
             builder.Resources.OfType<ContainerResource>(),
@@ -64,14 +61,11 @@ public sealed class WebModuleHostingFacts
     [Fact]
     public async Task CloudTopologyUsesBraveAndAddsNoContainer()
     {
-        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--IntoChatOS:Shell:Enabled=false"], DisableDashboard = true });
         builder.Configuration[IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyCloud;
-        var profile = DeploymentProfile.From(builder);
 
-        Assert.Equal(SearchProvider.Brave, profile.Web.Provider);
-
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
-        brain = profile.Apply(brain);
+        var brain = builder.AddIntoChatOS("modules")
+            .WithAI(ai => ai.Web(w => w.SearXng().Brave(cloudOnly: true)));
 
         Assert.DoesNotContain(
             builder.Resources.OfType<ContainerResource>(),

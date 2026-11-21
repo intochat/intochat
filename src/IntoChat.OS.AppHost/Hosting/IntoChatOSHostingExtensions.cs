@@ -45,7 +45,7 @@ public static class IntoChatOSHostingExtensions
             .AddBlobContainer(brain.ResourceName(name), blobContainerName: name);
     }
 
-    public static IntoChatOSBuilder AddIntoChatOS(this IDistributedApplicationBuilder builder, string name, IntoChatOSHostingOptions? options = null)
+    public static IntoChatOSBuilder AddIntoChatOSBrain(this IDistributedApplicationBuilder builder, string name, IntoChatOSHostingOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -153,7 +153,10 @@ public static class IntoChatOSHostingExtensions
             projection.Apply(builder);
         }
 
-        builder.WithInstallModelCommand(brain);
+        if (brain.Profile is null || brain.Profile.UsesDevice)
+        {
+            builder.WithInstallModelCommand(brain);
+        }
 
         return builder;
     }

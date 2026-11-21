@@ -28,7 +28,7 @@ public sealed class ModuleSecretProjectionFacts
         builder.Configuration["IntoChatOS:Integrations:dual-oauth:ClientSecret"] = "secret-456";
         builder.Configuration["IntoChatOS:Modules:dual-secrets:Secrets:signing-key"] = "key-789";
 
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
             .WithModule<DualSecretsModule>();
         ModuleSecretProjection.Project(brain, typeof(DualSecretsModule));
 

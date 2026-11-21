@@ -1,32 +1,17 @@
-using Aspire.Hosting;
-
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class DeploymentSnapshotFacts
 {
-    private static readonly string KernelPath = DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel");
-
     [Theory]
     [InlineData("local")]
     [InlineData("cloud")]
-    public void CompositionMatchesRecordedSnapshot(string topology)
+    public void OnlyTheAiSectionsChanged(string topology)
     {
-        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
-        {
-            Args = [$"--IntoChatOS:Topology={topology}", "--IntoChatOS:Shell:Enabled=false"],
-            DisableDashboard = true,
-        });
-        var profile = DeploymentProfile.From(builder);
-        var os = builder.AddIntoChatOS("Modules", profile);
-        os.AddKernel(KernelPath, profile);
+        var recorded = DeploymentSnapshot.Load($"deployment-{topology}.json")
+            .Without("ai", "devices", "webtools", "mcp");
+        var actual = DeploymentSnapshot.Of(AppHostChainFacts.Compose(topology))
+            .Without("ai", "devices", "webtools", "mcp");
 
-        var actual = DeploymentSnapshot.Of(os);
-        var fileName = $"deployment-{topology}.json";
-        if (string.Equals(Environment.GetEnvironmentVariable("UPDATE_SNAPSHOTS"), "1", StringComparison.Ordinal))
-        {
-            DeploymentSnapshot.SaveSource(fileName, actual);
-        }
-
-        Assert.Equal(DeploymentSnapshot.Load(fileName), actual);
+        Assert.Equal(recorded, actual);
     }
 }

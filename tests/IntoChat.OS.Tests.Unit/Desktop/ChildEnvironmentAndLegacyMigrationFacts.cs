@@ -253,7 +253,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
             // Window mode check
             {
                 var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-                var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+                var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
                     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(o =>
                     {
                         o.RunDesktopApp();
@@ -292,7 +292,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
             // Web mode check
             {
                 var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-                var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+                var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
                     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(o =>
                     {
                         o.RunWebApp();
@@ -321,7 +321,7 @@ public sealed class ChildEnvironmentAndLegacyMigrationFacts
             // WebContainer mode check
             {
                 var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-                var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+                var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
                     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(o =>
                     {
                         o.RunWebApp();
