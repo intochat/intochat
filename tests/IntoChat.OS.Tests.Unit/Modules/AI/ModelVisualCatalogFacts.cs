@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Visuals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
@@ -141,4 +142,12 @@ public sealed class ModelVisualCatalogFacts
         var opusReply = await opus.Generate(req, TestContext.Current.CancellationToken);
         Assert.Equal("stop", opusReply.FinishReason);
     }
+
+    [Fact]
+    public void EveryCardIconIsAllowlisted()
+        => Assert.All(KnownModels.All, c => Assert.Contains(c.IconKey(), (IReadOnlySet<string>)VisualCatalog.AllIconKeys));
+
+    [Fact]
+    public void VisualCatalogHasNoModelLookup()
+        => Assert.Null(typeof(VisualCatalog).GetMethod("ForModel"));
 }

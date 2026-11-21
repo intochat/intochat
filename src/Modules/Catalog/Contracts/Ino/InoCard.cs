@@ -16,7 +16,8 @@ public sealed record InoCard(
     string[]? Columns = null,
     string[][]? Rows = null,
     string? ChartKind = null,
-    InoChartPoint[]? ChartPoints = null)
+    InoChartPoint[]? ChartPoints = null,
+    string? Node = null)
 {
     public string EffectiveScopeUri => SurfaceScopeUri ?? string.Empty;
     public bool IsWaiting => string.Equals(Status, "pending", StringComparison.OrdinalIgnoreCase)

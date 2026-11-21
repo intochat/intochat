@@ -120,7 +120,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             var modelInfo = await TryReadModelCatalogAsync(next.DefaultModel);
             next = next with
             {
-                AvailableModels = modelInfo.Options,
+                Roles = modelInfo.Roles,
+                Providers = modelInfo.Providers,
                 LocalOllamaEndpoint = modelInfo.LocalEndpoint,
             };
         }
@@ -245,12 +246,16 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     {
         ArgumentNullException.ThrowIfNull(changed);
         var key = SignalSlot;
+        if (SettingsControls.RoleOf(key) is { } role)
+        {
+            return SetRoleAsync(role, changed.Id);
+        }
+
         SettingsSavePreferences? save = key switch
         {
             SettingsControls.ThemeMode when changed.Id != State.ThemeMode
                 => new SettingsSavePreferences(Theme: changed.Id is "light" or "dark" ? changed.Id : null, ThemeMode: changed.Id),
             SettingsControls.BarLayout when changed.Id != State.BarLayout => new SettingsSavePreferences(BarLayout: changed.Id),
-            SettingsControls.DefaultModel when changed.Id != State.DefaultModel => new SettingsSavePreferences(DefaultModel: changed.Id),
             _ => null,
         };
         return save is null ? Task.CompletedTask : SavePreferences(save);
@@ -282,7 +287,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         new("apps", "Apps", "installed apps store link install permissions capabilities memory ino", "os://sheet/install", "layout-grid", "Capabilities & Data"),
         new("connections", "Connections", "postgres salesforce google drive github slack integrations webhook oauth reconnect", "os://window/settings?section=connections", "plug", "Capabilities & Data"),
         new("files", "Files", "storage drive local computer root desktop mode synced folders conflict naming", "os://sheet/conflict", "folder", "Capabilities & Data"),
-        new("models", "AI models", "ollama lm studio claude gpt gemini local inference reasoning effort default model", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
+        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort default model", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
         new("keys", "API keys", "personal api key secrets token encryption vault anthropic openai groq mistral google", "os://window/secure", "key-round", "Capabilities & Data"),
         new("variables", "Variables and secrets", "environment variables key value table sealed secret vault scope local brain system", "os://window/settings?section=variables", "braces", "Capabilities & Data"),
         new("billing", "Billing", "tokens consumption credits balance auto top-up monthly spend limit payment invoices compute", "os://window/settings?section=billing", "credit-card", "Organization & System"),

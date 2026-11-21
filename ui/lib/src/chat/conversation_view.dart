@@ -18,6 +18,7 @@ import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
 import '../voice_input/ui_voice_input.dart';
+import 'model_picker.dart';
 import 'ui_copyable_message.dart';
 
 /// Declarative conversation surface rendered from a `ConversationNode`.
@@ -30,6 +31,10 @@ class ConversationView extends StatefulWidget {
     required this.node,
     required this.ctx,
     this.onErrorAction,
+    this.models,
+    this.activeModelId,
+    this.selectModelKey,
+    this.pinModelKey,
   });
 
   final ConversationNode node;
@@ -38,6 +43,18 @@ class ConversationView extends StatefulWidget {
   /// Runs the error line's action instead of activating its key (an action
   /// the slot's parent decided, which the thread's view does not hold).
   final VoidCallback? onErrorAction;
+
+  /// Model choices shown in the composer's model picker popover.
+  final List<ModelChoice>? models;
+
+  /// Wire id of the currently selected model for highlighting in the picker.
+  final String? activeModelId;
+
+  /// Key activated with the chosen model id to switch this conversation.
+  final String? selectModelKey;
+
+  /// Key activated with the chosen model id to pin it as the Chat default.
+  final String? pinModelKey;
 
   @override
   State<ConversationView> createState() => _ConversationViewState();
@@ -201,6 +218,28 @@ class _ConversationViewState extends State<ConversationView> {
     unawaited(widget.ctx.activate(stop.key, context: context));
   }
 
+  Future<void> _selectModel(String key, String modelId) async {
+    if (!widget.ctx.interactive || modelId.trim().isEmpty) return;
+    final first = await widget.ctx.activateReporting(
+      key,
+      value: modelId,
+      context: mounted ? context : null,
+    );
+    if (first == ActivationOutcome.stale) {
+      if (widget.ctx.reload case final reload?) {
+        await reload();
+      }
+      final nextFrame = Completer<void>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!nextFrame.isCompleted) nextFrame.complete();
+      });
+      WidgetsBinding.instance.scheduleFrame();
+      await nextFrame.future;
+      if (!mounted) return;
+      await widget.ctx.activateReporting(key, value: modelId, context: context);
+    }
+  }
+
   KeyEventResult _handleConversationKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -352,6 +391,8 @@ class _ConversationViewState extends State<ConversationView> {
             composer.activeModelLabel!.trim().isNotEmpty) ||
         (composer.activeProviderIcon != null &&
             composer.activeProviderIcon!.trim().isNotEmpty);
+    final models = widget.models ?? const <ModelChoice>[];
+    final showModelChip = hasActiveModel || models.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
@@ -414,48 +455,69 @@ class _ConversationViewState extends State<ConversationView> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Focus(
-                                onKeyEvent: _handleComposerKey,
-                                child: TextField(
-                                  controller: _controller,
-                                  focusNode: _composerFocus,
-                                  enabled:
-                                      composer.enabled &&
-                                      widget.ctx.interactive,
-                                  minLines: 1,
-                                  maxLines: 6,
-                                  keyboardType: TextInputType.multiline,
-                                  textInputAction: TextInputAction.newline,
-                                  style: IcType.text(
-                                    14,
-                                    color: c.textStrong,
-                                    height: 1.45,
+                            child: Focus(
+                              onKeyEvent: _handleComposerKey,
+                              child: TextField(
+                                controller: _controller,
+                                focusNode: _composerFocus,
+                                enabled:
+                                    composer.enabled && widget.ctx.interactive,
+                                minLines: 1,
+                                maxLines: 6,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.newline,
+                                style: IcType.text(
+                                  14,
+                                  color: c.textStrong,
+                                  height: 1.45,
+                                ),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 7,
                                   ),
-                                  decoration: InputDecoration.collapsed(
-                                    hintText: composer.placeholder,
-                                    hintStyle: IcType.text(
-                                      14,
-                                      color: c.textSubtle,
-                                      height: 1.45,
-                                    ),
+                                  hintText: composer.placeholder,
+                                  hintStyle: IcType.text(
+                                    14,
+                                    color: c.textSubtle,
+                                    height: 1.45,
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          if (hasActiveModel) ...[
+                          if (showModelChip) ...[
                             const SizedBox(width: 8),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: IcBrandChip(
-                                key: const ValueKey('composer-active-model'),
-                                spec: BrandVisuals.fromNode(
-                                  label: composer.activeModelLabel,
-                                  iconKey: composer.activeProviderIcon,
+                            SizedBox(
+                              height: 34,
+                              child: Center(
+                                child: ModelPickerButton(
+                                  key: const ValueKey('composer-active-model'),
+                                  models: models,
+                                  activeModelId: widget.activeModelId,
+                                  activeModelLabel: composer.activeModelLabel,
+                                  activeProviderIcon:
+                                      composer.activeProviderIcon,
+                                  enabled: widget.ctx.interactive,
+                                  onSelect: widget.selectModelKey == null
+                                      ? null
+                                      : (id) => unawaited(
+                                          _selectModel(
+                                            widget.selectModelKey!,
+                                            id,
+                                          ),
+                                        ),
+                                  onPin: widget.pinModelKey == null
+                                      ? null
+                                      : (id) => unawaited(
+                                          _selectModel(widget.pinModelKey!, id),
+                                        ),
                                 ),
-                                compact: true,
                               ),
                             ),
                           ],
@@ -469,6 +531,7 @@ class _ConversationViewState extends State<ConversationView> {
                           ],
                           const SizedBox(width: 8),
                           _SendIconButton(
+                            key: const ValueKey('composer-send'),
                             enabled: canSend,
                             busy: _submitting,
                             onTap: _submit,
@@ -833,6 +896,7 @@ class _StopHintBar extends StatelessWidget {
 
 class _SendIconButton extends StatelessWidget {
   const _SendIconButton({
+    super.key,
     required this.enabled,
     required this.busy,
     required this.onTap,

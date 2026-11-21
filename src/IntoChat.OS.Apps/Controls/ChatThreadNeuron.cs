@@ -9,18 +9,24 @@ it is submitted; SubmitText signals Submitted with the text under "text", and St
 status, empty text and an error no message carries are props its parent writes on the slot. Named ChatThread because a `conversation`
 data node already exists; it draws as a chatThreadView with the conversation's renderer.
 */
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
+using IntoChat.OS.Modules.UI.Chat.Signals;
 
 namespace IntoChat.OS.Apps.Controls;
 
 /// <summary>A chat thread: it owns the messages and signals what the user asks of them.</summary>
-[Neuron("control.chatThread"), Emits(typeof(MessageAppended)), Emits(typeof(MessageUpdated)), Emits(typeof(RetryRequested)), Emits(typeof(Submitted)), Emits(typeof(StopRequested))]
-public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>
+[Neuron("control.chatThread"), Emits(typeof(MessageAppended)), Emits(typeof(MessageUpdated)), Emits(typeof(RetryRequested)), Emits(typeof(Submitted)), Emits(typeof(StopRequested)), Emits(typeof(ChatModelSelected))]
+public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>
 {
+    [JsonSerializable(typeof(Dictionary<string, bool>))]
+    [JsonSerializable(typeof(Dictionary<string, string>))]
+    private sealed partial class ChatThreadArgsJson : JsonSerializerContext;
     /// <summary>The reason a failed message draws when it carries none.</summary>
     public const string NoAnswer = "The model did not answer.";
 
@@ -33,11 +39,21 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
     /// <summary>The key of the composer node.</summary>
     public const string ComposerKey = "composer";
 
+    /// <summary>The key of the composer's per-conversation model picker target.</summary>
+    public const string SelectModelKey = "composer-model";
+
+    /// <summary>The key of the composer's pin-default model picker target.</summary>
+    public const string PinModelKey = "composer-model-default";
+
     /// <summary>The key of the stop button.</summary>
     public const string StopKey = "stop";
 
     /// <summary>The key of the error line's retry button.</summary>
     public const string ErrorRetryKey = "error-action";
+
+    private static readonly JsonElement PinModelArgs = JsonSerializer.SerializeToElement(
+        new Dictionary<string, bool> { ["default"] = true },
+        ChatThreadArgsJson.Default.DictionaryStringBoolean);
 
     /// <summary>The key of a message's retry button.</summary>
     public static string RetryKeyOf(string id) => $"retry:{id}";
@@ -109,6 +125,14 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
         return Publish(new StopRequested());
     }
 
+    [On]
+    public Task SelectModel(SelectModel command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (string.IsNullOrWhiteSpace(command.Value)) { return Task.CompletedTask; }
+        return Publish(new ChatModelSelected(Id.FullKey(), command.Value.Trim(), command.Default));
+    }
+
     /// <summary>
     /// <paramref name="held"/> with <paramref name="incoming"/> merged: a held id is replaced in place, a new one appended; null entries,
     /// blank ids and an id repeated in <paramref name="incoming"/> (after its first) are skipped. The last 500 are kept.
@@ -139,7 +163,9 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
             [.. Shown(messages).Select(DrawMessage)],
             new ComposerNode(ComposerKey, new Emit("control.chatThread", "control.submitText")),
             showsStop ? new Button(StopKey, "Stop", new Command(".", "control.stop"), AutomationName: "Stop") : null,
-            showsRetry ? new Button(ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again") : null);
+            showsRetry ? new Button(ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again") : null,
+            SelectModel: new ModelSelectNode(SelectModelKey, new Emit("control.chatThread", "control.selectModel")),
+            PinModel: new ModelSelectNode(PinModelKey, new Emit("control.chatThread", "control.selectModel", PinModelArgs)));
     }
 
     protected override View Render(ChatThreadState state)
@@ -166,7 +192,9 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
     }
 
     private static Command RetryCommand(string id)
-        => new(".", "control.retry", System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["id"] = id }));
+        => new(".", "control.retry", JsonSerializer.SerializeToElement(
+            new Dictionary<string, string> { ["id"] = id },
+            ChatThreadArgsJson.Default.DictionaryStringString));
 
     private static IReadOnlyList<ThreadMessage> Shown(IReadOnlyList<ThreadMessage> messages)
     {

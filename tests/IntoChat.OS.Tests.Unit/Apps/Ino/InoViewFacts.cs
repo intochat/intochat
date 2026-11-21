@@ -6,6 +6,7 @@ using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.Aspire;
@@ -367,9 +368,34 @@ public sealed class InoViewFacts
         var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
         Assert.Equal(("CodeGraph", "capability:codegraph", "#10B981"), (codeGraphVisual.Label, codeGraphVisual.IconKey, codeGraphVisual.AccentHex));
 
-        var modelVisual = InoView.ResolveModelVisual("claude-sonnet-4-6");
-        Assert.NotNull(modelVisual);
-        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (modelVisual.Value.Label, modelVisual.Value.IconKey));
+        var model = InoView.ResolveModel("claude-sonnet-4-6");
+        Assert.NotNull(model);
+        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (model.Name, model.IconKey()));
+    }
+
+    [Fact]
+    public void TheChipShowsTheCardsCleanName()
+    {
+        var props = InoView.ThreadProps(new InoAppState() with { SelectedModel = "IQwen35" });
+        Assert.Equal("Qwen 3.5 4B", props.ActiveModelLabel);
+        Assert.Equal("provider:ollama", props.ActiveProviderIcon);
+        Assert.Equal("qwen3.5:4b", props.ActiveModelId);
+    }
+
+    [Fact]
+    public void ChoicesSplitLocalAndCloudAndCarryTheReason()
+    {
+        var choices = InoView.Choices(
+            [KnownModels.Qwen35, KnownModels.Opus5, KnownModels.Whisper1],
+            [new(KnownModels.Qwen35.Id, true, null), new(KnownModels.Opus5.Id, false, "Add a key in API keys")]);
+
+        Assert.Equal(["local", "cloud"], choices.Select(static x => x.Section));
+        Assert.Equal("qwen3.5:4b", choices[0].Id);
+        Assert.True(choices[0].Available);
+        Assert.Null(choices[0].Note);
+        Assert.Equal("Add a key in API keys", choices[1].Note);
+        Assert.False(choices[1].Available);
+        Assert.Contains("reasoning", choices[1].Abilities!);
     }
 
     [Fact]
@@ -439,7 +465,7 @@ public sealed class InoViewFacts
         Assert.False(conversation.Composer.Dictation);
 
         var screen = InoDrawing.Screen(state);
-        var rootConversation = Assert.IsType<Conversation>(screen.Root);
+        var rootConversation = Assert.IsType<Conversation>(Assert.Single(Assert.IsType<Column>(screen.Root).Children));
         Assert.False(rootConversation.Composer.Dictation);
     }
 
@@ -452,8 +478,85 @@ public sealed class InoViewFacts
         Assert.True(conversation.Composer.Dictation);
 
         var screen = InoDrawing.Screen(state, dictation: true);
-        var rootConversation = Assert.IsType<Conversation>(screen.Root);
+        var rootConversation = Assert.IsType<Conversation>(Assert.Single(Assert.IsType<Column>(screen.Root).Children));
         Assert.True(rootConversation.Composer.Dictation);
+    }
+
+    [Fact]
+    public void TheThreadAloneStillFlexes()
+    {
+        var root = Assert.IsType<Column>(InoDrawing.Screen(new InoAppState()).Root);
+        Assert.Equal([1d], root.Extents);
+        Assert.IsType<Conversation>(Assert.Single(root.Children));
+    }
+
+    [Fact]
+    public void ThreadFillsWithCardsAround()
+    {
+        var state = new InoAppState() with
+        {
+            DraftPrompt = "Check deployment status",
+            Status = InoModel.Failed,
+            Error = new InoError("no-provider"),
+            Approvals =
+            [
+                new IntoChat.OS.Modules.Apps.Approvals.Approval(
+                    "plan-1",
+                    IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.FlowStep,
+                    "change-flow-1",
+                    "Push branch?",
+                    "Touches 1 file.",
+                    At,
+                    At.AddDays(1),
+                    "trace-1"),
+            ],
+        };
+
+        var root = Assert.IsType<Column>(InoDrawing.Screen(state).Root);
+        Assert.Single(root.Extents!, e => e == 1d);
+        Assert.Equal(root.Children.Count, root.Extents!.Count);
+        Assert.Single(root.Children.OfType<Conversation>());
+        Assert.DoesNotContain(root.Children, c => c is Column);
+    }
+
+    [Fact]
+    public void ANodeCardIsDrawnInsideACardFrame()
+    {
+        const string nodeJson = """{"kind":"column","children":[{"kind":"text","value":"Apple"}]}""";
+        var state = new InoAppState() with
+        {
+            Messages =
+            [
+                new InoMessage("r1/user", "user", "Show fruit"),
+                new InoMessage("r1/assistant", "assistant", "Here is the card.")
+                {
+                    Cards =
+                    [
+                        new InoCard("node-1", "node", "Fruit", "", IInoFocus.DefaultKey, "done") { Node = nodeJson },
+                    ],
+                },
+            ],
+        };
+
+        var conversation = InoDrawing.Conversation(state);
+        var assistant = conversation.Messages[1];
+        var card = Assert.IsType<Card>(Assert.Single(assistant.Cards!));
+        Assert.Equal("Fruit", card.Title);
+        var innerColumn = Assert.IsType<Column>(Assert.Single(card.Children));
+        var innerText = Assert.IsType<Text>(Assert.Single(innerColumn.Children));
+        Assert.Equal("Apple", innerText.Value);
+    }
+
+    [Fact]
+    public void AnInvalidStoredNodeCardRendersNothing()
+    {
+        var nodes = InoView.RenderCardNodes(
+            new InoCard("node-bad", "node", "Hostile", "", IInoFocus.DefaultKey, "done")
+            {
+                Node = """{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""",
+            }).ToArray();
+
+        Assert.Empty(nodes);
     }
 
     private static IReadOnlyList<string> Texts(View view)

@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, toggle-devui, make, link, ui.command
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, toggle-devui, make, link, ui.command
 */
 using DigitalBrain;
 using DigitalBrain.Confirmation;
@@ -45,6 +45,8 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     private IReadOnlyList<ThreadMessage>? SyncedThread { get; set; }
     private bool ThreadKnown { get; set; }
     private ChatThreadProps? SyncedProps { get; set; }
+    private ModelCard[]? PickerCards { get; set; }
+    private ModelAvailability[]? PickerAvailability { get; set; }
     private string? ThreadFailureText { get; set; }
     private Rejected? RecordedRejection { get; set; }
 
@@ -79,7 +81,9 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             CanDictate,
             props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
             ThreadFailureText,
-            base.LastRejection);
+            base.LastRejection,
+            PickerCards,
+            PickerAvailability);
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
     {
@@ -171,7 +175,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var thread = InoView.Thread(next);
         if (!ThreadKnown && thread.Count == 0) { return; }
         // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
-        var props = InoView.ThreadProps(next, CanDictate, ThreadFailureText);
+        var props = InoView.ThreadProps(next, CanDictate, ThreadFailureText, PickerCards, PickerAvailability);
         if (SyncedThread is { } synced && synced.SequenceEqual(thread) && Equals(props, SyncedProps)) { return; }
         // Ino's own save stands when the thread cannot be written: the slot's props say so (to the person and to MCP readers), and the
         // next save writes the thread again.
@@ -239,7 +243,9 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
 
     [On]
     public Task OnUiChatModelSelected(ChatModelSelected? selected)
-        => selected is not null && IsCurrentUiChat(selected.ChatId) ? UseLocalModel(new InoUseLocalModel(Model: selected.ModelId)) : Task.CompletedTask;
+        => selected is not null && (SignalSlot == InoView.ConversationKey || IsCurrentUiChat(selected.ChatId))
+            ? ChooseModel(new InoChooseModel(Model: selected.ModelId, MakeDefault: selected.MakeDefault))
+            : Task.CompletedTask;
 
     // Sends a turn again: an empty id is the last prompt; a user message's id is that prompt; a reply's id is the prompt it answered.
     private async Task RetryTurnAsync(string? id)
@@ -268,9 +274,11 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             await FollowSlot<ChatThreadNeuron, RetryRequested>(InoView.ConversationKey);
             await FollowSlot<ChatThreadNeuron, Submitted>(InoView.ConversationKey);
             await FollowSlot<ChatThreadNeuron, StopRequested>(InoView.ConversationKey);
+            await FollowSlot<ChatThreadNeuron, ChatModelSelected>(InoView.ConversationKey);
         });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
+        await RefreshPickerAsync();
         CanDictate = await InoModelSetup.InitializeViewAsync(Setup);
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
         await TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));
@@ -291,6 +299,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             local?.PreferredModel, local?.InstalledModels);
 
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
+        await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
         var devUi = string.Equals(request.Mode, "devui", StringComparison.OrdinalIgnoreCase) || Current.DevUiMode;
         await Commit(nextState with { RecentConversations = recents, DevUiMode = devUi });
@@ -376,6 +385,23 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     }
 
     [On]
+    public async Task ChooseModel(InoChooseModel request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Decision.Check("choose-model", InoAppState.ValidModelRule(request.Model)) is { } refused)
+        {
+            await RecordRejectionAsync(refused.Rejection);
+            return;
+        }
+
+        if (request.MakeDefault)
+        {
+            await RefreshPickerAsync();
+        }
+        await InoModelSetup.ChooseModelAsync(Setup, request.Model!, request.MakeDefault);
+    }
+
+    [On]
     public async Task SaveProvider(InoSaveProvider request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -387,7 +413,9 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             await RecordRejectionAsync(refused.Rejection);
             return;
         }
-        if (await InoModelSetup.SaveProviderAsync(Setup, request)) { await Retry(new InoRetry()); }
+        var saved = await InoModelSetup.SaveProviderAsync(Setup, request);
+        await RefreshPickerAsync();
+        if (saved) { await Retry(new InoRetry()); }
         if (State.HasUnsavedProviderDraft) { await Commit(Current with { HasUnsavedProviderDraft = false }); }
     }
 
@@ -463,7 +491,17 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task OnSettingsChanged(UserSettingsChanged? changed)
     {
         if (changed is null || (string.IsNullOrEmpty(changed.DisplayName) && string.IsNullOrEmpty(changed.DefaultModel))) { return; }
+        await RefreshPickerAsync();
         await InoModelSetup.SyncSettingsAsync(Setup, changed);
+    }
+
+    private async Task RefreshPickerAsync()
+    {
+        if (await InoModelSetup.ReadPickerAsync(Setup) is { } picker)
+        {
+            PickerCards = picker.Cards;
+            PickerAvailability = picker.Availability;
+        }
     }
 
     private InoSetupHost Setup => SetupHost ??= new InoSetupHost(
@@ -494,6 +532,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var agentKey = InoModel.AgentKeyOf(conversationId);
         ThreadKnown = true;
         await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
+        await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
         await Commit(InoModel.NewConversation(Current, conversationId) with { RecentConversations = recents });
         await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(conversationId)));
@@ -516,6 +555,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         SyncedThread = null;
         SyncedProps = null;
         await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
+        await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
         await Commit(InoModel.SwitchConversation(Current, conversationId, recents) with { DraftPrompt = null });
         await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(conversationId)));

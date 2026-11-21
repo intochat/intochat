@@ -146,12 +146,18 @@ internal static class NodeSchema
         foreach (var (neuron, command) in senders)
         {
             var fields = ArgsFields(command);
-            var named = fields.Length == 0 ? "" : ", {" + string.Join(", ", fields.Select(field => $"required {ArgDartType(field)} {JsonName(field)}")) + "}";
+            var named = fields.Length == 0 ? "" : ", {" + string.Join(", ", fields.Select(field => $"required {ArgDartType(field)} {DartIdentifier(field)}")) + "}";
             dart.Append($"/// Sends `{command.Name}` to the `{NeuronKind(neuron)}` neuron at [address].\n");
             dart.Append($"Future<ActivationOutcome> {SenderName(neuron, command)}(NodeContext ctx, String address{named}) =>\n");
-            dart.Append($"    ctx.act(address, '{Alias(command)}', {{{string.Join(", ", fields.Select(field => $"'{JsonName(field)}': {JsonName(field)}"))}}});\n\n");
+            dart.Append($"    ctx.act(address, '{Alias(command)}', {{{string.Join(", ", fields.Select(field => $"'{JsonName(field)}': {DartIdentifier(field)}"))}}});\n\n");
         }
         return dart.ToString();
+    }
+
+    private static string DartIdentifier(PropertyInfo property)
+    {
+        var name = JsonName(property);
+        return name is "default" or "switch" or "enum" or "class" ? name + "Value" : name;
     }
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);

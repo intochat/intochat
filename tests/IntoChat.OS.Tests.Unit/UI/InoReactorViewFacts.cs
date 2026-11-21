@@ -113,7 +113,7 @@ public sealed class InoReactorViewFacts
         };
 
         var view = InoDrawing.Screen(state);
-        var conversation = Assert.IsType<Conversation>(view.Root);
+        var conversation = Assert.IsType<Conversation>(Assert.Single(Assert.IsType<Column>(view.Root).Children));
         var assistant = conversation.Messages[1];
 
         // Inline slot markers are extracted cleanly out of prose and mounted as live NeuronRef Slot nodes

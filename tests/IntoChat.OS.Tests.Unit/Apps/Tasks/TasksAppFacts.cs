@@ -949,6 +949,7 @@ public sealed class TasksAppFacts
         }
 
         public Task<InoToolResult> Clear() => Task.FromResult(new InoToolResult("Cleared."));
+        public Task<InoToolResult> Show(string title, string node) => Task.FromResult(new InoToolResult("Shown."));
     }
 
     [Neuron("ino.synapses")]

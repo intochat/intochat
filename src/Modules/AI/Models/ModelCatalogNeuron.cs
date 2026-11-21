@@ -2,13 +2,17 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity.Contracts.Entries;
+using Microsoft.Extensions.Logging;
 using Orleans;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
 // A brain's catalog is {brain}/ai.models/main; the deployment's view is the system brain's (R4-19).
 [Neuron("ai.models"), StatelessNeuron]
-internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? grains = null) : DigitalBrain.Neurons.Neuron, IModelCatalog
+internal sealed class ModelCatalogNeuron(
+    ModelCatalog catalog,
+    IGrainFactory? grains = null,
+    ILogger<ModelCatalogNeuron>? logger = null) : DigitalBrain.Neurons.Neuron, IModelCatalog
 {
     private BrainId? Brain => Id.Brain.Value == IModelCatalog.SystemBrain ? null : Id.Brain;
 
@@ -117,6 +121,7 @@ internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? gr
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            logger?.LogDebug(error, "User settings for brain '{BrainId}' are unavailable; skipping person role override.", Id.Brain.Value);
             return null;
         }
     }

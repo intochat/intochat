@@ -465,6 +465,16 @@
         "name": "error",
         "type": "Map<String, Object?>",
         "default": null
+      },
+      {
+        "name": "models",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "activeModelId",
+        "type": "String?",
+        "default": null
       }
     ],
     "state": [
@@ -513,6 +523,14 @@
         }
       },
       {
+        "name": "SelectModel",
+        "signal": "control.selectModel",
+        "args": {
+          "value": "String?",
+          "default": "bool"
+        }
+      },
+      {
         "name": "Stop",
         "signal": "control.stop",
         "args": {}
@@ -534,6 +552,15 @@
       }
     ],
     "signals": [
+      {
+        "name": "ChatModelSelected",
+        "signal": "ui.chat-model-selected",
+        "args": {
+          "chatId": "String",
+          "modelId": "String",
+          "makeDefault": "bool"
+        }
+      },
       {
         "name": "MessageAppended",
         "signal": "control.messageAppended",
@@ -653,6 +680,16 @@
       },
       {
         "name": "props",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "selectModel",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "pinModel",
         "type": "Map<String, Object?>",
         "default": null
       }

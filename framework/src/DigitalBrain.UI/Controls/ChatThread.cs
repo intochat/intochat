@@ -40,13 +40,18 @@ public sealed record ChatThreadState
 /// <param name="Retry">The error line's retry: present only while the props the parent last routed carry an error that retries.</param>
 /// <param name="Props">The slot's props, set only where a reader outside the client draws the slot in place (a screen directory); the
 /// neuron never sets it and the client reads the slot's own props.</param>
+/// <param name="SelectModel">The addressable model-picker target that switches only this conversation's model.</param>
+/// <param name="PinModel">The addressable model-picker target that switches this conversation's model and pins the Chat role default.</param>
 [ViewNode("chatThreadView")]
 public sealed record ChatThreadView(string Key, IReadOnlyList<MessageNode> Messages, ComposerNode Composer, Button? Stop = null, Button? Retry = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ChatThreadProps? Props = null) : Node
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ChatThreadProps? Props = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ModelSelectNode? SelectModel = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ModelSelectNode? PinModel = null) : Node
 {
     /// <inheritdoc />
     public bool Equals(ChatThreadView? other) => other is not null && Key == other.Key && Messages.SequenceEqual(other.Messages)
-        && Equals(Composer, other.Composer) && Equals(Stop, other.Stop) && Equals(Retry, other.Retry) && Equals(Props, other.Props);
+        && Equals(Composer, other.Composer) && Equals(Stop, other.Stop) && Equals(Retry, other.Retry) && Equals(Props, other.Props)
+        && Equals(SelectModel, other.SelectModel) && Equals(PinModel, other.PinModel);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Key, Messages.Count);
