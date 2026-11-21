@@ -14,6 +14,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 | `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |
 | `Circles` | `circles` | Circles: brains that share apps, a chat and a share of the owner's compute. |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
+| `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |
 | `GitHub` | `github` | GitHub repository connection neurons. |
 | `Google` | `google-auth`, `google-drive`, `gmail` | Google sign-in shared by Drive and Gmail; Drive as storage; Gmail. |
 | `Mcp` | `mcp`, `tools` | Any Streamable-HTTP MCP server as a tool source, and the per-brain registry of tool sources. |

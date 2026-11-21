@@ -24,6 +24,7 @@ public static class OperatingSystemModules
         typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly,
         typeof(IntoChat.OS.Modules.Circles.CirclesModule).Assembly,
         typeof(IntoChat.OS.Modules.ClickHouse.ClickHouseModule).Assembly,
+        typeof(IntoChat.OS.Modules.Devices.DevicesModule).Assembly,
         typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule).Assembly,
         typeof(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule).Assembly,
         typeof(IntoChat.OS.Modules.Mcp.McpModule).Assembly,

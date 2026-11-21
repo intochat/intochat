@@ -9,7 +9,7 @@ public readonly record struct ModelId([property: Id(0)] string Value)
     public override string ToString() => Value ?? string.Empty;
 }
 
-internal sealed class ModelIdJsonConverter : JsonConverter<ModelId>
+public sealed class ModelIdJsonConverter : JsonConverter<ModelId>
 {
     public override ModelId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         => new(reader.GetString() ?? string.Empty);

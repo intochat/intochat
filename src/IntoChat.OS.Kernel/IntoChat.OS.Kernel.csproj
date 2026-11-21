@@ -54,6 +54,7 @@
     <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
     <ProjectReference Include="../Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
     <ProjectReference Include="../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
+    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
     <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../Modules/Google/IntoChat.OS.Modules.Google.csproj" />
     <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
