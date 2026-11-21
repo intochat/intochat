@@ -1,5 +1,6 @@
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Web;
 
 namespace IntoChat.OS.Apps.Settings;
 
@@ -36,6 +37,11 @@ internal static class SettingsControls
     public const string BarLayout = "bar-layout";
     public const string Search = "search";
     public const string Regional = "regional";
+    public const string WebSearchProvider = "web-search-provider";
+    public const string SearxngUrl = "web-searxng-url";
+    public const string McpAddForm = "mcp-add";
+    public const string WebSearchProviderVariable = "web.search.provider";
+    public const string WebSearxngUrlVariable = "web.search.searxng-url";
 
     public static string RoleKey(Role role) => $"role-{role.ToString().ToLowerInvariant()}";
 
@@ -63,11 +69,50 @@ internal static class SettingsControls
     [
         new(ThemeMode, s => s.ThemeMode),
         new(BarLayout, s => s.BarLayout),
+        new(WebSearchProvider, ResolveWebSearchProvider),
         .. Enum.GetValues<Role>().Select(role => new Combo(
             RoleKey(role),
             s => s.Roles.FirstOrDefault(r => r.Role == role)?.Selected
                 ?? (role == Role.Chat ? s.DefaultModel : null))),
     ];
+
+    public static string ResolveWebSearchProvider(SettingsAppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var fromVariable = (state.Variables ?? [])
+            .FirstOrDefault(v => string.Equals(v.Key, WebSearchProviderVariable, StringComparison.Ordinal))?.Value;
+        if (TryNormalizeSearchProvider(fromVariable) is { } varProvider)
+        {
+            return varProvider;
+        }
+
+        if (TryNormalizeSearchProvider(state.WebSearchProvider) is { } stateProvider)
+        {
+            return stateProvider;
+        }
+
+        return nameof(SearchProvider.Off);
+    }
+
+    public static string? TryNormalizeSearchProvider(string? raw)
+        => !string.IsNullOrWhiteSpace(raw)
+            && Enum.TryParse<SearchProvider>(raw.Trim(), ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed)
+            ? parsed.ToString()
+            : null;
+
+    public static string ResolveSearxngUrl(SettingsAppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var fromVariable = (state.Variables ?? [])
+            .FirstOrDefault(v => string.Equals(v.Key, WebSearxngUrlVariable, StringComparison.Ordinal))?.Value;
+        if (!string.IsNullOrWhiteSpace(fromVariable))
+        {
+            return fromVariable.Trim();
+        }
+
+        return state.WebSearxngUrl?.Trim() ?? string.Empty;
+    }
 
     public static SettingSwitch? ToggleOf(string? key) => Toggles.FirstOrDefault(toggle => toggle.Key == key);
 
@@ -104,5 +149,35 @@ internal static class SettingsControls
             "Save regional settings",
             IsEnabled: !managed,
             AutomationName: "Regional settings"));
+    }
+
+    public static Node SearxngUrlForm(SettingsSlots slots, SettingsAppState state)
+    {
+        var managed = IsManaged(state, SearxngUrl);
+        return slots.Form(SearxngUrl, new FormProps(
+            [
+                new FormInput(
+                    "url",
+                    "SearXNG URL",
+                    Value: ResolveSearxngUrl(state),
+                    Placeholder: "http://localhost:8080",
+                    MaxLength: 256),
+            ],
+            "Save SearXNG URL",
+            IsEnabled: !managed,
+            AutomationName: "SearXNG URL"));
+    }
+
+    public static Node McpAddFormControl(SettingsSlots slots, SettingsAppState state)
+    {
+        var managed = IsManaged(state, McpAddForm);
+        return slots.Form(McpAddForm, new FormProps(
+            [
+                new FormInput("name", "Server name", Value: "", Placeholder: "docs", MaxLength: 32),
+                new FormInput("url", "Server URL", Value: "", Placeholder: "https://example.org/mcp", MaxLength: 512),
+            ],
+            "Add MCP server",
+            IsEnabled: !managed,
+            AutomationName: "Add MCP server"));
     }
 }

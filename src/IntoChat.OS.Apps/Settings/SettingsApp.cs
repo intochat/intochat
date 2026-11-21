@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse, ui.command
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse, mcp-add, mcp-remove, ui.command
 
 Declarative macOS Sonoma-style System Settings application for IntoChat OS (`UK-16` / `INT-1364`).
 Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, `ConnectionPage`,
@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Kernel;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
@@ -25,12 +26,15 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.Form.Signals;
+using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Visuals;
 
@@ -88,6 +92,12 @@ public sealed record SettingsSetGitHubTriagePolicy(string Preset = "") : Signal;
 [Signal("settings.install-issue-triage-synapse")]
 public sealed record SettingsInstallIssueTriageSynapse(string ConnectionKey = "", string Mode = "DraftForApproval") : Signal;
 
+[Signal("settings.mcp-add")]
+public sealed record SettingsMcpAdd(string? Name = null, string? Url = null, string? Title = null) : Signal;
+
+[Signal("settings.mcp-remove")]
+public sealed record SettingsMcpRemove(string? Name = null) : Signal;
+
 [Neuron("app.settings")]
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
@@ -100,13 +110,21 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SynapseAliasPattern();
 
-    public SettingsApp() : this(null, null) { }
+    public SettingsApp() : this(null, null, null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public SettingsApp(ISecretVault? secretVault = null, BrainPreferenceStore? preferenceStore = null)
+    public SettingsApp(
+        ISecretVault? secretVault = null,
+        BrainPreferenceStore? preferenceStore = null,
+        IBrainObserver? observer = null,
+        IOptions<WebModuleOptions>? webOptions = null,
+        IOptions<McpModuleOptions>? mcpOptions = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
+        Observer = observer;
+        WebOptions = webOptions;
+        McpOptions = mcpOptions;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -124,6 +142,16 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
                 Providers = modelInfo.Providers,
                 LocalOllamaEndpoint = modelInfo.LocalEndpoint,
             };
+
+            if (string.Equals(next.SubPage, "web-tools", StringComparison.OrdinalIgnoreCase))
+            {
+                next = await RefreshWebToolsProjectionAsync(next);
+            }
+        }
+        else if (string.Equals(next.Section, "keys", StringComparison.Ordinal))
+        {
+            var secrets = await InspectSecretStatusesAsync(next.Variables ?? []);
+            next = next with { SecretStatuses = secrets };
         }
         else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
         {
@@ -157,6 +185,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
         await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Search);
         await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Regional);
+        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.SearxngUrl);
+        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.McpAddForm);
 
         try
         {
@@ -169,6 +199,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
                         new FormField("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKinds.Secret, Placeholder: "sk-ant-…"),
                         new FormField("OPENAI_API_KEY", "OpenAI API key", FormFieldKinds.Secret, Placeholder: "sk-…"),
                         new FormField("GOOGLE_API_KEY", "Google Gemini API key", FormFieldKinds.Secret, Placeholder: "AIza…"),
+                        new FormField("BRAVE_API_KEY", "Brave Search API key", FormFieldKinds.Secret, Placeholder: "BSA…"),
+                        new FormField("TAVILY_API_KEY", "Tavily API key", FormFieldKinds.Secret, Placeholder: "tvly-…"),
                     ],
                     submitLabel: "Save vault references");
             }
@@ -251,6 +283,11 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             return SetRoleAsync(role, changed.Id);
         }
 
+        if (string.Equals(key, SettingsControls.WebSearchProvider, StringComparison.Ordinal))
+        {
+            return SetWebSearchProviderAsync(changed.Id);
+        }
+
         SettingsSavePreferences? save = key switch
         {
             SettingsControls.ThemeMode when changed.Id != State.ThemeMode
@@ -271,12 +308,17 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             SettingsControls.Search => UpdateAsync(State.Filter(Value("query") ?? "")),
             SettingsControls.Regional => SavePreferences(new SettingsSavePreferences(
                 DisplayName: Value("displayName"), Language: Value("language"), TimeZone: Value("timeZone"), DateFormat: Value("dateFormat"))),
+            SettingsControls.SearxngUrl => SetSearxngUrlAsync(Value("url") ?? ""),
+            SettingsControls.McpAddForm => McpAdd(new SettingsMcpAdd(Value("name"), Value("url"))),
             _ => Task.CompletedTask,
         };
     }
 
     public ISecretVault? SecretVault { get; set; }
     public BrainPreferenceStore? PreferenceStore { get; set; }
+    public IBrainObserver? Observer { get; set; }
+    public IOptions<WebModuleOptions>? WebOptions { get; set; }
+    public IOptions<McpModuleOptions>? McpOptions { get; set; }
 
     private ILogger Log => GetLogger();
 
@@ -287,7 +329,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         new("apps", "Apps", "installed apps store link install permissions capabilities memory ino", "os://sheet/install", "layout-grid", "Capabilities & Data"),
         new("connections", "Connections", "postgres salesforce google drive github slack integrations webhook oauth reconnect", "os://window/settings?section=connections", "plug", "Capabilities & Data"),
         new("files", "Files", "storage drive local computer root desktop mode synced folders conflict naming", "os://sheet/conflict", "folder", "Capabilities & Data"),
-        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort default model", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
+        new("models", "AI", "ai models roles chat think fast hear speak talk embed image providers ollama foundry lm studio claude gpt gemini openai anthropic google xai openrouter local inference reasoning effort default model web search searxng brave tavily mcp servers microsoft learn tools", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
         new("keys", "API keys", "personal api key secrets token encryption vault anthropic openai groq mistral google", "os://window/secure", "key-round", "Capabilities & Data"),
         new("variables", "Variables and secrets", "environment variables key value table sealed secret vault scope local brain system", "os://window/settings?section=variables", "braces", "Capabilities & Data"),
         new("billing", "Billing", "tokens consumption credits balance auto top-up monthly spend limit payment invoices compute", "os://window/settings?section=billing", "credit-card", "Organization & System"),
@@ -321,6 +363,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
                 new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
                 new("set-github-triage-policy", "Adopt, update, or reset the github.issue.comment governance PolicyRule preset."),
                 new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IStudio."),
+                new("mcp-add", "Connect an MCP tool server to this brain."),
+                new("mcp-remove", "Disconnect an MCP tool server from this brain."),
                 new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
             ],
             Settings: [],
