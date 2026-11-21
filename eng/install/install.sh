@@ -231,7 +231,7 @@ if [ "$ACTUAL_SHA" != "$SHA_TO_VERIFY" ]; then
     exit 1
 fi
 
-mkdir -p "$HOME_DIR" "$BIN_DIR" "$SECRETS_DIR" "$RUN_DIR" "$LOGS_DIR" "$STATE_DIR"
+mkdir -p "$HOME_DIR" "$BIN_DIR" "$SECRETS_DIR" "$RUN_DIR" "$LOGS_DIR"
 chmod 700 "$SECRETS_DIR" "$RUN_DIR"
 
 EXTRACT_DIR="$STAGING_DIR/extracted"

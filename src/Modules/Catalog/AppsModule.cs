@@ -73,6 +73,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddNeuronProxies();
         services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
         services.TryAddSingleton<PolicyWriter>();
+        services.TryAddSingleton<ArtifactLiveHub>();
         // FeatureBoot runs once the silo is active, as an Orleans startup task did.
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
@@ -86,6 +87,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         AppsEndpoints.Map(endpoints);
         ArtCraftWebEndpoints.Map(endpoints);
         WidgetbookWebEndpoints.Map(endpoints);
+        ArtifactEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
     }

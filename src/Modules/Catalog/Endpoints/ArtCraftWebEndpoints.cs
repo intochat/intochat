@@ -267,11 +267,35 @@ internal static class ArtCraftWebEndpoints
           return activeDocument;
         },
         getState: () => ({ appId, title, activeDocument, wasmReady: Boolean(window.wasmBindings) }),
+        loadArtifactBytes: async (docPath) => {
+          const target = docPath || activeDocument;
+          const res = await fetch('/artifacts/bytes?path=' + encodeURIComponent(target));
+          if (!res.ok) return null;
+          return new Uint8Array(await res.arrayBuffer());
+        },
+        saveArtifactBytes: async (bytes, docPath) => {
+          const target = docPath || activeDocument;
+          const res = await fetch('/artifacts/bytes?path=' + encodeURIComponent(target) + '&actor=user', {
+            method: 'PUT',
+            body: bytes
+          });
+          return res.ok ? await res.json() : null;
+        },
         runCommand: (cmd, cmdParams) => {
           window.dispatchEvent(new CustomEvent('artcraft:command', { detail: { appId, cmd, params: cmdParams, activeDocument } }));
           return { ok: true, appId, cmd, activeDocument };
         }
       };
+      // Live SSE subscription: whenever Ino mutates activeDocument via MCP, notify the open WASM canvas immediately.
+      try {
+        const es = new EventSource('/artifacts/stream?path=' + encodeURIComponent(activeDocument));
+        es.addEventListener('artifact', (msg) => {
+          try {
+            const detail = JSON.parse(msg.data);
+            window.dispatchEvent(new CustomEvent('artcraft:artifact-updated', { detail }));
+          } catch (_) {}
+        });
+      } catch (_) {}
       window[appId] = bridge;
       window.artcraftStudio = bridge;
       window.addEventListener('message', (event) => {
