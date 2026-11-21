@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
     <Description>Legacy read-only circles and the one-release device-enrollment shim.</Description>
   </PropertyGroup>
   <ItemGroup>

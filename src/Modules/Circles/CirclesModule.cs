@@ -37,5 +37,10 @@ public sealed class CirclesModule : DigitalBrain.Modules.Module, IHttpModule
 #pragma warning restore CS0618
     }
 
-    private static IResult Gone() => Results.Text(GoneMessage, statusCode: StatusCodes.Status410Gone);
+    private static Task Gone(HttpContext http)
+    {
+        http.Response.StatusCode = StatusCodes.Status410Gone;
+        http.Response.ContentType = "text/plain; charset=utf-8";
+        return http.Response.WriteAsync(GoneMessage, http.RequestAborted);
+    }
 }
