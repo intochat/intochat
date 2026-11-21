@@ -371,7 +371,7 @@ internal static class InoModelSetup
 
             case "model":
                 var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
-                await ChooseModelAsync(host, nextModel, makeDefault: true);
+                await ChooseModelAsync(host, nextModel, makeDefault: true, statusOverride: $"Switched model to {nextModel}");
                 return;
 
             default:

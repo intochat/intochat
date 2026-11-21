@@ -352,7 +352,7 @@ internal sealed class ConversationNeuron(
                 new DigitalBrain.Rules.Rejected("voiced", ["person-only"], ["Only a person participating in the conversation may record a voice exchange."]));
         }
 
-        Authorize();
+        AuthorizeOwnerOnly();
         await Fresh();
         await EnsureImportedAsync();
 

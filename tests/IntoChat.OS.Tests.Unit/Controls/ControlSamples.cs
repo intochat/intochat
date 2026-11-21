@@ -27,6 +27,6 @@ internal static class ControlSamples
         [typeof(QueryTableNeuron)] = new(new QueryTableProps("People", [new QueryTableColumn("name", "Name")], "local/control.sampleTableSource/people"), new QueryTableState(), [new Filter("a"), new Sort("name"), new Page(2)]),
         [typeof(ChatThreadNeuron)] = new(new ChatThreadProps("Ask anything."), new ChatThreadState(),
             [new AppendMessage(new ThreadMessage("m1", "assistant", "", "failed")), new UpdateMessage("m1", new ThreadMessagePatch(Failure: "timed-out")),
-             new ImportMessages([new ThreadMessage("m2", "user", "hi")]), new Retry("m1"), new SubmitText("hello"), new Stop()]),
+             new ImportMessages([new ThreadMessage("m2", "user", "hi")]), new Retry("m1"), new SubmitText("hello"), new Stop(), new SelectModel("gpt-5.4")]),
     };
 }

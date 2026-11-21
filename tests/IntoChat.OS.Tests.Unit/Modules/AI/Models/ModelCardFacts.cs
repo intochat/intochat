@@ -27,6 +27,7 @@ public sealed class ModelCardFacts
         Assert.Equal(8, (int)AiProvider.Host);
         Assert.Equal(9, (int)AiProvider.OpenAICompatible);
         Assert.Equal(10, (int)AiProvider.SherpaOnnx);
+        Assert.Equal(11, (int)AiProvider.Device);
     }
 
     [Theory]

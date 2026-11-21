@@ -1097,7 +1097,7 @@ public sealed class ModelCatalog
 
         if (kind == StoredModelKind.Card && KnownModels.Find(parsed) is { } card)
         {
-            if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct).ConfigureAwait(false))
+            if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, local, ct).ConfigureAwait(false))
             {
                 return true;
             }
