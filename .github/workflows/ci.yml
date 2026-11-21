@@ -54,8 +54,8 @@ jobs:
         run: |
           status=0
           for name in DigitalBrain DigitalBrain.Simulation DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Capabilities.Storage DigitalBrain.Capabilities.Secrets DigitalBrain.Capabilities.Identity DigitalBrain.Capabilities.Compute DigitalBrain.Capabilities.Connections DigitalBrain.Capabilities.Http DigitalBrain.Capabilities.Tools DigitalBrain.Identity.Local DigitalBrain.Runtime.Http; do
-            assets="artifacts/obj/$name/project.assets.json"
-            if [ -f "$assets" ] && grep -qi '"Microsoft\.Orleans\.' "$assets"; then
+            project="framework/src/$name/$name.csproj"
+            if dotnet list "$project" package --include-transitive | grep -i orleans; then
               echo "::error::$name references Orleans"
               status=1
             fi
@@ -166,8 +166,8 @@ jobs:
 
       - name: Test (Unit Tier — MTP)
         run: |
-          shopt -s extglob
-          dotnet test --test-modules "artifacts/bin/!(*.Architecture).Tests.Unit/release/*.Tests.Unit.dll" --max-parallel-test-modules 4
+          rm -rf artifacts/bin/*.Architecture.Tests.Unit
+          dotnet test --test-modules "artifacts/bin/*.Tests.Unit/release/*.Tests.Unit.dll" --max-parallel-test-modules 4
 
   test-integration-os:
     name: test-integration-os
