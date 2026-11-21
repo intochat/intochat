@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Net;
 using System.Text;
 using Aspire.Hosting;
@@ -7,6 +8,7 @@ using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices.Aspire.Hosting;
+using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
@@ -125,6 +127,82 @@ public sealed class DevicesHostingFacts
         Assert.Equal((HttpMethod.Get, "/devices/this", "presence-secret-token"), (requests[0].Method, requests[0].Path, requests[0].Presence));
         Assert.Equal((HttpMethod.Post, "/devices/machine-42/install", "presence-secret-token"), (requests[1].Method, requests[1].Path, requests[1].Presence));
         Assert.Equal("""{"model":"gemma4:e2b"}""", requests[1].Body);
+    }
+
+    [Fact]
+    public void WithShellFrontWithoutShellHostReturnsNullPresenceToken()
+    {
+        var tempHome = Directory.CreateTempSubdirectory("intochat-devices-presence-").FullName;
+        try
+        {
+            var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+            builder.Configuration["IntoChatOS:Home"] = tempHome;
+            var front = builder.AddExecutable("front", "unused", ".").WithHttpEndpoint(name: "http");
+            var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+                .WithShellFront(front);
+
+            Assert.Null(ShellHostingExtensions.TryGetPresenceToken(brain));
+            Assert.Null(DevicesHostingExtensions.ResolvePresenceToken(brain));
+        }
+        finally
+        {
+            Directory.Delete(tempHome, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolvePresenceTokenReadsRaw32BytePresenceFileAsBase64Url()
+    {
+        var tempHome = Directory.CreateTempSubdirectory("intochat-devices-presence-").FullName;
+        try
+        {
+            var runDir = Path.Combine(tempHome, "run");
+            Directory.CreateDirectory(runDir);
+            var rawBytes = new byte[PresenceProof.SecretByteCount];
+            for (var i = 0; i < rawBytes.Length; i++)
+            {
+                rawBytes[i] = (byte)(i * 7 + 0x80);
+            }
+            File.WriteAllBytes(Path.Combine(runDir, "presence"), rawBytes);
+
+            var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+            builder.Configuration["IntoChatOS:Home"] = tempHome;
+            var front = builder.AddExecutable("front", "unused", ".").WithHttpEndpoint(name: "http");
+            var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
+                .WithShellFront(front);
+
+            Assert.Null(ShellHostingExtensions.TryGetPresenceToken(brain));
+            var token = DevicesHostingExtensions.ResolvePresenceToken(brain);
+            Assert.Equal(Base64Url.EncodeToString(rawBytes), token);
+            Assert.Equal(PresenceProof.ComputeTokenHash(rawBytes), PresenceProof.ComputeTokenHash(token!));
+        }
+        finally
+        {
+            Directory.Delete(tempHome, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolvePresenceTokenReadsPrintableAsciiPresenceFileTrimmed()
+    {
+        var tempHome = Directory.CreateTempSubdirectory("intochat-devices-presence-").FullName;
+        try
+        {
+            var runDir = Path.Combine(tempHome, "run");
+            Directory.CreateDirectory(runDir);
+            const string expected = "local-ascii-presence-secret-0123456789";
+            File.WriteAllText(Path.Combine(runDir, "presence"), $"{expected}\r\n", Encoding.ASCII);
+
+            var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+            builder.Configuration["IntoChatOS:Home"] = tempHome;
+            var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
+
+            Assert.Equal(expected, DevicesHostingExtensions.ResolvePresenceToken(brain));
+        }
+        finally
+        {
+            Directory.Delete(tempHome, recursive: true);
+        }
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) : HttpMessageHandler

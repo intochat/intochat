@@ -72,7 +72,7 @@ public static class ShellHostingExtensions
     }
 
     internal static string? TryGetPresenceToken(IntoChatOSBuilder? brain)
-        => brain is not null && brain.TryGetState<ShellHostingState>(out var state)
+        => brain is not null && brain.TryGetState<ShellHostingState>(out var state) && state.HasShellHost
             ? state.PresenceToken
             : null;
 
@@ -80,6 +80,7 @@ public static class ShellHostingExtensions
     {
         private readonly string _presenceToken = MintPresenceToken(out _);
         internal string PresenceToken => _presenceToken;
+        internal bool HasShellHost => _flutterHost is not null || _shellContainer is not null;
         private string? _presenceTokenHash;
         private IResourceBuilder<ExecutableResource>? _flutterHost;
         private IResourceBuilder<ContainerResource>? _shellContainer;

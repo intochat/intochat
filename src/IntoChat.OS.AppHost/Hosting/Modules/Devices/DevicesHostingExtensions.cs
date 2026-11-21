@@ -1,4 +1,6 @@
+using System.Buffers.Text;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Aspire.Hosting;
@@ -190,7 +192,7 @@ public static class DevicesHostingExtensions
             : null;
     }
 
-    private static string? ResolvePresenceToken(IntoChatOSBuilder? brain)
+    internal static string? ResolvePresenceToken(IntoChatOSBuilder? brain)
     {
         if (ShellHostingExtensions.TryGetPresenceToken(brain) is { Length: > 0 } shellToken)
         {
@@ -203,22 +205,61 @@ public static class DevicesHostingExtensions
             return configuredToken.Trim();
         }
 
+        var tokenFile = config?[PresenceProof.TokenFileConfigurationKey]
+            ?? (config is not null ? Path.Combine(IntoChatOSHome.Resolve(config), "run", "presence") : null);
+        if (!string.IsNullOrWhiteSpace(tokenFile) && File.Exists(tokenFile))
+        {
+            var token = DecodePresenceFileMaterial(File.ReadAllBytes(tokenFile));
+            if (token is not null)
+            {
+                return token;
+            }
+        }
+
         if (Environment.GetEnvironmentVariable("INTOCHAT_PRESENCE_TOKEN") is { Length: > 0 } envToken)
         {
             return envToken.Trim();
         }
 
-        var tokenFile = config?[PresenceProof.TokenFileConfigurationKey]
-            ?? (config is not null ? Path.Combine(IntoChatOSHome.Resolve(config), "run", "presence.token") : null);
-        if (!string.IsNullOrWhiteSpace(tokenFile) && File.Exists(tokenFile))
+        return null;
+    }
+
+    internal static string? DecodePresenceFileMaterial(ReadOnlySpan<byte> rawBytes)
+    {
+        if (rawBytes.Length == 0)
         {
-            var text = File.ReadAllText(tokenFile).Trim();
-            if (text.Length > 0)
+            return null;
+        }
+
+        if (rawBytes.Length == PresenceProof.SecretByteCount && !IsAllPrintableAscii(rawBytes))
+        {
+            return Base64Url.EncodeToString(rawBytes);
+        }
+
+        if (IsAllPrintableAscii(rawBytes))
+        {
+            var text = Encoding.UTF8.GetString(rawBytes).Trim();
+            return text.Length > 0 ? text : null;
+        }
+
+        return Base64Url.EncodeToString(rawBytes);
+    }
+
+    private static bool IsAllPrintableAscii(ReadOnlySpan<byte> bytes)
+    {
+        foreach (var b in bytes)
+        {
+            if (b is (byte)'\r' or (byte)'\n' or (byte)'\t')
             {
-                return text;
+                continue;
+            }
+
+            if (b is < 0x21 or > 0x7E)
+            {
+                return false;
             }
         }
 
-        return null;
+        return true;
     }
 }
