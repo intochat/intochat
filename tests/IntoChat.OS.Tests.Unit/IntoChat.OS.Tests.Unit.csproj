@@ -45,6 +45,7 @@
     <ProjectReference Include="../../src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../../src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />
     <ProjectReference Include="../../src/Modules/UI/IntoChat.OS.Modules.UI.csproj" />
+    <ProjectReference Include="../../src/Modules/Web/IntoChat.OS.Modules.Web.csproj" />
     <ProjectReference Include="../../src/Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
     <ProjectReference Include="../IntoChat.OS.Tests.Support/IntoChat.OS.Tests.Support.csproj" />
   </ItemGroup>

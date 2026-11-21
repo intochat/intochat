@@ -25,6 +25,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 | `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. Its contracts assembly (`IntoChat.OS.Modules.Shell.Contracts`) lives in `src/Modules/Shell/Contracts`. |
 | `Storage` | `local-disk` | Local disks as storage: allowed roots, volume quota and confined file access. |
 | `Time` | `time` | Timers and persistent periodic reminders. |
+| `Web` | `webtools` | Web search and vetted public web page reading. Its contracts assembly (`IntoChat.OS.Modules.Web.Contracts`) lives in `src/Modules/Web/Contracts`. |
 | `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |
 
 The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`, and `IdentityModule` in `src/Modules/Identity`, whose contracts (`IntoChat.OS.Modules.Identity.Contracts`) are in `src/Modules/Identity/Contracts`.
