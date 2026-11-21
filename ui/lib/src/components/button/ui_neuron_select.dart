@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../ui/mix/ui_mix_select.dart';
+import '../../primitives/select.dart';
 import 'ui_neuron_button.dart';
 
 /// A generic choice menu. The owner supplies its options and their order.

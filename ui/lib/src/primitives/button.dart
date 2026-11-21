@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../design/keys.dart';
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_icon.dart';
-import '../../theme/ui_shadows.dart';
-import '../../theme/ui_theme.dart';
-import '../../theme/ui_tokens.dart';
+import '../design/keys.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_icon.dart';
+import '../theme/ui_shadows.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_tokens.dart';
 
 /// Button styles. The order mirrors a C# enum by index; do not reorder.
 typedef UiKitButtonStyle = UiMixButtonStyle;
@@ -15,7 +15,7 @@ enum UiMixButtonStyle { primary, secondary, ghost, danger, link }
 /// Desktop-dense button unified with `Btn` (`controls.dart`):
 /// 36px standard / 30px compact height, 14px/10px horizontal padding,
 /// 10px radius, 13px w600 Inter label, 15px Lucide icon, 1px press translate,
-/// [SelectionRing] focus, and `DESIGN.md` §10.8 guard/hint [Tooltip] support.
+/// [SelectionRing] focus, and `DESIGN.md` Â§10.8 guard/hint [Tooltip] support.
 typedef UiKitButton = UiMixActionButton;
 
 final class UiMixActionButton extends StatefulWidget {

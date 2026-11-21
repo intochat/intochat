@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
-import '../mix/ui_mix_controls.dart';
+import '../../primitives/primitives.dart';
 import '../neuron_widget.dart';
 
 class CalendarViewNeuronWidget extends StatelessWidget {
@@ -49,7 +49,7 @@ class CalendarViewNeuronWidget extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '$title · $year-${month.toString().padLeft(2, '0')}',
+                      '$title Â· $year-${month.toString().padLeft(2, '0')}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

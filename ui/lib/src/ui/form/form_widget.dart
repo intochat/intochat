@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../ui/mix/ui_mix_button.dart';
+import '../../primitives/button.dart';
 import '../../design/tokens.dart';
 import '../../theme/wire_node_values.dart';
 import '../neuron_widget.dart';
@@ -130,7 +130,7 @@ class _FormWidgetState extends State<FormWidget> {
                   style: TextStyle(fontSize: 13.5, color: c.textStrong),
                   decoration: InputDecoration(
                     hintText: hasSealed
-                        ? '•••••••• (sealed — enter new value to rotate)'
+                        ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ (sealed â€” enter new value to rotate)'
                         : placeholder,
                     hintStyle: TextStyle(fontSize: 13, color: c.textMuted),
                     isDense: true,
@@ -151,7 +151,10 @@ class _FormWidgetState extends State<FormWidget> {
                           unawaited(
                             invoke('SetSecretRef', [
                               id,
-                              {'vaultKey': 'vault://$id', 'mask': '••••••••'},
+                              {
+                                'vaultKey': 'vault://$id',
+                                'mask': 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
+                              },
                             ]),
                           );
                         }

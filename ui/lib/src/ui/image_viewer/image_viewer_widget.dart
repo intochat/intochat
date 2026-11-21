@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
-import '../mix/ui_mix_controls.dart';
+import '../../primitives/primitives.dart';
 import '../neuron_widget.dart';
 
 class ImageViewerNeuronWidget extends StatelessWidget {
@@ -60,7 +60,7 @@ class ImageViewerNeuronWidget extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${(zoom * 100).round()}% · $rotation°',
+                    '${(zoom * 100).round()}% Â· $rotationÂ°',
                     style: TextStyle(fontSize: 11, color: c.textMuted),
                   ),
                   UiMixIconButton(

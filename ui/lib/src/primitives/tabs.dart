@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_theme.dart';
-import '../../theme/ui_tokens.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_tokens.dart';
 
 class _StepTabIntent extends Intent {
   const _StepTabIntent(this.delta);
@@ -13,7 +13,7 @@ class _StepTabIntent extends Intent {
 }
 
 /// Option B `naked_ui` (`NakedButton`) + `mix` Tabs control with roving
-/// `←` / `→` keyboard navigation, horizontal overflow scrolling, active tab
+/// `â†` / `â†’` keyboard navigation, horizontal overflow scrolling, active tab
 /// reveal, and disabled tab support.
 final class UiMixTabs extends StatefulWidget {
   const UiMixTabs({

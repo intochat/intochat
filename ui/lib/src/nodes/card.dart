@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
-import '../ui/mix/ui_mix_surface.dart';
+import '../primitives/surface.dart';
 import 'node_common.dart';
 import 'node_renderer.dart';
 

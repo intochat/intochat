@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
-import '../mix/ui_mix_controls.dart';
+import '../../primitives/primitives.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.AutoSuggestBox.IAutoSuggestBox`.
@@ -44,7 +44,7 @@ class _AutoSuggestBoxWidgetState extends State<AutoSuggestBoxWidget> {
       watch: widget.watch,
       builder: (context, state, invoke) {
         final c = IcTheme.of(context);
-        final placeholder = '${state['placeholder'] ?? 'Search…'}';
+        final placeholder = '${state['placeholder'] ?? 'Searchâ€¦'}';
         final submitted = state['submittedText'] as String?;
         final suggestions = state['suggestions'] is List
             ? [for (final s in state['suggestions'] as List) '$s']

@@ -7,7 +7,7 @@ import 'node_renderer.dart';
 
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../ui/mix/ui_mix_toast.dart';
+import '../primitives/toast.dart';
 import '../design/cards/card_shell.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';

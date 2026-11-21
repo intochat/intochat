@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../ui/mix/ui_mix_controls.dart';
+import '../primitives/primitives.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import 'local_preferences.dart';

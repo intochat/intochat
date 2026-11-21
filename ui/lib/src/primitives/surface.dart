@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 
-import '../../design/tokens.dart';
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_shadows.dart';
-import '../../theme/ui_tokens.dart';
-import 'ui_mix_style.dart';
+import '../design/tokens.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_shadows.dart';
+import '../theme/ui_tokens.dart';
+import 'style.dart';
 
 /// Base colour for Figma shadows: the strong ink, or black in dark themes.
 Color uiKitShadowBase(BuildContext context) =>

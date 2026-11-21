@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../ui/mix/ui_mix_toast.dart';
+import '../primitives/toast.dart';
 import '../theme/wire_node_values.dart';
 import '../voice_mode/audio_out.dart';
 import '../voice_mode/mic_stream.dart';
@@ -17,7 +17,7 @@ typedef NeuronSignalWatcher = Stream<Map<String, dynamic>> Function(
   String signal,
 );
 
-/// Reads one node of the brain: `GET /apps/node?kind=…&name=…`, or for a
+/// Reads one node of the brain: `GET /apps/node?kind=â€¦&name=â€¦`, or for a
 /// `slot` (named `{brain}/apps/{app}/slots/{path}`) its app's key path
 /// `GET /apps/{app}/slots/{path}` (see `appNodePath` in slot_route.dart).
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
@@ -228,7 +228,7 @@ class NodeContext {
     // expander's content) never read them.
   );
 
-  /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.
+  /// The brain scope the view lives under: `{scope}/apps/{app}/â€¦` or `{scope}/{alias}`.
   String get scope {
     final apps = view.indexOf('/apps/');
     if (apps > 0) return view.substring(0, apps);
@@ -396,7 +396,7 @@ class NodeContext {
 }
 
 /// The client's gate on server-named intents: copy text, open a window of an
-/// app the shell knows (`os://window/open?app=…`), or open the settings.
+/// app the shell knows (`os://window/open?app=â€¦`), or open the settings.
 /// Never an external URL.
 abstract final class IntentGate {
   /// The activation the shell performs, or null when the intent is refused.

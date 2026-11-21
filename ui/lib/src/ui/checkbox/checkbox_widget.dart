@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../mix/ui_mix_controls.dart';
+import '../../primitives/primitives.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.CheckBox.ICheckBox`.

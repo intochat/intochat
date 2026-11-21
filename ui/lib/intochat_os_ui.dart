@@ -23,8 +23,7 @@ export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
 
 export 'src/composition/view_host.dart';
-export 'src/ui/mix/ui_mix_controls.dart';
-export 'src/ui/mix/ui_mix_style.dart';
+export 'src/primitives/primitives.dart';
 export 'src/ui/neuron_widget.dart';
 export 'src/ui/ui_neuron_registry.dart';
 export 'src/ui/code_editor/code_editor_widget.dart'

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../ui/mix/ui_mix_button.dart';
-import '../ui/mix/ui_mix_field.dart';
+import '../primitives/button.dart';
+import '../primitives/field.dart';
 import '../generated/node_commands.dart';
 import 'node_context.dart';
 

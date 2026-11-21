@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../generated/node_commands.dart';
-import '../ui/mix/ui_mix_controls.dart';
+import '../primitives/primitives.dart';
 import 'node_context.dart';
 
 /// What a check box neuron draws: its value from the neuron's view, its label,

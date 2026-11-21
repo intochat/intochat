@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../ui/mix/ui_mix_select.dart';
+import '../primitives/select.dart';
 import '../generated/node_commands.dart';
 import 'node_context.dart';
 

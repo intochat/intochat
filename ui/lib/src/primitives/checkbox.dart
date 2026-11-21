@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_icon.dart';
-import '../../theme/ui_tokens.dart';
-import '../ui_control_surface.dart';
-import 'ui_mix_style.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_icon.dart';
+import '../theme/ui_tokens.dart';
+import '../ui/ui_control_surface.dart';
+import 'style.dart';
 
 /// Option B `naked_ui` (`NakedCheckbox`) + `mix` Checkbox control with exact
 /// C# [UiStyleData] parity, spring check reveal, and opt-in WinForms-style

@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_tokens.dart';
-import '../ui_control_surface.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_tokens.dart';
+import '../ui/ui_control_surface.dart';
 
 /// Mirrors C# `IntoChat.OS.Modules.UI.Core.UiStyleRef` 1-to-1.
 @immutable

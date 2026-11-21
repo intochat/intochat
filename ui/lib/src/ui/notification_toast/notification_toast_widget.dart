@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
-import '../mix/ui_mix_controls.dart';
+import '../../primitives/primitives.dart';
 import '../neuron_widget.dart';
 
 /// Reactive WinUI 3 AppNotification / Toast presenter for `IntoChat.OS.Modules.UI.NotificationToast.INotificationToast`.
@@ -52,7 +52,7 @@ class NotificationToastNeuronWidget extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   lastAction != null
-                      ? 'No active toasts · Last action: $lastAction'
+                      ? 'No active toasts Â· Last action: $lastAction'
                       : 'No active notifications',
                   style: TextStyle(fontSize: 12, color: c.textMuted),
                 ),

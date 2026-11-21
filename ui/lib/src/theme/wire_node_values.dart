@@ -1,7 +1,7 @@
 import 'package:flutter/painting.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../ui/mix/ui_mix_button.dart';
+import '../primitives/button.dart';
 import '../design/app_tile.dart';
 import '../design/cards/approval_card.dart';
 import '../design/cards/chart_card.dart';
@@ -351,7 +351,7 @@ List<String> splitSourceLines(String source) =>
     source.replaceAll('\r\n', '\n').split('\n');
 
 final RegExp _numericPattern = RegExp(
-  r'^\s*[$€£¥+\-−]?\s*\d[\d,.\s]*[%KMBkmb]?\s*$',
+  r'^\s*[$â‚¬Â£Â¥+\-âˆ’]?\s*\d[\d,.\s]*[%KMBkmb]?\s*$',
 );
 
 bool isNumericTableColumn(List<List<String>> rows, int columnIndex) {
@@ -359,7 +359,7 @@ bool isNumericTableColumn(List<List<String>> rows, int columnIndex) {
   for (final row in rows) {
     if (columnIndex >= row.length) continue;
     final cell = row[columnIndex].trim();
-    if (cell.isEmpty || cell == '—' || cell == '-') continue;
+    if (cell.isEmpty || cell == 'â€”' || cell == '-') continue;
     nonEmpty++;
     if (!_numericPattern.hasMatch(cell)) return false;
   }

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../ui/mix/ui_mix_button.dart';
+import '../../primitives/button.dart';
 import '../../design/tokens.dart';
 import '../../theme/wire_node_values.dart';
 import '../neuron_widget.dart';

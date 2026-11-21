@@ -1,7 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../ui/mix/ui_mix_button.dart';
+import '../primitives/button.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 

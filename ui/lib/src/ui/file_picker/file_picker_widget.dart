@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
-import '../mix/ui_mix_controls.dart';
+import '../../primitives/primitives.dart';
 import '../neuron_widget.dart';
 
 /// Reactive WinUI 3 / Files VFS Picker presenter for `IntoChat.OS.Modules.UI.FilePicker.IFilePicker`.
@@ -144,7 +144,7 @@ class _FilePickerNeuronWidgetState extends State<FilePickerNeuronWidget> {
                   style: TextStyle(fontSize: 12, color: c.textStrong),
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: 'Filter files or extension…',
+                    hintText: 'Filter files or extensionâ€¦',
                     hintStyle: TextStyle(fontSize: 12, color: c.textMuted),
                     prefixIcon: Icon(
                       LucideIcons.search,

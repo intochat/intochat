@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 
-import '../../theme/ui_colors.dart';
-import '../../theme/ui_shadows.dart';
-import '../../theme/ui_theme.dart';
-import '../../theme/ui_tokens.dart';
-import 'ui_mix_surface.dart';
+import '../theme/ui_colors.dart';
+import '../theme/ui_shadows.dart';
+import '../theme/ui_theme.dart';
+import '../theme/ui_tokens.dart';
+import 'surface.dart';
 
 /// Status tone. Indices equal the C# `UiTone` wire ints (Neutral 0, Done 1,
 /// Working 2, Error 3); do not reorder.

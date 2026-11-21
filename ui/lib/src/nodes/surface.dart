@@ -6,7 +6,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../components/image/ui_image.dart';
-import '../ui/mix/ui_mix_surface.dart';
+import '../primitives/surface.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';

@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
-import '../../theme/ui_colors.dart';
-import '../ui_control_surface.dart';
-import 'ui_mix_style.dart';
+import '../theme/ui_colors.dart';
+import '../ui/ui_control_surface.dart';
+import 'style.dart';
 
 /// Option B `naked_ui` (`NakedSlider`) + `mix` Slider control with smooth
 /// track fill, draggable thumb, and [UiColors] styling.

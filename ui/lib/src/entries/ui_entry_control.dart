@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../ui/mix/ui_mix_toast.dart';
-import '../ui/mix/ui_mix_button.dart';
-import '../ui/mix/ui_mix_field.dart';
+import '../primitives/toast.dart';
+import '../primitives/button.dart';
+import '../primitives/field.dart';
 import '../composition/value_nodes/view_badge.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
@@ -229,7 +229,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
         ? 'Not set'
         : entry.tail == null
         ? 'Set'
-        : 'Set ••••${entry.tail}';
+        : 'Set â€¢â€¢â€¢â€¢${entry.tail}';
     final busy = _locked;
     return _box(
       const Key('entry-key-row'),
@@ -290,7 +290,9 @@ class _UiEntryControlState extends State<UiEntryControl> {
     final c = UiColors.of(context);
     final type = UiType.of(context);
     final secret = entry.kind == EntryKind.secret;
-    final shown = secret ? '••••${entry.tail ?? ''}' : (entry.value ?? '');
+    final shown = secret
+        ? 'â€¢â€¢â€¢â€¢${entry.tail ?? ''}'
+        : (entry.value ?? '');
     return _box(
       Key('entry-row-${entry.name}'),
       Row(

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../ui/mix/ui_mix_field.dart';
+import '../primitives/field.dart';
 import '../theme/wire_node_values.dart';
 import 'button.dart';
 import 'node_context.dart';
