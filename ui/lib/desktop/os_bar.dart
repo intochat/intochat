@@ -76,6 +76,9 @@ class OsBar extends StatelessWidget {
     final isPill =
         barLayout == BarLayout.floatingGlass ||
         barLayout == BarLayout.compactPill;
+    final activeApps = apps
+        .where((spec) => openAppIds.contains(spec.id))
+        .toList(growable: false);
 
     final innerRow = SizedBox(
       height: kOsBarHeight,
@@ -162,7 +165,7 @@ class OsBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (final spec in apps)
+                for (final spec in activeApps)
                   _DockAppItem(
                     key: ValueKey('dock-item-${spec.id}'),
                     spec: spec,

@@ -12,10 +12,7 @@ Map<String, dynamic> _chatThreadRoot() => {
   ],
   'composer': {
     'key': 'composer',
-    'onSubmit': {
-      'owner': 'control.chatThread',
-      'signal': 'control.submitText',
-    },
+    'onSubmit': {'owner': 'control.chatThread', 'signal': 'control.submitText'},
   },
 };
 

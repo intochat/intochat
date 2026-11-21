@@ -112,7 +112,7 @@ internal sealed class LocalLlmCoder : ICoder
         _logger = logger ?? OsConsoleLog.For<LocalLlmCoder>();
         _options = options ?? BindOptions(configuration);
         _policy = policy ?? services?.GetService<ChangePolicy>() ?? ChangePolicy.Default;
-        _roslyn = roslyn ?? services?.GetService<IWorktreeRoslyn>() ?? IWorktreeRoslyn.CreateDefault();
+        _roslyn = roslyn ?? services?.GetService<IWorktreeRoslyn>() ?? UnavailableWorktreeRoslyn.Instance;
     }
 
     public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
@@ -360,7 +360,7 @@ internal sealed class LocalLlmCoder : ICoder
         {
             _root = Path.GetFullPath(treeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             _policy = policy ?? ChangePolicy.Default;
-            _roslyn = roslyn ?? IWorktreeRoslyn.CreateDefault();
+            _roslyn = roslyn ?? UnavailableWorktreeRoslyn.Instance;
         }
 
         public IReadOnlyList<string> TouchedFiles => [.. _touched.OrderBy(p => p, StringComparer.Ordinal)];

@@ -26,7 +26,7 @@ internal sealed class InoCodeOrchestrator(
     ChangePolicy? policy = null,
     ILogger? logger = null)
 {
-    private readonly IWorktreeRoslyn _roslyn = roslyn ?? IWorktreeRoslyn.CreateDefault();
+    private readonly IWorktreeRoslyn _roslyn = roslyn ?? UnavailableWorktreeRoslyn.Instance;
     private readonly ChangePolicy _policy = policy ?? ChangePolicy.Default;
     private readonly ILogger _logger = logger ?? OsConsoleLog.For<InoCodeOrchestrator>();
 

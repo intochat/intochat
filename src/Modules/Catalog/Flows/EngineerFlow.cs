@@ -79,7 +79,7 @@ internal sealed class EngineerFlow(
 
     private IWorktreeRoslyn Roslyn => roslyn
         ?? services?.GetService(typeof(IWorktreeRoslyn)) as IWorktreeRoslyn
-        ?? IWorktreeRoslyn.CreateDefault();
+        ?? UnavailableWorktreeRoslyn.Instance;
 
     private IConfirmationRequests ConfirmationRequests =>
         confirmationRequests

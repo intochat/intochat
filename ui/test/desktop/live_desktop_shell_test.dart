@@ -495,18 +495,22 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Initially 2 windows open, no SpatialAppCanvas
+      // Initially 2 windows open, no SpatialAppCanvas, and closed apps are not in the active-apps dock
       expect(find.byType(SpatialAppCanvas), findsNothing);
       expect(find.byType(WindowFrame), findsNWidgets(2));
+      expect(find.byKey(const ValueKey('dock-item-workspace')), findsNothing);
 
-      // 1. Launch Workspace app from dock
-      await tester.tap(find.byKey(const ValueKey('dock-item-workspace')));
+      // 1. Launch Workspace app from the All Apps launcher
+      await tester.tap(find.byKey(const ValueKey('os-bar-all-apps')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('all-apps-tile-workspace')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.byType(SpatialAppCanvas), findsOneWidget);
       expect(find.byType(WindowFrame), findsNWidgets(3));
+      expect(find.byKey(const ValueKey('dock-item-workspace')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('spatial-card-pos-w-1')),
         findsOneWidget,
@@ -588,8 +592,23 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.byType(WindowFrame), findsNWidgets(2));
+      expect(find.byKey(const ValueKey('dock-item-photocraft')), findsNothing);
 
-      // Right-click on PhotoCraft in the dock and click "App settings…"
+      // Open PhotoCraft via All Apps launcher so it appears in the active-apps dock
+      await tester.tap(find.byKey(const ValueKey('os-bar-all-apps')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('all-apps-tile-photocraft')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byType(WindowFrame), findsNWidgets(3));
+      expect(
+        find.text('Viewport: brain-1/apps/photocraft/view'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('dock-item-photocraft')), findsOneWidget);
+
+      // Right-click on PhotoCraft in the active-apps dock and click "App settings…"
       await tester.tap(
         find.byKey(const ValueKey('dock-item-photocraft')),
         buttons: kSecondaryMouseButton,
@@ -603,7 +622,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       // The Creator opens immediately with brain-1/apps/photocraft selected in its graph
-      expect(find.byType(WindowFrame), findsNWidgets(3));
+      expect(find.byType(WindowFrame), findsNWidgets(4));
       expect(
         activations.any(
           (a) =>
@@ -612,17 +631,6 @@ void main() {
               a['input'] == 'node:brain-1/apps/photocraft',
         ),
         isTrue,
-      );
-
-      // Clicking PhotoCraft on the dock opens the PhotoCraft window
-      await tester.tap(find.byKey(const ValueKey('dock-item-photocraft')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(find.byType(WindowFrame), findsNWidgets(4));
-      expect(
-        find.text('Viewport: brain-1/apps/photocraft/view'),
-        findsOneWidget,
       );
     },
   );

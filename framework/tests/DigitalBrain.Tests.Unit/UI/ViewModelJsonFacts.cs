@@ -11,7 +11,7 @@ public sealed class ViewModelJsonFacts
 {
     private static readonly string[] ActionMembers = ["Command", "Emit", "Intent", "Resolve", "OnSubmit"];
 
-    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(InfoBar), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
+    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(InfoBar), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode), typeof(ModelSelectNode)];
 
     private static bool CarriesAction(Type type) => type.GetProperties().Any(p => ActionMembers.Contains(p.Name)
         || p.PropertyType == typeof(Emit) || Nullable.GetUnderlyingType(p.PropertyType) == typeof(Emit)

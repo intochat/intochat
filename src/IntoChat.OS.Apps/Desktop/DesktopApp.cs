@@ -145,6 +145,8 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         ("engineer", "IntoChat Engineer", "neuron://local/apps/engineer", "workflow", "Studio", "orleans-grain"),
         ("aspire", ".NET Aspire", "neuron://local/apps/aspire", "activity", "Developer", "orleans-grain"),
         ("orleans", "Orleans Dashboard", "neuron://local/apps/orleans", "cpu", "Developer", "orleans-grain"),
+        ("devui", "DevUI", "neuron://local/apps/devui", "terminal", "Developer", "orleans-grain"),
+        ("widgetbook", "Widgetbook", "neuron://local/apps/widgetbook", "layout-grid", "Developer", "orleans-grain"),
         ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid", "Studio", "orleans-grain"),
         ("friends", "Friends", "neuron://local/apps/friends", "users", "Social", "orleans-grain"),
         ("usage", "Usage", "neuron://local/apps/usage", "wallet", "System", "orleans-grain"),

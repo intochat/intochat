@@ -88,6 +88,8 @@ const _coreSmartAppIds = <String>[
   'markdraw',
   'aspire',
   'orleans',
+  'devui',
+  'widgetbook',
   'trace',
   'friends',
 ];
@@ -105,13 +107,24 @@ final List<SmartAppTileSpec> artCraftSmartAppSpecs = List.unmodifiable([
 /// All Apps Launcher and Command Palette (`⌘K`), derived directly from `IcAppIcon.builtInSpecs`.
 final List<SmartAppTileSpec> allSmartAppSpecs = List.unmodifiable([
   for (final id in _coreSmartAppIds)
-    id == 'orleans'
-        ? SmartAppTileSpec.fromIconSpec(
-            id,
-            titleOverride: 'Orleans Dashboard',
-            categoryOverride: 'Developer',
-          )
-        : SmartAppTileSpec.fromIconSpec(id),
+    switch (id) {
+      'orleans' => SmartAppTileSpec.fromIconSpec(
+        id,
+        titleOverride: 'Orleans Dashboard',
+        categoryOverride: 'Developer',
+      ),
+      'devui' => SmartAppTileSpec.fromIconSpec(
+        id,
+        titleOverride: 'DevUI',
+        categoryOverride: 'Developer',
+      ),
+      'widgetbook' => SmartAppTileSpec.fromIconSpec(
+        id,
+        titleOverride: 'Widgetbook',
+        categoryOverride: 'Developer',
+      ),
+      _ => SmartAppTileSpec.fromIconSpec(id),
+    },
   ...artCraftSmartAppSpecs,
   SmartAppTileSpec.fromIconSpec('settings'),
 ]);

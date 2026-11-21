@@ -87,7 +87,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
 
         var plannerPrompts = new List<string>();
         var inference = new ArchitectCriticModelInference(plannerPrompts);
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var coder = new DelegatedRoslynCoder(roslyn);
         using var liveVerifier = new EngineerLiveVerifier(configuration);
 

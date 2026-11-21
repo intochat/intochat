@@ -82,6 +82,7 @@
   <Project Path="src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
   <Project Path="src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
   <Project Path="src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+  <Project Path="src/Modules/Roslyn/Contracts/IntoChat.OS.Modules.Roslyn.Contracts.csproj" />
   <Project Path="src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
   <Project Path="src/Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
   <Project Path="src/Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />

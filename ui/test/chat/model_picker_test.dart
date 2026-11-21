@@ -279,34 +279,41 @@ void main() {
     );
   });
 
-  testWidgets('an installable row shows an install button that activates composer-model', (
-    tester,
-  ) async {
-    final sent = await _openPicker(tester);
+  testWidgets(
+    'an installable row shows an install button that activates composer-model',
+    (tester) async {
+      final sent = await _openPicker(tester);
 
-    final installButton = find.byKey(const ValueKey('model-install:gemma4:e2b'));
-    expect(installButton, findsOneWidget);
-    await tester.tap(installButton);
-    await tester.pumpAndSettle();
+      final installButton = find.byKey(
+        const ValueKey('model-install:gemma4:e2b'),
+      );
+      expect(installButton, findsOneWidget);
+      await tester.tap(installButton);
+      await tester.pumpAndSettle();
 
-    expect(sent, hasLength(1));
-    expect(sent.single['kind'], 'view');
-    expect(sent.single['key'], 'composer-model');
-    expect(sent.single['value'], 'gemma4:e2b');
-  });
+      expect(sent, hasLength(1));
+      expect(sent.single['kind'], 'view');
+      expect(sent.single['key'], 'composer-model');
+      expect(sent.single['value'], 'gemma4:e2b');
+    },
+  );
 
-  testWidgets('a too big model row shows no install button and cannot be chosen', (
-    tester,
-  ) async {
-    final sent = await _openPicker(tester);
+  testWidgets(
+    'a too big model row shows no install button and cannot be chosen',
+    (tester) async {
+      final sent = await _openPicker(tester);
 
-    expect(find.byKey(const ValueKey('model-install:huge-local:70b')), findsNothing);
-    expect(find.text('Too big for this device'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('model-row:huge-local:70b')));
-    await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('model-install:huge-local:70b')),
+        findsNothing,
+      );
+      expect(find.text('Too big for this device'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('model-row:huge-local:70b')));
+      await tester.pumpAndSettle();
 
-    expect(sent, isEmpty);
-  });
+      expect(sent, isEmpty);
+    },
+  );
 
   testWidgets('picker trigger stays vertically centered with field and send', (
     tester,

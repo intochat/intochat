@@ -27,3 +27,6 @@ f31fe09d81cdc783f713df4c5f43289ceb3ea962:tests/DigitalBrain.Runtime.Orleans.Azur
 # Roslyn CodeAction equivalence key identifier. Exact history fingerprints only.
 f1c924797ef40f248e696d144ca496dbf6af2f74:src/DigitalBrain.Analyzers.CodeFixes/Fixes.cs:generic-api-key:24
 f1c924797ef40f248e696d144ca496dbf6af2f74:src/DigitalBrain.Analyzers.CodeFixes/Fixes.cs:generic-api-key:76
+
+# Contract doc/parameter in IAspire.cs (not a real secret).
+e3e5c7da63adb136c71410268148caf52f19d38f:src/Modules/Azure/Contracts/IAspire.cs:generic-api-key:34

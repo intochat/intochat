@@ -5,6 +5,14 @@
     <NoWarn>$(NoWarn);CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Contracts/**" />
+    <EmbeddedResource Remove="Contracts/**" />
+    <None Remove="Contracts/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Contracts/IntoChat.OS.Modules.Roslyn.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />

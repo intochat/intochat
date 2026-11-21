@@ -21,6 +21,9 @@ public static class OperatingSystemHosting
         IntoChatOSNames.CustodyConfigurationKey,
         IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey,
         IntoChatOSNames.BrainStorageWriteFormatConfigurationKey,
+        "IntoChatOS:AspireDashboardUrl",
+        "ASPIRE_DASHBOARD_URL",
+        "DOTNET_DASHBOARD_URLS",
     ];
 
     public static IntoChatOSBuilder AddIntoChatOS(

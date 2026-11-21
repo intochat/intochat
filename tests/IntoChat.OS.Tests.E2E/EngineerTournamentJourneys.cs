@@ -74,7 +74,7 @@ public sealed class EngineerTournamentJourneys(TestOSFixture fixture) : E2ETestB
             RemoteCloneUrl: bareOrigin));
 
         var observedPrompts = new List<(int InstanceIndex, string Prompt)>();
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var coder = new TwoStrategyTournamentRoslynCoder(roslyn, observedPrompts);
         var planner = new TournamentPlanner();
         using var liveVerifier = new EngineerLiveVerifier(configuration);

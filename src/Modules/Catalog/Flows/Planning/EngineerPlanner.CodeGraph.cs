@@ -72,7 +72,7 @@ internal sealed partial class EngineerPlanner
                 {
                     using var scanCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     scanCts.CancelAfter(InteractiveSymbolScanTimeout);
-                    var activeRoslyn = explicitRoslyn ?? IWorktreeRoslyn.CreateDefault();
+                    var activeRoslyn = explicitRoslyn ?? UnavailableWorktreeRoslyn.Instance;
                     symbols = await activeRoslyn.InspectSymbolsAsync(resolvedRepoPath, relativeFilter: null, scanCts.Token);
                 }
                 catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)

@@ -42,7 +42,7 @@ public sealed class WorktreeRoslynAnalyzerFacts : IDisposable
     [Fact]
     public async Task InspectsSymbolsAppliesAstValidatedEditsAndDetectsSemanticDiagnostics()
     {
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
 
         var initialSymbols = await roslyn.InspectSymbolsAsync(_root, ct: Ct);
         Assert.Equal(2, initialSymbols.Count);
@@ -113,7 +113,7 @@ public sealed class WorktreeRoslynAnalyzerFacts : IDisposable
     [Fact]
     public async Task RejectsTraversalDotfilesAndNonCSharpPaths()
     {
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
 
         await Assert.ThrowsAsync<SecurityException>(() =>
             roslyn.AnalyzeAsync(_root, ["../escape.cs"], Ct));

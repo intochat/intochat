@@ -65,7 +65,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<Creator>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();
-        services.TryAddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault());
+        services.TryAddSingleton<IWorktreeRoslyn>(UnavailableWorktreeRoslyn.Instance);
         services.TryAddSingleton<IEngineeringHarness>(sp => InoNativeHarness.CreateDefault(sp));
         services.TryAddSingleton<IEngineerPlanner, EngineerPlanner>();
         services.TryAddSingleton<IEngineerBuildVerifier, EngineerBuildVerifier>();

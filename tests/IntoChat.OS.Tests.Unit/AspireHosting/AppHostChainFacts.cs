@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Modules.AI.Models;
@@ -66,7 +65,8 @@ public sealed class AppHostChainFacts
     private static string AppHostCs()
         => Path.Combine(Path.GetDirectoryName(DeploymentSnapshot.ProjectPath("IntoChat.OS.AppHost"))!, "AppHost.cs");
 
-    private static string ThisFile([CallerFilePath] string path = "") => path;
+    private static string ThisFile()
+        => Path.Combine(Path.GetDirectoryName(DeploymentSnapshot.ProjectPath("IntoChat.OS.Tests.Unit"))!, "AspireHosting", "AppHostChainFacts.cs");
 
     private static string ChainText(string path)
     {

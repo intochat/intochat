@@ -318,7 +318,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         serviceCollection.AddSingleton<IEngineerPlanner>(planner);
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(buildVerifier);
         serviceCollection.AddSingleton<ILiveVerifier>(liveVerifier);
-        serviceCollection.AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault());
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer());
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = TestOS.Local(o => o.Services = services);
@@ -689,7 +689,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         serviceCollection.AddSingleton<IEngineerPlanner>(new TwoStepPlanner());
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier());
         serviceCollection.AddSingleton<ILiveVerifier>(new EngineerLiveVerifier());
-        serviceCollection.AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault());
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer());
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = TestOS.Local(o => o.Services = services);
@@ -821,7 +821,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             .AddSingleton<IEngineerPlanner>(new SingleStepPlanner())
             .AddSingleton<IEngineerBuildVerifier>(new FailFirstInstanceBuildVerifier())
             .AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier())
-            .AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault())
+            .AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer())
             .BuildServiceProvider();
 
         await using (var os1 = TestOS.Local(o => o.Services = sp1))
@@ -880,7 +880,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             .AddSingleton<IEngineerPlanner>(new SingleStepPlanner())
             .AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier())
             .AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier())
-            .AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault())
+            .AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer())
             .BuildServiceProvider();
 
         await using var os2 = TestOS.Local(o => o.Services = sp2);
@@ -1040,7 +1040,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         var peakConcurrentSlices = 0;
         var allThreeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var hydratedPrompts = new List<string>();
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
 
         var parallelCoder = new BarrierParallelSliceCoder(
             roslyn,
@@ -1187,7 +1187,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             .AddSingleton<IEngineerPlanner>(new SingleStepPlanner())
             .AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier())
             .AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier())
-            .AddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault())
+            .AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer())
             .BuildServiceProvider();
 
         await using var os = TestOS.Local(o => o.Services = sp);
@@ -1367,7 +1367,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         });
         workTree.RegisterRepository(new RegisteredRepository("os", checkout, DefaultBaseBranch: "main"));
 
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var repoBriefMemory = new RepoBriefWorkingMemory(
             "repo:os",
             "Delete LegacyObsoleteMath.cs and keep Calculator and Vector2Int pure value helpers.");
@@ -1495,7 +1495,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
             """,
             Ct);
 
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var observedPrompts = new List<string>();
         var repairingCoder = new TurnOneErrorTurnTwoRepairCoder(observedPrompts);
         var progressEvents = new List<OperationProgressed>();
@@ -1778,7 +1778,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
     private sealed class SingleFileRoslynCoder : ICoder
     {
-        private readonly IWorktreeRoslyn _roslyn = IWorktreeRoslyn.CreateDefault();
+        private readonly IWorktreeRoslyn _roslyn = new WorktreeRoslynAnalyzer();
 
         public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
         {
@@ -1820,7 +1820,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
     private sealed class CheckpointingRoslynCoder(List<(string LeaseId, string Prompt)> log) : ICoder
     {
-        private readonly IWorktreeRoslyn _roslyn = IWorktreeRoslyn.CreateDefault();
+        private readonly IWorktreeRoslyn _roslyn = new WorktreeRoslynAnalyzer();
 
         public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
         {
@@ -1863,7 +1863,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
     private sealed class TournamentVariantCoder : ICoder
     {
-        private readonly IWorktreeRoslyn _roslyn = IWorktreeRoslyn.CreateDefault();
+        private readonly IWorktreeRoslyn _roslyn = new WorktreeRoslynAnalyzer();
 
         public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
         {

@@ -42,8 +42,6 @@ public sealed record WorktreeEditSummary(
 
 public interface IWorktreeRoslyn
 {
-    static IWorktreeRoslyn CreateDefault() => new WorktreeRoslynAnalyzer();
-
     Task<IReadOnlyList<WorktreeSymbolInfo>> InspectSymbolsAsync(
         string worktreeRoot,
         string? relativeFilter = null,

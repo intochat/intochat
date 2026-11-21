@@ -80,7 +80,7 @@ public sealed class EngineerDogfoodJourneys(TestOSFixture fixture) : E2ETestBase
         var realSandboxRunner = ISandboxCommandRunner.CreateDefault(configuration: configuration);
         var auditedSandboxRunner = new AuditingSandboxCommandRunner(realSandboxRunner, sandboxInvocations);
 
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var coder = new DogfoodRoslynCoder(roslyn);
         var planner = new DogfoodTwoTaskPlanner();
 

@@ -89,7 +89,7 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         var peakSlicesByWorktree = new Dictionary<int, int>();
         var gate = new Lock();
 
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var coder = new TwoByTwoParallelRoslynSliceCoder(
             roslyn,
             observedSlicePrompts,
@@ -331,7 +331,7 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
             DefaultBaseBranch: "main",
             RemoteCloneUrl: bareOrigin));
 
-        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var roslyn = new WorktreeRoslynAnalyzer();
         var observedRepairPrompts = new List<string>();
         var coder = new SelfRepairingCodeGraphSliceCoder(roslyn, observedRepairPrompts);
 

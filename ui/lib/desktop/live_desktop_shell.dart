@@ -1906,7 +1906,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 child: OsBar(
                   barLayout: widget.barLayout,
                   stylePreset: widget.stylePreset,
-                  apps: dockApps,
+                  apps: launcherApps,
                   openAppIds: openAppIds,
                   focusedAppId: topWindow?.appId,
                   paletteOpen: widget.paletteOpen,

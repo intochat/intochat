@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsIntoChatOSModule>false</IsIntoChatOSModule>
+    <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
+    <PackageId>IntoChat.OS.Modules.Roslyn.Contracts</PackageId>
+    <RootNamespace>IntoChat.OS.Modules.Microsoft.Roslyn</RootNamespace>
+    <Description>Wire contracts, signals and records of the IntoChat OS Roslyn module: workspace queries, diagnostics, code graph, and worktree analysis.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/IntoChat.OS.csproj" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
