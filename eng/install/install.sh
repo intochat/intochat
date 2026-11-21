@@ -263,6 +263,22 @@ if [ "$(uname -s)" = "Darwin" ] && command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.quarantine "$BIN_DIR" >/dev/null 2>&1 || true
 fi
 
+if [ "$(uname -s)" = "Linux" ] && [ -x "$BIN_DIR/intochat" ]; then
+    DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    mkdir -p "$DESKTOP_DIR"
+    cat > "$DESKTOP_DIR/intochat.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=IntoChat OS
+Comment=IntoChat OS Desktop
+Exec=$BIN_DIR/intochat
+Terminal=false
+Categories=Network;Chat;Utility;
+StartupWMClass=io.intochat.os
+EOF
+    chmod 644 "$DESKTOP_DIR/intochat.desktop"
+fi
+
 if [ "$NO_PATH" -eq 0 ]; then
     ensure_path_profile "$BIN_DIR"
     export PATH="$BIN_DIR:$PATH"
