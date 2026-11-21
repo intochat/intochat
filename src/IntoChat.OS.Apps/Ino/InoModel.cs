@@ -461,7 +461,9 @@ public static class InoModel
     {
         ArgumentNullException.ThrowIfNull(s);
         var nextModel = string.IsNullOrWhiteSpace(defaultModel) ? s.SelectedModel : defaultModel.Trim();
+        var sameModel = string.Equals(s.SelectedModel, nextModel, StringComparison.Ordinal);
         return s.Status.StartsWith("Switched model to ", StringComparison.Ordinal)
+            || (sameModel && s.Status.StartsWith("Default Chat model set to ", StringComparison.Ordinal))
             ? s with { Smart = smart, SelectedModel = nextModel }
             : s with { Smart = smart, SelectedModel = nextModel, Status = $"Synced settings: {displayName} ({changedModel})" };
     }

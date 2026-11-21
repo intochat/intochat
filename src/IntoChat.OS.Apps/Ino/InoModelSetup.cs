@@ -321,7 +321,8 @@ internal static class InoModelSetup
         string model,
         bool makeDefault,
         IReadOnlyList<ModelAvailability>? availability = null,
-        DeviceView? device = null)
+        DeviceView? device = null,
+        string? statusOverride = null)
     {
         var trimmed = model.Trim();
         var card = KnownModels.Find(trimmed);
@@ -340,7 +341,7 @@ internal static class InoModelSetup
         }
 
         await ReconfigureAgentAsync(host, modelId.Value, state.ConversationId);
-        var status = makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}";
+        var status = statusOverride ?? (makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}");
         await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, status));
     }
 
@@ -469,7 +470,7 @@ internal static class InoModelSetup
             case "rename": await host.ShowState(InoModel.DecideSlashRename(state, arg)); return;
             case "model":
                 var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
-                await ChooseModelAsync(host, nextModel, makeDefault: true);
+                await ChooseModelAsync(host, nextModel, makeDefault: true, statusOverride: $"Switched model to {nextModel}");
                 return;
             case "scenario" or "session": await host.ShowState(InoModel.DecideScenario(arg, settings)); return;
             default: await host.ShowState(InoModel.DecideSlashHelp(state, rawCommand, cmd)); return;
