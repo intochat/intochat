@@ -31,6 +31,7 @@ public interface ICodeIndex
 
     Task Bind(CodePurpose purpose, string brain, string reference, DateTimeOffset expiresAt);
     Task<CodeTarget?> Resolve(CodePurpose purpose);
+    Task<CodeTarget?> Lookup(CodePurpose purpose);
     Task Spend();
 
     static string Key(string codeHash) => $"system/{codeHash}";
@@ -41,5 +42,6 @@ public interface ICodeBook
     Task<string> Bind(Code code, CodePurpose purpose, BrainId brain, string reference, DateTimeOffset expiresAt);
     Task<string> HashOf(Code code);
     Task<CodeTarget?> Find(CodePurpose purpose, string hash);
+    Task<CodeTarget?> Lookup(CodePurpose purpose, string hash);
     Task Spend(string hash);
 }

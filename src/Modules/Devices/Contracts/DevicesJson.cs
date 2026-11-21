@@ -10,4 +10,8 @@ namespace IntoChat.OS.Modules.Devices;
 [JsonSerializable(typeof(RuntimeStatus))]
 [JsonSerializable(typeof(DeviceModel))]
 [JsonSerializable(typeof(DeviceView))]
+[JsonSerializable(typeof(EnrolledDevice))]
+[JsonSerializable(typeof(EnrolledDevice[]))]
+[JsonSerializable(typeof(EnrollmentOutcome))]
+[JsonSerializable(typeof(EnrollmentResult))]
 public sealed partial class DevicesJson : JsonSerializerContext;

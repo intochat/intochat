@@ -57,7 +57,10 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             })
             .ValidateOnStart();
 
+        DigitalBrain.Invocation.RuntimeProtocol.Register(DevicesJson.Default);
+        DigitalBrain.Invocation.RuntimeProtocol.Register(DeviceEnrollmentJson.Default);
         services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IDeviceEnrollmentRedeemer, DeviceEnrollmentRedeemer>();
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());

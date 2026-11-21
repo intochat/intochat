@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
     <ProjectReference Include="../AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />

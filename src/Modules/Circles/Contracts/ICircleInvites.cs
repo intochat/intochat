@@ -69,8 +69,8 @@ public interface ICircleInvites
     static string Key(string circleBrainId) => $"{circleBrainId}/invites";
 }
 
-// In-process redeem for the cloud enrollment module (10-05): normalizes and hashes the presented code with the
-// deployment's invite key and redeems it atomically in the owning circle brain.
+// One-release shim for the cloud enrollment endpoint while it migrates to IDeviceEnrollmentRedeemer.
+[Obsolete("Use IDeviceEnrollmentRedeemer.")]
 public interface ICircleInviteRedeemer
 {
     Task<RedeemOutcome> Redeem(string code, string machineId, string machineKeyThumbprint, string machineName);

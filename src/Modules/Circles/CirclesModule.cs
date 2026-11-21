@@ -52,7 +52,9 @@ public sealed partial class CirclesModule : DigitalBrain.Modules.Module, IHttpMo
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+#pragma warning disable CS0618
         services.TryAddSingleton<ICircleInviteRedeemer, CircleInviteRedeemer>();
+#pragma warning restore CS0618
         // One birth, reached as a creation handler and by the factory (which completes a birth that failed).
         if (services.Any(descriptor => descriptor.ServiceType == typeof(CircleBirth))) { return; }
         services.AddSingleton<CircleBirth>();

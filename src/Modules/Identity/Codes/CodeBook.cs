@@ -68,6 +68,16 @@ internal sealed class CodeBook : ICodeBook
         }
     }
 
+    public async Task<CodeTarget?> Lookup(CodePurpose purpose, string hash)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(hash);
+        var edge = _services.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module(IdentityModule.Id, SystemBrain)))
+        {
+            return await _index(_services, hash).Lookup(purpose).ConfigureAwait(false);
+        }
+    }
+
     public async Task Spend(string hash)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hash);

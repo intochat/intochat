@@ -13,6 +13,7 @@
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
     <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
   </ItemGroup>
 </Project>

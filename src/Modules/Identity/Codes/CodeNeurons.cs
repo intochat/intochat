@@ -76,6 +76,21 @@ internal sealed class CodeIndexNeuron : Neuron<CodeIndexRecord>, ICodeIndex
         return Task.FromResult<CodeTarget?>(new CodeTarget(new BrainId(record.Brain), record.Reference, record.ExpiresAt));
     }
 
+    // Finds the owning brain for a non-legacy purpose even after expiry or spend so the target neuron can answer
+    // Repeat (within its idempotency window) or Expired (410) instead of collapsing them to Rejected.
+    public Task<CodeTarget?> Lookup(CodePurpose purpose)
+    {
+        if (Record is not { } record
+            || purpose == CodePurpose.Legacy
+            || record.Purpose == CodePurpose.Legacy
+            || record.Purpose != purpose)
+        {
+            return Task.FromResult<CodeTarget?>(null);
+        }
+
+        return Task.FromResult<CodeTarget?>(new CodeTarget(new BrainId(record.Brain), record.Reference, record.ExpiresAt));
+    }
+
     public async Task Spend()
     {
         if (Record is not { } record || record.Spent) { return; }
