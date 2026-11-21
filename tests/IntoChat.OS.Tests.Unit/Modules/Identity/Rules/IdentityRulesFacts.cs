@@ -8,11 +8,9 @@ using IntoChat.OS.Authority.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity.Authority;
-using IntoChat.OS.Modules.Identity.Contacts;
 using IntoChat.OS.Modules.Identity.Directory;
 using IntoChat.OS.Modules.Identity.Secrets;
 using IntoChat.OS.Modules.Identity.Accounts;
-using IntoChat.OS.Modules.Identity.Contracts.Contacts;
 
 namespace IntoChat.OS.Authority.Rules;
 
@@ -27,7 +25,9 @@ public sealed class IdentityRulesFacts
             .ToArray();
 
         Assert.Equal(17, rules.Length);
-        Assert.All(rules, r => Assert.StartsWith("identity.", r.Name, StringComparison.Ordinal));
+        Assert.All(rules, r => Assert.True(
+            r.Name.StartsWith("identity.", StringComparison.Ordinal) || r.Name.StartsWith("circles.", StringComparison.Ordinal),
+            $"Unexpected rule prefix: {r.Name}"));
         Assert.Equal(rules.Length, rules.Select(r => r.Name).Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -54,18 +54,6 @@ public sealed class IdentityRulesFacts
 
         var ex = await Assert.ThrowsAsync<RuleViolationException>(() => directory.RegisterPrincipal("owner", "Owner"));
         Assert.Contains("identity.principal-id-available", ex.Rejected.Rules);
-    }
-
-    [Fact]
-    public async Task ContactsNeuronRefusesInvalidListAndEmptyPrincipalWithRules()
-    {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
-        await using var os = TestOS.Local();
-        os.Register<ContactsNeuron>();
-        var contacts = os.Get<IContactsNeuron>(new NeuronId(new BrainId("owner"), IContactsNeuron.TypeName, IContactsNeuron.DefaultKey));
-
-        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => contacts.Add("friends", new ContactEntry { Principal = "" }));
-        Assert.Contains("identity.contact-principal-not-empty", ex.Rejected.Rules);
     }
 
     [Fact]

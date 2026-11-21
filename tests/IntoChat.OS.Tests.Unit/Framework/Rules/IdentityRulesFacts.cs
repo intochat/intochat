@@ -94,12 +94,6 @@ public sealed class IdentityRulesFacts
         Assert.True(new BrainKindIsMutable(brain).Broken);
         Assert.False(new BrainKindIsMutable(brain with { OwnerProvisioned = false }).Broken);
 
-        Assert.True(new ContactListNameIsValid("Bad List").Broken);
-        Assert.False(new ContactListNameIsValid("trusted-peers").Broken);
-
-        Assert.True(new ContactPrincipalIsNotEmpty("   ").Broken);
-        Assert.False(new ContactPrincipalIsNotEmpty("bob").Broken);
-
         Assert.True(new ConnectionBelongsToBrain("brain-2", "brain-1").Broken);
         Assert.False(new ConnectionBelongsToBrain("brain-1", "brain-1").Broken);
 

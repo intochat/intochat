@@ -1445,7 +1445,6 @@ public sealed class HouseRules22Facts
             "IIntegration",
             "ICallFilterStage",
             "IBrainOwnershipCounters",
-            "IContactsNeuron",
             "IBrainBirths",
             "IHandleDirectory",
             "IEdgeGrantsCache",

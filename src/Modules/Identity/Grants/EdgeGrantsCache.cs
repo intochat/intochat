@@ -11,7 +11,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Callers;
-using IntoChat.OS.Modules.Identity.Contracts.Contacts;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
 
 namespace IntoChat.OS.Modules.Identity.Grants;
@@ -40,23 +39,6 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
 
     private readonly Lock _sync = new();
     private readonly ConcurrentDictionary<string, CachedGrantsEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly struct ExpansionKey(string ownerBrain, string callerKey) : IEquatable<ExpansionKey>
-    {
-        public string OwnerBrain { get; } = ownerBrain;
-        public string CallerKey { get; } = callerKey;
-
-        public bool Equals(ExpansionKey other) =>
-            string.Equals(OwnerBrain, other.OwnerBrain, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(CallerKey, other.CallerKey, StringComparison.Ordinal);
-
-        public override bool Equals(object? obj) => obj is ExpansionKey other && Equals(other);
-
-        public override int GetHashCode() =>
-            HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(OwnerBrain), StringComparer.Ordinal.GetHashCode(CallerKey));
-    }
-
-    private sealed record CachedExpansionEntry(PrincipalSet Principals, DateTimeOffset CachedAt);
-    private readonly ConcurrentDictionary<ExpansionKey, CachedExpansionEntry> _expansions = new();
 
     private readonly IServiceProvider? _services;
     private readonly TimeProvider _clock;
@@ -83,11 +65,6 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         if (listeners is not null)
         {
             _ = listeners.Listen<GrantsChanged>("edge-grants", (publisher, signal, ct) =>
-            {
-                Invalidate(publisher.Brain.Value);
-                return Task.CompletedTask;
-            });
-            _ = listeners.Listen<ContactsChanged>("edge-contacts", (publisher, signal, ct) =>
             {
                 Invalidate(publisher.Brain.Value);
                 return Task.CompletedTask;
@@ -136,65 +113,10 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         return cached?.Grants ?? [];
     }
 
-    public async Task<PrincipalSet> ExpandAsync(string ownerBrain, Caller caller)
+    public Task<PrincipalSet> ExpandAsync(string ownerBrain, Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        var set = PrincipalSet.For(caller);
-        if (string.IsNullOrWhiteSpace(ownerBrain))
-        {
-            return set;
-        }
-
-        var callerKey = CallerKey(caller);
-        var key = new ExpansionKey(ownerBrain, callerKey);
-        var now = _clock.GetUtcNow();
-
-        if (_expansions.TryGetValue(key, out var cached) && (now - cached.CachedAt) < Ttl)
-        {
-            return cached.Principals;
-        }
-
-        if ((_services is not null || _resolveNeuron is not null) && !string.IsNullOrWhiteSpace(ownerBrain))
-        {
-            try
-            {
-                var contactsNeuron = ResolveNeuron<IContactsNeuron>(IContactsNeuron.Key(ownerBrain));
-                if (contactsNeuron is not null)
-                {
-                    var app = GrantRules.AppOf(caller);
-                    var usersets = await AsAuthority(ownerBrain, async () =>
-                    {
-                        var found = new List<string>();
-                        foreach (var subject in new[] { $"brain:{caller.Brain.Value}", app is null ? null : $"app:{app}" })
-                        {
-                            if (subject is null) { continue; }
-                            var lists = await contactsNeuron.ListsContaining(subject).ConfigureAwait(false);
-                            if (lists is not null)
-                            {
-                                foreach (var list in lists)
-                                {
-                                    found.Add(IContactsNeuron.Userset(list));
-                                }
-                            }
-                        }
-                        return found;
-                    }).ConfigureAwait(false);
-                    if (usersets.Count > 0)
-                    {
-                        set = set.With([.. usersets]);
-                    }
-                    _expansions[key] = new CachedExpansionEntry(set, now);
-                    return set;
-                }
-            }
-            catch (Exception error) when (cached is not null)
-            {
-                LogFallback(error, "cached expansion", ownerBrain);
-                return cached.Principals;
-            }
-        }
-
-        return cached?.Principals ?? set;
+        return Task.FromResult(PrincipalSet.For(caller));
     }
 
     private void LogFallback(Exception error, string cacheKind, string brain)
@@ -324,9 +246,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
         if (string.IsNullOrEmpty(ownerBrain)) { return false; }
         if (!_cache.TryGetValue(ownerBrain, out var cached)) { return false; }
-        var principals = _expansions.TryGetValue(new ExpansionKey(ownerBrain, CallerKey(caller)), out var exp)
-            ? exp.Principals
-            : PrincipalSet.For(caller);
+        var principals = PrincipalSet.For(caller);
         var targets = new List<string> { canonicalKey };
         if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal)) { targets.Add(targetOrConnectionKey); }
         if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal) && !string.IsNullOrEmpty(canonicalKey) && TryParseOwnerBrain(ownerBrain, out var validOwnerInMemory))
@@ -429,13 +349,6 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             lock (_sync)
             {
                 _cache.TryRemove(brain, out _);
-                foreach (var key in _expansions.Keys)
-                {
-                    if (string.Equals(key.OwnerBrain, brain, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _expansions.TryRemove(key, out _);
-                    }
-                }
             }
         }
     }
@@ -482,11 +395,8 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         lock (_sync)
         {
             _cache.Clear();
-            _expansions.Clear();
         }
     }
-
-    private static string CallerKey(Caller caller) => $"{caller.Brain.Value}:{GrantRules.AppOf(caller)}:{caller.For?.Principal}";
 
     private static string StripNeuronPrefix(string value)
         => value.StartsWith("neuron://", StringComparison.Ordinal) ? value["neuron://".Length..] : value;

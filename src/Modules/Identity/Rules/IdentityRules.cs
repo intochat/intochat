@@ -83,21 +83,6 @@ internal sealed record BrainKindIsMutable(IdentityBrainRow Brain) : Rule("identi
     public override string Message => $"Brain {Brain.BrainId} is a {Brain.Kind} brain; its kind is fixed.";
 }
 
-internal sealed partial record ContactListNameIsValid(string List) : Rule("identity.contact-list-name-valid")
-{
-    [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,39}$")]
-    private static partial Regex ListNameRegex();
-
-    public override bool Broken => List.Length == 0 || !ListNameRegex().IsMatch(List);
-    public override string Message => $"Invalid contact list name '{List}'. Must match ^[a-z0-9][a-z0-9-]{{0,39}}$";
-}
-
-internal sealed record ContactPrincipalIsNotEmpty(string? Principal) : Rule("identity.contact-principal-not-empty")
-{
-    public override bool Broken => string.IsNullOrWhiteSpace(Principal);
-    public override string Message => "Contact entry must have a non-empty Principal.";
-}
-
 internal sealed record ConnectionBelongsToBrain(string ConnectionBrainId, string ExpectedBrainId) : Rule("identity.connection-belongs-to-brain")
 {
     public override bool Broken => ConnectionBrainId != ExpectedBrainId;

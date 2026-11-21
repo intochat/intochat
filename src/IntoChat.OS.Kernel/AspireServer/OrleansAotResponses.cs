@@ -26,7 +26,6 @@ internal static class OrleansAotResponses
         AddEnum<DigitalBrain.Graph.GraphLevel>(services);
         AddEnum<IntoChat.Sdk.FolderAccess>(services);
         AddEnum<IntoChat.Sdk.NotificationPriority>(services);
-        AddEnum<IntoChat.OS.Modules.Identity.Contracts.Authority.InvitationKind>(services);
         AddEnum<EntryKind>(services);
         AddEnum<IntoChat.OS.Modules.Identity.Contracts.Codes.CodePurpose>(services);
         AddEnum<IntoChat.OS.Host.Modules.ModuleState>(services);

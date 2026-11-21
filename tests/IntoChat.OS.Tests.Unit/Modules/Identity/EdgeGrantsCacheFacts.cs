@@ -3,6 +3,7 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Modules.Identity.Grants;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority;
 
@@ -98,5 +99,17 @@ public sealed class EdgeGrantsCacheFacts
         Assert.Equal(new DigitalBrain.BrainId("owner"), appBrain);
         Assert.True(EdgeGrantsCache.TryExtractBrain("postgres/owner/connection/postgres/main", out var neuronBrain));
         Assert.Equal(new DigitalBrain.BrainId("owner"), neuronBrain);
+    }
+
+    [Fact]
+    public async Task ExpansionIsTheCallerAlone()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+        var cache = new EdgeGrantsCache(
+            services: services,
+            resolveNeuron: (_, _) => throw new InvalidOperationException("ExpandAsync must not resolve any neuron."));
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.App("vlad/apps/notes", new Actor.Person("vlad", "vlad"), new BrainId("vlad"));
+
+        Assert.Equal(PrincipalSet.For(caller).Principals, (await cache.ExpandAsync("vlad", caller)).Principals);
     }
 }
