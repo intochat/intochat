@@ -64,10 +64,10 @@ public sealed record FriendsAppState(
         && Roster.All(static f => !string.IsNullOrWhiteSpace(f.Account.Value))
         && Roster.Select(static f => f.Account.Value).Distinct(StringComparer.Ordinal).Count() == Roster.Length;
 
-    [Invariant("Every published App-Post carries a non-empty ID and valid circle scope."), JsonIgnore]
+    [Invariant("Every published App-Post carries a non-empty ID and an audience."), JsonIgnore]
     public bool ValidPostsInvariant =>
         Posts is not null
-        && Posts.All(static p => !string.IsNullOrWhiteSpace(p.Id) && SupportedCircles.Contains(p.Scope, StringComparer.OrdinalIgnoreCase));
+        && Posts.All(static p => !string.IsNullOrWhiteSpace(p.Id) && p.Seen is not null);
 
     // ── Declarative Domain Rules ─────────────────────────────────────────────
 
@@ -216,9 +216,6 @@ public sealed record FriendsAppState(
         var cleanDisplay = string.IsNullOrWhiteSpace(profile.DisplayName) ? cleanHandle : profile.DisplayName;
         var validPosts = (profile.Posts ?? [])
             .Where(static p => !string.IsNullOrWhiteSpace(p.Id))
-            .Select(static p => SupportedCircles.Contains(p.Scope, StringComparer.OrdinalIgnoreCase)
-                ? p
-                : p with { Circle = "public" })
             .ToArray();
         var dedupedRoster = roster is null
             ? Roster ?? []

@@ -145,6 +145,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
 
         var content = string.IsNullOrWhiteSpace(request.Content) ? "New App-Post" : request.Content.Trim();
         var scope = FriendsAppState.NormalizeCircle(request.Scope, "public");
+        var audience = Audience.FromLegacy(scope);
         var id = string.IsNullOrWhiteSpace(request.Id) ? $"post-{Guid.NewGuid():N}" : request.Id.Trim();
         var templateAppId = string.IsNullOrWhiteSpace(request.TemplateAppId) ? $"post.app.{id}" : request.TemplateAppId.Trim().ToLowerInvariant();
         var embedded = ParseEmbeddedApps(request.EmbeddedAppIds, CurrentBrainId());
@@ -154,12 +155,15 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             Id: id,
             Content: content,
             CreatedAt: NowUtc(),
-            Circle: scope,
+            Circle: "",
             Title: request.Title ?? "",
             TemplateAppId: templateAppId,
             TemplateSource: unitSource,
             UnitFiles: unitFiles,
-            EmbeddedApps: embedded));
+            EmbeddedApps: embedded)
+        {
+            Audience = audience,
+        });
 
         await Show(State.ApplyProfile(updated, $"Published app-post {id} ({scope}) with {embedded.Length} embedded app(s)."));
     }
@@ -439,9 +443,12 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     {
         var roster = state.Roster ?? [];
         var allPosts = state.Posts ?? [];
-        var visiblePosts = state.SelectedScope is "all" or ""
-            ? allPosts
-            : allPosts.Where(p => string.Equals(p.Scope, state.SelectedScope, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var visiblePosts = state.SelectedScope switch
+        {
+            "public" => allPosts.Where(static p => p.Seen is Audience.Public).ToArray(),
+            "friends" => allPosts.Where(static p => p.Seen is Audience.Friends).ToArray(),
+            _ => allPosts,
+        };
 
         var showRoster = state.ActiveTab is "all" or "roster";
         var showShared = state.ActiveTab is "all" or "shared";
@@ -573,25 +580,34 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ]);
     }
 
+    private static string AudienceLabel(Audience audience) => audience switch
+    {
+        Audience.Public => "public",
+        Audience.Friends => "friends",
+        Audience.Only => "only",
+        _ => "only",
+    };
+
     private Node RenderPostCard(FriendsAppState state, ProfilePostItem post)
     {
+        var audience = AudienceLabel(post.Seen);
         var embedded = post.EmbeddedApps ?? [];
         RecordFieldNode[] fields =
         [
             new("Author", $"@{state.Handle}"),
-            new("Scope", post.Scope),
+            new("Audience", audience),
             new("App Template", post.TemplateAppId),
             new("Summary", post.Content),
             .. !string.IsNullOrWhiteSpace(post.ForkedFrom) ? [new RecordFieldNode("Forked From", post.ForkedFrom)] : Array.Empty<RecordFieldNode>(),
             .. embedded.Select(child => new RecordFieldNode($"Embedded [{child.Slot}]", $"{child.Title} ({child.TargetNeuronUri})")),
         ];
 
-        return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.Id}" : post.Title, $"@{state.Handle} · [{post.Scope}] · {post.TemplateAppId}")[
+        return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.Id}" : post.Title, $"@{state.Handle} · [{audience}] · {post.TemplateAppId}")[
             VStack(Space.Sm,
             [
                 Text(post.Content),
                 new RecordCardNode(
-                    $"App-Post · {post.Scope}",
+                    $"App-Post · {audience}",
                     post.Id,
                     fields,
                     Subtitle: post.Content,

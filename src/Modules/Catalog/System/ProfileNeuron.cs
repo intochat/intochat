@@ -34,21 +34,24 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         return next;
     }
 
-    public async Task<ProfileState> PublishPost(string id, string content, string circle = "public")
+    public async Task<ProfileState> PublishPost(string id, string content, Audience? audience = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
-        var scope = string.IsNullOrWhiteSpace(circle) ? "public" : circle.Trim();
+        var resolved = audience ?? new Audience.Public();
         var item = new ProfilePostItem(
             id.Trim(),
             content.Trim(),
             Context.Time.GetUtcNow(),
-            scope,
+            "",
             Title: content.Trim(),
             TemplateAppId: "friends.post-template",
             TemplateSource: "",
             EmbeddedApps: [],
-            AuthorBrainId: Id.Brain.Value);
+            AuthorBrainId: Id.Brain.Value)
+        {
+            Audience = resolved,
+        };
         return await PublishAppPost(item);
     }
 
@@ -87,7 +90,8 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         {
             Id = post.Id.Trim(),
             Content = post.Content.Trim(),
-            Circle = string.IsNullOrWhiteSpace(post.Circle) ? "public" : post.Circle.Trim(),
+            Circle = post.Circle?.Trim() ?? "",
+            Audience = post.Seen,
             Title = string.IsNullOrWhiteSpace(post.Title) ? post.Content.Trim() : post.Title.Trim(),
             TemplateAppId = templateAppId,
             TemplateSource = templateSource,
@@ -126,7 +130,10 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
                 [
                     new("canvas", "markdraw", "Markdraw Canvas", IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, "markdraw").Key),
                 ],
-                AuthorBrainId: brainId);
+                AuthorBrainId: brainId)
+            {
+                Audience = new Audience.Friends(),
+            };
 
         var filesToDeploy = source.UnitFiles;
         if ((filesToDeploy is null || filesToDeploy.Count == 0) && !string.Equals(source.TemplateAppId, "friends.post-template", StringComparison.Ordinal))

@@ -510,13 +510,16 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
                 Id: $"post-{alias}",
                 Content: summary,
                 CreatedAt: NowUtc(),
-                Circle: "public",
+                Circle: "",
                 Title: alias,
                 TemplateAppId: alias,
                 TemplateSource: csSource,
                 EmbeddedApps: [new("main", alias, alias, embeddedTarget)],
                 UnitFiles: files.Count > 0 ? files : null,
-                AuthorBrainId: brainId);
+                AuthorBrainId: brainId)
+            {
+                Audience = new Audience.Public(),
+            };
 
             await Get<IProfile>("profile").PublishAppPost(post);
             await Show(State with { Status = $"Shared {alias} as App-Post post-{alias}" });

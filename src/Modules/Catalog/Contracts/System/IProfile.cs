@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -31,7 +32,10 @@ public sealed record ProfilePostItem(
     IReadOnlyDictionary<string, string>? UnitFiles = null,
     string AuthorBrainId = "")
 {
-    public string Scope => string.IsNullOrWhiteSpace(Circle) ? "public" : Circle;
+    public Audience? Audience { get; init; }
+
+    [JsonIgnore]
+    public Audience Seen => Audience ?? Audience.FromLegacy(Circle);
 }
 
 public sealed record ProfileState(
@@ -60,7 +64,7 @@ public interface IProfile
 
     Task<ProfileState> UpdateProfile(string handle, string displayName, string bio, string[] pinnedApps, string avatarUrl = "");
 
-    Task<ProfileState> PublishPost(string id, string content, string circle = "public");
+    Task<ProfileState> PublishPost(string id, string content, Audience? audience = null);
 
     Task<ProfileState> PublishAppPost(ProfilePostItem post);
 
