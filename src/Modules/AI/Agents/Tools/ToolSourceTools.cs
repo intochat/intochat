@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -157,6 +158,10 @@ internal static class ToolSourceTools
         return slash >= 0 ? trimmed[(slash + 1)..] : trimmed;
     }
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2070",
+        Justification = "Neuron contract interfaces passed from AgentDefinition.Contracts are compile-time interfaces whose inheritance hierarchy is preserved by the host.")]
     private static bool IsToolSource(Type contract)
         => string.Equals(contract.FullName, ToolSourceContract, StringComparison.Ordinal)
            || contract.GetInterfaces().Any(static i => string.Equals(i.FullName, ToolSourceContract, StringComparison.Ordinal));
