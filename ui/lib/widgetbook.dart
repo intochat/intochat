@@ -262,10 +262,7 @@ class _ControlSurfacePlaygroundState extends State<_ControlSurfacePlayground> {
       initialOption: UiMotionPreset.spring,
       labelBuilder: (p) => p.name,
     );
-    final enabled = context.knobs.boolean(
-      label: 'Enabled',
-      initialValue: true,
-    );
+    final enabled = context.knobs.boolean(label: 'Enabled', initialValue: true);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -300,7 +297,11 @@ class _ControlSurfacePlaygroundState extends State<_ControlSurfacePlayground> {
                   ),
                 ),
                 child: Text(
-                  'Hover / Press / Focus Me (${state.isPressed ? "Pressed" : state.isHovered ? "Hovered" : "Idle"})',
+                  'Hover / Press / Focus Me (${state.isPressed
+                      ? "Pressed"
+                      : state.isHovered
+                      ? "Hovered"
+                      : "Idle"})',
                 ),
               );
             },
@@ -356,7 +357,14 @@ class _MixButtonPlaygroundState extends State<_MixButtonPlayground> {
     );
     final tone = context.knobs.object.dropdown<String>(
       label: 'C# SurfaceTone',
-      options: const ['accent', 'success', 'warning', 'danger', 'subtle', 'card'],
+      options: const [
+        'accent',
+        'success',
+        'warning',
+        'danger',
+        'subtle',
+        'card',
+      ],
       initialOption: 'accent',
     );
     final motion = context.knobs.object.dropdown<UiMotionPreset>(
@@ -365,10 +373,7 @@ class _MixButtonPlaygroundState extends State<_MixButtonPlayground> {
       initialOption: UiMotionPreset.spring,
       labelBuilder: (p) => p.name,
     );
-    final enabled = context.knobs.boolean(
-      label: 'Enabled',
-      initialValue: true,
-    );
+    final enabled = context.knobs.boolean(label: 'Enabled', initialValue: true);
 
     return Padding(
       padding: const EdgeInsets.all(24),

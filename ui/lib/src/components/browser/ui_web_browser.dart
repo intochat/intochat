@@ -29,7 +29,8 @@ final class UiWebBrowser extends StatefulWidget {
   final double? height;
   final bool frameless;
   final String chrome;
-  bool get isFrameless => frameless || chrome.trim().toLowerCase() == 'frameless';
+  bool get isFrameless =>
+      frameless || chrome.trim().toLowerCase() == 'frameless';
   final Future<void> Function(int, String)? onConnect;
   final Future<void> Function(String)? onDisconnect;
   final Future<void> Function(String)? onUnavailable;

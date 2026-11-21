@@ -19,7 +19,10 @@ final class UiMixToggle extends StatefulWidget {
     required this.onChanged,
     this.label = '',
     this.enabled = true,
-    this.style = const UiStyleData(tone: 'accent', motion: UiMotionPreset.spring),
+    this.style = const UiStyleData(
+      tone: 'accent',
+      motion: UiMotionPreset.spring,
+    ),
     this.eventMask = UiEventMask.click,
     this.onEmit,
     this.semanticsId,
@@ -248,10 +251,7 @@ class _UiMixExpanderState extends State<UiMixExpander> {
                       if (widget.subtitle.isNotEmpty)
                         Text(
                           widget.subtitle,
-                          style: TextStyle(
-                            color: colors.muted,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: colors.muted, fontSize: 12),
                         ),
                     ],
                   ),
