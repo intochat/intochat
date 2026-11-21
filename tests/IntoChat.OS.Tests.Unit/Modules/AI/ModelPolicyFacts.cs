@@ -222,6 +222,8 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(catalogDir, "Contracts", "System"),
             Path.Combine(catalogDir, "System"),
             Path.Combine(catalogDir, "Flows", "LocalLlmCoder.cs"),
+            Path.Combine(appHostDir, "AppHost.cs"),
+            Path.Combine(appHostDir, "Hosting", "Composition", "AIDeployment.cs"),
             Path.Combine(appHostDir, "Hosting", "Composition", "DeploymentProfile.cs"),
             Path.Combine(appHostDir, "Hosting", "Modules", "AI"),
             localSetupDir,

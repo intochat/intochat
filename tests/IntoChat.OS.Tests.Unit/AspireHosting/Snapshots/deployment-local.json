@@ -1,0 +1,32 @@
+{
+  "Modules": [
+    "ai",
+    "aspire",
+    "github",
+    "orleans",
+    "sandbox",
+    "webtools"
+  ],
+  "Resources": [
+    "Modules",
+    "Modules-ai",
+    "Modules-aspire",
+    "Modules-github",
+    "Modules-intochat-os-master-key",
+    "Modules-orleans",
+    "Modules-sandbox",
+    "Modules-searxng",
+    "Modules-searxng-secret",
+    "Modules-webtools",
+    "OperatingSystem-a",
+    "OperatingSystem-a-rebuilder",
+    "OperatingSystem-front",
+    "__dotnet-project-build",
+    "sandbox"
+  ],
+  "Settings": {
+    "IntoChatOS:Modules:ai:Options:ollama:endpoint": "http://localhost:11434",
+    "IntoChatOS:Modules:webtools:Options:provider": "1",
+    "IntoChatOS:Modules:webtools:Options:searxngUrl": "http://localhost:8080"
+  }
+}

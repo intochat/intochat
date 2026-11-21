@@ -1,24 +1,15 @@
 using Aspire.Hosting;
-using IntoChat.OS.Modules.AI;
-using IntoChat.OS.Modules.AI.Aspire.Hosting;
-using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.ArtCraft;
-using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
-using IntoChat.OS.Modules.ClickHouse;
-using IntoChat.OS.Modules.Microsoft.Aspire;
-using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.Microsoft.Orleans;
-using IntoChat.OS.Modules.Microsoft.Playwright;
-using IntoChat.OS.Modules.Postgres;
-using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Cluster;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Microsoft.Orleans;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
-// One developer deployment of the OS, resolved once from configuration: the topology (IntoChatOS:Topology, unset = local)
-// picks the models and storage; module enablement (IntoChatOS:Modules:<id>:Enabled, defaulted by LocalRunDefaults) picks
-// which modules get hosting. The kernel and MCP apply the same defaults themselves, so only explicit overrides are projected.
+// One deployment's runtime shape, resolved once from configuration: the topology (IntoChatOS:Topology, unset = local)
+// picks the side (Device, Cloud, or both) and storage; module enablement (IntoChatOS:Modules:<id>:Enabled, defaulted by
+// LocalRunDefaults) gates each module hosting in the AppHost chain. The kernel and MCP apply the same defaults themselves,
+// so only explicit overrides are projected.
 public sealed record DeploymentProfile
 {
     public const string UiPortKey = "IntoChatOS:Http:UiPort";
@@ -27,6 +18,8 @@ public sealed record DeploymentProfile
 
     public required string Topology { get; init; }
     public bool Cloud => Topology == IntoChatOSNames.TopologyCloud;
+    public bool UsesDevice => Topology is IntoChatOSNames.TopologyLocal or IntoChatOSNames.TopologyLocalCloud;
+    public bool UsesCloud => Topology is IntoChatOSNames.TopologyCloud or IntoChatOSNames.TopologyLocalCloud;
     public required string Home { get; init; }
     public int UiPort { get; init; } = 5080;
     public int McpPort { get; init; } = 5081;
@@ -34,7 +27,6 @@ public sealed record DeploymentProfile
     public bool FrontEnabled { get; init; } = true;
     public required IReadOnlyList<string> ModuleOverrides { get; init; }
     public required OrleansOptions Orleans { get; init; }
-    public required AIOptions Ai { get; init; }
     private IConfiguration Configuration { get; init; } = null!;
 
     public bool IsEnabled(string moduleId) => LocalRunDefaults.IsEnabled(Configuration, moduleId);
@@ -66,7 +58,6 @@ public sealed record DeploymentProfile
             FrontEnabled = configuration.GetValue(IntoChatOSNames.FrontEnabledKey, true),
             ModuleOverrides = overrides,
             Orleans = orleans,
-            Ai = cloud ? CloudAi() : LocalAi(configuration[IntoChatOSHostingOptions.LocalModelKey]),
             Configuration = configuration,
         };
     }
@@ -94,43 +85,6 @@ public sealed record DeploymentProfile
                 && !string.Equals(value, defaults.GetValueOrDefault(key) ?? "true", StringComparison.OrdinalIgnoreCase))
             .Order(StringComparer.Ordinal)];
     }
-
-    // Adds the hosting of every enabled module: a module switched off (by the topology default or explicitly) gets no
-    // containers, parameters or projections.
-    internal IntoChatOSBuilder Apply(IntoChatOSBuilder os)
-    {
-        os = os.WithHosting<OrleansModuleHosting, OrleansOptions>(Orleans);
-        if (IsEnabled("postgres")) { os = os.WithModule<PostgresModule, PostgresModuleOptions>(new PostgresModuleOptions().WithPostgres(options => options.DatabaseName = "intochat_os")); }
-        if (IsEnabled("clickhouse")) { os = os.WithModule<ClickHouseModule, ClickHouseModuleOptions>(new ClickHouseModuleOptions().WithClickHouse()); }
-        os = os.WithHosting<AIModuleHosting, AIOptions>(Ai);
-        if (IsEnabled("github")) { os = os.WithModule<GitHubModule>(); }
-        os = os.WithHosting<AspireModuleHosting>();
-        if (IsEnabled("artcraft")) { os = os.WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps()); }
-        // All 17 ArtCraft studios (including PhotoCraft and FilmCraft) are served directly from the Kernel over /artcraft/{id}/*;
-        // no standalone Nginx containers are required when the ArtCraft MCP module is disabled.
-        if (IsEnabled("playwright")) { os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins); }
-        if (IsEnabled(SandboxModuleHosting.ModuleName)) { os = os.WithHosting<SandboxModuleHosting>(); }
-        return os;
-    }
-
-    // Local: Ollama on the host (endpoint only, no container); IntoChatOS:Local:Model overrides Roles.Device[Chat].
-    internal static AIOptions LocalAi(string? model)
-    {
-        var ai = new AIOptions().WithModelEndpoint(AiProvider.Ollama, new Uri(IntoChatOSNames.LocalOllamaEndpoint)).WithoutWebSearch();
-        if (model is { Length: > 0 })
-        {
-            ai.Roles.Device[Role.Chat] = KnownModels.Find(model)?.Id.Value ?? model.Trim();
-        }
-        return ai;
-    }
-
-    private static AIOptions CloudAi() => new AIOptions()
-        .WithModel(KnownModels.Gpt56Luna)
-        .WithRole(Role.Chat, KnownModels.DeepSeekV41Flash)
-        .WithRole(Role.Embed, KnownModels.TextEmbedding3Small)
-        .WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo)
-        .WithoutLocalModels()
-        .WithTavilySearch();
 }
 
 // Where local state lives: IntoChatOS:Home, or ~/.intochat.

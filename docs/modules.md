@@ -26,6 +26,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 | `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. Its contracts assembly (`IntoChat.OS.Modules.Shell.Contracts`) lives in `src/Modules/Shell/Contracts`. |
 | `Storage` | `local-disk` | Local disks as storage: allowed roots, volume quota and confined file access. |
 | `Time` | `time` | Timers and persistent periodic reminders. |
+| `Web` | `webtools` | Web search and vetted public web page reading. Its contracts assembly (`IntoChat.OS.Modules.Web.Contracts`) lives in `src/Modules/Web/Contracts`. |
 | `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |
 
 The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`, and `IdentityModule` in `src/Modules/Identity`, whose contracts (`IntoChat.OS.Modules.Identity.Contracts`) are in `src/Modules/Identity/Contracts`.
@@ -45,7 +46,7 @@ A module can declare more through static members that the host reads:
 - `Contracts`: the assembly that holds the module's contracts.
 - `Integration` or `Integrations`: the secrets and settings a connection of this module asks for.
 
-A module's options bind from its own configuration section, for example `IntoChatOS:Modules:ai:Options`. Setting `Enabled` to `false` in a module's section turns the module off.
+A module's options bind from its own configuration section, for example `IntoChatOS:Modules:ai:Options`. Values stated in the AppHost chain (`src/IntoChat.OS.AppHost/AppHost.cs`) are defaults that `IntoChatOS:Modules:<id>:Options` overrides; setting `IntoChatOS:Modules:<id>:ReplaceOptions=true` drops them. Setting `Enabled` to `false` in a module's section turns the module off.
 
 ## Connections
 

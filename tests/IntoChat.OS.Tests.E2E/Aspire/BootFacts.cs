@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Yarp;
 using IntoChat.OS.Apps.Ino;
@@ -49,6 +50,31 @@ public sealed class BootFacts(OsAppHostFixture host)
         Assert.Empty(model.Resources.OfType<ContainerResource>());
         Assert.Empty(model.Resources.OfType<YarpResource>());
         Assert.DoesNotContain(model.Resources, r => r.Annotations.Any(a => a.GetType().Name.EndsWith("BuildAnnotation", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task TheProductTierDownloadsNothing()
+    {
+        var env = await KernelEnvironmentAsync(host.App, "OperatingSystem-a", TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(env.Keys, static k => k.StartsWith("IntoChatOS__Modules__devices__Options__Prefetch__", StringComparison.OrdinalIgnoreCase));
+        Assert.Empty(host.App.Services.GetRequiredService<DistributedApplicationModel>().Resources.OfType<ContainerResource>());
+    }
+
+    private static async Task<Dictionary<string, object>> KernelEnvironmentAsync(
+        DistributedApplication app,
+        string resourceName,
+        CancellationToken ct)
+    {
+        var model = app.Services.GetRequiredService<DistributedApplicationModel>();
+        var resource = Assert.Single(model.Resources, r => string.Equals(r.Name, resourceName, StringComparison.Ordinal));
+        var executionContext = app.Services.GetRequiredService<DistributedApplicationExecutionContext>();
+        var env = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var context = new EnvironmentCallbackContext(executionContext, resource, env, ct);
+        foreach (var callback in resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            await callback.Callback(context);
+        }
+        return env;
     }
 
     [Fact]

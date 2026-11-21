@@ -13,7 +13,9 @@ Configuration section: `IntoChatOS:Modules:mcp:Options` (environment prefix `Int
 
 Options:
 
-None.
+| Option | Type | Default | Required |
+| --- | --- | --- | --- |
+| `Servers` | `Dictionary<String, McpServerOptions>` | (collection) | no |
 
 Secrets (names only; values are sealed per brain, never configuration):
 

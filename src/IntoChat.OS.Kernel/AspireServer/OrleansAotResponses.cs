@@ -64,6 +64,7 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.Modules.Google.Gmail.GmailDraftOperationStatus>(services);
         AddEnum<IntoChat.OS.Modules.Google.Gmail.GmailAccountingStatus>(services);
         AddEnum<IntoChat.OS.Modules.Postgres.PostgresIsolation>(services);
+        AddEnum<IntoChat.OS.Modules.Web.SearchProvider>(services);
 
         AddValue<IntoChat.OS.Runtime.Code>(services);
         AddNullableValue<IntoChat.OS.Runtime.Code>(services);

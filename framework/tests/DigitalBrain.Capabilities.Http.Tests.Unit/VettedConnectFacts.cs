@@ -1,11 +1,11 @@
 using System.Net;
+using System.Text;
 using DigitalBrain.Capabilities.Http;
-using IntoChat.OS.Kernel.Composition.Capabilities;
-using Xunit;
 
-namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
+namespace DigitalBrain.Capabilities.Http.Tests.Unit;
 
-// The connect behind every http@1 read: only a public address of the host is connected to, and an IP in the url must be on the list.
+// The connect behind every vetted HTTP read: only a public address of the host is connected to,
+// an IP in an allow-listed read must be named explicitly, and GetPublic vets every redirect hop.
 public sealed class VettedConnectFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -84,6 +84,74 @@ public sealed class VettedConnectFacts
 
         Assert.Contains("api.x.com", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("cdn", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetPublicFollowsAPublicRedirect()
+    {
+        var asked = new List<Uri>();
+        var handler = new Answering(url =>
+        {
+            asked.Add(url);
+            return url.Host == "start.example.org"
+                ? new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("https://final.example.net/page") } }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("hello", Encoding.UTF8, "text/plain") };
+        });
+        var http = new HostBoundHttp(new HttpClient(handler));
+
+        var fetched = await http.GetPublic(new Uri("https://start.example.org/go"), Ct);
+
+        Assert.Equal(new Uri("https://final.example.net/page"), fetched.FinalUrl);
+        Assert.Equal("text/plain", fetched.MediaType);
+        Assert.Equal("hello", fetched.Text);
+        Assert.Equal(2, asked.Count);
+    }
+
+    [Theory]
+    [InlineData("http://169.254.169.254/latest/meta-data/")]
+    [InlineData("http://127.0.0.1/admin")]
+    [InlineData("http://localhost:8080/")]
+    public async Task RedirectToPrivateIsRefused(string privateTarget)
+    {
+        var asked = new List<Uri>();
+        var handler = new Answering(url =>
+        {
+            asked.Add(url);
+            return new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri(privateTarget) } };
+        });
+        var http = new HostBoundHttp(new HttpClient(handler));
+
+        await Assert.ThrowsAsync<HostNotAllowedException>(() => http.GetPublic(new Uri("https://public.example.org/start"), Ct));
+
+        Assert.Single(asked);
+    }
+
+    [Fact]
+    public async Task GetPublicReportsMediaTypeAndFinalUrl()
+    {
+        var handler = new Answering(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("<h1>Hi</h1>", Encoding.UTF8, "text/html"),
+        });
+        var http = new HostBoundHttp(new HttpClient(handler));
+
+        var fetched = await http.GetPublic(new Uri("https://docs.example.org/guide"), Ct);
+
+        Assert.Equal(new Uri("https://docs.example.org/guide"), fetched.FinalUrl);
+        Assert.Equal("text/html", fetched.MediaType);
+        Assert.Equal("<h1>Hi</h1>", fetched.Text);
+    }
+
+    [Fact]
+    public async Task BodyOver1MiBIsRefused()
+    {
+        var handler = new Answering(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(new string('x', HostBoundHttp.MaxBytes + 1), Encoding.UTF8, "text/html"),
+        });
+        var http = new HostBoundHttp(new HttpClient(handler));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetPublic(new Uri("https://big.example.org/page"), Ct));
     }
 
     private sealed class CountingHandler : HttpMessageHandler

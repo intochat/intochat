@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Web;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -91,27 +92,28 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             ? []
             : [.. plan.Contracts.Select(static name => LoadedContracts.CurrentName(name, ContractAssemblyPrefixes)).Distinct(StringComparer.Ordinal)];
         var contractTools = new List<ContractTool>();
+        var routableTools = new List<AIFunction>();
         var allTools = new List<AIFunction>();
         var activeTools = new List<AITool>();
+        OsNeuronSurface? restricted = null;
+        DigitalBrain.Access.EdgeAuthority? edge = null;
+        IReadOnlyList<AIFunction> meta = [];
         if (composed.Length > 0 && surface is not null)
         {
             var hosted = (await surface.Contracts(ct)).ToHashSet(StringComparer.Ordinal);
             composed = [.. composed.Where(hosted.Contains)];
             if (composed.Length > 0)
             {
-                var restricted = await surface.Restrict(composed, ct);
-                var edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
-                var meta = AgentTools.Meta(edge, restricted, plan.Conversation);
+                restricted = await surface.Restrict(composed, ct);
+                edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
+                meta = AgentTools.Meta(edge, restricted, plan.Conversation);
                 Type[] contractTypes = [.. composed.Select(static name => LoadedContracts.Find(name, ContractAssemblyPrefixes))];
                 contractTools.AddRange(AgentTools.For(edge, restricted, contractTypes, plan.Conversation));
+                var sourceTools = await ToolSourceTools.For(restricted, contractTypes, edge, plan.Conversation, ct);
+                routableTools.AddRange(contractTools);
+                routableTools.AddRange(sourceTools);
                 allTools.AddRange(meta);
-                allTools.AddRange(contractTools);
-
-                var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
-                var router = new ToolRouter(contractTools, ResolveEmbeddings(services));
-                var routed = await router.Route(inputText, 8, ct);
-                activeTools.AddRange(meta);
-                activeTools.AddRange(routed);
+                allTools.AddRange(routableTools);
             }
         }
 
@@ -130,6 +132,29 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             {
                 resolved = await catalog.ResolveCloudFallbackAsync(
                     plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, unavailableReason ?? "offline", ct);
+            }
+        }
+
+        if (restricted is not null)
+        {
+            var useNativeWebSearch = resolved.Provider == AiProvider.Anthropic
+                && composed.Contains(typeof(IWebSearch).FullName!, StringComparer.Ordinal)
+                && await IsNativeWebSearchEnabledAsync(restricted, edge, plan.Conversation, ct);
+            if (useNativeWebSearch)
+            {
+                contractTools.RemoveAll(IsWebSearchTool);
+                routableTools.RemoveAll(IsWebSearchTool);
+                allTools.RemoveAll(IsWebSearchTool);
+            }
+
+            var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
+            var router = new ToolRouter(routableTools, ResolveEmbeddings(services));
+            var routed = await router.Route(inputText, 8, ct);
+            activeTools.AddRange(meta);
+            activeTools.AddRange(routed);
+            if (useNativeWebSearch)
+            {
+                activeTools.Add(new HostedWebSearchTool());
             }
         }
 
@@ -318,7 +343,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                     }
                     if (string.Equals(tool.Name, AgentTools.SearchName, StringComparison.Ordinal))
                     {
-                        WidenToolsFromSearch(result, serialized, contractTools, activeTools, options);
+                        WidenToolsFromSearch(result, serialized, routableTools, activeTools, options);
                     }
                     var resultMessage = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, result)]);
                     messages.Add(resultMessage);
@@ -375,10 +400,40 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         catch (InvalidOperationException) { return null; }
     }
 
+    private static bool IsWebSearchTool(AIFunction tool)
+        => tool is ContractTool contractTool
+           && string.Equals(contractTool.Schema.Contract, typeof(IWebSearch).FullName, StringComparison.Ordinal)
+           && string.Equals(contractTool.Schema.Method, nameof(IWebSearch.Search), StringComparison.Ordinal);
+
+    private static async Task<bool> IsNativeWebSearchEnabledAsync(
+        OsNeuronSurface restricted,
+        DigitalBrain.Access.EdgeAuthority? edge,
+        string conversation,
+        CancellationToken ct)
+    {
+        var brain = edge?.Current?.Brain.Value ?? DigitalBrain.Brains.BrainKey.BrainOf(conversation);
+        var key = string.IsNullOrWhiteSpace(brain) ? "{brain}/" + IWebSearch.DefaultKey : brain + "/" + IWebSearch.DefaultKey;
+        try
+        {
+            var raw = await restricted.Call(typeof(IWebSearch).FullName!, key, nameof(IWebSearch.Provider), "{}", ct).ConfigureAwait(false);
+            return raw is { } value && value.ValueKind switch
+            {
+                JsonValueKind.Number when value.TryGetInt32(out var code) => code == (int)SearchProvider.Native,
+                JsonValueKind.String => Enum.TryParse<SearchProvider>(value.GetString(), ignoreCase: true, out var parsed) && parsed == SearchProvider.Native,
+                _ => false,
+            };
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "reading IWebSearch.Provider for native search decision");
+            return false;
+        }
+    }
+
     private static void WidenToolsFromSearch(
         object? result,
         string serialized,
-        List<ContractTool> contractTools,
+        IReadOnlyList<AIFunction> routableTools,
         List<AITool> activeTools,
         ChatOptions options)
     {
@@ -387,9 +442,15 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
 
         var activeNames = activeTools.OfType<AIFunction>().Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
         var widened = false;
-        foreach (var candidate in contractTools)
+        foreach (var candidate in routableTools)
         {
-            if (hitContracts.Contains(candidate.Schema.Contract) && activeNames.Add(candidate.Name))
+            var contract = candidate switch
+            {
+                ContractTool contractTool => contractTool.Schema.Contract,
+                ToolSourceTools.ToolSourceFunction sourceTool => sourceTool.ContractName,
+                _ => null,
+            };
+            if (contract is not null && hitContracts.Contains(contract) && activeNames.Add(candidate.Name))
             {
                 activeTools.Add(candidate);
                 widened = true;

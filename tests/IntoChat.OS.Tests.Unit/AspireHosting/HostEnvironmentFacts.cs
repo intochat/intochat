@@ -11,7 +11,7 @@ public sealed class HostEnvironmentFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration[IntoChatOSHostingOptions.EnvironmentKey] = "Production";
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions());
         var silo = builder.AddExecutable("silo", "unused", ".").WithReference(brain);
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(builder.ExecutionContext, silo.Resource, environment, TestContext.Current.CancellationToken);

@@ -60,7 +60,18 @@ var os = builder.AddIntoChatOSContainer("os", httpPort: 5080)
     .WithEnvironment("IntoChatOS__Home", "/app/home");
 ```
 
-`AddIntoChatOSContainer` defaults to `image: "ghcr.io/intochat/os"` and `tag: "latest"`, exposes the `"http"` endpoint targeting port `8080` (bound to `httpPort` when supplied), and registers an HTTP health check on `/health`. `WithBootstrapOwner` sets `IntoChatOS__Auth__Username` and `IntoChatOS__Auth__Password` (required when listening beyond loopback without a sign-in module unless `IntoChatOS__Auth__AllowOpenOnNetwork=true` is set), and `WithTopology` sets `IntoChatOS__Topology`. Note that `IntoChat.OS.AppHost` is `IsPackable=false`; external AppHosts reference `src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj` or configure the container resource directly.
+`AddIntoChatOSContainer` defaults to `image: "ghcr.io/intochat/os"` and `tag: "latest"`, exposes the `"http"` endpoint targeting port `8080` (bound to `httpPort` when supplied), and registers an HTTP health check on `/health`. `WithBootstrapOwner` sets `IntoChatOS__Auth__Username` and `IntoChatOS__Auth__Password` (required when listening beyond loopback without a sign-in module unless `IntoChatOS__Auth__AllowOpenOnNetwork=true` is set), and `WithTopology` sets `IntoChatOS__Topology`. `IntoChat.OS.AppHost` is `IsPackable=true` and is consumed as a NuGet package by external AppHosts (such as IntoChat Cloud).
+
+### Your own AppHost
+
+```csharp
+using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Modules.AI.Models;
+
+builder.AddIntoChatOS("Modules")
+    .WithAI(ai => ai.Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash))))
+    .AddKernel("../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj");
+```
 
 ## Packages and images
 

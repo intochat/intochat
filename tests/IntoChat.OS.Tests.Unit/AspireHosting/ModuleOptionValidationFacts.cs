@@ -44,7 +44,7 @@ public sealed class ModuleOptionValidationFacts
     private static void Invoke(string entry, Action<CheckedOptions> configure)
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions());
         switch (entry)
         {
             case "hosting-action": brain.WithHosting<CheckedHosting, CheckedOptions>(configure); break;

@@ -45,5 +45,6 @@
     <ProjectReference Include="../Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />
+    <ProjectReference Include="../Web/Contracts/IntoChat.OS.Modules.Web.Contracts.csproj" />
   </ItemGroup>
 </Project>

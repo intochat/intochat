@@ -2,10 +2,13 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Dotnet;
 using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Host.Cluster;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
-using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
@@ -20,16 +23,33 @@ public static class OperatingSystemHosting
         IntoChatOSNames.BrainStorageWriteFormatConfigurationKey,
     ];
 
-    public static IntoChatOSBuilder AddIntoChatOS(this IDistributedApplicationBuilder builder, string name, DeploymentProfile profile, IntoChatOSHostingOptions? hosting = null)
+    public static IntoChatOSBuilder AddIntoChatOS(
+        this IDistributedApplicationBuilder builder,
+        string name,
+        IntoChatOSHostingOptions? hosting = null)
     {
-        ArgumentNullException.ThrowIfNull(profile);
-        var os = profile.Apply(builder.AddIntoChatOS(name, hosting)).WithHttpIdentity();
-        return profile.ShellEnabled ? os.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()) : os;
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var profile = DeploymentProfile.From(builder);
+        var os = builder.AddIntoChatOSBrain(name, hosting ?? IntoChatOSHostingOptions.Named(builder.Configuration, "os"));
+        os.Profile = profile;
+        os = os
+            .WithHosting<OrleansModuleHosting, OrleansOptions>(profile.Orleans)
+            .WithHosting<AspireModuleHosting>()
+            .WithHttpIdentity();
+        return profile.ShellEnabled
+            ? os.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
+            : os;
     }
 
-    public static IResourceBuilder<IResourceWithEndpoints>[] AddKernel(this IntoChatOSBuilder os, string projectPath, DeploymentProfile profile)
+    public static IResourceBuilder<IResourceWithEndpoints>[] AddKernel(this IntoChatOSBuilder os, string projectPath)
     {
+        ArgumentNullException.ThrowIfNull(os);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
+        var profile = os.Profile
+            ?? throw new InvalidOperationException("AddKernel needs the deployment from builder.AddIntoChatOS(name).");
+
         var builder = os.ApplicationBuilder;
         // Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
@@ -62,6 +82,10 @@ public static class OperatingSystemHosting
                 .WithOsEnvironment(ModuleConfiguration.ConnectionsPublicOriginKey, $"http://localhost:{profile.UiPort}")
                 .WithModuleOverrides(builder, profile)
                 .WithHttpHealthCheck("/health", endpointName: "http");
+            if (profile.UsesDevice)
+            {
+                silo.WithInstallModelCommand(os);
+            }
             if (cookieProtection is not null) { silo.WaitFor(cookieProtection); }
             foreach (var key in ForwardedKernelKeys)
             {
@@ -78,13 +102,14 @@ public static class OperatingSystemHosting
     /// </summary>
     public static IResourceBuilder<ContainerResource> AddKernelContainer(
         this IntoChatOSBuilder os,
-        DeploymentProfile profile,
         string image = "ghcr.io/intochat/os",
         string tag = "latest",
         string name = "OperatingSystem-container")
     {
         ArgumentNullException.ThrowIfNull(os);
-        ArgumentNullException.ThrowIfNull(profile);
+        var profile = os.Profile
+            ?? throw new InvalidOperationException("AddKernelContainer needs the deployment from builder.AddIntoChatOS(name).");
+
         var builder = os.ApplicationBuilder;
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
         var container = builder.AddIntoChatOSContainer(name, image, tag)

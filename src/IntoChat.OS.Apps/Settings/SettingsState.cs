@@ -36,6 +36,14 @@ public sealed record SettingsProviderRow(
     string Icon,
     string Status);
 
+public sealed record McpServerRow(
+    string Name,
+    string Title,
+    string Url,
+    bool Connected,
+    int ToolCount,
+    string? Error = null);
+
 /// <summary>
 /// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
 /// (compute spend/cap, pending approvals, and redacted secret statuses) without transient grain fields.
@@ -106,6 +114,9 @@ public sealed record SettingsAppState(
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
     public DeviceView? Device { get; init; }
     public Friend[]? TeamRoster { get; init; }
+    public McpServerRow[] McpServers { get; init; } = [];
+    public string? WebSearchProvider { get; init; }
+    public string? WebSearxngUrl { get; init; }
 
     // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):
     [Id(40)]
@@ -317,6 +328,62 @@ public sealed record SettingsAppState(
         connectionKey,
         static k => string.IsNullOrWhiteSpace(k),
         "Connection key cannot be empty.");
+
+    public static Rule ValidateMcpServerNameRule(string? name) => Decision.Rule(
+        "invalid_mcp_server_name",
+        name,
+        static n => string.IsNullOrWhiteSpace(n) || !IsValidMcpServerName(n.Trim().ToLowerInvariant()),
+        "MCP server name must match ^[a-z0-9][a-z0-9-]{0,31}$.");
+
+    public static Rule ValidateMcpServerUrlRule(string? url) => Decision.Rule(
+        "invalid_mcp_server_url",
+        url,
+        static u => !IsAllowedMcpServerUrl(u),
+        "MCP server URL must be an absolute https URL (http is allowed only for loopback) without credentials.");
+
+    public static Rule ValidateSearxngUrlRule(string? url) => Decision.Rule(
+        "invalid_searxng_url",
+        url,
+        static u => !string.IsNullOrWhiteSpace(u) && (!Uri.TryCreate(u.Trim(), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")),
+        "SearXNG URL must be an absolute http or https URL.");
+
+    private static bool IsValidMcpServerName(string value)
+    {
+        if (value.Length is 0 or > 32)
+        {
+            return false;
+        }
+
+        if (!char.IsAsciiLetterLower(value[0]) && !char.IsAsciiDigit(value[0]))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < value.Length; i++)
+        {
+            var c = value[i];
+            if (!char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAllowedMcpServerUrl(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)
+            || !Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var uri)
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return false;
+        }
+
+        return uri.Scheme == Uri.UriSchemeHttps
+            || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
+    }
 
     public Rule HasPortableArchiveRule(string? archiveJson) => Decision.Rule(
         "archive_required",

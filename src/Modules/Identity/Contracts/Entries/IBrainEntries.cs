@@ -60,6 +60,7 @@ public static partial class BrainEntries
 
     // The key-based AI providers whose keys a brain may hold; IBrainProviderKeys releases no other entry.
     public static IReadOnlyList<string> KeyedProviderIds { get; } = ["openai", "anthropic", "google", "xai", "openrouter"];
+    public static IReadOnlyList<string> WebSearchKeyIds { get; } = ["brave", "tavily"];
     public const int MaxVariableBytes = 4 * 1024;
     public const int MaxSecretBytes = 8 * 1024;
 

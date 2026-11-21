@@ -4,7 +4,7 @@
 #:property PublishAot=false
 // Starts IntoChat.OS: `dotnet run intochat-os.cs [default|headless|local|preflight|reset|<config>.json] [-- <AppHost arguments>]` from the repository root.
 // Profiles: default runs the Flutter shell; headless leaves it out; local runs preflight, pulls the model if it is missing and
-// starts the lean host-Ollama profile; preflight only checks the machine; reset forwards to the AppHost; a .json file is an extra
+// starts the local topology: the Device side of `AppHost.cs`; preflight only checks the machine; reset forwards to the AppHost; a .json file is an extra
 // configuration file the AppHost loads. Argument parsing, preflight and the AppHost switches live in IntoChat.OS.LocalSetup.
 using System.Diagnostics;
 using IntoChat.OS.LocalSetup;

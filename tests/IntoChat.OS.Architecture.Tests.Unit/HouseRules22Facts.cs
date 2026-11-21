@@ -1472,6 +1472,7 @@ public sealed class HouseRules22Facts
             "IGmailInbound",
             "IGmailPushAuthenticator",
             "ISolutionLoader",
+            "ISearchAdapter",
             "ICreatorModel",
             "IClickHouseProvider",
             "ILlmProviderFactory",

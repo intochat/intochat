@@ -38,6 +38,7 @@ public static class OperatingSystemModules
         typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly,
         typeof(IntoChat.OS.Modules.LocalDisk.LocalDiskModule).Assembly,
         typeof(IntoChat.OS.Modules.Time.TimeModule).Assembly,
+        typeof(IntoChat.OS.Modules.Web.WebModule).Assembly,
         typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule).Assembly,
     ];
 
