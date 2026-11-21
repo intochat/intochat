@@ -43,6 +43,7 @@ class ViewHost extends StatefulWidget {
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
+    this.watchSignal,
     this.callNeuron,
     this.signals,
     this.transcribe,
@@ -91,6 +92,9 @@ class ViewHost extends StatefulWidget {
   /// The node's change events. With a watch the host never polls: it reads once on mount and
   /// once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
+
+  /// Watches one signal type on a neuron contract, yielding decoded payloads.
+  final NeuronSignalWatcher? watchSignal;
   final NeuronMethodCaller? callNeuron;
 
   /// The brain's journal tail from its head: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
@@ -313,6 +317,7 @@ class _ViewHostState extends State<ViewHost> {
     events: _events,
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
+    watchSignal: widget.watchSignal,
     callNeuron: widget.callNeuron,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     slotDepth: widget.slotDepth,
@@ -427,6 +432,7 @@ class _ViewHostState extends State<ViewHost> {
       knowsApp: widget.knowsApp,
       events: _events,
       refreshEvery: widget.refreshEvery,
+      watchSignal: widget.watchSignal,
       callNeuron: widget.callNeuron,
       // A slot child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
       watch: isChild ? null : widget.watch,
@@ -516,6 +522,8 @@ class _ViewHostState extends State<ViewHost> {
           load: widget.load,
           reload: _reload,
           watch: widget.watch,
+          watchSignal: widget.watchSignal,
+          callNeuron: widget.callNeuron,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
           reference: (kind, name, props) =>

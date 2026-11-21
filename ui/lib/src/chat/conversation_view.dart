@@ -35,6 +35,8 @@ class ConversationView extends StatefulWidget {
     this.activeModelId,
     this.selectModelKey,
     this.pinModelKey,
+    this.deltas,
+    this.readConversation,
   });
 
   final ConversationNode node;
@@ -56,6 +58,13 @@ class ConversationView extends StatefulWidget {
   /// Key activated with the chosen model id to pin it as the Chat default.
   final String? pinModelKey;
 
+  /// Ephemeral `TextDelta` signal payloads (`{id, entry, delta, at}`).
+  final Stream<Map<String, dynamic>>? deltas;
+
+  /// Reads the full `ConversationView` (`IConversation.Read(sinceRevision: null)`)
+  /// when a delta offset indicates a gap.
+  final Future<Map<String, dynamic>?> Function()? readConversation;
+
   @override
   State<ConversationView> createState() => _ConversationViewState();
 }
@@ -74,12 +83,19 @@ class _ConversationViewState extends State<ConversationView> {
   bool _hadWaiting = false;
   bool _suppressWaitingDefault = false;
 
+  StreamSubscription<Map<String, dynamic>>? _deltaSub;
+  ({String entry, String text})? _pending;
+  final List<WireTextDelta> _queuedDeltas = <WireTextDelta>[];
+  bool _healing = false;
+  int _healEpoch = 0;
+
   @override
   void initState() {
     super.initState();
     _hadWaiting = widget.node.waiting != null;
     _composerFocus.addListener(_onFocusChange);
     _controller.addListener(_onDraftChange);
+    _subscribeDeltas();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.node.waiting != null && !_suppressWaitingDefault) {
@@ -91,6 +107,12 @@ class _ConversationViewState extends State<ConversationView> {
   @override
   void didUpdateWidget(covariant ConversationView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.deltas != oldWidget.deltas) {
+      _clearPending();
+      _subscribeDeltas();
+    } else {
+      _syncPendingWithNode();
+    }
     final hasWaiting = widget.node.waiting != null;
     if (hasWaiting && !_hadWaiting) {
       // Never steal focus or preselect the default option when a prompt arrives over an active draft.
@@ -129,6 +151,7 @@ class _ConversationViewState extends State<ConversationView> {
 
   @override
   void dispose() {
+    _deltaSub?.cancel();
     _composerFocus.removeListener(_onFocusChange);
     _controller.removeListener(_onDraftChange);
     _controller.dispose();
@@ -136,6 +159,130 @@ class _ConversationViewState extends State<ConversationView> {
     _dockFocus.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _subscribeDeltas() {
+    _deltaSub?.cancel();
+    _deltaSub = widget.deltas?.listen(_onDelta, onError: (Object _) {});
+  }
+
+  void _clearPending() {
+    _pending = null;
+    _queuedDeltas.clear();
+    _healing = false;
+    _healEpoch++;
+  }
+
+  MessageNode? _findMessage(String id) {
+    for (final msg in widget.node.messages) {
+      if (msg.id == id) return msg;
+    }
+    return null;
+  }
+
+  void _syncPendingWithNode() {
+    final pending = _pending;
+    if (pending == null) return;
+    final msg = _findMessage(pending.entry);
+    if (msg == null) return;
+    if (parseMessageStatus(msg.status) != WireMessageStatus.running) {
+      _clearPending();
+      return;
+    }
+    if (msg.text.length > pending.text.length) {
+      _pending = (entry: msg.id, text: msg.text);
+    }
+  }
+
+  void _onDelta(Map<String, dynamic> payload) {
+    final parsed = parseTextDelta(payload);
+    if (parsed == null || parsed.delta.isEmpty) return;
+
+    final existing = _findMessage(parsed.entry);
+    if (existing != null &&
+        parseMessageStatus(existing.status) != WireMessageStatus.running) {
+      return;
+    }
+
+    if (_pending == null || _pending!.entry != parsed.entry) {
+      _queuedDeltas.clear();
+      _healing = false;
+      _healEpoch++;
+      _pending = (entry: parsed.entry, text: existing?.text ?? '');
+    }
+
+    if (_healing) {
+      _queuedDeltas.add(parsed);
+      return;
+    }
+
+    final current = _pending!.text;
+    if (parsed.at > current.length) {
+      _queuedDeltas.add(parsed);
+      unawaited(_healGap(parsed.entry));
+      return;
+    }
+
+    if (_applyDelta(parsed) && mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _applyDelta(WireTextDelta delta) {
+    final pending = _pending;
+    if (pending == null || pending.entry != delta.entry) return false;
+    final current = pending.text;
+    if (delta.at == current.length) {
+      _pending = (entry: pending.entry, text: '$current${delta.delta}');
+      return true;
+    }
+    if (delta.at < current.length) {
+      final overlap = current.length - delta.at;
+      if (overlap < delta.delta.length) {
+        final suffix = delta.delta.substring(overlap);
+        _pending = (entry: pending.entry, text: '$current$suffix');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _healGap(String entry) async {
+    final reader = widget.readConversation;
+    if (reader == null) {
+      _queuedDeltas.clear();
+      return;
+    }
+    _healing = true;
+    final epoch = _healEpoch;
+    try {
+      final view = await reader();
+      if (!mounted || epoch != _healEpoch) return;
+      final reply = parseActiveConversationReply(view, entry);
+      var changed = false;
+      if (reply != null &&
+          _pending != null &&
+          _pending!.entry == entry &&
+          reply.length > _pending!.text.length) {
+        _pending = (entry: entry, text: reply);
+        changed = true;
+      }
+      _queuedDeltas.sort((a, b) => a.at.compareTo(b.at));
+      final queued = List<WireTextDelta>.of(_queuedDeltas);
+      _queuedDeltas.clear();
+      for (final delta in queued) {
+        if (_applyDelta(delta)) changed = true;
+      }
+      if (changed && mounted) setState(() {});
+    } catch (_) {
+      if (epoch == _healEpoch) {
+        _queuedDeltas.clear();
+      }
+    } finally {
+      if (epoch == _healEpoch) {
+        _healing = false;
+      }
+    }
   }
 
   void _onFocusChange() {
@@ -347,6 +494,14 @@ class _ConversationViewState extends State<ConversationView> {
         final msgOffset = hasError ? reversedIndex - 1 : reversedIndex;
         final messageIndex = visibleMessages.length - 1 - msgOffset;
         final msg = visibleMessages[messageIndex];
+        final pending = _pending;
+        final pendingText =
+            pending != null &&
+                pending.entry == msg.id &&
+                parseMessageStatus(msg.status) == WireMessageStatus.running &&
+                pending.text.length > msg.text.length
+            ? pending.text
+            : null;
         return Padding(
           key: ValueKey('msg:${msg.id}'),
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -358,6 +513,7 @@ class _ConversationViewState extends State<ConversationView> {
                   : _AssistantMessageItem(
                       message: msg,
                       ctx: widget.ctx.deeper(),
+                      textOverride: pendingText,
                     ),
             ),
           ),
@@ -615,14 +771,20 @@ class _UserMessageItem extends StatelessWidget {
 }
 
 class _AssistantMessageItem extends StatelessWidget {
-  const _AssistantMessageItem({required this.message, required this.ctx});
+  const _AssistantMessageItem({
+    required this.message,
+    required this.ctx,
+    this.textOverride,
+  });
 
   final MessageNode message;
   final NodeContext ctx;
+  final String? textOverride;
 
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
+    final text = textOverride ?? message.text;
     final activities = message.activities ?? const <ActivityNode>[];
     final cards = message.cards ?? const <Node>[];
     final isRunning =
@@ -654,17 +816,17 @@ class _AssistantMessageItem extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
-            if (message.text.isNotEmpty || isRunning)
+            if (text.isNotEmpty || isRunning)
               UiCopyableMessage(
-                copyText: (_) => message.text,
+                copyText: (_) => text,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (message.text.isNotEmpty)
+                    if (text.isNotEmpty)
                       Flexible(
                         child: GptMarkdown(
-                          message.text,
+                          text,
                           style: IcType.text(
                             14,
                             color: c.textBody,
@@ -673,22 +835,21 @@ class _AssistantMessageItem extends StatelessWidget {
                         ),
                       ),
                     if (isRunning) ...[
-                      if (message.text.isNotEmpty) const SizedBox(width: 8),
+                      if (text.isNotEmpty) const SizedBox(width: 8),
                       WorkingSpinner(size: 14, color: c.working),
                     ],
                   ],
                 ),
               ),
             if (cards.isNotEmpty) ...[
-              if (message.text.isNotEmpty || isRunning)
-                const SizedBox(height: 10),
+              if (text.isNotEmpty || isRunning) const SizedBox(height: 10),
               for (var i = 0; i < cards.length; i++) ...[
                 if (i > 0) const SizedBox(height: 10),
                 NodeRenderer.render(cards[i], ctx),
               ],
             ],
             if (message.error case final error?) ...[
-              if (message.text.isNotEmpty || cards.isNotEmpty)
+              if (text.isNotEmpty || cards.isNotEmpty)
                 const SizedBox(height: 8),
               // Why the reply failed; the retry below asks for this turn again.
               ErrorLineView(
@@ -726,7 +887,9 @@ class _AssistantMessageItem extends StatelessWidget {
                       retry.key,
                       Btn(
                         label: retry.label,
-                        icon: LucideIcons.rotateCcw,
+                        icon: isRegenerateRetryKey(retry.key)
+                            ? LucideIcons.refreshCw
+                            : LucideIcons.rotateCcw,
                         small: true,
                         onTap: retry.enabled && ctx.interactive
                             ? () => pressCommand(

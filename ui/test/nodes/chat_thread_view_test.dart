@@ -44,15 +44,19 @@ final _thread = {
 
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
-  Map<String, dynamic> props,
-) async {
+  Map<String, dynamic> props, {
+  List<Map<String, dynamic>>? messages,
+}) async {
   final sent = <Map<String, dynamic>>[];
+  final thread = messages == null
+      ? _thread
+      : {..._thread, 'messages': messages};
   await tester.pumpWidget(
     MaterialApp(
       theme: UiTheme.intochat(Brightness.light),
       home: Scaffold(
         body: NodeRenderer.render(
-          Node.fromJson(_thread),
+          Node.fromJson(thread),
           NodeContext(
             view: 'local/apps/ino/slots/conversation',
             generation: 3,
@@ -192,11 +196,51 @@ void main() {
     );
     expect(
       (tester
-                  .getCenter(find.byKey(const ValueKey('composer-active-model')))
+                  .getCenter(
+                    find.byKey(const ValueKey('composer-active-model')),
+                  )
                   .dy -
               tester.getCenter(find.byKey(const ValueKey('composer-send'))).dy)
           .abs(),
       lessThanOrEqualTo(1.0),
     );
+  });
+
+  testWidgets('a completed reply shows Regenerate with the refresh icon', (
+    tester,
+  ) async {
+    final sent = await _pump(
+      tester,
+      {'placeholder': 'Ask anything.'},
+      messages: [
+        {'id': 'u1', 'role': 'user', 'text': 'Hello'},
+        {
+          'id': 'm2',
+          'role': 'assistant',
+          'text': 'hi',
+          'status': 'completed',
+          'retry': _button('regenerate:m2', 'Regenerate', 'control.retry', {
+            'id': 'm2',
+          }),
+        },
+      ],
+    );
+
+    final regen = find.byKey(const ValueKey('regenerate:m2'));
+    expect(regen, findsOneWidget);
+    expect(find.text('Regenerate'), findsOneWidget);
+    expect(find.byIcon(LucideIcons.refreshCw), findsOneWidget);
+    expect(find.byIcon(LucideIcons.rotateCcw), findsNothing);
+
+    await tester.tap(regen);
+    await tester.pumpAndSettle();
+
+    expect(sent.single, {
+      'kind': 'act',
+      'neuron': 'local/apps/ino',
+      'target': 'conversation',
+      'signal': 'control.retry',
+      'args': {'id': 'm2'},
+    });
   });
 }

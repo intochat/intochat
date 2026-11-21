@@ -4,6 +4,11 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import '../chat/conversation_view.dart';
 import 'node_context.dart';
 
+const _conversationContract =
+    'IntoChat.OS.Modules.Flutter.Conversations.IConversation';
+const _textDeltaSignal = 'TextDelta';
+const _readMethod = 'Read';
+
 /// What a chat thread neuron draws: the messages (a failed reply with its
 /// reason and a retry), composer, stop and retry from the neuron's view; the
 /// placeholder, model, status, empty text and error from the slot's props.
@@ -11,14 +16,77 @@ import 'node_context.dart';
 /// until it is submitted.
 Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
   final props = ChatThreadProps.fromJson(ctx.slotProps);
-  final error = props.error;
-  final open = error?.open;
-  final empty = props.emptyText;
   return Semantics(
     container: true,
     explicitChildNodes: true,
     label: props.automationName ?? node.key,
-    child: ConversationView(
+    child: _ChatThreadSurface(node: node, props: props, ctx: ctx),
+  );
+}
+
+class _ChatThreadSurface extends StatefulWidget {
+  const _ChatThreadSurface({
+    required this.node,
+    required this.props,
+    required this.ctx,
+  });
+
+  final ChatThreadViewNode node;
+  final ChatThreadProps props;
+  final NodeContext ctx;
+
+  @override
+  State<_ChatThreadSurface> createState() => _ChatThreadSurfaceState();
+}
+
+class _ChatThreadSurfaceState extends State<_ChatThreadSurface> {
+  String? _watchedConversation;
+  Stream<Map<String, dynamic>>? _deltas;
+
+  String? get _conversationKey {
+    final raw = widget.props.conversation?.trim();
+    return raw == null || raw.isEmpty ? null : raw;
+  }
+
+  void _syncDeltaStream() {
+    final conversation = _conversationKey;
+    final watcher = widget.ctx.watchSignal;
+    if (conversation == null || watcher == null) {
+      _watchedConversation = null;
+      _deltas = null;
+      return;
+    }
+    if (_deltas != null && _watchedConversation == conversation) {
+      return;
+    }
+    _watchedConversation = conversation;
+    _deltas = watcher(_conversationContract, conversation, _textDeltaSignal);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncDeltaStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChatThreadSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncDeltaStream();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.node;
+    final props = widget.props;
+    final ctx = widget.ctx;
+    final error = props.error;
+    final open = error?.open;
+    final empty = props.emptyText;
+    final conversation = _conversationKey;
+    final callNeuron = ctx.callNeuron;
+
+    return ConversationView(
       node: ConversationNode(
         key: node.key,
         messages: node.messages,
@@ -51,6 +119,15 @@ Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
       activeModelId: props.activeModelId,
       selectModelKey: node.selectModel?.key,
       pinModelKey: node.pinModel?.key,
+      deltas: _deltas,
+      readConversation: conversation != null && callNeuron != null
+          ? () => callNeuron(
+              _conversationContract,
+              conversation,
+              _readMethod,
+              const [null],
+            )
+          : null,
       // A retry is the thread's own node; a window to open is the parent's
       // decision, performed here as a client-local intent.
       onErrorAction: error != null && !error.retry && open != null
@@ -58,8 +135,8 @@ Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
               IntentNode(intentKind: IntentKind.openWindow, arg: open),
             )
           : null,
-    ),
-  );
+    );
+  }
 }
 
 ButtonNode? _errorAction(ChatThreadViewNode node, ChatThreadError error) {
