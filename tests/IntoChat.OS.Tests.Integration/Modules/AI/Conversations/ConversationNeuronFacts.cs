@@ -605,6 +605,57 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
         Assert.Null(await SignalLog.Newest(journal, id, "conversation.text-delta", ct));
     }
 
+    [Fact]
+    public async Task StopCancelsTheProviderStream()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async IAsyncEnumerable<ChatResponseUpdate> Stream(
+            IReadOnlyList<ChatMessage> _,
+            ChatOptions? __,
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            using var registration = token.Register(() => observed.TrySetResult());
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "a ");
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "b ");
+            held.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        }
+
+        await using var runtime = await Start(StubChatClient.StreamingOnly(Stream), ct);
+        using var person = runtime.As(Who.Person);
+        var convId = ConversationId.New();
+        var id = runtime.Id(IConversation.Type, IConversation.KeyOf(convId));
+        var conversation = runtime.Get<IConversation>(id);
+
+        var deltas = new List<TextDelta>();
+        await using var listen = await runtime.Services.GetRequiredService<IClusterListeners>()
+            .Listen<TextDelta>("test-stop-deltas", (pub, delta, _) =>
+            {
+                if (pub == id) { lock (deltas) { deltas.Add(delta); } }
+                return Task.CompletedTask;
+            });
+
+        await conversation.Seat("ino", new AgentDefinition { Instructions = "x" });
+        await conversation.Say("go");
+        await held.Task.WaitAsync(Within, ct);
+
+        await conversation.Stop();
+        await observed.Task.WaitAsync(TimeSpan.FromSeconds(2), ct);
+
+        var view = await WaitUntilIdle(conversation, minRuns: 1, ct);
+        var run = Assert.Single(view.Runs);
+        Assert.Equal((AgentRunStatus.Cancelled, "a b "), (run.Status, run.Reply));
+
+        int count;
+        lock (deltas) { count = deltas.Count; }
+        Assert.True(count >= 2);
+        await Task.Delay(300, ct);
+        lock (deltas) { Assert.Equal(count, deltas.Count); }
+    }
+
     private static IEnumerable<string> AllText(ConversationView view)
     {
         foreach (var entry in view.Entries)
