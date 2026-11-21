@@ -6,6 +6,14 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/kit_toast.dart';
 import '../theme/wire_node_values.dart';
+import '../ui/neuron_widget.dart' show NeuronMethodCaller;
+
+/// Watches one signal type on a neuron contract, yielding decoded JSON payloads.
+typedef NeuronSignalWatcher = Stream<Map<String, dynamic>> Function(
+  String contract,
+  String key,
+  String signal,
+);
 
 /// Reads one node of the brain: `GET /apps/node?kind=…&name=…`, or for a
 /// `slot` (named `{brain}/apps/{app}/slots/{path}`) its app's key path
@@ -66,6 +74,8 @@ class NodeContext {
     this.load,
     this.reload,
     this.watch,
+    this.watchSignal,
+    this.callNeuron,
     this.onActivate,
     this.knowsApp,
     this.reference,
@@ -98,6 +108,12 @@ class NodeContext {
 
   /// The node's change events (`FieldChanged` for a field).
   final Stream<void> Function(String kind, String name)? watch;
+
+  /// Watches one signal type on a neuron contract, yielding decoded payloads.
+  final NeuronSignalWatcher? watchSignal;
+
+  /// Invokes a typed method on a neuron contract over `NeuronChannel` (gRPC).
+  final NeuronMethodCaller? callNeuron;
 
   /// The shell's activation handler: an `os_uri` opens a window or the settings.
   final ValueChanged<Map<String, dynamic>>? onActivate;
@@ -163,6 +179,8 @@ class NodeContext {
     load: load,
     reload: reload,
     watch: watch,
+    watchSignal: watchSignal,
+    callNeuron: callNeuron,
     onActivate: onActivate,
     knowsApp: knowsApp,
     reference: reference,

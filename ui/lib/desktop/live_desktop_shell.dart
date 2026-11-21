@@ -68,6 +68,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.localPreferences,
     this.profileMenu,
     this.read,
+    this.watchSignal,
     this.callNeuron,
     this.requestApp,
     this.notificationsClient,
@@ -115,6 +116,9 @@ class LiveDesktopShell extends StatefulWidget {
     String method,
   )?
   read;
+
+  /// Watches one signal type on a neuron contract, yielding decoded payloads.
+  final NeuronSignalWatcher? watchSignal;
 
   /// Invokes any typed method on a neuron contract over `NeuronChannel` (gRPC).
   final NeuronMethodCaller? callNeuron;
@@ -200,6 +204,22 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   IntoChatOSUiClient? get _notificationsClient =>
       widget.notificationsClient ?? widget.entries?.call(widget.brain).client;
+
+  NeuronSignalWatcher? get _watchSignal {
+    if (widget.watchSignal != null) return widget.watchSignal;
+    final client = _notificationsClient;
+    if (client == null) return null;
+    return (contract, key, signal) => client
+        .watches(widget.brain)
+        .watch(
+          WatchSourceSpec(
+            contract,
+            key.startsWith('${widget.brain}/') ? key : '${widget.brain}/$key',
+            [signal],
+          ),
+        )
+        .map((s) => s.payload);
+  }
 
   void _subscribeNotifications() {
     _notificationsSub?.cancel();
@@ -1445,6 +1465,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         name: widget.name,
         load: widget.load,
         watch: widget.watch,
+        watchSignal: _watchSignal,
         callNeuron: widget.callNeuron,
         onAction: (event) => _intentTracker.wrapAction(event, widget.onAction),
         knowsApp: widget.knowsApp,
@@ -1779,6 +1800,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         name: w.viewportRef['name'] as String,
                                         load: widget.load,
                                         watch: widget.watch,
+                                        watchSignal: _watchSignal,
                                         callNeuron: widget.callNeuron,
                                         onAction: (event) =>
                                             _intentTracker.wrapAction(
@@ -1810,6 +1832,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 name: spec.viewportRef['name'] as String,
                                 load: widget.load,
                                 watch: widget.watch,
+                                watchSignal: _watchSignal,
                                 callNeuron: widget.callNeuron,
                                 onAction: (event) => _intentTracker.wrapAction(
                                   event,

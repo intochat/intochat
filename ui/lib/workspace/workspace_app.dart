@@ -876,6 +876,19 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
+                                watchSignal: (contract, key, signal) => widget
+                                    .programmingClient!
+                                    .watches(_brain!)
+                                    .watch(
+                                      WatchSourceSpec(
+                                        contract,
+                                        key.startsWith('$_brain/')
+                                            ? key
+                                            : '$_brain/$key',
+                                        [signal],
+                                      ),
+                                    )
+                                    .map((s) => s.payload),
                                 onAction: (event) => widget.programmingClient!
                                     .uiEvent(_brain!, event),
                                 knowsApp: (app) =>
@@ -961,6 +974,19 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
+                                watchSignal: (contract, key, signal) => widget
+                                    .programmingClient!
+                                    .watches(_brain!)
+                                    .watch(
+                                      WatchSourceSpec(
+                                        contract,
+                                        key.startsWith('$_brain/')
+                                            ? key
+                                            : '$_brain/$key',
+                                        [signal],
+                                      ),
+                                    )
+                                    .map((s) => s.payload),
                                 callNeuron: (contract, key, method, args) =>
                                     widget.programmingClient!.channel.call(
                                       _brain!,

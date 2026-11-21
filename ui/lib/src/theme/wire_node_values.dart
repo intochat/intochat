@@ -145,6 +145,58 @@ WireModelAbility? parseModelAbility(String ability) =>
 
 bool isRegenerateRetryKey(String key) => key.startsWith('regenerate:');
 
+final class WireTextDelta {
+  const WireTextDelta({
+    required this.entry,
+    required this.delta,
+    required this.at,
+  });
+
+  final String entry;
+  final String delta;
+  final int at;
+}
+
+/// Parses an ephemeral `TextDelta` payload (`{id, entry, delta, at}`),
+/// accepting `entry` as either a plain string (`EntryIdJsonConverter`) or
+/// an object (`{value: ...}`).
+WireTextDelta? parseTextDelta(Map<String, dynamic> payload) {
+  final rawEntry = payload['entry'];
+  final String? entry;
+  if (rawEntry is String) {
+    entry = rawEntry.trim();
+  } else if (rawEntry is Map) {
+    final value = rawEntry['value'];
+    entry = value is String ? value.trim() : null;
+  } else {
+    entry = null;
+  }
+  final delta = payload['delta'];
+  final rawAt = payload['at'];
+  if (entry == null || entry.isEmpty || delta is! String || rawAt is! num) {
+    return null;
+  }
+  final at = rawAt.toInt();
+  if (at < 0) return null;
+  return WireTextDelta(entry: entry, delta: delta, at: at);
+}
+
+/// Extracts `active.reply` from an `IConversation.Read` response when
+/// `active.runId` matches [entry] (`"{runId}/reply"` or `runId`).
+String? parseActiveConversationReply(Map<String, dynamic>? view, String entry) {
+  if (view == null) return null;
+  final active = view['active'] ?? view['Active'];
+  if (active is! Map) return null;
+  final runId = active['runId'] ?? active['RunId'];
+  final reply = active['reply'] ?? active['Reply'];
+  if (runId is String &&
+      reply is String &&
+      (entry == '$runId/reply' || entry == runId)) {
+    return reply;
+  }
+  return null;
+}
+
 ApprovalState parseApprovalState(String status) =>
     switch (status.trim().toLowerCase()) {
       'approved' => ApprovalState.approved,
