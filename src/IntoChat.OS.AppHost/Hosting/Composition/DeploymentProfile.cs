@@ -116,7 +116,7 @@ public sealed record DeploymentProfile
     // Local: Ollama on the host (endpoint only, no container); IntoChatOS:Local:Model overrides Roles.Device[Chat].
     internal static AIOptions LocalAi(string? model)
     {
-        var ai = new AIOptions().WithModelEndpoint(AiProvider.Ollama, new Uri(IntoChatOSNames.LocalOllamaEndpoint)).WithoutWebSearch();
+        var ai = new AIOptions().WithModelEndpoint(AiProvider.Ollama, new Uri(IntoChatOSNames.LocalOllamaEndpoint));
         if (model is { Length: > 0 })
         {
             ai.Roles.Device[Role.Chat] = KnownModels.Find(model)?.Id.Value ?? model.Trim();
@@ -129,8 +129,7 @@ public sealed record DeploymentProfile
         .WithRole(Role.Chat, KnownModels.DeepSeekV41Flash)
         .WithRole(Role.Embed, KnownModels.TextEmbedding3Small)
         .WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo)
-        .WithoutLocalModels()
-        .WithTavilySearch();
+        .WithoutLocalModels();
 }
 
 // Where local state lives: IntoChatOS:Home, or ~/.intochat.

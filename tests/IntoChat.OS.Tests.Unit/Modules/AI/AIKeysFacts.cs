@@ -11,7 +11,7 @@ public sealed class AIKeysFacts
         [
             AIKeys.Roles, AIKeys.LegacyDefault,
             AIKeys.Role(Where.Device, Role.Chat), AIKeys.Role(Where.Cloud, Role.Embed),
-            AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TavilyEnabled, AIKeys.TelemetryEnableSensitiveData,
+            AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TelemetryEnableSensitiveData,
         ];
 
         Assert.False(string.IsNullOrWhiteSpace(AIKeys.Options));
@@ -26,7 +26,7 @@ public sealed class AIKeysFacts
             AIKeys.Roles, AIKeys.LegacyDefault,
             AIKeys.Role(Where.Device, Role.Chat), AIKeys.Role(Where.Cloud, Role.Chat),
             AIKeys.Role(Where.Cloud, Role.Embed), AIKeys.Role(Where.Device, Role.Hear),
-            AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TavilyEnabled, AIKeys.TelemetryEnableSensitiveData,
+            AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TelemetryEnableSensitiveData,
         ];
 
         Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());

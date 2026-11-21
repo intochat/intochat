@@ -58,20 +58,6 @@ public static class AIOptionsExtensions
         return options;
     }
 
-    public static AIOptions WithTavilySearch(this AIOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        options.Tavily.Enabled = true;
-        return options;
-    }
-
-    public static AIOptions WithoutWebSearch(this AIOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        options.Tavily.Enabled = false;
-        return options;
-    }
-
     public static AIOptions WithoutLocalModels(this AIOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

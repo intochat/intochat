@@ -21,7 +21,10 @@ Options:
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.Web.Contracts` (`IWebRead`, `IWebSearch`).
 Hosting: runs in process.

@@ -1473,6 +1473,7 @@ public sealed class HouseRules22Facts
             "ISolutionLoader",
             "ILocalOllamaProbe",
             "ILocalCardSource",
+            "ISearchAdapter",
             "ICreatorModel",
             "IClickHouseProvider",
             "ILlmProviderFactory",
