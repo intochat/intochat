@@ -23,10 +23,10 @@ env:
   GITLEAKS_VERSION: '8.30.1'
 
 jobs:
-  build:
-    name: build
+  lint-and-security:
+    name: lint-and-security
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,11 +41,6 @@ jobs:
       - name: Scan history with gitleaks
         run: '"$RUNNER_TEMP/gitleaks-bin/gitleaks" git . --redact --verbose --config .gitleaks.toml --baseline-path .gitleaks-baseline.json'
 
-      - name: Free root disk in the background
-        run: |
-          df -h /
-          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
-
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -59,8 +54,8 @@ jobs:
         run: |
           status=0
           for name in DigitalBrain DigitalBrain.Simulation DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Capabilities.Storage DigitalBrain.Capabilities.Secrets DigitalBrain.Capabilities.Identity DigitalBrain.Capabilities.Compute DigitalBrain.Capabilities.Connections DigitalBrain.Capabilities.Http DigitalBrain.Capabilities.Tools DigitalBrain.Identity.Local DigitalBrain.Runtime.Http; do
-            project="framework/src/$name/$name.csproj"
-            if dotnet list "$project" package --include-transitive | grep -i orleans; then
+            assets="artifacts/obj/$name/project.assets.json"
+            if [ -f "$assets" ] && grep -qi '"Microsoft\.Orleans\.' "$assets"; then
               echo "::error::$name references Orleans"
               status=1
             fi
@@ -69,6 +64,27 @@ jobs:
 
       - name: Format check
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - name: Restore dependencies
+        run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release --no-restore -p:CodeGraphRefresh=false -p:DebugType=none
@@ -93,11 +109,39 @@ jobs:
           compression-level: 1
           retention-days: 1
 
+  test-architecture:
+    name: test-architecture
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-artifacts
+          path: artifacts/bin
+
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
+
+      - name: Restore framework graph for architecture facts
+        run: dotnet restore framework/DigitalBrain.slnx -v quiet
+
+      - name: Test (Architecture Tier — MTP)
+        run: dotnet test --test-modules "artifacts/bin/*.Architecture.Tests.Unit/release/*.Architecture.Tests.Unit.dll" --max-parallel-test-modules 4
+
   test-unit:
     name: test-unit
     needs: [build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -120,14 +164,13 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
-      - name: Restore framework graph for architecture facts
-        run: dotnet restore framework/DigitalBrain.slnx -v quiet
+      - name: Test (Unit Tier — MTP)
+        run: |
+          shopt -s extglob
+          dotnet test --test-modules "artifacts/bin/!(*.Architecture).Tests.Unit/release/*.Tests.Unit.dll" --max-parallel-test-modules 4
 
-      - name: Test (Unit Tier)
-        run: dotnet test --solution Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false
-
-  test-integration:
-    name: test-integration
+  test-integration-os:
+    name: test-integration-os
     needs: [build]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -170,6 +213,36 @@ jobs:
           name: compiled-artifacts
           path: artifacts/bin
 
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
+
+      - name: Test (IntoChat.OS Integration Tier — MTP)
+        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Tests.Integration/release/IntoChat.OS.Tests.Integration.dll"
+
+  test-integration-framework:
+    name: test-integration-framework
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start Azurite
+        run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-artifacts
+          path: artifacts/bin
+
       - uses: actions/download-artifact@v8
         with:
           name: packages
@@ -178,13 +251,13 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
-      - name: Test (Integration Tier)
+      - name: Test (DigitalBrain Integration Tier — MTP)
         env:
           DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/packages
-        run: dotnet test --solution Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false
+        run: dotnet test --test-modules "artifacts/bin/DigitalBrain*.Tests.Integration/release/DigitalBrain*.Tests.Integration.dll" --max-parallel-test-modules 4
 
-  e2e:
-    name: e2e
+  e2e-os:
+    name: e2e-os
     needs: [build]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -193,7 +266,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # A service container cannot pass arguments, and Azurite refuses newer storage API versions without this flag.
       - name: Start Azurite
         run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
@@ -216,7 +288,15 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
+      - name: Cache Aspire DCP
+        id: cache-dcp
+        uses: actions/cache@v4
+        with:
+          path: ~/.aspire/bundle/dcp
+          key: aspire-dcp-linux-x64-13.6.1
+
       - name: Provision Aspire DCP
+        if: steps.cache-dcp.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.aspire/bundle/dcp
           curl -sSL https://api.nuget.org/v3-flatcontainer/aspire.hosting.orchestration.linux-x64/13.6.1/aspire.hosting.orchestration.linux-x64.13.6.1.nupkg -o /tmp/dcp.zip
@@ -230,11 +310,38 @@ jobs:
       - name: Prepare Kernel build state
         run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release --no-restore -p:CodeGraphRefresh=false --nologo -v minimal
 
-      - name: Test E2E
-        run: dotnet test --project tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
+      - name: Test IntoChat.OS E2E (MTP)
+        run: dotnet test --test-modules "artifacts/bin/IntoChat.OS.Tests.E2E/release/IntoChat.OS.Tests.E2E.dll"
 
-      - name: Test Framework E2E
-        run: dotnet test --project framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
+  e2e-framework:
+    name: e2e-framework
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start Azurite
+        run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: compiled-artifacts
+          path: artifacts/bin
+
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
+
+      - name: Test DigitalBrain Framework E2E (MTP)
+        run: dotnet test --test-modules "artifacts/bin/DigitalBrain.Framework.Tests.E2E/release/DigitalBrain.Framework.Tests.E2E.dll"
 
   flutter:
     name: flutter
@@ -286,7 +393,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [build, test-unit, test-integration, e2e, flutter, package-dry-run]
+    needs: [lint-and-security, build, test-architecture, test-unit, test-integration-os, test-integration-framework, e2e-os, e2e-framework, flutter, package-dry-run]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -294,5 +401,5 @@ jobs:
       - name: Gate
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: |
-          echo "build=${{ needs.build.result }} test-unit=${{ needs.test-unit.result }} test-integration=${{ needs.test-integration.result }} e2e=${{ needs.e2e.result }} flutter=${{ needs.flutter.result }} package-dry-run=${{ needs.package-dry-run.result }}"
+          echo "lint-and-security=${{ needs.lint-and-security.result }} build=${{ needs.build.result }} test-architecture=${{ needs.test-architecture.result }} test-unit=${{ needs.test-unit.result }} test-integration-os=${{ needs.test-integration-os.result }} test-integration-framework=${{ needs.test-integration-framework.result }} e2e-os=${{ needs.e2e-os.result }} e2e-framework=${{ needs.e2e-framework.result }} flutter=${{ needs.flutter.result }} package-dry-run=${{ needs.package-dry-run.result }}"
           exit 1
