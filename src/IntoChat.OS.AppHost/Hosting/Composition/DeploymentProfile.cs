@@ -29,6 +29,8 @@ public sealed record DeploymentProfile
 
     public required string Topology { get; init; }
     public bool Cloud => Topology == IntoChatOSNames.TopologyCloud;
+    public bool UsesDevice => Topology is IntoChatOSNames.TopologyLocal or IntoChatOSNames.TopologyLocalCloud;
+    public bool UsesCloud => Topology is IntoChatOSNames.TopologyCloud or IntoChatOSNames.TopologyLocalCloud;
     public required string Home { get; init; }
     public int UiPort { get; init; } = 5080;
     public int McpPort { get; init; } = 5081;
