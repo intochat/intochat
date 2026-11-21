@@ -446,10 +446,12 @@ public sealed record ModelChoice(
 /// <param name="Models">The choices offered by the composer model picker; null hides the picker list.</param>
 /// <param name="ActiveModelId">The canonical id of the active model; null when unset.</param>
 /// <param name="Conversation">The conversation neuron key (e.g. "conversations/c-...") to watch for streaming deltas; null disables delta watching.</param>
+/// <param name="ReadAloud">True draws a read-aloud action on replies.</param>
+/// <param name="TalkConversation">The conversation voice mode talks to; null hides the voice-mode button.</param>
 public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null,
     bool Dictation = false, string Status = "ready", bool Working = false, string? EmptyText = null, ChatThreadError? Error = null,
     bool IsEnabled = true, string? AutomationName = null, IReadOnlyList<ModelChoice>? Models = null, string? ActiveModelId = null,
-    string? Conversation = null)
+    string? Conversation = null, bool ReadAloud = false, string? TalkConversation = null)
     : ControlProps(IsEnabled, AutomationName)
 {
     /// <inheritdoc />
@@ -467,6 +469,8 @@ public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSen
         && Equals(Error, other.Error)
         && ActiveModelId == other.ActiveModelId
         && Conversation == other.Conversation
+        && ReadAloud == other.ReadAloud
+        && TalkConversation == other.TalkConversation
         && SequenceEquals(Models, other.Models);
 
     /// <inheritdoc />
@@ -486,6 +490,8 @@ public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSen
         hash.Add(Error);
         hash.Add(ActiveModelId);
         hash.Add(Conversation);
+        hash.Add(ReadAloud);
+        hash.Add(TalkConversation);
         if (Models is not null) { hash.Add(SequenceHash.Of(Models)); }
         return hash.ToHashCode();
     }

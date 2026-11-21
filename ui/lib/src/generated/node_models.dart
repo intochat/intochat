@@ -590,6 +590,8 @@ final class ChatThreadProps {
     required this.models,
     required this.activeModelId,
     required this.conversation,
+    required this.readAloud,
+    required this.talkConversation,
   });
 
   final bool isEnabled;
@@ -606,6 +608,8 @@ final class ChatThreadProps {
   final List<ModelChoice>? models;
   final String? activeModelId;
   final String? conversation;
+  final bool readAloud;
+  final String? talkConversation;
 
   factory ChatThreadProps.fromJson(Map<String, dynamic> json) =>
       ChatThreadProps(
@@ -630,6 +634,8 @@ final class ChatThreadProps {
               ],
         activeModelId: _stringOrNull(json['activeModelId']),
         conversation: _stringOrNull(json['conversation']),
+        readAloud: _bool(json['readAloud']),
+        talkConversation: _stringOrNull(json['talkConversation']),
       );
 }
 

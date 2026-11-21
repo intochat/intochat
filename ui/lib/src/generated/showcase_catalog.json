@@ -480,6 +480,16 @@
         "name": "conversation",
         "type": "String?",
         "default": null
+      },
+      {
+        "name": "readAloud",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "talkConversation",
+        "type": "String?",
+        "default": null
       }
     ],
     "state": [

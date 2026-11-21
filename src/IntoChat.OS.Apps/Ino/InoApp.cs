@@ -85,7 +85,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     protected override Node Render(InoAppState state)
         => InoView.ScreenNode(
             state,
-            Voice.Hear,
+            Voice,
             props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
             ConversationView,
             SessionsPage,
@@ -168,7 +168,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var thread = InoView.Thread(clean, ConversationView, AppManifests, LinksJson);
         var viewKnown = ConversationView is not null;
         if (!viewKnown && thread.Count == 0) { return; }
-        var props = InoView.ThreadProps(clean, ConversationView, Voice.Hear, ThreadFailureText, PickerCards, PickerAvailability, DeviceSnapshot);
+        var props = InoView.ThreadProps(clean, Voice, clean.ConversationId, ThreadFailureText, ConversationView, PickerCards, PickerAvailability, DeviceSnapshot);
         if (SyncedThread is { } synced && synced.SequenceEqual(thread) && Equals(props, SyncedProps)) { return; }
         try
         {
@@ -440,6 +440,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         if (changed.State is InstallState.Ready or InstallState.Loaded or InstallState.Failed or InstallState.Cancelled)
         {
             await RefreshPickerAsync();
+            Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         }
         await Commit(State);
     }
@@ -458,6 +459,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         }
         var saved = await InoModelSetup.SaveProviderAsync(Setup, request);
         await RefreshPickerAsync();
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         if (saved) { await Retry(new InoRetry()); }
         if (State.HasUnsavedProviderDraft) { await Commit(State with { HasUnsavedProviderDraft = false }); }
     }
@@ -514,6 +516,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     {
         if (changed is null || (string.IsNullOrEmpty(changed.DisplayName) && string.IsNullOrEmpty(changed.DefaultModel))) { return; }
         await RefreshPickerAsync();
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         await InoModelSetup.SyncSettingsAsync(Setup, changed);
     }
 
