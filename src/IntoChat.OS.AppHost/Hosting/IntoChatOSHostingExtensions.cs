@@ -8,6 +8,7 @@ using IntoChat.OS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -151,6 +152,8 @@ public static class IntoChatOSHostingExtensions
         {
             projection.Apply(builder);
         }
+
+        builder.WithInstallModelCommand(brain);
 
         return builder;
     }

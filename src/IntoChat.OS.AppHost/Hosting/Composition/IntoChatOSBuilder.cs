@@ -173,6 +173,19 @@ public sealed class IntoChatOSBuilder
         return state;
     }
 
+    internal bool TryGetState<TState>([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TState? state)
+        where TState : class
+    {
+        if (_states.TryGetValue(typeof(TState), out var existing))
+        {
+            state = (TState)existing;
+            return true;
+        }
+
+        state = null;
+        return false;
+    }
+
     public void AddProjection(IntoChatOSModuleProjection projection)
     {
         ArgumentNullException.ThrowIfNull(projection);
