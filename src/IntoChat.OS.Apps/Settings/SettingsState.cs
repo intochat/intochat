@@ -18,12 +18,22 @@ public sealed record SettingsSearchEntry(
     string Icon = "settings",
     string Group = "Preferences");
 
-public sealed record SettingsModelOption(
+public sealed record SettingsModelChoice(
     string Id,
     string Label,
     bool Available = true,
-    string? ProviderLabel = null,
     string? Reason = null);
+
+public sealed record SettingsRoleRow(
+    Role Role,
+    string? Selected,
+    SettingsModelChoice[] Choices);
+
+public sealed record SettingsProviderRow(
+    AiProvider Provider,
+    string Label,
+    string Icon,
+    string Status);
 
 /// <summary>
 /// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
@@ -91,7 +101,8 @@ public sealed record SettingsAppState(
     public bool ShowOsBarNotifications { get; init; } = true;
     public bool ShowOsBarComputeMeter { get; init; } = true;
     public bool ShowOsBarClock { get; init; } = true;
-    public IReadOnlyList<SettingsModelOption> AvailableModels { get; init; } = [];
+    public SettingsRoleRow[] Roles { get; init; } = [];
+    public SettingsProviderRow[] Providers { get; init; } = [];
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
 
     // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):

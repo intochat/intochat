@@ -1,4 +1,5 @@
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Apps.Settings;
 
@@ -33,17 +34,39 @@ internal static class SettingsControls
 
     public const string ThemeMode = "theme-mode";
     public const string BarLayout = "bar-layout";
-    public const string DefaultModel = "default-model";
     public const string Search = "search";
     public const string Regional = "regional";
 
-    internal sealed record Combo(string Key, Func<SettingsAppState, string> Get);
+    public static string RoleKey(Role role) => $"role-{role.ToString().ToLowerInvariant()}";
+
+    public static Role? RoleOf(string? key)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return null;
+        }
+
+        foreach (var role in Enum.GetValues<Role>())
+        {
+            if (string.Equals(RoleKey(role), key, StringComparison.Ordinal))
+            {
+                return role;
+            }
+        }
+
+        return null;
+    }
+
+    internal sealed record Combo(string Key, Func<SettingsAppState, string?> Get);
 
     public static IReadOnlyList<Combo> Combos { get; } =
     [
         new(ThemeMode, s => s.ThemeMode),
         new(BarLayout, s => s.BarLayout),
-        new(DefaultModel, s => s.DefaultModel),
+        .. Enum.GetValues<Role>().Select(role => new Combo(
+            RoleKey(role),
+            s => s.Roles.FirstOrDefault(r => r.Role == role)?.Selected
+                ?? (role == Role.Chat ? s.DefaultModel : null))),
     ];
 
     public static SettingSwitch? ToggleOf(string? key) => Toggles.FirstOrDefault(toggle => toggle.Key == key);

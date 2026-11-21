@@ -1,10 +1,12 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Settings;
@@ -151,5 +153,120 @@ public sealed class SettingsControlsFacts
 
         Assert.Equal(FormRefusals.TooLong, refused.Reason);
         Assert.Equal("User", settings.App.State.DisplayName);
+    }
+
+    [Fact]
+    public async Task TheAiSectionDrawsOneComboPerRole()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await Settings(os, "models");
+
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+        var view = await settings.Screen.Read();
+        var comboSlotKeys = Slots(view!.View)
+            .Where(node => node.GetProperty("neuronUri").GetString()!.Contains("/control.comboBox/", StringComparison.Ordinal))
+            .Select(node =>
+            {
+                var uri = node.GetProperty("neuronUri").GetString()!;
+                return uri[(uri.LastIndexOf('/') + 1)..];
+            })
+            .ToArray();
+
+        Assert.Equal(Enum.GetValues<Role>().Select(SettingsControls.RoleKey), comboSlotKeys);
+    }
+
+    [Fact]
+    public async Task TheHearComboOffersOnlyHearCards()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await Settings(os, "models");
+
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+        var view = await settings.Screen.Read();
+        var hearKey = SettingsControls.RoleKey(Role.Hear);
+        var hearSlot = Slots(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith($"/{hearKey}", StringComparison.Ordinal));
+        var options = hearSlot.GetProperty("props").GetProperty("options").EnumerateArray()
+            .Select(o => o.GetProperty("id").GetString()!)
+            .ToArray();
+
+        Assert.NotEmpty(options);
+        Assert.All(options, id => Assert.True(KnownModels.Find(id)!.Can.HasFlag(Abilities.Hear)));
+    }
+
+    [Fact]
+    public async Task ChangingARoleComboSetsTheRole()
+    {
+        RecordingSettingsModelCatalog.Reset();
+        try
+        {
+            await using var os = TestOS.Local()
+                .Register(typeof(AppsModule).Assembly)
+                .Register<RecordingSettingsModelCatalog>();
+            var settings = await Settings(os, "models");
+
+            await Send(settings, SettingsControls.RoleKey(Role.Think), new DigitalBrain.UI.Commands.Select("claude-opus-5"));
+
+            Assert.NotNull(RecordingSettingsModelCatalog.LastSetRole);
+            Assert.Equal((Role.Think, "claude-opus-5"), (RecordingSettingsModelCatalog.LastSetRole!.Value.Role, RecordingSettingsModelCatalog.LastSetRole.Value.Model.Value));
+        }
+        finally
+        {
+            RecordingSettingsModelCatalog.Reset();
+        }
+    }
+
+    [Fact]
+    public void OldSettingsStateWithAvailableModelsStillLoads()
+    {
+        const string oldStateJsonWithAvailableModels = """
+            {
+              "title": "Settings",
+              "status": "Settings",
+              "displayName": "Ada",
+              "theme": "dark",
+              "defaultModel": "qwen3.5:4b",
+              "section": "models",
+              "availableModels": [
+                { "id": "qwen3.5:4b", "label": "Qwen 3.5 4B", "available": true, "providerLabel": "Ollama (Local GPU)" }
+              ]
+            }
+            """;
+
+        var loaded = JsonSerializer.Deserialize<SettingsAppState>(oldStateJsonWithAvailableModels, JsonSerializerOptions.Web);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Ada", loaded.DisplayName);
+        Assert.Equal("qwen3.5:4b", loaded.DefaultModel);
+        Assert.Equal("models", loaded.Section);
+    }
+
+    [Neuron("ai.models"), StatelessNeuron]
+    private sealed class RecordingSettingsModelCatalog : Neuron, IModelCatalog
+    {
+        public static (Role Role, ModelId Model)? LastSetRole { get; private set; }
+
+        public static void Reset() => LastSetRole = null;
+
+        public Task<ModelCard[]> List(Abilities need = Abilities.None)
+            => Task.FromResult(KnownModels.All.Where(c => need == Abilities.None || (c.Can & need) == need).ToArray());
+
+        public Task<ModelId> Pick(Role role, ModelId? turn = null)
+            => Task.FromResult(turn ?? KnownModels.Defaults.Device.GetValueOrDefault(role, KnownModels.Qwen35.Id));
+
+        public Task SetRole(Role role, ModelId model)
+        {
+            LastSetRole = (role, model);
+            return Task.CompletedTask;
+        }
+
+        public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
+
+        public Task<ModelAvailability[]> Availability()
+            => Task.FromResult(KnownModels.All.Select(c => new ModelAvailability(c.Id, true, null)).ToArray());
+
+        public Task<LocalModelSummary> DetectLocal()
+            => Task.FromResult(new LocalModelSummary(true, KnownModels.Qwen35.Id.Value, [KnownModels.Qwen35.Id.Value]));
+
+        public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
 }
