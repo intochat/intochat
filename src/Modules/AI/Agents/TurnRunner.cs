@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -17,17 +18,21 @@ internal sealed class TurnState(AgentRun run)
 {
     public AgentRun Run { get; set; } = run;
     public string Visible { get; set; } = "";   // masked text so far, tail held back until final
+    public int StreamedLength { get; set; }
     public bool Completed { get; set; }
     public AgentTurnEvent.TurnFailed? Failure { get; set; }
     internal StringBuilder Raw { get; } = new();
+    internal long MaskTicks { get; set; }
     public AgentRun Streamed => Visible.Length > 0 ? Run with { Reply = Visible } : Run;
 }
 
-internal sealed class TurnSink(Func<AgentRun, Task> store)
+internal interface ITurnSink
 {
     // The run so far; called for the first words, then at most once per TurnRunner.ProgressInterval, at model selection,
     // at each tool step, and when the provider stalls with unstored text. A throw on a stall store is logged, not fatal.
-    public Task Store(AgentRun run) => store(run);
+    Task Store(AgentRun run);
+    bool Streams => false;
+    Task Shown(string delta, int at) => Task.CompletedTask;
 }
 
 internal sealed class TurnRunner(
@@ -42,6 +47,8 @@ internal sealed class TurnRunner(
     // text is stored and announced at most once per interval; the first words go at once, and a
     // turn's end, a tool step or a stalled provider take the rest.
     internal static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(250);
+    // Coalescing window for streamed deltas when masking cost warrants it (Zero = emit every chunk).
+    internal static readonly TimeSpan DeltaInterval = TimeSpan.Zero;
     // Replayed history is bounded by size as well as count: tool results (capability listings,
     // table queries) would otherwise grow every turn until the provider refuses the context.
     internal const int MaxHistoryCharacters = 120_000;
@@ -70,12 +77,28 @@ internal sealed class TurnRunner(
         return [.. masked];
     }
 
-    // Masks the streamed text; until it is complete, a tail that could still grow into a secret is held back.
+    // Masks the streamed text first, then holds back a tail that could still grow into a secret until final.
     public async Task Refresh(TurnState turn, bool final)
     {
+        var start = Stopwatch.GetTimestamp();
         var raw = turn.Raw.ToString();
-        var tail = final ? 0 : Math.Min(raw.Length, await redactor.TailLength(CancellationToken.None));
-        turn.Visible = await Mask(raw[..(raw.Length - tail)]);
+        var tail = final ? 0 : await redactor.TailLength(CancellationToken.None);
+        var masked = await Mask(raw);
+        var safeLen = final ? masked.Length : Math.Max(0, masked.Length - tail);
+        if (final || safeLen > turn.Visible.Length)
+        {
+            turn.Visible = safeLen == masked.Length ? masked : masked[..safeLen];
+        }
+        turn.MaskTicks += Stopwatch.GetTimestamp() - start;
+    }
+
+    public async Task FlushShown(TurnState turn, ITurnSink sink)
+    {
+        if (!sink.Streams || turn.Visible.Length <= turn.StreamedLength) { return; }
+        var at = turn.StreamedLength;
+        var delta = turn.Visible[at..];
+        turn.StreamedLength = turn.Visible.Length;
+        await sink.Shown(delta, at);
     }
 
     // A context is listed by its os key "{brain}/{key}"; one in another brain is not followed.
@@ -335,15 +358,26 @@ internal sealed class TurnRunner(
 
     // The loop with masking, tail hold-back, cadence and stall stores. Yields the loop's events with masked payloads; tool events
     // update turn.Run.ToolCalls before they are yielded; Completed carries masked, Compacted messages and sets turn.Completed.
-    public async IAsyncEnumerable<AgentTurnEvent> Stream(TurnPlan plan, TurnState turn, TurnSink sink, [EnumeratorCancellation] CancellationToken ct)
+    public async IAsyncEnumerable<AgentTurnEvent> Stream(TurnPlan plan, TurnState turn, ITurnSink sink, [EnumeratorCancellation] CancellationToken ct)
     {
         var seen = 0;
+        var refreshed = 0;
         var stored = 0L;
+        var lastDelta = 0L;
         var storedVisible = false;
 
         async Task StoreStep()
         {
-            await Refresh(turn, final: false);
+            if (refreshed != turn.Raw.Length)
+            {
+                await Refresh(turn, final: false);
+                refreshed = turn.Raw.Length;
+            }
+            if (sink.Streams)
+            {
+                await FlushShown(turn, sink);
+                lastDelta = clock.GetTimestamp();
+            }
             seen = turn.Raw.Length;
             turn.Run = turn.Streamed;
             await sink.Store(turn.Run);
@@ -384,6 +418,13 @@ internal sealed class TurnRunner(
                         break;
                     case AgentTurnEvent.TextChunk delta:
                         turn.Raw.Append(delta.Content);
+                        if (sink.Streams && (DeltaInterval <= TimeSpan.Zero || lastDelta == 0 || clock.GetElapsedTime(lastDelta) >= DeltaInterval))
+                        {
+                            await Refresh(turn, final: false);
+                            refreshed = turn.Raw.Length;
+                            await FlushShown(turn, sink);
+                            lastDelta = clock.GetTimestamp();
+                        }
                         // The first words are stored at once, later ones at most once per interval.
                         if (!storedVisible || clock.GetElapsedTime(stored) >= ProgressInterval) { await StoreStep(); }
                         break;
@@ -416,6 +457,8 @@ internal sealed class TurnRunner(
                         break;
                     case AgentTurnEvent.Completed done:
                         await Refresh(turn, final: true);
+                        refreshed = turn.Raw.Length;
+                        await FlushShown(turn, sink);
                         seen = turn.Raw.Length;
                         turn.Run = turn.Run with { Status = AgentRunStatus.Completed, EndedAt = clock.GetUtcNow(), Reply = turn.Visible, Usage = done.Usage };
                         var produced = new List<AiMessage>(done.Messages.Count);
@@ -425,6 +468,16 @@ internal sealed class TurnRunner(
                         break;
                     case AgentTurnEvent.TurnFailed failed:
                         turn.Failure = failed;
+                        try
+                        {
+                            await Refresh(turn, final: true);
+                            refreshed = turn.Raw.Length;
+                            await FlushShown(turn, sink);
+                        }
+                        catch (Exception error)
+                        {
+                            logger.LogWarning(error, "Run {RunId} could not flush final streamed text on failure.", plan.RunId);
+                        }
                         break;
                 }
                 yield return current;

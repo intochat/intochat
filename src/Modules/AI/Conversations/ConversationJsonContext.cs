@@ -9,4 +9,5 @@ namespace IntoChat.OS.Modules.AI.Conversations;
 [JsonSerializable(typeof(ConversationView))]
 [JsonSerializable(typeof(ConversationEntry))]
 [JsonSerializable(typeof(ConversationChanged))]
+[JsonSerializable(typeof(TextDelta))]
 internal sealed partial class ConversationJsonContext : JsonSerializerContext;

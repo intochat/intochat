@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
@@ -460,11 +461,26 @@ internal sealed class ConversationNeuron(
 
         var turnState = new TurnState(State.ActiveRun);
         var committed = false;
+        var deltaCount = 0;
+        var storeCount = 0;
+        double? firstTokenMs = null;
+        var streamStarted = false;
+        var streamStart = 0L;
+        var replyEntry = EntryIds.Reply(runId);
 
-        var sink = new TurnSink(async updatedRun =>
-        {
-            await Persist(State with { ActiveRun = updatedRun });
-        });
+        var sink = new ConversationTurnSink(
+            async updatedRun =>
+            {
+                storeCount++;
+                await Persist(State with { ActiveRun = updatedRun }, announce: false);
+            },
+            async (delta, at) =>
+            {
+                deltaCount++;
+                firstTokenMs ??= Math.Round(Clock.GetElapsedTime(streamStart).TotalMilliseconds, 1);
+                try { await PublishEphemeral(new TextDelta(ConvId, replyEntry, delta) { At = at }); }
+                catch (Exception error) { Logger.LogDebug(error, "TextDelta ephemeral offer failed for run {RunId}; clients heal through Read.", runId); }
+            });
 
         try
         {
@@ -542,6 +558,8 @@ internal sealed class ConversationNeuron(
                 AgentName = seated.AgentId,
             };
 
+            streamStart = Clock.GetTimestamp();
+            streamStarted = true;
             await foreach (var ev in Runner.Stream(plan, turnState, sink, lifetime.Token))
             {
                 switch (ev)
@@ -550,6 +568,7 @@ internal sealed class ConversationNeuron(
                     {
                         var called = new Called(EntryIds.Call(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, tool.Arguments);
                         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, called);
+                        storeCount++;
                         await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
                         break;
                     }
@@ -561,6 +580,7 @@ internal sealed class ConversationNeuron(
                         var compactedResult = TurnRunner.CompactToolResult(tool.Result);
                         var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, compactedResult, ok, card);
                         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
+                        storeCount++;
                         await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
                         break;
                     }
@@ -569,6 +589,7 @@ internal sealed class ConversationNeuron(
                         var errorJson = TurnRunner.SerializeToolError(tool.Code, tool.Message);
                         var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, errorJson, Ok: false, Card: null);
                         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
+                        storeCount++;
                         await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
                         break;
                     }
@@ -601,6 +622,7 @@ internal sealed class ConversationNeuron(
                         newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId));
 
                         var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
+                        storeCount++;
                         await Persist(State with
                         {
                             Log = nextLog,
@@ -638,7 +660,12 @@ internal sealed class ConversationNeuron(
                     var cancelled = !expired && (failure is not null ? failure.Cancelled : lifetime.IsCancellationRequested);
                     var error = expired ? timedOut
                         : failure?.Message ?? "Execution failed before committing its result.";
-                    try { await Runner.Refresh(turnState, final: true); error = await Runner.Mask(error); }
+                    try
+                    {
+                        await Runner.Refresh(turnState, final: true);
+                        await Runner.FlushShown(turnState, sink);
+                        error = await Runner.Mask(error);
+                    }
                     catch (Exception maskError) { Logger.LogWarning(maskError, "Conversation run {RunId} could not mask its outcome.", runId); error = "Execution failed before committing its result."; }
 
                     var failureKind = expired
@@ -649,6 +676,7 @@ internal sealed class ConversationNeuron(
                     { Failure = failureKind };
                     try
                     {
+                        storeCount++;
                         await Persist(State with
                         {
                             ActiveRun = null,
@@ -661,6 +689,13 @@ internal sealed class ConversationNeuron(
                         Logger.LogWarning(persistError, "Failed to persist final conversation run {RunId}.", runId);
                         Abandon(persistError, runId);
                     }
+                }
+                if (streamStarted)
+                {
+                    var maskMs = Math.Round(Stopwatch.GetElapsedTime(0, turnState.MaskTicks).TotalMilliseconds, 1);
+                    Logger.LogInformation(
+                        "Run {RunId} streamed {Deltas} deltas in {Stores} stores; first token {FirstTokenMs} ms; masking {MaskMs} ms",
+                        runId, deltaCount, storeCount, firstTokenMs ?? 0d, maskMs);
                 }
             }
             finally { _active = null; }
@@ -785,12 +820,12 @@ internal sealed class ConversationNeuron(
 
     private static AgentRun[] Keep(AgentRun[] runs, AgentRun run) => [.. runs.Where(item => item.RunId != run.RunId).TakeLast(KeptRuns - 1), run];
 
-    private async Task Persist(ConversationState next)
+    private async Task Persist(ConversationState next, bool announce = true)
     {
         var previous = _state;
         var writing = _write = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _beforeWrite = previous;
-        _state = next with { Revision = previous.Revision + 1, Blocked = _blocked };
+        _state = next with { Revision = announce ? previous.Revision + 1 : previous.Revision, Blocked = _blocked };
         try
         {
             await Store(_state);
@@ -807,7 +842,17 @@ internal sealed class ConversationNeuron(
             writing.TrySetResult();
         }
 
-        try { await Publish(new ConversationChanged(ConvId, _state.Revision)); }
-        catch (Exception error) { Logger.LogWarning(error, "ConversationChanged signal delivery failed; consumers can reconcile through Read."); }
+        if (announce)
+        {
+            try { await Publish(new ConversationChanged(ConvId, _state.Revision)); }
+            catch (Exception error) { Logger.LogWarning(error, "ConversationChanged signal delivery failed; consumers can reconcile through Read."); }
+        }
+    }
+
+    private sealed class ConversationTurnSink(Func<AgentRun, Task> store, Func<string, int, Task> shown) : ITurnSink
+    {
+        public Task Store(AgentRun run) => store(run);
+        public bool Streams => true;
+        public Task Shown(string delta, int at) => shown(delta, at);
     }
 }
