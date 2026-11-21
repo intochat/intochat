@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Devices.Contracts` (`IDeviceEnrollmentRedeemer`, `IDeviceEnrollment`, `IDeviceInstallReports`, `IDevice`, `ILocalRuntime`).
+Contracts: assembly `IntoChat.OS.Modules.Devices.Contracts` (`IDeviceChatRoute`, `IDeviceEnrollmentRedeemer`, `IDeviceEnrollment`, `IDeviceInstallReports`, `IDeviceLink`, `IDevice`, `ILocalRuntime`, `INonceCache`).
 Hosting: runs in process.
 <!-- END GENERATED -->
