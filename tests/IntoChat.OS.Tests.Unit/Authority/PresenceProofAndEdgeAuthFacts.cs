@@ -8,7 +8,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;

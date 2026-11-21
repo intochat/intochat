@@ -1,6 +1,7 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Calculator;
+using IntoChat.OS.Apps.Settings;
 using Xunit;
 
 namespace IntoChat.OS.Tests.Integration.Apps;
@@ -44,5 +45,30 @@ public sealed class CalculatorAppContractFacts : AppConcurrencyAndIsolationContr
 
         await session.Click("clear-display", ct);
         session.ShouldDisplayText("0");
+    }
+}
+
+public sealed class SettingsAppContractFacts : AppConcurrencyAndIsolationContract<SettingsApp, FlagshipAppsRuntimeFixture>
+{
+    private readonly FlagshipAppsRuntimeFixture _fixture;
+
+    public SettingsAppContractFacts(FlagshipAppsRuntimeFixture fixture) : base(fixture)
+    {
+        _fixture = fixture;
+    }
+
+    protected override string? ConcurrentActivationKey => "nav-desktop";
+
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task Navigation_SwitchesToDesktopSection_ViaAppSession(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await _fixture.Runtime(kind);
+        await using var session = await AppSession.OpenAsync<SettingsApp>(runtime, ct: ct);
+
+        session.ShouldDisplayText("Settings").ShouldDisplayText("General");
+
+        await session.Click("nav-desktop", ct);
+        session.ShouldDisplayText("Desktop & Dock").ShouldDisplayText("OS bar indicators");
     }
 }

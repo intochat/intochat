@@ -84,7 +84,7 @@ internal static class SettingsViewRenderer
                     entry.Icon,
                     $"navigate:{entry.SectionId}",
                     selected: activeSection == entry.SectionId && string.IsNullOrEmpty(state.SubPage),
-                    emit: AppSignals.Emit("settings", "navigate", entry.SectionId))).ToArray()));
+                    emit: AppSignals.Emits("settings", new SettingsNavigate(entry.SectionId)))).ToArray()));
         }
 
         if (filtered.FirstOrDefault(e => e.SectionId == "danger") is { } dangerEntry)
@@ -96,7 +96,7 @@ internal static class SettingsViewRenderer
                 dangerEntry.Icon,
                 "navigate:danger",
                 selected: activeSection == "danger",
-                emit: AppSignals.Emit("settings", "navigate", "danger")));
+                emit: AppSignals.Emits("settings", new SettingsNavigate("danger"))));
         }
 
         return VStack(Space.Sm, nodes.ToArray());

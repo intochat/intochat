@@ -29,4 +29,7 @@
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Identity.Tests.Unit" />
+  </ItemGroup>
 </Project>

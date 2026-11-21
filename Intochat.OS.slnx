@@ -95,6 +95,7 @@
   <Project Path="tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Modules.AI.Tests.Unit/IntoChat.OS.Modules.AI.Tests.Unit.csproj" />
+  <Project Path="tests/IntoChat.OS.Modules.Identity.Tests.Unit/IntoChat.OS.Modules.Identity.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Integration/IntoChat.OS.Tests.Integration.csproj" />

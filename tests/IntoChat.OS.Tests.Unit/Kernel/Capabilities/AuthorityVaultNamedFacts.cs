@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Authority;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Modules.Identity.Ports;
 
