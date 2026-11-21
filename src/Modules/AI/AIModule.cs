@@ -62,6 +62,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
 
         var options = AIOptionsRuntime.Read(configuration);
 
+        DigitalBrain.Invocation.RuntimeProtocol.Register(Conversations.ConversationJsonContext.Default);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
         services.TryAddSingleton<BrainKeyAvailability>();

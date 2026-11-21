@@ -20,7 +20,10 @@ namespace IntoChat.OS.Modules.AI.Agents;
 
 // Everything one turn needs, settled by the agent before the loop starts.
 internal sealed record TurnPlan(string ScopeId, string Conversation, string RunId, AiMessage[] Transcript, string? Summary, AiMessage Input, string Instructions,
-    string[] Contracts, string[] Contexts, ModelSelection? Model, InferenceOptions? Options, int MaxModelCalls, bool Streaming);
+    string[] Contracts, string[] Contexts, ModelSelection? Model, InferenceOptions? Options, int MaxModelCalls, bool Streaming)
+{
+    public string? AgentName { get; init; }
+}
 
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
 // pushed: the consumer persists each event before asking for the next, so nothing external starts
@@ -30,7 +33,10 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
     private static readonly string[] ContractAssemblyPrefixes = ["IntoChat.OS", "DigitalBrain"];
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
-        using var turn = AgentTelemetry.Turn(AgentName(plan.Conversation), plan.Conversation, plan.RunId);
+        var telemetryConversation = plan.Conversation.StartsWith(plan.ScopeId + "/conversations/", StringComparison.Ordinal)
+            ? plan.Conversation[(plan.ScopeId.Length + 1)..]
+            : plan.Conversation;
+        using var turn = AgentTelemetry.Turn(plan.AgentName ?? AgentName(plan.Conversation), telemetryConversation, plan.RunId);
         await using var steps = Steps(plan, ct).GetAsyncEnumerator(ct);
         AgentTurnEvent.TurnFailed? failure = null;
         while (true)

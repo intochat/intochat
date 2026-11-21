@@ -26,6 +26,8 @@ public sealed class AiFixture : BothRuntimesFixture
     protected override void ConfigureSilo(IServiceCollection services)
     {
         services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.IAgent).Assembly);
+        // ConversationChanged lives in Shell.Contracts; ConversationNeuron lives in AIModule.
+        services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Conversations.ConversationChanged).Assembly);
         // The security posture neuron listens to the identity module's grants signal.
         services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Identity.Contracts.Grants.GrantsChanged).Assembly);
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
