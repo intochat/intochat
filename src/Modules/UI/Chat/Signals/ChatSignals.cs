@@ -18,4 +18,4 @@ public sealed record ChatRetryRequested(string ChatId, string? MessageId) : Sign
 public sealed record ChatCompactRequested(string ChatId) : Signal;
 
 [Signal("ui.chat-model-selected")]
-public sealed record ChatModelSelected(string ChatId, string ModelId) : Signal;
+public sealed record ChatModelSelected(string ChatId, string ModelId, bool MakeDefault = false) : Signal;

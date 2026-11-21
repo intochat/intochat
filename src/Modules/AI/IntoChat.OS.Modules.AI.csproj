@@ -8,6 +8,9 @@
     <Compile Remove="Contracts/**" />
     <EmbeddedResource Remove="Contracts/**" />
     <None Remove="Contracts/**" />
+    <Compile Remove="Generators/**" />
+    <EmbeddedResource Remove="Generators/**" />
+    <None Remove="Generators/**" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
@@ -38,12 +41,10 @@
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="../Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />
     <ProjectReference Include="../Web/Contracts/IntoChat.OS.Modules.Web.Contracts.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Pricing/models.prices.json" LogicalName="IntoChat.OS.Modules.AI.Pricing.models.prices.json" />
   </ItemGroup>
 </Project>

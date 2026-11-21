@@ -25,10 +25,10 @@ public sealed class GatedInference : IModelInference
 
     public bool HasProfile(string name) => false;
 
-    public Task<ModelDescriptor> Describe(ModelSelection? selection, Type? marker, CancellationToken cancellationToken, string? brainId)
+    public Task<ModelDescriptor> Describe(ModelSelection? selection, ModelId? model, CancellationToken cancellationToken, string? brainId)
         => Task.FromResult(new ModelDescriptor("Host", "fake", selection?.Model, "1", CapabilitySupport.Unknown, CapabilitySupport.Unknown, CapabilitySupport.Unknown));
 
-    public async Task<InferenceResult> Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+    public async Task<InferenceResult> Generate(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
     {
         var inside = Interlocked.Increment(ref _inside);
         int peak;
@@ -39,7 +39,7 @@ public sealed class GatedInference : IModelInference
         return new([new("assistant", [new AiText("ok")])], "stop", null, null, "fake");
     }
 
-    public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker,
+    public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, ModelId? model,
         [EnumeratorCancellation] CancellationToken cancellationToken, string? brainId)
     {
         await Task.Yield();

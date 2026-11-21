@@ -55,7 +55,7 @@ public sealed class InoFormerNamesFacts
             ReadStringArrayOptional: static (_, fallback, _) => Task.FromResult(fallback),
             ReadSettingsOptional: static (_, fallback, _) => Task.FromResult(fallback),
             ReadLocalOptional: static (_, fallback, _) => Task.FromResult(fallback),
-            ReadChoicesOptional: static (_, fallback, _) => Task.FromResult(fallback),
+            ReadCatalogOptional: static (_, fallback, _) => Task.FromResult(fallback),
             ReadChatOptional: static (_, fallback, _) => Task.FromResult(fallback),
             LogOptional: static (_, _) => { },
             Logger: null);

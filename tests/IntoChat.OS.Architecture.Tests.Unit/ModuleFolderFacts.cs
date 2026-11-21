@@ -22,11 +22,18 @@ public sealed partial class ModuleFolderFacts
             && string.Equals(Path.GetFileName(project.Directory), "Contracts", StringComparison.Ordinal)
             && string.Equals(Path.GetDirectoryName(Path.GetDirectoryName(project.Directory)), Repository.ModulesRoot, StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsModuleGeneratorsProject(Repository.Project project)
+        => project.Name.EndsWith(".Generators", StringComparison.Ordinal)
+            && string.Equals(Path.GetFileName(project.Directory), "Generators", StringComparison.Ordinal)
+            && string.Equals(Path.GetDirectoryName(Path.GetDirectoryName(project.Directory)), Repository.ModulesRoot, StringComparison.OrdinalIgnoreCase);
+
     [Fact]
     public void EveryModuleProjectSitsInItsModulesContractsSrcOrTestsFolder()
     {
         var misplaced = ModuleProjects()
-            .Where(project => Path.GetDirectoryName(project.Directory) != Repository.ModulesRoot && !IsModuleContractsProject(project))
+            .Where(project => Path.GetDirectoryName(project.Directory) != Repository.ModulesRoot
+                && !IsModuleContractsProject(project)
+                && !IsModuleGeneratorsProject(project))
             .Select(project => Repository.Relative(project.Directory))
             .ToList();
         Assert.True(misplaced.Count == 0, "Module projects outside src/Modules/<Name>/: " + string.Join(", ", misplaced));
@@ -36,7 +43,7 @@ public sealed partial class ModuleFolderFacts
     public void EveryModuleHasTestsAndNoRoleFolders()
     {
         var modules = ModuleProjects()
-            .Select(project => IsModuleContractsProject(project) ? Path.GetDirectoryName(project.Directory)! : project.Directory)
+            .Select(project => IsModuleContractsProject(project) || IsModuleGeneratorsProject(project) ? Path.GetDirectoryName(project.Directory)! : project.Directory)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         Assert.NotEmpty(modules);

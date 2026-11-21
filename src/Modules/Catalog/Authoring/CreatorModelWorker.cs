@@ -55,7 +55,7 @@ internal static class CreatorModel
             ? null
             : model.Trim();
 
-        // Route all Creator calls through Modules/AI (ModelCatalog.Decide(ModelUse.Code) -> IModelInference / IChatClient / ILLM).
+        // Route all Creator calls through Modules/AI (ModelCatalog.Decide(Role.Think) -> IModelInference / IChatClient / ILLM).
         var catalog = neurons.GetService<ModelCatalog>();
         var inference = neurons.GetService<IModelInference>();
         if (catalog is not null)
@@ -67,7 +67,7 @@ internal static class CreatorModel
                 var selection = ToSelection(resolved);
                 try
                 {
-                    return await effectiveInference.Generate(request with { Model = selection }, marker: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
+                    return await effectiveInference.Generate(request with { Model = selection }, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
                 }
                 catch (Exception error) when (explicitModel is not null && !ct.IsCancellationRequested && IsRecoverableProviderError(error))
                 {
@@ -75,7 +75,7 @@ internal static class CreatorModel
                     var autoResolved = await ResolveCatalogModelAsync(neurons, catalog, brainId, explicitModel: null, requiresTools, ct).ConfigureAwait(false);
                     if (autoResolved is not null)
                     {
-                        return await effectiveInference.Generate(request with { Model = ToSelection(autoResolved) }, marker: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
+                        return await effectiveInference.Generate(request with { Model = ToSelection(autoResolved) }, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
                     }
                 }
             }
@@ -86,12 +86,12 @@ internal static class CreatorModel
             var selection = explicitModel is null ? null : new ModelSelection(explicitModel);
             try
             {
-                var desc = await inference.Describe(selection, marker: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
+                var desc = await inference.Describe(selection, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
                 if ((!requiresTools || desc.Tools == CapabilitySupport.Supported)
                     && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
                         || neurons.GetService<IChatClient>() is not null))
                 {
-                    return await inference.Generate(request with { Model = selection }, marker: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
+                    return await inference.Generate(request with { Model = selection }, model: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
                 }
             }
             catch (Exception error) when (!ct.IsCancellationRequested && IsRecoverableProviderError(error))
@@ -100,9 +100,9 @@ internal static class CreatorModel
             }
         }
 
-        if (explicitModel is not null && LLMModel.Find(explicitModel) is { } compiledMarker)
+        if (explicitModel is not null && KnownModels.Find(explicitModel) is { } card)
         {
-            return await ((ILLM)SiloNeurons.Get(neurons, compiledMarker.Marker, ModelAddress.Key(brainId))).Generate(request, ct).ConfigureAwait(false);
+            return await SiloNeurons.Get<ILLM>(neurons, ILLM.Key(brainId, card.Id)).Generate(request, ct).ConfigureAwait(false);
         }
 
         throw new InvalidOperationException(
@@ -136,7 +136,7 @@ internal static class CreatorModel
         {
             try
             {
-                var resolved = await catalog.Decide(brainId, ModelUse.Code, candidate, personModel: null, requiresTools, ct).ConfigureAwait(false);
+                var resolved = await catalog.Decide(brainId, Role.Think, candidate, requiresTools, ct).ConfigureAwait(false);
                 if (resolved.Provider == AiProvider.Host && neurons.GetService<IChatClient>() is null)
                 {
                     continue;

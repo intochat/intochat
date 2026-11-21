@@ -5,6 +5,7 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.open")] public sealed record InoOpen(string? Mode = null) : Signal;
 [Signal("ino.retry")] public sealed record InoRetry : Signal;
 [Signal("ino.use-local")] public sealed record InoUseLocalModel(string? Model = null, string? Value = null) : Signal;
+[Signal("ino.choose-model")] public sealed record InoChooseModel(string? Model = null, bool MakeDefault = false) : Signal;
 [Signal("ino.save-provider")] public sealed record InoSaveProvider(string? Value = null, string? Provider = null) : Signal;
 [Signal("ino.link")] public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : Signal;
 [Signal("ino.new")] public sealed record InoNew : Signal;

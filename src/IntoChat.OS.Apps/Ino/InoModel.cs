@@ -292,7 +292,7 @@ public static class InoModel
         Approval[] approvals, string[] grantSummaries, string? detectedLocalModel = null, string[]? detectedLocalModels = null)
     {
         ArgumentNullException.ThrowIfNull(current);
-        var modelLabel = string.IsNullOrWhiteSpace(defaultModel) ? ModelCatalog.DefaultChatModelId : defaultModel.Trim();
+        var modelLabel = string.IsNullOrWhiteSpace(defaultModel) ? KnownModels.Defaults.Device[Role.Chat].Value : defaultModel.Trim();
         var status = mode == "greet" ? $"Hello, {displayName}! Ready on {modelLabel}."
             : current.Blocked ? Paused : current.ActiveRunId is not null ? Working : Ready;
         var migrate = current.Turns.Length > 0 && string.IsNullOrEmpty(current.AgentKey);
@@ -487,7 +487,7 @@ public static class InoModel
 
     public static InoAppState DecideScenario(string? scenarioId, UserSettingsState settings)
     {
-        var model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? ModelCatalog.DefaultChatModelId : settings.DefaultModel.Trim();
+        var model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? KnownModels.Defaults.Device[Role.Chat].Value : settings.DefaultModel.Trim();
         var id = string.IsNullOrWhiteSpace(scenarioId) ? "q4-renewal" : scenarioId.Trim().ToLowerInvariant();
         if (id == "morning-brief")
         {

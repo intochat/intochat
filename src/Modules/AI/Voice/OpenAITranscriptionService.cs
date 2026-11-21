@@ -1,5 +1,5 @@
 using System.ClientModel;
-using IntoChat.OS.Modules.AI.Voice;
+using IntoChat.OS.Modules.AI.Models;
 using OpenAI;
 using OpenAI.Audio;
 
@@ -10,50 +10,38 @@ namespace IntoChat.OS.Modules.AI;
 // reason this exists alongside the Foundry Local path.
 internal sealed class OpenAITranscriptionService : IAudioTranscriptionService
 {
-    // A 25 MB upload is roughly 13 minutes of audio; the default timeout is far
-    // too short for the far end to finish transcribing it.
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(5);
 
-    // The provider infers the container from the filename, and rejects anything
-    // it does not recognise.
     private static readonly string[] AcceptedExtensions =
         [".flac", ".m4a", ".mp3", ".mp4", ".mpeg", ".mpga", ".oga", ".ogg", ".wav", ".webm"];
 
     private const string FallbackFileName = "voice.wav";
     private const string OpusExtension = ".opus";
 
-    private readonly TranscriptionModel _model;
+    private readonly ModelCard _card;
     private readonly IAiCredentials _credentials;
 
-    internal OpenAITranscriptionService(TranscriptionModel model, IAiCredentials credentials)
+    internal OpenAITranscriptionService(ModelCard card, IAiCredentials credentials)
     {
-        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(card);
         ArgumentNullException.ThrowIfNull(credentials);
 
-        _model = model;
+        _card = card;
         _credentials = credentials;
     }
 
-    private string Integration => AiIntegrations.IdOf(_model.Provider);
+    private string Integration => AiIntegrations.IdOf(_card.Provider);
 
-    public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => _model.Formats.HasFlag(TranscriptionFormats.Text) && await _credentials.IsReady(Integration, cancellationToken);
+    public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default)
+        => _card.Can.HasFlag(Abilities.Hear) && await _credentials.IsReady(Integration, cancellationToken);
 
-    public bool InitializationFailed => !_model.Formats.HasFlag(TranscriptionFormats.Text);
+    public bool InitializationFailed => !_card.Can.HasFlag(Abilities.Hear);
 
-    public string? ErrorMessage
-    {
-        get
-        {
-            if (!_model.Formats.HasFlag(TranscriptionFormats.Text))
-            {
-                return $"{_model.DisplayName} does not offer a plain-text response, which voice transcription requires.";
-            }
+    public string? ErrorMessage => _card.Can.HasFlag(Abilities.Hear)
+        ? null
+        : $"{_card.Name} does not support speech transcription.";
 
-            return null;
-        }
-    }
-
-    public string ModelId => _model.Id;
+    public string ModelId => _card.Id.Value;
 
     public async Task<string> TranscribeAsync(
         string audioFilePath,
@@ -82,9 +70,6 @@ internal sealed class OpenAITranscriptionService : IAudioTranscriptionService
         }
 
         var client = await CreateClientAsync(cancellationToken).ConfigureAwait(false);
-
-        // Asserted against the catalogue rather than assumed: the gpt-4o transcribe
-        // models reject the verbose and subtitle formats outright.
         var options = new AudioTranscriptionOptions { ResponseFormat = AudioTranscriptionFormat.Text };
 
         var transcription = await client
@@ -104,11 +89,9 @@ internal sealed class OpenAITranscriptionService : IAudioTranscriptionService
             options.Endpoint = new Uri(endpoint);
         }
 
-        return new AudioClient(_model.Id, new ApiKeyCredential(apiKey), options);
+        return new AudioClient(_card.Id.Value, new ApiKeyCredential(apiKey), options);
     }
 
-    // An unrecognised extension is a 400 from the provider, which would surface as
-    // an opaque transcription failure. The shell always sends WAV.
     internal static string NormalizeFileName(string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -122,10 +105,6 @@ internal sealed class OpenAITranscriptionService : IAudioTranscriptionService
             return fileName;
         }
 
-        // Opus rides in an Ogg container, which the provider does accept, but it is
-        // not in its extension list. Relabelling it .wav like any other unknown
-        // extension would hand it Ogg bytes announced as WAV; the Foundry path
-        // already treats .opus as an Ogg container, so these uploads are real.
         if (OpusExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
         {
             return Path.ChangeExtension(fileName, ".ogg");

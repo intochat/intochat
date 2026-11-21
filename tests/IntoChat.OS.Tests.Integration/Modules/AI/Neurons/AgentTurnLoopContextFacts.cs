@@ -226,8 +226,8 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         Assert.IsType<AgentTurnEvent.Completed>(firstTurnEvents[^2]);
         Assert.Contains("\"qwen3.5:4b\"", (await qwenReply).Body);
 
-        // 3. Switch model at runtime to an unconfigured cloud provider ("claude-sonnet-4-5") and verify graceful diagnostic failure
-        await Write(runtime, "user.profile", new("inference", """{"model":"claude-sonnet-4-5"}""", [], [ContextTags.Inference]));
+        // 3. Switch model at runtime to an unconfigured cloud provider ("claude-sonnet-4-6") and verify graceful diagnostic failure
+        await Write(runtime, "user.profile", new("inference", """{"model":"claude-sonnet-4-6"}""", [], [ContextTags.Inference]));
         var failedTurnEvents = await TurnLoops.Collect(runtime.Services, "hello claude", [], ct, [Key(runtime, "user.profile")]);
         var failed = Assert.Single(failedTurnEvents.OfType<AgentTurnEvent.TurnFailed>());
         Assert.False(failed.Cancelled);
@@ -407,7 +407,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
                 Provider = "Anthropic",
                 Model = "claude-sonnet-4-5",
                 Endpoint = server.Url,
-                Capabilities = LlmCapabilities.Tools,
+                Capabilities = Abilities.Tools,
             });
             services.AddSingleton<ModelCatalog>();
         });

@@ -48,7 +48,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
                 services.AddIntoChatOSConnections();
                 services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(_ => AIModule.Integrations);
                 services.TryAddSingleton<IBrainSecretSealer, TestSecretSealer>();
-                services.Configure<AIOptions>(options => options.Default.Model = "qwen3.5:4b");
+                services.Configure<AIOptions>(options => options.Roles.Device[Role.Chat] = "qwen3.5:4b");
                 services.RemoveAll<IChatClient>();
                 services.AddSingleton<IChatClient>(client);
                 services.RemoveAll<IAiCredentials>();
@@ -86,7 +86,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
                 AIModule.ConfigureServices(services, config);
                 services.Configure<AIOptions>(options =>
                 {
-                    options.Default.Model = "qwen3.5:4b";
+                    options.Roles.Device[Role.Chat] = "qwen3.5:4b";
                 });
                 services.RemoveAll<IModelInference>();
                 services.AddSingleton<IModelInference>(recording);
@@ -139,17 +139,17 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
 
         public bool HasProfile(string name) => false;
 
-        public Task<ModelDescriptor> Describe(ModelSelection? selection = null, Type? marker = null, CancellationToken cancellationToken = default, string? brainId = null)
+        public Task<ModelDescriptor> Describe(ModelSelection? selection = null, ModelId? model = null, CancellationToken cancellationToken = default, string? brainId = null)
             => Task.FromResult(new ModelDescriptor("Host", "qwen3.5:4b", null, "rev", CapabilitySupport.Supported, CapabilitySupport.Unknown, CapabilitySupport.Unknown));
 
-        public Task<InferenceResult> Generate(InferenceRequest request, Type? marker = null, CancellationToken cancellationToken = default, string? brainId = null)
+        public Task<InferenceResult> Generate(InferenceRequest request, ModelId? model = null, CancellationToken cancellationToken = default, string? brainId = null)
         {
             LastBrainId = brainId;
             LastSelection = request.Model;
             return Task.FromResult(new InferenceResult([new AiMessage("assistant", [new AiText("default-pong")])], "stop", null, "r1", "qwen3.5:4b"));
         }
 
-        public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default, string? brainId = null)
+        public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, ModelId? model = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default, string? brainId = null)
         {
             await Task.CompletedTask;
             yield break;

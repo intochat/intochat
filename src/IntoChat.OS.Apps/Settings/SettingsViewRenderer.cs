@@ -1,5 +1,6 @@
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Visuals;
@@ -556,12 +557,93 @@ internal static class SettingsViewRenderer
         ];
     }
 
+    private static readonly AiProvider[] DisplayedProviders =
+    [
+        AiProvider.Ollama,
+        AiProvider.FoundryLocal,
+        AiProvider.OpenAI,
+        AiProvider.Anthropic,
+        AiProvider.Google,
+        AiProvider.XAI,
+        AiProvider.OpenRouter,
+    ];
+
+    internal static SettingsRoleRow[] DefaultRoles(SettingsAppState state)
+    {
+        var allRoles = Enum.GetValues<Role>();
+        var rows = new SettingsRoleRow[allRoles.Length];
+        for (var i = 0; i < allRoles.Length; i++)
+        {
+            rows[i] = DefaultRoleRow(allRoles[i], state);
+        }
+
+        return rows;
+    }
+
+    private static SettingsRoleRow DefaultRoleRow(Role role, SettingsAppState state)
+    {
+        var needed = RoleNeeds.Of(role);
+        var choices = KnownModels.All
+            .Where(card => (card.Can & needed) == needed)
+            .Select(static card => new SettingsModelChoice(card.Id.Value, card.Name))
+            .ToArray();
+        var selected = role == Role.Chat && !string.IsNullOrWhiteSpace(state.DefaultModel)
+            ? state.DefaultModel
+            : KnownModels.Defaults.Device.TryGetValue(role, out var deviceId)
+                ? deviceId.Value
+                : KnownModels.Defaults.Cloud.TryGetValue(role, out var cloudId)
+                    ? cloudId.Value
+                    : null;
+        return new SettingsRoleRow(role, selected, choices);
+    }
+
+    private static SettingsProviderRow[] DefaultProviders(SettingsAppState state)
+    {
+        var rows = new SettingsProviderRow[DisplayedProviders.Length];
+        for (var i = 0; i < DisplayedProviders.Length; i++)
+        {
+            var provider = DisplayedProviders[i];
+            var visual = VisualCatalog.ForProvider(provider.ToString());
+            var label = provider switch
+            {
+                AiProvider.Ollama => "Ollama",
+                AiProvider.FoundryLocal => "Foundry Local",
+                _ => visual.Label,
+            };
+            var status = provider switch
+            {
+                AiProvider.FoundryLocal => "Set up in S1b",
+                AiProvider.Ollama => $"Not detected · {state.LocalOllamaEndpoint}",
+                AiProvider.OpenAI when HasVaultEntry(state, "OPENAI_API_KEY", "openai") => "Ready",
+                AiProvider.Anthropic when HasVaultEntry(state, "ANTHROPIC_API_KEY", "anthropic") => "Ready",
+                AiProvider.Google when HasVaultEntry(state, "GOOGLE_API_KEY", "google") => "Ready",
+                _ => "Add a key in API keys",
+            };
+            rows[i] = new SettingsProviderRow(provider, label, visual.IconKey, status);
+        }
+
+        return rows;
+    }
+
+    private static string RoleDescription(Role role) => role switch
+    {
+        Role.Chat => "Default conversation",
+        Role.Think => "Hard tasks, Engineer, planning",
+        Role.Fast => "Titles, routing, System One",
+        Role.Hear => "Speech → text",
+        Role.Speak => "Text → speech",
+        Role.Talk => "Realtime voice-to-voice",
+        Role.Embed => "Memory recall",
+        Role.Image => "Image generation",
+        _ => role.ToString(),
+    };
+
     private static Node RenderModelsSection(SettingsAppState state, string? subPage, SettingsSlots slots)
     {
         if (string.Equals(subPage, "local-server", StringComparison.OrdinalIgnoreCase))
         {
             return DetailSubPage(
-                "AI models / local-server",
+                "AI / local-server",
                 "Local Model Server · Ollama & LM Studio",
                 "Ollama Local Server · Zero-telemetry local inference endpoint.",
                 [
@@ -571,28 +653,55 @@ internal static class SettingsViewRenderer
                     ["Reasoning effort", "Medium · Local execution"],
                 ],
                 "back-to-ai-models",
-                "Back to AI models");
+                "Back to AI");
         }
 
-        var models = state.AvailableModels is { Count: > 0 }
-            ? state.AvailableModels
-            : SettingsApp.CatalogFallbackOptions();
-        var options = models.Select(opt =>
-        {
-            var label = string.IsNullOrWhiteSpace(opt.ProviderLabel)
-                ? opt.Label
-                : $"{opt.Label} ({opt.ProviderLabel})";
-            if (!opt.Available && !string.IsNullOrWhiteSpace(opt.Reason))
+        var providers = state.Providers is { Length: > 0 }
+            ? state.Providers
+            : DefaultProviders(state);
+        var providerRows = providers
+            .Select(static provider => (Node)HStack(Space.Sm)[
+                new TagPill(provider.Label, "neutral", provider.Icon),
+                FlexSpacer(),
+                StatusPill(
+                    provider.Status.StartsWith("Ready", StringComparison.Ordinal) ? StatusKind.Done : StatusKind.Idle,
+                    provider.Status)
+            ])
+            .ToArray();
+
+        var rolesByKey = state.Roles.ToDictionary(static row => row.Role);
+        var roleControls = Enum.GetValues<Role>()
+            .Select(role =>
             {
-                label = $"{label} · {opt.Reason}";
-            }
+                var row = rolesByKey.TryGetValue(role, out var existing)
+                    ? existing
+                    : DefaultRoleRow(role, state);
+                var options = row.Choices
+                    .Select(static opt =>
+                    {
+                        var label = !opt.Available && !string.IsNullOrWhiteSpace(opt.Reason)
+                            ? $"{opt.Label} · {opt.Reason}"
+                            : opt.Label;
+                        return new ComboBoxOption(opt.Id, label);
+                    })
+                    .ToArray();
+                return SettingsControls.ComboBox(
+                    slots,
+                    state,
+                    SettingsControls.RoleKey(role),
+                    $"{role} — {RoleDescription(role)}",
+                    options);
+            })
+            .ToArray();
 
-            return new ComboBoxOption(opt.Id, label);
-        }).ToArray();
-
-        return Surface(SurfaceKind.Elevated, "AI models", "Select the default reasoning model for Ino and autonomous background neurons")[
+        return Surface(SurfaceKind.Elevated, "AI", "Providers and default models for each AI role")[
             VStack(Space.Md)[
-                SettingsControls.ComboBox(slots, state, SettingsControls.DefaultModel, "Default reasoning model", options),
+                Card("Providers", "Local runtimes and cloud providers available to this brain")[
+                    VStack(Space.Sm, providerRows)
+                ],
+                Card("Roles", "Choose the model each capability uses across Ino and background neurons")[
+                    VStack(Space.Sm, roleControls)
+                ],
                 HStack(Space.Sm)[
                     PrimaryButton("Local server (Ollama)", "cpu")
                         .Key("models:local-server")

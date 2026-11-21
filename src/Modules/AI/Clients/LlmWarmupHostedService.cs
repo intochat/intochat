@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,10 +26,9 @@ internal sealed class LlmWarmupHostedService(
             new EventId(2, nameof(LogWarmFailed)),
             "LLM warmup failed for {Model}; first chat may still pay cold start.");
 
-    private static readonly Type[] OllamaTargets =
+    private static readonly ModelCard[] OllamaTargets =
     [
-        typeof(IGemma4),
-        typeof(IQwen35),
+        .. KnownModels.All.Where(static c => c.Provider == AiProvider.Ollama && c.Can.HasFlag(Abilities.Text)),
     ];
 
     private CancellationTokenSource? _warmup;
@@ -53,33 +52,36 @@ internal sealed class LlmWarmupHostedService(
 
     private async Task WarmConfiguredModelsAsync(CancellationToken cancellationToken)
     {
-        foreach (var key in ConfiguredTargets())
+        foreach (var card in ConfiguredTargets())
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
 
-            await WarmOneAsync(key, cancellationToken).ConfigureAwait(false);
+            await WarmOneAsync(card, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private IEnumerable<Type> ConfiguredTargets()
+    private IEnumerable<ModelCard> ConfiguredTargets()
     {
+        var models = options.Value.Ollama.Models;
         foreach (var target in OllamaTargets)
         {
-            if (!string.IsNullOrWhiteSpace(options.Value.Ollama.Models.GetValueOrDefault(target.Name)?.Model))
+            if (!string.IsNullOrWhiteSpace(models.GetValueOrDefault(target.Id.Value)?.Model)
+                || models.Any(pair => KnownModels.Find(pair.Key)?.Id == target.Id && !string.IsNullOrWhiteSpace(pair.Value?.Model)))
             {
                 yield return target;
             }
         }
     }
-    private async Task WarmOneAsync(Type modelKey, CancellationToken cancellationToken)
+
+    private async Task WarmOneAsync(ModelCard card, CancellationToken cancellationToken)
     {
-        var name = modelKey.Name;
+        var name = card.Id.Value;
         try
         {
-            var client = services.GetRequiredKeyedService<IChatClient>(modelKey);
+            var client = services.GetRequiredKeyedService<IChatClient>(card.Id);
             using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             budget.CancelAfter(WarmBudget);
 

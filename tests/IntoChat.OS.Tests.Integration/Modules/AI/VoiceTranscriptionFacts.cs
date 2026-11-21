@@ -10,7 +10,7 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.AspireServer;
-using IntoChat.OS.Modules.AI.Models.FoundryLocal;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -115,10 +115,7 @@ public sealed class VoiceTranscriptionFacts
     [Fact]
     public async Task FoundryLocalStartAsyncDoesNotLoadModelBeforeFirstUse()
     {
-        var options = Options.Create(new AIOptions
-        {
-            Default = new AIDefaultOptions { Transcription = nameof(IWhisperLargeV3Turbo) },
-        });
+        var options = Options.Create(new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo, Where.Device));
         var runtime = new FakeFoundryWhisperRuntime("hello world");
         await using var service = new FoundryLocalTranscriptionService(
             options,
@@ -153,10 +150,7 @@ public sealed class VoiceTranscriptionFacts
     [Fact]
     public async Task FoundryLocalLazyLoadFailureReturns503WithReason()
     {
-        var options = Options.Create(new AIOptions
-        {
-            Default = new AIDefaultOptions { Transcription = nameof(IWhisperLargeV3Turbo) },
-        });
+        var options = Options.Create(new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo, Where.Device));
         var failingRuntime = new FailingFoundryWhisperRuntime("Foundry Local catalog unreachable");
         await using var service = new FoundryLocalTranscriptionService(
             options,

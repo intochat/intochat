@@ -148,14 +148,17 @@ public sealed class HelloWorldUnitFacts
         services.AddSingleton<IConfiguration>(config);
         services.Configure<AIOptions>(o =>
         {
-            o.Default.Model = "profile:local-coder";
+            o.Roles.Device[Role.Chat] = "profile:local-coder";
+            o.Roles.Device[Role.Think] = "profile:local-coder";
+            o.Roles.Cloud[Role.Chat] = "profile:local-coder";
+            o.Roles.Cloud[Role.Think] = "profile:local-coder";
             o.Ollama.Endpoint = "http://127.0.0.1:11434";
             o.ModelProfiles["local-coder"] = new AIModelProfileOptions
             {
                 Provider = "Ollama",
                 Model = "qwen2.5-coder:14b",
                 Endpoint = "http://127.0.0.1:11434",
-                Capabilities = LlmCapabilities.Tools,
+                Capabilities = Abilities.Tools,
             };
         });
         AIModule.ConfigureServices(services, config);
@@ -185,7 +188,7 @@ public sealed class HelloWorldUnitFacts
 
         public Task<ModelDescriptor> Describe(
             ModelSelection? selection = null,
-            Type? marker = null,
+            ModelId? model = null,
             CancellationToken cancellationToken = default,
             string? brainId = null)
             => Task.FromResult(new ModelDescriptor(
@@ -204,7 +207,7 @@ public sealed class HelloWorldUnitFacts
 
         public async Task<InferenceResult> Generate(
             InferenceRequest request,
-            Type? marker = null,
+            ModelId? model = null,
             CancellationToken cancellationToken = default,
             string? brainId = null)
         {
@@ -221,11 +224,11 @@ public sealed class HelloWorldUnitFacts
 
         public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(
             InferenceRequest request,
-            Type? marker = null,
+            ModelId? model = null,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default,
             string? brainId = null)
         {
-            var res = await Generate(request, marker, cancellationToken, brainId);
+            var res = await Generate(request, model, cancellationToken, brainId);
             yield return new InferenceUpdate("assistant", res.Messages[0].Content, res.FinishReason, res.Usage, res.ResponseId, "msg-1", res.Model);
         }
     }

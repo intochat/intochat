@@ -1,69 +1,56 @@
-using IntoChat.OS.Modules.AI.Embeddings;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.SystemOne;
-using IntoChat.OS.Modules.AI.Voice;
 
 namespace IntoChat.OS.Modules.AI;
 
 public static class AIOptionsExtensions
 {
-    public static AIOptions WithLlm<TModel>(this AIOptions options) where TModel : ILLM
+    public static AIOptions WithModel(this AIOptions options, ModelCard card)
     {
-        var model = LLMModel.FindByMarker(typeof(TModel)) ?? throw new ArgumentException("Unknown LLM marker.");
-        if (!options.Hosting.Llms.Contains(model.Marker.Name)) { options.Hosting.Llms.Add(model.Marker.Name); }
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(card);
+        var id = card.Id.Value;
+        if (IsSystemOne(card))
+        {
+            if (!options.Hosting.SystemOnes.Contains(id, StringComparer.OrdinalIgnoreCase))
+            {
+                options.Hosting.SystemOnes.Add(id);
+            }
+        }
+        else if (card.Can.HasFlag(Abilities.Text))
+        {
+            if (!options.Hosting.Llms.Contains(id, StringComparer.OrdinalIgnoreCase))
+            {
+                options.Hosting.Llms.Add(id);
+            }
+        }
+
+        if (card.Can.HasFlag(Abilities.Embed) && !options.Hosting.Embeddings.Contains(id, StringComparer.OrdinalIgnoreCase))
+        {
+            options.Hosting.Embeddings.Add(id);
+        }
+
         return options;
     }
 
-    public static AIOptions WithDefaultLlm<TModel>(this AIOptions options) where TModel : ILLM
+    public static AIOptions WithRole(this AIOptions options, Role role, ModelCard card, Where map = Where.Cloud)
     {
-        options.WithLlm<TModel>();
-        options.Default.Model = typeof(TModel).Name;
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(card);
+        options.WithModel(card);
+        TargetMap(options, map)[role] = card.Id.Value;
         return options;
     }
 
-    public static AIOptions WithEmbedding<TModel>(this AIOptions options) where TModel : IEmbedding
+    public static AIOptions WithoutRole(this AIOptions options, Role role, Where map = Where.Cloud)
     {
-        var model = EmbeddingModel.FindByMarker(typeof(TModel)) ?? throw new ArgumentException("Unknown embedding marker.");
-        if (!options.Hosting.Embeddings.Contains(model.Marker.Name)) { options.Hosting.Embeddings.Add(model.Marker.Name); }
-        return options;
-    }
-
-    public static AIOptions WithDefaultEmbedding<TModel>(this AIOptions options) where TModel : IEmbedding
-    {
-        options.WithEmbedding<TModel>();
-        options.Default.Embedding = typeof(TModel).Name;
-        return options;
-    }
-
-    public static AIOptions WithVoiceToText<TModel>(this AIOptions options) where TModel : ITranscription
-    {
-        var model = TranscriptionModel.FindByMarker(typeof(TModel)) ?? throw new ArgumentException("Unknown transcription marker.");
-        options.Default.Transcription = model.Marker.Name;
-        return options;
-    }
-
-    public static AIOptions WithoutVoiceToText(this AIOptions options)
-    {
-        options.Default.Transcription = null;
-        return options;
-    }
-
-    public static AIOptions WithSystemOne<TModel>(this AIOptions options) where TModel : ISystemOneModel
-    {
-        var model = SystemOneModel.FindByMarker(typeof(TModel)) ?? throw new ArgumentException("Unknown System One marker.");
-        if (!options.Hosting.SystemOnes.Contains(model.Marker.Name)) { options.Hosting.SystemOnes.Add(model.Marker.Name); }
-        return options;
-    }
-
-    public static AIOptions WithDefaultSystemOne<TModel>(this AIOptions options) where TModel : ISystemOneModel
-    {
-        options.WithSystemOne<TModel>();
-        options.Default.SystemOne = typeof(TModel).Name;
+        ArgumentNullException.ThrowIfNull(options);
+        TargetMap(options, map).Remove(role);
         return options;
     }
 
     public static AIOptions WithModelEndpoint(this AIOptions options, AiProvider provider, Uri endpoint)
     {
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(endpoint);
         if (!endpoint.IsAbsoluteUri || endpoint.Scheme is not ("http" or "https"))
         { throw new ArgumentException("A model endpoint must be an absolute HTTP(S) URI.", nameof(endpoint)); }
@@ -73,24 +60,43 @@ public static class AIOptionsExtensions
 
     public static AIOptions WithTavilySearch(this AIOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         options.Tavily.Enabled = true;
         return options;
     }
 
     public static AIOptions WithoutWebSearch(this AIOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         options.Tavily.Enabled = false;
         return options;
     }
 
     public static AIOptions WithoutLocalModels(this AIOptions options)
     {
-        options.Hosting.Llms.RemoveAll(name => LLMModel.FindByMarkerName(name)?.IsLocal == true);
-        options.Hosting.Embeddings.RemoveAll(name => EmbeddingModel.FindByMarkerName(name)?.IsLocal == true);
-        if (options.Default.Model is { } llm && LLMModel.FindByMarkerName(llm)?.IsLocal == true) { options.Default.Model = null; }
-        if (options.Default.Embedding is { } embedding && EmbeddingModel.FindByMarkerName(embedding)?.IsLocal == true) { options.Default.Embedding = null; }
-        options.Hosting.SystemOnes.RemoveAll(name => SystemOneModel.FindByMarkerName(name)?.IsLocal == true);
-        if (options.Default.SystemOne is { } systemOne && SystemOneModel.FindByMarkerName(systemOne)?.IsLocal == true) { options.Default.SystemOne = null; }
+        ArgumentNullException.ThrowIfNull(options);
+        options.Hosting.Llms.RemoveAll(static id => KnownModels.Find(id)?.Where == Where.Device);
+        options.Hosting.Embeddings.RemoveAll(static id => KnownModels.Find(id)?.Where == Where.Device);
+        options.Hosting.SystemOnes.RemoveAll(static id => KnownModels.Find(id)?.Where == Where.Device);
+        RemoveDeviceRoles(options.Roles.Device);
+        RemoveDeviceRoles(options.Roles.Cloud);
         return options;
+    }
+
+    internal static bool IsSystemOne(ModelCard card)
+        => card.Provider == AiProvider.TypeSafe || card.Id == KnownModels.LocalJev.Id;
+
+    private static Dictionary<Role, string> TargetMap(AIOptions options, Where map)
+        => map == Where.Device ? options.Roles.Device : options.Roles.Cloud;
+
+    private static void RemoveDeviceRoles(Dictionary<Role, string> roles)
+    {
+        foreach (var role in roles.Keys.ToArray())
+        {
+            if (KnownModels.Find(roles[role])?.Where == Where.Device)
+            {
+                roles.Remove(role);
+            }
+        }
     }
 }

@@ -40,6 +40,8 @@ void main() {
         'provider:xai',
         'provider:openrouter',
         'provider:foundry',
+        'provider:foundrylocal',
+        'provider:openaicompatible',
       ]) {
         final spec = BrandVisuals.tryForIconKey(
           providerKey,
@@ -47,6 +49,11 @@ void main() {
         );
         expect(spec, isNotNull, reason: 'Expected asset for $providerKey');
         expect(spec!.svgAsset, startsWith('assets/brands/providers/'));
+        expect(
+          NeuronIconKind.fromKey(providerKey),
+          isNot(NeuronIconKind.generic),
+          reason: 'Expected NeuronIconKind for $providerKey',
+        );
       }
     });
 

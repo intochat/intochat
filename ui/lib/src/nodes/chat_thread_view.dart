@@ -47,6 +47,10 @@ Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
         automationName: props.automationName ?? node.key,
       ),
       ctx: ctx,
+      models: props.models,
+      activeModelId: props.activeModelId,
+      selectModelKey: node.selectModel?.key,
+      pinModelKey: node.pinModel?.key,
       // A retry is the thread's own node; a window to open is the parent's
       // decision, performed here as a client-local intent.
       onErrorAction: error != null && !error.retry && open != null

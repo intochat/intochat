@@ -71,7 +71,7 @@ internal sealed partial class EngineerPlanner
 
             var archResult = await inference.Generate(
                 new InferenceRequest([new AiMessage("user", [new AiText(architectPrompt)])]),
-                marker: null,
+                model: null,
                 cancellationToken: ct,
                 brainId: null);
 
@@ -140,7 +140,7 @@ internal sealed partial class EngineerPlanner
                     new AiMessage("assistant", [new AiText(proposalContext)]),
                     new AiMessage("user", [new AiText(criticPrompt)]),
                 ]),
-                marker: null,
+                model: null,
                 cancellationToken: ct,
                 brainId: null);
 

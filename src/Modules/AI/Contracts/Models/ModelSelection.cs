@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.AI.Models;
 
-// Model is a marker name ("IFable5") or a configured profile name; null is the
-// deployment default. Reasoning and MaxOutputTokens override what the model or profile pins.
+// Model is a card id ("qwen3.5:4b"), legacy marker name ("IFable5"), or a configured profile name;
+// null means the brain's active role default. Reasoning and MaxOutputTokens override what the model or profile pins.
 public sealed record ModelSelection(
     string? Model = null,
     string? Reasoning = null,
@@ -14,6 +14,6 @@ public sealed record ResolvedModel(
     string? Endpoint,
     string? Profile,
     string Revision,
-    LlmCapabilities Capabilities,
+    Abilities Capabilities,
     string? Reasoning,
     int? MaxOutputTokens);

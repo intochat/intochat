@@ -4,22 +4,25 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.Signals;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-// A brain's model calls run concurrently: only Describe and Generate interleave, with each other (streams always interleave on
-// the host). Publishes take one gate, so the inference signals of interleaved calls are journaled one at a time.
+// One LLM neuron for every model, keyed either {brain}/models (the brain's Chat role) or
+// {brain}/llm/{modelId} (pinned to that card). Calls interleave concurrently; signal publishing
+// takes one gate so journaled inference signals stay ordered.
+[Neuron("ai.llm")]
 [DigitalBrain.Neurons.InterleavesWhen(nameof(Interleaves))]
-internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = null) : StatelessAiNeuron, ILLM
+internal sealed class LlmNeuron(IModelInference inference) : StatelessAiNeuron, ILLM
 {
+    private const string ModelKeyPrefix = "llm/";
     private readonly SemaphoreSlim _publishing = new(1, 1);
 
     public static bool Interleaves(RuntimeInvocation request)
         => request.Method is nameof(ILLM.Generate) or nameof(ILLM.Describe);
 
     public Task<ModelDescriptor> Describe(ModelSelection? selection = null)
-        => inference.Describe(Selection(selection), marker, CancellationToken.None, Brain);
+        => inference.Describe(Selection(selection), PinnedModel, CancellationToken.None, Brain);
+
     public async Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -28,7 +31,7 @@ internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = 
         await Signal(new InferenceStarted(key, id));
         try
         {
-            var result = await inference.Generate(request with { Model = Selection(request.Model) }, marker, cancellationToken, Brain);
+            var result = await inference.Generate(request with { Model = Selection(request.Model) }, PinnedModel, cancellationToken, Brain);
             await Signal(new InferenceCompleted(key, id));
             return result;
         }
@@ -38,7 +41,9 @@ internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = 
             throw;
         }
     }
-    public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request,
+
+    public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(
+        InferenceRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -49,8 +54,10 @@ internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = 
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            await foreach (var update in inference.GenerateStreaming(request with { Model = Selection(request.Model) }, marker, lifetime.Token, Brain))
-            { yield return update; }
+            await foreach (var update in inference.GenerateStreaming(request with { Model = Selection(request.Model) }, PinnedModel, lifetime.Token, Brain))
+            {
+                yield return update;
+            }
             completed = true;
         }
         finally
@@ -61,9 +68,6 @@ internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = 
         }
     }
 
-    // R4-03: the former Watch/Unwatch overrides only took the publish gate so the observer set never changed under a running
-    // notify; the runtime's synapse engine owns the subscribers now, so that gate has nothing left to guard. Who may subscribe is
-    // the model key's brain: the inference signals journal into it, while ILLM itself serves callers of every brain ([Shared]).
     protected override Task AdmitSynapse(DigitalBrain.NeuronId subscriber, IReadOnlyList<Type> signals)
     {
         if (subscriber.Brain != Id.Brain)
@@ -78,19 +82,17 @@ internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = 
         finally { _publishing.Release(); }
     }
 
-    // The brain this model neuron serves, from its key; its provider keys apply to these calls.
     private string Brain => Id.Brain.Value;
+
+    private ModelId? PinnedModel =>
+        Id.Key.StartsWith(ModelKeyPrefix, StringComparison.Ordinal) && Id.Key.Length > ModelKeyPrefix.Length
+            ? new ModelId(Id.Key[ModelKeyPrefix.Length..])
+            : null;
 
     private ModelSelection? Selection(ModelSelection? selection)
     {
         if (selection is not null) { return selection; }
-        // A brain's model key ("{brain}/models") names no profile: the deployment default (or the marker's model). Any other key
-        // names a profile by its key within the brain ("{brain}/{profile}"; 06-05: a plain key always names its brain, where a
-        // grain's bare key "generic" named the profile alone).
         var unnamed = FullKey == ModelAddress.Key(Brain);
-        return unnamed || (marker is not null && !inference.HasProfile(Id.Key)) ? null : new(Id.Key);
+        return unnamed || (PinnedModel is not null && !inference.HasProfile(Id.Key)) ? null : new(Id.Key);
     }
 }
-
-[Neuron("ai.llm")]
-internal sealed class LlmNeuron(IModelInference inference) : LlmNeuronBase(inference);

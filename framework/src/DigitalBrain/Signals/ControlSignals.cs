@@ -119,6 +119,12 @@ public sealed record Retry(string Id = "") : Signal;
 [Signal("control.submitText")]
 public sealed record SubmitText(string? Value = null) : Signal;
 
+/// <summary>Selects a model for the conversation (and optionally pins it as the Chat role default).</summary>
+/// <param name="Value">The chosen model id.</param>
+/// <param name="Default">True to also pin the model as the person's Chat role default.</param>
+[Signal("control.selectModel")]
+public sealed record SelectModel(string? Value = null, bool Default = false) : Signal;
+
 /// <summary>Asks the parent to stop what it is doing; the control only signals it.</summary>
 [Signal("control.stop")]
 public sealed record Stop : Signal;

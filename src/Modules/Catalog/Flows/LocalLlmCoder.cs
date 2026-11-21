@@ -40,7 +40,7 @@ internal sealed class LocalLlmCoderOptions
 
 /// <summary>
 /// Local-first <see cref="ICoder"/> implementation that routes through <see cref="Modules.AI"/>
-/// (<see cref="ModelCatalog.Decide"/> with <see cref="ModelUse.Code"/>) and <see cref="IModelInference"/>
+/// (<see cref="ModelCatalog.Decide"/> with <see cref="Role.Think"/>) and <see cref="IModelInference"/>
 /// using strictly path-confined file tools (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>)
 /// inside <see cref="WorkTreeLease.TreePath"/>.
 /// </summary>
@@ -259,7 +259,7 @@ internal sealed class LocalLlmCoder : ICoder
 
         if (catalog is not null)
         {
-            var resolved = await catalog.Decide(brainId: null, ModelUse.Code, explicitSelection, personModel: null, requiresTools: true, ct).ConfigureAwait(false);
+            var resolved = await catalog.Decide(brainId: null, Role.Think, explicitSelection, requiresTools: true, ct).ConfigureAwait(false);
             if (resolved.Provider == AiProvider.Host && _services?.GetService<IChatClient>() is null)
             {
                 throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
@@ -267,7 +267,7 @@ internal sealed class LocalLlmCoder : ICoder
 
             var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
             var selection = ToSelection(resolved);
-            var desc = await effectiveInference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
+            var desc = await effectiveInference.Describe(selection, model: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
             return new InferenceServiceRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
         }
 
@@ -284,7 +284,7 @@ internal sealed class LocalLlmCoder : ICoder
             {
                 try
                 {
-                    var desc = await inference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
+                    var desc = await inference.Describe(selection, model: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
                     if (desc.Tools == CapabilitySupport.Supported
                         && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
                             || _services?.GetService<IChatClient>() is not null))
@@ -340,7 +340,7 @@ internal sealed class LocalLlmCoder : ICoder
         {
             var options = supportsTemperature ? new InferenceOptions(Temperature: 0.1f) : null;
             var req = new InferenceRequest(messages, Model: selection, Options: options, Tools: tools);
-            return inference.Generate(req, marker: null, cancellationToken: ct, brainId: null);
+            return inference.Generate(req, model: null, cancellationToken: ct, brainId: null);
         }
     }
 

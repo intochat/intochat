@@ -19,6 +19,10 @@ enum WireMessageStatus { sending, running, failed, interrupted, other }
 
 enum WireActivityStatus { running, failed, done }
 
+enum WireModelSection { local, cloud }
+
+enum WireModelAbility { tools, vision, voice, reasoning }
+
 enum TextToneVariant { muted, strong, semantic }
 
 enum DiffChangeVariant { added, deleted, renamed, modified }
@@ -122,6 +126,21 @@ WireActivityStatus parseActivityStatus(String status) =>
       'running' || 'working' => WireActivityStatus.running,
       'failed' || 'error' => WireActivityStatus.failed,
       _ => WireActivityStatus.done,
+    };
+
+WireModelSection parseModelSection(String section) =>
+    switch (section.trim().toLowerCase()) {
+      'local' => WireModelSection.local,
+      _ => WireModelSection.cloud,
+    };
+
+WireModelAbility? parseModelAbility(String ability) =>
+    switch (ability.trim().toLowerCase()) {
+      'tools' => WireModelAbility.tools,
+      'vision' => WireModelAbility.vision,
+      'voice' => WireModelAbility.voice,
+      'reasoning' => WireModelAbility.reasoning,
+      _ => null,
     };
 
 ApprovalState parseApprovalState(String status) =>

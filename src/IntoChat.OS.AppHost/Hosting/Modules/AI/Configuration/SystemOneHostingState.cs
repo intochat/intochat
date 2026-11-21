@@ -4,9 +4,6 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.SystemOne;
-using IntoChatOSConfiguration = DigitalBrain.Modules.Configuration.ModuleConfiguration;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
@@ -22,27 +19,24 @@ public static partial class AIHostingExtensions
         ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "Endpoint"));
     private static readonly string TypeSafeApiKeyEnvironmentKey =
         ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "ApiKey"));
-    private static readonly string DefaultSystemOneEnvironmentKey =
-        ModuleConfiguration.EnvironmentName(AIKeys.DefaultSystemOne);
 
     private sealed class SystemOneHostingState(
         IntoChatOSBuilder brain,
         IResourceBuilder<IntoChatOSModuleResource> module) : IntoChatOSModuleProjection
     {
-        private SystemOneModel? _default;
+        private ModelCard? _default;
         private IResourceBuilder<OllamaModelResource>? _backing;
         private IResourceBuilder<ContainerResource>? _adapter;
 
-        internal void SetDefault(SystemOneModel model, IResourceBuilder<OllamaModelResource>? backing)
+        internal void SetDefault(ModelCard card, IResourceBuilder<OllamaModelResource>? backing)
         {
-            ArgumentNullException.ThrowIfNull(model);
-            if (_default is not null && !string.Equals(_default.Id, model.Id, StringComparison.Ordinal))
+            ArgumentNullException.ThrowIfNull(card);
+            if (_default is not null && _default.Id != card.Id)
             {
                 throw new InvalidOperationException(
-
-                    $"System One is already configured on brain '{brain.Name}' as '{_default.Id}'. Call WithDefaultSystemOne once.");
+                    $"System One is already configured on brain '{brain.Name}' as '{_default.Id}'. Configure Role.Fast once.");
             }
-            _default = model;
+            _default = card;
             _backing = backing;
         }
 
@@ -50,7 +44,6 @@ public static partial class AIHostingExtensions
         {
             ArgumentNullException.ThrowIfNull(builder);
             if (_default is null) { return; }
-            builder.WithEnvironment(DefaultSystemOneEnvironmentKey, _default.Marker.Name);
             if (_default.Provider is not AiProvider.Ollama) { return; }
 
             _adapter ??= AddAdapter();
@@ -60,13 +53,10 @@ public static partial class AIHostingExtensions
                 .WithEnvironment(TypeSafeApiKeyEnvironmentKey, SystemOneApiKeyLocal);
         }
 
-        // The adapter image builds from the repository's systemone-adapter folder; a host composed
-        // outside the repository cannot run a local Jev.
-
         private IResourceBuilder<ContainerResource> AddAdapter()
         {
             var repository = RepositoryRoot() ?? throw new InvalidOperationException(
-                "WithDefaultSystemOne<ILocalJev>() builds the adapter from the repository; run the AppHost from inside it or use IJev.");
+                "Local System One (KnownModels.LocalJev) builds the adapter from the repository; run the AppHost from inside it or use KnownModels.Jev.");
             var adapterPath = Path.Combine(repository, SystemOneAdapterDirectory);
             if (!Directory.Exists(adapterPath))
             {
@@ -82,7 +72,7 @@ public static partial class AIHostingExtensions
                 .WithHttpHealthCheck("/health")
                 .WithEnvironment("OPENAI_BASE_URL", ReferenceExpression.Create($"{ollama.UriExpression}/v1"))
                 .WithEnvironment("OPENAI_API_KEY", "not-needed")
-                .WithEnvironment("SYSTEMONE_MODEL", _default!.Id)
+                .WithEnvironment("SYSTEMONE_MODEL", _default!.Id.Value)
                 .WithAnnotation(new WaitAnnotation(backing.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
                 .WithParentRelationship(module);
         }

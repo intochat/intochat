@@ -265,7 +265,7 @@ public sealed class LocalLlmCoderFacts : IDisposable
     {
         public bool HasProfile(string name) => true;
 
-        public Task<ModelDescriptor> Describe(ModelSelection? selection, Type? marker, CancellationToken cancellationToken, string? brainId) =>
+        public Task<ModelDescriptor> Describe(ModelSelection? selection, ModelId? model, CancellationToken cancellationToken, string? brainId) =>
             Task.FromResult(new ModelDescriptor(
                 "Ollama",
                 "qwen2.5-coder:14b",
@@ -275,13 +275,13 @@ public sealed class LocalLlmCoderFacts : IDisposable
                 CapabilitySupport.Unsupported,
                 CapabilitySupport.Supported));
 
-        public async Task<InferenceResult> Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        public async Task<InferenceResult> Generate(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
         {
             await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             return new InferenceResult([], "stop", null, null, "qwen2.5-coder:14b");
         }
 
-        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId) =>
+        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId) =>
             throw new NotSupportedException();
     }
 
@@ -292,7 +292,7 @@ public sealed class LocalLlmCoderFacts : IDisposable
 
         public bool HasProfile(string name) => true;
 
-        public Task<ModelDescriptor> Describe(ModelSelection? selection, Type? marker, CancellationToken cancellationToken, string? brainId) =>
+        public Task<ModelDescriptor> Describe(ModelSelection? selection, ModelId? model, CancellationToken cancellationToken, string? brainId) =>
             Task.FromResult(new ModelDescriptor(
                 "Ollama",
                 "qwen2.5-coder:14b",
@@ -302,13 +302,13 @@ public sealed class LocalLlmCoderFacts : IDisposable
                 CapabilitySupport.Unsupported,
                 TemperatureSupport));
 
-        public Task<InferenceResult> Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        public Task<InferenceResult> Generate(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
         {
             var next = _turns.Dequeue()(request);
             return Task.FromResult(new InferenceResult([next], "stop", null, null, "qwen2.5-coder:14b"));
         }
 
-        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId) =>
+        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId) =>
             throw new NotSupportedException();
     }
 }

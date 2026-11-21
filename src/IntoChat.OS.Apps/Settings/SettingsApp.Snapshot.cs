@@ -48,7 +48,7 @@ public sealed partial class SettingsApp
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
         var modelInfo = await TryReadModelCatalogAsync(user.DefaultModel);
         var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
-            ? (modelInfo.AutomaticModel ?? ModelCatalog.DefaultChatModelId)
+            ? (modelInfo.AutomaticModel ?? KnownModels.Defaults.Device[Role.Chat].Value)
             : user.DefaultModel.Trim();
         var effectiveUser = string.Equals(displayModel, user.DefaultModel, StringComparison.Ordinal)
             ? user
@@ -59,7 +59,8 @@ public sealed partial class SettingsApp
         {
             PendingApprovals = approvals,
             SecretStatuses = secrets,
-            AvailableModels = modelInfo.Options,
+            Roles = modelInfo.Roles,
+            Providers = modelInfo.Providers,
             LocalOllamaEndpoint = modelInfo.LocalEndpoint,
         };
 
@@ -78,18 +79,75 @@ public sealed partial class SettingsApp
         await UpdateAsync(next);
     }
 
-    internal static IReadOnlyList<SettingsModelOption> CatalogFallbackOptions() =>
+    private static readonly AiProvider[] SettingsProviders =
     [
-        .. LLMModel.All
-            .Where(static m => m.SupportsTools && (m.Provider != AiProvider.Ollama || string.Equals(m.Id, ModelCatalog.DefaultChatModelId, StringComparison.Ordinal)))
-            .Select(static m =>
-            {
-                var visual = VisualCatalog.ForModel(m.Id, m.Provider.ToString());
-                return new SettingsModelOption(m.Id, visual.Label, true, visual.Category);
-            }),
+        AiProvider.Ollama,
+        AiProvider.FoundryLocal,
+        AiProvider.OpenAI,
+        AiProvider.Anthropic,
+        AiProvider.Google,
+        AiProvider.XAI,
+        AiProvider.OpenRouter,
     ];
 
-    private async Task<(IReadOnlyList<SettingsModelOption> Options, string? AutomaticModel, string LocalEndpoint)> TryReadModelCatalogAsync(string? personModel)
+    private async Task SetRoleAsync(Role role, string? modelId)
+    {
+        if (string.IsNullOrWhiteSpace(modelId))
+        {
+            return;
+        }
+
+        var trimmed = modelId.Trim();
+        var chosen = new ModelId(trimmed);
+        var persistedViaCatalog = false;
+
+        if (TryBrainOrNull() is { Value.Length: > 0 } brain)
+        {
+            try
+            {
+                await Get<IModelCatalog>(IModelCatalog.Key(brain.Value)).SetRole(role, chosen);
+                persistedViaCatalog = true;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogDebug(error, "IModelCatalog is optional when SettingsApp runs in standalone tests.");
+            }
+        }
+
+        if (!persistedViaCatalog)
+        {
+            try
+            {
+                await Get<IUserSettings>("settings").SetRole(role, chosen);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogDebug(error, "Skipping role persistence in minimal test host.");
+            }
+        }
+
+        var nextDefaultModel = role == Role.Chat ? trimmed : State.DefaultModel;
+        var modelInfo = await TryReadModelCatalogAsync(nextDefaultModel);
+        var baselineRoles = modelInfo.Roles.Length > 0
+            ? modelInfo.Roles
+            : State.Roles.Length > 0
+                ? State.Roles
+                : SettingsViewRenderer.DefaultRoles(State);
+        var updatedRoles = baselineRoles
+            .Select(row => row.Role == role ? row with { Selected = trimmed } : row)
+            .ToArray();
+
+        await UpdateAsync(State with
+        {
+            DefaultModel = nextDefaultModel,
+            Roles = updatedRoles,
+            Providers = modelInfo.Providers.Length > 0 ? modelInfo.Providers : State.Providers,
+            LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+            Status = $"Updated {role} model to {KnownModels.Find(trimmed)?.Name ?? trimmed}.",
+        });
+    }
+
+    private async Task<(SettingsRoleRow[] Roles, SettingsProviderRow[] Providers, string? AutomaticModel, string LocalEndpoint)> TryReadModelCatalogAsync(string? personModel)
     {
         BrainId brain = default;
         try
@@ -99,39 +157,169 @@ public sealed partial class SettingsApp
         catch (InvalidOperationException error)
         {
             Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
-            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint);
         }
 
         if (string.IsNullOrWhiteSpace(brain.Value))
         {
-            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint);
         }
 
         try
         {
             var catalog = Get<IModelCatalog>(IModelCatalog.Key(brain.Value));
-            var choices = await catalog.List(string.IsNullOrWhiteSpace(personModel) ? null : personModel.Trim());
-            var deduped = new Dictionary<string, SettingsModelOption>(StringComparer.OrdinalIgnoreCase);
-            foreach (var choice in choices.Models)
+            var cards = await catalog.List();
+            var availability = (await catalog.Availability())
+                .ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
+            var roleMap = await catalog.Roles();
+
+            LocalModelSummary? localSummary = null;
+            try
             {
-                if (string.IsNullOrWhiteSpace(choice.Model)) { continue; }
-                var id = choice.Model.Trim();
-                var option = new SettingsModelOption(id, choice.Label, choice.Available, choice.ProviderLabel, choice.Reason);
-                if (!deduped.TryGetValue(id, out var existing) || (!existing.Available && option.Available))
-                {
-                    deduped[id] = option;
-                }
+                localSummary = await catalog.DetectLocal();
+            }
+            catch (Exception detectError) when (detectError is not OperationCanceledException)
+            {
+                Log.LogDebug(detectError, "IModelCatalog.DetectLocal failed while refreshing Settings AI section.");
             }
 
-            var autoModel = string.IsNullOrWhiteSpace(choices.Automatic.Model) ? null : choices.Automatic.Model.Trim();
-            IReadOnlyList<SettingsModelOption> resolvedOptions = deduped.Count > 0 ? [.. deduped.Values] : CatalogFallbackOptions();
-            return (resolvedOptions, autoModel, IntoChatOSNames.LocalOllamaEndpoint);
+            var endpoint = string.IsNullOrWhiteSpace(State.LocalOllamaEndpoint)
+                ? IntoChatOSNames.LocalOllamaEndpoint
+                : State.LocalOllamaEndpoint;
+            var roles = BuildRoleRows(cards, availability, roleMap, personModel);
+            var providers = BuildProviderRows(cards, availability, localSummary, endpoint);
+
+            string? autoModel = null;
+            try
+            {
+                var picked = await catalog.Pick(Role.Chat, string.IsNullOrWhiteSpace(personModel) ? null : new ModelId(personModel.Trim()));
+                if (!string.IsNullOrWhiteSpace(picked.Value))
+                {
+                    autoModel = picked.Value;
+                }
+            }
+            catch (Exception pickError) when (pickError is not OperationCanceledException)
+            {
+                Log.LogDebug(pickError, "IModelCatalog.Pick did not resolve an automatic chat model.");
+            }
+
+            return (roles, providers, autoModel, endpoint);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Log.LogDebug(error, "IModelCatalog is optional when SettingsApp runs in standalone tests.");
-            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+            return (State.Roles, State.Providers, null, State.LocalOllamaEndpoint);
         }
+    }
+
+    private static SettingsRoleRow[] BuildRoleRows(
+        IReadOnlyList<ModelCard> cards,
+        IReadOnlyDictionary<string, ModelAvailability> availability,
+        RoleMap roleMap,
+        string? personModel)
+    {
+        var allRoles = Enum.GetValues<Role>();
+        var rows = new SettingsRoleRow[allRoles.Length];
+        for (var i = 0; i < allRoles.Length; i++)
+        {
+            var role = allRoles[i];
+            var needed = RoleNeeds.Of(role);
+            var deduped = new Dictionary<string, SettingsModelChoice>(StringComparer.OrdinalIgnoreCase);
+            foreach (var card in cards)
+            {
+                if ((card.Can & needed) != needed)
+                {
+                    continue;
+                }
+
+                var id = card.Id.Value;
+                var available = availability.TryGetValue(id, out var avail) && avail.Ready;
+                var reason = available ? null : avail?.Reason;
+                var choice = new SettingsModelChoice(id, card.Name, available, reason);
+                if (!deduped.TryGetValue(id, out var existing) || (!existing.Available && choice.Available))
+                {
+                    deduped[id] = choice;
+                }
+            }
+
+            string? selected = null;
+            var hasDevice = roleMap.Device.TryGetValue(role, out var deviceId);
+            var hasCloud = roleMap.Cloud.TryGetValue(role, out var cloudId);
+            if (hasDevice && availability.TryGetValue(deviceId.Value, out var deviceAvail) && deviceAvail.Ready)
+            {
+                selected = deviceId.Value;
+            }
+            else if (hasCloud && availability.TryGetValue(cloudId.Value, out var cloudAvail) && cloudAvail.Ready)
+            {
+                selected = cloudId.Value;
+            }
+            else if (hasDevice)
+            {
+                selected = deviceId.Value;
+            }
+            else if (hasCloud)
+            {
+                selected = cloudId.Value;
+            }
+            else if (role == Role.Chat && !string.IsNullOrWhiteSpace(personModel))
+            {
+                selected = personModel.Trim();
+            }
+
+            rows[i] = new SettingsRoleRow(role, selected, [.. deduped.Values]);
+        }
+
+        return rows;
+    }
+
+    private static SettingsProviderRow[] BuildProviderRows(
+        IReadOnlyList<ModelCard> cards,
+        IReadOnlyDictionary<string, ModelAvailability> availability,
+        LocalModelSummary? localSummary,
+        string localEndpoint)
+    {
+        var rows = new SettingsProviderRow[SettingsProviders.Length];
+        for (var i = 0; i < SettingsProviders.Length; i++)
+        {
+            var provider = SettingsProviders[i];
+            var visual = VisualCatalog.ForProvider(provider.ToString());
+            var label = provider switch
+            {
+                AiProvider.Ollama => "Ollama",
+                AiProvider.FoundryLocal => "Foundry Local",
+                _ => visual.Label,
+            };
+
+            string status;
+            if (provider == AiProvider.FoundryLocal)
+            {
+                status = "Set up in S1b";
+            }
+            else if (provider == AiProvider.Ollama)
+            {
+                var readyLocalCount = cards.Count(c =>
+                    c.Provider == AiProvider.Ollama
+                    && availability.TryGetValue(c.Id.Value, out var a)
+                    && a.Ready);
+                status = localSummary?.Available == true
+                    ? $"Ready · {localEndpoint} · {localSummary.InstalledModels.Length} installed"
+                    : readyLocalCount > 0
+                        ? $"Ready · {localEndpoint} · {readyLocalCount} installed"
+                        : $"Not detected · {localEndpoint}";
+            }
+            else
+            {
+                var anyReady = cards.Any(c =>
+                    c.Provider == provider
+                    && availability.TryGetValue(c.Id.Value, out var a)
+                    && a.Ready);
+                status = anyReady ? "Ready" : "Add a key in API keys";
+            }
+
+            rows[i] = new SettingsProviderRow(provider, label, visual.IconKey, status);
+        }
+
+        return rows;
     }
 
     private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync(IReadOnlyList<UserVariableEntry> variables)
@@ -244,7 +432,8 @@ public sealed partial class SettingsApp
             var modelInfo = await TryReadModelCatalogAsync(next.DefaultModel);
             next = next with
             {
-                AvailableModels = modelInfo.Options,
+                Roles = modelInfo.Roles,
+                Providers = modelInfo.Providers,
                 LocalOllamaEndpoint = modelInfo.LocalEndpoint,
             };
         }

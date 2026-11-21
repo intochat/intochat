@@ -64,6 +64,7 @@
   <Project Path="src/IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
   <Project Path="src/Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+  <Project Path="src/Modules/AI/Generators/IntoChat.OS.Modules.AI.Generators.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
   <Project Path="src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
   <Project Path="src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />

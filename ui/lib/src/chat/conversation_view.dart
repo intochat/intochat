@@ -18,6 +18,7 @@ import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
 import '../theme/wire_node_values.dart';
 import '../voice_input/ui_voice_input.dart';
+import 'model_picker.dart';
 import 'ui_copyable_message.dart';
 
 /// Declarative conversation surface rendered from a `ConversationNode`.
@@ -30,6 +31,10 @@ class ConversationView extends StatefulWidget {
     required this.node,
     required this.ctx,
     this.onErrorAction,
+    this.models,
+    this.activeModelId,
+    this.selectModelKey,
+    this.pinModelKey,
   });
 
   final ConversationNode node;
@@ -38,6 +43,18 @@ class ConversationView extends StatefulWidget {
   /// Runs the error line's action instead of activating its key (an action
   /// the slot's parent decided, which the thread's view does not hold).
   final VoidCallback? onErrorAction;
+
+  /// Model choices shown in the composer's model picker popover.
+  final List<ModelChoice>? models;
+
+  /// Wire id of the currently selected model for highlighting in the picker.
+  final String? activeModelId;
+
+  /// Key activated with the chosen model id to switch this conversation.
+  final String? selectModelKey;
+
+  /// Key activated with the chosen model id to pin it as the Chat default.
+  final String? pinModelKey;
 
   @override
   State<ConversationView> createState() => _ConversationViewState();
@@ -201,6 +218,28 @@ class _ConversationViewState extends State<ConversationView> {
     unawaited(widget.ctx.activate(stop.key, context: context));
   }
 
+  Future<void> _selectModel(String key, String modelId) async {
+    if (!widget.ctx.interactive || modelId.trim().isEmpty) return;
+    final first = await widget.ctx.activateReporting(
+      key,
+      value: modelId,
+      context: mounted ? context : null,
+    );
+    if (first == ActivationOutcome.stale) {
+      if (widget.ctx.reload case final reload?) {
+        await reload();
+      }
+      final nextFrame = Completer<void>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!nextFrame.isCompleted) nextFrame.complete();
+      });
+      WidgetsBinding.instance.scheduleFrame();
+      await nextFrame.future;
+      if (!mounted) return;
+      await widget.ctx.activateReporting(key, value: modelId, context: context);
+    }
+  }
+
   KeyEventResult _handleConversationKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -352,6 +391,8 @@ class _ConversationViewState extends State<ConversationView> {
             composer.activeModelLabel!.trim().isNotEmpty) ||
         (composer.activeProviderIcon != null &&
             composer.activeProviderIcon!.trim().isNotEmpty);
+    final models = widget.models ?? const <ModelChoice>[];
+    final showModelChip = hasActiveModel || models.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
@@ -450,18 +491,32 @@ class _ConversationViewState extends State<ConversationView> {
                               ),
                             ),
                           ),
-                          if (hasActiveModel) ...[
+                          if (showModelChip) ...[
                             const SizedBox(width: 8),
                             SizedBox(
                               height: 34,
                               child: Center(
-                                child: IcBrandChip(
+                                child: ModelPickerButton(
                                   key: const ValueKey('composer-active-model'),
-                                  spec: BrandVisuals.fromNode(
-                                    label: composer.activeModelLabel,
-                                    iconKey: composer.activeProviderIcon,
-                                  ),
-                                  compact: true,
+                                  models: models,
+                                  activeModelId: widget.activeModelId,
+                                  activeModelLabel: composer.activeModelLabel,
+                                  activeProviderIcon:
+                                      composer.activeProviderIcon,
+                                  enabled: widget.ctx.interactive,
+                                  onSelect: widget.selectModelKey == null
+                                      ? null
+                                      : (id) => unawaited(
+                                          _selectModel(
+                                            widget.selectModelKey!,
+                                            id,
+                                          ),
+                                        ),
+                                  onPin: widget.pinModelKey == null
+                                      ? null
+                                      : (id) => unawaited(
+                                          _selectModel(widget.pinModelKey!, id),
+                                        ),
                                 ),
                               ),
                             ),

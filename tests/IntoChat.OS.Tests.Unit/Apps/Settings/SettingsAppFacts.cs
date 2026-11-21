@@ -489,7 +489,7 @@ public sealed class SettingsAppFacts
         CollectOptionValues(doc.RootElement, offeredModels);
 
         Assert.NotEmpty(offeredModels);
-        var catalogIds = IntoChat.OS.Modules.AI.Models.LLMModel.All.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        var catalogIds = IntoChat.OS.Modules.AI.Models.KnownModels.All.Select(m => m.Id.Value).ToHashSet(StringComparer.Ordinal);
         Assert.All(offeredModels, id => Assert.True(catalogIds.Contains(id), $"Uncatalogued model '{id}' offered in Settings."));
         Assert.DoesNotContain("claude-sonnet-4-5", offeredModels);
         Assert.DoesNotContain("gpt-5", offeredModels);

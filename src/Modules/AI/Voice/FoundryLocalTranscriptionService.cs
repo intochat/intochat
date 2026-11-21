@@ -28,7 +28,7 @@ internal sealed class FoundryLocalTranscriptionService :
     IHostedService,
     IAsyncDisposable
 {
-    public static readonly string DefaultTranscriptionKey = VoiceToTextHosting.DefaultTranscriptionKey;
+    public static readonly string RolesKey = VoiceToTextHosting.RolesKey;
 
     private static readonly string[] OggExtensions = [".ogg", ".opus", ".oga"];
 
@@ -78,8 +78,16 @@ internal sealed class FoundryLocalTranscriptionService :
     public bool InitializationFailed { get; private set; }
     public string? ErrorMessage { get; private set; }
     public string ModelId => _loadedModel?.Id
-        ?? TranscriptionModel.FindByMarkerName(_options.Default.Transcription ?? string.Empty)?.Id
+        ?? ConfiguredHearModelId(_options)
         ?? "unconfigured";
+
+    private static string? ConfiguredHearModelId(AIOptions options)
+    {
+        var id = RoleMaps.Explicit(options, topology: null, Role.Hear);
+        return id is { Value.Length: > 0 } value
+            ? KnownModels.Find(value.Value)?.Id.Value ?? value.Value
+            : null;
+    }
 
     // Intentionally a no-op: Whisper is downloaded and loaded on the first transcription request
     // rather than stalling host startup for minutes.
@@ -259,8 +267,8 @@ internal sealed class FoundryLocalTranscriptionService :
     {
         public static readonly FoundryWhisperRuntime Instance = new();
 
-        private static readonly TranscriptionModel[] LocalModels =
-            [.. TranscriptionModel.All.Where(static model => model.Provider is AiProvider.FoundryLocal)];
+        private static readonly ModelCard[] LocalModels =
+            [.. KnownModels.All.Where(static card => card.Provider is AiProvider.FoundryLocal && card.Can.HasFlag(Abilities.Hear))];
 
         private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan LoadTimeout = TimeSpan.FromMinutes(2);
@@ -338,9 +346,7 @@ internal sealed class FoundryLocalTranscriptionService :
 
         private static async Task<IModel> ResolveModelAsync(AIOptions options, ICatalog catalog, ILogger logger)
         {
-            // The key names a marker; the Foundry catalogue is keyed by wire id.
-            var configuredId = TranscriptionModel
-                .FindByMarkerName(options.Default.Transcription ?? string.Empty)?.Id;
+            var configuredId = ConfiguredHearModelId(options);
             if (!string.IsNullOrEmpty(configuredId))
             {
                 var configured = await catalog.GetModelAsync(configuredId).ConfigureAwait(false);
@@ -354,7 +360,7 @@ internal sealed class FoundryLocalTranscriptionService :
 
             foreach (var whisperModel in LocalModels)
             {
-                var found = await catalog.GetModelAsync(whisperModel.Id).ConfigureAwait(false);
+                var found = await catalog.GetModelAsync(whisperModel.Id.Value).ConfigureAwait(false);
                 if (found is not null)
                 {
                     return found;
@@ -363,7 +369,7 @@ internal sealed class FoundryLocalTranscriptionService :
 
             throw new InvalidOperationException(
                 "No whisper model found in Foundry Local catalog. "
-                + $"Expected one of: {string.Join(", ", LocalModels.Select(static m => m.Id))}");
+                + $"Expected one of: {string.Join(", ", LocalModels.Select(static m => m.Id.Value))}");
         }
     }
 
