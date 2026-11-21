@@ -10,6 +10,8 @@ using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Modules.Microsoft.Playwright;
 using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Web;
+using IntoChat.OS.Modules.Web.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Cluster;
@@ -35,6 +37,7 @@ public sealed record DeploymentProfile
     public required IReadOnlyList<string> ModuleOverrides { get; init; }
     public required OrleansOptions Orleans { get; init; }
     public required AIOptions Ai { get; init; }
+    public required WebModuleOptions Web { get; init; }
     private IConfiguration Configuration { get; init; } = null!;
 
     public bool IsEnabled(string moduleId) => LocalRunDefaults.IsEnabled(Configuration, moduleId);
@@ -67,6 +70,7 @@ public sealed record DeploymentProfile
             ModuleOverrides = overrides,
             Orleans = orleans,
             Ai = cloud ? CloudAi() : LocalAi(configuration[IntoChatOSHostingOptions.LocalModelKey]),
+            Web = cloud ? CloudWeb() : LocalWeb(),
             Configuration = configuration,
         };
     }
@@ -109,6 +113,7 @@ public sealed record DeploymentProfile
         // All 17 ArtCraft studios (including PhotoCraft and FilmCraft) are served directly from the Kernel over /artcraft/{id}/*;
         // no standalone Nginx containers are required when the ArtCraft MCP module is disabled.
         if (IsEnabled("playwright")) { os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins); }
+        if (IsEnabled("webtools")) { os = os.WithHosting<WebModuleHosting, WebModuleOptions>(Web); }
         if (IsEnabled(SandboxModuleHosting.ModuleName)) { os = os.WithHosting<SandboxModuleHosting>(); }
         return os;
     }
@@ -130,6 +135,17 @@ public sealed record DeploymentProfile
         .WithRole(Role.Embed, KnownModels.TextEmbedding3Small)
         .WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo)
         .WithoutLocalModels();
+
+    internal static WebModuleOptions LocalWeb() => new()
+    {
+        Provider = SearchProvider.Searxng,
+        SearxngUrl = new Uri("http://localhost:8080"),
+    };
+
+    internal static WebModuleOptions CloudWeb() => new()
+    {
+        Provider = SearchProvider.Brave,
+    };
 }
 
 // Where local state lives: IntoChatOS:Home, or ~/.intochat.
