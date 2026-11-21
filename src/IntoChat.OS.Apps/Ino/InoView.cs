@@ -62,6 +62,10 @@ public static partial class InoView
         selected.Reverse();
         if (s.Pending is { } pending)
         {
+            for (var i = 0; i < selected.Count; i++)
+            {
+                if (selected[i].CanRegenerate) { selected[i] = selected[i] with { CanRegenerate = false }; }
+            }
             var pendingText = pending.Text.Length > MaxRenderedChars ? pending.Text[..MaxRenderedChars] : pending.Text;
             selected.Add(new ThreadMessage($"pending/{pending.Id}", "user", pendingText, "sending"));
         }
