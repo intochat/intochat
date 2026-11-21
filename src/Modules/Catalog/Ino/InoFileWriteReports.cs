@@ -1,4 +1,6 @@
 using DigitalBrain.Operations;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -32,4 +34,29 @@ internal static class InoFileWriteReports
     // The caller's conversation is the agent's full key, "{brain}/{key}"; the neuron key inside the brain drops the brain.
     internal static string AgentKey(string brain, string conversation)
         => conversation.StartsWith(brain + "/", StringComparison.Ordinal) ? conversation[(brain.Length + 1)..] : conversation;
+
+    // Normalizes any caller conversation identifier (new conversation full key, brain-relative key, legacy agent key, or bare id)
+    // into the IConversation neuron key ("conversations/{id}") inside this brain.
+    internal static string ConversationKey(string brain, string conversation)
+    {
+        var key = AgentKey(brain, conversation).Trim();
+        const string typedPrefix = IConversation.Type + "/";
+        if (key.StartsWith(typedPrefix, StringComparison.Ordinal))
+        {
+            key = key[typedPrefix.Length..];
+        }
+
+        if (key.StartsWith("conversations/", StringComparison.Ordinal))
+        {
+            return key;
+        }
+
+        const string legacyPrefix = "ino/conversations/";
+        if (key.StartsWith(legacyPrefix, StringComparison.Ordinal))
+        {
+            key = key[legacyPrefix.Length..];
+        }
+
+        return ConversationId.TryParse(key, out var id) ? IConversation.KeyOf(id) : key;
+    }
 }

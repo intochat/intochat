@@ -273,9 +273,9 @@ public sealed class SynapseStudioFacts
         var tickDeploy = await Studio(runtime).Deploy(Alias, TickPoller);
         Assert.True(tickDeploy.Ok, tickDeploy.Text);
 
-        // 2. Persist conversation registry state in InoConversationsNeuron
-        var conversations = runtime.Get<IInoConversations>(runtime.Id("ino.conversations", IInoConversations.DefaultKey));
-        await conversations.Use("ino/conversations/c-resilience-1");
+        // 2. Persist current conversation selection in SessionListNeuron
+        var sessions = runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.ISessionList>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, IntoChat.OS.Modules.Flutter.Conversations.ISessionList.DefaultKey));
+        await sessions.Open("c-deadbeef");
 
         // 3. Create and configure an app snapshot on the silo
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/resilience-probe"));
@@ -290,8 +290,8 @@ public sealed class SynapseStudioFacts
         Assert.Contains(deployedAfter, u => u.SourceKey == "two-file" && u.Status == DeployStatus.Deployed);
         Assert.Contains(deployedAfter, u => u.SourceKey == Alias && u.Status == DeployStatus.Deployed);
 
-        var currentAgents = await runtime.Get<IInoConversations>(runtime.Id("ino.conversations", IInoConversations.DefaultKey)).Current();
-        Assert.Equal(["ino/conversations/c-resilience-1"], currentAgents);
+        var currentSession = await runtime.Get<IntoChat.OS.Modules.Flutter.Conversations.ISessionList>(runtime.Id(IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, IntoChat.OS.Modules.Flutter.Conversations.ISessionList.DefaultKey)).Current();
+        Assert.Equal("c-deadbeef", currentSession);
 
         var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Host.Primitives.AppGrainType.Name, "apps/resilience-probe")).Read();
         Assert.Equal("Resilience Probe", appAfter.Manifest.Title);

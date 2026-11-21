@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
-using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -24,6 +24,14 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
     private IFilesVfsService? _vfs;
 
     private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value, broker);
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        if (State.Writes.Length > 0)
+        {
+            await Context.Wires.EnsureBrainWide(typeof(OperationDone), typeof(ConversationChanged), typeof(TurnCompleted));
+        }
+    }
 
     public async Task<InoToolResult> Find(string pattern)
     {
@@ -91,7 +99,7 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
             with
         { RequiresPerson = true };
 
-        await Context.Wires.EnsureBrainWide(typeof(OperationDone), typeof(TurnCompleted));
+        await Context.Wires.EnsureBrainWide(typeof(OperationDone), typeof(ConversationChanged), typeof(TurnCompleted));
         var operation = await operations.Start(plan, CancellationToken.None);
         var write = new InoFileWrite(operation.Id.Value, conversation, name, root.Name);
         await Save(State with { Writes = [.. State.Writes.TakeLast(KeptWrites - 1), write] },
@@ -107,7 +115,10 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         await Report();
     }
 
-    // A post fails while the agent is answering; the next TurnCompleted retries every outcome still unposted.
+    // A post fails while the conversation is answering; the next ConversationChanged (or legacy TurnCompleted) retries every unposted outcome.
+    [DigitalBrain.Neurons.On]
+    public Task OnConversationChanged(ConversationChanged changed) => changed is null ? Task.CompletedTask : Report();
+
     [DigitalBrain.Neurons.On]
     public Task OnTurnCompleted(TurnCompleted completed) => completed is null ? Task.CompletedTask : Report();
 
@@ -117,9 +128,11 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         {
             try
             {
-                await Context.Get<IAgent>(new DigitalBrain.NeuronId(Id.Brain, "agent", InoFileWriteReports.AgentKey(Id.Brain.Value, write.Conversation))).Post(write.Outcome!, "file/" + write.Operation);
+                var conversationKey = InoFileWriteReports.ConversationKey(Id.Brain.Value, write.Conversation);
+                await Context.Get<IConversation>(new DigitalBrain.NeuronId(Id.Brain, IConversation.Type, conversationKey))
+                    .Post(write.Outcome!, "file/" + write.Operation);
             }
-            // Left unposted on any failure, so the next completed turn tries again; the failure is logged so telemetry shows it.
+            // Left unposted on any failure, so the next conversation update tries again; the failure is logged so telemetry shows it.
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 Logger.LogWarning(error, "Posting the outcome of file operation {Operation} into {Conversation} failed; it stays pending.", write.Operation, write.Conversation);

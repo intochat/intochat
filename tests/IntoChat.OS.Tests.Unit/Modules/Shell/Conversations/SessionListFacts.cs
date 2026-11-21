@@ -36,13 +36,12 @@ public sealed class SessionListFacts
     public async Task TheOldConversationRegistryIsImportedOnce()
     {
         await using var os = CreateOs();
-        using var person = AsPerson(os);
-        var legacy = os.Get<IInoConversations>(new NeuronId(Brain, "ino.conversations", IInoConversations.DefaultKey));
         var firstId = "c-" + new string('1', 32);
         var secondId = "c-" + new string('2', 32);
-        await legacy.Use("ino/conversations/" + firstId);
-        await legacy.Use("ino/conversations/" + secondId);
+        var legacyId = new NeuronId(Brain, "ino.conversations", IInoConversations.DefaultKey);
+        os.SeedStoredState(legacyId, $$"""{"agents":["ino/conversations/{{secondId}}","ino/conversations/{{firstId}}"]}""");
 
+        using var person = AsPerson(os);
         var sessions = os.Get<ISessionList>(ListId);
         Assert.Equal(2, (await sessions.List(archived: false)).Total);
         Assert.Equal(secondId, await sessions.Current());
