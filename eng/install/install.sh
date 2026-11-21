@@ -231,7 +231,7 @@ if [ "$ACTUAL_SHA" != "$SHA_TO_VERIFY" ]; then
     exit 1
 fi
 
-mkdir -p "$HOME_DIR" "$BIN_DIR" "$SECRETS_DIR" "$RUN_DIR" "$LOGS_DIR" "$STATE_DIR"
+mkdir -p "$HOME_DIR" "$BIN_DIR" "$SECRETS_DIR" "$RUN_DIR" "$LOGS_DIR"
 chmod 700 "$SECRETS_DIR" "$RUN_DIR"
 
 EXTRACT_DIR="$STAGING_DIR/extracted"
@@ -261,6 +261,22 @@ fi
 
 if [ "$(uname -s)" = "Darwin" ] && command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.quarantine "$BIN_DIR" >/dev/null 2>&1 || true
+fi
+
+if [ "$(uname -s)" = "Linux" ] && [ -x "$BIN_DIR/intochat" ]; then
+    DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    mkdir -p "$DESKTOP_DIR"
+    cat > "$DESKTOP_DIR/intochat.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=IntoChat OS
+Comment=IntoChat OS Desktop
+Exec=$BIN_DIR/intochat
+Terminal=false
+Categories=Network;Chat;Utility;
+StartupWMClass=io.intochat.os
+EOF
+    chmod 644 "$DESKTOP_DIR/intochat.desktop"
 fi
 
 if [ "$NO_PATH" -eq 0 ]; then

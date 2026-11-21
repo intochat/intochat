@@ -784,45 +784,51 @@ public sealed class HouseRules22Facts
     [Fact]
     public void HouseRule10_DomainPrimitivesExposePrivateConstructorsOnly()
     {
-        var primitivesDir = Path.Combine(ProjectDirs.Value["IntoChat.OS.Host"], "Primitives");
-        var frameworkAssembly = typeof(AppRef).Assembly;
+        var primitiveSources = new[]
+        {
+            (Dir: Path.Combine(ProjectDirs.Value["IntoChat.OS.Host"], "Primitives"), typeof(AppRef).Assembly, Pattern: "*.cs"),
+            (Dir: ProjectDirs.Value["IntoChat.OS"], typeof(ConversationId).Assembly, Pattern: "ConversationId.cs"),
+        };
         var discoveredTypes = new List<Type>();
         var bad = new List<string>();
 
-        foreach (var file in Repository.SourceFiles(primitivesDir, "*.cs"))
+        foreach (var (primitivesDir, primitiveAssembly, pattern) in primitiveSources)
         {
-            var root = ParseSample(File.ReadAllText(file), TestContext.Current.CancellationToken);
-            foreach (var decl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+            foreach (var file in Repository.SourceFiles(primitivesDir, pattern))
             {
-                if (decl.Modifiers.Any(SyntaxKind.StaticKeyword))
+                var root = ParseSample(File.ReadAllText(file), TestContext.Current.CancellationToken);
+                foreach (var decl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                 {
-                    continue;
-                }
-                var ns = decl.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString();
-                if (ns is null)
-                {
-                    continue;
-                }
-                var fullName = $"{ns}.{decl.Identifier.Text}";
-                var runtimeType = frameworkAssembly.GetType(fullName);
-                Assert.True(runtimeType is not null, $"Could not load primitive type '{fullName}' from {frameworkAssembly.GetName().Name}.");
-                discoveredTypes.Add(runtimeType!);
-
-                foreach (var badDeclLine in FindNonPrivateCtorDeclarations(decl))
-                {
-                    bad.Add($"{Repository.Relative(file)}:{badDeclLine}: {decl.Identifier.Text} declares non-private constructor syntax");
-                }
-                foreach (var ctor in runtimeType!.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-                {
-                    if (!ctor.IsPrivate)
+                    if (decl.Modifiers.Any(SyntaxKind.StaticKeyword))
                     {
-                        bad.Add($"{runtimeType.Name}({string.Join(", ", ctor.GetParameters().Select(p => p.ParameterType.Name))}) visibility={(ctor.IsPublic ? "public" : ctor.IsAssembly ? "internal" : "non-private")}");
+                        continue;
+                    }
+                    var ns = decl.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString();
+                    if (ns is null)
+                    {
+                        continue;
+                    }
+                    var fullName = $"{ns}.{decl.Identifier.Text}";
+                    var runtimeType = primitiveAssembly.GetType(fullName);
+                    Assert.True(runtimeType is not null, $"Could not load primitive type '{fullName}' from {primitiveAssembly.GetName().Name}.");
+                    discoveredTypes.Add(runtimeType!);
+
+                    foreach (var badDeclLine in FindNonPrivateCtorDeclarations(decl))
+                    {
+                        bad.Add($"{Repository.Relative(file)}:{badDeclLine}: {decl.Identifier.Text} declares non-private constructor syntax");
+                    }
+                    foreach (var ctor in runtimeType!.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                    {
+                        if (!ctor.IsPrivate)
+                        {
+                            bad.Add($"{runtimeType.Name}({string.Join(", ", ctor.GetParameters().Select(p => p.ParameterType.Name))}) visibility={(ctor.IsPublic ? "public" : ctor.IsAssembly ? "internal" : "non-private")}");
+                        }
                     }
                 }
             }
         }
 
-        Assert.True(discoveredTypes.Count >= 4, $"Expected at least 4 domain primitives in {Repository.Relative(primitivesDir)}; found {discoveredTypes.Count}.");
+        Assert.True(discoveredTypes.Count >= 4, $"Expected at least 4 domain primitives; found {discoveredTypes.Count}.");
         Assert.True(bad.Count == 0, "Domain primitive constructors must be strictly private:\n" + string.Join('\n', bad));
     }
 
@@ -1206,7 +1212,9 @@ public sealed class HouseRules22Facts
 
         var moduleAssemblies = ProductionArchitecture.Assemblies
             .Where(a => a.GetName().Name?.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) == true
-                && a.GetName().Name != "IntoChat.OS.Modules.Identity")
+                && a.GetName().Name != "IntoChat.OS.Modules.Identity"
+                // IntoChat.OS.Modules.UI uses vertical-slice co-located contracts (enforced by UiVerticalSliceFacts).
+                && a.GetName().Name != "IntoChat.OS.Modules.UI")
             .ToArray();
 
         var unexpected = new List<string>();
@@ -1526,6 +1534,7 @@ public sealed class HouseRules22Facts
         foreach (var src in ProductionSources.Value)
         {
             if (src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
+                || src.ProjectName == "IntoChat.OS.Modules.UI"
                 || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
                 || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase))
             {

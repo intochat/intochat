@@ -7,281 +7,36 @@
     "root": {
       "kind": "appShell",
       "key": "photocraft-shell",
-      "sidebar": {
-        "kind": "column",
-        "children": [
-          {
-            "kind": "heading",
-            "value": "Document",
-            "level": 6,
-            "subtitle": null
-          },
-          {
-            "kind": "card",
-            "title": "/work/portrait.png",
-            "body": "Active -> /work/portrait.nobg.png",
-            "children": [
-              {
-                "kind": "column",
-                "children": [
-                  {
-                    "kind": "text",
-                    "value": "Preview (pending) · History: 0/10",
-                    "tone": "muted",
-                    "tabular": true,
-                    "mono": false
-                  },
-                  {
-                    "kind": "heading",
-                    "value": "Layers",
-                    "level": 6,
-                    "subtitle": "2 layer(s)"
-                  },
-                  {
-                    "kind": "column",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "toggle-layer-0",
-                        "label": "Hide · Subject Layer (100% · Nor…",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "ToggleLayerByIndex",
-                            "args": [
-                              0
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "neutral",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "toggle-layer-0",
-                        "style": "ghost",
-                        "icon": "eye",
-                        "small": true
-                      },
-                      {
-                        "kind": "button",
-                        "key": "toggle-layer-1",
-                        "label": "Hide · Background Layer (Locked …",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "ToggleLayerByIndex",
-                            "args": [
-                              1
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "neutral",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "toggle-layer-1",
-                        "style": "ghost",
-                        "icon": "eye",
-                        "small": true
-                      }
-                    ],
-                    "gap": 4,
-                    "padding": 0
-                  }
-                ],
-                "gap": 4,
-                "padding": 0
-              }
-            ],
-            "header": null,
-            "footer": null
-          }
-        ],
-        "gap": 12,
-        "padding": 0
-      },
+      "sidebar": null,
       "body": {
-        "kind": "column",
-        "children": [
-          {
-            "kind": "surface",
-            "children": [
-              {
-                "kind": "heading",
-                "value": "Quick Presets",
-                "level": 6,
-                "subtitle": null
-              },
-              {
-                "kind": "button",
-                "key": "preset-warm",
-                "label": "Warm Cinema",
-                "command": {
-                  "target": ".",
-                  "signal": "ui.command",
-                  "args": {
-                    "target": "screen",
-                    "method": "ApplyQuickPresetAsync",
-                    "args": [
-                      "warm"
-                    ],
-                    "valueIndex": null,
-                    "value": null,
-                    "guardReason": null,
-                    "tooltip": null
-                  }
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "tooltip": null,
-                "visible": true,
-                "automationName": "preset-warm",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "preset-vivid",
-                "label": "Vivid Pop",
-                "command": {
-                  "target": ".",
-                  "signal": "ui.command",
-                  "args": {
-                    "target": "screen",
-                    "method": "ApplyQuickPresetAsync",
-                    "args": [
-                      "vivid"
-                    ],
-                    "valueIndex": null,
-                    "value": null,
-                    "guardReason": null,
-                    "tooltip": null
-                  }
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "tooltip": null,
-                "visible": true,
-                "automationName": "preset-vivid",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "preset-mono",
-                "label": "Monochrome",
-                "command": {
-                  "target": ".",
-                  "signal": "ui.command",
-                  "args": {
-                    "target": "screen",
-                    "method": "ApplyQuickPresetAsync",
-                    "args": [
-                      "monochrome"
-                    ],
-                    "valueIndex": null,
-                    "value": null,
-                    "guardReason": null,
-                    "tooltip": null
-                  }
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "tooltip": null,
-                "visible": true,
-                "automationName": "preset-mono",
-                "style": "secondary",
-                "small": true
-              },
-              {
-                "kind": "button",
-                "key": "preset-gradient",
-                "label": "Gradient Canvas",
-                "command": {
-                  "target": ".",
-                  "signal": "ui.command",
-                  "args": {
-                    "target": "screen",
-                    "method": "ApplyQuickPresetAsync",
-                    "args": [
-                      "gradient"
-                    ],
-                    "valueIndex": null,
-                    "value": null,
-                    "guardReason": null,
-                    "tooltip": null
-                  }
-                },
-                "intent": null,
-                "enabled": true,
-                "tone": "neutral",
-                "tooltip": null,
-                "visible": true,
-                "automationName": "preset-gradient",
-                "style": "secondary",
-                "small": true
-              }
-            ],
-            "surfaceKind": "toolbar",
-            "title": null,
-            "subtitle": null,
-            "padding": 8
-          },
-          {
-            "kind": "surface",
-            "children": [
-              {
-                "kind": "text",
-                "value": "No raster preview rendered (/work/portrait.png -> /work/portrait.nobg.png).",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false
-              }
-            ],
-            "surfaceKind": "elevated",
-            "title": "Canvas Preview",
-            "subtitle": "Connect PhotoCraft MCP in Settings to render live previews.",
-            "padding": 18
-          }
-        ],
-        "gap": 12,
-        "padding": 0
+        "kind": "webBrowser",
+        "key": "photocraft-wasm",
+        "url": "/artcraft/photocraft/index.html",
+        "title": "PhotoCraft WASM Studio",
+        "height": 920,
+        "executionMode": "wasm-ui",
+        "chrome": "frameless",
+        "automationName": "PhotoCraft WASM Studio"
       },
       "toolbar": {
         "kind": "row",
         "children": [
           {
-            "kind": "heading",
-            "value": "PhotoCraft",
-            "level": 2,
-            "subtitle": "PhotoCraft MCP server not connected (MCP Server (photocraft-mcp)) · Active: /work/portrait.png"
+            "kind": "tagPill",
+            "label": "PhotoCraft · WASM",
+            "tone": "working",
+            "icon": "loader-circle"
+          },
+          {
+            "kind": "text",
+            "value": "/work/portrait.png",
+            "tone": "muted",
+            "tabular": true,
+            "mono": false
           },
           {
             "kind": "spacer",
             "size": 0
-          },
-          {
-            "kind": "tagPill",
-            "label": "MCP Server (photocraft-mcp)",
-            "tone": "done",
-            "icon": "check"
           },
           {
             "kind": "button",
@@ -308,7 +63,7 @@
             "tooltip": null,
             "visible": true,
             "automationName": "mode-mcp",
-            "style": "secondary",
+            "style": "ghost",
             "small": true
           },
           {
@@ -364,7 +119,7 @@
             "tooltip": null,
             "visible": true,
             "automationName": "mode-wasm-ui",
-            "style": "ghost",
+            "style": "secondary",
             "small": true
           },
           {
@@ -395,10 +150,13 @@
             "small": true
           }
         ],
-        "gap": 8,
+        "gap": 4,
         "padding": 0
       },
-      "inspector": null
+      "inspector": null,
+      "transition": "",
+      "edgeToEdge": true,
+      "automationName": "PhotoCraft WASM Studio"
     }
   }
 }

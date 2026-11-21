@@ -213,7 +213,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         return Attempt("add that friend", async () =>
         {
             var raw = await Typed(request.Code, CodeField);
-            if (!IntoChat.OS.Runtime.Code.TryParse(raw, out var code))
+            if (!IntoChat.OS.Code.TryParse(raw, out var code))
             {
                 return State with
                 {

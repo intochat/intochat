@@ -874,6 +874,10 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
             }
             services.AddOptions<AIOptions>();
             services.AddSingleton<ModelCatalog>();
+            services.AddSingleton(new IntoChat.OS.Host.Conversations.ConversationDefaults(
+                DefaultAgentId: "ino",
+                LegacyAgentKeyPrefix: "ino/conversations/",
+                AllowedInviteSurfaces: ["app.ino", "app.friends"]));
         });
 
     private sealed class CountingAgentWrites : AgentWrites

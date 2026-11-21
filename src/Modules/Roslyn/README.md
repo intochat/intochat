@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Roslyn` (`ICodeGraph`, `IRoslyn`, `IWorktreeRoslyn`).
+Contracts: assembly `IntoChat.OS.Modules.Roslyn` (`ICodeGraph`, `ICodebaseTree`, `IRoslyn`, `IWorktreeRoslyn`).
 Hosting: runs in process.
 <!-- END GENERATED -->

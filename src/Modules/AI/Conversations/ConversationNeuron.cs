@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Host.Conversations;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
@@ -32,7 +33,9 @@ internal sealed class ConversationNeuron(
     private const int KeptRuns = 64;
     private const int MaxSayCharacters = 32_000;
     private const string ConversationsKeyPrefix = "conversations/";
-    private const string DefaultAgentId = "ino";
+
+    private ConversationDefaults Defaults => services.GetService<ConversationDefaults>() ?? ConversationDefaults.Generic;
+    private string DefaultAgentId => Defaults.DefaultAgentId;
 
     private CancellationTokenSource? _active;
     private string? _cancelBeforeDrive;
@@ -160,7 +163,8 @@ internal sealed class ConversationNeuron(
         {
             throw FriendRelay.Refused();
         }
-        if (caller.Via is { } via && (via.Brain != Id.Brain || via.Type is not ("app.ino" or "app.friends")))
+        var allowedSurfaces = Defaults.AllowedInviteSurfaces;
+        if (caller.Via is { } via && (via.Brain != Id.Brain || allowedSurfaces is null || !allowedSurfaces.Contains(via.Type, StringComparer.Ordinal)))
         {
             throw FriendRelay.Refused();
         }
@@ -211,8 +215,15 @@ internal sealed class ConversationNeuron(
                 return;
             }
 
+            var legacyPrefix = Defaults.LegacyAgentKeyPrefix;
+            if (string.IsNullOrWhiteSpace(legacyPrefix))
+            {
+                _state = _state with { Imported = true };
+                return;
+            }
+
             var rawId = Id.Key[ConversationsKeyPrefix.Length..];
-            var oldAgent = Context.Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, "ino/conversations/" + rawId));
+            var oldAgent = Context.Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, legacyPrefix + rawId));
             var oldState = await oldAgent.Read();
             if (oldState.Revision == 0 && oldState.Runs.Length == 0 && string.IsNullOrWhiteSpace(oldState.Summary))
             {

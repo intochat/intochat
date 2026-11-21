@@ -131,7 +131,7 @@ public sealed class GroupConversationFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Friends(Eve).GroupSay(forged, "sneaking in"));
             // Also refused directly without the relay, and for an unlisted group invite at Eve's relay.
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Conversation(Ada, id).Read());
-            var unlisted = new GroupInvite(new BrainId(Ada), IntoChat.OS.Host.Primitives.ConversationId.New(), "other", new AccountId(Ada));
+            var unlisted = new GroupInvite(new BrainId(Ada), IntoChat.OS.ConversationId.New(), "other", new AccountId(Ada));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Friends(Eve).GroupRead(unlisted));
         }
     }

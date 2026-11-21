@@ -71,8 +71,10 @@ public static class OperatingSystemHosting
 #pragma warning disable ASPIRECERTIFICATES001
             silo.WithHttpsDeveloperCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
-            // One click from the dashboard to DevUI: the kernel's own loopback endpoint, since DevUI refuses a proxied Host.
+            // One click from the dashboard to DevUI, Widgetbook, and Orleans Dashboard on the kernel's loopback endpoint.
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/devui/", DisplayText = "DevUI" });
+            silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/widgetbook/", DisplayText = "Widgetbook" });
+            silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/orleans/", DisplayText = "Orleans Dashboard" });
             // A local kernel may read this AppHost through Aspire's own MCP server (Ino's IAspire); a cloud one never learns where it is.
             if (!profile.Cloud) { silo.WithEnvironment("IntoChatOS__Aspire__AppHostPath", Path.Combine(builder.AppHostDirectory, "IntoChat.OS.AppHost.csproj")); }
             // One encrypted local brain store for this deployment.

@@ -32,19 +32,24 @@ public sealed class MissionCollaboratorResolverFacts
             TestContext.Current.CancellationToken);
 
         Assert.Contains(collaborators, c => c is { Id: "ben", Kind: "friend", DisplayName: "Ben" });
-        var resolverPath = FindRepoFile("src/Modules/Catalog/Flows/MissionCollaboratorResolver.cs");
+        var resolverPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Modules.Catalog"), "Flows", "MissionCollaboratorResolver.cs");
         Assert.DoesNotContain("GetAssemblies", File.ReadAllText(resolverPath), StringComparison.Ordinal);
         Assert.DoesNotContain("System.Reflection", File.ReadAllText(resolverPath), StringComparison.Ordinal);
     }
 
-    private static string FindRepoFile(string relative)
+    private static string FindProjectDirectory(string projectName)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Intochat.OS.slnx")))
         {
             dir = dir.Parent;
         }
-        return Path.Combine(dir!.FullName, relative.Replace('/', Path.DirectorySeparatorChar));
+        var root = dir!.FullName;
+        var slnx = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Intochat.OS.slnx"));
+        var projectPath = slnx.Descendants("Project")
+            .Select(element => (string?)element.Attribute("Path"))
+            .First(path => path is not null && Path.GetFileNameWithoutExtension(path).Equals(projectName, StringComparison.Ordinal));
+        return Path.GetDirectoryName(Path.Combine(root, projectPath!.Replace('/', Path.DirectorySeparatorChar)))!;
     }
 
     private sealed class FakeProxies(params Friend[] roster) : INeuronProxies

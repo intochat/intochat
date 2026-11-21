@@ -396,7 +396,7 @@ public sealed record TablePage(IReadOnlyList<IReadOnlyDictionary<string, string>
 /// <param name="Id">The canonical model id (e.g. "qwen3.5:4b", "gpt-5.4").</param>
 /// <param name="Label">The clean display name for the person.</param>
 /// <param name="Section">"local" or "cloud".</param>
-/// <param name="Icon">The allowlisted provider icon key (e.g. "provider:ollama"); null shows none.</param>
+/// <param name="Icon">The allowlisted brand icon key (e.g. "ollama"); null shows none.</param>
 /// <param name="Abilities">Ability tags ("tools", "vision", "voice", "reasoning"); null when none.</param>
 /// <param name="Available">False when the model cannot currently run (missing key or not installed).</param>
 /// <param name="Note">Why an unavailable model cannot run; null when available.</param>

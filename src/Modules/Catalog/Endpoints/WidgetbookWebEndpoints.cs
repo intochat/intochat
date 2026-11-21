@@ -20,10 +20,13 @@ internal static class WidgetbookWebEndpoints
         ArgumentNullException.ThrowIfNull(endpoints);
 
         endpoints.MapGet("/widgetbook", static (IWebHostEnvironment env) => ServeIndex(env))
+            .AllowAnonymous()
             .WithOrder(-100);
         endpoints.MapGet("/widgetbook/index.html", static (IWebHostEnvironment env) => ServeIndex(env))
+            .AllowAnonymous()
             .WithOrder(-100);
         endpoints.MapGet("/widgetbook/{**assetPath}", static (string assetPath, IWebHostEnvironment env) => ServeAsset(assetPath, env))
+            .AllowAnonymous()
             .WithOrder(-100);
     }
 

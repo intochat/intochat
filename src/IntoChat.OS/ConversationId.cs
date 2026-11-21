@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
+using Orleans;
 
-namespace IntoChat.OS.Host.Primitives;
+namespace IntoChat.OS;
 
 /// <summary>
 /// Typed identifier for a conversation. Canonical ids follow <c>c-{32hex}</c>.

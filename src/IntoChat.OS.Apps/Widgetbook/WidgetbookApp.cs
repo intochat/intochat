@@ -84,7 +84,7 @@ public sealed record WidgetbookAppState(
 
 [Neuron("app.widgetbook")]
 [Screen("app.widgetbook", Title = "Widgetbook", Icon = "layout-grid")]
-public sealed class WidgetbookApp : AggregateScreen<WidgetbookAppState>
+public sealed class WidgetbookApp : EmbeddedWebApp<WidgetbookAppState>
 {
     public const string AppName = "widgetbook";
 
@@ -188,21 +188,11 @@ public sealed class WidgetbookApp : AggregateScreen<WidgetbookAppState>
                 .Small()
                 .OnClick<WidgetbookAppState>(s => s.Reload()));
 
-        var browser = WebBrowser(
-            state.CurrentUrl,
-            "IntoChat.OS Widgetbook",
-            key: "widgetbook-browser",
-            height: 920,
-            automationName: "IntoChat.OS Widgetbook",
-            chrome: "frameless");
-
-        return AppShell(
-            "widgetbook-shell",
-            sidebar: null,
-            body: browser,
-            toolbar: toolbar,
-            inspector: null,
-            automationName: "IntoChat.OS Widgetbook",
-            edgeToEdge: true);
+        return RenderEmbeddedSurface(
+            shellKey: "widgetbook-shell",
+            browserKey: "widgetbook-browser",
+            title: "IntoChat.OS Widgetbook",
+            url: state.CurrentUrl,
+            toolbar: toolbar);
     }
 }

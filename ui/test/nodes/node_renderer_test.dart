@@ -719,7 +719,7 @@ void main() {
     );
 
     testWidgets(
-      'text with mono=true and neuronRef use bundled JetBrains Mono tabular figures, never raw monospace',
+      'text with mono=true and neuronRef use Inter tabular figures, never raw monospace',
       (tester) async {
         await _host(tester, {
           'kind': 'column',
@@ -736,7 +736,7 @@ void main() {
           find.byType(SelectableText),
         )) {
           expect(st.style?.fontFamily, isNot('monospace'));
-          expect(st.style?.fontFamily, contains('JetBrains Mono'));
+          expect(st.style?.fontFamily, contains('Inter'));
           expect(
             st.style?.fontFeatures,
             contains(const FontFeature.tabularFigures()),

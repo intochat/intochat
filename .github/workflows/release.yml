@@ -203,7 +203,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.47.2'
+          flutter-version: '3.47.6'
           cache: true
 
       - name: Resolve Flutter dependencies
@@ -249,4 +249,268 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip SHA256SUMS latest.json winget/IntoChat.OS.yaml --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip SHA256SUMS latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 --clobber
+
+  # The Linux desktop bundle (linux-x64 — native Ubuntu/Linux and WSLg).
+  package-linux:
+    name: package-linux
+    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify CI check-run status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci" or .name=="ci / ci")|.conclusion]|index("success")')"
+          [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for commit ${{ github.sha }}"; exit 1; }
+
+      - name: Guard tag matches VERSION
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Linux GTK3 build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: ui
+        run: |
+          flutter config --enable-linux-desktop
+          flutter pub get --enforce-lockfile
+
+      - name: Package the Linux bundle
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE="artifacts/stage-linux-x64"
+          OUT="artifacts/release"
+          mkdir -p "$STAGE/os" "$STAGE/shell" "$OUT"
+          dotnet publish src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj \
+            -c Release -r linux-x64 --self-contained -p:PublishAot=false -p:PublishSingleFile=true \
+            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE"
+          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+            -c Release -r linux-x64 --self-contained \
+            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE/os"
+          (cd ui && flutter build linux --release)
+          cp -a ui/build/linux/x64/release/bundle/. "$STAGE/shell/"
+          chmod +x "$STAGE/IntoChat.OS.Desktop" "$STAGE/os/IntoChat.OS.Kernel" "$STAGE/shell/intochat_os_flutter"
+          ARCHIVE="intochat-${VERSION}-linux-x64.tar.gz"
+          tar -czf "$OUT/$ARCHIVE" -C "$STAGE" .
+          (cd "$OUT" && sha256sum "$ARCHIVE" > SHA256SUMS.linux-x64)
+
+      - name: Upload the Linux bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-bundle
+          path: |
+            artifacts/release/intochat-*-linux-x64.tar.gz
+            artifacts/release/SHA256SUMS.linux-x64
+          compression-level: 0
+          retention-days: 30
+
+      - name: Attach the Linux bundle to GitHub Release
+        if: github.event_name == 'release'
+        working-directory: artifacts/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-linux-x64.tar.gz ../../eng/install/install.sh --clobber
+
+  # The macOS desktop bundle (osx-arm64 — Apple Silicon).
+  package-macos:
+    name: package-macos
+    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify CI check-run status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci" or .name=="ci / ci")|.conclusion]|index("success")')"
+          [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for commit ${{ github.sha }}"; exit 1; }
+
+      - name: Guard tag matches VERSION
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: ui
+        run: |
+          flutter config --enable-macos-desktop
+          flutter pub get --enforce-lockfile
+
+      - name: Package the macOS bundle
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE="artifacts/stage-osx-arm64"
+          OUT="artifacts/release"
+          mkdir -p "$STAGE/os" "$STAGE/shell" "$OUT"
+          dotnet publish src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj \
+            -c Release -r osx-arm64 --self-contained -p:PublishAot=false -p:PublishSingleFile=true \
+            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE"
+          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+            -c Release -r osx-arm64 --self-contained \
+            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE/os"
+          (cd ui && flutter build macos --release)
+          cp -a ui/build/macos/Build/Products/Release/intochat_os_flutter.app "$STAGE/shell/"
+          chmod +x "$STAGE/IntoChat.OS.Desktop" "$STAGE/os/IntoChat.OS.Kernel" "$STAGE/shell/intochat_os_flutter.app/Contents/MacOS/intochat_os_flutter"
+          ARCHIVE="intochat-${VERSION}-osx-arm64.tar.gz"
+          tar -czf "$OUT/$ARCHIVE" -C "$STAGE" .
+          (cd "$OUT" && shasum -a 256 "$ARCHIVE" > SHA256SUMS.osx-arm64)
+
+      - name: Upload the macOS bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-bundle
+          path: |
+            artifacts/release/intochat-*-osx-arm64.tar.gz
+            artifacts/release/SHA256SUMS.osx-arm64
+          compression-level: 0
+          retention-days: 30
+
+      - name: Attach the macOS bundle to GitHub Release
+        if: github.event_name == 'release'
+        working-directory: artifacts/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-osx-arm64.tar.gz ../../eng/install/install.sh --clobber
+
+  # The Android client APK (universal release APK).
+  package-android:
+    name: package-android
+    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify CI check-run status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci" or .name=="ci / ci")|.conclusion]|index("success")')"
+          [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for commit ${{ github.sha }}"; exit 1; }
+
+      - name: Guard tag matches VERSION
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: ui
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Android APK
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          OUT="artifacts/release"
+          mkdir -p "$OUT"
+          (cd ui && flutter build apk --release)
+          APK="intochat-${VERSION}-android.apk"
+          cp ui/build/app/outputs/flutter-apk/app-release.apk "$OUT/$APK"
+          (cd "$OUT" && sha256sum "$APK" > SHA256SUMS.android)
+
+      - name: Upload the Android APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-bundle
+          path: |
+            artifacts/release/intochat-*-android.apk
+            artifacts/release/SHA256SUMS.android
+          compression-level: 0
+          retention-days: 30
+
+      - name: Attach the Android APK to GitHub Release
+        if: github.event_name == 'release'
+        working-directory: artifacts/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-android.apk --clobber
+
+  # Combine SHA256SUMS from Windows, Linux, macOS, and Android bundles onto the GitHub Release.
+  publish-checksums:
+    name: publish-checksums
+    needs: [package-windows, package-linux, package-macos, package-android]
+    if: always() && github.event_name == 'release' && (inputs.rollback_tag == '' || inputs.rollback_tag == null)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded-bundles
+          pattern: '*-bundle'
+          merge-multiple: true
+
+      - name: Merge and upload SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat downloaded-bundles/SHA256SUMS* 2>/dev/null | sort -u > SHA256SUMS
+          if [ -s SHA256SUMS ]; then
+            gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --repo "${{ github.repository }}" --clobber
+          fi

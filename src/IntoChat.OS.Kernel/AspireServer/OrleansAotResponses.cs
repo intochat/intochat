@@ -66,10 +66,10 @@ internal static class OrleansAotResponses
         AddEnum<IntoChat.OS.Modules.Postgres.PostgresIsolation>(services);
         AddEnum<IntoChat.OS.Modules.Web.SearchProvider>(services);
 
-        AddValue<IntoChat.OS.Runtime.Code>(services);
-        AddNullableValue<IntoChat.OS.Runtime.Code>(services);
-        AddValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
-        AddNullableValue<IntoChat.OS.Host.Primitives.ConversationId>(services);
+        AddValue<IntoChat.OS.Code>(services);
+        AddNullableValue<IntoChat.OS.Code>(services);
+        AddValue<IntoChat.OS.ConversationId>(services);
+        AddNullableValue<IntoChat.OS.ConversationId>(services);
         AddValue<IntoChat.OS.Modules.AI.Models.ModelId>(services);
         AddNullableValue<IntoChat.OS.Modules.AI.Models.ModelId>(services);
         AddValue<IntoChat.OS.Modules.Devices.RuntimeId>(services);

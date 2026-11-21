@@ -14,11 +14,11 @@ public sealed class UiVerticalSliceFacts
     [Fact]
     public void UiModuleHasNoSeparateContractsFolder()
     {
-        var repoRoot = FindRepoRoot();
-        var separateContractsDir = Path.Combine(repoRoot, "src", "Modules", "UI", "Contracts");
+        var uiDir = Repository.Projects["IntoChat.OS.Modules.UI"].Directory;
+        var separateContractsDir = Path.Combine(uiDir, "Contracts");
         Assert.False(
             Directory.Exists(separateContractsDir),
-            $"UI contracts must be co-located inside each neuron folder under src/Modules/UI/<Control>/, not in '{separateContractsDir}'.");
+            $"UI contracts must be co-located inside each neuron folder under IntoChat.OS.Modules.UI, not in '{separateContractsDir}'.");
     }
 
     [Fact]
@@ -51,20 +51,5 @@ public sealed class UiVerticalSliceFacts
         }
 
         return false;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Intochat.OS.slnx")))
-            {
-                return dir.FullName;
-            }
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not locate IntoChat OS repository root.");
     }
 }

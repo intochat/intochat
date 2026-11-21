@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Orleans;
 
-namespace IntoChat.OS.Runtime;
+namespace IntoChat.OS;
 
 // A 12-character Crockford base32 code (60 bits), normalized as "ABCD-EFGH-JKMN". Only an HMAC-SHA256 hash of its
 // 12 characters is ever stored.
@@ -67,7 +67,7 @@ public readonly record struct Code([property: Id(0)] string Value)
         => new StringBuilder(14).Append(chars[..4]).Append('-').Append(chars[4..8]).Append('-').Append(chars[8..]).ToString();
 }
 
-public sealed class CodeJsonConverter : JsonConverter<Code>
+internal sealed class CodeJsonConverter : JsonConverter<Code>
 {
     public override Code Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         => new(reader.GetString() ?? string.Empty);

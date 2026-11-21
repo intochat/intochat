@@ -783,8 +783,12 @@ internal static partial class DesktopBootstrap
         ArgumentNullException.ThrowIfNull(kernelUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(presenceToken);
 
-        var exeName = OperatingSystem.IsWindows() ? "intochat_os_flutter.exe" : "intochat_os_flutter";
-        var start = new ProcessStartInfo(Path.Combine(shellDirectory, exeName))
+        var exePath = OperatingSystem.IsWindows()
+            ? Path.Combine(shellDirectory, "intochat_os_flutter.exe")
+            : OperatingSystem.IsMacOS() && File.Exists(Path.Combine(shellDirectory, "intochat_os_flutter.app", "Contents", "MacOS", "intochat_os_flutter"))
+                ? Path.Combine(shellDirectory, "intochat_os_flutter.app", "Contents", "MacOS", "intochat_os_flutter")
+                : Path.Combine(shellDirectory, "intochat_os_flutter");
+        var start = new ProcessStartInfo(exePath)
         {
             UseShellExecute = false,
             CreateNoWindow = createNoWindow,

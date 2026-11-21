@@ -16,7 +16,11 @@ void main() {
 
   // Covers all 20 UI neuron widgets that previously had zero widget tests.
   final sampleStates = <String, Map<String, dynamic>>{
-    'ui.checkbox': {'label': 'Accept terms', 'isChecked': true, 'isEnabled': true},
+    'ui.checkbox': {
+      'label': 'Accept terms',
+      'isChecked': true,
+      'isEnabled': true,
+    },
     'ui.select': {
       'label': 'Region',
       'selectedValue': 'eu',
@@ -101,7 +105,11 @@ void main() {
       'query': 'tog',
       'suggestions': ['Toggle', 'ToggleSplitButton'],
     },
-    'ui.progress': {'label': 'Building WASM', 'value': 0.65, 'isIndeterminate': false},
+    'ui.progress': {
+      'label': 'Building WASM',
+      'value': 0.65,
+      'isIndeterminate': false,
+    },
     'ui.info-bar': {
       'title': 'Ready',
       'message': 'All neurons online',
@@ -118,7 +126,10 @@ void main() {
         {'id': 'delete', 'label': 'Delete'},
       ],
     },
-    'ui.markdown': {'title': 'Notes', 'markdown': '# Hello\n**Widgetbook** is live.'},
+    'ui.markdown': {
+      'title': 'Notes',
+      'markdown': '# Hello\n**Widgetbook** is live.',
+    },
   };
 
   for (final entry in sampleStates.entries) {
@@ -145,63 +156,65 @@ void main() {
     });
   }
 
-  testWidgets('SliderWidget commits SetValue only on drag end (no per-tick RPC spam)', (
-    tester,
-  ) async {
-    final setCalls = <double>[];
-    var current = 20.0;
+  testWidgets(
+    'SliderWidget commits SetValue only on drag end (no per-tick RPC spam)',
+    (tester) async {
+      final setCalls = <double>[];
+      var current = 20.0;
 
-    final widget = buildUiNeuronWidget(
-      kind: 'ui.slider',
-      neuronKey: 'coverage/slider-drag',
-      callNeuron: (contract, key, method, args) async {
-        if (method == 'SetValue' && args.isNotEmpty) {
-          current = (args.first as num).toDouble();
-          setCalls.add(current);
-        }
-        return {
-          'label': 'Gain',
-          'min': 0.0,
-          'max': 100.0,
-          'step': 1.0,
-          'value': current,
-          'unit': '%',
-          'isEnabled': true,
-        };
-      },
-    )!;
+      final widget = buildUiNeuronWidget(
+        kind: 'ui.slider',
+        neuronKey: 'coverage/slider-drag',
+        callNeuron: (contract, key, method, args) async {
+          if (method == 'SetValue' && args.isNotEmpty) {
+            current = (args.first as num).toDouble();
+            setCalls.add(current);
+          }
+          return {
+            'label': 'Gain',
+            'min': 0.0,
+            'max': 100.0,
+            'step': 1.0,
+            'value': current,
+            'unit': '%',
+            'isEnabled': true,
+          };
+        },
+      )!;
 
-    await tester.pumpWidget(wrap(widget));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(wrap(widget));
+      await tester.pumpAndSettle();
 
-    final sliderFinder = find.byType(Slider);
-    expect(sliderFinder, findsOneWidget);
+      final sliderFinder = find.byType(Slider);
+      expect(sliderFinder, findsOneWidget);
 
-    await tester.drag(sliderFinder, const Offset(120, 0));
-    await tester.pumpAndSettle();
+      await tester.drag(sliderFinder, const Offset(120, 0));
+      await tester.pumpAndSettle();
 
-    // Must commit exactly once on drag end rather than firing on every drag tick.
-    expect(setCalls.length, equals(1));
-  });
+      // Must commit exactly once on drag end rather than firing on every drag tick.
+      expect(setCalls.length, equals(1));
+    },
+  );
 
-  testWidgets('NeuronWidget surfaces watch stream errors instead of swallowing them', (
-    tester,
-  ) async {
-    final watchCtrl = StreamController<void>.broadcast();
-    addTearDown(watchCtrl.close);
+  testWidgets(
+    'NeuronWidget surfaces watch stream errors instead of swallowing them',
+    (tester) async {
+      final watchCtrl = StreamController<void>.broadcast();
+      addTearDown(watchCtrl.close);
 
-    final widget = NeuronWidget(
-      kind: 'ui.toggle',
-      neuronKey: 'coverage/error-watch',
-      callNeuron: (_, _, _, _) async => throw StateError('offline'),
-      watch: (_, _) => watchCtrl.stream,
-      builder: (_, _, _) => const Text('ok'),
-    );
+      final widget = NeuronWidget(
+        kind: 'ui.toggle',
+        neuronKey: 'coverage/error-watch',
+        callNeuron: (_, _, _, _) async => throw StateError('offline'),
+        watch: (_, _) => watchCtrl.stream,
+        builder: (_, _, _) => const Text('ok'),
+      );
 
-    await tester.pumpWidget(wrap(widget));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(wrap(widget));
+      await tester.pumpAndSettle();
 
-    expect(find.textContaining('offline'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
-  });
+      expect(find.textContaining('offline'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    },
+  );
 }

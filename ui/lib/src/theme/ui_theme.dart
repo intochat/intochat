@@ -58,8 +58,8 @@ abstract final class UiType {
   static const String? fontPackage = null;
   static const sansFamily = 'Inter';
   static const displayFamily = 'InterDisplay';
-  static const intochatMonoFamily = 'JetBrains Mono';
-  static const codeFamily = 'JetBrains Mono';
+  static const intochatMonoFamily = 'Inter';
+  static const codeFamily = 'Inter';
 
   /// Package-qualified family names usable from any package.
   static const sans = sansFamily;

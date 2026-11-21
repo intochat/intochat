@@ -67,9 +67,6 @@ internal sealed partial class AppNeuron
             new(published.Files, StringComparer.Ordinal));
     }
 
-    public Task<AppPublication[]> PublishedReleases()
-        => Task.FromResult(Releases().Select(release => release.Publication).ToArray());
-
     public Task<AppBundle> ExportRelease(string version, string digest)
     {
         var release = Releases().FirstOrDefault(item => item.Publication.Reference.Version == version

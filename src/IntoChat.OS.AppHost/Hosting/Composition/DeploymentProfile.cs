@@ -87,9 +87,10 @@ public sealed record DeploymentProfile
     }
 }
 
-// Where local state lives: IntoChatOS:Home, or ~/.intochat.
+// Where Aspire dev local state lives: IntoChatOS:Home, or ~/.intochat-aspire
+// (isolated from IntoChat.OS.Desktop's ~/.intochat so their separate master keys and file locks never collide).
 public static class IntoChatOSHome
 {
     public static string Resolve(IConfiguration configuration) => DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration,
-        new DigitalBrain.Runtime.Orleans.RuntimeOptions { HomeKey = IntoChatOSNames.HomeKey, DefaultHomeDirectoryName = ".intochat" }).Path;
+        new DigitalBrain.Runtime.Orleans.RuntimeOptions { HomeKey = IntoChatOSNames.HomeKey, DefaultHomeDirectoryName = ".intochat-aspire" }).Path;
 }

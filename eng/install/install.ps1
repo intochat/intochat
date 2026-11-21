@@ -86,8 +86,11 @@ function Set-OwnerOnlyDirectoryAcl {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
     if ($null -eq $currentUser) { return }
 
-    $acl = New-Object System.Security.AccessControl.DirectorySecurity
+    $acl = (Get-Item -LiteralPath $Path).GetAccessControl([System.Security.AccessControl.AccessControlSections]::Access)
     $acl.SetAccessRuleProtection($true, $false)
+    foreach ($existing in @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))) {
+        $null = $acl.RemoveAccessRule($existing)
+    }
     $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
         $currentUser,
         [System.Security.AccessControl.FileSystemRights]::FullControl,
@@ -95,8 +98,8 @@ function Set-OwnerOnlyDirectoryAcl {
         [System.Security.AccessControl.PropagationFlags]::None,
         [System.Security.AccessControl.AccessControlType]::Allow
     )
-    $acl.AddAccessRule($rule)
-    Set-Acl -LiteralPath $Path -AclObject $acl
+    $acl.SetAccessRule($rule)
+    [System.IO.Directory]::SetAccessControl($Path, $acl)
 }
 
 function Register-UserPathEntry {
@@ -237,7 +240,7 @@ try {
         throw "SHA-256 mismatch for '$archivePath'. Expected '$expectedNormalized', computed '$computedHash'."
     }
 
-    foreach ($dir in @($resolvedHome, $binDir, $secretsDir, $runDir, $logsDir, $stateDir)) {
+    foreach ($dir in @($resolvedHome, $binDir, $secretsDir, $runDir, $logsDir)) {
         if (-not (Test-Path -LiteralPath $dir)) {
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }

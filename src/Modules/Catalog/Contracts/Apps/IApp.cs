@@ -32,7 +32,6 @@ public interface IApp
     Task<AppSnapshot> Publish();
     // The published version's bundle: a published app is public by definition, anyone may copy it.
     [Public] Task<AppBundle> ExportPublished();
-    [Public, DigitalBrain.Contracts.ReadOnlyCall] Task<AppPublication[]> PublishedReleases();
     [Public, DigitalBrain.Contracts.ReadOnlyCall] Task<AppBundle> ExportRelease(string version, string digest);
     // The bundle and its origin land in one write before the runtime is asked, so a deploy that
     // fails or outlasts the caller leaves the copy Deploying or Failed, never without its origin.

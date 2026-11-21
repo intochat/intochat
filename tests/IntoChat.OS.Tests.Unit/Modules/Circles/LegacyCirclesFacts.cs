@@ -89,9 +89,17 @@ public sealed class LegacyCirclesFacts
     [Fact]
     public void NothingReStampsIntoAnotherBrain()
     {
-        var srcDir = Path.Combine(FindRepoRoot(), "src");
-        var offenders = Directory.GetFiles(srcDir, "*.cs", SearchOption.AllDirectories)
-            .Where(file => File.ReadAllText(file).Contains("BrainActs.", StringComparison.Ordinal))
+        var root = FindRepoRoot();
+        var slnx = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Intochat.OS.slnx"));
+        var offenders = slnx.Descendants("Project")
+            .Select(element => (string?)element.Attribute("Path"))
+            .Where(path => path is not null && !Path.GetFileNameWithoutExtension(path).Contains(".Tests", StringComparison.Ordinal))
+            .Select(path => Path.GetDirectoryName(Path.Combine(root, path!.Replace('/', Path.DirectorySeparatorChar)))!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .SelectMany(dir => Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories))
+            .Where(file => !file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                && !file.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                && File.ReadAllText(file).Contains("BrainActs.", StringComparison.Ordinal))
             .ToArray();
         Assert.Empty(offenders);
     }

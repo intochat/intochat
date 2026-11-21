@@ -24,9 +24,7 @@ void main() {
                   key: const Key('target'),
                   width: 120,
                   height: 44,
-                  child: Text(
-                    'h:${state.isHovered},p:${state.isPressed}',
-                  ),
+                  child: Text('h:${state.isHovered},p:${state.isPressed}'),
                 ),
               ),
             ),

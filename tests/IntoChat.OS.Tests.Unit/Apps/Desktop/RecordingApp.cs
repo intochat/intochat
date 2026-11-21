@@ -59,7 +59,6 @@ internal sealed class RecordingApp : Neuron, IScreen, IApp
     public Task<AppBundle> Export() => throw new NotSupportedException();
     public Task<AppSnapshot> Publish() => throw new NotSupportedException();
     public Task<AppBundle> ExportPublished() => throw new NotSupportedException();
-    public Task<AppPublication[]> PublishedReleases() => throw new NotSupportedException();
     public Task<AppBundle> ExportRelease(string version, string digest) => throw new NotSupportedException();
     public Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null) => throw new NotSupportedException();
     public Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null) => throw new NotSupportedException();
