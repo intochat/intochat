@@ -119,6 +119,8 @@ class _ChatThreadSurfaceState extends State<_ChatThreadSurface> {
       activeModelId: props.activeModelId,
       selectModelKey: node.selectModel?.key,
       pinModelKey: node.pinModel?.key,
+      readAloud: props.readAloud,
+      talkConversation: props.talkConversation,
       deltas: _deltas,
       readConversation: conversation != null && callNeuron != null
           ? () => callNeuron(

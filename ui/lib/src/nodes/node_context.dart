@@ -6,6 +6,8 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/kit_toast.dart';
 import '../theme/wire_node_values.dart';
+import '../voice_mode/audio_out.dart';
+import '../voice_mode/mic_stream.dart';
 import '../ui/neuron_widget.dart' show NeuronMethodCaller;
 
 /// Watches one signal type on a neuron contract, yielding decoded JSON payloads.
@@ -31,6 +33,12 @@ typedef VoiceTranscriber = Future<String> Function(
   Uint8List audio,
   String fileName,
 );
+
+/// Opens a full-duplex voice-mode WebSocket session for [conversation].
+typedef VoiceTalker = Future<TalkSocket> Function(String conversation);
+
+/// Synthesizes [text] into playable audio bytes (WAV) for read-aloud.
+typedef VoiceSpeaker = Future<Uint8List> Function(String text);
 
 /// One ordered event channel for a rendered view. An activation is sent only
 /// after the field edits before it, regardless of network latency or focus.
@@ -90,6 +98,10 @@ class NodeContext {
     this.buttonHints = const {},
     this.nodeKeys = const {},
     this.transcribe,
+    this.talk,
+    this.speak,
+    this.createAudioOut,
+    this.createMicStream,
     this.slotProps = const {},
     this.actsViaAct = false,
   });
@@ -158,6 +170,18 @@ class NodeContext {
   /// Transcribes recorded voice drafts into text without submitting them.
   final VoiceTranscriber? transcribe;
 
+  /// Opens a full-duplex voice-mode session for a conversation id.
+  final VoiceTalker? talk;
+
+  /// Synthesizes assistant replies into playable audio bytes for read-aloud.
+  final VoiceSpeaker? speak;
+
+  /// Optional factory for [AudioOut] (defaults to [SoLoudAudioOut]).
+  final AudioOut Function()? createAudioOut;
+
+  /// Optional factory for [MicStream] (defaults to [RecordMicStream]).
+  final MicStream Function()? createMicStream;
+
   /// The props the parent wrote on this view's slot (`neuronRef.props`): a
   /// control draws its label, header, content and enabled from them, and its
   /// value from its own view. Empty outside a slot, and cleared by [deeper]:
@@ -195,6 +219,10 @@ class NodeContext {
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
     transcribe: transcribe,
+    talk: talk,
+    speak: speak,
+    createAudioOut: createAudioOut,
+    createMicStream: createMicStream,
     actsViaAct: actsViaAct,
     // Props belong to the slot's root control only; nested nodes (an
     // expander's content) never read them.

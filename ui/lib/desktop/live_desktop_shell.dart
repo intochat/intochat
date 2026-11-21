@@ -75,6 +75,8 @@ class LiveDesktopShell extends StatefulWidget {
     this.installedApps = const <String>[],
     this.onDynamicAppsChanged,
     this.transcribe,
+    this.talk,
+    this.speak,
     required this.knowsApp,
   });
 
@@ -134,6 +136,12 @@ class LiveDesktopShell extends StatefulWidget {
 
   /// Host capability used by dictation composers to transcribe captured audio into a draft.
   final VoiceTranscriber? transcribe;
+
+  /// Host capability used to open full-duplex voice mode on a conversation.
+  final VoiceTalker? talk;
+
+  /// Host capability used by read-aloud controls to synthesize assistant replies.
+  final VoiceSpeaker? speak;
 
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
@@ -1470,6 +1478,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         onAction: (event) => _intentTracker.wrapAction(event, widget.onAction),
         knowsApp: widget.knowsApp,
         transcribe: widget.transcribe,
+        talk: widget.talk,
+        speak: widget.speak,
         onActivate: widget.onActivate,
       );
     }
@@ -1811,6 +1821,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                             ),
                                         knowsApp: _knowsDesktopApp,
                                         transcribe: widget.transcribe,
+                                        talk: widget.talk,
+                                        speak: widget.speak,
                                         signals: _journalFor(
                                           w.viewportRef['name'] as String,
                                         ),
@@ -1842,6 +1854,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 ),
                                 knowsApp: _knowsDesktopApp,
                                 transcribe: widget.transcribe,
+                                talk: widget.talk,
+                                speak: widget.speak,
                                 signals: _journalFor(
                                   spec.viewportRef['name'] as String,
                                 ),

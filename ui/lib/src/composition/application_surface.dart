@@ -97,6 +97,8 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,
         transcribe: widget.client.transcribe,
+        talk: widget.client.talk,
+        speak: widget.client.speak,
       );
     },
   );

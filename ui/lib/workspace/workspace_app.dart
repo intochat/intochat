@@ -935,6 +935,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 ),
                                 transcribe:
                                     widget.programmingClient!.transcribe,
+                                talk: widget.programmingClient!.talk,
+                                speak: widget.programmingClient!.speak,
                                 journal: (brain, since) => widget
                                     .programmingClient!
                                     .watchJournal(brain, since: since),
@@ -1012,6 +1014,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     unawaited(_activate(action)),
                                 transcribe:
                                     widget.programmingClient!.transcribe,
+                                talk: widget.programmingClient!.talk,
+                                speak: widget.programmingClient!.speak,
                                 knowsApp: (app) =>
                                     _knownApps.contains(app) ||
                                     _knownApps.contains(app.toLowerCase()),

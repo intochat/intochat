@@ -21,3 +21,4 @@ export 'src/core/neuron_channel.dart';
 export 'src/core/neuron_watch_mux.dart';
 export 'src/core/node_contracts.dart';
 export 'src/generated/node_models.dart';
+export 'src/voice_mode/talk_socket.dart';

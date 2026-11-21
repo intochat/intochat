@@ -47,6 +47,8 @@ class ViewHost extends StatefulWidget {
     this.callNeuron,
     this.signals,
     this.transcribe,
+    this.talk,
+    this.speak,
     this.embedded = false,
   });
   final String kind, name;
@@ -103,6 +105,12 @@ class ViewHost extends StatefulWidget {
 
   /// Host capability used by dictation composers to transcribe captured audio into a draft.
   final VoiceTranscriber? transcribe;
+
+  /// Host capability used to open full-duplex voice mode on a conversation.
+  final VoiceTalker? talk;
+
+  /// Host capability used by read-aloud controls to synthesize assistant replies.
+  final VoiceSpeaker? speak;
 
   @override
   State<ViewHost> createState() => _ViewHostState();
@@ -325,6 +333,8 @@ class _ViewHostState extends State<ViewHost> {
     revision: widget.revision,
     enabled: widget.enabled,
     transcribe: widget.transcribe,
+    talk: widget.talk,
+    speak: widget.speak,
     embedded: true,
   );
 
@@ -442,6 +452,8 @@ class _ViewHostState extends State<ViewHost> {
       revision: widget.revision,
       enabled: widget.enabled,
       transcribe: widget.transcribe,
+      talk: widget.talk,
+      speak: widget.speak,
       embedded: true,
       inlineSlot: true,
     );
@@ -540,6 +552,8 @@ class _ViewHostState extends State<ViewHost> {
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
           transcribe: widget.transcribe,
+          talk: widget.talk,
+          speak: widget.speak,
         );
         ViewHost.debugOnContext?.call(widget.name, ctx);
         final appView = AppView.fromJson(normalizedView);

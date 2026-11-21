@@ -66,6 +66,10 @@ export 'src/focus_registry.dart';
 export 'src/composition/application_surface.dart';
 
 export 'src/voice_input/ui_voice_input.dart';
+export 'src/voice_mode/audio_out.dart';
+export 'src/voice_mode/mic_stream.dart';
+export 'src/voice_mode/talk_socket.dart';
+export 'src/voice_mode/voice_mode_view.dart';
 export 'src/theme/ui_shadows.dart';
 export 'src/theme/ui_tokens.dart';
 export 'src/components/workspace/ui_workspace_components.dart';
