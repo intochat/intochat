@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.AutoSuggestBox.IAutoSuggestBox`.
@@ -90,9 +91,10 @@ class _AutoSuggestBoxWidgetState extends State<AutoSuggestBoxWidget> {
                 runSpacing: 4,
                 children: [
                   for (final s in suggestions)
-                    ActionChip(
-                      label: Text(s, style: const TextStyle(fontSize: 12)),
-                      onPressed: () {
+                    UiMixChip(
+                      label: s,
+                      selected: s == submitted,
+                      onSelected: (_) {
                         _controller.text = s;
                         unawaited(invoke('Submit', [s]));
                       },

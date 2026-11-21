@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.NumberBox.INumberBox`.
@@ -59,9 +60,12 @@ class NumberBoxWidget extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
+                  UiMixIconButton(
                     tooltip: 'Decrement',
-                    icon: Icon(LucideIcons.minus, size: 15, color: c.textBody),
+                    icon: LucideIcons.minus,
+                    iconSize: 15,
+                    iconColor: c.textBody,
+                    enabled: isEnabled,
                     onPressed: isEnabled
                         ? () => unawaited(invoke('Decrement'))
                         : null,
@@ -78,9 +82,12 @@ class NumberBoxWidget extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
+                  UiMixIconButton(
                     tooltip: 'Increment',
-                    icon: Icon(LucideIcons.plus, size: 15, color: c.textBody),
+                    icon: LucideIcons.plus,
+                    iconSize: 15,
+                    iconColor: c.textBody,
+                    enabled: isEnabled,
                     onPressed: isEnabled
                         ? () => unawaited(invoke('Increment'))
                         : null,

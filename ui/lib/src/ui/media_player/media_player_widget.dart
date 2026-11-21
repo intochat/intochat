@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 class MediaPlayerNeuronWidget extends StatelessWidget {
@@ -57,11 +58,11 @@ class MediaPlayerNeuronWidget extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  IconButton.filled(
-                    icon: Icon(
-                      playing ? Icons.pause : Icons.play_arrow,
-                      size: 18,
-                    ),
+                  UiMixIconButton(
+                    tooltip: playing ? 'Pause' : 'Play',
+                    icon: playing ? Icons.pause : Icons.play_arrow,
+                    iconSize: 18,
+                    iconColor: c.accent,
                     onPressed: () =>
                         invoke(playing ? 'Pause' : 'Play', const []),
                   ),
@@ -86,19 +87,19 @@ class MediaPlayerNeuronWidget extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      muted ? Icons.volume_off : Icons.volume_up,
-                      size: 16,
-                    ),
+                  UiMixIconButton(
+                    tooltip: muted ? 'Unmute' : 'Mute',
+                    icon: muted ? Icons.volume_off : Icons.volume_up,
+                    iconSize: 16,
                     onPressed: () => invoke('SetVolume', [vol, !muted]),
                   ),
                 ],
               ),
-              Slider(
+              UiMixSlider(
                 value: pos.clamp(0.0, dur),
                 min: 0,
                 max: dur,
+                step: 1.0,
                 onChanged: (v) => invoke('Seek', [v]),
               ),
               Row(

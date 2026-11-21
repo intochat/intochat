@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 class ImageViewerNeuronWidget extends StatelessWidget {
@@ -62,22 +63,30 @@ class ImageViewerNeuronWidget extends StatelessWidget {
                     '${(zoom * 100).round()}% · $rotation°',
                     style: TextStyle(fontSize: 11, color: c.textMuted),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.zoom_out, size: 16),
+                  UiMixIconButton(
+                    tooltip: 'Zoom out',
+                    icon: Icons.zoom_out,
+                    iconSize: 16,
                     onPressed: () =>
                         invoke('SetZoom', [(zoom - 0.25).clamp(0.25, 4.0)]),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.zoom_in, size: 16),
+                  UiMixIconButton(
+                    tooltip: 'Zoom in',
+                    icon: Icons.zoom_in,
+                    iconSize: 16,
                     onPressed: () =>
                         invoke('SetZoom', [(zoom + 0.25).clamp(0.25, 4.0)]),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.rotate_right, size: 16),
+                  UiMixIconButton(
+                    tooltip: 'Rotate right',
+                    icon: Icons.rotate_right,
+                    iconSize: 16,
                     onPressed: () => invoke('Rotate', [90]),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 16),
+                  UiMixIconButton(
+                    tooltip: 'Reset view',
+                    icon: Icons.refresh,
+                    iconSize: 16,
                     onPressed: () => invoke('ResetView', const []),
                   ),
                 ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive WinUI 3 / Files VFS Picker presenter for `IntoChat.OS.Modules.UI.FilePicker.IFilePicker`.
@@ -180,11 +181,10 @@ class _FilePickerNeuronWidgetState extends State<FilePickerNeuronWidget> {
                   runSpacing: 6,
                   children: [
                     for (final f in filters)
-                      ChoiceChip(
-                        label: Text(f, style: const TextStyle(fontSize: 11)),
+                      UiMixChip(
+                        label: f,
                         selected: f == activeFilter,
                         onSelected: (_) => unawaited(invoke('SetFilter', [f])),
-                        visualDensity: VisualDensity.compact,
                       ),
                   ],
                 ),

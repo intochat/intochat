@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 class CalendarViewNeuronWidget extends StatelessWidget {
@@ -56,16 +57,20 @@ class CalendarViewNeuronWidget extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, size: 18),
+                  UiMixIconButton(
+                    tooltip: 'Previous month',
+                    icon: Icons.chevron_left,
+                    iconSize: 18,
                     onPressed: () {
                       final prevMonth = month == 1 ? 12 : month - 1;
                       final prevYear = month == 1 ? year - 1 : year;
                       invoke('NavigateMonth', [prevYear, prevMonth]);
                     },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right, size: 18),
+                  UiMixIconButton(
+                    tooltip: 'Next month',
+                    icon: Icons.chevron_right,
+                    iconSize: 18,
                     onPressed: () {
                       final nextMonth = month == 12 ? 1 : month + 1;
                       final nextYear = month == 12 ? year + 1 : year;
