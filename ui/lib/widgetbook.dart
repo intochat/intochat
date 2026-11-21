@@ -7,6 +7,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 // ignore: depend_on_referenced_packages
 import 'package:widgetbook/widgetbook.dart';
 
+import 'src/ui/ino/ino_orb_v2.dart';
 import 'src/ui/mix/ui_mix_style.dart';
 import 'src/ui/ui_control_surface.dart';
 
@@ -104,6 +105,10 @@ final class IntoChatWidgetbookApp extends StatelessWidget {
                 WidgetbookUseCase(
                   name: 'Mix + NakedButton (C# UiStyle Parity)',
                   builder: (_) => const _MixButtonPlayground(),
+                ),
+                WidgetbookUseCase(
+                  name: 'Ino Orb v2 (S10 Flying 3D Lottie Sphere)',
+                  builder: (_) => const _InoOrbV2Playground(),
                 ),
               ],
             ),
@@ -416,6 +421,106 @@ class _MixButtonPlaygroundState extends State<_MixButtonPlayground> {
             ),
         ],
       ),
+    );
+  }
+}
+
+final class _InoOrbV2Playground extends StatefulWidget {
+  const _InoOrbV2Playground();
+
+  @override
+  State<_InoOrbV2Playground> createState() => _InoOrbV2PlaygroundState();
+}
+
+class _InoOrbV2PlaygroundState extends State<_InoOrbV2Playground> {
+  Offset _target = const Offset(180, 120);
+  String _status = 'Ready · Ask me about Auth';
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.knobs.object.dropdown<PresenceState>(
+      label: 'PresenceState',
+      options: PresenceState.values,
+      initialOption: PresenceState.listening,
+      labelBuilder: (s) => s.name,
+    );
+    final audioLevel = context.knobs.double.slider(
+      label: 'Voice Mic Amplitude',
+      min: 0.0,
+      max: 1.0,
+      initialValue: 0.35,
+    );
+    final size = context.knobs.double.slider(
+      label: 'Orb Size (px)',
+      min: 48,
+      max: 148,
+      initialValue: 88,
+    );
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              UiMixButton(
+                label: 'Fly → Top-Left',
+                style: const UiStyleData(
+                  tone: 'subtle',
+                  paddingX: 12,
+                  paddingY: 6,
+                  radius: 8,
+                ),
+                onPressed: () => setState(() {
+                  _target = const Offset(36, 36);
+                  _status = 'Inspecting Auth Tree…';
+                }),
+              ),
+              UiMixButton(
+                label: 'Fly → Center',
+                style: const UiStyleData(
+                  tone: 'accent',
+                  paddingX: 12,
+                  paddingY: 6,
+                  radius: 8,
+                ),
+                onPressed: () => setState(() {
+                  _target = const Offset(220, 140);
+                  _status = 'System 1 Venn · <5ms match';
+                }),
+              ),
+              UiMixButton(
+                label: 'Fly → Bottom-Right',
+                style: const UiStyleData(
+                  tone: 'subtle',
+                  paddingX: 12,
+                  paddingY: 6,
+                  radius: 8,
+                ),
+                onPressed: () => setState(() {
+                  _target = const Offset(420, 260);
+                  _status = 'Spawning Live Neuron…';
+                }),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: InoFlyingOrbOverlay(
+            position: _target,
+            state: state,
+            orbSize: size,
+            audioLevel: audioLevel,
+            statusText: _status,
+            onTap: () => setState(() {
+              _status = 'Voice-to-Voice Active…';
+            }),
+            onPositionChanged: (next) => setState(() => _target = next),
+          ),
+        ),
+      ],
     );
   }
 }
