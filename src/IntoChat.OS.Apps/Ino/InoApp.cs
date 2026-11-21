@@ -17,7 +17,6 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
@@ -67,7 +66,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         ThisMachine = thisMachine;
     }
 
-    public bool CanDictate { get; private set; }
+    public VoiceAbilities Voice { get; private set; } = VoiceAbilities.None;
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
     public static AppBundle Bundle { get; } = InoModelSetup.BuildBundle(typeof(InoApp));
@@ -83,7 +82,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     protected override Node Render(InoAppState state)
         => InoView.ScreenNode(
             state.Messages is null && HeldMessages is { } held ? state with { Messages = held } : state,
-            CanDictate,
+            Voice.Hear,
             props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
             ThreadFailureText,
             base.LastRejection,
@@ -177,11 +176,11 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         HeldMessages = next.Messages;
         ThreadKnown |= next.Messages is not null;
         await Show(next with { Messages = null });
-        await InoModelSetup.SyncUiChatThreadAsync(Setup, next, CanDictate);
+        await InoModelSetup.SyncUiChatThreadAsync(Setup, next, Voice.Hear);
         var thread = InoView.Thread(next);
         if (!ThreadKnown && thread.Count == 0) { return; }
         // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
-        var props = InoView.ThreadProps(next, CanDictate, ThreadFailureText, PickerCards, PickerAvailability, DeviceSnapshot);
+        var props = InoView.ThreadProps(next, Voice.Hear, ThreadFailureText, PickerCards, PickerAvailability, DeviceSnapshot);
         if (SyncedThread is { } synced && synced.SequenceEqual(thread) && Equals(props, SyncedProps)) { return; }
         // Ino's own save stands when the thread cannot be written: the slot's props say so (to the person and to MCP readers), and the
         // next save writes the thread again.
@@ -289,7 +288,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         }
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         await RefreshPickerAsync();
-        CanDictate = await InoModelSetup.InitializeViewAsync(Setup);
+        Voice = await InoModelSetup.InitializeViewAsync(Setup);
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
         await TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));
         await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(Current.ConversationId)));
@@ -303,7 +302,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var settings = await Get<IUserSettings>("settings").Read();
         var (device, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
         DeviceSnapshot = device;
-        CanDictate = await InoModelSetup.ReadCanDictateAsync(Setup);
+        Voice = await InoModelSetup.ReadVoiceAsync(Setup);
         var (nextState, migrate) = InoModel.DecideOpen(
             Current, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
             await InoModelSetup.ReadApprovalsAsync(Setup, Current.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries));
@@ -536,7 +535,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         () => Get<IModelCatalog>(new NeuronId(CurrentBrain, "ai.models", ModelsKey)),
         GetThisDevice,
         () => Get<IUserSettings>("settings"), Get<IAgent>, Get<IChat>, Get<IToneObserver>,
-        () => Get<ISpeechRecognizer>("default"), () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey), () => Get<IApprovals>(ApprovalsKey),
+        () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey), () => Get<IApprovals>(ApprovalsKey),
         () => Get<IInoConversations>(IInoConversations.DefaultKey), () => Get<IProfileContextWriter>("ino/profile-writer"),
         Get<IAgentContext>, Get<IChatThread>,
         Follow<IAgent, AgentBlocked>,

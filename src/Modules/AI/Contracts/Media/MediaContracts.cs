@@ -20,10 +20,6 @@ public sealed record ImageGenerationRequest(string Prompt);
 public sealed record ImageGenerationResult(Guid OperationId, MediaPayload Image, string Model);
 public sealed record EmbeddingRequest(string[] Inputs);
 public sealed record EmbeddingResult(Guid OperationId, float[][] Vectors);
-public sealed record SpeechRecognitionRequest(MediaPayload Audio, string FileName);
-public sealed record SpeechRecognitionResult(Guid OperationId, string Text, string Model);
-public sealed record SpeechSynthesisRequest(string Text, string Voice);
-public sealed record SpeechSynthesisResult(Guid OperationId, MediaPayload Audio, string Model);
 
 [NeuronAlias("ai.media.IImageGenerator"), DefaultNeuronType("imagegeneratorneuron")]
 public interface IImageGenerator
@@ -36,18 +32,6 @@ public interface IEmbeddingModel
 {
     [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
     [DigitalBrain.Contracts.CallTimeout(600000)] Task<EmbeddingResult> Embed(EmbeddingRequest request, CancellationToken cancellationToken = default);
-}
-[NeuronAlias("ai.media.ISpeechRecognizer"), DefaultNeuronType("speechrecognizerneuron")]
-public interface ISpeechRecognizer
-{
-    [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
-    [DigitalBrain.Contracts.CallTimeout(600000)] Task<SpeechRecognitionResult> Recognize(SpeechRecognitionRequest request, CancellationToken cancellationToken = default);
-}
-[NeuronAlias("ai.media.ISpeechSynthesizer"), DefaultNeuronType("speechsynthesizerneuron")]
-public interface ISpeechSynthesizer
-{
-    [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
-    [DigitalBrain.Contracts.CallTimeout(600000)] Task<SpeechSynthesisResult> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken = default);
 }
 
 [Signal("ai.media.ImageGenerated")]

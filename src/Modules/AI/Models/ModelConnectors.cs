@@ -14,7 +14,7 @@ internal static class ModelConnectors
         var provider = AiIntegrations.KeyedProviders.Single(provider => AiIntegrations.IdOf(provider) == schema.Id);
         Type[] media = provider switch
         {
-            AiProvider.OpenAI => [typeof(IImageGenerator), typeof(IEmbeddingModel), typeof(ISpeechRecognizer), typeof(ISpeechSynthesizer)],
+            AiProvider.OpenAI => [typeof(IImageGenerator), typeof(IEmbeddingModel)],
             AiProvider.Google => [typeof(IEmbeddingModel)],
             _ => [],
         };

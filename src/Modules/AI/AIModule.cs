@@ -23,12 +23,11 @@ using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 using Orleans.Hosting;
-using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Surface;
 using IntoChat.OS.Host.Kernel;
@@ -76,10 +75,9 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IModelInference>(provider => provider.GetRequiredService<InferenceService>());
         services.TryAddSingleton<OsNeuronSurface>();
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
-        services.AddMediaNeurons();
         var topology = configuration[IntoChatOSNames.TopologyKey];
         AIClients.AddImageGeneration(services, options, topology);
-        VoiceToTextHosting.Add(services, options, topology);
+        services.TryAddSingleton<IAudioConverter, OggOpusToWavConverter>();
         services.TryAddSingleton<IVoiceClients, VoiceClients>();
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
@@ -95,21 +93,24 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         endpoints.MapGet("/ai/models", async (HttpContext http, INeuronProxies brain) => Results.Ok(await brain.Get<IModelCatalog>(
             CatalogKey(StampedCaller(http))).List()));
         endpoints.MapPost("/ai/transcriptions", TranscribeAsync);
+        endpoints.MapPost("/ai/speech", SpeechEndpoint.HandleAsync);
     }
 
-    private static Caller? StampedCaller(HttpContext http) => http.RequestServices.GetService<ICallerAmbient>()?.Current;
+    internal static Caller? StampedCaller(HttpContext http) => http.RequestServices.GetService<ICallerAmbient>()?.Current;
 
-    // Fail closed: only a non-guest person calling directly (not an app, agent or relay) may invoke speech recognition.
+    // Fail closed: only a non-guest person calling directly (not an app, agent or relay) may invoke voice endpoints.
     internal static bool IsDirectPersonCaller(Caller? caller)
         => caller is { Actor: Actor.Person person, Direct: true }
             && CallerRules.IsDirectPerson(caller, person.Principal)
             && !GuestSurface.Is(caller)
             && BrainScope.IsValidId(caller.Brain.Value);
 
+    private static readonly HashSet<string> OggExtensions = new(StringComparer.OrdinalIgnoreCase) { ".ogg", ".oga", ".opus" };
+
     private static async Task<IResult> TranscribeAsync(
         HttpContext http,
-        INeuronProxies brain,
-        ILoggerFactory? loggerFactory,
+        IVoiceClients clients,
+        IAudioConverter? audioConverter,
         CancellationToken ct)
     {
         if (StampedCaller(http) is not { } caller)
@@ -138,32 +139,53 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
             return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var recognizer = brain.Get<ISpeechRecognizer>(caller.Brain.Value + "/default");
+        var voice = await clients.Hear(caller.Brain.Value, ct).ConfigureAwait(false);
+        if (voice.Client is null)
+        {
+            return Results.Problem(
+                voice.Unavailable ?? "Speech recognition is unavailable.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        using var client = voice.Client;
+        string? tempInput = null;
+        string? tempWav = null;
         try
         {
-            var result = await recognizer.Recognize(
-                new SpeechRecognitionRequest(new MediaPayload(audioBytes, mediaType), fileName),
-                ct).ConfigureAwait(false);
-            return Results.Ok(new { text = result.Text, model = result.Model });
+            Stream audioStream;
+            if (IsOggOrOpus(fileName, mediaType) && audioConverter is not null)
+            {
+                var ext = Path.GetExtension(fileName);
+                if (string.IsNullOrWhiteSpace(ext)) { ext = ".ogg"; }
+                tempInput = Path.Combine(Path.GetTempPath(), $"db_voice_{Guid.NewGuid():N}{ext}");
+                await File.WriteAllBytesAsync(tempInput, audioBytes, ct).ConfigureAwait(false);
+                tempWav = audioConverter.ConvertToWav(tempInput);
+                audioStream = File.OpenRead(tempWav);
+            }
+            else
+            {
+                audioStream = new MemoryStream(audioBytes, writable: false);
+            }
+
+            await using (audioStream.ConfigureAwait(false))
+            {
+                var speechOptions = new SpeechToTextOptions { ModelId = voice.Model?.Value };
+                var response = await client.GetTextAsync(audioStream, speechOptions, ct).ConfigureAwait(false);
+                var text = response.Text?.Trim() ?? string.Empty;
+                if (text.Length > 1_000_000)
+                {
+                    return Results.Problem("Transcription exceeds the response limit.", statusCode: StatusCodes.Status409Conflict);
+                }
+
+                var model = !string.IsNullOrWhiteSpace(response.ModelId)
+                    ? response.ModelId
+                    : voice.Model?.Value ?? string.Empty;
+                return Results.Json(new TranscriptionResponse(text, model), TalkJson.Default.TranscriptionResponse);
+            }
         }
         catch (NotSupportedException error)
         {
-            var reason = error.Message;
-            try
-            {
-                var caps = await recognizer.Describe().ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(caps.UnavailableReason))
-                {
-                    reason = caps.UnavailableReason;
-                }
-            }
-            catch (Exception describeError) when (describeError is not OperationCanceledException)
-            {
-                var logger = loggerFactory?.CreateLogger<AIModule>() ?? OsConsoleLog.For<AIModule>();
-                logger.LogSwallowed(describeError, "reading speech recognition capabilities after unavailable transcription");
-            }
-
-            return Results.Problem(reason, statusCode: StatusCodes.Status503ServiceUnavailable);
+            return Results.Problem(error.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
         catch (ArgumentException error)
         {
@@ -177,7 +199,17 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         {
             return Results.Problem(error.Message, statusCode: StatusCodes.Status409Conflict);
         }
+        finally
+        {
+            if (tempWav is not null && File.Exists(tempWav)) { File.Delete(tempWav); }
+            if (tempInput is not null && File.Exists(tempInput)) { File.Delete(tempInput); }
+        }
     }
+
+    private static bool IsOggOrOpus(string fileName, string mediaType)
+        => OggExtensions.Contains(Path.GetExtension(fileName))
+            || string.Equals(mediaType, "audio/ogg", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "audio/opus", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<(byte[] Bytes, string MediaType, string FileName)> ReadAudioUploadAsync(
         HttpRequest request,

@@ -71,7 +71,7 @@ internal static class RoleMaps
     }
 
     // Returns only explicitly configured role ids (not KnownModels.Defaults), useful for opt-in features
-    // like VoiceToTextHosting where an unconfigured role must remain off (503).
+    // where an unconfigured role must remain off.
     internal static ModelId? Explicit(AIOptions options, string? topology, Role role)
     {
         ArgumentNullException.ThrowIfNull(options);

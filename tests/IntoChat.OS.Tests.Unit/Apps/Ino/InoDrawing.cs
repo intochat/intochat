@@ -14,7 +14,7 @@ internal static class InoDrawing
         => InoView.Screen(s, dictation, props => Thread(s, props));
 
     // What a running Ino shows: its state with the messages it last projected (they live in the thread, not in the stored state).
-    internal static View Screen(InoApp app) => Screen(app.State with { Messages = [.. app.Messages] }, app.CanDictate);
+    internal static View Screen(InoApp app) => Screen(app.State with { Messages = [.. app.Messages] }, app.Voice.Hear);
 
     internal static Conversation Conversation(InoAppState s, bool dictation = false)
         => Thread(s, InoView.ThreadProps(s, dictation));
