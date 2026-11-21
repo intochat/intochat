@@ -24,7 +24,12 @@ internal sealed class ModelCatalogNeuron(
 
     public async Task SetRole(Role role, ModelId model)
     {
-        EnforceOwnerOrTrustedShell("SetRole", "Only the brain owner may change model roles.", "Only the person or a built-in shell screen may change model roles.");
+        var isDevicesModule = Context.Caller is { Actor: DigitalBrain.Access.Actor.Module { Id: "devices" }, Brain: var callerBrain }
+            && callerBrain == Id.Brain;
+        if (!isDevicesModule)
+        {
+            EnforceOwnerOrTrustedShell("SetRole", "Only the brain owner may change model roles.", "Only the person or a built-in shell screen may change model roles.");
+        }
 
         if (Brain is null)
         {
@@ -40,14 +45,6 @@ internal sealed class ModelCatalogNeuron(
 
     public Task<ModelAvailability[]> Availability()
         => catalog.Availability(Brain, CancellationToken.None);
-
-    public async Task<LocalModelSummary> DetectLocal()
-    {
-        var detected = await catalog.DetectLocal(CancellationToken.None).ConfigureAwait(false);
-        return detected is null
-            ? new LocalModelSummary(false, null, [])
-            : new LocalModelSummary(true, detected.PreferredModel, detected.InstalledModels);
-    }
 
     public async Task SaveProviderCredential(string provider, string credentialValue)
     {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using DigitalBrain.Rules;
@@ -9,6 +10,7 @@ using IntoChat.OS.Host.Visuals;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
@@ -76,7 +78,8 @@ public static partial class InoView
         bool dictation = false,
         string? threadFailure = null,
         IReadOnlyList<ModelCard>? cards = null,
-        IReadOnlyList<ModelAvailability>? availability = null)
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Thread(s, view);
@@ -99,12 +102,15 @@ public static partial class InoView
             Working: s.ActiveRunId is not null,
             EmptyText: emptyText,
             Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown),
-            Models: cards is { Count: > 0 } ? Choices(cards, availability ?? []) : null,
+            Models: cards is { Count: > 0 } ? Choices(cards, availability ?? [], device) : null,
             ActiveModelId: activeModelId);
     }
 
     /// <summary>Projects text-capable model cards and availability into composer picker choices split into local and cloud sections.</summary>
-    public static IReadOnlyList<ModelChoice> Choices(IReadOnlyList<ModelCard> cards, IReadOnlyList<ModelAvailability> availability)
+    public static IReadOnlyList<ModelChoice> Choices(
+        IReadOnlyList<ModelCard> cards,
+        IReadOnlyList<ModelAvailability> availability,
+        DeviceView? device = null)
     {
         ArgumentNullException.ThrowIfNull(cards);
         ArgumentNullException.ThrowIfNull(availability);
@@ -113,6 +119,33 @@ public static partial class InoView
         foreach (var entry in availability)
         {
             byId[entry.Model.Value] = entry;
+        }
+
+        Dictionary<string, Install>? activeInstalls = null;
+        Dictionary<string, DeviceModel>? deviceModels = null;
+        Dictionary<string, RuntimeStatus>? runtimesById = null;
+        if (device is not null)
+        {
+            activeInstalls = new Dictionary<string, Install>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in device.Queue)
+            {
+                if (entry.State is InstallState.Queued or InstallState.Downloading or InstallState.Verifying)
+                {
+                    activeInstalls.TryAdd(entry.Model.Value, entry);
+                }
+            }
+
+            deviceModels = new Dictionary<string, DeviceModel>(device.Models.Length, StringComparer.OrdinalIgnoreCase);
+            foreach (var model in device.Models)
+            {
+                deviceModels.TryAdd(model.Card.Id.Value, model);
+            }
+
+            runtimesById = new Dictionary<string, RuntimeStatus>(device.Runtimes.Length, StringComparer.OrdinalIgnoreCase);
+            foreach (var runtime in device.Runtimes)
+            {
+                runtimesById.TryAdd(runtime.Id.Value, runtime);
+            }
         }
 
         var result = new List<ModelChoice>(cards.Count);
@@ -126,6 +159,36 @@ public static partial class InoView
             var hasAvail = byId.TryGetValue(card.Id.Value, out var avail);
             var ready = !hasAvail || avail!.Ready;
             var note = ready ? null : avail!.Reason;
+            double? progress = null;
+
+            if (activeInstalls is not null && activeInstalls.TryGetValue(card.Id.Value, out var install))
+            {
+                ready = false;
+                var clamped = Math.Clamp(install.Percent, 0d, 100d);
+                (note, progress) = install.State switch
+                {
+                    InstallState.Downloading => ($"Downloading {(int)Math.Floor(clamped)}%", clamped / 100.0),
+                    InstallState.Verifying => ("Verifying", 1.0),
+                    _ => ("Queued", 0.0),
+                };
+            }
+            else if (card.Where == Where.Device && !ready && device is not null)
+            {
+                deviceModels!.TryGetValue(card.Id.Value, out var deviceModel);
+                var runtimeKnownDown = deviceModel is not null
+                    && runtimesById!.TryGetValue(deviceModel.Runtime.Value, out var runtimeStatus)
+                    && !runtimeStatus.Reachable;
+
+                if (deviceModel is { Fit: Fit.WontFit })
+                {
+                    note = "Too big for this device";
+                }
+                else if (!runtimeKnownDown
+                    && (deviceModel is not null || string.Equals(note, "Not installed", StringComparison.OrdinalIgnoreCase)))
+                {
+                    note = FormatInstallNote(card.Bytes ?? deviceModel?.Card.Bytes, deviceModel?.Fit);
+                }
+            }
 
             var abilities = new List<string>(4);
             if (card.Can.HasFlag(Abilities.Tools)) { abilities.Add("tools"); }
@@ -140,7 +203,8 @@ public static partial class InoView
                 Icon: card.IconKey(),
                 Abilities: abilities.Count > 0 ? abilities : null,
                 Available: ready,
-                Note: note));
+                Note: note,
+                Progress: progress));
         }
 
         return result;
@@ -194,6 +258,31 @@ public static partial class InoView
         ];
     }
 
+    private static string FormatInstallNote(long? bytes, Fit? fit)
+    {
+        var parts = new List<string>(3) { "Install" };
+        if (bytes is > 0)
+        {
+            const long mib = 1024L * 1024L;
+            const long gib = 1024L * mib;
+            parts.Add(bytes.Value >= gib
+                ? string.Create(CultureInfo.InvariantCulture, $"{bytes.Value / (double)gib:0.#} GB")
+                : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(1L, bytes.Value / mib)} MB"));
+        }
+
+        if (fit is { } value)
+        {
+            parts.Add(value switch
+            {
+                Fit.Good => "Good",
+                Fit.Slow => "Slow",
+                _ => value.ToString(),
+            });
+        }
+
+        return string.Join(" · ", parts);
+    }
+
     /// <summary>
     /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
     /// (approvals, model setup, cards no message carries).
@@ -207,8 +296,9 @@ public static partial class InoView
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
-        IReadOnlyList<ModelAvailability>? availability = null)
-        => new("Ino", ScreenNode(s, dictation, thread, view, sessions, threadFailure, departureRejection, cards, availability));
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
+        => new("Ino", ScreenNode(s, dictation, thread, view, sessions, threadFailure, departureRejection, cards, availability, device));
 
     /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
     public static Node ScreenNode(
@@ -220,16 +310,16 @@ public static partial class InoView
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
-        IReadOnlyList<ModelAvailability>? availability = null)
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
 
         var projectedCardIds = view is not null ? InoThread.ProjectedCardIds(view) : [];
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
-        Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
+        Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s, device) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
-
         var navAboveList = new List<Node>();
         if (string.Equals(s.ActiveSection, "chats", StringComparison.Ordinal) && sessions is not null)
         {
@@ -238,7 +328,7 @@ public static partial class InoView
         navAboveList.AddRange(RenderNavigationSeedNodes(s, departureRejection));
         Node[] navAbove = [.. navAboveList];
 
-        var conversation = thread(ThreadProps(s, view, dictation, threadFailure, cards, availability));
+        var conversation = thread(ThreadProps(s, view, dictation, threadFailure, cards, availability, device));
         if (HasUnprojectedVaultSecretPrompt(s, view))
         {
             Node[] above = [.. navAbove, .. s.ActiveCards.SelectMany(RenderCardNodes)];
@@ -470,9 +560,17 @@ public static partial class InoView
 
     internal static bool ShouldShowModelSetup(InoAppState s) => s.Error?.Code is "no-provider" or "provider-rejected-key";
 
-    internal static Node[] RenderModelSetupNodes(InoAppState s)
+    internal static Node[] RenderModelSetupNodes(InoAppState s, DeviceView? device = null)
     {
-        var localModels = s.DetectedLocalModels is { Length: > 0 } list ? list : s.DetectedLocalModel is { Length: > 0 } single ? [single] : [];
+        var liveLocal = InoModelSetup.InstalledLocalModels(device);
+        var localModels = liveLocal.Length > 0
+            ? liveLocal
+            : s.DetectedLocalModels is { Length: > 0 } list
+                ? list
+                : s.DetectedLocalModel is { Length: > 0 } single
+                    ? [single]
+                    : [];
+        var preferredLocal = liveLocal.Length > 0 ? liveLocal[0] : s.DetectedLocalModel;
         ChoiceOptionNode[] options =
         [
             .. localModels.Take(3).Select(static m => new ChoiceOptionNode($"Local Ollama · {m}", "Ready on this machine")),
@@ -482,10 +580,10 @@ public static partial class InoView
             new("OpenRouter", "Cloud API key in Secure store"),
         ];
 
-        var subtitle = s.DetectedLocalModel is { Length: > 0 } local
+        var subtitle = preferredLocal is { Length: > 0 } local
             ? $"Local Ollama model {local} was detected on this machine, or paste a provider API key below."
             : "Start local Ollama or paste an OpenAI, Anthropic, Google, or OpenRouter API key below.";
-        Node? useLocal = s.DetectedLocalModel is { Length: > 0 } preferred
+        Node? useLocal = preferredLocal is { Length: > 0 } preferred
             ? PrimaryButton($"Use local model ({preferred})", "cpu").Key(UseLocalKey).Emits(AppSignals.Emits("ino", new InoUseLocalModel(Model: preferred))).ToNode()
             : null;
 

@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
     <Description>Preflight checks, MSIX packaging, model pull and launcher command parsing behind intochat-os.cs.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../Modules/Devices/IntoChat.OS.Modules.Devices.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />

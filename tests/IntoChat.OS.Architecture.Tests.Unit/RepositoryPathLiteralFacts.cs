@@ -43,6 +43,7 @@ public sealed partial class RepositoryPathLiteralFacts
     [
         "IntoChat.OS.Tests.Unit/AspireHosting/HostEnvironmentFacts.cs",
         "IntoChat.OS.Tests.Unit/AspireHosting/ConfigurationFileFacts.cs",
+        "IntoChat.OS.Tests.Unit/AspireHosting/DevicesHostingFacts.cs",
     ];
 
     [Fact]

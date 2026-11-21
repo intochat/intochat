@@ -1,4 +1,6 @@
 using IntoChat.OS.LocalSetup.Checks;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 
 namespace IntoChat.OS.LocalSetup;
 
@@ -113,8 +115,51 @@ public static class Preflight
             await output.WriteLineAsync("Model is already installed; nothing to pull.", cancellationToken).ConfigureAwait(false);
             return 0;
         }
-        var result = await ModelPuller.PullAsync(environment.Http, command.ModelOptions, new ConsolePullProgress(output), cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded) { await output.WriteLineAsync("Model pull failed: " + result.Error, cancellationToken).ConfigureAwait(false); }
-        return result.Succeeded ? 0 : 1;
+        var invalid = command.ModelOptions.Validate();
+        if (invalid is not null)
+        {
+            await output.WriteLineAsync("Model pull failed: " + invalid, cancellationToken).ConfigureAwait(false);
+            return 1;
+        }
+        var progress = new ConsolePullProgress(output);
+        InstallProgress? last = null;
+        await foreach (var update in OllamaRuntime.Pull(environment.Http, command.ModelOptions.EndpointUri, new ModelId(command.ModelOptions.Model), cancellationToken).ConfigureAwait(false))
+        {
+            progress.Report(update);
+            last = update;
+        }
+        if (last?.State == InstallState.Ready) { return 0; }
+        await output.WriteLineAsync("Model pull failed: " + (last?.Error ?? "The pull stream ended before Ollama reported success."), cancellationToken).ConfigureAwait(false);
+        return 1;
+    }
+}
+
+// Prints a pull progress line only when its text changes, so a fast stream does not flood the console.
+public sealed class ConsolePullProgress(TextWriter output) : IProgress<InstallProgress>
+{
+    private string? _last;
+
+    public void Report(InstallProgress value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var text = Render(value);
+        if (text == _last) { return; }
+        _last = text;
+        output.WriteLine(text);
+    }
+
+    public static string Render(InstallProgress value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.State switch
+        {
+            InstallState.Downloading when value.TotalBytes > 0 =>
+                $"pulling {value.Model.Value} {SizeText.Pair(value.Bytes, value.TotalBytes)} {(int)value.Percent}%",
+            InstallState.Downloading => "pulling manifest",
+            InstallState.Verifying => "verifying",
+            InstallState.Ready => "success",
+            InstallState.Failed => value.Error ?? "failed",
+            _ => value.State.ToString().ToLowerInvariant(),
+        };
     }
 }

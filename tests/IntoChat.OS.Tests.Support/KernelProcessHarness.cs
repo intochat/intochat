@@ -475,7 +475,11 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
 
         if (options.DisableLocalOllamaProbe)
         {
-            psi.Environment["INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE"] = "1";
+            psi.Environment["IntoChatOS__Modules__devices__Options__FoundryLocal__Enabled"] = "false";
+            if (options.OllamaEndpoint is null)
+            {
+                psi.Environment["IntoChatOS__Modules__devices__Options__Ollama__Enabled"] = "false";
+            }
         }
 
         return psi;

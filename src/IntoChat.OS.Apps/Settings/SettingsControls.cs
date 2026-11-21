@@ -36,6 +36,7 @@ internal static class SettingsControls
     public const string BarLayout = "bar-layout";
     public const string Search = "search";
     public const string Regional = "regional";
+    public const string InstallModel = "install-model";
 
     public static string RoleKey(Role role) => $"role-{role.ToString().ToLowerInvariant()}";
 
@@ -104,5 +105,15 @@ internal static class SettingsControls
             "Save regional settings",
             IsEnabled: !managed,
             AutomationName: "Regional settings"));
+    }
+
+    public static Node InstallModelForm(SettingsSlots slots, SettingsAppState state)
+    {
+        var managed = IsManaged(state, InstallModel);
+        return slots.Form(InstallModel, new FormProps(
+            [new FormInput("model", "Model ID", Placeholder: "e.g. gemma4:e2b", MaxLength: 120)],
+            "Install model",
+            IsEnabled: !managed,
+            AutomationName: "Install a model"));
     }
 }

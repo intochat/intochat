@@ -4,6 +4,7 @@ using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ internal sealed record InoSetupHost(
     Func<InoAppState, Task> ShowState,
     Func<BrainId> GetBrain,
     Func<IModelCatalog> GetCatalog,
+    Func<IDevice?> GetDevice,
     Func<IUserSettings> GetSettings,
     Func<string, IConversation> GetConversation,
     Func<ISessionList> GetSessions,
@@ -31,7 +33,7 @@ internal sealed record InoSetupHost(
     Func<string, Approval[], Func<Task<Approval[]>>, Task<Approval[]>> ReadApprovalsOptional,
     Func<string, string[], Func<Task<string[]>>, Task<string[]>> ReadStringArrayOptional,
     Func<string, UserSettingsState?, Func<Task<UserSettingsState?>>, Task<UserSettingsState?>> ReadSettingsOptional,
-    Func<string, LocalModelSummary?, Func<Task<LocalModelSummary?>>, Task<LocalModelSummary?>> ReadLocalOptional,
+    Func<string, DeviceView?, Func<Task<DeviceView?>>, Task<DeviceView?>> ReadDeviceOptional,
     Func<string, InoCatalogSnapshot?, Func<Task<InoCatalogSnapshot?>>, Task<InoCatalogSnapshot?>> ReadCatalogOptional,
     Func<string, SessionPage?, Func<Task<SessionPage?>>, Task<SessionPage?>> ReadSessionPageOptional,
     Action<Exception, string> LogOptional,
@@ -84,15 +86,13 @@ internal static class InoModelSetup
         var settings = await host.ReadSettingsOptional("settings-read", null, async () => await host.GetSettings().Read());
         if (settings is null) { return canDictate; }
 
-        var (local, _, displayModel) = await ResolveForSettingsAsync(host, settings);
+        var (_, _, displayModel) = await ResolveForSettingsAsync(host, settings);
         await host.ShowState(current with
         {
             SelectedModel = displayModel,
             Smart = IsSmart(settings),
             Approvals = await ReadApprovalsAsync(host, current.Approvals),
             GrantSummaries = await ReadGrantSummariesAsync(host, current.GrantSummaries),
-            DetectedLocalModel = local?.PreferredModel ?? current.DetectedLocalModel,
-            DetectedLocalModels = local?.InstalledModels ?? current.DetectedLocalModels,
             RecentConversations = await ReadRecentConversationsAsync(host, current.RecentConversations),
         });
         return canDictate;
@@ -122,16 +122,12 @@ internal static class InoModelSetup
     {
         var state = host.GetState();
         var conversationKey = InoModel.ConversationKeyOf(state.ConversationId);
-        var (local, resolvedEffective, resolvedDisplay) = await ResolveForSettingsAsync(host, settings);
+        var (device, resolvedEffective, resolvedDisplay) = await ResolveForSettingsAsync(host, settings);
         var selectedTrimmed = string.IsNullOrWhiteSpace(state.SelectedModel) ? null : state.SelectedModel.Trim();
         var hasConversationOverride = selectedTrimmed is not null
             && !string.Equals(selectedTrimmed, resolvedDisplay, StringComparison.Ordinal);
         var effectiveModel = hasConversationOverride ? selectedTrimmed : resolvedEffective;
         var displayModel = hasConversationOverride ? selectedTrimmed! : resolvedDisplay;
-        if (local is not null && (state.DetectedLocalModel != local.PreferredModel || state.DetectedLocalModels is null))
-        {
-            await host.ShowState(host.GetState() with { DetectedLocalModel = local.PreferredModel, DetectedLocalModels = local.InstalledModels });
-        }
 
         try
         {
@@ -157,29 +153,44 @@ internal static class InoModelSetup
         {
             if (host.Logger is { } log) { InoLog.LogTurnStartFailed(log, error, conversationKey); }
             var code = AgentFailures.CodeOf(AgentFailures.Classify(error));
-            if (code == "provider-unavailable" && await IsMissingLocalOllamaAsync(host, local)) { code = "no-provider"; }
+            if (code == "provider-unavailable" && await IsMissingLocalOllamaAsync(host, device)) { code = "no-provider"; }
             await host.ShowState(InoModel.StartFailed(host.GetState(), new InoError(code)));
         }
     }
 
     public static async Task<bool> ApplyLocalModelAsync(InoSetupHost host, InoUseLocalModel request)
     {
-        var local = await DetectLocalModelsAsync(host);
+        var device = await ReadDeviceAsync(host);
         var state = host.GetState();
+        var preferred = PreferredLocalModel(device);
         var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model.Trim()
-            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : local?.PreferredModel ?? state.DetectedLocalModel ?? KnownModels.Defaults.Device[Role.Chat].Value;
+            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : preferred ?? KnownModels.Defaults.Device[Role.Chat].Value;
         var modelId = KnownModels.Find(model)?.Id ?? new ModelId(model);
         await SetChatRoleAsync(host, modelId);
         await ReseatConversationAsync(host, modelId.Value, state.ConversationId);
         var retry = host.GetState().Error?.Code is "no-provider" or "provider-rejected-key";
-        await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, $"Switched model to {modelId.Value}", local));
+        await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, $"Switched model to {modelId.Value}"));
         return retry;
     }
 
-    public static async Task ChooseModelAsync(InoSetupHost host, string model, bool makeDefault)
+    public static async Task ChooseModelAsync(
+        InoSetupHost host,
+        string model,
+        bool makeDefault,
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null,
+        string? statusOverride = null)
     {
         var trimmed = model.Trim();
-        var modelId = KnownModels.Find(trimmed)?.Id ?? new ModelId(trimmed);
+        var card = KnownModels.Find(trimmed);
+        var modelId = card?.Id ?? new ModelId(trimmed);
+        var label = card?.Name ?? modelId.Value;
+
+        if (await TryInstallDeviceModelAsync(host, modelId, card, label, makeDefault, availability, device))
+        {
+            return;
+        }
+
         var state = host.GetState();
         if (makeDefault)
         {
@@ -191,9 +202,59 @@ internal static class InoModelSetup
         {
             await host.TryOptional("session-model", () => host.GetSessions().SetModel(state.ConversationId, modelId.Value));
         }
-        var label = KnownModels.Find(modelId.Value)?.Name ?? modelId.Value;
-        var status = makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}";
+        var status = statusOverride ?? (makeDefault ? $"Default Chat model set to {label}" : $"Switched conversation to {label}");
         await host.ShowState(InoModel.ModelSelected(host.GetState(), modelId.Value, status));
+    }
+
+    private static async Task<bool> TryInstallDeviceModelAsync(
+        InoSetupHost host,
+        ModelId modelId,
+        ModelCard? card,
+        string label,
+        bool makeDefault,
+        IReadOnlyList<ModelAvailability>? availability,
+        DeviceView? cachedDevice)
+    {
+        var deviceNeuron = host.GetDevice();
+        if (deviceNeuron is null || card is { Where: not Where.Device })
+        {
+            return false;
+        }
+
+        var deviceView = cachedDevice ?? await ReadDeviceAsync(host);
+        var deviceModel = deviceView?.Models.FirstOrDefault(m => string.Equals(m.Card.Id.Value, modelId.Value, StringComparison.OrdinalIgnoreCase));
+        if (deviceModel is { State: InstallState.Ready or InstallState.Loaded })
+        {
+            return false;
+        }
+
+        if (deviceModel is null && availability?.FirstOrDefault(a => string.Equals(a.Model.Value, modelId.Value, StringComparison.OrdinalIgnoreCase)) is { Ready: true })
+        {
+            return false;
+        }
+
+        if (deviceModel is null && card is null)
+        {
+            return false;
+        }
+
+        if (deviceModel is { Fit: Fit.WontFit })
+        {
+            await host.ShowState(host.GetState() with { Status = $"{label} is too big for this device." });
+            return true;
+        }
+
+        if (makeDefault)
+        {
+            await deviceNeuron.Use(Role.Chat, modelId);
+        }
+        else
+        {
+            await deviceNeuron.Install(modelId);
+        }
+
+        await host.ShowState(host.GetState() with { Error = null, Status = $"Installing {label}…" });
+        return true;
     }
 
     public static async Task<bool> SaveProviderAsync(InoSetupHost host, InoSaveProvider request)
@@ -269,7 +330,7 @@ internal static class InoModelSetup
 
             case "model":
                 var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
-                await ChooseModelAsync(host, nextModel, makeDefault: true);
+                await ChooseModelAsync(host, nextModel, makeDefault: true, statusOverride: $"Switched model to {nextModel}");
                 return;
 
             default:
@@ -278,12 +339,26 @@ internal static class InoModelSetup
         }
     }
 
-    public static Task<LocalModelSummary?> DetectLocalModelsAsync(InoSetupHost host)
-        => host.ReadLocalOptional("local-models", null, async () =>
+    public static Task<DeviceView?> ReadDeviceAsync(InoSetupHost host)
+        => host.ReadDeviceOptional("device-read", null, async () =>
         {
-            var summary = await host.GetCatalog().DetectLocal();
-            return summary.Available ? summary : null;
+            var device = host.GetDevice();
+            return device is null ? null : await device.Read();
         });
+
+    public static string[] InstalledLocalModels(DeviceView? device)
+        => device?.Models is { Length: > 0 } models
+            ? [.. models
+                .Where(static m => m.State is InstallState.Ready or InstallState.Loaded && m.Card.Can.HasFlag(Abilities.Text))
+                .Select(static m => m.Card.Id.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)]
+            : [];
+
+    public static string? PreferredLocalModel(DeviceView? device)
+    {
+        var installed = InstalledLocalModels(device);
+        return installed.Length > 0 ? installed[0] : null;
+    }
 
     public static async Task<(ModelCard[] Cards, ModelAvailability[] Availability)?> ReadPickerAsync(InoSetupHost host)
     {
@@ -314,23 +389,24 @@ internal static class InoModelSetup
             return new InoCatalogSnapshot(picked, cards, availability);
         });
 
-    public static async Task<(LocalModelSummary? Local, string? EffectiveModel, string DisplayModel)> ResolveForSettingsAsync(
+    public static async Task<(DeviceView? Device, string? EffectiveModel, string DisplayModel)> ResolveForSettingsAsync(
         InoSetupHost host,
         UserSettingsState settings)
     {
-        var local = await DetectLocalModelsAsync(host);
-        var (effective, display) = await ResolveEffectiveModelAsync(host, settings, local);
-        return (local, effective, display);
+        var device = await ReadDeviceAsync(host);
+        var (effective, display) = await ResolveEffectiveModelAsync(host, settings, device);
+        return (device, effective, display);
     }
 
     public static async Task<(string? EffectiveModel, string DisplayModel)> ResolveEffectiveModelAsync(
         InoSetupHost host,
         UserSettingsState settings,
-        LocalModelSummary? local)
+        DeviceView? device)
     {
         var personModel = settings.RoleOf(Role.Chat)?.Value;
         if (!string.IsNullOrWhiteSpace(personModel)) { return (personModel, personModel); }
 
+        var preferredLocal = PreferredLocalModel(device);
         var snapshot = await ReadCatalogSnapshotAsync(host);
         if (snapshot is not null)
         {
@@ -338,15 +414,15 @@ internal static class InoModelSetup
             {
                 return (picked.Value, picked.Value);
             }
-            var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : KnownModels.Defaults.Device[Role.Chat].Value;
+            var fallbackDisplay = preferredLocal is { Length: > 0 } p ? p : KnownModels.Defaults.Device[Role.Chat].Value;
             return (null, fallbackDisplay);
         }
 
-        var fallback = local?.PreferredModel is { Length: > 0 } detected ? detected : KnownModels.Defaults.Device[Role.Chat].Value;
+        var fallback = preferredLocal is { Length: > 0 } detected ? detected : KnownModels.Defaults.Device[Role.Chat].Value;
         return (fallback, fallback);
     }
 
-    public static async Task<bool> IsMissingLocalOllamaAsync(InoSetupHost host, LocalModelSummary? local)
+    public static async Task<bool> IsMissingLocalOllamaAsync(InoSetupHost host, DeviceView? device)
     {
         var snapshot = await ReadCatalogSnapshotAsync(host);
         if (snapshot?.PickedChat is not { Value.Length: > 0 } picked) { return false; }
@@ -365,8 +441,16 @@ internal static class InoModelSetup
             return false;
         }
 
-        var detected = local ?? await DetectLocalModelsAsync(host);
-        return detected is not { Available: true };
+        var resolvedDevice = device ?? await ReadDeviceAsync(host);
+        if (resolvedDevice is not null)
+        {
+            var ollamaReachable = resolvedDevice.Runtimes.Any(static r => r.Id == RuntimeId.Ollama && r.Reachable);
+            var hasInstalledOllama = resolvedDevice.Models.Any(static m =>
+                m.Runtime == RuntimeId.Ollama && m.State is InstallState.Ready or InstallState.Loaded);
+            return !(ollamaReachable && hasInstalledOllama);
+        }
+
+        return !readyIds.Contains(picked.Value);
     }
 
     public static Task EnsureSeatedAsync(

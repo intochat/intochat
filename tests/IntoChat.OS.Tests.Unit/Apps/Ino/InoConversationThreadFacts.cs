@@ -9,7 +9,6 @@ using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
@@ -33,16 +32,10 @@ public sealed class InoConversationThreadFacts
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 
-    private sealed class OfflineLocalProbe : ILocalOllamaProbe
-    {
-        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default) => Task.FromResult<LocalOllamaDetection?>(null);
-    }
-
     private static TestOS CreateOs(InoAppState? state = null)
     {
         var services = new ServiceCollection()
             .AddSingleton<ISecretRedactor, NoSecrets>()
-            .AddSingleton<ILocalOllamaProbe, OfflineLocalProbe>()
             .AddSingleton(TimeProvider.System)
             .BuildServiceProvider();
         var os = TestOS.Local(options => options.Services = services);
@@ -93,7 +86,6 @@ public sealed class InoConversationThreadFacts
             """;
         var services = new ServiceCollection()
             .AddSingleton<ISecretRedactor, NoSecrets>()
-            .AddSingleton<ILocalOllamaProbe, OfflineLocalProbe>()
             .AddSingleton(TimeProvider.System)
             .BuildServiceProvider();
         await using var os = TestOS.Local(options => options.Services = services);

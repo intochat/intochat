@@ -1,25 +1,34 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace IntoChat.OS.LocalSetup;
+
+internal sealed record PreflightJsonResult(string Id, string Status, string Message, string? Fix);
+
+internal sealed record PreflightJsonReport(int ExitCode, bool GpuDetected, PreflightJsonResult[] Results);
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(PreflightJsonReport))]
+internal sealed partial class PreflightReportJson : JsonSerializerContext;
 
 // Writes check ids, statuses, messages and fix lines only; never environment values or tokens.
 public static class PreflightRenderer
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
     public static void Render(PreflightReport report, int exitCode, bool json, TextWriter output)
     {
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(output);
         if (json)
         {
-            var document = new
-            {
+            var document = new PreflightJsonReport(
                 exitCode,
-                gpuDetected = report.GpuDetected,
-                results = report.Results.Select(result => new { id = result.Id, status = result.Status.ToString().ToUpperInvariant(), message = result.Message, fix = result.Fix }),
-            };
-            output.WriteLine(JsonSerializer.Serialize(document, JsonOptions));
+                report.GpuDetected,
+                [.. report.Results.Select(static result => new PreflightJsonResult(
+                    result.Id,
+                    result.Status.ToString().ToUpperInvariant(),
+                    result.Message,
+                    result.Fix))]);
+            output.WriteLine(JsonSerializer.Serialize(document, PreflightReportJson.Default.PreflightJsonReport));
             return;
         }
         foreach (var result in report.Results)

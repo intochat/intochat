@@ -1,12 +1,17 @@
 using DigitalBrain;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Settings;
 
@@ -659,5 +664,113 @@ public sealed class SettingsAppFacts
 
         var report = await introspector.SyncContext();
         Assert.Contains("SettingsApp", report.ContextSummary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SettingsShowsTheHardwareLineRuntimesAndInstallQueue()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-settings-device-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var services = new ServiceCollection().AddSingleton(machine).BuildServiceProvider();
+
+        FakeSettingsDevice.Reset(
+            machine.Value,
+            new DeviceView(
+                machine.Value,
+                new Hardware(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]),
+                [
+                    new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434")),
+                    new RuntimeStatus(RuntimeId.FoundryLocal, true, "2.5.0", new Uri("http://127.0.0.1:5272")),
+                    new RuntimeStatus(RuntimeId.OpenAiCompat("lmstudio"), true, null, new Uri("http://127.0.0.1:1234/v1")),
+                ],
+                [new DeviceModel(KnownModels.Qwen35, RuntimeId.Ollama, InstallState.Ready, Fit.Good)],
+                [new Install(KnownModels.Gemma4.Id, RuntimeId.Ollama, InstallState.Downloading, 42, 420, 1000, null, null)]));
+
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = services)
+                .Register(typeof(AppsModule).Assembly)
+                .Register<FakeSettingsDevice>();
+            var settings = await os.Install<SettingsApp>();
+            await settings.Request("navigate", new SettingsNavigate("models"));
+
+            var rendered = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+            Assert.Contains("32 GB RAM", rendered, StringComparison.Ordinal);
+            Assert.Contains("12 GB VRAM", rendered, StringComparison.Ordinal);
+            Assert.Contains("CUDA", rendered, StringComparison.Ordinal);
+            Assert.Contains("lmstudio", rendered, StringComparison.Ordinal);
+            Assert.Contains("Downloading 42%", rendered, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
+        }
+    }
+
+    [Fact]
+    public async Task SettingsInstallModelFormCallsDeviceInstall()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-settings-device-{Guid.NewGuid():N}");
+        var machine = new MachineId(Path.Combine(tempDir, "machine-id"));
+        var services = new ServiceCollection().AddSingleton(machine).BuildServiceProvider();
+
+        FakeSettingsDevice.Reset(
+            machine.Value,
+            new DeviceView(
+                machine.Value,
+                new Hardware(32L * 1024 * 1024 * 1024, 12L * 1024 * 1024 * 1024, [Accelerator.Cpu, Accelerator.Cuda]),
+                [new RuntimeStatus(RuntimeId.Ollama, true, "0.9.0", new Uri("http://127.0.0.1:11434"))],
+                [],
+                []));
+
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = services)
+                .Register(typeof(AppsModule).Assembly)
+                .Register<FakeSettingsDevice>();
+            var settings = await os.Install<SettingsApp>();
+            await settings.Request("navigate", new SettingsNavigate("models"));
+
+            using (os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local"))))
+            {
+                await settings.Screen.Dispatch(new Command(
+                    SettingsControls.InstallModel,
+                    "control.submit",
+                    System.Text.Json.JsonSerializer.SerializeToElement(
+                        new Submit(new Dictionary<string, string> { ["model"] = KnownModels.Gemma4.Id.Value }),
+                        typeof(Submit),
+                        System.Text.Json.JsonSerializerOptions.Web)));
+            }
+            await os.Idle();
+
+            Assert.Equal(KnownModels.Gemma4.Id, Assert.Single(FakeSettingsDevice.Installs));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) { Directory.Delete(tempDir, recursive: true); }
+        }
+    }
+
+    [DigitalBrain.Neurons.Neuron("devices.device")]
+    private sealed class FakeSettingsDevice : DigitalBrain.Neurons.Neuron, IDevice
+    {
+        private static DeviceView _view = new("m1", new Hardware(0, 0, [Accelerator.Cpu]), [], [], []);
+        public static List<ModelId> Installs { get; } = [];
+
+        public static void Reset(string machineId, DeviceView view)
+        {
+            _view = view with { MachineId = machineId };
+            Installs.Clear();
+        }
+
+        public Task<DeviceView> Read() => Task.FromResult(_view);
+        public Task Use(Role role, ModelId model) => Task.CompletedTask;
+        public Task Install(ModelId model)
+        {
+            Installs.Add(model);
+            return Task.CompletedTask;
+        }
+        public Task Cancel(ModelId model) => Task.CompletedTask;
+        public Task Remove(ModelId model) => Task.CompletedTask;
     }
 }

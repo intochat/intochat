@@ -16,9 +16,6 @@
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Yarp" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" />
-    <PackageReference Include="Microsoft.AI.Foundry.Local" ExcludeAssets="build;buildTransitive;contentfiles" PrivateAssets="build; contentfiles; analyzers; buildtransitive">
-      <IncludeAssets>runtime; compile; native; analyzers</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" IsAspireProjectResource="false" />

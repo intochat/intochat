@@ -51,7 +51,7 @@ public sealed record HeldOllamaTurn(Task Entered, Action<string> ReleaseWithRepl
 
 /// <summary>
 /// Real HTTP/1.1 TCP socket fake for Ollama (<c>/api/tags</c>, <c>/api/show</c>, <c>/api/embed</c>, <c>/api/chat</c>).
-/// Runs over loopback sockets so the product host executes its genuine <c>OllamaProviderFactory</c> / <c>OllamaApiClient</c>
+/// Runs over loopback sockets so the product host executes its genuine <c>OllamaRuntime</c> / <c>OllamaApiClient</c>
 /// HTTP + NDJSON pipeline with zero DI test doubles.
 /// </summary>
 public sealed class ScriptedOllama : IAsyncDisposable

@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
@@ -100,13 +101,16 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SynapseAliasPattern();
 
-    public SettingsApp() : this(null, null) { }
+    private MachineId? ThisMachine { get; }
+
+    public SettingsApp() : this(null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public SettingsApp(ISecretVault? secretVault = null, BrainPreferenceStore? preferenceStore = null)
+    public SettingsApp(ISecretVault? secretVault = null, BrainPreferenceStore? preferenceStore = null, MachineId? thisMachine = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
+        ThisMachine = thisMachine;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -123,6 +127,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
                 Roles = modelInfo.Roles,
                 Providers = modelInfo.Providers,
                 LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+                Device = modelInfo.Device,
             };
         }
         else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
@@ -157,6 +162,20 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
         await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Search);
         await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Regional);
+        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.InstallModel);
+        if (ThisMachine is { Value.Length: > 0 } machine)
+        {
+            try
+            {
+                await Follow<IntoChat.OS.Modules.Devices.IDevice, IntoChat.OS.Modules.Devices.InstallChanged>($"devices/{machine.Value}");
+            }
+#pragma warning disable CA1031 // Devices module is optional in minimal test hosts.
+            catch (Exception ex)
+            {
+                IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping IDevice InstallChanged follow in minimal test host.");
+            }
+#pragma warning restore CA1031
+        }
 
         try
         {
@@ -271,8 +290,27 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             SettingsControls.Search => UpdateAsync(State.Filter(Value("query") ?? "")),
             SettingsControls.Regional => SavePreferences(new SettingsSavePreferences(
                 DisplayName: Value("displayName"), Language: Value("language"), TimeZone: Value("timeZone"), DateFormat: Value("dateFormat"))),
+            SettingsControls.InstallModel => InstallModelAsync(Value("model")),
             _ => Task.CompletedTask,
         };
+    }
+
+    [On]
+    public async Task OnInstallChanged(IntoChat.OS.Modules.Devices.InstallChanged? changed)
+    {
+        if (changed is null)
+        {
+            return;
+        }
+
+        var modelInfo = await TryReadModelCatalogAsync(State.DefaultModel);
+        await UpdateAsync(State with
+        {
+            Roles = modelInfo.Roles.Length > 0 ? modelInfo.Roles : State.Roles,
+            Providers = modelInfo.Providers.Length > 0 ? modelInfo.Providers : State.Providers,
+            LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+            Device = modelInfo.Device ?? State.Device,
+        });
     }
 
     public ISecretVault? SecretVault { get; set; }

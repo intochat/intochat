@@ -1,5 +1,4 @@
-using System.Net;
-using System.Text;
+using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Compute;
@@ -8,9 +7,9 @@ using DigitalBrain.Testing;
 using IntoChat.OS.LocalSetup;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,9 +22,34 @@ public sealed partial class ModelPolicyFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed class StubProbe(LocalOllamaDetection? detection) : ILocalOllamaProbe
+    private sealed class FakeRuntime(bool reachable, params ModelCard[] installed) : ILocalRuntime
     {
-        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default) => Task.FromResult(detection);
+        public RuntimeId Id => RuntimeId.Ollama;
+
+        public Task<RuntimeStatus> Probe(CancellationToken ct)
+            => Task.FromResult(new RuntimeStatus(Id, reachable, reachable ? "0.9.0" : null, new Uri("http://127.0.0.1:11434")));
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in installed) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            if (!reachable) { yield break; }
+            foreach (var card in installed) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+        public IChatClient Chat(ModelId id) => new CapturingChatClient();
     }
 
     private sealed class CapturingChatClient : IChatClient
@@ -99,11 +123,7 @@ public sealed partial class ModelPolicyFacts
             .Ready("anthropic", "sk-anthropic")
             .Ready("google", "sk-google"));
         services.AddSingleton<IPriceList, ModelPriceList>();
-        services.AddSingleton<ILocalOllamaProbe>(new StubProbe(new LocalOllamaDetection(
-            "http://127.0.0.1:11434",
-            "qwen3.5:4b",
-            ["qwen3.5:4b", "qwen2.5-coder:14b"],
-            HasNomicEmbed: false)));
+        services.AddSingleton<ILocalRuntime>(new FakeRuntime(true, KnownModels.Qwen35, KnownModels.Qwen25Coder14B));
         services.AddSingleton<INeuronProxies>(new TestOSProxies(os));
         AIClients.Add(services);
         services.AddSingleton<ModelCatalog>();
@@ -137,11 +157,7 @@ public sealed partial class ModelPolicyFacts
         });
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
-        services.AddSingleton<ILocalOllamaProbe>(new StubProbe(new LocalOllamaDetection(
-            "http://127.0.0.1:11434",
-            "qwen3.5:4b",
-            ["qwen2.5-coder:14b", "qwen3.5:4b", "nomic-embed-text:latest"],
-            HasNomicEmbed: true)));
+        services.AddSingleton<ILocalRuntime>(new FakeRuntime(true, KnownModels.Qwen25Coder14B, KnownModels.Qwen35));
         AIClients.Add(services);
         services.AddSingleton<ModelCatalog>();
 
@@ -153,63 +169,6 @@ public sealed partial class ModelPolicyFacts
 
         var code = await catalog.Decide("local", Role.Think, ct: Ct);
         Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (code.Provider, code.Model));
-
-        // Even with zero explicit deployment default, detected chat picks non-coder over coder.
-        Assert.Equal("qwen3:14b", HttpLocalOllamaProbe.SelectPreferredModel(["qwen2.5-coder:14b", "qwen3:14b"]));
-        Assert.Equal("qwen3.5:4b", HttpLocalOllamaProbe.SelectPreferredModel(["qwen2.5-coder:14b", "qwen3.5:4b"]));
-        Assert.Equal("qwen2.5-coder:14b", HttpLocalOllamaProbe.SelectPreferredCoderModel(["qwen3.5:4b", "qwen2.5-coder:14b"]));
-    }
-
-    private sealed class CapturingHttpClientFactory(Uri expectedTagsUri, string responseBody) : IHttpClientFactory
-    {
-        public Uri? RequestedUri { get; private set; }
-
-        public HttpClient CreateClient(string name)
-            => new(new CapturingHandler(uri => RequestedUri = uri, expectedTagsUri, responseBody));
-
-        private sealed class CapturingHandler(Action<Uri?> onRequest, Uri expectedUri, string body) : HttpMessageHandler
-        {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            {
-                onRequest(request.RequestUri);
-                Assert.Equal(expectedUri, request.RequestUri);
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
-                });
-            }
-        }
-    }
-
-    [Fact]
-    public async Task HttpLocalOllamaProbeUsesConfiguredEndpointInsteadOfHardcodedAddress()
-    {
-        var prev = Environment.GetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE");
-        Environment.SetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE", null);
-        const string configuredEndpoint = "http://127.0.0.1:41434";
-        const string body = """{"models":[{"name":"qwen3.5:4b"},{"name":"qwen2.5-coder:14b"}]}""";
-        var factory = new CapturingHttpClientFactory(new Uri($"{configuredEndpoint}/api/tags"), body);
-
-        try
-        {
-            var services = new ServiceCollection();
-            services.AddOptions<AIOptions>().Configure(o => o.Ollama.Endpoint = configuredEndpoint);
-            services.AddSingleton<IHttpClientFactory>(factory);
-            services.AddSingleton<TimeProvider>(TimeProvider.System);
-            services.AddSingleton<HttpLocalOllamaProbe>();
-            await using var sp = services.BuildServiceProvider();
-
-            var probe = sp.GetRequiredService<HttpLocalOllamaProbe>();
-            var detected = await probe.Detect(Ct);
-            Assert.NotNull(detected);
-            Assert.Equal(configuredEndpoint, detected.Endpoint);
-            Assert.Equal("qwen3.5:4b", detected.PreferredModel);
-            Assert.Equal(new Uri($"{configuredEndpoint}/api/tags"), factory.RequestedUri);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE", prev);
-        }
     }
 
     [Fact]
@@ -218,7 +177,7 @@ public sealed partial class ModelPolicyFacts
         var services = new ServiceCollection();
         services.AddOptions<AIOptions>().Configure(o => o.Roles.Device[Role.Chat] = KnownModels.Qwen35.Id.Value);
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
-        services.AddSingleton<ILocalOllamaProbe>(new StubProbe(null));
+        services.AddSingleton<ILocalRuntime>(new FakeRuntime(false));
         AIClients.Add(services);
         services.AddSingleton<ModelCatalog>();
 

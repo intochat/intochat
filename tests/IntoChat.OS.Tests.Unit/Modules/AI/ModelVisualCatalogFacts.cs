@@ -1,12 +1,14 @@
+using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Contracts;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Pricing;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Runtime;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Visuals;
@@ -15,14 +17,34 @@ namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
 public sealed class ModelVisualCatalogFacts
 {
-    private sealed class FakeLocalRtxProbe : ILocalOllamaProbe
+    private sealed class FakeLocalRtxRuntime : ILocalRuntime
     {
-        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default)
-            => Task.FromResult<LocalOllamaDetection?>(new LocalOllamaDetection(
-                "http://127.0.0.1:11434",
-                "qwen2.5-coder:14b",
-                ["qwen2.5-coder:14b", "qwen3:14b"],
-                HasNomicEmbed: true));
+        public RuntimeId Id => RuntimeId.Ollama;
+
+        public Task<RuntimeStatus> Probe(CancellationToken ct)
+            => Task.FromResult(new RuntimeStatus(Id, Reachable: true, Version: "0.9.0", Endpoint: new Uri("http://127.0.0.1:11434")));
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield return KnownModels.Qwen25Coder14B;
+            yield return new ModelCard(new ModelId("qwen3:14b"), AiProvider.Ollama, "qwen3", "qwen3:14b", Where.Device, Abilities.Text | Abilities.Tools, Tier.Balanced);
+        }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+        public IChatClient Chat(ModelId id) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -60,7 +82,7 @@ public sealed class ModelVisualCatalogFacts
         services.AddOptions<AIOptions>();
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready("anthropic", "test-key"));
         services.AddSingleton<IPriceList, ModelPriceList>();
-        services.AddSingleton<ILocalOllamaProbe, FakeLocalRtxProbe>();
+        services.AddSingleton<ILocalRuntime, FakeLocalRtxRuntime>();
         AIClients.Add(services);
         services.AddSingleton<ModelCatalog>();
 
@@ -105,7 +127,7 @@ public sealed class ModelVisualCatalogFacts
         services.AddOptions<AIOptions>();
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
-        services.AddSingleton<ILocalOllamaProbe, FakeLocalRtxProbe>();
+        services.AddSingleton<ILocalRuntime, FakeLocalRtxRuntime>();
         AIClients.Add(services);
         services.AddSingleton<ModelCatalog>();
 

@@ -1,7 +1,7 @@
-using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Voice;
-using Microsoft.AI.Foundry.Local;
+using IntoChat.OS.Modules.Devices;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,20 +9,8 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI;
 
-internal interface IFoundryWhisperRuntime
-{
-    Task<ILoadedWhisperModel> LoadModelAsync(AIOptions options, ILogger logger, CancellationToken cancellationToken);
-}
-
-internal interface ILoadedWhisperModel
-{
-    string Id { get; }
-    Task<string> TranscribeAsync(string audioFilePath, CancellationToken cancellationToken);
-    Task UnloadAsync(ILogger logger);
-}
-
-// Local Whisper via Microsoft Foundry Local (IAW port). Owned by the AI module.
-// Loaded lazily on the first transcription request so host startup never blocks on model downloads.
+// Local Whisper via the Devices module's Foundry Local runtime (ILocalRuntime "foundry-local" -> Hear).
+// Acquired lazily on the first transcription request so host startup never blocks on model downloads.
 internal sealed class FoundryLocalTranscriptionService :
     IAudioTranscriptionService,
     IHostedService,
@@ -35,41 +23,35 @@ internal sealed class FoundryLocalTranscriptionService :
     private readonly AIOptions _options;
     private readonly IAudioConverter? _audioConverter;
     private readonly ILogger<FoundryLocalTranscriptionService> _logger;
-    private readonly IFoundryWhisperRuntime _runtime;
+    private readonly IReadOnlyList<ILocalRuntime> _runtimes;
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private ILoadedWhisperModel? _loadedModel;
+    private ISpeechToTextClient? _client;
+    private string? _loadedModelId;
     private bool _disposed;
 
     public FoundryLocalTranscriptionService(
         IConfiguration configuration,
         ILogger<FoundryLocalTranscriptionService> logger,
+        IEnumerable<ILocalRuntime> runtimes,
         IAudioConverter? audioConverter = null)
-        : this(Options.Create(AIOptionsRuntime.Read(configuration)), logger, audioConverter)
+        : this(Options.Create(AIOptionsRuntime.Read(configuration)), logger, runtimes, audioConverter)
     {
     }
 
     public FoundryLocalTranscriptionService(
         IOptions<AIOptions> options,
         ILogger<FoundryLocalTranscriptionService> logger,
+        IEnumerable<ILocalRuntime> runtimes,
         IAudioConverter? audioConverter = null)
-        : this(options, logger, audioConverter, FoundryWhisperRuntime.Instance)
-    {
-    }
-
-    internal FoundryLocalTranscriptionService(
-        IOptions<AIOptions> options,
-        ILogger<FoundryLocalTranscriptionService> logger,
-        IAudioConverter? audioConverter,
-        IFoundryWhisperRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(runtimes);
 
         _options = options.Value;
         _logger = logger;
+        _runtimes = [.. runtimes];
         _audioConverter = audioConverter;
-        _runtime = runtime;
     }
 
     public bool IsReady { get; private set; }
@@ -77,7 +59,7 @@ internal sealed class FoundryLocalTranscriptionService :
         => Task.FromResult(!InitializationFailed && !_disposed);
     public bool InitializationFailed { get; private set; }
     public string? ErrorMessage { get; private set; }
-    public string ModelId => _loadedModel?.Id
+    public string ModelId => _loadedModelId
         ?? ConfiguredHearModelId(_options)
         ?? "unconfigured";
 
@@ -103,7 +85,7 @@ internal sealed class FoundryLocalTranscriptionService :
         await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await UnloadLoadedModelAsync().ConfigureAwait(false);
+            await ReleaseClientAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -116,7 +98,7 @@ internal sealed class FoundryLocalTranscriptionService :
         ArgumentException.ThrowIfNullOrWhiteSpace(audioFilePath);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var model = await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        var (client, modelId) = await EnsureClientAsync(cancellationToken).ConfigureAwait(false);
 
         var extension = Path.GetExtension(audioFilePath).ToLowerInvariant();
         var fileToTranscribe = audioFilePath;
@@ -131,7 +113,14 @@ internal sealed class FoundryLocalTranscriptionService :
 
         try
         {
-            return await model.TranscribeAsync(fileToTranscribe, cancellationToken).ConfigureAwait(false);
+            await using var stream = File.OpenRead(fileToTranscribe);
+            var speechOptions = new SpeechToTextOptions
+            {
+                ModelId = modelId,
+                AdditionalProperties = new AdditionalPropertiesDictionary { ["filePath"] = fileToTranscribe },
+            };
+            var response = await client.GetTextAsync(stream, speechOptions, cancellationToken).ConfigureAwait(false);
+            return response.Text?.Trim() ?? string.Empty;
         }
         finally
         {
@@ -191,7 +180,7 @@ internal sealed class FoundryLocalTranscriptionService :
             }
 
             _disposed = true;
-            await UnloadLoadedModelAsync().ConfigureAwait(false);
+            await ReleaseClientAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -200,11 +189,11 @@ internal sealed class FoundryLocalTranscriptionService :
         }
     }
 
-    private async Task<ILoadedWhisperModel> EnsureLoadedAsync(CancellationToken cancellationToken)
+    private async Task<(ISpeechToTextClient Client, string ModelId)> EnsureClientAsync(CancellationToken cancellationToken)
     {
-        if (_loadedModel is { } ready)
+        if (_client is { } ready && _loadedModelId is { } readyModel)
         {
-            return ready;
+            return (ready, readyModel);
         }
 
         await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -212,9 +201,9 @@ internal sealed class FoundryLocalTranscriptionService :
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            if (_loadedModel is { } loaded)
+            if (_client is { } loaded && _loadedModelId is { } loadedModel)
             {
-                return loaded;
+                return (loaded, loadedModel);
             }
 
             if (InitializationFailed)
@@ -222,14 +211,26 @@ internal sealed class FoundryLocalTranscriptionService :
                 throw new NotSupportedException($"Whisper is not available: {ErrorMessage}");
             }
 
-            _logger.LogInformation("Initializing Foundry Local for Whisper on first transcription request…");
-            var model = await _runtime.LoadModelAsync(_options, _logger, cancellationToken).ConfigureAwait(false);
-            _loadedModel = model;
+            var modelId = ConfiguredHearModelId(_options) ?? KnownModels.Defaults.Device[Role.Hear].Value;
+            var foundry = _runtimes.FirstOrDefault(static r => r.Id == RuntimeId.FoundryLocal)
+                ?? throw new InvalidOperationException("Foundry Local runtime is not registered on this device.");
+
+            var status = await foundry.Probe(cancellationToken).ConfigureAwait(false);
+            if (!status.Reachable)
+            {
+                throw new InvalidOperationException("Foundry Local runtime is not reachable.");
+            }
+
+            var client = foundry.Hear(new ModelId(modelId))
+                ?? throw new InvalidOperationException($"Foundry Local runtime does not provide speech-to-text for '{modelId}'.");
+
+            _client = client;
+            _loadedModelId = modelId;
             IsReady = true;
             InitializationFailed = false;
             ErrorMessage = null;
-            _logger.LogInformation("Whisper model ready: {ModelId}", model.Id);
-            return model;
+            _logger.LogInformation("Whisper model ready through Foundry Local runtime: {ModelId}", modelId);
+            return (client, modelId);
         }
         catch (OperationCanceledException)
         {
@@ -249,229 +250,26 @@ internal sealed class FoundryLocalTranscriptionService :
         }
     }
 
-    private async Task UnloadLoadedModelAsync()
+    private async Task ReleaseClientAsync()
     {
-        var loaded = _loadedModel;
-        _loadedModel = null;
+        var client = _client;
+        var modelId = _loadedModelId;
+        _client = null;
+        _loadedModelId = null;
         IsReady = false;
-        if (loaded is null)
+        if (client is null)
         {
             return;
         }
 
-        _logger.LogInformation("Unloading Whisper model {ModelId}", loaded.Id);
-        await loaded.UnloadAsync(_logger).ConfigureAwait(false);
-    }
-
-    private sealed class FoundryWhisperRuntime : IFoundryWhisperRuntime
-    {
-        public static readonly FoundryWhisperRuntime Instance = new();
-
-        private static readonly ModelCard[] LocalModels =
-            [.. KnownModels.All.Where(static card => card.Provider is AiProvider.FoundryLocal && card.Can.HasFlag(Abilities.Hear))];
-
-        private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
-        private static readonly TimeSpan LoadTimeout = TimeSpan.FromMinutes(2);
-
-        public async Task<ILoadedWhisperModel> LoadModelAsync(AIOptions options, ILogger logger, CancellationToken cancellationToken)
+        _logger.LogInformation("Releasing Whisper client for {ModelId}", modelId);
+        if (client is IAsyncDisposable asyncDisposable)
         {
-            await InitializeFoundryManagerAsync(logger, cancellationToken).ConfigureAwait(false);
-
-            var catalog = await FoundryLocalManager.Instance.GetCatalogAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var model = await ResolveModelAsync(options, catalog, logger).ConfigureAwait(false);
-
-            logger.LogInformation("Downloading Whisper model {ModelId}…", model.Id);
-            await WithTimeout(model.DownloadAsync(), DownloadTimeout, "Whisper model download", cancellationToken)
-                .ConfigureAwait(false);
-
-            logger.LogInformation("Loading Whisper model {ModelId}…", model.Id);
-            await WithTimeout(model.LoadAsync(), LoadTimeout, "Whisper model load", cancellationToken)
-                .ConfigureAwait(false);
-
-            return new FoundryLoadedWhisperModel(model, logger);
+            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
         }
-
-        internal static async Task WithTimeout(Task task, TimeSpan timeout, string operation, CancellationToken ct)
+        else
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(timeout);
-            var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, cts.Token)).ConfigureAwait(false);
-            if (completed != task)
-            {
-                throw new TimeoutException($"{operation} timed out after {timeout.TotalMinutes:F0} minutes");
-            }
-
-            await task.ConfigureAwait(false);
+            client.Dispose();
         }
-
-        private static async Task InitializeFoundryManagerAsync(ILogger logger, CancellationToken cancellationToken)
-        {
-            try
-            {
-                _ = FoundryLocalManager.Instance;
-            }
-            catch (FoundryLocalException)
-            {
-                logger.LogInformation("Creating Foundry Local manager…");
-                var config = new Configuration { AppName = "intochat-os" };
-                await FoundryLocalManager.CreateAsync(config, logger).ConfigureAwait(false);
-            }
-
-            var manager = FoundryLocalManager.Instance;
-            var executionProviders = manager.DiscoverEps();
-            foreach (var provider in executionProviders)
-            {
-                logger.LogInformation(
-                    "Foundry execution provider {Name} registered={Registered}",
-                    provider.Name,
-                    provider.IsRegistered);
-            }
-
-            logger.LogInformation("Downloading and registering Foundry execution providers…");
-            await WithTimeout(
-                manager.DownloadAndRegisterEpsAsync(cancellationToken),
-                DownloadTimeout,
-                "Foundry execution provider registration",
-                cancellationToken).ConfigureAwait(false);
-
-            foreach (var provider in manager.DiscoverEps())
-            {
-                logger.LogInformation(
-                    "Foundry execution provider {Name} registered={Registered} after download",
-                    provider.Name,
-                    provider.IsRegistered);
-            }
-        }
-
-        private static async Task<IModel> ResolveModelAsync(AIOptions options, ICatalog catalog, ILogger logger)
-        {
-            var configuredId = ConfiguredHearModelId(options);
-            if (!string.IsNullOrEmpty(configuredId))
-            {
-                var configured = await catalog.GetModelAsync(configuredId).ConfigureAwait(false);
-                if (configured is not null)
-                {
-                    return configured;
-                }
-
-                logger.LogWarning("Configured whisper model '{ModelId}' not found; falling back", configuredId);
-            }
-
-            foreach (var whisperModel in LocalModels)
-            {
-                var found = await catalog.GetModelAsync(whisperModel.Id.Value).ConfigureAwait(false);
-                if (found is not null)
-                {
-                    return found;
-                }
-            }
-
-            throw new InvalidOperationException(
-                "No whisper model found in Foundry Local catalog. "
-                + $"Expected one of: {string.Join(", ", LocalModels.Select(static m => m.Id.Value))}");
-        }
-    }
-
-    private sealed class FoundryLoadedWhisperModel(IModel model, ILogger logger) : ILoadedWhisperModel
-    {
-        private readonly IModel _model = model;
-        private readonly ILogger _logger = logger;
-        private IModel? _cpuFallbackVariant;
-        private bool _cudaFailed;
-
-        public string Id => _cpuFallbackVariant?.Id ?? _model.Id;
-
-        public async Task<string> TranscribeAsync(string audioFilePath, CancellationToken cancellationToken)
-        {
-            try
-            {
-                return await RunTranscriptionAsync(audioFilePath, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (!_cudaFailed && IsCudaError(ex))
-            {
-                _logger.LogWarning(ex, "CUDA inference failed on {ModelId}, falling back to CPU", _model.Id);
-                _cudaFailed = true;
-                await FallbackToCpuVariantAsync(cancellationToken).ConfigureAwait(false);
-                return await RunTranscriptionAsync(audioFilePath, cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        public async Task UnloadAsync(ILogger logger)
-        {
-            try
-            {
-                if (_cpuFallbackVariant is not null)
-                {
-                    await _cpuFallbackVariant.UnloadAsync().ConfigureAwait(false);
-                }
-                else
-                {
-                    await _model.UnloadAsync().ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Error unloading Whisper model");
-            }
-        }
-
-        private async Task<string> RunTranscriptionAsync(string filePath, CancellationToken ct)
-        {
-            _logger.LogDebug("Transcribing {Path}", filePath);
-            var activeModel = _cpuFallbackVariant ?? _model;
-
-            using var session = new AudioSession(activeModel);
-            using var request = new global::Microsoft.AI.Foundry.Local.Request();
-            request.AddItem(new AudioItem(filePath));
-            using var response = await session.ProcessRequestAsync(request, ct).ConfigureAwait(false);
-
-            var transcription = response
-                .OfType<SpeechResultItem>()
-                .Select(static item => item.Text)
-                .FirstOrDefault(static text => !string.IsNullOrWhiteSpace(text))
-                ?.Trim()
-                ?? string.Empty;
-
-            _logger.LogInformation("Transcription complete: {Length} chars", transcription.Length);
-            return transcription;
-        }
-
-        private async Task FallbackToCpuVariantAsync(CancellationToken ct)
-        {
-            var currentId = _model.Id;
-            try
-            {
-                await _model.UnloadAsync().ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogSwallowed(exception, "model unload before the cpu variant");
-            }
-
-            var cpuVariant = _model.Variants
-                .FirstOrDefault(v => v.Id.Contains("generic-cpu", StringComparison.OrdinalIgnoreCase));
-            if (cpuVariant is null)
-            {
-                throw new InvalidOperationException(
-                    $"CUDA inference failed and no CPU variant found for {_model.Alias ?? currentId}");
-            }
-
-            var catalog = await FoundryLocalManager.Instance.GetCatalogAsync(ct).ConfigureAwait(false);
-            var cpuModel = await catalog.GetModelVariantAsync(cpuVariant.Id, ct).ConfigureAwait(false)
-                ?? throw new InvalidOperationException($"CPU variant {cpuVariant.Id} not found in Foundry Local catalog");
-
-            await FoundryWhisperRuntime.WithTimeout(cpuModel.DownloadAsync(), TimeSpan.FromMinutes(5), "CPU model download", ct)
-                .ConfigureAwait(false);
-            await FoundryWhisperRuntime.WithTimeout(cpuModel.LoadAsync(), TimeSpan.FromMinutes(2), "CPU model load", ct)
-                .ConfigureAwait(false);
-            _cpuFallbackVariant = cpuModel;
-            _logger.LogInformation("CPU fallback model ready: {ModelId}", cpuModel.Id);
-        }
-
-        private static bool IsCudaError(Exception ex)
-            => ex.ToString().Contains("CUDNN", StringComparison.OrdinalIgnoreCase)
-                || ex.ToString().Contains("CUDA", StringComparison.OrdinalIgnoreCase)
-                || ex.GetType().Name.Contains("OnnxRuntimeGenAI", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -7,6 +7,7 @@ Operations: open, send, retry, stop, smart, use-local, choose-model, save-provid
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
@@ -21,6 +22,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
@@ -38,6 +40,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
+    private MachineId? ThisMachine { get; }
     private InoSetupHost? SetupHost { get; set; }
     private ConversationView? ConversationView { get; set; }
     private long SeenRevision { get; set; }
@@ -48,6 +51,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     private ChatThreadProps? SyncedProps { get; set; }
     private ModelCard[]? PickerCards { get; set; }
     private ModelAvailability[]? PickerAvailability { get; set; }
+    private DeviceView? DeviceSnapshot { get; set; }
     private string? ThreadFailureText { get; set; }
     private Rejected? RecordedRejection { get; set; }
     private string? CompletedRunId { get; set; }
@@ -55,13 +59,14 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     /// <summary>What the person reads when Ino could not write its conversation thread.</summary>
     public const string ThreadFailure = "The conversation could not be updated. Ino will try again with the next change.";
 
-    public InoApp() : this(null, null) { }
+    public InoApp() : this(null, null, null) { }
 
     [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-    public InoApp(ILogger<InoApp>? logger = null, TimeProvider? time = null)
+    public InoApp(ILogger<InoApp>? logger = null, TimeProvider? time = null, MachineId? thisMachine = null)
     {
         Logger = logger;
         Clock = time;
+        ThisMachine = thisMachine;
     }
 
     public bool CanDictate { get; private set; }
@@ -88,7 +93,8 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             ThreadFailureText,
             base.LastRejection,
             PickerCards,
-            PickerAvailability);
+            PickerAvailability,
+            DeviceSnapshot);
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
     {
@@ -163,7 +169,8 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var thread = InoView.Thread(clean, ConversationView, AppManifests, LinksJson);
         var viewKnown = ConversationView is not null;
         if (!viewKnown && thread.Count == 0) { return; }
-        var props = InoView.ThreadProps(clean, ConversationView, CanDictate, ThreadFailureText, PickerCards, PickerAvailability);
+        // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
+        var props = InoView.ThreadProps(clean, ConversationView, CanDictate, ThreadFailureText, PickerCards, PickerAvailability, DeviceSnapshot);
         if (SyncedThread is { } synced && synced.SequenceEqual(thread) && Equals(props, SyncedProps)) { return; }
         try
         {
@@ -287,6 +294,10 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             await FollowSlot<ChatThreadNeuron, ChatModelSelected>(InoView.ConversationKey);
         });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
+        if (ThisMachine is { Value.Length: > 0 } machine)
+        {
+            await TryOptionalAsync("device-installs", () => Follow<IDevice, InstallChanged>($"devices/{machine.Value}"));
+        }
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         await RefreshPickerAsync();
         CanDictate = await InoModelSetup.InitializeViewAsync(Setup);
@@ -302,12 +313,12 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     {
         ArgumentNullException.ThrowIfNull(request);
         var settings = await Get<IUserSettings>("settings").Read();
-        var (local, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
+        var (device, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
+        DeviceSnapshot = device;
         CanDictate = await InoModelSetup.ReadCanDictateAsync(Setup);
         var (nextState, migrate) = InoModel.DecideOpen(
             State, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
-            await InoModelSetup.ReadApprovalsAsync(Setup, State.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries),
-            local?.PreferredModel, local?.InstalledModels);
+            await InoModelSetup.ReadApprovalsAsync(Setup, State.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries));
 
         await RefreshPickerAsync();
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, State.RecentConversations);
@@ -417,11 +428,22 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             return;
         }
 
-        if (request.MakeDefault)
+        await RefreshPickerAsync();
+        await InoModelSetup.ChooseModelAsync(Setup, request.Model!, request.MakeDefault, PickerAvailability, DeviceSnapshot);
+        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
+        await Commit(State);
+    }
+
+    [On]
+    public async Task OnInstallChanged(InstallChanged? changed)
+    {
+        if (changed is null) { return; }
+        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
+        if (changed.State is InstallState.Ready or InstallState.Loaded or InstallState.Failed or InstallState.Cancelled)
         {
             await RefreshPickerAsync();
         }
-        await InoModelSetup.ChooseModelAsync(Setup, request.Model!, request.MakeDefault);
+        await Commit(State);
     }
 
     [On]
@@ -648,13 +670,20 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             PickerCards = picker.Cards;
             PickerAvailability = picker.Availability;
         }
+        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
     }
+
+    private IDevice? GetThisDevice()
+        => ThisMachine is { Value.Length: > 0 } machine && CurrentBrain.Value is { Length: > 0 }
+            ? Get<IDevice>(new NeuronId(CurrentBrain, "devices.device", $"devices/{machine.Value}"))
+            : null;
 
     private InoSetupHost Setup => SetupHost ??= new InoSetupHost(
         () => State,
         Commit,
         () => CurrentBrain,
         () => Get<IModelCatalog>(new NeuronId(CurrentBrain, "ai.models", ModelsKey)),
+        GetThisDevice,
         () => Get<IUserSettings>("settings"),
         Get<IConversation>,
         () => Get<ISessionList>(ISessionList.DefaultKey),

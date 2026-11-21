@@ -48,6 +48,21 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
   - Preserved `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>`, `TaskAwaiter`, `ValueTaskAwaiter`, and `Microsoft.Extensions.Primitives.StringValues` in [OrleansAotResponses.cs](file:///E:/intochat/full-aot/src/IntoChat.OS.Kernel/AspireServer/OrleansAotResponses.cs) and [TrimmerRoots.xml](file:///E:/intochat/full-aot/src/IntoChat.OS.Kernel/TrimmerRoots.xml).
   - Updated `RuntimeTypeInfoResolver.CreateAotFallbackTypeInfo` to return `null` for `typeof(Task)` so `DefaultJsonTypeInfoResolver` handles endpoint metadata probing cleanly.
 
+### F. Foundry Local 2.5.0 Under Native AOT (In-Process Decision)
+- **Verdict**: **In-process** (`FoundryLocalRuntime` and `FoundryLocalHost` in `src/Modules/Devices/Runtimes/FoundryLocal` call `Microsoft.AI.Foundry.Local` 2.5.0 directly). No `TrimmerRootAssembly` workaround, no out-of-process CLI fallback, and no AOT exception in `OWED.md` are required.
+- **NativeAOT Build & Publish Evidence (`win-x64`)**:
+  - Standalone NativeAOT publish (`PublishAot=true`, `InvariantGlobalization=true`, `TrimmerSingleWarn=false`) rooting catalog listing, model download, load/unload, web service start/stop, execution provider discovery/registration, chat completion, and `AudioSession`: **0 IL2xxx/IL3xxx warnings** across all assemblies (`Microsoft.AI.Foundry.Local` 2.5.0 uses source-generated JSON serialization contexts).
+  - Library AOT gate (`IsAotCompatible=true` on `IntoChat.OS.Modules.Devices.Contracts` and `IntoChat.OS.Modules.Devices`): **0 IL2xxx/IL3xxx warnings**.
+  - `Microsoft.AI.Foundry.Local.Runtime` 2.5.0 automatically supplies the native `win-x64` libraries (`foundry_local.dll`, `onnxruntime.dll`, `onnxruntime-genai.dll`, `Microsoft.Windows.AI.MachineLearning.dll`, `foundry-local-host.exe`).
+- **NativeAOT Runtime Verification (`IsDynamicCodeSupported == false`)**:
+  - Verified end-to-end under NativeAOT: `CreateAsync`, `DiscoverEps`, `GetCatalogAsync`, `ListModelsAsync`, `GetModelAsync`, `DownloadAsync`, `LoadAsync`, `StartWebServiceAsync`, `POST /v1/chat/completions`, `UnloadAsync`, and `StopWebServiceAsync` all succeeded cleanly.
+- **Download Cancel & Resume**:
+  - **Genuine chunk-level resume**: cancelling `DownloadAsync` via `CancellationToken` throws `OperationCanceledException` while keeping verified file markers and the partial model payload on disk; re-invoking `DownloadAsync` resumes from the last completed chunk instead of restarting from 0%.
+- **Cache Directory & 2.5.0 API Notes**:
+  - Cache directory configuration member: `Configuration.ModelCacheDir` (defaults to `{AppDataDir}/cache/models`; `DevicesOptions.FoundryLocal.CacheDirectory` maps onto it).
+  - `DownloadAsync` accepts `Action<float>?` reporting progress on a **0.0–100.0** percent scale (not `IProgress<float>` and not `0..1`).
+  - `StartWebServiceAsync` binds on `Configuration.Web` (`Urls = "http://127.0.0.1:0"`) and exposes bound URLs through `FoundryLocalManager.Instance.Urls`.
+
 ---
 
 ## 2. Readiness Answers

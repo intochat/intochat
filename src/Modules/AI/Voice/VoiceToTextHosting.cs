@@ -1,5 +1,6 @@
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,6 +46,7 @@ internal static class VoiceToTextHosting
                 services.TryAddSingleton(sp => new FoundryLocalTranscriptionService(
                     sp.GetRequiredService<IOptions<AIOptions>>(),
                     sp.GetRequiredService<global::Microsoft.Extensions.Logging.ILogger<FoundryLocalTranscriptionService>>(),
+                    sp.GetServices<ILocalRuntime>(),
                     sp.GetRequiredService<IAudioConverter>()));
                 services.TryAddSingleton<IAudioTranscriptionService>(static sp =>
                     sp.GetRequiredService<FoundryLocalTranscriptionService>());

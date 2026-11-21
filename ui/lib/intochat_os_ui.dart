@@ -1,6 +1,7 @@
 library;
 
 export 'src/chat/conversation_view.dart';
+export 'src/chat/model_picker.dart';
 export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
 export 'src/components/kit/kit_toast.dart';

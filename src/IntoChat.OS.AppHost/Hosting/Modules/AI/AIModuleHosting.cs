@@ -39,7 +39,7 @@ public static partial class AIHostingExtensions
         {
             var card = KnownModels.Find(hearId.Value) ?? throw new InvalidOperationException(
                 $"'{hearId.Value}' is not a catalogued transcription model. Known: {string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Hear)).Select(static c => c.Id.Value))}.");
-            var voice = module.GetOrAddProjection(b => new VoiceToTextHostingState(b, module.Resource));
+            var voice = module.GetOrAddProjection(static b => new VoiceToTextHostingState(b));
             voice.SetModel(card);
         }
 

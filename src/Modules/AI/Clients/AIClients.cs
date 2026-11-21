@@ -5,10 +5,10 @@ using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Anthropic;
 using IntoChat.OS.Modules.AI.Models.Google;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.AI.Models.XAI;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +31,6 @@ internal static class AIClients
             new GoogleProviderFactory(),
             new XAIProviderFactory(),
             new OpenRouterProviderFactory(),
-            new OllamaProviderFactory(),
         }.ToDictionary(static factory => factory.Provider);
 
     internal static void Add(IServiceCollection services)
@@ -44,27 +43,45 @@ internal static class AIClients
                 (provider, _) => BuildChatPipeline(provider, card));
         }
 
-        foreach (var card in KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed) && Factories.ContainsKey(c.Provider)))
+        foreach (var card in KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)))
         {
-            services.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
-                card.Id,
-                (provider, _) =>
-                {
-                    var inner = new RebuildingEmbeddingGenerator(
-                        ct => Factories[card.Provider].CreateEmbeddingGenerator(
-                            card, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
-                        GenerationOf(provider, card.Provider));
-                    IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
-                    return provider.GetService<ICostMeter>() is { } meter
-                        ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(card.Provider), card.Id.Value, provider.GetService<ILoggerFactory>()?.CreateLogger<MeteringEmbeddingGenerator>())
-                        : limited;
-                });
+            if (Factories.ContainsKey(card.Provider))
+            {
+                services.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+                    card.Id,
+                    (provider, _) =>
+                    {
+                        var inner = new RebuildingEmbeddingGenerator(
+                            ct => Factories[card.Provider].CreateEmbeddingGenerator(
+                                card, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
+                            GenerationOf(provider, card.Provider));
+                        IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
+                        return provider.GetService<ICostMeter>() is { } meter
+                            ? new MeteringEmbeddingGenerator(limited, meter, FundingOf(card.Provider), card.Id.Value, provider.GetService<ILoggerFactory>()?.CreateLogger<MeteringEmbeddingGenerator>())
+                            : limited;
+                    });
+            }
+            else if (card.Where == Where.Device)
+            {
+                services.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(
+                    card.Id,
+                    (provider, _) =>
+                    {
+                        var runtime = provider.GetServices<ILocalRuntime>().FirstOrDefault(r => r.Id == RuntimeId.Ollama)
+                            ?? throw new InvalidOperationException($"No local embedding runtime is registered for '{card.Id.Value}'.");
+                        var inner = runtime.Embed(card.Id)
+                            ?? throw new InvalidOperationException($"Runtime '{runtime.Id.Value}' does not support embeddings for '{card.Id.Value}'.");
+                        IEmbeddingGenerator<string, Embedding<float>> limited = new LimitedEmbeddingGenerator(inner, provider.GetRequiredService<ProviderExecutionGate>());
+                        return provider.GetService<ICostMeter>() is { } meter
+                            ? new MeteringEmbeddingGenerator(limited, meter, Funding.Local, card.Id.Value, provider.GetService<ILoggerFactory>()?.CreateLogger<MeteringEmbeddingGenerator>())
+                            : limited;
+                    });
+            }
         }
 
         // Apply legacy Default:* aliases and local topology defaults before resolving options.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, LegacyDefaultsAlias>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, TopologyAiOptionsPostConfigure>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILocalCardSource, OllamaLocalCardSource>());
         services.TryAddSingleton<ModelCatalog>();
 
         services.TryAddSingleton(provider =>

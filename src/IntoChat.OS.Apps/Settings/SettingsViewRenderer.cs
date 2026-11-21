@@ -1,7 +1,9 @@
+using System.Globalization;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
@@ -599,10 +601,10 @@ internal static class SettingsViewRenderer
 
     private static SettingsProviderRow[] DefaultProviders(SettingsAppState state)
     {
-        var rows = new SettingsProviderRow[DisplayedProviders.Length];
-        for (var i = 0; i < DisplayedProviders.Length; i++)
+        var deviceView = state.Device;
+        var rows = new List<SettingsProviderRow>(DisplayedProviders.Length + (deviceView?.Runtimes.Length ?? 0));
+        foreach (var provider in DisplayedProviders)
         {
-            var provider = DisplayedProviders[i];
             var visual = VisualCatalog.ForProvider(provider.ToString());
             var label = provider switch
             {
@@ -610,20 +612,122 @@ internal static class SettingsViewRenderer
                 AiProvider.FoundryLocal => "Foundry Local",
                 _ => visual.Label,
             };
-            var status = provider switch
+            string status;
+            if (provider == AiProvider.FoundryLocal)
             {
-                AiProvider.FoundryLocal => "Set up in S1b",
-                AiProvider.Ollama => $"Not detected · {state.LocalOllamaEndpoint}",
-                AiProvider.OpenAI when HasVaultEntry(state, "OPENAI_API_KEY", "openai") => "Ready",
-                AiProvider.Anthropic when HasVaultEntry(state, "ANTHROPIC_API_KEY", "anthropic") => "Ready",
-                AiProvider.Google when HasVaultEntry(state, "GOOGLE_API_KEY", "google") => "Ready",
-                _ => "Add a key in API keys",
-            };
-            rows[i] = new SettingsProviderRow(provider, label, visual.IconKey, status);
+                var foundry = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.FoundryLocal);
+                var installedCount = deviceView?.Models.Count(static m =>
+                    m.Runtime == RuntimeId.FoundryLocal && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
+                status = SettingsApp.FormatRuntimeStatus(foundry, installedCount, fallbackUnavailable: "Not available");
+            }
+            else if (provider == AiProvider.Ollama)
+            {
+                var ollama = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.Ollama);
+                var installedCount = deviceView?.Models.Count(static m =>
+                    m.Runtime == RuntimeId.Ollama && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
+                status = ollama is not null
+                    ? SettingsApp.FormatRuntimeStatus(ollama, installedCount, fallbackUnavailable: $"Not detected · {ollama.Endpoint?.ToString() ?? state.LocalOllamaEndpoint}")
+                    : $"Not detected · {state.LocalOllamaEndpoint}";
+            }
+            else
+            {
+                status = provider switch
+                {
+                    AiProvider.OpenAI when HasVaultEntry(state, "OPENAI_API_KEY", "openai") => "Ready",
+                    AiProvider.Anthropic when HasVaultEntry(state, "ANTHROPIC_API_KEY", "anthropic") => "Ready",
+                    AiProvider.Google when HasVaultEntry(state, "GOOGLE_API_KEY", "google") => "Ready",
+                    _ => "Add a key in API keys",
+                };
+            }
+
+            rows.Add(new SettingsProviderRow(provider, label, visual.IconKey, status));
+
+            if (provider == AiProvider.FoundryLocal && deviceView is not null)
+            {
+                var compatVisual = VisualCatalog.ForProvider(nameof(AiProvider.OpenAICompatible));
+                foreach (var runtime in deviceView.Runtimes)
+                {
+                    if (runtime.Id == RuntimeId.Ollama || runtime.Id == RuntimeId.FoundryLocal)
+                    {
+                        continue;
+                    }
+                    var installedCount = deviceView.Models.Count(m =>
+                        m.Runtime == runtime.Id && m.State is InstallState.Ready or InstallState.Loaded);
+                    rows.Add(new SettingsProviderRow(
+                        AiProvider.OpenAICompatible,
+                        SettingsApp.FormatAttachedRuntimeLabel(runtime.Id),
+                        compatVisual.IconKey,
+                        SettingsApp.FormatRuntimeStatus(runtime, installedCount, fallbackUnavailable: SettingsApp.FormatUnavailableRuntime(runtime))));
+                }
+            }
         }
 
-        return rows;
+        return [.. rows];
     }
+
+    internal static string FormatHardwareLine(Hardware hardware)
+    {
+        ArgumentNullException.ThrowIfNull(hardware);
+        const double gib = 1024d * 1024d * 1024d;
+        var parts = new List<string>(3);
+        if (hardware.RamBytes > 0)
+        {
+            var ramGb = Math.Max(1L, (long)Math.Round(hardware.RamBytes / gib, MidpointRounding.AwayFromZero));
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{ramGb} GB RAM"));
+        }
+        if (hardware.VramBytes > 0)
+        {
+            var vramGb = Math.Max(1L, (long)Math.Round(hardware.VramBytes / gib, MidpointRounding.AwayFromZero));
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"{vramGb} GB VRAM"));
+        }
+
+        var accelLabels = hardware.Accelerators
+            .Where(static a => a != Accelerator.Cpu)
+            .Select(static a => a switch
+            {
+                Accelerator.Cuda => "CUDA",
+                Accelerator.DirectML => "DirectML",
+                Accelerator.Npu => "NPU",
+                Accelerator.Metal => "Metal",
+                _ => a.ToString(),
+            })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (accelLabels.Length > 0)
+        {
+            parts.Add(string.Join(", ", accelLabels));
+        }
+        else if (hardware.Accelerators.Contains(Accelerator.Cpu))
+        {
+            parts.Add("CPU");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatInstallStatus(Install install)
+    {
+        var pct = (int)Math.Floor(Math.Clamp(install.Percent, 0d, 100d));
+        return install.State switch
+        {
+            InstallState.Queued => "Queued",
+            InstallState.Downloading => string.Create(CultureInfo.InvariantCulture, $"Downloading {pct}%"),
+            InstallState.Verifying => "Verifying",
+            InstallState.Ready => "Ready",
+            InstallState.Loaded => "Loaded",
+            InstallState.Failed => string.IsNullOrWhiteSpace(install.Error) ? "Failed" : $"Failed · {install.Error}",
+            InstallState.Cancelled => "Cancelled",
+            _ => install.State.ToString(),
+        };
+    }
+
+    private static StatusKind InstallStatusKind(InstallState state) => state switch
+    {
+        InstallState.Ready or InstallState.Loaded => StatusKind.Done,
+        InstallState.Queued or InstallState.Downloading or InstallState.Verifying => StatusKind.Working,
+        InstallState.Failed => StatusKind.Error,
+        _ => StatusKind.Idle,
+    };
 
     private static string RoleDescription(Role role) => role switch
     {
@@ -659,15 +763,45 @@ internal static class SettingsViewRenderer
         var providers = state.Providers is { Length: > 0 }
             ? state.Providers
             : DefaultProviders(state);
-        var providerRows = providers
-            .Select(static provider => (Node)HStack(Space.Sm)[
+        var hardwareLine = state.Device is { Hardware: { } hw }
+            ? FormatHardwareLine(hw)
+            : null;
+        var providerChildren = new List<Node>(providers.Length + 1);
+        if (!string.IsNullOrWhiteSpace(hardwareLine))
+        {
+            providerChildren.Add(MutedText(hardwareLine).ToNode());
+        }
+        foreach (var provider in providers)
+        {
+            providerChildren.Add(HStack(Space.Sm)[
                 new TagPill(provider.Label, "neutral", provider.Icon),
                 FlexSpacer(),
                 StatusPill(
                     provider.Status.StartsWith("Ready", StringComparison.Ordinal) ? StatusKind.Done : StatusKind.Idle,
                     provider.Status)
-            ])
-            .ToArray();
+            ]);
+        }
+
+        var installQueue = state.Device?.Queue ?? [];
+        var installChildren = new List<Node>(installQueue.Length + 2);
+        if (installQueue.Length > 0)
+        {
+            foreach (var install in installQueue)
+            {
+                var label = KnownModels.Find(install.Model.Value)?.Name ?? install.Model.Value;
+                installChildren.Add(HStack(Space.Sm)[
+                    Text(label).ToNode(),
+                    MutedText(install.Runtime.Value).Mono().ToNode(),
+                    FlexSpacer(),
+                    StatusPill(InstallStatusKind(install.State), FormatInstallStatus(install))
+                ]);
+            }
+        }
+        else
+        {
+            installChildren.Add(MutedText("No model installs in progress.").ToNode());
+        }
+        installChildren.Add(SettingsControls.InstallModelForm(slots, state));
 
         var rolesByKey = state.Roles.ToDictionary(static row => row.Role);
         var roleControls = Enum.GetValues<Role>()
@@ -697,7 +831,10 @@ internal static class SettingsViewRenderer
         return Surface(SurfaceKind.Elevated, "AI", "Providers and default models for each AI role")[
             VStack(Space.Md)[
                 Card("Providers", "Local runtimes and cloud providers available to this brain")[
-                    VStack(Space.Sm, providerRows)
+                    VStack(Space.Sm, [.. providerChildren])
+                ],
+                Card("Local installs", "Download progress and queue on this device")[
+                    VStack(Space.Sm, [.. installChildren])
                 ],
                 Card("Roles", "Choose the model each capability uses across Ino and background neurons")[
                     VStack(Space.Sm, roleControls)

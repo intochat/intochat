@@ -4,6 +4,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
@@ -66,7 +67,7 @@ public static partial class AIHostingExtensions
             {
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
-                    .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
+                    .WithEnvironment(ModuleConfiguration.EnvironmentName(DevicesHostingExtensions.OllamaEndpointKey), resource.Resource.Parent.UriExpression)
                     .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{modelId.Value}:Model"), resource.Resource.ModelName);
             }
 
@@ -130,11 +131,9 @@ public static partial class AIHostingExtensions
     }
 
     private sealed class VoiceToTextHostingState(
-        IntoChatOSBuilder brain,
-        IResourceBuilder<IntoChatOSModuleResource> module) : IntoChatOSModuleProjection
+        IntoChatOSBuilder brain) : IntoChatOSModuleProjection
     {
         private ModelCard? _card;
-        private IResourceBuilder<FoundryLocalModelResource>? _whisper;
 
         internal void SetModel(ModelCard card)
         {
@@ -152,24 +151,32 @@ public static partial class AIHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            if (_card is null)
+            if (_card is null || _card.Where != Where.Device)
             {
                 return;
             }
 
-            if (_card.Provider is not AiProvider.FoundryLocal)
+            var modelId = _card.Id.Value;
+            var prefix = ModuleConfiguration.EnvironmentName(DevicesHostingExtensions.PrefetchSectionKey) + "__";
+            builder.WithEnvironment(context =>
             {
-                return;
-            }
+                foreach (var kv in context.EnvironmentVariables)
+                {
+                    if (kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(kv.Value?.ToString(), modelId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+                }
 
-            _whisper ??= brain.ApplicationBuilder.AddFoundryLocalModel(
-                brain.ResourceName(ResourceName(_card.Id.Value)),
-                _card.Id.Value,
-                module.Resource);
-            builder.WithAnnotation(new WaitAnnotation(_whisper.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
+                var index = 0;
+                while (context.EnvironmentVariables.ContainsKey($"{prefix}{index}"))
+                {
+                    index++;
+                }
+
+                context.EnvironmentVariables[$"{prefix}{index}"] = modelId;
+            });
         }
-
-        private static string ResourceName(string id)
-            => id.ToLowerInvariant().Replace(':', '-').Replace('.', '-').Replace('/', '-');
     }
 }

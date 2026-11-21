@@ -53,8 +53,6 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
                 services.AddSingleton<IChatClient>(client);
                 services.RemoveAll<IAiCredentials>();
                 services.AddSingleton<IAiCredentials, NoConfiguredCredentials>();
-                services.RemoveAll<IntoChat.OS.Modules.AI.Models.Ollama.ILocalOllamaProbe>();
-                services.AddSingleton<IntoChat.OS.Modules.AI.Models.Ollama.ILocalOllamaProbe, NoLocalOllamaProbe>();
             });
 
         await using var host = await factory.Start(
@@ -119,8 +117,6 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
                 services.RemoveAll<IChatClient>();
                 services.RemoveAll<IAiCredentials>();
                 services.AddSingleton<IAiCredentials, NoConfiguredCredentials>();
-                services.RemoveAll<IntoChat.OS.Modules.AI.Models.Ollama.ILocalOllamaProbe>();
-                services.AddSingleton<IntoChat.OS.Modules.AI.Models.Ollama.ILocalOllamaProbe, NoLocalOllamaProbe>();
             });
 
         await using var host = await factory.Start(
@@ -164,12 +160,6 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
         public Task<ReleasedIntegration> MaterializeAsync(string integrationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
-    }
-
-    private sealed class NoLocalOllamaProbe : IntoChat.OS.Modules.AI.Models.Ollama.ILocalOllamaProbe
-    {
-        public Task<IntoChat.OS.Modules.AI.Models.Ollama.LocalOllamaDetection?> Detect(CancellationToken ct = default)
-            => Task.FromResult<IntoChat.OS.Modules.AI.Models.Ollama.LocalOllamaDetection?>(null);
     }
 
     private sealed class TestSecretSealer : IBrainSecretSealer
