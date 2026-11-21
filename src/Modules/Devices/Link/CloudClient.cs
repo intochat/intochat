@@ -119,7 +119,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            await credentials.Delete(ct).ConfigureAwait(false);
+            await credentials.Revoke(ct).ConfigureAwait(false);
             throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
         }
 
@@ -145,7 +145,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
 
         if (refreshed)
         {
-            await credentials.Delete(ct).ConfigureAwait(false);
+            await credentials.Revoke(ct).ConfigureAwait(false);
             throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
         }
 
@@ -154,7 +154,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         if (retry.StatusCode == HttpStatusCode.Unauthorized)
         {
             retry.Dispose();
-            await credentials.Delete(ct).ConfigureAwait(false);
+            await credentials.Revoke(ct).ConfigureAwait(false);
             throw new DeviceLinkRevokedException("The cloud rejected this device's credential.");
         }
 
@@ -212,7 +212,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
-                await credentials.Delete(ct).ConfigureAwait(false);
+                await credentials.Revoke(ct).ConfigureAwait(false);
                 throw new DeviceLinkRevokedException("Cloud refresh rejected this device's credential.");
             }
 

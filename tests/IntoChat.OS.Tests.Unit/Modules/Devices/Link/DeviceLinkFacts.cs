@@ -16,6 +16,7 @@ using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Tests;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Devices.Tests.Unit.Link;
 
@@ -194,6 +195,46 @@ public sealed class DeviceLinkFacts
         Assert.False(File.Exists(harness.CredentialsFile));
     }
 
+    [Fact]
+    public async Task DeviceWorkerSeeing401MarksLinkStatusRevokedInsteadOfNotJoined()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var harness = await Open(owner: "ada");
+
+        using (harness.AsPerson("ada"))
+        {
+            var joined = await harness.Link.Join(new Uri("https://cloud.test"), Code.New());
+            Assert.Equal(LinkState.Connected, joined.State);
+        }
+
+        Assert.True(File.Exists(harness.CredentialsFile));
+        harness.Server.RejectAllAuthenticatedWith401 = true;
+
+        var worker = new DeviceWorker(
+            harness.Cloud,
+            harness.Credentials,
+            [],
+            harness.Machine,
+            NullLogger<DeviceWorker>.Instance,
+            harness.Os.Clock,
+            () => "vlad-pc");
+
+        await Assert.ThrowsAsync<DeviceLinkRevokedException>(() => worker.Tick(ct));
+        Assert.False(File.Exists(harness.CredentialsFile));
+
+        LinkStatus status;
+        using (harness.AsPerson("ada"))
+        {
+            status = await harness.Link.Status();
+        }
+
+        Assert.Equal(LinkState.Revoked, status.State);
+        Assert.False(File.Exists(harness.CredentialsFile));
+        var inspected = await ((IBrainObserver)harness.Os).State(harness.LinkId, ct);
+        Assert.NotNull(inspected);
+        Assert.DoesNotContain(harness.Server.IssuedRefreshToken, inspected!.Value.GetRawText(), StringComparison.Ordinal);
+    }
+
     private static Task<Harness> Open(string owner)
     {
         TestOS? os = null;
@@ -240,6 +281,8 @@ public sealed class DeviceLinkFacts
         public NeuronId LinkId => linkId;
         public IDeviceLink Link => link;
         public string CredentialsFile => credentialsFile;
+        public DeviceCredentials Credentials => services.GetRequiredService<DeviceCredentials>();
+        public CloudClient Cloud => services.GetRequiredService<CloudClient>();
 
         public IDisposable AsPerson(string account, string? brain = null)
             => TestEdge.Authority.Enter(TestEdge.Authority.Person(account, account, new BrainId(brain ?? account)));
@@ -299,6 +342,7 @@ public sealed class DeviceLinkFacts
         public string IssuedAccessToken { get; private set; } = "";
         public string IssuedRefreshToken { get; private set; } = "";
         public bool RejectRefreshWith401 { get; set; }
+        public bool RejectAllAuthenticatedWith401 { get; set; }
         public DateTimeOffset Now => clock();
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -323,11 +367,16 @@ public sealed class DeviceLinkFacts
 
             if (url.AbsolutePath == CircleRoutes.Refresh)
             {
-                if (RejectRefreshWith401)
+                if (RejectRefreshWith401 || RejectAllAuthenticatedWith401)
                 {
                     return new HttpResponseMessage(HttpStatusCode.Unauthorized);
                 }
                 return IssueTokens();
+            }
+
+            if (RejectAllAuthenticatedWith401)
+            {
+                return new HttpResponseMessage(HttpStatusCode.Unauthorized);
             }
 
             if (url.AbsolutePath == CircleRoutes.Status)

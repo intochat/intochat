@@ -22,8 +22,10 @@ internal sealed partial class DeviceLinkJson : JsonSerializerContext;
 internal sealed class DeviceCredentials(IMachineKeyProtector protector, string file)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private volatile bool _revoked;
 
     public string FilePath => file;
+    public bool IsRevoked => _revoked;
 
     public async Task<LinkSecrets?> Read(CancellationToken ct = default)
     {
@@ -84,6 +86,7 @@ internal sealed class DeviceCredentials(IMachineKeyProtector protector, string f
             }
 
             File.Move(temp, file, overwrite: true);
+            _revoked = false;
         }
         finally
         {
@@ -96,6 +99,26 @@ internal sealed class DeviceCredentials(IMachineKeyProtector protector, string f
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            _revoked = false;
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    // Deletes stored credentials because the cloud revoked this device, preserving revoked state
+    // so IDeviceLink.Status() reports Revoked instead of resetting to NotJoined.
+    public async Task Revoke(CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _revoked = true;
             if (File.Exists(file))
             {
                 File.Delete(file);

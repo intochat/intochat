@@ -82,6 +82,13 @@ internal sealed class DeviceLinkNeuron(
         var secrets = await credentials.Read();
         if (secrets is null)
         {
+            if (credentials.IsRevoked)
+            {
+                var revoked = WithState(LinkState.Revoked, State.LastContactedAt);
+                await Store(revoked);
+                return ToStatus(revoked);
+            }
+
             var reset = new DeviceLinkRecord
             {
                 State = LinkState.NotJoined,
@@ -99,7 +106,7 @@ internal sealed class DeviceLinkNeuron(
             var remote = await cloud.StatusAsync();
             if (remote.Revoked)
             {
-                await credentials.Delete();
+                await credentials.Revoke();
                 var revoked = WithState(LinkState.Revoked, State.LastContactedAt);
                 await Store(revoked);
                 return ToStatus(revoked);
@@ -112,7 +119,7 @@ internal sealed class DeviceLinkNeuron(
         catch (DeviceLinkRevokedException error)
         {
             logger?.LogInformation(error, "Device link was revoked by the cloud.");
-            await credentials.Delete();
+            await credentials.Revoke();
             var revoked = WithState(LinkState.Revoked, State.LastContactedAt);
             await Store(revoked);
             return ToStatus(revoked);

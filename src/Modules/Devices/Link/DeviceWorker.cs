@@ -3,9 +3,14 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Identity.Local.Machine;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +25,8 @@ internal sealed class DeviceWorker(
     MachineId thisMachine,
     ILogger<DeviceWorker> logger,
     TimeProvider? clock = null,
-    Func<string>? deviceNameProvider = null) : BackgroundService
+    Func<string>? deviceNameProvider = null,
+    IServiceProvider? services = null) : BackgroundService
 {
     private static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Devices");
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
@@ -67,6 +73,7 @@ internal sealed class DeviceWorker(
             {
                 logger.LogInformation(error, "Device worker stopping poll: cloud credential was revoked.");
                 ResetAdvertised();
+                await PersistRevokedStatusBestEffortAsync().ConfigureAwait(false);
                 await DelayQuietlyAsync(ErrorDelay, stoppingToken).ConfigureAwait(false);
             }
             catch (HttpRequestException error)
@@ -304,6 +311,27 @@ internal sealed class DeviceWorker(
         _advertised.Clear();
         _reportedOnce = false;
         _modelsDirty = true;
+    }
+
+    private async Task PersistRevokedStatusBestEffortAsync()
+    {
+        if (services is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var brainId = IntoChatOSNames.DefaultOwnerBrainId;
+            var edge = services.GetService<EdgeAuthority>();
+            using var scope = edge?.Enter(edge.Module(DevicesModule.ManifestName, new BrainId(brainId)));
+            var link = SiloNeurons.Get<IDeviceLink>(services, IDeviceLink.Key(brainId));
+            _ = await link.Status().ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogDebug(error, "Could not persist revoked device link status immediately; status will reconcile on next check.");
+        }
     }
 
     private string DeviceName()
