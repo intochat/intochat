@@ -1,7 +1,11 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Threading.Channels;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Testing;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Kernel.DevUI;
@@ -34,15 +38,18 @@ public sealed class NeuronAgentChatClientFacts
         public Task<string?> BrainKey(string brainId, AiProvider provider, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
     }
 
-    private sealed class StubChatClient(string reply) : IChatClient
+    private sealed class StubChatClient(params string[] chunks) : IChatClient
     {
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
-            => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, reply)));
+            => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Concat(chunks))));
 
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            await Task.Yield();
-            yield return new ChatResponseUpdate(ChatRole.Assistant, reply);
+            foreach (var chunk in chunks)
+            {
+                await Task.Yield();
+                yield return new ChatResponseUpdate(ChatRole.Assistant, chunk);
+            }
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => serviceType.IsInstanceOfType(this) ? this : null;
@@ -52,6 +59,40 @@ public sealed class NeuronAgentChatClientFacts
     private sealed class FixedAmbient(Caller caller) : ICallerAmbient
     {
         public Caller? Current => caller;
+    }
+
+    private static async IAsyncEnumerable<SessionSignal> LiveFromTestOs(
+        TestOS os,
+        NeuronId source,
+        string[] aliases,
+        Func<Task> onSubscribed,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var channel = Channel.CreateUnbounded<SessionSignal>();
+        var wanted = aliases.ToHashSet(StringComparer.Ordinal);
+        await using var subDeltas = await os.ClusterListeners.Listen<TextDelta>("devui-test-deltas", (pub, sig, _) =>
+        {
+            if (pub == source && wanted.Contains("conversation.text-delta"))
+            {
+                var json = JsonSerializer.SerializeToElement(sig, JsonSerializerOptions.Web);
+                channel.Writer.TryWrite(new SessionSignal(pub.ToString(), 0, "conversation.text-delta", json, DateTimeOffset.UtcNow));
+            }
+            return Task.CompletedTask;
+        });
+        await using var subChanged = await os.ClusterListeners.Listen<ConversationChanged>("devui-test-changed", (pub, sig, _) =>
+        {
+            if (pub == source && wanted.Contains("conversation.changed"))
+            {
+                var json = JsonSerializer.SerializeToElement(sig, JsonSerializerOptions.Web);
+                channel.Writer.TryWrite(new SessionSignal(pub.ToString(), sig.Revision, "conversation.changed", json, DateTimeOffset.UtcNow));
+            }
+            return Task.CompletedTask;
+        });
+        await onSubscribed();
+        await foreach (var item in channel.Reader.ReadAllAsync(ct))
+        {
+            yield return item;
+        }
     }
 
     [Fact]
@@ -105,7 +146,7 @@ public sealed class NeuronAgentChatClientFacts
             clientServices,
             os.Get<ISessionList>,
             os.Get<IConversation>,
-            TimeSpan.FromMilliseconds(10));
+            (source, aliases, onSubscribed, token) => LiveFromTestOs(os, source, aliases, onSubscribed, token));
 
         var responseTask = client.GetResponseAsync([new ChatMessage(ChatRole.User, "hi from devui")], cancellationToken: TestContext.Current.CancellationToken);
         for (var i = 0; i < 60 && !responseTask.IsCompleted; i++)
@@ -124,5 +165,63 @@ public sealed class NeuronAgentChatClientFacts
         Assert.Equal("hi from devui", said[0].Text);
         Assert.IsType<Participant.Assistant>(said[1].By);
         Assert.Equal("Hello from conversation.", said[1].Text);
+    }
+
+    [Fact]
+    public async Task DevUiYieldsOneUpdatePerDelta()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new BrainId("owner");
+        var sc = new ServiceCollection();
+        sc.AddSingleton<ISecretRedactor, NoSecrets>();
+        sc.AddSingleton<IAiCredentials, NoProviders>();
+        sc.AddSingleton(new IntoChat.OS.Host.Surface.OsNeuronSurface(null!, null!, null!));
+        sc.AddSingleton<IChatClient>(new StubChatClient("one ", "two ", "three"));
+        sc.AddOptions<AIOptions>();
+        sc.AddSingleton<ModelCatalog>();
+        sc.AddSingleton(TimeProvider.System);
+        var services = sc.BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = services);
+        os.Register(typeof(AIModule).Assembly);
+        os.Register<SessionListNeuron>();
+
+        var personCaller = os.Edge.Person("owner", "owner", brain);
+        using var scope = os.Edge.Enter(personCaller);
+
+        var sessions = os.Get<ISessionList>(new NeuronId(brain, Sessions.Type, ISessionList.DefaultKey));
+        var convId = "c-" + new string('e', 32);
+        await sessions.Open(convId);
+        var conversation = os.Get<IConversation>(new NeuronId(brain, IConversation.Type, IConversation.KeyOf(ConversationId.Parse(convId))));
+        await conversation.Seat("ino", new AgentDefinition { Instructions = "devui" });
+
+        var clientServices = new ServiceCollection()
+            .AddSingleton<ICallerAmbient>(new FixedAmbient(personCaller))
+            .BuildServiceProvider();
+        using var client = new NeuronAgentChatClient(
+            clientServices,
+            os.Get<ISessionList>,
+            os.Get<IConversation>,
+            (source, aliases, onSubscribed, token) => LiveFromTestOs(os, source, aliases, onSubscribed, token));
+
+        var updates = new List<ChatResponseUpdate>();
+        var pump = Task.Run(async () =>
+        {
+            await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "stream three")], cancellationToken: ct))
+            {
+                updates.Add(update);
+            }
+        }, ct);
+
+        for (var i = 0; i < 60 && !pump.IsCompleted; i++)
+        {
+            await os.Idle();
+            await Task.Delay(15, ct);
+        }
+        await pump;
+
+        Assert.Equal(3, updates.Count);
+        Assert.Equal(["one ", "two ", "three"], updates.Select(u => u.Text));
+        Assert.Equal("one two three", string.Concat(updates.Select(u => u.Text)));
     }
 }

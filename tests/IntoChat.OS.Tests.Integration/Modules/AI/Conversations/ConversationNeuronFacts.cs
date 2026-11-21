@@ -656,6 +656,66 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
         lock (deltas) { Assert.Equal(count, deltas.Count); }
     }
 
+    [Fact]
+    public async Task TextDeltaReachesASessionSynapseOverSignalLogLive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        static async IAsyncEnumerable<ChatResponseUpdate> Stream(
+            IReadOnlyList<ChatMessage> _,
+            ChatOptions? __,
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "one ");
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "two ");
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "three");
+            await Task.CompletedTask;
+        }
+
+        await using var runtime = await Start(StubChatClient.StreamingOnly(Stream), ct);
+        using var person = runtime.As(Who.Person);
+        var convId = ConversationId.New();
+        var id = runtime.Id(IConversation.Type, IConversation.KeyOf(convId));
+        var conversation = runtime.Get<IConversation>(id);
+
+        await conversation.Seat("ino", new AgentDefinition { Instructions = "x" });
+        var beforeRevision = (await conversation.Read()).Revision;
+
+        var received = new List<(string Alias, long Seq, string? Delta, int? At, string? Entry)>();
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(Within);
+
+        await foreach (var sig in SignalLog.Live(
+            runtime.Services,
+            id,
+            ["conversation.text-delta", "conversation.changed"],
+            "test-live-" + Guid.NewGuid().ToString("N"),
+            () => conversation.Say("stream live"),
+            limit.Token))
+        {
+            if (sig.Alias == "conversation.text-delta")
+            {
+                var delta = sig.Payload.GetProperty("delta").GetString();
+                var at = sig.Payload.GetProperty("at").GetInt32();
+                var entry = sig.Payload.GetProperty("entry").GetString();
+                received.Add((sig.Alias, sig.Sequence, delta, at, entry));
+            }
+            else if (sig.Alias == "conversation.changed")
+            {
+                var rev = sig.Payload.GetProperty("revision").GetInt64();
+                if (rev >= beforeRevision + 2)
+                {
+                    break;
+                }
+            }
+        }
+
+        Assert.Equal(3, received.Count);
+        Assert.All(received, r => Assert.Equal(0L, r.Seq));
+        Assert.Equal(["one ", "two ", "three"], received.Select(r => r.Delta));
+        Assert.Equal([0, 4, 8], received.Select(r => r.At));
+        Assert.All(received, r => Assert.EndsWith("/reply", r.Entry ?? string.Empty, StringComparison.Ordinal));
+    }
+
     private static IEnumerable<string> AllText(ConversationView view)
     {
         foreach (var entry in view.Entries)

@@ -1493,6 +1493,7 @@ public sealed class HouseRules22Facts
             "IAiCredentials",
             "IAgentDriver",
             "IConversationDriver",
+            "ITurnSink",
             "IAppRestore",
             "IPostgresProvider",
             "IConnectionPostgresProviderFactory",

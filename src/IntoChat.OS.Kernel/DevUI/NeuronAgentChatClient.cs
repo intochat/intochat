@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Flutter.Conversations;
@@ -11,23 +13,30 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Kernel.DevUI;
 
 // DevUI's view of the caller's current Ino conversation: the same IConversation neuron Ino talks to, so a chat started here shows
-// in Ino and the transcript lives in one place. Sends the newest user message via Say and polls Read(since) every 250 ms until
-// the active run ends (S5 replaces polling with deltas).
+// in Ino and the transcript lives in one place. Subscribes through SignalLog.Live for TextDelta and ConversationChanged, sends the
+// newest user message via Say, yields each delta as it arrives, and ends when a ConversationChanged read shows Active == null.
 internal sealed class NeuronAgentChatClient : IChatClient
 {
-    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromMilliseconds(250);
+    private const string TextDeltaAlias = "conversation.text-delta";
+    private const string ChangedAlias = "conversation.changed";
 
     private readonly IServiceProvider _services;
     private readonly Func<NeuronId, ISessionList> _getSessions;
     private readonly Func<NeuronId, IConversation> _getConversation;
-    private readonly TimeSpan _pollInterval;
+    private readonly Func<NeuronId, string[], Func<Task>, CancellationToken, IAsyncEnumerable<SessionSignal>> _live;
 
     public NeuronAgentChatClient(IServiceProvider services)
         : this(
             services,
             id => SiloNeurons.Get<ISessionList>(services, id),
             id => SiloNeurons.Get<IConversation>(services, id),
-            DefaultPollInterval)
+            (source, aliases, onSubscribed, ct) => SignalLog.Live(
+                services,
+                source,
+                aliases,
+                "devui/" + Guid.NewGuid().ToString("N"),
+                onSubscribed,
+                ct))
     {
     }
 
@@ -35,12 +44,12 @@ internal sealed class NeuronAgentChatClient : IChatClient
         IServiceProvider services,
         Func<NeuronId, ISessionList> getSessions,
         Func<NeuronId, IConversation> getConversation,
-        TimeSpan pollInterval)
+        Func<NeuronId, string[], Func<Task>, CancellationToken, IAsyncEnumerable<SessionSignal>> live)
     {
         _services = services;
         _getSessions = getSessions;
         _getConversation = getConversation;
-        _pollInterval = pollInterval > TimeSpan.Zero ? pollInterval : DefaultPollInterval;
+        _live = live;
     }
 
     public async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
@@ -62,20 +71,77 @@ internal sealed class NeuronAgentChatClient : IChatClient
             .LogInformation("DevUI turn for conversation {Conversation} (caller brain {Brain}).", key, (_services.GetService(typeof(ICallerAmbient)) as ICallerAmbient)?.Current?.Brain.Value);
 
         var conversation = _getConversation(key);
-        var before = await conversation.Read();
-        var since = before.Revision;
-
-        await conversation.Say(text);
-
+        var beforeRevision = 0L;
+        var since = 0L;
         var emittedLength = 0;
         var seenToolStarts = new HashSet<string>(StringComparer.Ordinal);
         var seenToolFailures = new HashSet<string>(StringComparer.Ordinal);
         var seenEntries = new List<ConversationEntry>();
         string? targetRunId = null;
 
-        while (true)
+        async Task OnSubscribed()
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            var before = await conversation.Read();
+            beforeRevision = before.Revision;
+            since = before.Revision;
+            await conversation.Say(text);
+        }
+
+        await foreach (var entry in _live(key, [TextDeltaAlias, ChangedAlias], OnSubscribed, cancellationToken))
+        {
+            if (string.Equals(entry.Alias, TextDeltaAlias, StringComparison.Ordinal))
+            {
+                if (!TryReadDelta(entry.Payload, out var deltaEntry, out var deltaText, out var at))
+                {
+                    continue;
+                }
+
+                var deltaRun = EntryIds.RunOf(deltaEntry);
+                if (targetRunId is null && !string.IsNullOrEmpty(deltaRun))
+                {
+                    targetRunId = deltaRun;
+                }
+                else if (targetRunId is not null && !string.IsNullOrEmpty(deltaRun)
+                    && !string.Equals(targetRunId, deltaRun, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (at > emittedLength)
+                {
+                    var heal = await conversation.Read(since);
+                    if (heal.Revision > since) { since = heal.Revision; }
+                    if (heal.Entries.Length > 0) { seenEntries.AddRange(heal.Entries); }
+                    if (heal.Active?.Reply is { Length: > 0 } stored && stored.Length > emittedLength)
+                    {
+                        yield return new ChatResponseUpdate(ChatRole.Assistant, stored[emittedLength..]);
+                        emittedLength = stored.Length;
+                    }
+                }
+
+                if (at <= emittedLength && at + deltaText.Length > emittedLength)
+                {
+                    var slice = at == emittedLength ? deltaText : deltaText[(emittedLength - at)..];
+                    if (slice.Length > 0)
+                    {
+                        yield return new ChatResponseUpdate(ChatRole.Assistant, slice);
+                        emittedLength = at + deltaText.Length;
+                    }
+                }
+                continue;
+            }
+
+            if (!string.Equals(entry.Alias, ChangedAlias, StringComparison.Ordinal) && !SignalLog.IsGap(entry))
+            {
+                continue;
+            }
+
+            if (TryReadRevision(entry.Payload, out var changedRevision)
+                && changedRevision <= beforeRevision + 1)
+            {
+                continue;
+            }
+
             var view = await conversation.Read(since);
             if (view.Revision > since)
             {
@@ -104,14 +170,11 @@ internal sealed class NeuronAgentChatClient : IChatClient
                         yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent($"{call.Name} failed: {call.Error}")]);
                     }
                 }
+                continue;
+            }
 
-                if (active.Reply is { Length: > 0 } partial && partial.Length > emittedLength)
-                {
-                    yield return new ChatResponseUpdate(ChatRole.Assistant, partial[emittedLength..]);
-                    emittedLength = partial.Length;
-                }
-
-                await Task.Delay(_pollInterval, cancellationToken);
+            if (view.Revision <= beforeRevision)
+            {
                 continue;
             }
 
@@ -148,6 +211,49 @@ internal sealed class NeuronAgentChatClient : IChatClient
 
             yield break;
         }
+    }
+
+    private static bool TryReadDelta(JsonElement payload, out EntryId entry, out string delta, out int at)
+    {
+        entry = default;
+        delta = string.Empty;
+        at = 0;
+        if (payload.ValueKind != JsonValueKind.Object) { return false; }
+
+        if (payload.TryGetProperty("entry", out var entryEl))
+        {
+            if (entryEl.ValueKind == JsonValueKind.String && entryEl.GetString() is { Length: > 0 } rawEntry)
+            {
+                entry = new EntryId(rawEntry);
+            }
+            else if (entryEl.ValueKind == JsonValueKind.Object
+                && entryEl.TryGetProperty("value", out var valEl)
+                && valEl.ValueKind == JsonValueKind.String
+                && valEl.GetString() is { Length: > 0 } nestedEntry)
+            {
+                entry = new EntryId(nestedEntry);
+            }
+        }
+
+        if (payload.TryGetProperty("delta", out var deltaEl) && deltaEl.ValueKind == JsonValueKind.String)
+        {
+            delta = deltaEl.GetString() ?? string.Empty;
+        }
+
+        if (payload.TryGetProperty("at", out var atEl) && atEl.TryGetInt32(out var offset))
+        {
+            at = offset;
+        }
+
+        return !string.IsNullOrEmpty(delta);
+    }
+
+    private static bool TryReadRevision(JsonElement payload, out long revision)
+    {
+        revision = 0;
+        return payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("revision", out var revEl)
+            && revEl.TryGetInt64(out revision);
     }
 
     // The newest conversation Ino uses for this brain; "main" when the session list has none yet.

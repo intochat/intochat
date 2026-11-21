@@ -42,6 +42,7 @@
       "neuron.host",
       "neuron.synapse-host",
       "nudge",
+      "offer",
       "post",
       "post-interleaved",
       "remove-brain-wide",
