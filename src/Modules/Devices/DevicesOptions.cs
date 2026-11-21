@@ -17,6 +17,12 @@ public sealed class FoundryLocalRuntimeOptions
     public string? CacheDirectory { get; set; }
 }
 
+public sealed class SherpaOnnxRuntimeOptions
+{
+    public bool Enabled { get; set; } = true;
+    public string? ModelDirectory { get; set; }
+}
+
 public sealed class AttachedRuntimeOptions
 {
     public string Url { get; set; } = string.Empty;
@@ -30,6 +36,8 @@ public sealed partial class DevicesOptions : IModuleOptions
     public OllamaRuntimeOptions Ollama { get; set; } = new();
 
     public FoundryLocalRuntimeOptions FoundryLocal { get; set; } = new();
+
+    public SherpaOnnxRuntimeOptions SherpaOnnx { get; set; } = new();
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, AttachedRuntimeOptions> Attach { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -50,6 +58,11 @@ public sealed partial class DevicesOptions : IModuleOptions
         if (FoundryLocal is null)
         {
             throw new ArgumentException("Devices FoundryLocal options cannot be null.", nameof(FoundryLocal));
+        }
+
+        if (SherpaOnnx is null)
+        {
+            throw new ArgumentException("Devices SherpaOnnx options cannot be null.", nameof(SherpaOnnx));
         }
 
         foreach (var (name, entry) in Attach)

@@ -3,7 +3,11 @@ using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.Devices.Runtimes.FoundryLocal;
+using IntoChat.OS.Modules.Devices.Runtimes.SherpaOnnx;
+using IntoChat.OS.Modules.Devices.Voice;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,6 +53,14 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
                         options.Ollama.Endpoint = legacy.Trim();
                     }
                 }
+
+                if (string.IsNullOrWhiteSpace(options.SherpaOnnx.ModelDirectory))
+                {
+                    var home = StateHome.Resolve(
+                        configuration,
+                        new RuntimeOptions { HomeKey = IntoChatOSNames.HomeKey, DefaultHomeDirectoryName = ".intochat" }).Path;
+                    options.SherpaOnnx.ModelDirectory = Path.Combine(home, "models", "sherpa-onnx");
+                }
             })
             .Validate(static options =>
             {
@@ -64,6 +76,7 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddHostedService<DevicePrefetch>();
         services.AddHttpClient("devices.ollama", static client => client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddHttpClient("devices.openai-compat");
+        services.AddHttpClient(SherpaOnnxRuntime.HttpClientName, static client => client.Timeout = Timeout.InfiniteTimeSpan);
 
         var initial = section.Get<DevicesOptions>() ?? new DevicesOptions();
         if (initial.Ollama.Enabled)
@@ -81,6 +94,14 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             services.AddSingleton<ILocalRuntime>(static sp => new FoundryLocalRuntime(
                 sp.GetRequiredService<FoundryLocalHost>(),
                 sp.GetRequiredService<IHardwareProbe>()));
+        }
+
+        if (initial.SherpaOnnx.Enabled)
+        {
+            services.TryAddSingleton<ISherpaApi, SherpaApi>();
+            services.TryAddSingleton<SherpaOnnxRuntime>();
+            services.AddSingleton<ILocalRuntime>(static sp => sp.GetRequiredService<SherpaOnnxRuntime>());
+            services.TryAddSingleton<IVoiceActivityDetector>(static sp => sp.GetRequiredService<SherpaOnnxRuntime>());
         }
 
         foreach (var (name, entry) in initial.Attach)

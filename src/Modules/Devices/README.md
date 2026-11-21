@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Devices.Contracts` (`IDeviceInstallReports`, `IDevice`, `ILocalRuntime`).
+Contracts: assembly `IntoChat.OS.Modules.Devices.Contracts` (`IDeviceInstallReports`, `IDevice`, `ILocalRuntime`, `IVoiceActivityDetector`, `IVoiceActivity`).
 Hosting: runs in process.
 <!-- END GENERATED -->
