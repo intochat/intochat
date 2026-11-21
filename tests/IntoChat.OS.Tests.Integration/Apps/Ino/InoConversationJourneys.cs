@@ -406,11 +406,22 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
     {
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
-        // The conversation thread is drawn in place of its slot: clean is a thread with no message and nothing waiting under it.
-        return root.TryGetProperty("view", out var view)
-            && view.TryGetProperty("root", out var conversation)
-            && conversation.TryGetProperty("kind", out var kind) && kind.GetString() == "chatThreadView"
-            && conversation.TryGetProperty("messages", out var messages)
+        if (!root.TryGetProperty("view", out var view) || !view.TryGetProperty("root", out var node))
+        {
+            return false;
+        }
+
+        // The thread may be wrapped in a single-child filling column; clean means nothing above/below it and no messages yet.
+        if (node.TryGetProperty("kind", out var rootKind) && rootKind.GetString() == "column"
+            && node.TryGetProperty("children", out var children)
+            && children.ValueKind == JsonValueKind.Array
+            && children.GetArrayLength() == 1)
+        {
+            node = children[0];
+        }
+
+        return node.TryGetProperty("kind", out var kind) && kind.GetString() == "chatThreadView"
+            && node.TryGetProperty("messages", out var messages)
             && messages.ValueKind == JsonValueKind.Array
             && messages.GetArrayLength() == 0;
     }

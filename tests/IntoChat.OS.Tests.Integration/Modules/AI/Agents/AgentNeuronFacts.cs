@@ -84,31 +84,31 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         var firstSelected = Assert.Single(firstEvents.OfType<AgentTurnEvent.ModelSelected>());
         Assert.Equal("qwen3.5:4b", firstSelected.Model.Model);
 
-        // 2. Switch model at runtime to "claude-sonnet-4-5" (reconfigure idle agent + update context + turn)
+        // 2. Switch model at runtime to "claude-sonnet-4-6" (reconfigure idle agent + update context + turn)
         var stateAfterFirst = await agent.Read();
-        await agent.Configure(stateAfterFirst.Definition with { Model = new ModelSelection("claude-sonnet-4-5") }, stateAfterFirst.Revision);
-        await profileContext.Set(new ContextEntry("inference", """{"model":"claude-sonnet-4-5"}""", [], [ContextTags.Inference]));
+        await agent.Configure(stateAfterFirst.Definition with { Model = new ModelSelection("claude-sonnet-4-6") }, stateAfterFirst.Revision);
+        await profileContext.Set(new ContextEntry("inference", """{"model":"claude-sonnet-4-6"}""", [], [ContextTags.Inference]));
 
         var secondEvents = new List<AgentTurnEvent>();
-        await foreach (var ev in agent.Run(AgentTurn.Text("turn 2", model: "claude-sonnet-4-5"), ct))
+        await foreach (var ev in agent.Run(AgentTurn.Text("turn 2", model: "claude-sonnet-4-6"), ct))
         {
             secondEvents.Add(ev);
         }
         var secondSelected = Assert.Single(secondEvents.OfType<AgentTurnEvent.ModelSelected>());
-        Assert.Equal("claude-sonnet-4-5", secondSelected.Model.Model);
+        Assert.Equal("claude-sonnet-4-6", secondSelected.Model.Model);
 
-        // 3. Switch model again to "gpt-5" and run via background Start
+        // 3. Switch model again to "gpt-5.4" and run via background Start
         var stateAfterSecond = await agent.Read();
-        await agent.Configure(stateAfterSecond.Definition with { Model = new ModelSelection("gpt-5") }, stateAfterSecond.Revision);
-        await profileContext.Set(new ContextEntry("inference", """{"model":"gpt-5"}""", [], [ContextTags.Inference]));
-        var thirdRunId = await agent.Start(AgentTurn.Text("turn 3", model: "gpt-5"));
+        await agent.Configure(stateAfterSecond.Definition with { Model = new ModelSelection("gpt-5.4") }, stateAfterSecond.Revision);
+        await profileContext.Set(new ContextEntry("inference", """{"model":"gpt-5.4"}""", [], [ContextTags.Inference]));
+        var thirdRunId = await agent.Start(AgentTurn.Text("turn 3", model: "gpt-5.4"));
         await runtime.WaitForSignals<TurnCompleted>(id, 3, Within, ct);
 
         var finalState = await agent.Read();
         Assert.Equal(3, finalState.Runs.Length);
         Assert.Equal("qwen3.5:4b", finalState.Runs[0].Model?.Model);
-        Assert.Equal("claude-sonnet-4-5", finalState.Runs[1].Model?.Model);
-        Assert.Equal("gpt-5", Assert.Single(finalState.Runs, r => r.RunId == thirdRunId).Model?.Model);
+        Assert.Equal("claude-sonnet-4-6", finalState.Runs[1].Model?.Model);
+        Assert.Equal("gpt-5.4", Assert.Single(finalState.Runs, r => r.RunId == thirdRunId).Model?.Model);
     }
 
     [Fact]
@@ -142,6 +142,52 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         var completedRun = Assert.Single((await agent.Read()).Runs, r => r.RunId == runId);
         Assert.Equal(AgentRunStatus.Completed, completedRun.Status);
         Assert.Equal("Here is a joke and token ****!", completedRun.Reply);
+    }
+
+    [Fact]
+    public async Task StreamedTextIsStoredWithItsSecretTailHeldBack()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var firstChunkSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSecondChunk = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async IAsyncEnumerable<ChatResponseUpdate> Stream(
+            IReadOnlyList<ChatMessage> _,
+            ChatOptions? __,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "token sk_");
+            firstChunkSent.TrySetResult();
+            await releaseSecondChunk.Task.WaitAsync(token);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "live_topsecret999");
+            yield return new ChatResponseUpdate(ChatRole.Assistant, " done");
+        }
+
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
+        {
+            services.AddSingleton<IChatClient>(StubChatClient.StreamingOnly(Stream));
+            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
+            services.AddSingleton<IAiCredentials, NoProviders>();
+            services.AddSingleton<ISecretValueSource>(sp => new ZeroTokenGuardedSecretSource(sp.GetRequiredService<ICallerAmbient>(), "sk_live_topsecret999"));
+            services.AddSingleton<ISecretRedactor, SecretRedactor>();
+            services.AddOptions<AIOptions>();
+            services.AddSingleton<ModelCatalog>();
+        });
+        using var person = runtime.As(Who.Person);
+
+        var id = runtime.Id("agent", "agents/secret-tail");
+        var agent = runtime.Get<IAgent>(id);
+
+        await agent.Start(Turn("hello"));
+        await firstChunkSent.Task.WaitAsync(Within, ct);
+        await runtime.WaitForSignals<TurnStarted>(id, 1, Within, ct);
+        var mid = await agent.Read();
+        Assert.DoesNotContain("sk_", mid.ActiveRun?.Reply ?? string.Empty, StringComparison.Ordinal);
+
+        releaseSecondChunk.TrySetResult();
+        await runtime.WaitForSignals<TurnCompleted>(id, 1, Within, ct);
+
+        Assert.Equal("token **** done", Assert.Single((await agent.Read()).Runs).Reply);
     }
 
     private static AgentTurn Turn(string text) => new(new AiMessage("user", [new AiText(text)]));
