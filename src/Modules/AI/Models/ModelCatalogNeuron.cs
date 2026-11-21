@@ -20,7 +20,12 @@ internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? gr
 
     public async Task SetRole(Role role, ModelId model)
     {
-        EnforceOwnerOrTrustedShell("SetRole", "Only the brain owner may change model roles.", "Only the person or a built-in shell screen may change model roles.");
+        var isDevicesModule = Context.Caller is { Actor: DigitalBrain.Access.Actor.Module { Id: "devices" }, Brain: var callerBrain }
+            && callerBrain == Id.Brain;
+        if (!isDevicesModule)
+        {
+            EnforceOwnerOrTrustedShell("SetRole", "Only the brain owner may change model roles.", "Only the person or a built-in shell screen may change model roles.");
+        }
 
         if (Brain is null)
         {
