@@ -247,14 +247,12 @@ public sealed class SettingsAppFacts
 
             await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Linus", Theme: "dark", DefaultModel: "claude-opus-4-6"));
             await settings.Request("set-variable", new SettingsSetVariable("ANTHROPIC_API_KEY", "vault://ANTHROPIC_API_KEY"));
-            await os.Get<IProfile>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.profile", "profile")).AddFriend("alan-brain", "alan", "Alan Turing", "friends");
 
             await settings.Request("export-brain", new SettingsExportBrain());
             var archiveJson = settings.App.State.ExportedArchiveJson;
             Assert.False(string.IsNullOrWhiteSpace(archiveJson));
             Assert.Contains("watch.web", archiveJson, StringComparison.Ordinal);
             Assert.Contains("vault://ANTHROPIC_API_KEY", archiveJson, StringComparison.Ordinal);
-            Assert.Contains("Alan Turing", archiveJson, StringComparison.Ordinal);
 
             // Simulate wiping deployed units and mutating settings before restoring the portable .brain archive.
             InMemoryPortableSynapseStudio.Store.Clear();
@@ -267,7 +265,6 @@ public sealed class SettingsAppFacts
             Assert.Equal("dark", settings.App.State.Theme);
             Assert.Equal("claude-opus-4-6", settings.App.State.DefaultModel);
             Assert.Contains(settings.App.State.Variables!, v => v.Key == "ANTHROPIC_API_KEY" && v.Value == "vault://ANTHROPIC_API_KEY");
-            Assert.Contains(settings.App.State.TeamFriends!, f => f.Handle == "alan" && f.DisplayName == "Alan Turing");
             Assert.Contains("watch.web", settings.App.State.DeployedUnits!);
             Assert.Contains("WebWatch.cs", InMemoryPortableSynapseStudio.Store["watch.web"].Keys);
         }
@@ -282,6 +279,9 @@ public sealed class SettingsAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        os.SeedStoredState(
+            FriendsDefaults.Id("local"),
+            """{"pending":[],"refused":0,"friends":[{"account":"grace","brain":"grace-brain","name":"Grace Hopper","since":"2026-01-01T00:00:00+00:00"}]}""");
         var settings = await os.Install<SettingsApp>();
         var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
 
@@ -292,18 +292,16 @@ public sealed class SettingsAppFacts
         var varJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.Contains("OLLAMA_HOST", varJson, StringComparison.Ordinal);
 
-        await os.Get<IProfile>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.profile", "profile")).AddFriend("grace-brain", "grace", "Grace Hopper", "friends");
-
         var archive = new PortableBrainSnapshot(
             BrainId: "local",
             ExportedAt: DateTimeOffset.UtcNow,
             Settings: new UserSettingsState("Ada", "light", "gpt-5", [new UserVariableEntry("OLLAMA_HOST", "http://127.0.0.1:11434")]),
-            Profile: new ProfileState("ada", "Bio", [], [], "Ada Lovelace", "", [new ProfileFriend("grace-brain", "grace", "Grace Hopper", "friends")]),
+            Profile: new ProfileState("ada", "Bio", [], [], "Ada Lovelace", "", []),
             Units: new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal));
         await settings.Request("import-brain", new SettingsImportBrain(PortableBrainArchive.ToJson(archive)));
 
         await settings.Request("open", new SettingsOpen());
-        Assert.Contains(settings.App.State.TeamFriends!, f => f.Handle == "grace");
+        Assert.Contains(settings.App.State.TeamRoster!, f => f.Account.Value == "grace");
 
         await settings.App.Navigate(new SettingsNavigate("team"));
         var teamJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());

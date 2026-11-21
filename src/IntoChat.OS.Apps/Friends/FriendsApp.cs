@@ -127,8 +127,9 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var profile = await Get<IProfile>("profile").Read();
+        var roster = await TryReadRosterAsync();
         var scope = FriendsAppState.NormalizeScope(request.Scope, State.SelectedScope);
-        var opened = State.ApplyProfile(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope);
+        var opened = State.ApplyProfile(profile, $"@{profile.Handle} · {roster.Length} friends · {profile.Posts.Length} app-posts", scope, roster);
         await Show(await WithShares(opened));
     }
 
@@ -219,7 +220,8 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             }
             var friend = await Friends.Redeem(code);
             var profile = await Get<IProfile>("profile").Read();
-            return await WithShares(State.ApplyProfile(profile, $"{friend.Name} is now a friend."));
+            var roster = await TryReadRosterAsync();
+            return await WithShares(State.ApplyProfile(profile, $"{friend.Name} is now a friend.", roster: roster));
         });
     }
 
@@ -231,7 +233,8 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         {
             await Friends.Unfriend(new IntoChat.OS.Modules.Identity.Contracts.AccountId(request.Account));
             var profile = await Get<IProfile>("profile").Read();
-            return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.") with { Opened = null });
+            var roster = await TryReadRosterAsync();
+            return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.", roster: roster) with { Opened = null });
         });
     }
 
@@ -308,6 +311,16 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         {
             OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "A friends or sharing step was refused or failed.");
             await Show(State with { Status = $"Could not {what}: {error.Message}" });
+        }
+    }
+
+    private async Task<Friend[]> TryReadRosterAsync()
+    {
+        try { return await Friends.List(); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Friends roster could not be read.");
+            return State.Roster ?? [];
         }
     }
 
@@ -424,7 +437,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
 
     protected override Node Render(FriendsAppState state)
     {
-        var friends = state.Friends ?? [];
+        var roster = state.Roster ?? [];
         var allPosts = state.Posts ?? [];
         var visiblePosts = state.SelectedScope is "all" or ""
             ? allPosts
@@ -441,7 +454,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             HeaderBar(
                 $"{state.DisplayName} (@{state.Handle})",
                 string.IsNullOrWhiteSpace(state.Bio) ? state.Status : $"{state.Bio} · {state.Status}",
-                StatusPill(StatusKind.Done, $"{friends.Length} friends"),
+                StatusPill(StatusKind.Done, $"{roster.Length} friends"),
                 PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().OnClick(() => PublishQuickPostAsync())),
             HStack(Space.Sm)[
                 Segmented(
@@ -460,10 +473,10 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             ],
             Grid(3, Space.Sm)[
                 StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
-                StatCard("kpi-friends-count", "Friends", $"{friends.Count(f => f.Confirmed)}", $"{friends.Count(f => !f.Confirmed)} not confirmed", BadgeTone.Done, "users"),
+                StatCard("kpi-friends-count", "Friends", $"{roster.Length}", "Confirmed", BadgeTone.Done, "users"),
                 StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{(state.PinnedApps ?? []).Length} Pinned", BadgeTone.Accent, "cpu")
             ],
-            showRoster ? RenderFriends(state, friends) : null,
+            showRoster ? RenderFriends(state, roster) : null,
             showShared ? RenderSharedByMe(state) : null,
             showShared ? RenderSharedWithMe(state) : null,
             showFeed
@@ -474,20 +487,15 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ];
     }
 
-    // Friends, how to add one, and the path to share. Sharing is offered only for a confirmed friend.
-    private Node RenderFriends(FriendsAppState state, ProfileFriend[] friends)
+    // Friends, how to add one, and the path to share. Every entry in IFriends is confirmed.
+    private Node RenderFriends(FriendsAppState state, Friend[] roster)
     {
-        var rows = friends.Select(friend => (Node)HStack(Space.Sm,
+        var rows = roster.Select(friend => (Node)HStack(Space.Sm,
         [
-            new TagPill($"@{friend.Handle} · {friend.DisplayName}", friend.Confirmed ? "accent" : "muted", "users"),
-            .. friend.Confirmed
-                ? new Node[]
-                {
-                    Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account}").Small().OnClick(() => ShareTypedPathAsync(friend.Account, "viewer")),
-                    Button("Share as editor", "pencil").Key($"share-editor:{friend.Account}").Small().OnClick(() => ShareTypedPathAsync(friend.Account, "editor")),
-                    GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account}").Small().OnClick(() => UnfriendAsync(friend.Account)),
-                }
-                : [MutedText("Not confirmed. Exchange a friend code to share with them.")],
+            new TagPill($"{friend.Name} (@{friend.Account.Value})", "accent", "users"),
+            Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account.Value}").Small().OnClick(() => ShareTypedPathAsync(friend.Account.Value, "viewer")),
+            Button("Share as editor", "pencil").Key($"share-editor:{friend.Account.Value}").Small().OnClick(() => ShareTypedPathAsync(friend.Account.Value, "editor")),
+            GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account.Value}").Small().OnClick(() => UnfriendAsync(friend.Account.Value)),
         ]));
 
         return Card("Friends", "A friend is confirmed with a code: one of you makes it, the other adds it.")[
@@ -498,7 +506,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
                     Button("Make a friend code", "key").Key("make-code").Small().OnClick(() => MakeCodeAsync()),
                     Text(state.FriendCode)
                 ],
-                TextField(FieldKey(CodeField), "ada.XXXX-XXXX-XXXX").Key(CodeField).Label("Friend code you received"),
+                TextField(FieldKey(CodeField), "XXXX-XXXX-XXXX").Key(CodeField).Label("Friend code you received"),
                 PrimaryButton("Add friend", "user-plus").Key("redeem-code").Small().OnClick(() => RedeemTypedCodeAsync()),
                 TextField(FieldKey(PathField), "/work/folder").Key(PathField).Label("Folder or file of your workspace to share"),
             ])

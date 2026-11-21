@@ -278,6 +278,18 @@ public sealed class FileSharesDoorFacts
         }
     }
 
+    [Fact]
+    public async Task ShareRefusesAnAccountThatIsOnlyInTheOldProfileList()
+    {
+        await using var world = await World.Start(
+            seedProfileFriends:
+                """[{"brainId":"eve","handle":"eve","displayName":"Eve","scope":"friends","account":"eve","confirmed":false}]""",
+            forAccount: Ada);
+
+        using var ada = As(Ada);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Eve, "/work/trip", ShareRole.Viewer));
+    }
+
     // Every silo's edge stamps through the one Orleans ambient, so the edge of the world last started serves them all.
     internal static IDisposable As(string account, string? brain = null, Who kind = Who.Person)
         => World.Edge.Enter(Stamp.Of(World.Edge, kind, new BrainId(brain ?? account), account, app: $"{brain ?? account}/apps/calculator"));

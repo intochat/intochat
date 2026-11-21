@@ -62,8 +62,7 @@ public sealed record SettingsAppState(
     IReadOnlyList<string>? FriendGrants = null,
     string? ExportedArchiveJson = null,
     IReadOnlyList<UserVariableEntry>? Variables = null,
-    IReadOnlyList<string>? DeployedUnits = null,
-    IReadOnlyList<ProfileFriend>? TeamFriends = null)
+    IReadOnlyList<string>? DeployedUnits = null)
 {
     public const int MaxHistoryDepth = 20;
     public const int MaxDisplayNameLength = 64;
@@ -106,6 +105,7 @@ public sealed record SettingsAppState(
     public SettingsProviderRow[] Providers { get; init; } = [];
     public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
     public DeviceView? Device { get; init; }
+    public Friend[]? TeamRoster { get; init; }
 
     // Additive navigation & GitHub Connector/Webhook/Triage Hub read-model fields (never raw secrets!):
     [Id(40)]
@@ -177,7 +177,6 @@ public sealed record SettingsAppState(
         [],
         [],
         null,
-        [],
         [],
         [])
     {
@@ -527,7 +526,7 @@ public sealed record SettingsAppState(
         UserSettingsState user,
         string status,
         IReadOnlyList<string>? deployedUnits = null,
-        IReadOnlyList<ProfileFriend>? teamFriends = null,
+        Friend[]? teamRoster = null,
         string? section = null,
         string? archiveJson = null)
     {
@@ -561,7 +560,7 @@ public sealed record SettingsAppState(
             ExportedArchiveJson = archiveJson ?? ExportedArchiveJson,
             Variables = (user.Variables ?? []).Where(static v => !string.IsNullOrWhiteSpace(v.Key)).ToArray(),
             DeployedUnits = deployedUnits ?? DeployedUnits ?? [],
-            TeamFriends = teamFriends ?? TeamFriends ?? [],
+            TeamRoster = teamRoster ?? TeamRoster,
             HasUnsavedChanges = false,
         };
     }

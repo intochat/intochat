@@ -32,24 +32,18 @@ Modules bring connections and capabilities. See [modules](modules.md).
 
 ## Friends and groups
 
-A friend is a link two people confirmed. One makes a friend code, the other redeems it, and each brain records the other's account. The contract is `IFriendLinks`. A friend added without a code is listed as not confirmed, and nothing can be shared with them.
+A friend is a link two people confirmed. One makes a single-use 24-hour `Code` through `IFriends` (stored under neuron type `friends.links`), the other redeems it, and each brain records the other's account in its one friend roster.
 
 A folder or file of the workspace can be shared with a confirmed friend as Viewer or Editor. The file stays in its owner's brain.
 
-- The owner's side is `IFileShares`: the list of shares, and the only contract a person of another brain can reach. It decides every request from the caller the kernel stamped and from its own list, so removing a share takes effect at once.
+- The owner's side is `IFileShares`: the list of shares, and the only file contract a person of another brain can reach. It checks `IFriends.IsFriend` and decides every request from the caller the kernel stamped and from its own list, so removing a share takes effect at once.
 - The friend's side is `ISharedWithMe`: what friends shared with this person, and the route their requests take.
 - Only a person can share or open a share. An app, an agent or a unit is refused.
 - Removing a friend removes every share between the two.
 
 Limits today: both brains must run on the same kernel; a share names a path, so renaming the folder ends it; when two people save the same file, the last save wins; only the workspace's own storage can be shared.
 
-A group is a brain that several accounts share. Its members share apps, a chat and a share of the owner's compute. In code a group is still called a circle: the client-side group/circle contracts (`ICircle` and sibling interfaces in `src/Modules/Circles/Contracts`) and the `circles` module live in `src/Modules/Circles`.
-
-- The creator invites accounts. An invited account accepts and becomes a member.
-- Owners and admins can make invite codes.
-- When a member shares an app, the connections that app uses are bound for the group. They are withdrawn when the sharer leaves.
-
-The multi-account group server runs in IntoChat Cloud.
+A group is an `IConversation` in its creator's brain with friends invited as participants. Friends reach it only through the `[Shareable]` door via `IFriends`, admitted only while they remain both a participant and a friend, and see only `Visibility.Everyone` entries. Older circle brains in `src/Modules/Circles` remain read-only legacy data so existing records stay readable without wiping state.
 
 ## App
 

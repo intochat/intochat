@@ -95,13 +95,6 @@ public static class PortableBrainArchive
         if (snapshot.Profile is { } p)
         {
             await profile.UpdateProfile(p.Handle, p.DisplayName, p.Bio, p.PinnedApps ?? [], p.AvatarUrl);
-            foreach (var friend in p.Friends ?? [])
-            {
-                if (!string.IsNullOrWhiteSpace(friend.BrainId))
-                {
-                    await profile.AddFriend(friend.BrainId, friend.Handle, friend.DisplayName, friend.Scope);
-                }
-            }
             foreach (var post in p.Posts ?? [])
             {
                 if (!string.IsNullOrWhiteSpace(post.Id) && !string.IsNullOrWhiteSpace(post.Content))

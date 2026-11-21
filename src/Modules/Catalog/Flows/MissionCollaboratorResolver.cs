@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -9,7 +8,6 @@ using DigitalBrain.Neurons;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
-using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -29,7 +27,7 @@ internal static class MissionCollaboratorResolver
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
 
         var ownerDisplayName = string.IsNullOrWhiteSpace(ownerId) ? "Owner" : ownerId;
-        ProfileFriend[] confirmedFriends = [];
+        Friend[] friends = [];
 
         if (services?.GetService<INeuronProxies>() is { } proxies)
         {
@@ -53,12 +51,19 @@ internal static class MissionCollaboratorResolver
                 {
                     ownerDisplayName = profile.DisplayName;
                 }
-
-                confirmedFriends = (profile.Friends ?? []).Where(static f => f.Confirmed).ToArray();
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogDebug(ex, "MissionCollaboratorResolver skipped IProfile lookup.");
+            }
+
+            try
+            {
+                friends = await proxies.Get<IFriends>(FriendsDefaults.Id(brain.Value)).List().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "MissionCollaboratorResolver skipped IFriends lookup.");
             }
         }
 
@@ -79,34 +84,33 @@ internal static class MissionCollaboratorResolver
                 Active: true));
         }
 
-        // Resolve linked ICircle members when CircleBrainId is linked (or from confirmed circle/workspace members).
+        // Resolve legacy linked circle owner when CircleBrainId is present on an older run.
         if (!string.IsNullOrWhiteSpace(run.CircleBrainId))
         {
-            var circleMembers = await TryReadCircleMembersAsync(run.CircleBrainId!, services, logger, ct).ConfigureAwait(false);
-            foreach (var (memberId, memberDisplay) in circleMembers)
+            var circleOwners = await TryReadCircleOwnerAsync(run.CircleBrainId!, services, logger, ct).ConfigureAwait(false);
+            foreach (var (memberId, memberDisplay) in circleOwners)
             {
                 if (seenIds.Add(memberId))
                 {
                     list.Add(new MissionCollaborator(
                         Id: memberId,
                         DisplayName: memberDisplay,
-                        Kind: "circle-member",
+                        Kind: "friend",
                         FocusNodeId: currentStage,
                         Active: true));
                 }
             }
         }
 
-        foreach (var friend in confirmedFriends)
+        foreach (var friend in friends)
         {
-            var friendId = string.IsNullOrWhiteSpace(friend.Account) ? friend.Handle : friend.Account;
+            var friendId = friend.Account.Value;
             if (!string.IsNullOrWhiteSpace(friendId) && seenIds.Add(friendId))
             {
-                var display = !string.IsNullOrWhiteSpace(friend.DisplayName) ? friend.DisplayName : friend.Handle;
                 list.Add(new MissionCollaborator(
                     Id: friendId,
-                    DisplayName: string.IsNullOrWhiteSpace(display) ? friendId : display,
-                    Kind: "circle-member",
+                    DisplayName: string.IsNullOrWhiteSpace(friend.Name) ? friendId : friend.Name,
+                    Kind: "friend",
                     FocusNodeId: currentStage,
                     Active: true));
             }
@@ -175,62 +179,31 @@ internal static class MissionCollaboratorResolver
         return [.. list];
     }
 
-    private static async Task<IReadOnlyList<(string Id, string DisplayName)>> TryReadCircleMembersAsync(
+    private static async Task<IReadOnlyList<(string Id, string DisplayName)>> TryReadCircleOwnerAsync(
         string circleBrainId,
         IServiceProvider? services,
         ILogger logger,
         CancellationToken ct)
     {
         var results = new List<(string Id, string DisplayName)>();
-        if (services is null)
+        var broker = services?.GetService<ICapabilityBroker>();
+        if (broker is null)
         {
             return results;
         }
 
         string[] memberAccountIds = [];
-        if (services.GetService<INeuronProxies>() is { } proxies)
+        try
         {
-            try
+            var identity = await broker.Identity(ct).ConfigureAwait(false);
+            if (await identity.OwnerOfBrain(circleBrainId, ct).ConfigureAwait(false) is { } circleOwner)
             {
-                var readerType = AppDomain.CurrentDomain.GetAssemblies()
-                    .Select(static a => a.GetType("IntoChat.OS.Modules.Circles.ICircleStateReader", throwOnError: false))
-                    .FirstOrDefault(static t => t is not null);
-                var getMethod = readerType is null
-                    ? null
-                    : typeof(INeuronProxies).GetMethod(nameof(INeuronProxies.Get), BindingFlags.Public | BindingFlags.Instance)?.MakeGenericMethod(readerType);
-                var membersMethod = readerType?.GetMethod("Members", BindingFlags.Public | BindingFlags.Instance);
-
-                if (getMethod is not null && membersMethod is not null)
-                {
-                    var circleNeuronId = new NeuronId(new BrainId(circleBrainId), CircleGrainType.Name, "circle");
-                    var proxy = getMethod.Invoke(proxies, [circleNeuronId]);
-                    if (proxy is not null && membersMethod.Invoke(proxy, null) is Task<string[]> membersTask)
-                    {
-                        memberAccountIds = await membersTask.ConfigureAwait(false);
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogDebug(ex, "MissionCollaboratorResolver could not query ICircleStateReader for '{CircleBrain}'.", circleBrainId);
+                memberAccountIds = [circleOwner.AccountId];
             }
         }
-
-        var broker = services.GetService<ICapabilityBroker>();
-        if (memberAccountIds.Length == 0 && broker is not null)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            try
-            {
-                var identity = await broker.Identity(ct).ConfigureAwait(false);
-                if (await identity.OwnerOfBrain(circleBrainId, ct).ConfigureAwait(false) is { } circleOwner)
-                {
-                    memberAccountIds = [circleOwner.AccountId];
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogDebug(ex, "MissionCollaboratorResolver could not read circle owner for '{CircleBrain}'.", circleBrainId);
-            }
+            logger.LogDebug(ex, "MissionCollaboratorResolver could not read circle owner for '{CircleBrain}'.", circleBrainId);
         }
 
         foreach (var accountId in memberAccountIds.Where(static m => !string.IsNullOrWhiteSpace(m)).Distinct(StringComparer.Ordinal))

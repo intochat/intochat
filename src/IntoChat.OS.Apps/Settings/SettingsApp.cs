@@ -430,13 +430,13 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         var approvals = await TryReadPendingApprovalsAsync();
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? []);
         var deployedUnits = await TryReadDeployedUnitsAsync();
-        var teamFriends = await TryReadTeamFriendsAsync();
+        var teamRoster = await TryReadTeamRosterAsync();
 
         await ApplyUserSettingsAsync(
             user,
             $"Restored portable brain archive from {snapshot.BrainId} ({snapshot.Units.Count} unit(s)).",
             deployedUnits,
-            teamFriends,
+            teamRoster,
             section: "danger",
             archiveJson: archiveJson,
             baseline: computeProjection with

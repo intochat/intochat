@@ -45,7 +45,7 @@ public sealed partial class SettingsApp
         var approvals = await TryReadPendingApprovalsAsync();
         var user = await Get<IUserSettings>("settings").Read();
         var deployedUnits = await TryReadDeployedUnitsAsync();
-        var teamFriends = await TryReadTeamFriendsAsync();
+        var teamRoster = await TryReadTeamRosterAsync();
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
         var modelInfo = await TryReadModelCatalogAsync(user.DefaultModel);
         var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
@@ -70,7 +70,7 @@ public sealed partial class SettingsApp
             effectiveUser,
             $"Settings ({effectiveUser.DisplayName} · {effectiveUser.Theme} · {effectiveUser.DefaultModel})",
             deployedUnits,
-            teamFriends,
+            teamRoster,
             section: targetSection);
 
         if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
@@ -463,11 +463,11 @@ public sealed partial class SettingsApp
         UserSettingsState user,
         string status,
         IReadOnlyList<string>? deployedUnits = null,
-        IReadOnlyList<ProfileFriend>? teamFriends = null,
+        Friend[]? teamRoster = null,
         string? section = null,
         string? archiveJson = null,
         SettingsAppState? baseline = null)
-        => UpdateAsync((baseline ?? State).ApplyUserSettings(user, status, deployedUnits, teamFriends, section, archiveJson));
+        => UpdateAsync((baseline ?? State).ApplyUserSettings(user, status, deployedUnits, teamRoster, section, archiveJson));
 
     private async Task<IReadOnlyList<string>> TryReadDeployedUnitsAsync()
     {
@@ -483,16 +483,16 @@ public sealed partial class SettingsApp
         }
     }
 
-    private async Task<IReadOnlyList<ProfileFriend>> TryReadTeamFriendsAsync()
+    private async Task<Friend[]?> TryReadTeamRosterAsync()
     {
         try
         {
-            return (await Get<IProfile>("profile").Read()).Friends ?? [];
+            return await Get<IFriends>(FriendsDefaults.KeyPart).List();
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            Log.LogDebug(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
-            return State.TeamFriends ?? [];
+            Log.LogDebug(error, "FriendsNeuron is optional when SettingsApp runs in standalone tests.");
+            return State.TeamRoster;
         }
     }
 

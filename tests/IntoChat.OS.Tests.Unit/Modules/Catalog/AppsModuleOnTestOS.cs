@@ -36,7 +36,6 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
         await srcSettings.SetProfile("Ada", "dark", "gpt-5.4");
         await srcSettings.SetVariable("ino.smart", "on");
         await srcProfile.UpdateProfile("ada", "Ada Lovelace", "Analytical Engine", ["creator"]);
-        await srcProfile.AddFriend("babbage", "charles", "Charles Babbage", "friends");
         await srcStudio.DeployFiles("watch.web", new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["WebWatch.cs"] = "// unit code",
@@ -65,7 +64,6 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
 
         var restoredProfile = await dstProfile.Read();
         Assert.Equal("ada", restoredProfile.Handle);
-        Assert.Contains(restoredProfile.Friends ?? [], f => f.BrainId == "babbage");
 
         var restoredFiles = await dstStudio.SourceFiles("watch.web");
         Assert.Equal("// unit code", restoredFiles["WebWatch.cs"]);

@@ -982,10 +982,10 @@ internal static class SettingsViewRenderer
         IReadOnlyList<string>[] memberRows =
         [
             [state.DisplayName, "Owner", "Active"],
-            .. (state.TeamFriends ?? []).Select(static friend =>
+            .. (state.TeamRoster ?? []).Select(static friend =>
             {
-                var label = string.IsNullOrWhiteSpace(friend.DisplayName) ? $"@{friend.Handle}" : $"{friend.DisplayName} (@{friend.Handle})";
-                return (IReadOnlyList<string>)[label, friend.Scope, "Verified"];
+                var label = string.IsNullOrWhiteSpace(friend.Name) ? $"@{friend.Account.Value}" : $"{friend.Name} (@{friend.Account.Value})";
+                return (IReadOnlyList<string>)[label, "friend", "Verified"];
             }),
         ];
 
