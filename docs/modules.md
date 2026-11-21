@@ -46,7 +46,7 @@ A module can declare more through static members that the host reads:
 - `Contracts`: the assembly that holds the module's contracts.
 - `Integration` or `Integrations`: the secrets and settings a connection of this module asks for.
 
-A module's options bind from its own configuration section, for example `IntoChatOS:Modules:ai:Options`. Setting `Enabled` to `false` in a module's section turns the module off.
+A module's options bind from its own configuration section, for example `IntoChatOS:Modules:ai:Options`. Values stated in the AppHost chain (`src/IntoChat.OS.AppHost/AppHost.cs`) are defaults that `IntoChatOS:Modules:<id>:Options` overrides; setting `IntoChatOS:Modules:<id>:ReplaceOptions=true` drops them. Setting `Enabled` to `false` in a module's section turns the module off.
 
 ## Connections
 

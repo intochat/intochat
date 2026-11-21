@@ -63,6 +63,7 @@ Anything after a bare `--` goes to the AppHost unchanged.
 - Local state lives under `~/.intochat`. Set `IntoChatOS:Home` to move it.
 - The kernel listens on this computer only. On any other address (`IntoChatOS:Bind`, or a container) it refuses to start until you set `IntoChatOS:Auth:Username` and `IntoChatOS:Auth:Password`, which make you the single owner, or `IntoChatOS:Auth:AllowOpenOnNetwork=true`. Registering new accounts is switched off there in every case.
 - `IntoChatOS:Topology` says where the brain runs. Unset means `local`. See [concepts](concepts.md).
+- What runs where is stated in `src/IntoChat.OS.AppHost/AppHost.cs`: the models for each role on the device and in the cloud (`WithAI`), the local runtimes, web search and the hosted modules. `IntoChatOS:Topology` picks the side; `IntoChatOS:Modules:<id>:Enabled` and `IntoChatOS:Modules:<id>:Options` override it.
 - In the `local` and `local+cloud` topologies the modules that need containers are off by default. Turn one on with `IntoChatOS:Modules:<id>:Enabled=true`.
 
 ## Next
