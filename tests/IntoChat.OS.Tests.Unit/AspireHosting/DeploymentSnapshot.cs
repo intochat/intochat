@@ -10,6 +10,8 @@ internal sealed record DeploymentSnapshot(
     string[] Resources,
     SortedDictionary<string, string?> Settings)
 {
+    static DeploymentSnapshot() => IntoChatOSHostingExtensions.InitializeConfigurationRoot();
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,

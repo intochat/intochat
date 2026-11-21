@@ -7,9 +7,9 @@ public sealed class DeploymentSnapshotFacts
     [InlineData("cloud")]
     public void OnlyTheAiSectionsChanged(string topology)
     {
-        var recorded = DeploymentSnapshot.Load($"deployment-{topology}.json")
-            .Without("ai", "devices", "webtools", "mcp");
         var actual = DeploymentSnapshot.Of(AppHostChainFacts.Compose(topology))
+            .Without("ai", "devices", "webtools", "mcp");
+        var recorded = DeploymentSnapshot.Load($"deployment-{topology}.json")
             .Without("ai", "devices", "webtools", "mcp");
 
         Assert.Equal(recorded, actual);
