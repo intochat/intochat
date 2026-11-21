@@ -90,7 +90,7 @@ internal sealed class ContractTool : AIFunction
         return await _invoke(Schema.Contract, key, Schema.Method, argsJson, cancellationToken).ConfigureAwait(false);
     }
 
-    private static string SerializeArguments(Dictionary<string, object?> payload)
+    internal static string SerializeArguments(Dictionary<string, object?> payload)
     {
         var buffer = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(buffer))
