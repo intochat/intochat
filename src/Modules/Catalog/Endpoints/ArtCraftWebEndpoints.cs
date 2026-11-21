@@ -434,7 +434,7 @@ internal static class ArtCraftWebEndpoints
   <title>ArtCraft — Creative &amp; Productivity Suite</title>
 {{bridgeScript}}
 </head>
-<body style="margin:0;background:#0b0e14;color:#e6ecf5;font-family:Inter,system-ui,sans-serif;min-height:100vh;padding:28px 32px;box-sizing:border-box">
+<body data-artcraft-app="{{hub.Id}}" style="margin:0;background:#0b0e14;color:#e6ecf5;font-family:Inter,system-ui,sans-serif;min-height:100vh;padding:28px 32px;box-sizing:border-box">
   <header style="margin-bottom:22px">
     <h1 style="margin:0 0 6px;font-size:22px;letter-spacing:-0.02em">ArtCraft Suite</h1>
     <p style="margin:0;font-size:13.5px;color:#9aa7bd">Select any studio to launch its fullscreen Rust WASM workspace (downloads automatically on first open).</p>

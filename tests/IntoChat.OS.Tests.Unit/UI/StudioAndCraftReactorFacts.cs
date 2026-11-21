@@ -108,21 +108,22 @@ public sealed class StudioAndCraftReactorFacts
         foreach (var app in suite)
         {
             var initialState = ArtCraftStudioAppState.For(app.Descriptor.Id);
-            Assert.Equal("mcp", initialState.ExecutionMode);
+            Assert.Equal("wasm-ui", initialState.ExecutionMode);
 
-            var view = app.PreviewView(initialState);
-            Assert.Equal(app.Descriptor.Title, view.Title);
-            var json = JsonSerializer.Serialize(view, RuntimeProtocol.OptionsFor(typeof(View)));
+            var wasmView = app.PreviewView(initialState);
+            Assert.Equal(app.Descriptor.Title, wasmView.Title);
+            var wasmJson = JsonSerializer.Serialize(wasmView, RuntimeProtocol.OptionsFor(typeof(View)));
+            Assert.Contains("\"kind\":\"webBrowser\"", wasmJson, StringComparison.Ordinal);
+
+            var mcpView = app.PreviewView(initialState with { ExecutionMode = "mcp" });
+            Assert.Equal(app.Descriptor.Title, mcpView.Title);
+            var json = JsonSerializer.Serialize(mcpView, RuntimeProtocol.OptionsFor(typeof(View)));
             Assert.Contains("\"kind\":\"appShell\"", json, StringComparison.Ordinal);
             Assert.DoesNotContain("data:image/png;base64,", json, StringComparison.Ordinal);
             Assert.DoesNotContain("-cli", json, StringComparison.Ordinal);
             Assert.DoesNotContain("1808", json, StringComparison.Ordinal);
             Assert.DoesNotContain("\"kind\":\"webBrowser\"", json, StringComparison.Ordinal);
             Assert.DoesNotContain("\"surfaceKind\":\"acrylic\"", json, StringComparison.Ordinal);
-
-            var wasmView = app.PreviewView(initialState with { ExecutionMode = "wasm-ui" });
-            var wasmJson = JsonSerializer.Serialize(wasmView, RuntimeProtocol.OptionsFor(typeof(View)));
-            Assert.Contains("\"kind\":\"webBrowser\"", wasmJson, StringComparison.Ordinal);
         }
     }
 
@@ -196,7 +197,10 @@ public sealed class StudioAndCraftReactorFacts
         var photoId = new NeuronId(brain, "app.photocraft", "main");
         var photo = os.Get<IScreen>(photoId);
         var p0 = (await photo.Open())!;
-        await photo.Activate("app.photocraft", p0.Generation, "toggle-layer-0");
+        await photo.Activate("app.photocraft", p0.Generation, "mode-mcp");
+        await os.Idle();
+        var p1 = (await photo.Open())!;
+        await photo.Activate("app.photocraft", p1.Generation, "toggle-layer-0");
         await os.Idle();
         var photoState = (await ((IBrainObserver)os).State(photoId, Ct))!.Value
             .Deserialize<PhotoCraftAppState>(RuntimeProtocol.OptionsFor(typeof(PhotoCraftAppState)))!;

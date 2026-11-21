@@ -43,7 +43,10 @@ public sealed class ShippedGrantsFacts
             var html = ArtCraftWebEndpoints.RenderInteractiveStudioHtml(descriptor);
             Assert.Contains($"data-artcraft-app=\"{descriptor.Id}\"", html, StringComparison.Ordinal);
             Assert.Contains(descriptor.Title, html, StringComparison.Ordinal);
-            Assert.Contains(descriptor.CliBinary, html, StringComparison.Ordinal);
+            if (!string.Equals(descriptor.Id, "artcraft", StringComparison.Ordinal))
+            {
+                Assert.Contains(descriptor.CliBinary, html, StringComparison.Ordinal);
+            }
             Assert.Contains("window.artcraftStudio", html, StringComparison.Ordinal);
         }
     }

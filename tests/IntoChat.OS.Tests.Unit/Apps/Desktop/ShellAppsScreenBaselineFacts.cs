@@ -39,6 +39,7 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(CreatorApp),
         typeof(DataStudioApp),
         typeof(DesktopApp),
+        typeof(IntoChat.OS.Apps.DevUI.DevUiApp),
         typeof(IntoChat.OS.Apps.Engineer.EngineerApp),
         typeof(FilmCraftApp),
         typeof(FriendsApp),
@@ -50,7 +51,8 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(SettingsApp),
         typeof(TasksApp),
         typeof(UsageApp),
-        typeof(IntoChat.OS.Apps.UiKit.UiKitApp)
+        typeof(IntoChat.OS.Apps.UiKit.UiKitApp),
+        typeof(IntoChat.OS.Apps.Widgetbook.WidgetbookApp)
     ];
 
     public static readonly IReadOnlyList<Type> ArtCraftStudio15Apps =
@@ -103,7 +105,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(32, concreteScreens.Count);
+        Assert.Equal(34, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);

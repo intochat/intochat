@@ -7,7 +7,7 @@ void main() {
   testWidgets(
     'AppShell(edgeToEdge: true) + WebBrowserNode(chrome: frameless) fills viewport without inner card chrome',
     (tester) async {
-      final shell = AppShellNode(
+      const shell = AppShellNode(
         key: 'photocraft-shell',
         sidebar: null,
         toolbar: null,
@@ -29,7 +29,7 @@ void main() {
       final ctx = NodeContext(
         view: 'local/app.photocraft/default',
         generation: 1,
-        send: (_) async {},
+        send: (_) async => null,
       );
 
       tester.view.physicalSize = const Size(1200, 800);

@@ -1206,7 +1206,9 @@ public sealed class HouseRules22Facts
 
         var moduleAssemblies = ProductionArchitecture.Assemblies
             .Where(a => a.GetName().Name?.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) == true
-                && a.GetName().Name != "IntoChat.OS.Modules.Identity")
+                && a.GetName().Name != "IntoChat.OS.Modules.Identity"
+                // IntoChat.OS.Modules.UI uses vertical-slice co-located contracts (enforced by UiVerticalSliceFacts).
+                && a.GetName().Name != "IntoChat.OS.Modules.UI")
             .ToArray();
 
         var unexpected = new List<string>();
@@ -1524,6 +1526,7 @@ public sealed class HouseRules22Facts
         foreach (var src in ProductionSources.Value)
         {
             if (src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
+                || src.ProjectName == "IntoChat.OS.Modules.UI"
                 || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
                 || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase))
             {

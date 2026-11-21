@@ -149,14 +149,14 @@ public sealed class InoAppFacts
         Assert.Equal("compact-pill", uiIdentity.BarLayout);
 
         var photoCraftInstalled = await os.Install<PhotoCraftApp>();
-        Assert.Null(photoCraftInstalled.App.State.WebUrl);
+        Assert.Equal("/artcraft/photocraft/index.html", photoCraftInstalled.App.State.WebUrl);
         await photoCraftInstalled.Request("remove-background", new PhotoCraftRemoveBackground("/work/hero.png", "native-linux"));
         Assert.Contains("not connected", photoCraftInstalled.App.State.Status, StringComparison.Ordinal);
         Assert.Contains(photoCraftInstalled.Main.Texts, text => text.Contains("not connected", StringComparison.Ordinal));
         Assert.Empty(photoCraftInstalled.App.State.History);
 
         var filmCraftInstalled = await os.Install<FilmCraftApp>();
-        Assert.Null(filmCraftInstalled.App.State.WebUrl);
+        Assert.Equal("/artcraft/filmcraft/index.html", filmCraftInstalled.App.State.WebUrl);
         await filmCraftInstalled.Request("export", new FilmCraftExport("h264-1080p60", "/work/clip.fcproj", "native-linux"));
         Assert.Contains("not connected", filmCraftInstalled.App.State.Status, StringComparison.Ordinal);
         Assert.Contains(filmCraftInstalled.Main.Texts, text => text.Contains("not connected", StringComparison.Ordinal));

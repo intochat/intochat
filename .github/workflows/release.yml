@@ -249,7 +249,7 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip SHA256SUMS latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 --clobber
 
   # The Linux desktop bundle (linux-x64 — native Ubuntu/Linux and WSLg).
   package-linux:

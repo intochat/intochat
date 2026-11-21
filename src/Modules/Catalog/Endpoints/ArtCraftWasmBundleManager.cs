@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.IO.Compression;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.ArtCraft;
@@ -13,7 +12,7 @@ namespace IntoChat.OS.Modules.Apps;
 public static class ArtCraftWasmBundleManager
 {
     private static readonly ILogger Log = OsConsoleLog.For(typeof(ArtCraftWasmBundleManager));
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim InstallGate = new(1, 1);
     private static readonly HttpClient SharedHttp = new() { Timeout = TimeSpan.FromMinutes(3) };
 
     public sealed record BundleInstallResult(bool Installed, string? DirectoryPath, string? Error = null);
@@ -45,8 +44,7 @@ public static class ArtCraftWasmBundleManager
             return new BundleInstallResult(false, null, $"No WASM release URL configured for '{descriptor.Title}'.");
         }
 
-        var gate = Locks.GetOrAdd(targetDir, static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(ct).ConfigureAwait(false);
+        await InstallGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (File.Exists(Path.Combine(targetDir, "index.html")))
@@ -95,6 +93,7 @@ public static class ArtCraftWasmBundleManager
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                Log.LogWarning(ex, "Failed to install {Title} WASM bundle from {Url}.", descriptor.Title, descriptor.WebReleaseZipUrl);
                 return new BundleInstallResult(false, null, $"Failed to install {descriptor.Title} WASM bundle: {ex.Message}");
             }
             finally
@@ -105,7 +104,7 @@ public static class ArtCraftWasmBundleManager
         }
         finally
         {
-            gate.Release();
+            InstallGate.Release();
         }
     }
 
