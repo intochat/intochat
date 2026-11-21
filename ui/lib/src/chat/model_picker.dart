@@ -6,17 +6,18 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/tokens.dart';
 import '../theme/brand_visuals.dart';
+import '../theme/wire_node_values.dart';
 
 enum _AbilityFilter {
   all('All', null),
-  tools('Tools', 'tools'),
-  vision('Vision', 'vision'),
-  voice('Voice', 'voice');
+  tools('Tools', WireModelAbility.tools),
+  vision('Vision', WireModelAbility.vision),
+  voice('Voice', WireModelAbility.voice);
 
-  const _AbilityFilter(this.label, this.abilityKey);
+  const _AbilityFilter(this.label, this.ability);
 
   final String label;
-  final String? abilityKey;
+  final WireModelAbility? ability;
 }
 
 /// Composer model chip that opens a [ModelPickerPopover] anchored via
@@ -232,12 +233,12 @@ class _ModelPickerPopoverState extends State<ModelPickerPopover> {
   _AbilityFilter _filter = _AbilityFilter.all;
 
   bool _matchesFilter(ModelChoice choice) {
-    final requiredAbility = _filter.abilityKey;
+    final requiredAbility = _filter.ability;
     if (requiredAbility == null) return true;
     final abilities = choice.abilities;
     if (abilities == null || abilities.isEmpty) return false;
     return abilities.any(
-      (ability) => ability.trim().toLowerCase() == requiredAbility,
+      (ability) => parseModelAbility(ability) == requiredAbility,
     );
   }
 
@@ -257,11 +258,11 @@ class _ModelPickerPopoverState extends State<ModelPickerPopover> {
     ];
     final local = [
       for (final choice in filtered)
-        if (choice.section.trim().toLowerCase() == 'local') choice,
+        if (parseModelSection(choice.section) == WireModelSection.local) choice,
     ];
     final cloud = [
       for (final choice in filtered)
-        if (choice.section.trim().toLowerCase() != 'local') choice,
+        if (parseModelSection(choice.section) == WireModelSection.cloud) choice,
     ];
 
     return SizedBox(
@@ -431,12 +432,12 @@ class _ModelChoiceRowState extends State<_ModelChoiceRow> {
   bool _hovered = false;
 
   static (IconData, String)? _abilityIcon(String ability) =>
-      switch (ability.trim().toLowerCase()) {
-        'tools' => (LucideIcons.wrench, 'Tools'),
-        'vision' => (LucideIcons.eye, 'Vision'),
-        'voice' => (LucideIcons.mic, 'Voice'),
-        'reasoning' => (LucideIcons.sparkles, 'Reasoning'),
-        _ => null,
+      switch (parseModelAbility(ability)) {
+        WireModelAbility.tools => (LucideIcons.wrench, 'Tools'),
+        WireModelAbility.vision => (LucideIcons.eye, 'Vision'),
+        WireModelAbility.voice => (LucideIcons.mic, 'Voice'),
+        WireModelAbility.reasoning => (LucideIcons.sparkles, 'Reasoning'),
+        null => null,
       };
 
   @override
