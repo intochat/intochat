@@ -1,19 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Circles: social contacts, invites, and shared brains.</Description>
-    <NoWarn>$(NoWarn);DB0033</NoWarn>
+    <Description>Legacy read-only circles and the one-release device-enrollment shim.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../Devices/Contracts/IntoChat.OS.Modules.Devices.Contracts.csproj" />
-    <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
   </ItemGroup>
 </Project>

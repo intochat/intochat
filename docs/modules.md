@@ -12,7 +12,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
 | `Azure` | `azure`, `aspire` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager. `AspireModule` reads runtime resources, logs and traces. |
 | `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |
-| `Circles` | `circles` | Circles: brains that share apps, a chat and a share of the owner's compute. |
+| `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) and the one-release device-enrollment shim (`ICircleInviteRedeemer`). |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
 | `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |
 | `GitHub` | `github` | GitHub repository connection neurons. |

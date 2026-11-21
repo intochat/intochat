@@ -1,10 +1,10 @@
 # IntoChat.OS.Modules.Circles
 
-Circles: brains that share apps, a chat and a share of the owner's compute. Invariants are rules in `Rules/` and `DB0040` is on.
+Legacy read-only circles (kept readable for two releases after S8) and the one-release device-enrollment shim (`ICircleInviteRedeemer`). Friends, groups and device enrollment live in `Catalog` (`IFriends`), `AI`/`Shell` (`IConversation`) and `Devices` (`IDeviceEnrollment`).
 
 Module id: `circles`.
 
-How to test: `dotnet test --project src/IntoChat.OS.Modules/IntoChat.OS/Circles/tests/IntoChat.OS.Modules.Circles.Tests.Integration/IntoChat.OS.Modules.Circles.Tests.Integration.csproj`
+How to test: `dotnet test --project tests/IntoChat.OS.Tests.Unit -- --filter-class "*LegacyCirclesFacts"`
 
 Documentation: `docs/modules.md` at the repository root.
 
@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Circles` (`ICircleChat`, `ICircleFactory`, `ICircleInviteRedeemer`, `ICircleInvites`, `ICirclePostReader`, `ICircleStateReader`, `ICircle`).
+Contracts: assembly `IntoChat.OS.Modules.Circles` (`ICircleInviteRedeemer`, `ILegacyCircleChat`, `ILegacyCircleIndex`, `ILegacyCircleMachines`, `ILegacyCircle`).
 Hosting: runs in process.
 <!-- END GENERATED -->

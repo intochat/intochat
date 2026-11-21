@@ -10,8 +10,6 @@ using DigitalBrain.Signals;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Modules.Circles;
-using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -54,9 +52,6 @@ internal static class LiveSignalEndpoints
         Feed<DeploymentChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "aspire.deployment", IDeployment.Relative))),
         // Apps are plain neurons (06-08): their activity is watched on the session synapse neuron.
         Feed<AppActivity>(Apps),
-        // R126: asked of a circle brain's own /live; the shell watches each circle the person is in. Circles are plain (06-08).
-        Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Host.Primitives.CircleGrainType.Name, "circle"))),
-        Feed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
         Feed<ProfileChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "os.profile", "profile"))),
     ];
 

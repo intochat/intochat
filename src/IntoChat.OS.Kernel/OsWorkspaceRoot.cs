@@ -16,7 +16,7 @@ namespace IntoChat.OS.Kernel;
 // Deployment only. The installed Workspace program composes every visible control.
 internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kernel, AppInstaller installer, ILogger<OsWorkspaceRoot> logger,
     IOptions<OsAppsOptions> options, FeatureCatalog catalog, FeatureLoader loader,
-    ICapabilityBroker capabilities, DigitalBrain.Access.EdgeAuthority edge) : IUiRootProvider
+    ICapabilityBroker capabilities) : IUiRootProvider
 {
 
     private T Neuron<T>(string relative) where T : class => brain.Get<T>($"{BrainScope.CurrentId()}/{relative}");
@@ -25,11 +25,8 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
     {
         var scope = BrainScope.CurrentId();
         var brainId = new BrainId(scope);
-        // The same set a new brain is born with: the shipped catalog plus ShippedApps.Roots. A circle keeps only its room, deployed again
-        // when missing (a circle born before the room shipped); the same files deploy once.
-        if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) == BrainKind.Circle)
-        { await OsDefaults.DeployCircleUnits(edge, brain, logger, scope); }
-        else
+        // The same set a new brain is born with: the shipped catalog plus ShippedApps.Roots. Legacy circle brains get no deploy or install.
+        if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) != BrainKind.Circle)
         {
             await ShippedInstall.Missing(catalog, loader, scope, async name => await Neuron<IApp>($"apps/{name}").Read(),
                 (error, app) => logger.LogWarning(error, "Default app {App} did not install in {Brain}.", app, scope), cancellationToken);

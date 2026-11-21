@@ -916,7 +916,6 @@ public sealed class HouseRules22Facts
             "FriendsApp",
             "CreatorApp",
             "AggregateScreenBase",
-            "CircleInvitesNeuron",
             "IdentityDirectoryNeuron",
             "LocalCloudNeuron",
         };

@@ -10,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Host.Configuration;
-using IntoChat.OS.Host.Callers;
 using IntoChat.OS.Host.Brains;
 
 namespace IntoChat.OS.Kernel;
@@ -61,18 +60,17 @@ public static class OsAppsHosting
 }
 
 // A new brain is born with the OS defaults. Create awaits this handler inside the owner's own
-// turn. A present app is the person's, never replaced here. A circle brain gets none (R125): it
-// is born with its own room only, the shipped circleroom unit (ShippedApps.CircleUnits). The shipped catalog and ShippedApps.Roots load through the feature loader;
+// turn. A present app is the person's, never replaced here. A legacy circle brain gets nothing.
+// The shipped catalog and ShippedApps.Roots load through the feature loader;
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
-    IIntoChatOSBrains brains, INeuronProxies proxies, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
-    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader, DigitalBrain.Access.EdgeAuthority edge) : DigitalBrain.Brains.ICreationHandler
+    IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
+    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : DigitalBrain.Brains.ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
         if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle)
         {
-            await DeployCircleUnits(edge, proxies, logger, brainId);
             return;
         }
         await ShippedInstall.Missing(catalog, loader, brainId,
@@ -93,28 +91,6 @@ internal sealed class OsDefaults(
                 // One default failing must not keep the others from installing.
                 logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, brainId);
             }
-        }
-    }
-
-    // A circle's shipped units (its room) deploy at birth and wait, Pending, for the creator's consent in the approvals: the OS never
-    // approves them. One that fails is logged and the next connect deploys again (OsWorkspaceRoot); a deploy never approves.
-    // Host code deploying the shipped units into the circle's brain: the connecting person's stamp names another brain, so the
-    // call runs as the kernel of the target brain (the call filter refuses a person's call across brains).
-    internal static Task DeployCircleUnits(DigitalBrain.Access.EdgeAuthority edge, INeuronProxies proxies, ILogger logger, string brainId)
-        => edge.AsKernel(new BrainId(brainId), async () => { await DeployCircleUnitsAsKernel(proxies, logger, brainId); return true; });
-
-    private static async Task DeployCircleUnitsAsKernel(INeuronProxies proxies, ILogger logger, string brainId)
-    {
-        var studio = proxies.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
-        foreach (var alias in ShippedApps.CircleUnits)
-        {
-            try
-            {
-                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), alias).Key), alias, IntoChat.OS.Apps.ShippedUnits.Title(alias));
-                if (!result.Ok) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            { logger.LogWarning(error, "Circle unit {Unit} did not deploy in {Brain}.", alias, brainId); }
         }
     }
 
