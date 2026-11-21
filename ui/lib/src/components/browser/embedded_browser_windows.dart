@@ -8,8 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:webview_windows/webview_windows.dart';
 
-import '../../design/app_tile.dart';
-
 // One native environment per process; each window has its own marked CDP page.
 
 Future<int>? _environment;
@@ -54,49 +52,27 @@ Future<bool> _isLoopbackPortOpen(int port) async {
   }
 }
 
+/// Pure, app-agnostic URL resolver for Windows WebView2.
+/// Resolves any root-relative Kernel route (e.g. `/orleans`, `/aspire`,
+/// `/widgetbook`, `/devui/`, `/artcraft/{id}/index.html`) against the active
+/// Kernel origin without hardcoding app names or ports.
 Future<String> _resolveDirectUrl(String rawUri) async {
   final trimmed = rawUri.trim();
   if (trimmed.isEmpty) return trimmed;
-  final lower = trimmed.toLowerCase();
   final isRootRelative = trimmed.startsWith('/') && !trimmed.startsWith('//');
-  final isLocal =
-      isRootRelative ||
-      lower.contains('localhost') ||
-      lower.contains('127.0.0.1');
-  if (!isLocal) return trimmed;
+  if (!isRootRelative) return trimmed;
 
   final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
   final parsedUiBase = uiBase.isNotEmpty ? Uri.tryParse(uiBase) : null;
-  final kernelOrigin =
-      (parsedUiBase != null &&
-          parsedUiBase.hasAuthority &&
-          parsedUiBase.host.isNotEmpty &&
-          (parsedUiBase.scheme == 'http' || parsedUiBase.scheme == 'https'))
-      ? parsedUiBase.origin
-      : (await _isLoopbackPortOpen(5080) ? 'http://localhost:5080' : null);
-
-  final craftSpec = IcAppIcon.findArtCraftByUrlOrName(lower);
-  if (craftSpec != null) {
-    final candidatePorts = <int>[
-      if (craftSpec.appId == 'filmcraft') 18111,
-      if (craftSpec.appId == 'photocraft') 18110,
-      if (craftSpec.defaultWebPort != null) craftSpec.defaultWebPort!,
-    ];
-    for (final port in candidatePorts) {
-      if (await _isLoopbackPortOpen(port)) {
-        return 'http://localhost:$port/';
-      }
-    }
-    if (kernelOrigin != null) {
-      return '$kernelOrigin/artcraft/${craftSpec.appId}/index.html';
-    }
-    return 'http://localhost:5080/artcraft/${craftSpec.appId}/index.html';
+  if (parsedUiBase != null &&
+      parsedUiBase.hasAuthority &&
+      parsedUiBase.host.isNotEmpty &&
+      (parsedUiBase.scheme == 'http' || parsedUiBase.scheme == 'https')) {
+    return '${parsedUiBase.origin}$trimmed';
   }
 
-  // Resolve any root-relative Kernel route (e.g. /orleans#/overview, /aspire, /widgetbook)
-  // against the active Kernel origin so WebView2 never receives a bare relative path.
-  if (isRootRelative && kernelOrigin != null) {
-    return '$kernelOrigin$trimmed';
+  if (await _isLoopbackPortOpen(5080)) {
+    return 'http://localhost:5080$trimmed';
   }
 
   return trimmed;

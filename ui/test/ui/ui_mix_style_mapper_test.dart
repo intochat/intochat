@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
+import 'package:intochat_os_flutter_shell/src/ui/mix/ui_mix_controls.dart';
 import 'package:intochat_os_flutter_shell/src/ui/mix/ui_mix_style.dart';
 import 'package:intochat_os_flutter_shell/src/ui/ui_control_surface.dart';
 
@@ -66,6 +67,59 @@ void main() {
       expect(clicks, 1);
       expect(emitted, contains('OnPointerDown'));
       expect(emitted, contains('OnPointerUp'));
+    },
+  );
+
+  testWidgets(
+    'UiMixToggle and UiMixExpander toggle state, render exact C# padding/gap, and emit WinForms pointer signals',
+    (tester) async {
+      final emitted = <String>[];
+      var isOn = false;
+      var expanded = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  UiMixToggle(
+                    value: isOn,
+                    label: 'Live Sync',
+                    semanticsId: 'key:mix:toggle',
+                    eventMask: UiEventMask.all,
+                    onChanged: (v) => setState(() => isOn = v),
+                    onEmit: (m, _) async => emitted.add('toggle:$m'),
+                  ),
+                  UiMixExpander(
+                    header: 'Advanced Options',
+                    subtitle: 'C# Mix Expander',
+                    isExpanded: expanded,
+                    semanticsId: 'key:mix:expander',
+                    eventMask: UiEventMask.all,
+                    onExpandedChanged: (v) => setState(() => expanded = v),
+                    onEmit: (m, _) async => emitted.add('expander:$m'),
+                    body: const Text('Expanded Details'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Expanded Details'), findsNothing);
+
+      await tester.tap(find.text('Live Sync'));
+      await tester.pumpAndSettle();
+      expect(isOn, isTrue);
+
+      await tester.tap(find.text('Advanced Options'));
+      await tester.pumpAndSettle();
+      expect(expanded, isTrue);
+      expect(find.text('Expanded Details'), findsOneWidget);
     },
   );
 }

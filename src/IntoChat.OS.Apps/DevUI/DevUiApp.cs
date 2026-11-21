@@ -36,7 +36,7 @@ public sealed record DevUiAppState(
 
 [Neuron("app.devui")]
 [Screen("app.devui", Title = "DevUI", Icon = "terminal")]
-public sealed class DevUiApp : AggregateScreen<DevUiAppState>
+public sealed class DevUiApp : EmbeddedWebApp<DevUiAppState>
 {
     public const string AppName = "devui";
 
@@ -99,21 +99,11 @@ public sealed class DevUiApp : AggregateScreen<DevUiAppState>
                 .Small()
                 .OnClick<DevUiAppState>(s => s.Reload()));
 
-        var browser = WebBrowser(
-            state.CurrentUrl,
-            "IntoChat.OS DevUI",
-            key: "devui-browser",
-            height: 920,
-            automationName: "IntoChat.OS DevUI",
-            chrome: "frameless");
-
-        return AppShell(
-            "devui-shell",
-            sidebar: null,
-            body: browser,
-            toolbar: toolbar,
-            inspector: null,
-            automationName: "IntoChat.OS DevUI",
-            edgeToEdge: true);
+        return RenderEmbeddedSurface(
+            shellKey: "devui-shell",
+            browserKey: "devui-browser",
+            title: "IntoChat.OS DevUI",
+            url: state.CurrentUrl,
+            toolbar: toolbar);
     }
 }
