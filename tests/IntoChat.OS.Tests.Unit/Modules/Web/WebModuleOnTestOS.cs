@@ -5,7 +5,7 @@ using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Web;
 
-public sealed class WebModuleOnTestOS
+public sealed class WebModuleOnTestOS : ModuleOnTestOSFacts<WebModule>
 {
     [Fact]
     public async Task ModuleRegistersOnTestOS()

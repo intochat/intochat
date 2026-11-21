@@ -15,6 +15,7 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
