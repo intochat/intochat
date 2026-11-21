@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace DigitalBrain.Architecture.Tests.Unit;
@@ -58,9 +59,11 @@ public sealed class ContextMapFacts
         "DigitalBrain.Units.InstallsNeuron+<OnResolved>d__7 -> DigitalBrain.Confirmation.IConfirmationRequests",
     };
 
-    // Compiler-embedded and generated types live in System.* and Microsoft.* namespaces inside the assembly; they are not ours.
+    // Compiler-embedded and source-generated top-level types (e.g. ToolSchemaGenerator's DigitalBrain.Generated) are not ours;
+    // nested compiler-generated state machines stay included so AContextMentionsOnlyItselfAndTheContextsItMayUse still checks them.
     private static IEnumerable<Type> Ours => typeof(Signal).Assembly.GetTypes()
-        .Where(type => type.Namespace is { } ns && ns.StartsWith("DigitalBrain", StringComparison.Ordinal));
+        .Where(type => type.Namespace is { } ns && ns.StartsWith("DigitalBrain", StringComparison.Ordinal))
+        .Where(type => type.DeclaringType is not null || !type.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false));
 
     [Fact]
     public void EveryCoreNamespaceBelongsToOneContext()
