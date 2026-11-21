@@ -111,6 +111,28 @@ public sealed class DeviceEnrollmentFacts
     }
 
     [Fact]
+    public async Task CircleServerModuleInSameBrainCanListDevicesButAnotherBrainCannot()
+    {
+        await using var harness = await Open(owner: "ada");
+
+        Code code;
+        using (harness.AsPerson("ada")) { code = await harness.Enrollment.Mint(); }
+        Assert.Equal(EnrollmentResult.Accepted, (await harness.Redeemer.Redeem(code.Value, "m1", "thumb", "vlad-pc")).Result);
+
+        using (TestEdge.Authority.Enter(TestEdge.Authority.Module("circle-server", new BrainId("ada"))))
+        {
+            var devices = await harness.Enrollment.List();
+            var device = Assert.Single(devices);
+            Assert.Equal("vlad-pc", device.Name);
+        }
+
+        using (TestEdge.Authority.Enter(TestEdge.Authority.Module("circle-server", new BrainId("ben"))))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(harness.Enrollment.List);
+        }
+    }
+
+    [Fact]
     public void TheThumbprintIsTheOldOne()
         => Assert.Equal(InviteCode.Thumbprint(Spki), DeviceKeys.Thumbprint(Spki));
 

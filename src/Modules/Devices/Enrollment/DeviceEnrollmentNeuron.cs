@@ -49,7 +49,10 @@ internal sealed class DeviceEnrollmentNeuron(IServiceProvider services) : Neuron
 
     public async Task<EnrolledDevice[]> List()
     {
-        await RequireOwnerAsPersonAsync();
+        if (!IsCircleServerModuleCaller())
+        {
+            await RequireOwnerAsPersonAsync();
+        }
         return State.Devices;
     }
 
@@ -137,6 +140,10 @@ internal sealed class DeviceEnrollmentNeuron(IServiceProvider services) : Neuron
             && string.Equals(d.KeyThumbprint, keyThumbprint, StringComparison.Ordinal));
         return Task.FromResult(live);
     }
+
+    private bool IsCircleServerModuleCaller()
+        => Context.Caller is { Actor: Actor.Module { Id: "circle-server" }, Brain: var callerBrain }
+            && callerBrain == Id.Brain;
 
     private async Task<string> RequireOwnerAsPersonAsync()
     {

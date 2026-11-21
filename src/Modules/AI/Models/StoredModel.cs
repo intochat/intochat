@@ -1,3 +1,5 @@
+using IntoChat.OS.Modules.Devices;
+
 namespace IntoChat.OS.Modules.AI.Models;
 
 internal enum StoredModelKind
@@ -6,6 +8,7 @@ internal enum StoredModelKind
     Profile,
     Card,
     OllamaTag,
+    DeviceRoute,
 }
 
 // Reads persisted or wire model strings without guessing bare uncatalogued provider prefixes.
@@ -40,6 +43,13 @@ internal static class StoredModel
         if (trimmed.Length > 200 || trimmed.Any(char.IsControl) || trimmed.Contains("://", StringComparison.Ordinal))
         {
             return false;
+        }
+
+        if (DeviceModelRef.TryParse(trimmed, out var deviceRef))
+        {
+            kind = StoredModelKind.DeviceRoute;
+            value = deviceRef.ToModelId().Value;
+            return true;
         }
 
         if (trimmed.StartsWith("profile:", StringComparison.OrdinalIgnoreCase))

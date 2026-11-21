@@ -53,6 +53,7 @@ public static class AgentFailures
                 return AgentFailure.NoProvider;
 
             case ProviderUnavailableException:
+            case IntoChat.OS.Modules.Devices.DeviceUnavailableException:
                 return AgentFailure.ProviderUnavailable;
 
             case HttpRequestException { StatusCode: HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden }:

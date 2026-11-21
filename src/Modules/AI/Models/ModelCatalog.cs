@@ -133,12 +133,30 @@ public sealed class ModelCatalog
         CancellationToken ct)
         => DecideCore(brain?.Value, role, turn, requiresTools, personSettingsReader, ct);
 
-    public async Task<ModelCard[]> List(Abilities need = Abilities.None, CancellationToken ct = default)
+    public Task<ModelCard[]> List(Abilities need = Abilities.None, CancellationToken ct = default)
+        => List(brain: null, need, ct);
+
+    public async Task<ModelCard[]> List(BrainId? brain, Abilities need = Abilities.None, CancellationToken ct = default)
     {
         var snapshot = await GatherLocalStateAsync(ct).ConfigureAwait(false);
+        var cards = new List<ModelCard>(snapshot.Cards.Length + 4);
+        cards.AddRange(snapshot.Cards);
+        var seen = new HashSet<string>(snapshot.Cards.Select(static c => c.Id.Value), StringComparer.OrdinalIgnoreCase);
+
+        if (brain is { } owner && services.GetService<IDeviceChatRoute>() is { } route)
+        {
+            foreach (var deviceCard in await SafeRouteModelsAsync(route, owner, ct).ConfigureAwait(false))
+            {
+                if (seen.Add(deviceCard.Id.Value))
+                {
+                    cards.Add(deviceCard);
+                }
+            }
+        }
+
         return need == Abilities.None
-            ? snapshot.Cards
-            : [.. snapshot.Cards.Where(card => (card.Can & need) == need)];
+            ? [.. cards]
+            : [.. cards.Where(card => (card.Can & need) == need)];
     }
 
     internal async Task<ModelId> Pick(
@@ -186,7 +204,10 @@ public sealed class ModelCatalog
             if (person.RoleOf(role) is { Value.Length: > 0 } chosen)
             {
                 device[role] = chosen;
-                cloud[role] = chosen;
+                if (!DeviceModelRef.TryParse(chosen, out _))
+                {
+                    cloud[role] = chosen;
+                }
                 changed = true;
             }
         }
@@ -200,15 +221,28 @@ public sealed class ModelCatalog
         var credentials = CredentialsFor(brain?.Value);
         var local = await GatherLocalStateAsync(ct).ConfigureAwait(false);
 
-        var results = new ModelAvailability[local.Cards.Length];
+        var results = new List<ModelAvailability>(local.Cards.Length + 4);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < local.Cards.Length; i++)
         {
             var card = local.Cards[i];
             var (ready, reason) = await CheckCardAvailabilityAsync(card, configuration, credentials, local, ct).ConfigureAwait(false);
-            results[i] = new ModelAvailability(card.Id, ready, reason);
+            results.Add(new ModelAvailability(card.Id, ready, reason));
+            seen.Add(card.Id.Value);
         }
 
-        return results;
+        if (brain is { } owner && services.GetService<IDeviceChatRoute>() is { } route)
+        {
+            foreach (var deviceCard in await SafeRouteModelsAsync(route, owner, ct).ConfigureAwait(false))
+            {
+                if (seen.Add(deviceCard.Id.Value))
+                {
+                    results.Add(new ModelAvailability(deviceCard.Id, Ready: true, Reason: null));
+                }
+            }
+        }
+
+        return [.. results];
     }
 
     private async Task<ResolvedModel> DecideCore(
@@ -238,6 +272,17 @@ public sealed class ModelCatalog
         if (turnKey is not null || personKey is not null)
         {
             var explicitKey = turnKey ?? personKey!;
+            if (requiresTools && DeviceModelRef.TryParse(explicitKey, out var toolDeviceRef))
+            {
+                return await ResolveCloudFallbackAsync(
+                    brainId,
+                    role,
+                    turn,
+                    requiresTools,
+                    toolDeviceRef.ToModelId().Value,
+                    "tools-unsupported",
+                    ct).ConfigureAwait(false);
+            }
             return await ResolveExplicitAsync(
                 explicitKey,
                 turn,
@@ -269,6 +314,15 @@ public sealed class ModelCatalog
 
             if (StoredModel.TryParse(candidateId.Value, profileNames, out var kind, out var parsedValue))
             {
+                if (kind == StoredModelKind.DeviceRoute)
+                {
+                    if (!requiresTools)
+                    {
+                        return await ResolveExplicitAsync(candidateId.Value, turn, configuration, credentials, local, reasoning, maxTokens, requiresTools, nameof(role), ct).ConfigureAwait(false);
+                    }
+                    continue;
+                }
+
                 if (kind == StoredModelKind.Profile && TryFindProfile(configuration, parsedValue, out var matchedName, out var profile))
                 {
                     var profileProvider = ParseProvider(Clean(profile.Provider) ?? throw new ArgumentException($"Model profile '{matchedName}' requires a provider."));
@@ -392,6 +446,11 @@ public sealed class ModelCatalog
                     preset = KnownModels.Find(parsedValue)!;
                     provider = preset.Provider;
                     modelId = preset.Id.Value;
+                    break;
+                case StoredModelKind.DeviceRoute:
+                    provider = AiProvider.Device;
+                    modelId = parsedValue;
+                    declared = Abilities.Text;
                     break;
                 case StoredModelKind.OllamaTag:
                     provider = AiProvider.Ollama;
@@ -705,6 +764,9 @@ public sealed class ModelCatalog
             case AiProvider.Host:
                 return HasHostChatClient ? (true, null) : (false, NotConfiguredReason);
 
+            case AiProvider.Device:
+                return (true, null);
+
             default:
                 return (false, NotConfiguredReason);
         }
@@ -876,6 +938,152 @@ public sealed class ModelCatalog
         return list;
     }
 
+    private static async Task<ModelCard[]> SafeRouteModelsAsync(IDeviceChatRoute route, BrainId owner, CancellationToken ct)
+    {
+        try
+        {
+            return await route.Models(owner, ct).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<ModelCatalog>().LogSwallowed(error, $"listing routed device models for brain '{owner.Value}'");
+            return [];
+        }
+    }
+
+    internal async Task<(IChatClient? Client, string? UnavailableReason)> TryCreateDeviceRouteClientAsync(
+        string? brainId,
+        ResolvedModel resolved,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+        if (!DeviceModelRef.TryParse(resolved.Model, out var deviceRef))
+        {
+            return (null, "invalid-device-id");
+        }
+
+        if (string.IsNullOrWhiteSpace(brainId) || !BrainScope.IsValidId(brainId))
+        {
+            return (null, "no-brain");
+        }
+
+        if (services.GetService<IDeviceChatRoute>() is not { } route)
+        {
+            return (null, "no-route");
+        }
+
+        var client = await route.Chat(new BrainId(brainId), deviceRef, ct).ConfigureAwait(false);
+        return client is not null ? (client, null) : (null, "offline");
+    }
+
+    internal async Task<ResolvedModel> ResolveCloudFallbackAsync(
+        string? brainId,
+        Role role,
+        ModelSelection? selection,
+        bool requiresTools,
+        string deviceModelId,
+        string reason,
+        CancellationToken ct)
+    {
+        var configuration = options.CurrentValue;
+        var credentials = CredentialsFor(brainId);
+        var fallbackTurn = new ModelSelection(null, selection?.Reasoning, selection?.MaxOutputTokens);
+        var reasoning = Clean(selection?.Reasoning) ?? Clean(configuration.Reasoning);
+        var maxTokens = selection?.MaxOutputTokens ?? configuration.MaxOutputTokens;
+        var local = await GatherLocalStateAsync(ct).ConfigureAwait(false);
+        var profileNames = configuration.ModelProfiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        ResolvedModel? resolved = null;
+        var rolesMap = configuration.Roles.ToRoleMap();
+        if (rolesMap.Cloud.TryGetValue(role, out var cloudRoleModel)
+            && !string.IsNullOrWhiteSpace(cloudRoleModel.Value)
+            && !DeviceModelRef.TryParse(cloudRoleModel, out _))
+        {
+            if (await CanResolveExplicitCloudAsync(cloudRoleModel.Value, profileNames, configuration, credentials, local, ct).ConfigureAwait(false))
+            {
+                resolved = await ResolveExplicitAsync(
+                    cloudRoleModel.Value,
+                    fallbackTurn,
+                    configuration,
+                    credentials,
+                    local,
+                    reasoning,
+                    maxTokens,
+                    requiresTools,
+                    nameof(role),
+                    ct).ConfigureAwait(false);
+            }
+        }
+
+        if (resolved is null
+            && KnownModels.Defaults.Cloud.TryGetValue(role, out var defaultCloud)
+            && !DeviceModelRef.TryParse(defaultCloud, out _)
+            && await CanResolveExplicitCloudAsync(defaultCloud.Value, profileNames, configuration, credentials, local, ct).ConfigureAwait(false))
+        {
+            resolved = await ResolveExplicitAsync(
+                defaultCloud.Value,
+                fallbackTurn,
+                configuration,
+                credentials,
+                local,
+                reasoning,
+                maxTokens,
+                requiresTools,
+                nameof(role),
+                ct).ConfigureAwait(false);
+        }
+
+        resolved ??= await DecideCore(
+            brainId,
+            role,
+            fallbackTurn,
+            requiresTools,
+            personSettingsReader: static _ => Task.FromResult<UserSettingsState?>(null),
+            ct).ConfigureAwait(false);
+
+        services.GetService<ILoggerFactory>()?.CreateLogger<ModelCatalog>()
+            ?.LogInformation(
+                "device-fallback: device model '{DeviceModel}' fell back to cloud model '{FallbackModel}' (reason: {Reason}).",
+                deviceModelId,
+                resolved.Model,
+                reason);
+
+        return resolved;
+    }
+
+    private async Task<bool> CanResolveExplicitCloudAsync(
+        string key,
+        IReadOnlySet<string> profileNames,
+        AIOptions configuration,
+        IAiCredentials credentials,
+        LocalRuntimeSnapshot local,
+        CancellationToken ct)
+    {
+        if (!StoredModel.TryParse(key, profileNames, out var kind, out var parsed))
+        {
+            return false;
+        }
+
+        if (kind == StoredModelKind.Profile && TryFindProfile(configuration, parsed, out _, out var profile))
+        {
+            var provider = ParseProvider(Clean(profile.Provider) ?? string.Empty);
+            return HasHostChatClient
+                || await IsProviderReadyForExplicitAsync(provider, Clean(profile.Endpoint), configuration, credentials, local, ct).ConfigureAwait(false);
+        }
+
+        if (kind == StoredModelKind.Card && KnownModels.Find(parsed) is { } card)
+        {
+            if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct).ConfigureAwait(false))
+            {
+                return true;
+            }
+            var (ready, _) = await CheckCardAvailabilityAsync(card, configuration, credentials, local, ct).ConfigureAwait(false);
+            return ready;
+        }
+
+        return false;
+    }
+
     public Task<IChatClient> CreateClient(ResolvedModel resolved, CancellationToken ct, bool invokesTools = false)
         => CreateClient(null, resolved, ct, invokesTools);
 
@@ -891,6 +1099,12 @@ public sealed class ModelCatalog
             var hostClient = services.GetService<IChatClient>()
                 ?? throw new NoProviderConfiguredException("No AI provider is configured.");
             return new NonDisposing(hostClient);
+        }
+
+        if (resolved.Provider == AiProvider.Device)
+        {
+            var (deviceClient, reason) = await TryCreateDeviceRouteClientAsync(brainId, resolved, ct).ConfigureAwait(false);
+            return deviceClient ?? throw new DeviceUnavailableException(reason ?? "offline");
         }
 
         IChatClient inner;
@@ -1003,7 +1217,7 @@ public sealed class ModelCatalog
 
     private static AiProvider ParseProvider(string name)
         => Enum.TryParse<AiProvider>(name, ignoreCase: true, out var provider) && Enum.IsDefined(provider)
-            && provider is not (AiProvider.Host or AiProvider.TypeSafe)
+            && provider is not (AiProvider.Host or AiProvider.TypeSafe or AiProvider.Device)
             ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter, Ollama, FoundryLocal or OpenAICompatible.", nameof(name));
 
     private static string? Endpoint(string? endpoint, AiProvider provider)

@@ -17,7 +17,7 @@ internal sealed class ModelCatalogNeuron(
     private BrainId? Brain => Id.Brain.Value == IModelCatalog.SystemBrain ? null : Id.Brain;
 
     public Task<ModelCard[]> List(Abilities need = Abilities.None)
-        => catalog.List(need, CancellationToken.None);
+        => catalog.List(Brain, need, CancellationToken.None);
 
     public Task<ModelId> Pick(Role role, ModelId? turn = null)
         => catalog.Pick(Brain, role, turn, ReadPersonSettingsAsync, CancellationToken.None);

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Models;
@@ -40,7 +41,9 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
         if (pinnedId is not null)
         {
             var expected = await catalog.Resolve(brainId, new(pinnedId), requiresTools: false, ct);
-            if (resolved.Provider != expected.Provider || !string.Equals(resolved.Model, expected.Model, StringComparison.OrdinalIgnoreCase))
+            var toolsFallbackFromDevice = tools && expected.Provider == AiProvider.Device && resolved.Provider != AiProvider.Device;
+            if (!toolsFallbackFromDevice
+                && (resolved.Provider != expected.Provider || !string.Equals(resolved.Model, expected.Model, StringComparison.OrdinalIgnoreCase)))
             {
                 throw new ArgumentException($"The selected profile does not match pinned model '{card?.Id.Value ?? pinnedId}'.", nameof(selection));
             }
@@ -54,7 +57,38 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
 
     public async Task<InferenceResult> Generate(InferenceRequest request, ModelId? model = null, CancellationToken cancellationToken = default, string? brainId = null)
     {
-        var (resolved, messages, options) = await Prepare(brainId, request, model, cancellationToken);
+        var (resolved, messages, options, selection, settings) = await Prepare(brainId, request, model, cancellationToken);
+        if (resolved.Provider == AiProvider.Device)
+        {
+            var (deviceClient, unavailableReason) = await catalog.TryCreateDeviceRouteClientAsync(brainId, resolved, cancellationToken).ConfigureAwait(false);
+            if (deviceClient is not null)
+            {
+                using (deviceClient)
+                {
+                    try
+                    {
+                        var deviceResult = await deviceClient.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
+                        return new(deviceResult.Messages.Select(InferenceMapping.FromChatMessage).ToArray(), deviceResult.FinishReason?.Value,
+                            InferenceMapping.Usage(deviceResult.Usage), deviceResult.ResponseId, resolved.Model);
+                    }
+                    catch (DeviceUnavailableException unavailable)
+                    {
+                        unavailableReason = unavailable.Message;
+                    }
+                }
+            }
+
+            resolved = await catalog.ResolveCloudFallbackAsync(
+                brainId,
+                Role.Chat,
+                selection,
+                request.Tools is { Count: > 0 },
+                resolved.Model,
+                unavailableReason ?? "offline",
+                cancellationToken).ConfigureAwait(false);
+            options = BuildOptionsFor(request, resolved, settings);
+        }
+
         using var client = await catalog.CreateClient(brainId, resolved, cancellationToken);
         var result = await client.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
         return new(result.Messages.Select(InferenceMapping.FromChatMessage).ToArray(), result.FinishReason?.Value,
@@ -67,7 +101,59 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
         [EnumeratorCancellation] CancellationToken cancellationToken = default,
         string? brainId = null)
     {
-        var (resolved, messages, options) = await Prepare(brainId, request, model, cancellationToken);
+        var (resolved, messages, options, selection, settings) = await Prepare(brainId, request, model, cancellationToken);
+        if (resolved.Provider == AiProvider.Device)
+        {
+            var (deviceClient, unavailableReason) = await catalog.TryCreateDeviceRouteClientAsync(brainId, resolved, cancellationToken).ConfigureAwait(false);
+            if (deviceClient is not null)
+            {
+                var receivedFirstDelta = false;
+                var fallbackReason = (string?)null;
+                using (deviceClient)
+                {
+                    await using var enumerator = deviceClient.GetStreamingResponseAsync(messages, options, cancellationToken).GetAsyncEnumerator(cancellationToken);
+                    while (true)
+                    {
+                        ChatResponseUpdate update;
+                        try
+                        {
+                            if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                            {
+                                yield break;
+                            }
+                            update = enumerator.Current;
+                        }
+                        catch (DeviceUnavailableException unavailable) when (!receivedFirstDelta)
+                        {
+                            fallbackReason = unavailable.Message;
+                            break;
+                        }
+
+                        var contents = update.Contents.Where(c => c is not UsageContent).Select(InferenceMapping.FromContent).ToArray();
+                        if (contents.Length > 0)
+                        {
+                            receivedFirstDelta = true;
+                        }
+                        yield return new(update.Role?.Value, contents,
+                            update.FinishReason?.Value, InferenceMapping.Usage(update.Contents.OfType<UsageContent>().LastOrDefault()?.Details),
+                            update.ResponseId, update.MessageId, resolved.Model);
+                    }
+                }
+
+                unavailableReason = fallbackReason;
+            }
+
+            resolved = await catalog.ResolveCloudFallbackAsync(
+                brainId,
+                Role.Chat,
+                selection,
+                request.Tools is { Count: > 0 },
+                resolved.Model,
+                unavailableReason ?? "offline",
+                cancellationToken).ConfigureAwait(false);
+            options = BuildOptionsFor(request, resolved, settings);
+        }
+
         using var client = await catalog.CreateClient(brainId, resolved, cancellationToken);
         await foreach (var update in client.GetStreamingResponseAsync(messages, options, cancellationToken).ConfigureAwait(false))
         {
@@ -77,7 +163,7 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
         }
     }
 
-    private async Task<(ResolvedModel Model, List<ChatMessage> Messages, ChatOptions Options)> Prepare(
+    private async Task<(ResolvedModel Model, List<ChatMessage> Messages, ChatOptions Options, ModelSelection? Selection, InferenceOptions? Settings)> Prepare(
         string? brainId,
         InferenceRequest request,
         ModelId? model,
@@ -87,6 +173,12 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
         if (request.Messages is not { Count: > 0 }) { throw new ArgumentException("At least one message is required.", nameof(request)); }
         var (selection, settings) = InferenceMapping.Merge(request.Model, request.Options);
         var resolved = await ResolveFor(brainId, selection, model, request.Tools is { Count: > 0 }, cancellationToken);
+        var options = BuildOptionsFor(request, resolved, settings);
+        return (resolved, request.Messages.Select(InferenceMapping.ToChatMessage).ToList(), options, selection, settings);
+    }
+
+    private ChatOptions BuildOptionsFor(InferenceRequest request, ResolvedModel resolved, InferenceOptions? settings)
+    {
         var descriptor = catalog.Describe(resolved);
         InferenceMapping.ValidateRequest(request, descriptor);
         var options = InferenceMapping.CreateOptions(resolved, settings, descriptor);
@@ -97,6 +189,6 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
             options.Tools = request.Tools.Select(tool => (AITool)AIFunctionFactory.CreateDeclaration(tool.Name, tool.Description,
                 JsonSerializer.Deserialize<JsonElement>(tool.ParametersJson))).ToList();
         }
-        return (resolved, request.Messages.Select(InferenceMapping.ToChatMessage).ToList(), options);
+        return options;
     }
 }

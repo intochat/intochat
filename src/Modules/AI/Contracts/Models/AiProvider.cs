@@ -18,4 +18,6 @@ public enum AiProvider
     Host,
     // An OpenAI-compatible HTTP endpoint attached by URL (e.g. LM Studio, vLLM, LiteLLM).
     OpenAICompatible,
+    // An enrolled owner device serving its local model over the cloud relay ("device:{name}/{modelId}").
+    Device,
 }

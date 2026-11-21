@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -116,29 +117,24 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         var catalog = services.GetRequiredService<ModelCatalog>();
         var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);
         var resolved = await catalog.Resolve(plan.ScopeId, selection, allTools.Count > 0, ct);
-        ChatOptions options;
-        switch (resolved.Provider)
+        IChatClient? client = null;
+        if (resolved.Provider == AiProvider.Device)
         {
-            case AiProvider.Host:
-                // The deployment's own client: provider-neutral settings pass through, provider
-                // settings it cannot honor fail here rather than being dropped.
-                var hostDescriptor = new ModelDescriptor(resolved.Provider.ToString(), resolved.Model, null,
-                    resolved.Revision, CapabilitySupport.Supported, CapabilitySupport.Supported, CapabilitySupport.Supported,
-                    Temperature: CapabilitySupport.Supported, TopP: CapabilitySupport.Supported);
-                options = InferenceMapping.CreateOptions(resolved, settings, hostDescriptor);
-                yield return new AgentTurnEvent.ModelSelected(resolved, hostDescriptor);
-                break;
-            default:
-                var descriptor = catalog.Describe(resolved);
-                InferenceMapping.ValidateRequest(new InferenceRequest([.. plan.Transcript, plan.Input], selection, plan.Options), descriptor);
-                options = InferenceMapping.CreateOptions(resolved, settings, descriptor);
-                yield return new AgentTurnEvent.ModelSelected(resolved, descriptor);
-                break;
+            var (deviceClient, unavailableReason) = await catalog.TryCreateDeviceRouteClientAsync(plan.ScopeId, resolved, ct);
+            if (deviceClient is not null)
+            {
+                client = deviceClient;
+            }
+            else
+            {
+                resolved = await catalog.ResolveCloudFallbackAsync(
+                    plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, unavailableReason ?? "offline", ct);
+            }
         }
-        using var client = await catalog.CreateClient(plan.ScopeId, resolved, ct);
-        options.Instructions = plan.Instructions;
-        options.Tools = [.. activeTools];
-        options.ToolMode = activeTools.Count == 0 ? ChatToolMode.None : ChatToolMode.Auto;
+
+        var (options, selectedDescriptor) = BuildTurnOptions(catalog, plan, selection, settings, resolved, activeTools);
+        yield return new AgentTurnEvent.ModelSelected(resolved, selectedDescriptor);
+        client ??= await catalog.CreateClient(plan.ScopeId, resolved, ct);
         var messages = new List<ChatMessage>();
         // Only untagged entries are knowledge for the model; tagged ones are acted on above or belong to other consumers.
         foreach (var entry in contexts.Where(entry => entry.EffectiveTags.Length == 0 && entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
@@ -147,98 +143,202 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         var generated = new List<ChatMessage>();
         UsageDetails? usage = null;
         var calls = new HashSet<string>(StringComparer.Ordinal);
-        for (var step = 0; step < plan.MaxModelCalls; step++)
+        try
         {
-            ChatResponse response;
-            if (plan.Streaming)
+            for (var step = 0; step < plan.MaxModelCalls; step++)
             {
-                var updates = new List<ChatResponseUpdate>();
-                await foreach (var update in client.GetStreamingResponseAsync(messages, options, ct))
+                ChatResponse response;
+                if (plan.Streaming)
                 {
-                    updates.Add(update);
-                    if (!string.IsNullOrEmpty(update.Text)) { yield return new AgentTurnEvent.TextChunk(update.Text); }
-                }
-                response = updates.ToChatResponse();
-            }
-            else
-            {
-                response = await client.GetResponseAsync(messages, options, ct);
-                if (!string.IsNullOrEmpty(response.Text)) { yield return new AgentTurnEvent.TextChunk(response.Text); }
-            }
-            ct.ThrowIfCancellationRequested();
-            if (response.Usage is not null) { (usage ??= new()).Add(response.Usage); }
-            if (response.Messages.Count == 0) { throw new InvalidOperationException("The provider returned no messages."); }
-            messages.AddRange(response.Messages);
-            generated.AddRange(response.Messages);
-            var requested = response.Messages.SelectMany(message => message.Contents).OfType<FunctionCallContent>().ToArray();
-            if (requested.Length == 0)
-            {
-                yield return new AgentTurnEvent.Completed([.. generated.Select(InferenceMapping.FromChatMessage)],
-                    usage is null ? null : new(usage.InputTokenCount, usage.OutputTokenCount, usage.TotalTokenCount));
-                yield return new AgentTurnEvent.Finished();
-                yield break;
-            }
-            foreach (var call in requested)
-            {
-                if (string.IsNullOrWhiteSpace(call.CallId) || !calls.Add(call.CallId)) { throw new InvalidOperationException("The model reused or omitted a tool call identity."); }
-                // The consumer persists the started call before pulling the next event, so the tool never runs unrecorded.
-                yield return new AgentTurnEvent.ToolStarted(call.CallId, call.Name, JsonSerializer.Serialize(call.Arguments));
-                var tool = allTools.SingleOrDefault(item => item.Name == call.Name);
-                if (tool is null)
-                {
-                    var unavailable = new
+                    var updates = new List<ChatResponseUpdate>();
+                    var receivedFirstDelta = false;
+                    string? deviceFallbackReason = null;
+                    await using (var enumerator = client.GetStreamingResponseAsync(messages, options, ct).GetAsyncEnumerator(ct))
                     {
-                        isError = true,
-                        code = "tool_unavailable",
-                        tool = call.Name,
-                        message = "This tool is not available in this turn.",
-                    };
-                    var refusal = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, unavailable)]);
-                    messages.Add(refusal);
-                    generated.Add(refusal);
-                    yield return new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, JsonSerializer.Serialize(unavailable));
-                    continue;
+                        while (true)
+                        {
+                            ChatResponseUpdate update;
+                            try
+                            {
+                                if (!await enumerator.MoveNextAsync()) { break; }
+                                update = enumerator.Current;
+                            }
+                            catch (DeviceUnavailableException unavailable) when (resolved.Provider == AiProvider.Device && step == 0 && !receivedFirstDelta)
+                            {
+                                deviceFallbackReason = unavailable.Message;
+                                break;
+                            }
+
+                            updates.Add(update);
+                            if (!string.IsNullOrEmpty(update.Text))
+                            {
+                                receivedFirstDelta = true;
+                                yield return new AgentTurnEvent.TextChunk(update.Text);
+                            }
+                            else if (update.Contents.Any(static c => c is not UsageContent))
+                            {
+                                receivedFirstDelta = true;
+                            }
+                        }
+                    }
+
+                    if (deviceFallbackReason is not null)
+                    {
+                        client.Dispose();
+                        client = null;
+                        resolved = await catalog.ResolveCloudFallbackAsync(
+                            plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, deviceFallbackReason, ct);
+                        (options, selectedDescriptor) = BuildTurnOptions(catalog, plan, selection, settings, resolved, activeTools);
+                        yield return new AgentTurnEvent.ModelSelected(resolved, selectedDescriptor);
+                        client = await catalog.CreateClient(plan.ScopeId, resolved, ct);
+                        updates.Clear();
+                        await foreach (var update in client.GetStreamingResponseAsync(messages, options, ct))
+                        {
+                            updates.Add(update);
+                            if (!string.IsNullOrEmpty(update.Text)) { yield return new AgentTurnEvent.TextChunk(update.Text); }
+                        }
+                    }
+
+                    response = updates.ToChatResponse();
                 }
-                currentCall = call.CallId;
-                object? result = null;
-                var serialized = "";
-                ExceptionDispatchInfo? fault = null;
-                var sensitive = SensitiveTelemetry;
-                var toolSpan = AgentTelemetry.Tool(call, sensitive, (tool as ContractTool)?.Schema);
-                try
+                else
                 {
-                    result = await tool.InvokeAsync(new AIFunctionArguments(call.Arguments ?? new Dictionary<string, object?>()), ct);
-                    ct.ThrowIfCancellationRequested();
-                    serialized = JsonSerializer.Serialize(result);
-                    AgentTelemetry.Result(toolSpan, serialized, sensitive);
+                    string? deviceFallbackReason = null;
+                    response = null!;
+                    try
+                    {
+                        response = await client.GetResponseAsync(messages, options, ct);
+                    }
+                    catch (DeviceUnavailableException unavailable) when (resolved.Provider == AiProvider.Device && step == 0)
+                    {
+                        deviceFallbackReason = unavailable.Message;
+                    }
+
+                    if (deviceFallbackReason is not null)
+                    {
+                        client.Dispose();
+                        client = null;
+                        resolved = await catalog.ResolveCloudFallbackAsync(
+                            plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, deviceFallbackReason, ct);
+                        (options, selectedDescriptor) = BuildTurnOptions(catalog, plan, selection, settings, resolved, activeTools);
+                        yield return new AgentTurnEvent.ModelSelected(resolved, selectedDescriptor);
+                        client = await catalog.CreateClient(plan.ScopeId, resolved, ct);
+                        response = await client.GetResponseAsync(messages, options, ct);
+                    }
+
+                    if (!string.IsNullOrEmpty(response.Text)) { yield return new AgentTurnEvent.TextChunk(response.Text); }
                 }
-                catch (Exception error)
+                ct.ThrowIfCancellationRequested();
+                if (response.Usage is not null) { (usage ??= new()).Add(response.Usage); }
+                if (response.Messages.Count == 0) { throw new InvalidOperationException("The provider returned no messages."); }
+                messages.AddRange(response.Messages);
+                generated.AddRange(response.Messages);
+                var requested = response.Messages.SelectMany(message => message.Contents).OfType<FunctionCallContent>().ToArray();
+                if (requested.Length == 0)
                 {
-                    OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent tool invocation faulted before rethrow");
-                    AgentTelemetry.Failed(toolSpan, error);
-                    fault = ExceptionDispatchInfo.Capture(error);
+                    yield return new AgentTurnEvent.Completed([.. generated.Select(InferenceMapping.FromChatMessage)],
+                        usage is null ? null : new(usage.InputTokenCount, usage.OutputTokenCount, usage.TotalTokenCount));
+                    yield return new AgentTurnEvent.Finished();
+                    yield break;
                 }
-                finally { currentCall = null; toolSpan?.Dispose(); }
-                // An iterator cannot yield from a catch: the failure is reported here, then ends the turn as it failed.
-                if (fault is not null)
+                foreach (var call in requested)
                 {
-                    var cancelled = fault.SourceException is OperationCanceledException;
-                    if (!cancelled) { fault.SourceException.Data["AgentToolFailed"] = true; }
-                    yield return new AgentTurnEvent.ToolFailed(call.CallId, call.Name, cancelled ? "tool_cancelled" : "tool_failed",
-                        cancelled ? "The tool call was interrupted." : fault.SourceException.Message);
-                    fault.Throw();
+                    if (string.IsNullOrWhiteSpace(call.CallId) || !calls.Add(call.CallId)) { throw new InvalidOperationException("The model reused or omitted a tool call identity."); }
+                    // The consumer persists the started call before pulling the next event, so the tool never runs unrecorded.
+                    yield return new AgentTurnEvent.ToolStarted(call.CallId, call.Name, JsonSerializer.Serialize(call.Arguments));
+                    var tool = allTools.SingleOrDefault(item => item.Name == call.Name);
+                    if (tool is null)
+                    {
+                        var unavailable = new
+                        {
+                            isError = true,
+                            code = "tool_unavailable",
+                            tool = call.Name,
+                            message = "This tool is not available in this turn.",
+                        };
+                        var refusal = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, unavailable)]);
+                        messages.Add(refusal);
+                        generated.Add(refusal);
+                        yield return new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, JsonSerializer.Serialize(unavailable));
+                        continue;
+                    }
+                    currentCall = call.CallId;
+                    object? result = null;
+                    var serialized = "";
+                    ExceptionDispatchInfo? fault = null;
+                    var sensitive = SensitiveTelemetry;
+                    var toolSpan = AgentTelemetry.Tool(call, sensitive, (tool as ContractTool)?.Schema);
+                    try
+                    {
+                        result = await tool.InvokeAsync(new AIFunctionArguments(call.Arguments ?? new Dictionary<string, object?>()), ct);
+                        ct.ThrowIfCancellationRequested();
+                        serialized = JsonSerializer.Serialize(result);
+                        AgentTelemetry.Result(toolSpan, serialized, sensitive);
+                    }
+                    catch (Exception error)
+                    {
+                        OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent tool invocation faulted before rethrow");
+                        AgentTelemetry.Failed(toolSpan, error);
+                        fault = ExceptionDispatchInfo.Capture(error);
+                    }
+                    finally { currentCall = null; toolSpan?.Dispose(); }
+                    // An iterator cannot yield from a catch: the failure is reported here, then ends the turn as it failed.
+                    if (fault is not null)
+                    {
+                        var cancelled = fault.SourceException is OperationCanceledException;
+                        if (!cancelled) { fault.SourceException.Data["AgentToolFailed"] = true; }
+                        yield return new AgentTurnEvent.ToolFailed(call.CallId, call.Name, cancelled ? "tool_cancelled" : "tool_failed",
+                            cancelled ? "The tool call was interrupted." : fault.SourceException.Message);
+                        fault.Throw();
+                    }
+                    if (string.Equals(tool.Name, AgentTools.SearchName, StringComparison.Ordinal))
+                    {
+                        WidenToolsFromSearch(result, serialized, contractTools, activeTools, options);
+                    }
+                    var resultMessage = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, result)]);
+                    messages.Add(resultMessage);
+                    generated.Add(resultMessage);
+                    yield return new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, serialized);
                 }
-                if (string.Equals(tool.Name, AgentTools.SearchName, StringComparison.Ordinal))
-                {
-                    WidenToolsFromSearch(result, serialized, contractTools, activeTools, options);
-                }
-                var resultMessage = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, result)]);
-                messages.Add(resultMessage);
-                generated.Add(resultMessage);
-                yield return new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, serialized);
             }
+            throw new InvalidOperationException("The agent reached its model-call budget.");
         }
-        throw new InvalidOperationException("The agent reached its model-call budget.");
+        finally
+        {
+            client?.Dispose();
+        }
+    }
+
+    private static (ChatOptions Options, ModelDescriptor Descriptor) BuildTurnOptions(
+        ModelCatalog catalog,
+        TurnPlan plan,
+        ModelSelection? selection,
+        InferenceOptions? settings,
+        ResolvedModel resolved,
+        List<AITool> activeTools)
+    {
+        ModelDescriptor descriptor;
+        ChatOptions options;
+        if (resolved.Provider == AiProvider.Host)
+        {
+            // The deployment's own client: provider-neutral settings pass through, provider
+            // settings it cannot honor fail here rather than being dropped.
+            descriptor = new ModelDescriptor(resolved.Provider.ToString(), resolved.Model, null,
+                resolved.Revision, CapabilitySupport.Supported, CapabilitySupport.Supported, CapabilitySupport.Supported,
+                Temperature: CapabilitySupport.Supported, TopP: CapabilitySupport.Supported);
+            options = InferenceMapping.CreateOptions(resolved, settings, descriptor);
+        }
+        else
+        {
+            descriptor = catalog.Describe(resolved);
+            InferenceMapping.ValidateRequest(new InferenceRequest([.. plan.Transcript, plan.Input], selection, plan.Options), descriptor);
+            options = InferenceMapping.CreateOptions(resolved, settings, descriptor);
+        }
+
+        options.Instructions = plan.Instructions;
+        options.Tools = [.. activeTools];
+        options.ToolMode = activeTools.Count == 0 ? ChatToolMode.None : ChatToolMode.Auto;
+        return (options, descriptor);
     }
 
     internal static bool IsTrustedInterrupt(ContextEntry entry)
