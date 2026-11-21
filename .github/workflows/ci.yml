@@ -135,7 +135,7 @@ jobs:
         run: dotnet restore framework/DigitalBrain.slnx -v quiet
 
       - name: Test (Architecture Tier — MTP)
-        run: dotnet test --test-modules "artifacts/bin/*.Architecture.Tests.Unit/release/*.Architecture.Tests.Unit.dll" --max-parallel-test-modules 4
+        run: dotnet test --test-modules "artifacts/bin/*.Architecture.Tests.Unit/release/*.Architecture.Tests.Unit.dll"
 
   test-unit:
     name: test-unit
@@ -167,7 +167,7 @@ jobs:
       - name: Test (Unit Tier — MTP)
         run: |
           rm -rf artifacts/bin/*.Architecture.Tests.Unit
-          dotnet test --test-modules "artifacts/bin/*.Tests.Unit/release/*.Tests.Unit.dll" --max-parallel-test-modules 4
+          dotnet test --test-modules "artifacts/bin/*.Tests.Unit/release/*.Tests.Unit.dll"
 
   test-integration-os:
     name: test-integration-os
@@ -254,7 +254,7 @@ jobs:
       - name: Test (DigitalBrain Integration Tier — MTP)
         env:
           DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/packages
-        run: dotnet test --test-modules "artifacts/bin/DigitalBrain*.Tests.Integration/release/DigitalBrain*.Tests.Integration.dll" --max-parallel-test-modules 4
+        run: dotnet test --test-modules "artifacts/bin/DigitalBrain*.Tests.Integration/release/DigitalBrain*.Tests.Integration.dll"
 
   e2e-os:
     name: e2e-os
