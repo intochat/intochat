@@ -1,20 +1,24 @@
+using System.ClientModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Inference;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenAI;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
@@ -24,22 +28,32 @@ public sealed class ModelCatalog
 {
     private readonly IServiceProvider services;
     private readonly IOptionsMonitor<AIOptions> options;
-    private readonly IEnumerable<ILocalCardSource>? localSources;
+    private readonly IEnumerable<ILocalRuntime>? localRuntimes;
 
     public ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOptions> options)
-        : this(services, options, localSources: null)
+        : this(services, options, localRuntimes: null)
     {
     }
 
-    internal ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOptions> options, IEnumerable<ILocalCardSource>? localSources)
+    internal ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOptions> options, IEnumerable<ILocalRuntime>? localRuntimes)
     {
         this.services = services;
         this.options = options;
-        this.localSources = localSources;
+        this.localRuntimes = localRuntimes;
     }
+
     internal const string NoKeyReason = "Add a key in API keys";
     internal const string NotInstalledReason = "Not installed";
+    internal const string OllamaNotRunningReason = "Ollama is not running";
+    internal const string FoundryNotAvailableReason = "Foundry Local is not available";
     internal const string NotConfiguredReason = "Not configured";
+
+    private sealed record InstalledLocalModel(ILocalRuntime Runtime, RuntimeStatus Probe, ModelCard Card);
+    private sealed record ProviderProbeState(bool AnyReachable, Uri? FirstEndpoint);
+    private sealed record LocalRuntimeSnapshot(
+        ModelCard[] Cards,
+        Dictionary<string, InstalledLocalModel> InstalledById,
+        Dictionary<AiProvider, ProviderProbeState> ProviderProbes);
 
     private IAiCredentials Deployment => services.GetRequiredService<IAiCredentials>();
 
@@ -50,30 +64,17 @@ public sealed class ModelCatalog
             ? new BrainAwareCredentials(Deployment, keys, brainId)
             : Deployment;
 
-    private IEnumerable<ILocalCardSource> ActiveLocalSources()
+    private ILocalRuntime[] ActiveRuntimes()
     {
-        var registered = localSources ?? services.GetServices<ILocalCardSource>();
-        var list = registered as ICollection<ILocalCardSource> ?? [.. registered];
-        if (list.Count > 0)
-        {
-            return list;
-        }
-
-        return services.GetService<ILocalOllamaProbe>() is { } probe
-            ? [new OllamaLocalCardSource(probe)]
-            : [];
+        var registered = localRuntimes ?? services.GetServices<ILocalRuntime>();
+        return [.. registered
+            .OrderBy(static r => r.Id == RuntimeId.Ollama ? 0 : r.Id == RuntimeId.FoundryLocal ? 1 : 2)
+            .ThenBy(static r => r.Id.Value, StringComparer.Ordinal)];
     }
-
-    private bool HasLocalProbe => services.GetService<ILocalOllamaProbe>() is not null;
 
     internal bool HasProfile(string name) => options.CurrentValue.ModelProfiles.ContainsKey(name);
 
     private bool HasHostChatClient => services.GetService<IChatClient>() is not null and not RebuildingChatClient;
-
-    internal Task<LocalOllamaDetection?> DetectLocal(CancellationToken ct)
-        => services.GetService<ILocalOllamaProbe>() is { } probe
-            ? probe.Detect(ct)
-            : Task.FromResult<LocalOllamaDetection?>(null);
 
     /// <summary>Applies the shared local-topology Ollama endpoint and optional local model override.</summary>
     internal static void ApplyTopologyDefaults(AIOptions ai, IConfiguration? configuration)
@@ -134,10 +135,10 @@ public sealed class ModelCatalog
 
     public async Task<ModelCard[]> List(Abilities need = Abilities.None, CancellationToken ct = default)
     {
-        var (cards, _) = await GatherCardsAsync(ct).ConfigureAwait(false);
+        var snapshot = await GatherLocalStateAsync(ct).ConfigureAwait(false);
         return need == Abilities.None
-            ? cards
-            : [.. cards.Where(card => (card.Can & need) == need)];
+            ? snapshot.Cards
+            : [.. snapshot.Cards.Where(card => (card.Can & need) == need)];
     }
 
     internal async Task<ModelId> Pick(
@@ -197,14 +198,13 @@ public sealed class ModelCatalog
     {
         var configuration = options.CurrentValue;
         var credentials = CredentialsFor(brain?.Value);
-        var (cards, installedLocalIds) = await GatherCardsAsync(ct).ConfigureAwait(false);
-        var hasProbe = HasLocalProbe;
+        var local = await GatherLocalStateAsync(ct).ConfigureAwait(false);
 
-        var results = new ModelAvailability[cards.Length];
-        for (var i = 0; i < cards.Length; i++)
+        var results = new ModelAvailability[local.Cards.Length];
+        for (var i = 0; i < local.Cards.Length; i++)
         {
-            var card = cards[i];
-            var (ready, reason) = await CheckCardAvailabilityAsync(card, configuration, credentials, installedLocalIds, hasProbe, ct).ConfigureAwait(false);
+            var card = local.Cards[i];
+            var (ready, reason) = await CheckCardAvailabilityAsync(card, configuration, credentials, local, ct).ConfigureAwait(false);
             results[i] = new ModelAvailability(card.Id, ready, reason);
         }
 
@@ -243,6 +243,7 @@ public sealed class ModelCatalog
                 turn,
                 configuration,
                 credentials,
+                local: null,
                 reasoning,
                 maxTokens,
                 requiresTools,
@@ -250,14 +251,13 @@ public sealed class ModelCatalog
                 ct).ConfigureAwait(false);
         }
 
-        var (allCards, installedLocalIds) = await GatherCardsAsync(ct).ConfigureAwait(false);
+        var local = await GatherLocalStateAsync(ct).ConfigureAwait(false);
         var cardsById = new Dictionary<string, ModelCard>(StringComparer.OrdinalIgnoreCase);
-        foreach (var card in allCards)
+        foreach (var card in local.Cards)
         {
             cardsById.TryAdd(card.Id.Value, card);
         }
 
-        var hasProbe = HasLocalProbe;
         var needed = RoleNeeds.Of(role) | (requiresTools ? Abilities.Tools : Abilities.None);
         var profileNames = configuration.ModelProfiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -273,19 +273,19 @@ public sealed class ModelCatalog
                 {
                     var profileProvider = ParseProvider(Clean(profile.Provider) ?? throw new ArgumentException($"Model profile '{matchedName}' requires a provider."));
                     var profileEndpoint = Clean(profile.Endpoint);
-                    if (await IsProviderReadyForExplicitAsync(profileProvider, profileEndpoint, configuration, credentials, ct).ConfigureAwait(false))
+                    if (await IsProviderReadyForExplicitAsync(profileProvider, profileEndpoint, configuration, credentials, local, ct).ConfigureAwait(false))
                     {
-                        return await ResolveExplicitAsync(candidateId.Value, turn, configuration, credentials, reasoning, maxTokens, requiresTools, nameof(role), ct).ConfigureAwait(false);
+                        return await ResolveExplicitAsync(candidateId.Value, turn, configuration, credentials, local, reasoning, maxTokens, requiresTools, nameof(role), ct).ConfigureAwait(false);
                     }
                     continue;
                 }
 
                 if (kind == StoredModelKind.Card && cardsById.TryGetValue(parsedValue, out var explicitCard))
                 {
-                    var (ready, _) = await CheckCardAvailabilityAsync(explicitCard, configuration, credentials, installedLocalIds, hasProbe, ct).ConfigureAwait(false);
+                    var (ready, _) = await CheckCardAvailabilityAsync(explicitCard, configuration, credentials, local, ct).ConfigureAwait(false);
                     if (ready)
                     {
-                        return await ResolveCardAsync(explicitCard, configuration, credentials, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
+                        return await ResolveCardAsync(explicitCard, configuration, credentials, local, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
                     }
                     continue;
                 }
@@ -295,20 +295,20 @@ public sealed class ModelCatalog
                     var tagCard = cardsById.TryGetValue(parsedValue, out var found)
                         ? found
                         : MakeDynamicOllamaCard(parsedValue);
-                    var (ready, _) = await CheckCardAvailabilityAsync(tagCard, configuration, credentials, installedLocalIds, hasProbe, ct).ConfigureAwait(false);
+                    var (ready, _) = await CheckCardAvailabilityAsync(tagCard, configuration, credentials, local, ct).ConfigureAwait(false);
                     if (ready)
                     {
-                        return await ResolveCardAsync(tagCard, configuration, credentials, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
+                        return await ResolveCardAsync(tagCard, configuration, credentials, local, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
                     }
                     continue;
                 }
             }
             else if (cardsById.TryGetValue(candidateId.Value, out var localCandidate))
             {
-                var (ready, _) = await CheckCardAvailabilityAsync(localCandidate, configuration, credentials, installedLocalIds, hasProbe, ct).ConfigureAwait(false);
+                var (ready, _) = await CheckCardAvailabilityAsync(localCandidate, configuration, credentials, local, ct).ConfigureAwait(false);
                 if (ready)
                 {
-                    return await ResolveCardAsync(localCandidate, configuration, credentials, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
+                    return await ResolveCardAsync(localCandidate, configuration, credentials, local, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
                 }
             }
         }
@@ -319,33 +319,33 @@ public sealed class ModelCatalog
             if (cardsById.TryGetValue(defaultId.Value, out var defaultCard)
                 && (defaultCard.Can & needed) == needed)
             {
-                var (ready, _) = await CheckCardAvailabilityAsync(defaultCard, configuration, credentials, installedLocalIds, hasProbe, ct).ConfigureAwait(false);
+                var (ready, _) = await CheckCardAvailabilityAsync(defaultCard, configuration, credentials, local, ct).ConfigureAwait(false);
                 if (ready)
                 {
-                    return await ResolveCardAsync(defaultCard, configuration, credentials, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
+                    return await ResolveCardAsync(defaultCard, configuration, credentials, local, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
                 }
             }
         }
 
         // 3. First available card declaring the role's required abilities.
-        foreach (var card in allCards)
+        foreach (var card in local.Cards)
         {
             if ((card.Can & needed) != needed)
             {
                 continue;
             }
 
-            var (ready, _) = await CheckCardAvailabilityAsync(card, configuration, credentials, installedLocalIds, hasProbe, ct).ConfigureAwait(false);
+            var (ready, _) = await CheckCardAvailabilityAsync(card, configuration, credentials, local, ct).ConfigureAwait(false);
             if (ready)
             {
-                return await ResolveCardAsync(card, configuration, credentials, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
+                return await ResolveCardAsync(card, configuration, credentials, local, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
             }
         }
 
         // 4. Fallback when no card is available: Host client (in tests) or fail on the explicit deployment choice.
         if (firstExplicitDeployment is not null)
         {
-            return await ResolveExplicitAsync(firstExplicitDeployment, turn, configuration, credentials, reasoning, maxTokens, requiresTools, nameof(role), ct).ConfigureAwait(false);
+            return await ResolveExplicitAsync(firstExplicitDeployment, turn, configuration, credentials, local, reasoning, maxTokens, requiresTools, nameof(role), ct).ConfigureAwait(false);
         }
 
         var host = new ResolvedModel(AiProvider.Host, "default", null, null, string.Empty, Abilities.Text | Abilities.Tools, NormalizeReasoning(reasoning), maxTokens);
@@ -357,6 +357,7 @@ public sealed class ModelCatalog
         ModelSelection turn,
         AIOptions configuration,
         IAiCredentials credentials,
+        LocalRuntimeSnapshot? local,
         string? reasoning,
         int? maxTokens,
         bool requiresTools,
@@ -405,8 +406,8 @@ public sealed class ModelCatalog
         }
         else
         {
-            var (allCards, _) = await GatherCardsAsync(ct).ConfigureAwait(false);
-            var localCard = allCards.FirstOrDefault(c => string.Equals(c.Id.Value, key, StringComparison.OrdinalIgnoreCase));
+            local ??= await GatherLocalStateAsync(ct).ConfigureAwait(false);
+            var localCard = local.Cards.FirstOrDefault(c => string.Equals(c.Id.Value, key, StringComparison.OrdinalIgnoreCase));
             if (localCard is null)
             {
                 throw new ArgumentException($"Unknown model '{key}'. Use a catalogued model id or a configured profile name.", paramName);
@@ -427,6 +428,7 @@ public sealed class ModelCatalog
             preset,
             configuration,
             credentials,
+            local,
             reasoning,
             maxTokens,
             requiresTools,
@@ -437,6 +439,7 @@ public sealed class ModelCatalog
         ModelCard card,
         AIOptions configuration,
         IAiCredentials credentials,
+        LocalRuntimeSnapshot? local,
         string? reasoning,
         int? maxTokens,
         bool requiresTools,
@@ -450,6 +453,7 @@ public sealed class ModelCatalog
             preset: card,
             configuration,
             credentials,
+            local,
             reasoning,
             maxTokens,
             requiresTools,
@@ -464,6 +468,7 @@ public sealed class ModelCatalog
         ModelCard? preset,
         AIOptions configuration,
         IAiCredentials credentials,
+        LocalRuntimeSnapshot? local,
         string? reasoning,
         int? maxTokens,
         bool requiresTools,
@@ -471,7 +476,7 @@ public sealed class ModelCatalog
     {
         if (provider == AiProvider.Ollama && preset is not null)
         {
-            modelId = OllamaProviderFactory.TryResolveConfiguredTag(configuration.Ollama, preset) ?? modelId;
+            modelId = TryResolveConfiguredOllamaTag(configuration.Ollama, preset) ?? modelId;
         }
 
         if (modelId.Length > 200 || modelId.Any(char.IsControl))
@@ -479,14 +484,10 @@ public sealed class ModelCatalog
             throw new ArgumentException("Model ID must contain at most 200 printable characters.", nameof(modelId));
         }
 
-        var isChatFactoryProvider = provider is AiProvider.OpenAI or AiProvider.Anthropic or AiProvider.Google
-            or AiProvider.XAI or AiProvider.OpenRouter or AiProvider.Ollama;
-
-        if (isChatFactoryProvider)
+        if (IsCloudChatProvider(provider))
         {
             var factory = AIClients.Factory(provider);
-            if (!await factory.IsConfigured(configuration, credentials, ct).ConfigureAwait(false)
-                && !(provider == AiProvider.Ollama && endpoint is not null))
+            if (!await factory.IsConfigured(configuration, credentials, ct).ConfigureAwait(false))
             {
                 if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct).ConfigureAwait(false))
                 {
@@ -495,28 +496,49 @@ public sealed class ModelCatalog
                     return host with { Revision = Revision(host) };
                 }
 
-                if (provider == AiProvider.Ollama)
-                {
-                    if (await DetectLocal(ct).ConfigureAwait(false) is { } localDetected)
-                    {
-                        endpoint = localDetected.Endpoint;
-                        declared ??= Abilities.Text | Abilities.Tools;
-                    }
-                    else
-                    {
-                        throw new NoProviderConfiguredException($"Provider 'Ollama' is not configured. Set {AIKeys.OllamaEndpoint}.");
-                    }
-                }
-                else
-                {
-                    await credentials.RequireReady(AiIntegrations.IdOf(provider), ct).ConfigureAwait(false);
-                }
+                await credentials.RequireReady(AiIntegrations.IdOf(provider), ct).ConfigureAwait(false);
             }
 
-            endpoint ??= provider == AiProvider.Ollama
-                ? Clean(configuration.Ollama.Endpoint)
-                : Clean(configuration.Provider(provider).Endpoint);
-            if (endpoint is not null || provider == AiProvider.Ollama)
+            endpoint ??= Clean(configuration.Provider(provider).Endpoint);
+            if (endpoint is not null)
+            {
+                endpoint = Endpoint(endpoint, provider);
+            }
+        }
+        else if (IsDeviceProvider(provider))
+        {
+            local ??= await GatherLocalStateAsync(ct).ConfigureAwait(false);
+            var hasInstalled = local.InstalledById.TryGetValue(modelId, out var installedHit) && installedHit.Probe.Reachable;
+            var hasReachableRuntime = local.ProviderProbes.TryGetValue(provider, out var providerProbe) && providerProbe.AnyReachable;
+
+            if (hasInstalled && installedHit is not null)
+            {
+                endpoint ??= installedHit.Probe.Endpoint?.AbsoluteUri;
+                declared ??= installedHit.Card.Can;
+            }
+            else if (endpoint is not null)
+            {
+                endpoint = Endpoint(endpoint, provider);
+            }
+            else if (hasReachableRuntime)
+            {
+                endpoint = providerProbe!.FirstEndpoint?.AbsoluteUri;
+            }
+            else if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct).ConfigureAwait(false))
+            {
+                var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty,
+                    declared ?? preset?.Can ?? (Abilities.Text | Abilities.Tools), NormalizeReasoning(reasoning), maxTokens);
+                return host with { Revision = Revision(host) };
+            }
+            else
+            {
+                var detail = provider == AiProvider.Ollama
+                    ? $"Provider 'Ollama' is not running or model '{modelId}' is not installed."
+                    : $"Provider '{provider}' is not available for model '{modelId}'.";
+                throw new NoProviderConfiguredException(detail);
+            }
+
+            if (endpoint is not null)
             {
                 endpoint = Endpoint(endpoint, provider);
             }
@@ -561,76 +583,110 @@ public sealed class ModelCatalog
         return resolved with { Revision = Revision(resolved) };
     }
 
-    private async Task<(ModelCard[] Cards, HashSet<string> InstalledLocalIds)> GatherCardsAsync(CancellationToken ct)
+    private async Task<LocalRuntimeSnapshot> GatherLocalStateAsync(CancellationToken ct)
     {
         var cards = new List<ModelCard>(KnownModels.All.Count + 8);
         var indexById = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
         foreach (var card in KnownModels.All)
         {
             indexById[card.Id.Value] = cards.Count;
             cards.Add(card);
         }
 
-        var installedLocalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var source in ActiveLocalSources())
+        var installedById = new Dictionary<string, InstalledLocalModel>(StringComparer.OrdinalIgnoreCase);
+        var providerProbes = new Dictionary<AiProvider, ProviderProbeState>();
+
+        foreach (var runtime in ActiveRuntimes())
         {
-            await foreach (var localCard in source.Installed(ct).ConfigureAwait(false))
+            var probe = await SafeProbeAsync(runtime, ct).ConfigureAwait(false);
+            var runtimeProvider = ProviderOf(runtime.Id);
+
+            providerProbes[runtimeProvider] = providerProbes.TryGetValue(runtimeProvider, out var existingProbe)
+                ? new ProviderProbeState(
+                    existingProbe.AnyReachable || probe.Reachable,
+                    existingProbe.FirstEndpoint ?? probe.Endpoint)
+                : new ProviderProbeState(probe.Reachable, probe.Endpoint);
+
+            if (!probe.Reachable)
+            {
+                continue;
+            }
+
+            var installed = await CollectInstalledSafeAsync(runtime, ct).ConfigureAwait(false);
+            foreach (var localCard in installed)
             {
                 var canonical = KnownModels.Find(localCard.Id.Value);
                 var lookupId = canonical?.Id.Value ?? localCard.Id.Value;
-                installedLocalIds.Add(lookupId);
-                installedLocalIds.Add(localCard.Id.Value);
 
+                ModelCard effectiveCard;
                 if (indexById.TryGetValue(lookupId, out var existingIndex))
                 {
-                    if (localCard.Bytes is { } bytes && cards[existingIndex].Bytes != bytes)
-                    {
-                        cards[existingIndex] = cards[existingIndex] with { Bytes = bytes };
-                    }
+                    effectiveCard = localCard.Bytes is { } bytes && cards[existingIndex].Bytes != bytes
+                        ? cards[existingIndex] with { Bytes = bytes }
+                        : cards[existingIndex];
+                    cards[existingIndex] = effectiveCard;
                 }
                 else
                 {
+                    effectiveCard = localCard;
                     indexById[localCard.Id.Value] = cards.Count;
-                    cards.Add(localCard);
+                    cards.Add(effectiveCard);
                 }
+
+                var installedEntry = new InstalledLocalModel(runtime, probe, effectiveCard);
+                installedById.TryAdd(lookupId, installedEntry);
+                installedById.TryAdd(localCard.Id.Value, installedEntry);
             }
         }
 
-        return ([.. cards], installedLocalIds);
+        return new LocalRuntimeSnapshot([.. cards], installedById, providerProbes);
     }
 
     private async Task<(bool Ready, string? Reason)> CheckCardAvailabilityAsync(
         ModelCard card,
         AIOptions configuration,
         IAiCredentials credentials,
-        HashSet<string> installedLocalIds,
-        bool hasLocalProbe,
+        LocalRuntimeSnapshot local,
         CancellationToken ct)
     {
         switch (card.Provider)
         {
             case AiProvider.Ollama:
-                if (installedLocalIds.Contains(card.Id.Value))
+                if (local.InstalledById.TryGetValue(card.Id.Value, out var ollamaHit) && ollamaHit.Probe.Reachable)
                 {
                     return (true, null);
                 }
-
-                if (installedLocalIds.Count > 0)
+                if (local.ProviderProbes.TryGetValue(AiProvider.Ollama, out var ollamaProbe) && !ollamaProbe.AnyReachable)
                 {
-                    return (false, NotInstalledReason);
+                    return (false, OllamaNotRunningReason);
                 }
-
-                if (!string.IsNullOrWhiteSpace(configuration.Ollama.Endpoint)
-                    && (!IsDefaultOrLoopbackOllamaEndpoint(configuration.Ollama.Endpoint)
-                        || !hasLocalProbe
-                        || configuration.Ollama.Models.Keys.Any(k => string.Equals(k, card.Id.Value, StringComparison.OrdinalIgnoreCase)
-                            || KnownModels.Find(k)?.Id == card.Id)))
-                {
-                    return (true, null);
-                }
-
                 return (false, NotInstalledReason);
+
+            case AiProvider.FoundryLocal:
+                if (local.InstalledById.TryGetValue(card.Id.Value, out var foundryHit) && foundryHit.Probe.Reachable)
+                {
+                    return (true, null);
+                }
+                if (local.ProviderProbes.TryGetValue(AiProvider.FoundryLocal, out var foundryProbe) && !foundryProbe.AnyReachable)
+                {
+                    return (false, FoundryNotAvailableReason);
+                }
+                return (false, NotInstalledReason);
+
+            case AiProvider.OpenAICompatible:
+                if (local.InstalledById.TryGetValue(card.Id.Value, out var compatHit) && compatHit.Probe.Reachable)
+                {
+                    return (true, null);
+                }
+                if (configuration.ModelProfiles.Values.Any(p =>
+                    string.Equals(p.Provider, nameof(AiProvider.OpenAICompatible), StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(p.Endpoint)))
+                {
+                    return (true, null);
+                }
+                return local.ProviderProbes.ContainsKey(AiProvider.OpenAICompatible)
+                    ? (false, NotInstalledReason)
+                    : (false, NotConfiguredReason);
 
             case AiProvider.OpenAI:
             case AiProvider.Anthropic:
@@ -646,22 +702,6 @@ public sealed class ModelCatalog
                     ? (true, null)
                     : (false, NoKeyReason);
 
-            case AiProvider.FoundryLocal:
-                return installedLocalIds.Contains(card.Id.Value)
-                    ? (true, null)
-                    : (false, NotInstalledReason);
-
-            case AiProvider.OpenAICompatible:
-                if (installedLocalIds.Contains(card.Id.Value))
-                {
-                    return (true, null);
-                }
-                return configuration.ModelProfiles.Values.Any(p =>
-                    string.Equals(p.Provider, nameof(AiProvider.OpenAICompatible), StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(p.Endpoint))
-                    ? (true, null)
-                    : (false, NotConfiguredReason);
-
             case AiProvider.Host:
                 return HasHostChatClient ? (true, null) : (false, NotConfiguredReason);
 
@@ -675,15 +715,19 @@ public sealed class ModelCatalog
         string? explicitEndpoint,
         AIOptions configuration,
         IAiCredentials credentials,
+        LocalRuntimeSnapshot local,
         CancellationToken ct)
     {
-        if (provider == AiProvider.Ollama && !string.IsNullOrWhiteSpace(explicitEndpoint))
+        if (IsDeviceProvider(provider))
         {
-            return true;
+            if (!string.IsNullOrWhiteSpace(explicitEndpoint))
+            {
+                return true;
+            }
+            return local.ProviderProbes.TryGetValue(provider, out var probe) && probe.AnyReachable;
         }
 
-        if (provider is AiProvider.OpenAI or AiProvider.Anthropic or AiProvider.Google
-            or AiProvider.XAI or AiProvider.OpenRouter or AiProvider.Ollama)
+        if (IsCloudChatProvider(provider))
         {
             return await AIClients.Factory(provider).IsConfigured(configuration, credentials, ct).ConfigureAwait(false);
         }
@@ -729,6 +773,24 @@ public sealed class ModelCatalog
         return new ModelCard(new ModelId(tag), AiProvider.Ollama, family, tag, Where.Device, Abilities.Text | Abilities.Tools, Tier.Balanced);
     }
 
+    private static string? TryResolveConfiguredOllamaTag(OllamaOptions ollama, ModelCard card)
+    {
+        if (ollama.Models.TryGetValue(card.Id.Value, out var direct) && !string.IsNullOrWhiteSpace(direct.Model))
+        {
+            return direct.Model.Trim();
+        }
+
+        foreach (var (key, entry) in ollama.Models)
+        {
+            if (KnownModels.Find(key)?.Id == card.Id && !string.IsNullOrWhiteSpace(entry.Model))
+            {
+                return entry.Model.Trim();
+            }
+        }
+
+        return null;
+    }
+
     private static bool TryFindProfile(AIOptions configuration, string key, out string profileName, out AIModelProfileOptions profile)
     {
         if (configuration.ModelProfiles.TryGetValue(key, out var exact))
@@ -751,29 +813,68 @@ public sealed class ModelCatalog
         return false;
     }
 
-    private static readonly AiProvider[] ExternalChatProviders =
+    private static readonly AiProvider[] CloudChatProviders =
     [
         AiProvider.OpenAI,
         AiProvider.Anthropic,
         AiProvider.Google,
         AiProvider.XAI,
         AiProvider.OpenRouter,
-        AiProvider.Ollama,
     ];
 
-    private static async Task<bool> AnyProviderConfigured(AIOptions configuration, IAiCredentials credentials, CancellationToken ct)
+    private static bool IsCloudChatProvider(AiProvider provider)
+        => provider is AiProvider.OpenAI or AiProvider.Anthropic or AiProvider.Google or AiProvider.XAI or AiProvider.OpenRouter;
+
+    private static bool IsDeviceProvider(AiProvider provider)
+        => provider is AiProvider.Ollama or AiProvider.FoundryLocal or AiProvider.OpenAICompatible;
+
+    private static AiProvider ProviderOf(RuntimeId id)
+        => id == RuntimeId.Ollama ? AiProvider.Ollama
+            : id == RuntimeId.FoundryLocal ? AiProvider.FoundryLocal
+            : AiProvider.OpenAICompatible;
+
+    private static async Task<bool> AnyProviderConfigured(
+        AIOptions configuration,
+        IAiCredentials credentials,
+        CancellationToken ct)
     {
         if (configuration.ModelProfiles.Values.Any(profile => !string.IsNullOrWhiteSpace(profile.Endpoint))) { return true; }
-        foreach (var provider in ExternalChatProviders)
+        foreach (var provider in CloudChatProviders)
         {
             if (await AIClients.Factory(provider).IsConfigured(configuration, credentials, ct).ConfigureAwait(false)) { return true; }
         }
         return false;
     }
 
-    private static bool IsDefaultOrLoopbackOllamaEndpoint(string? endpoint)
-        => string.IsNullOrWhiteSpace(endpoint)
-            || (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && uri.IsLoopback && uri.Port == 11434);
+    private static async Task<RuntimeStatus> SafeProbeAsync(ILocalRuntime runtime, CancellationToken ct)
+    {
+        try
+        {
+            return await runtime.Probe(ct).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<ModelCatalog>().LogSwallowed(error, $"probing local runtime '{runtime.Id.Value}'");
+            return new RuntimeStatus(runtime.Id, Reachable: false, Version: null, Endpoint: null);
+        }
+    }
+
+    private static async Task<List<ModelCard>> CollectInstalledSafeAsync(ILocalRuntime runtime, CancellationToken ct)
+    {
+        var list = new List<ModelCard>();
+        try
+        {
+            await foreach (var card in runtime.Installed(ct).ConfigureAwait(false))
+            {
+                list.Add(card);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<ModelCatalog>().LogSwallowed(error, $"listing installed models on runtime '{runtime.Id.Value}'");
+        }
+        return list;
+    }
 
     public Task<IChatClient> CreateClient(ResolvedModel resolved, CancellationToken ct, bool invokesTools = false)
         => CreateClient(null, resolved, ct, invokesTools);
@@ -791,11 +892,21 @@ public sealed class ModelCatalog
                 ?? throw new NoProviderConfiguredException("No AI provider is configured.");
             return new NonDisposing(hostClient);
         }
-        var configuration = new AIOptions();
-        configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
-        var inner = new RebuildingChatClient(
-            token => Build(brainId, resolved, configuration, token),
-            token => AiIntegrations.KeyedProviders.Contains(resolved.Provider) ? credentials.GenerationOf(AiIntegrations.IdOf(resolved.Provider), token) : Task.FromResult(0L));
+
+        IChatClient inner;
+        if (IsDeviceProvider(resolved.Provider))
+        {
+            inner = await CreateDeviceChatClientAsync(resolved, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            var configuration = new AIOptions();
+            configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
+            inner = new RebuildingChatClient(
+                token => Build(brainId, resolved, configuration, token),
+                token => AiIntegrations.KeyedProviders.Contains(resolved.Provider) ? credentials.GenerationOf(AiIntegrations.IdOf(resolved.Provider), token) : Task.FromResult(0L));
+        }
+
         var pinned = new ChatClientBuilder(inner).ConfigureOptions(request =>
         {
             request.ModelId = resolved.Model;
@@ -806,6 +917,46 @@ public sealed class ModelCatalog
         return AIClients.BuildChatPipeline(services, !invokesTools || resolved.Capabilities.HasFlag(Abilities.Tools),
             resolved.Provider.ToString(), pinned, resolved.Provider.ToString(), resolved.Model,
             rejectUnsupportedTools: invokesTools, useFunctionInvocation: invokesTools);
+    }
+
+    private async Task<IChatClient> CreateDeviceChatClientAsync(ResolvedModel resolved, CancellationToken ct)
+    {
+        if (HasProfileEndpoint(resolved) && resolved.Endpoint is { Length: > 0 } profileEndpoint)
+        {
+            var uri = new Uri(profileEndpoint, UriKind.Absolute);
+            return new OpenAIClient(new ApiKeyCredential("local"), new OpenAIClientOptions { Endpoint = uri })
+                .GetChatClient(resolved.Model)
+                .AsIChatClient();
+        }
+
+        var runtimes = ActiveRuntimes();
+        var matching = runtimes.Where(r => ProviderOf(r.Id) == resolved.Provider).ToArray();
+        ILocalRuntime? chosen = null;
+
+        if (matching.Length == 1)
+        {
+            chosen = matching[0];
+        }
+        else if (matching.Length > 1)
+        {
+            foreach (var candidate in matching)
+            {
+                var installed = await CollectInstalledSafeAsync(candidate, ct).ConfigureAwait(false);
+                if (installed.Any(c => string.Equals(c.Id.Value, resolved.Model, StringComparison.OrdinalIgnoreCase)))
+                {
+                    chosen = candidate;
+                    break;
+                }
+            }
+            chosen ??= matching[0];
+        }
+
+        if (chosen is null)
+        {
+            throw new NoProviderConfiguredException($"No local runtime is registered for provider '{resolved.Provider}' (model '{resolved.Model}').");
+        }
+
+        return chosen.Chat(new ModelId(resolved.Model));
     }
 
     private async Task<IChatClient> Build(string? brainId, ResolvedModel resolved, AIOptions configuration, CancellationToken ct)
@@ -852,8 +1003,8 @@ public sealed class ModelCatalog
 
     private static AiProvider ParseProvider(string name)
         => Enum.TryParse<AiProvider>(name, ignoreCase: true, out var provider) && Enum.IsDefined(provider)
-            && provider is not (AiProvider.FoundryLocal or AiProvider.Host or AiProvider.TypeSafe)
-            ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter, Ollama or OpenAICompatible.", nameof(name));
+            && provider is not (AiProvider.Host or AiProvider.TypeSafe)
+            ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter, Ollama, FoundryLocal or OpenAICompatible.", nameof(name));
 
     private static string? Endpoint(string? endpoint, AiProvider provider)
     {

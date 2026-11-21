@@ -23,7 +23,6 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
@@ -48,17 +47,10 @@ public sealed class InoAppFacts
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 
-    private sealed class OfflineLocalProbe : ILocalOllamaProbe
-    {
-        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default)
-            => Task.FromResult<LocalOllamaDetection?>(null);
-    }
-
     private static IServiceProvider WithRedactor(IServiceProvider? parent = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ISecretRedactor, NoSecrets>();
-        services.AddSingleton<ILocalOllamaProbe, OfflineLocalProbe>();
         services.AddSingleton(TimeProvider.System);
         var provider = services.BuildServiceProvider();
         if (parent is null) { return provider; }
@@ -312,10 +304,6 @@ public sealed class InoAppFacts
     {
         await using var os = BackgroundOs();
         os.Register<FakeModelCatalog>();
-        FakeModelCatalog.LocalSummary = new LocalModelSummary(
-            Available: true,
-            PreferredModel: "qwen2.5-coder:14b",
-            InstalledModels: ["qwen2.5-coder:14b", "qwen3.5:4b"]);
 
         try
         {
@@ -347,7 +335,6 @@ public sealed class InoAppFacts
         await using var os = BackgroundOs();
         os.Register<FakeModelCatalog>();
         FakeModelCatalog.PickedChat = KnownModels.Qwen35.Id;
-        FakeModelCatalog.LocalSummary = new LocalModelSummary(Available: false, PreferredModel: null, InstalledModels: []);
 
         try
         {
@@ -1330,12 +1317,10 @@ public sealed class InoAppFacts
     [Neuron("ai.models")]
     private sealed class FakeModelCatalog : Neuron, IModelCatalog
     {
-        public static LocalModelSummary LocalSummary { get; set; } = new(false, null, []);
         public static ModelId? PickedChat { get; set; }
 
         public static void Reset()
         {
-            LocalSummary = new(false, null, []);
             PickedChat = null;
         }
 
@@ -1356,8 +1341,6 @@ public sealed class InoAppFacts
         public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
 
         public Task<ModelAvailability[]> Availability() => Task.FromResult<ModelAvailability[]>([]);
-
-        public Task<LocalModelSummary> DetectLocal() => Task.FromResult(LocalSummary);
 
         public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }

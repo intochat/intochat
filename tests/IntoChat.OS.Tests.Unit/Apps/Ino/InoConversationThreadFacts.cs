@@ -8,7 +8,6 @@ using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Capabilities.Secrets;
@@ -36,18 +35,12 @@ public sealed class InoConversationThreadFacts
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 
-    private sealed class OfflineLocalProbe : ILocalOllamaProbe
-    {
-        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default) => Task.FromResult<LocalOllamaDetection?>(null);
-    }
-
     private static TestOS SeededOs(InoAppState state) => SeededOs(JsonSerializer.Serialize(state, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
 
     private static TestOS SeededOs(string stateJson)
     {
         var services = new ServiceCollection()
             .AddSingleton<ISecretRedactor, NoSecrets>()
-            .AddSingleton<ILocalOllamaProbe, OfflineLocalProbe>()
             .AddSingleton(TimeProvider.System)
             .BuildServiceProvider();
         var os = TestOS.Local(options => options.Services = services);

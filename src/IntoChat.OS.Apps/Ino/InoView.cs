@@ -8,6 +8,7 @@ using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.UI;
 using IntoChat.OS.Host.Visuals;
 using static IntoChat.OS.UI.Kit;
@@ -154,8 +155,9 @@ public static partial class InoView
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
-        IReadOnlyList<ModelAvailability>? availability = null)
-        => new("Ino", ScreenNode(s, dictation, thread, threadFailure, departureRejection, cards, availability));
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
+        => new("Ino", ScreenNode(s, dictation, thread, threadFailure, departureRejection, cards, availability, device));
 
     /// <summary>Projects Ino's root <see cref="Node"/> for <see cref="AggregateScreen{TState}"/> and detached previews.</summary>
     public static Node ScreenNode(
@@ -165,14 +167,15 @@ public static partial class InoView
         string? threadFailure = null,
         Rejected? departureRejection = null,
         IReadOnlyList<ModelCard>? cards = null,
-        IReadOnlyList<ModelAvailability>? availability = null)
+        IReadOnlyList<ModelAvailability>? availability = null,
+        DeviceView? device = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
         var shown = Shown(s);
         var projectedCardIds = new HashSet<string>(shown.SelectMany(m => m.Cards).Select(c => c.Id), StringComparer.Ordinal);
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
-        Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
+        Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s, device) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
         Node[] navAbove = RenderNavigationSeedNodes(s, departureRejection);
         var conversation = s.DevUiMode
@@ -487,9 +490,17 @@ public static partial class InoView
 
     internal static bool ShouldShowModelSetup(InoAppState s) => s.Error?.Code is "no-provider" or "provider-rejected-key";
 
-    internal static Node[] RenderModelSetupNodes(InoAppState s)
+    internal static Node[] RenderModelSetupNodes(InoAppState s, DeviceView? device = null)
     {
-        var localModels = s.DetectedLocalModels is { Length: > 0 } list ? list : s.DetectedLocalModel is { Length: > 0 } single ? [single] : [];
+        var liveLocal = InoModelSetup.InstalledLocalModels(device);
+        var localModels = liveLocal.Length > 0
+            ? liveLocal
+            : s.DetectedLocalModels is { Length: > 0 } list
+                ? list
+                : s.DetectedLocalModel is { Length: > 0 } single
+                    ? [single]
+                    : [];
+        var preferredLocal = liveLocal.Length > 0 ? liveLocal[0] : s.DetectedLocalModel;
         ChoiceOptionNode[] options =
         [
             .. localModels.Take(3).Select(static m => new ChoiceOptionNode($"Local Ollama · {m}", "Ready on this machine")),
@@ -499,10 +510,10 @@ public static partial class InoView
             new("OpenRouter", "Cloud API key in Secure store"),
         ];
 
-        var subtitle = s.DetectedLocalModel is { Length: > 0 } local
+        var subtitle = preferredLocal is { Length: > 0 } local
             ? $"Local Ollama model {local} was detected on this machine, or paste a provider API key below."
             : "Start local Ollama or paste an OpenAI, Anthropic, Google, or OpenRouter API key below.";
-        Node? useLocal = s.DetectedLocalModel is { Length: > 0 } preferred
+        Node? useLocal = preferredLocal is { Length: > 0 } preferred
             ? PrimaryButton($"Use local model ({preferred})", "cpu").Key(UseLocalKey).Emits(AppSignals.Emits("ino", new InoUseLocalModel(Model: preferred))).ToNode()
             : null;
 

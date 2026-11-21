@@ -1471,8 +1471,6 @@ public sealed class HouseRules22Facts
             "IGmailInbound",
             "IGmailPushAuthenticator",
             "ISolutionLoader",
-            "ILocalOllamaProbe",
-            "ILocalCardSource",
             "ICreatorModel",
             "IClickHouseProvider",
             "ILlmProviderFactory",

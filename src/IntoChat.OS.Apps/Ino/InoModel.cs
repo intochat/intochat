@@ -289,14 +289,14 @@ public static class InoModel
 
     public static (InoAppState State, bool NeedsMigration) DecideOpen(
         InoAppState current, string? mode, string displayName, string? defaultModel, bool smart,
-        Approval[] approvals, string[] grantSummaries, string? detectedLocalModel = null, string[]? detectedLocalModels = null)
+        Approval[] approvals, string[] grantSummaries)
     {
         ArgumentNullException.ThrowIfNull(current);
         var modelLabel = string.IsNullOrWhiteSpace(defaultModel) ? KnownModels.Defaults.Device[Role.Chat].Value : defaultModel.Trim();
         var status = mode == "greet" ? $"Hello, {displayName}! Ready on {modelLabel}."
             : current.Blocked ? Paused : current.ActiveRunId is not null ? Working : Ready;
         var migrate = current.Turns.Length > 0 && string.IsNullOrEmpty(current.AgentKey);
-        var next = Opened(current, smart, approvals, grantSummaries, detectedLocalModel, detectedLocalModels) with
+        var next = Opened(current, smart, approvals, grantSummaries) with
         {
             Status = status,
             AgentKey = migrate ? current.AgentKey : AgentKeyOf(current.ConversationId),
@@ -306,8 +306,7 @@ public static class InoModel
     }
 
     public static InoAppState Opened(
-        InoAppState s, bool smart, Approval[] approvals, string[] grantSummaries,
-        string? detectedLocalModel = null, string[]? detectedLocalModels = null)
+        InoAppState s, bool smart, Approval[] approvals, string[] grantSummaries)
     {
         ArgumentNullException.ThrowIfNull(s);
         return s with
@@ -315,8 +314,6 @@ public static class InoModel
             Smart = smart,
             Approvals = approvals,
             GrantSummaries = grantSummaries,
-            DetectedLocalModel = detectedLocalModel ?? s.DetectedLocalModel,
-            DetectedLocalModels = detectedLocalModels ?? s.DetectedLocalModels,
         };
     }
 
@@ -446,12 +443,10 @@ public static class InoModel
             GrantSummaries = s.GrantSummaries,
             Smart = s.Smart,
             SelectedModel = s.SelectedModel,
-            DetectedLocalModel = s.DetectedLocalModel,
-            DetectedLocalModels = s.DetectedLocalModels,
         };
     }
 
-    public static InoAppState ModelSelected(InoAppState s, string model, string status, LocalModelSummary? local = null)
+    public static InoAppState ModelSelected(InoAppState s, string model, string status)
     {
         ArgumentNullException.ThrowIfNull(s);
         return s with
@@ -459,8 +454,6 @@ public static class InoModel
             Error = null,
             Status = status,
             SelectedModel = model,
-            DetectedLocalModel = local?.PreferredModel ?? (local is null ? s.DetectedLocalModel : model),
-            DetectedLocalModels = local?.InstalledModels ?? s.DetectedLocalModels,
         };
     }
 

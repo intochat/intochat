@@ -167,7 +167,6 @@ public sealed class DeviceNeuronFacts
         }
         public Task<RoleMap> Roles() => Task.FromResult(state.Roles);
         public Task<ModelAvailability[]> Availability() => Task.FromResult<ModelAvailability[]>([]);
-        public Task<LocalModelSummary> DetectLocal() => Task.FromResult(new LocalModelSummary(false, null, []));
         public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
 

@@ -1,7 +1,9 @@
+using System.Runtime.CompilerServices;
 using DigitalBrain.Access;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using DigitalBrain;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Capabilities.Connections.Connectors;
@@ -36,8 +38,8 @@ using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
@@ -140,12 +142,38 @@ public sealed class SwappableChatModel : IChatClient
 
 public sealed record HeldTurn(Task Entered, Action Release);
 
-internal sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
+internal sealed class ControllableLocalRuntime(IChatClient chatModel) : ILocalRuntime
 {
-    public LocalOllamaDetection? Current { get; set; }
+    public RuntimeId Id => RuntimeId.Ollama;
+    public bool Reachable { get; set; }
+    public Uri? Endpoint { get; set; } = new("http://127.0.0.1:11434");
+    public ModelCard[] InstalledCards { get; set; } = [];
 
-    public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default)
-        => Task.FromResult(Current);
+    public Task<RuntimeStatus> Probe(CancellationToken ct)
+        => Task.FromResult(new RuntimeStatus(Id, Reachable, Reachable ? "0.9.0" : null, Endpoint));
+
+    public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.CompletedTask;
+        foreach (var card in InstalledCards) { yield return card; }
+    }
+
+    public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.CompletedTask;
+        if (!Reachable) { yield break; }
+        foreach (var card in InstalledCards) { yield return card; }
+    }
+
+    public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+
+    public IChatClient Chat(ModelId id) => chatModel;
 }
 
 public sealed class InoSiloFixture : IAsyncLifetime
@@ -156,7 +184,12 @@ public sealed class InoSiloFixture : IAsyncLifetime
     private int _brainCounter;
 
     public SwappableChatModel Model { get; } = new();
-    internal ControllableLocalOllamaProbe LocalOllama { get; } = new();
+    internal ControllableLocalRuntime LocalRuntime { get; }
+
+    public InoSiloFixture()
+    {
+        LocalRuntime = new ControllableLocalRuntime(Model);
+    }
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
 
@@ -300,6 +333,8 @@ public sealed class InoSiloFixture : IAsyncLifetime
             typeof(IConnectionRequests).Assembly,
             typeof(AIModule).Assembly,
             typeof(IMemory).Assembly,
+            typeof(DevicesModule).Assembly,
+            typeof(IDevice).Assembly,
             typeof(AspireModule).Assembly,
             typeof(IAspire).Assembly,
             typeof(FlutterModule).Assembly,
@@ -312,6 +347,10 @@ public sealed class InoSiloFixture : IAsyncLifetime
             {
                 AppsModule.ConfigureServices(services, config);
                 AIModule.ConfigureServices(services, config);
+                DevicesModule.ConfigureServices(services, config);
+                services.TryAddSingleton(new MachineId(Path.Combine(_home.Path, "machine-id")));
+                services.RemoveAll<ILocalRuntime>();
+                services.AddSingleton<ILocalRuntime>(LocalRuntime);
                 services.AddIntoChatOSConnections();
                 services.AddNeuronProxies();
                 services.RemoveAll<IBrainObserver>();
@@ -334,9 +373,6 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
                 services.RemoveAll<IAiCredentials>();
                 services.AddSingleton<IAiCredentials, NoConfiguredProviders>();
-
-                services.RemoveAll<ILocalOllamaProbe>();
-                services.AddSingleton<ILocalOllamaProbe>(LocalOllama);
 
                 services.RemoveAll<ISecretRedactor>();
                 services.AddSingleton<ISecretRedactor, NoOpSecretRedactor>();
@@ -361,6 +397,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
                     typeof(IdentityModule),
                     typeof(AuthorityPlainNeurons),
                     typeof(AIModule),
+                    typeof(DevicesModule),
                     typeof(AspireModule),
                     typeof(FlutterModule),
                 ],

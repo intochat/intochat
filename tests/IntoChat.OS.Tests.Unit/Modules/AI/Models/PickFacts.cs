@@ -8,9 +8,10 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.AI.Pricing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,22 +21,38 @@ public sealed class PickFacts
 {
     private static readonly IReadOnlySet<string> Empty = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    private sealed class StubProbe(LocalOllamaDetection? detection) : ILocalOllamaProbe
+    private sealed class FakeRuntime(params ModelCard[] cards) : ILocalRuntime
     {
-        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default) => Task.FromResult(detection);
-    }
+        public RuntimeId Id => RuntimeId.Ollama;
 
-    private sealed class StubCardSource(params ModelCard[] cards) : ILocalCardSource
-    {
+        public Task<RuntimeStatus> Probe(CancellationToken ct)
+            => Task.FromResult(new RuntimeStatus(Id, Reachable: true, Version: "0.9.0", Endpoint: new Uri("http://127.0.0.1:11434")));
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in cards) { yield return card; }
+        }
+
         public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
         {
+            await Task.CompletedTask;
             foreach (var card in cards)
             {
                 ct.ThrowIfCancellationRequested();
                 yield return card;
             }
-            await Task.CompletedTask;
         }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+
+        public IChatClient Chat(ModelId id) => throw new NotSupportedException();
     }
 
     private sealed class TestOSProxies(TestOS os) : INeuronProxies
@@ -48,8 +65,7 @@ public sealed class PickFacts
         string topology = IntoChatOSNames.TopologyCloud,
         Action<AIOptions>? configureAi = null,
         FixedAiCredentials? credentials = null,
-        ILocalOllamaProbe? probe = null,
-        IEnumerable<ILocalCardSource>? extraSources = null)
+        IEnumerable<ILocalRuntime>? runtimes = null)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -64,15 +80,11 @@ public sealed class PickFacts
         services.AddOptions<AIOptions>().Configure(o => configureAi?.Invoke(o));
         services.AddSingleton<IAiCredentials>(credentials ?? new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
-        if (probe is not null)
+        if (runtimes is not null)
         {
-            services.AddSingleton(probe);
-        }
-        if (extraSources is not null)
-        {
-            foreach (var source in extraSources)
+            foreach (var runtime in runtimes)
             {
-                services.AddSingleton(source);
+                services.AddSingleton(runtime);
             }
         }
         AIClients.Add(services);
@@ -178,15 +190,18 @@ public sealed class PickFacts
         using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(
             IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
 
-        var probe = new StubProbe(new LocalOllamaDetection(
-            "http://127.0.0.1:11434",
+        var runtime = new FakeRuntime(new ModelCard(
+            new ModelId("llama3.2:3b"),
+            AiProvider.Ollama,
+            "llama3.2",
             "llama3.2:3b",
-            ["llama3.2:3b"],
-            HasNomicEmbed: false));
+            Where.Device,
+            Abilities.Text | Abilities.Tools,
+            Tier.Fast));
 
         var (os, sp, catalog, _) = await StartHost(
             topology: IntoChatOSNames.TopologyLocal,
-            probe: probe);
+            runtimes: [runtime]);
 
         await using var _os = os;
         await using var _sp = sp;
@@ -247,12 +262,12 @@ public sealed class PickFacts
             IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
 
         const long sizeBytes = 2_500_000_000L;
-        var source = new StubCardSource(
+        var runtime = new FakeRuntime(
             new ModelCard(KnownModels.Qwen35.Id, AiProvider.Ollama, "qwen", "raw-tag", Where.Device, Abilities.Text, Tier.Fast, Bytes: sizeBytes));
 
         var (os, sp, catalog, _) = await StartHost(
             topology: IntoChatOSNames.TopologyLocal,
-            extraSources: [source]);
+            runtimes: [runtime]);
 
         await using var _os = os;
         await using var _sp = sp;

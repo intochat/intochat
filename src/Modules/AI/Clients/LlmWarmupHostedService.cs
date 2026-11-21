@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -81,7 +82,12 @@ internal sealed class LlmWarmupHostedService(
         var name = card.Id.Value;
         try
         {
-            var client = services.GetRequiredKeyedService<IChatClient>(card.Id);
+            var runtime = services.GetServices<ILocalRuntime>().FirstOrDefault(r => r.Id == RuntimeId.Ollama);
+            if (runtime is null)
+            {
+                return;
+            }
+            using var client = runtime.Chat(card.Id);
             using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             budget.CancelAfter(WarmBudget);
 

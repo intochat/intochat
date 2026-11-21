@@ -6,6 +6,7 @@ Operations: open, send, retry, stop, smart, use-local, choose-model, save-provid
 */
 using DigitalBrain;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
@@ -22,6 +23,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.UI.Chat;
@@ -40,6 +42,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
+    private MachineId? ThisMachine { get; }
     private InoSetupHost? SetupHost { get; set; }
     private InoMessage[]? HeldMessages { get; set; }
     private IReadOnlyList<ThreadMessage>? SyncedThread { get; set; }
@@ -47,19 +50,21 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     private ChatThreadProps? SyncedProps { get; set; }
     private ModelCard[]? PickerCards { get; set; }
     private ModelAvailability[]? PickerAvailability { get; set; }
+    private DeviceView? DeviceSnapshot { get; set; }
     private string? ThreadFailureText { get; set; }
     private Rejected? RecordedRejection { get; set; }
 
     /// <summary>What the person reads when Ino could not write its conversation thread.</summary>
     public const string ThreadFailure = "The conversation could not be updated. Ino will try again with the next change.";
 
-    public InoApp() : this(null, null) { }
+    public InoApp() : this(null, null, null) { }
 
     [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-    public InoApp(ILogger<InoApp>? logger = null, TimeProvider? time = null)
+    public InoApp(ILogger<InoApp>? logger = null, TimeProvider? time = null, MachineId? thisMachine = null)
     {
         Logger = logger;
         Clock = time;
+        ThisMachine = thisMachine;
     }
 
     public bool CanDictate { get; private set; }
@@ -83,7 +88,8 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             ThreadFailureText,
             base.LastRejection,
             PickerCards,
-            PickerAvailability);
+            PickerAvailability,
+            DeviceSnapshot);
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
     {
@@ -291,12 +297,12 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     {
         ArgumentNullException.ThrowIfNull(request);
         var settings = await Get<IUserSettings>("settings").Read();
-        var (local, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
+        var (device, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
+        DeviceSnapshot = device;
         CanDictate = await InoModelSetup.ReadCanDictateAsync(Setup);
         var (nextState, migrate) = InoModel.DecideOpen(
             Current, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
-            await InoModelSetup.ReadApprovalsAsync(Setup, Current.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries),
-            local?.PreferredModel, local?.InstalledModels);
+            await InoModelSetup.ReadApprovalsAsync(Setup, Current.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries));
 
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
         await RefreshPickerAsync();
@@ -502,11 +508,18 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             PickerCards = picker.Cards;
             PickerAvailability = picker.Availability;
         }
+        DeviceSnapshot = await InoModelSetup.ReadDeviceAsync(Setup);
     }
+
+    private IDevice? GetThisDevice()
+        => ThisMachine is { Value.Length: > 0 } machine && CurrentBrain.Value is { Length: > 0 }
+            ? Get<IDevice>(new NeuronId(CurrentBrain, "devices.device", $"devices/{machine.Value}"))
+            : null;
 
     private InoSetupHost Setup => SetupHost ??= new InoSetupHost(
         () => Current, Commit, () => CurrentBrain,
         () => Get<IModelCatalog>(new NeuronId(CurrentBrain, "ai.models", ModelsKey)),
+        GetThisDevice,
         () => Get<IUserSettings>("settings"), Get<IAgent>, Get<IChat>, Get<IToneObserver>,
         () => Get<ISpeechRecognizer>("default"), () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey), () => Get<IApprovals>(ApprovalsKey),
         () => Get<IInoConversations>(IInoConversations.DefaultKey), () => Get<IProfileContextWriter>("ino/profile-writer"),

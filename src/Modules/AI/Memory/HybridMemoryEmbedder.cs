@@ -1,9 +1,9 @@
 using System.IO.Hashing;
-using System.Net.Http.Json;
 using System.Text;
-using System.Text.Json;
-using IntoChat.OS.Modules.AI.Models.Ollama;
-using Microsoft.Extensions.Options;
+using DigitalBrain.Log;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Devices;
 
 namespace IntoChat.OS.Modules.AI.Memory;
 
@@ -12,10 +12,7 @@ internal interface IMemoryEmbedder
     Task<float[]> EmbedAsync(string text, CancellationToken ct = default);
 }
 
-internal sealed class HybridMemoryEmbedder(
-    IOptionsMonitor<AIOptions>? options = null,
-    ILocalOllamaProbe? localProbe = null,
-    IHttpClientFactory? httpClients = null) : IMemoryEmbedder
+internal sealed class HybridMemoryEmbedder(IEnumerable<ILocalRuntime>? runtimes = null) : IMemoryEmbedder
 {
     public const int LocalDimension = 384;
     private static readonly TimeSpan EmbedTimeout = TimeSpan.FromMilliseconds(200);
@@ -27,28 +24,14 @@ internal sealed class HybridMemoryEmbedder(
             return new float[LocalDimension];
         }
 
-        var remote = await TryEmbedWithNomicAsync(text, ct).ConfigureAwait(false);
+        var remote = await TryEmbedWithRuntimeAsync(text, ct).ConfigureAwait(false);
         return remote ?? LocalDeterministicEmbed(text);
     }
 
-    private async Task<float[]?> TryEmbedWithNomicAsync(string text, CancellationToken ct)
+    private async Task<float[]?> TryEmbedWithRuntimeAsync(string text, CancellationToken ct)
     {
-        var configuredEndpoint = options?.CurrentValue.Ollama.Endpoint;
-        string? endpoint = null;
-        if (!string.IsNullOrWhiteSpace(configuredEndpoint))
-        {
-            endpoint = configuredEndpoint.Trim();
-        }
-        else if (localProbe is not null)
-        {
-            var detected = await localProbe.Detect(ct).ConfigureAwait(false);
-            if (detected is { HasNomicEmbed: true })
-            {
-                endpoint = detected.Endpoint;
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(endpoint) || !Uri.TryCreate(endpoint, UriKind.Absolute, out var baseUri))
+        var ollama = runtimes?.FirstOrDefault(static r => r.Id == RuntimeId.Ollama);
+        if (ollama is null)
         {
             return null;
         }
@@ -56,56 +39,47 @@ internal sealed class HybridMemoryEmbedder(
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(EmbedTimeout);
 
-        HttpClient? owned = null;
         try
         {
-            var client = httpClients?.CreateClient("ollama-memory-embed") ?? (owned = new HttpClient());
-            var embedUri = new Uri(baseUri, "/api/embed");
-            using var response = await client.PostAsJsonAsync(
-                embedUri,
-                new { model = "nomic-embed-text", input = text },
-                cts.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
+            ModelCard? embedCard = null;
+            await foreach (var card in ollama.Installed(cts.Token).ConfigureAwait(false))
+            {
+                if (card.Can.HasFlag(Abilities.Embed))
+                {
+                    embedCard = card;
+                    break;
+                }
+            }
+
+            if (embedCard is null)
             {
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token).ConfigureAwait(false);
-            if (doc.RootElement.TryGetProperty("embeddings", out var embeddings)
-                && embeddings.ValueKind == JsonValueKind.Array
-                && embeddings.GetArrayLength() > 0)
+            using var generator = ollama.Embed(embedCard.Id);
+            if (generator is null)
             {
-                var first = embeddings[0];
-                if (first.ValueKind == JsonValueKind.Array && first.GetArrayLength() > 0)
-                {
-                    var vector = new float[first.GetArrayLength()];
-                    var idx = 0;
-                    foreach (var value in first.EnumerateArray())
-                    {
-                        vector[idx++] = value.GetSingle();
-                    }
-                    NormalizeInPlace(vector);
-                    return vector;
-                }
+                return null;
             }
-            return null;
+
+            var generated = await generator.GenerateAsync([text], cancellationToken: cts.Token).ConfigureAwait(false);
+            if (generated.Count == 0 || generated[0].Vector.Length == 0)
+            {
+                return null;
+            }
+
+            var vector = generated[0].Vector.ToArray();
+            NormalizeInPlace(vector);
+            return vector;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             return null;
         }
-        catch (HttpRequestException)
+        catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<HybridMemoryEmbedder>().LogSwallowed(error, "embedding memory text through local Ollama runtime");
             return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        finally
-        {
-            owned?.Dispose();
         }
     }
 

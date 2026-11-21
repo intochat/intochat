@@ -264,9 +264,6 @@ public sealed class SettingsControlsFacts
         public Task<ModelAvailability[]> Availability()
             => Task.FromResult(KnownModels.All.Select(c => new ModelAvailability(c.Id, true, null)).ToArray());
 
-        public Task<LocalModelSummary> DetectLocal()
-            => Task.FromResult(new LocalModelSummary(true, KnownModels.Qwen35.Id.Value, [KnownModels.Qwen35.Id.Value]));
-
         public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
 }

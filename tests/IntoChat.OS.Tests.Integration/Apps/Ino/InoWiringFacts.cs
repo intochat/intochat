@@ -11,10 +11,13 @@ using DigitalBrain.Units;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.AI;
-using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.Identity.Contracts.Entries;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Integration.Ino;
 
@@ -184,11 +187,8 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
     {
         var brain = fixture.NewBrain("d1setup");
         using var _ = fixture.AsPerson(brain);
-        fixture.LocalOllama.Current = new LocalOllamaDetection(
-            "http://127.0.0.1:11434",
-            "qwen2.5-coder:14b",
-            ["qwen2.5-coder:14b", "qwen3.5:4b", "nomic-embed-text:latest"],
-            HasNomicEmbed: true);
+        fixture.LocalRuntime.Reachable = true;
+        fixture.LocalRuntime.InstalledCards = [KnownModels.Qwen25Coder14B, KnownModels.Qwen35];
         fixture.Model.Fail(new NoProviderConfiguredException("No AI provider configured."));
 
         try
@@ -239,69 +239,98 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         }
         finally
         {
-            fixture.LocalOllama.Current = null;
+            fixture.LocalRuntime.Reachable = false;
+            fixture.LocalRuntime.InstalledCards = [];
         }
     }
 
     [Fact]
-    public async Task LocalOllamaProbeTimesOutWithinBudgetWhenServerHangs()
+    public async Task OllamaRuntimeProbeTimesOutWithinBudgetWhenServerHangs()
     {
-        var prev = Environment.GetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE");
-        Environment.SetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE", null);
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var acceptTask = Task.Run(async () =>
         {
             using var client = await listener.AcceptTcpClientAsync(Ct);
-            await Task.Delay(TimeSpan.FromSeconds(2), Ct);
+            await Task.Delay(TimeSpan.FromSeconds(5), Ct);
         }, Ct);
 
         try
         {
-            var probe = new HttpLocalOllamaProbe(null, TimeProvider.System, new Uri($"http://127.0.0.1:{port}"));
-            var result = await probe.Detect(Ct);
-            Assert.Null(result);
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["IntoChatOS:Modules:devices:Options:Ollama:Endpoint"] = $"http://127.0.0.1:{port}",
+                    ["IntoChatOS:Modules:devices:Options:FoundryLocal:Enabled"] = "false",
+                })
+                .Build();
+            var sc = new ServiceCollection();
+            DevicesModule.ConfigureServices(sc, config);
+            await using var sp = sc.BuildServiceProvider();
+            var runtime = Assert.Single(sp.GetServices<ILocalRuntime>(), static r => r.Id == RuntimeId.Ollama);
+
+            var status = await runtime.Probe(Ct);
+            Assert.False(status.Reachable);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE", prev);
             listener.Stop();
             try { await acceptTask; } catch (OperationCanceledException) { } catch (SocketException) { } catch (ObjectDisposedException) { }
         }
     }
 
     [Fact]
-    public async Task LocalOllamaProbeReadsLiveTagsEndpoint()
+    public async Task OllamaRuntimeReadsLiveVersionAndTagsEndpoints()
     {
-        var prev = Environment.GetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE");
-        Environment.SetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE", null);
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var serveTask = Task.Run(async () =>
         {
-            using var client = await listener.AcceptTcpClientAsync(Ct);
-            await using var stream = client.GetStream();
-            var buf = new byte[1024];
-            _ = await stream.ReadAsync(buf, Ct);
-            const string body = """{"models":[{"name":"qwen2.5-coder:14b"},{"name":"nomic-embed-text:latest"}]}""";
-            var response = $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {Encoding.UTF8.GetByteCount(body)}\r\nConnection: close\r\n\r\n{body}";
-            await stream.WriteAsync(Encoding.UTF8.GetBytes(response), Ct);
+            for (var i = 0; i < 2; i++)
+            {
+                using var client = await listener.AcceptTcpClientAsync(Ct);
+                await using var stream = client.GetStream();
+                var buf = new byte[2048];
+                var read = await stream.ReadAsync(buf, Ct);
+                var reqLine = Encoding.UTF8.GetString(buf, 0, read);
+                var body = reqLine.Contains("/api/version", StringComparison.Ordinal)
+                    ? """{"version":"0.9.5"}"""
+                    : """{"models":[{"name":"qwen2.5-coder:14b","size":9000000000},{"name":"embeddinggemma:latest","size":274000000}]}""";
+                var response = $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {Encoding.UTF8.GetByteCount(body)}\r\nConnection: close\r\n\r\n{body}";
+                await stream.WriteAsync(Encoding.UTF8.GetBytes(response), Ct);
+            }
         }, Ct);
 
         try
         {
-            var probe = new HttpLocalOllamaProbe(null, TimeProvider.System, new Uri($"http://127.0.0.1:{port}"));
-            var result = await probe.Detect(Ct);
-            Assert.NotNull(result);
-            Assert.Equal("qwen2.5-coder:14b", result.PreferredModel);
-            Assert.True(result.HasNomicEmbed);
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["IntoChatOS:Modules:devices:Options:Ollama:Endpoint"] = $"http://127.0.0.1:{port}",
+                    ["IntoChatOS:Modules:devices:Options:FoundryLocal:Enabled"] = "false",
+                })
+                .Build();
+            var sc = new ServiceCollection();
+            DevicesModule.ConfigureServices(sc, config);
+            await using var sp = sc.BuildServiceProvider();
+            var runtime = Assert.Single(sp.GetServices<ILocalRuntime>(), static r => r.Id == RuntimeId.Ollama);
+
+            var status = await runtime.Probe(Ct);
+            Assert.True(status.Reachable);
+            Assert.Equal("0.9.5", status.Version);
+
+            var installed = new List<ModelCard>();
+            await foreach (var card in runtime.Installed(Ct))
+            {
+                installed.Add(card);
+            }
+            Assert.Contains(installed, static c => c.Id == KnownModels.Qwen25Coder14B.Id);
             await serveTask;
         }
         finally
         {
-            Environment.SetEnvironmentVariable("INTOCHAT_DISABLE_LOCAL_OLLAMA_PROBE", prev);
             listener.Stop();
         }
     }

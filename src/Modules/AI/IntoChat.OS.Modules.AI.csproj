@@ -27,7 +27,6 @@
     <PackageReference Include="Anthropic" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
-    <PackageReference Include="OllamaSharp" />
     <PackageReference Include="Concentus" />
     <PackageReference Include="Concentus.Oggfile" />
     <PackageReference Include="NAudio" />

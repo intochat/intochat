@@ -34,14 +34,8 @@ public interface IModelCatalog
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<ModelAvailability[]> Availability();
 
-    // Probes local Ollama availability without exposing endpoints or secrets (kept until S1b deletes it).
-    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
-    Task<LocalModelSummary> DetectLocal();
-
     // Stores a brain-scoped provider credential in the durable platform entry store.
     Task SaveProviderCredential(string provider, string credentialValue);
 }
 
 public sealed record ModelAvailability(ModelId Model, bool Ready, string? Reason);
-
-public sealed record LocalModelSummary(bool Available, string? PreferredModel, string[] InstalledModels);

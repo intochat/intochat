@@ -69,7 +69,6 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IPriceList, ModelPriceList>();
         AIClients.Add(services);
         services.AddHttpClient();
-        services.TryAddSingleton<Models.Ollama.ILocalOllamaProbe, Models.Ollama.HttpLocalOllamaProbe>();
         services.TryAddSingleton<HttpSystemOne>();
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();

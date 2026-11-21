@@ -26,6 +26,7 @@ using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI.Form;
@@ -173,21 +174,27 @@ public sealed partial class SettingsApp
                 .ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
             var roleMap = await catalog.Roles();
 
-            LocalModelSummary? localSummary = null;
-            try
+            DeviceView? deviceView = null;
+            if (ThisMachine is { Value.Length: > 0 } machine)
             {
-                localSummary = await catalog.DetectLocal();
-            }
-            catch (Exception detectError) when (detectError is not OperationCanceledException)
-            {
-                Log.LogDebug(detectError, "IModelCatalog.DetectLocal failed while refreshing Settings AI section.");
+                try
+                {
+                    deviceView = await Get<IDevice>(new NeuronId(brain, "devices.device", $"devices/{machine.Value}")).Read();
+                }
+                catch (Exception deviceError) when (deviceError is not OperationCanceledException)
+                {
+                    Log.LogDebug(deviceError, "IDevice.Read failed while refreshing Settings AI section.");
+                }
             }
 
-            var endpoint = string.IsNullOrWhiteSpace(State.LocalOllamaEndpoint)
-                ? IntoChatOSNames.LocalOllamaEndpoint
-                : State.LocalOllamaEndpoint;
+            var ollamaEndpoint = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.Ollama)?.Endpoint?.ToString();
+            var endpoint = !string.IsNullOrWhiteSpace(ollamaEndpoint)
+                ? ollamaEndpoint
+                : string.IsNullOrWhiteSpace(State.LocalOllamaEndpoint)
+                    ? IntoChatOSNames.LocalOllamaEndpoint
+                    : State.LocalOllamaEndpoint;
             var roles = BuildRoleRows(cards, availability, roleMap, personModel);
-            var providers = BuildProviderRows(cards, availability, localSummary, endpoint);
+            var providers = BuildProviderRows(cards, availability, deviceView, endpoint);
 
             string? autoModel = null;
             try
@@ -275,7 +282,7 @@ public sealed partial class SettingsApp
     private static SettingsProviderRow[] BuildProviderRows(
         IReadOnlyList<ModelCard> cards,
         IReadOnlyDictionary<string, ModelAvailability> availability,
-        LocalModelSummary? localSummary,
+        DeviceView? deviceView,
         string localEndpoint)
     {
         var rows = new SettingsProviderRow[SettingsProviders.Length];
@@ -293,16 +300,24 @@ public sealed partial class SettingsApp
             string status;
             if (provider == AiProvider.FoundryLocal)
             {
-                status = "Set up in S1b";
+                var foundry = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.FoundryLocal);
+                var installedCount = deviceView?.Models.Count(static m =>
+                    m.Runtime == RuntimeId.FoundryLocal && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
+                status = foundry is { Reachable: true }
+                    ? $"Ready · {foundry.Version ?? "local"} · {installedCount} installed"
+                    : "Not available";
             }
             else if (provider == AiProvider.Ollama)
             {
+                var ollama = deviceView?.Runtimes.FirstOrDefault(static r => r.Id == RuntimeId.Ollama);
+                var installedOnDevice = deviceView?.Models.Count(static m =>
+                    m.Runtime == RuntimeId.Ollama && m.State is InstallState.Ready or InstallState.Loaded) ?? 0;
                 var readyLocalCount = cards.Count(c =>
                     c.Provider == AiProvider.Ollama
                     && availability.TryGetValue(c.Id.Value, out var a)
                     && a.Ready);
-                status = localSummary?.Available == true
-                    ? $"Ready · {localEndpoint} · {localSummary.InstalledModels.Length} installed"
+                status = ollama is { Reachable: true }
+                    ? $"Ready · {ollama.Endpoint?.ToString() ?? localEndpoint} · {installedOnDevice} installed"
                     : readyLocalCount > 0
                         ? $"Ready · {localEndpoint} · {readyLocalCount} installed"
                         : $"Not detected · {localEndpoint}";

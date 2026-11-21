@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
@@ -100,13 +101,16 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SynapseAliasPattern();
 
-    public SettingsApp() : this(null, null) { }
+    private MachineId? ThisMachine { get; }
+
+    public SettingsApp() : this(null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public SettingsApp(ISecretVault? secretVault = null, BrainPreferenceStore? preferenceStore = null)
+    public SettingsApp(ISecretVault? secretVault = null, BrainPreferenceStore? preferenceStore = null, MachineId? thisMachine = null)
     {
         SecretVault = secretVault;
         PreferenceStore = preferenceStore;
+        ThisMachine = thisMachine;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<SettingsNavArgs> arrival, CancellationToken cancellationToken = default)

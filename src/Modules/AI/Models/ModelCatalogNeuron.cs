@@ -46,14 +46,6 @@ internal sealed class ModelCatalogNeuron(
     public Task<ModelAvailability[]> Availability()
         => catalog.Availability(Brain, CancellationToken.None);
 
-    public async Task<LocalModelSummary> DetectLocal()
-    {
-        var detected = await catalog.DetectLocal(CancellationToken.None).ConfigureAwait(false);
-        return detected is null
-            ? new LocalModelSummary(false, null, [])
-            : new LocalModelSummary(true, detected.PreferredModel, detected.InstalledModels);
-    }
-
     public async Task SaveProviderCredential(string provider, string credentialValue)
     {
         EnforceOwnerOrTrustedShell("SaveProviderCredential", "Only the brain owner may store provider credentials.", "Only the person or a built-in shell screen may save provider credentials.");
