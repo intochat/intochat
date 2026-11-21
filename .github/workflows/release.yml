@@ -442,5 +442,5 @@ jobs:
         run: |
           cat downloaded-bundles/SHA256SUMS* 2>/dev/null | sort -u > SHA256SUMS
           if [ -s SHA256SUMS ]; then
-            gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --clobber
+            gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --repo "${{ github.repository }}" --clobber
           fi
