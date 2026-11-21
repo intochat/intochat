@@ -150,7 +150,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('I accept the terms'), findsOneWidget);
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+    expect(
+      tester.widget<UiMixCheckbox>(find.byType(UiMixCheckbox)).value,
+      isTrue,
+    );
 
     await tester.tap(find.byKey(const Key('terms')));
     await tester.pumpAndSettle();
@@ -168,7 +171,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Managed'), findsOneWidget);
-      expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNull);
+      expect(
+        tester.widget<UiMixCheckbox>(find.byType(UiMixCheckbox)).onChanged,
+        isNull,
+      );
       await tester.tap(find.byKey(const Key('terms')));
       await tester.pumpAndSettle();
 

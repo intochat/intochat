@@ -67,7 +67,7 @@ void main() {
       const {'label': 'Terms', 'isOn': true},
     );
 
-    final box = tester.widget<Checkbox>(find.byType(Checkbox));
+    final box = tester.widget<UiMixCheckbox>(find.byType(UiMixCheckbox));
     expect(box.value, isTrue);
   });
 

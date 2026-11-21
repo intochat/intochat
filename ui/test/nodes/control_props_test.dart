@@ -38,7 +38,10 @@ void main() {
     );
 
     expect(find.bySemanticsLabel('terms'), findsOneWidget);
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNotNull);
+    expect(
+      tester.widget<UiMixCheckbox>(find.byType(UiMixCheckbox)).onChanged,
+      isNotNull,
+    );
     await tester.tap(find.byKey(const Key('terms')));
     await tester.pumpAndSettle();
     expect(sent.single['signal'], 'control.toggle');

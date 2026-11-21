@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.Expander.IExpander`.
@@ -28,68 +28,41 @@ class ExpanderWidget extends StatelessWidget {
       watch: watch,
       builder: (context, state, invoke) {
         final c = IcTheme.of(context);
-        final title = '${state['title'] ?? 'Details'}';
+        final title = '${state['title'] ?? state['header'] ?? 'Details'}';
+        final subtitle = '${state['summary'] ?? ''}';
         final body = '${state['body'] ?? ''}';
         final isExpanded = state['isExpanded'] == true;
         final isEnabled = state['isEnabled'] != false;
 
-        return Container(
-          decoration: BoxDecoration(
-            color: c.surfaceCard,
-            borderRadius: BorderRadius.circular(IcRadius.card),
-            border: Border.all(color: c.borderHairline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(IcRadius.card),
-                onTap: isEnabled ? () => unawaited(invoke('Toggle')) : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: isEnabled ? c.textStrong : c.textMuted,
-                          ),
+        return UiMixExpander(
+          header: title,
+          subtitle: subtitle,
+          isExpanded: isExpanded,
+          enabled: isEnabled,
+          semanticsId: neuronKey,
+          onExpandedChanged: (_) {
+            if (isEnabled) unawaited(invoke('Toggle'));
+          },
+          body: body.isNotEmpty
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Divider(height: 1, color: c.borderHairline),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(
+                        body,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.45,
+                          color: c.textBody,
                         ),
                       ),
-                      Icon(
-                        isExpanded
-                            ? LucideIcons.chevronUp
-                            : LucideIcons.chevronDown,
-                        size: 16,
-                        color: c.textMuted,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (isExpanded && body.isNotEmpty) ...[
-                Divider(height: 1, color: c.borderHairline),
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Text(
-                    body,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: c.textBody,
                     ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+                  ],
+                )
+              : const SizedBox.shrink(),
         );
       },
     );

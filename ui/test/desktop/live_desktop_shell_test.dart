@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -606,7 +606,10 @@ void main() {
         find.text('Viewport: brain-1/apps/photocraft/view'),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('dock-item-photocraft')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('dock-item-photocraft')),
+        findsOneWidget,
+      );
 
       // Right-click on PhotoCraft in the active-apps dock and click "App settings…"
       await tester.tap(

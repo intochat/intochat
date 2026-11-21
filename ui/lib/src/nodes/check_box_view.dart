@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../generated/node_commands.dart';
+import '../ui/mix/ui_mix_controls.dart';
 import 'node_context.dart';
 
 /// What a check box neuron draws: its value from the neuron's view, its label,
@@ -18,18 +19,11 @@ Widget renderCheckBoxView(CheckBoxViewNode node, NodeContext ctx) {
     checked: isOn,
     enabled: enabled,
     child: ExcludeSemantics(
-      child: InkWell(
-        onTap: enabled ? () => actCheckBoxToggle(ctx, '.') : null,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Checkbox(
-              value: isOn,
-              onChanged: enabled ? (_) => actCheckBoxToggle(ctx, '.') : null,
-            ),
-            Flexible(child: Text(props.label)),
-          ],
-        ),
+      child: UiMixCheckbox(
+        value: isOn,
+        label: props.label,
+        enabled: enabled,
+        onChanged: enabled ? (_) => actCheckBoxToggle(ctx, '.') : null,
       ),
     ),
   );

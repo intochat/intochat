@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../components/kit/ui_kit_switch.dart';
 import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.Toggle.IToggle`.
@@ -50,11 +50,13 @@ class ToggleWidget extends StatelessWidget {
               ),
               const SizedBox(width: 10),
             ],
-            UiKitSwitch(
+            UiMixToggle(
               value: isOn,
-              locked: !isEnabled,
-              semanticLabel: label.isEmpty ? neuronKey : label,
-              onChanged: isEnabled ? (_) => unawaited(invoke('Toggle')) : null,
+              enabled: isEnabled,
+              semanticsId: label.isEmpty ? neuronKey : label,
+              onChanged: (_) {
+                if (isEnabled) unawaited(invoke('Toggle'));
+              },
             ),
             const SizedBox(width: 8),
             Text(

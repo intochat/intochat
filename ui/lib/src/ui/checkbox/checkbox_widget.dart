@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../design/tokens.dart';
+import '../mix/ui_mix_controls.dart';
 import '../neuron_widget.dart';
 
 /// Reactive presenter for `IntoChat.OS.Modules.UI.CheckBox.ICheckBox`.
@@ -26,40 +26,18 @@ class CheckBoxWidget extends StatelessWidget {
       callNeuron: callNeuron,
       watch: watch,
       builder: (context, state, invoke) {
-        final c = IcTheme.of(context);
         final label = '${state['label'] ?? ''}';
         final isChecked = state['isChecked'] == true;
         final isEnabled = state['isEnabled'] != false;
 
-        return InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: isEnabled ? () => unawaited(invoke('Toggle')) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Checkbox(
-                  value: isChecked,
-                  onChanged: isEnabled
-                      ? (_) => unawaited(invoke('Toggle'))
-                      : null,
-                  visualDensity: VisualDensity.compact,
-                ),
-                if (label.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: isEnabled ? c.textStrong : c.textMuted,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: UiMixCheckbox(
+            value: isChecked,
+            label: label,
+            enabled: isEnabled,
+            semanticsId: neuronKey,
+            onChanged: isEnabled ? (_) => unawaited(invoke('Toggle')) : null,
           ),
         );
       },

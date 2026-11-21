@@ -3,8 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/ui/mix/ui_mix_controls.dart';
-import 'package:intochat_os_flutter_shell/src/ui/mix/ui_mix_style.dart';
 import 'package:intochat_os_flutter_shell/src/ui/ui_control_surface.dart';
 
 void main() {
@@ -120,6 +118,55 @@ void main() {
       await tester.pumpAndSettle();
       expect(expanded, isTrue);
       expect(find.text('Expanded Details'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'UiMixCheckbox toggles state and UiMixSurface renders card, elevated, and recessed variants',
+    (tester) async {
+      var checked = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.light(null),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  UiMixSurface(
+                    variant: UiMixSurfaceVariant.card,
+                    semanticsId: 'key:mix:surface-card',
+                    child: UiMixCheckbox(
+                      value: checked,
+                      label: 'Enable Telemetry',
+                      semanticsId: 'key:mix:checkbox',
+                      onChanged: (v) => setState(() => checked = v),
+                    ),
+                  ),
+                  const UiMixSurface(
+                    variant: UiMixSurfaceVariant.elevated,
+                    child: Text('Elevated Surface'),
+                  ),
+                  const UiMixSurface(
+                    variant: UiMixSurfaceVariant.recessed,
+                    child: Text('Recessed Surface'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Enable Telemetry'), findsOneWidget);
+      expect(find.text('Elevated Surface'), findsOneWidget);
+      expect(find.text('Recessed Surface'), findsOneWidget);
+      expect(checked, isFalse);
+
+      await tester.tap(find.text('Enable Telemetry'));
+      await tester.pumpAndSettle();
+      expect(checked, isTrue);
     },
   );
 }
