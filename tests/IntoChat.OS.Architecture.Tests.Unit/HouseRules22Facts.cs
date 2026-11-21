@@ -1477,6 +1477,7 @@ public sealed class HouseRules22Facts
             "IClickHouseProvider",
             "ILlmProviderFactory",
             "ILocalProcessProbe",
+            "IHardwareProbe",
             "IModelTurnRunner",
             "IMemoryEmbedder",
             "IViewFacet",

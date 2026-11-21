@@ -6,6 +6,7 @@ using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Devices;
 
@@ -53,5 +54,7 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
                 return true;
             })
             .ValidateOnStart();
+
+        services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
     }
 }
