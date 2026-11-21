@@ -33,6 +33,7 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.NotEmpty(sources);
         var roslynDir = Repository.ProjectNamed(RoslynModule).Directory + Path.DirectorySeparatorChar;
         var sandboxLoadContext = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Sandbox").Directory, "AppLoadContext.cs");
+        var dynamicNeuronHost = Path.Combine(Repository.ProjectNamed(RoslynModule).Directory, "Dynamic", "DynamicNeuronHost.cs");
         var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         Assert.Contains(sources, path => Path.GetFullPath(path).StartsWith(roslynDir, pathComparison));
         var calling = new HashSet<string>(StringComparer.Ordinal);
@@ -40,10 +41,12 @@ public sealed partial class UnitsAllTheWayFacts
         {
             var relative = Repository.Relative(path);
             var text = File.ReadAllText(path);
-            var isSandboxLoadContext = Path.GetFullPath(path).Equals(Path.GetFullPath(sandboxLoadContext), pathComparison);
-            if (!Path.GetFullPath(path).StartsWith(roslynDir, pathComparison) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
+            var fullPath = Path.GetFullPath(path);
+            var isAllowedLoadContext = fullPath.Equals(Path.GetFullPath(sandboxLoadContext), pathComparison)
+                || fullPath.Equals(Path.GetFullPath(dynamicNeuronHost), pathComparison);
+            if (!fullPath.StartsWith(roslynDir, pathComparison) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
             { offenders.Add(relative + ": Microsoft.CodeAnalysis"); }
-            if (!isSandboxLoadContext)
+            if (!isAllowedLoadContext)
             {
                 foreach (Match match in RuntimeCompilation().Matches(text)) { offenders.Add(relative + ": " + match.Value); }
             }

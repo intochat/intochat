@@ -67,14 +67,14 @@ public sealed record VennHeadCompiled(string NeuronKey, int CompiledVersion, int
 /// S11 — System 1 Vector Decision Model (Venn VDM) neuron.
 /// Separates frozen embeddings (Reader: EmbeddingGemma / HybridMemoryEmbedder) from a fast personal
 /// Outcome Store + compiled Decision Head (&lt;1ms local Choice / Score / Noul)
-/// so Ino learns continuously from every interaction and escalates to System 2
+/// so the agent learns continuously from every interaction and escalates to System 2
 /// only when it abstains.
 /// </summary>
 [NeuronAlias("ai.venn")]
 [DefaultNeuronType("ai.venn")]
 public interface IVennSystemOne
 {
-    static NeuronId InoKey(BrainId brain) => new(brain, "ai.venn", "ino");
+    static NeuronId DefaultKey(BrainId brain, string key = "default") => new(brain, "ai.venn", key);
 
     Task<VennSystemOneState> RecordOutcome(string domain, string contextSummary, float[] embedding, string action, double outcomeScore = 1.0);
     Task<VennSystemOneState> LearnFromText(string domain, string contextText, string action, double outcomeScore = 1.0, bool autoCompile = true);

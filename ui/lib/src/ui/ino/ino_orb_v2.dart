@@ -139,7 +139,8 @@ class _InoOrbV2State extends State<InoOrbV2>
           child: AnimatedBuilder(
             animation: _pulse,
             builder: (context, child) {
-              final glowSpread = 4.0 + (_pulse.value * 10.0) + (clampedAudio * 12.0);
+              final glowSpread =
+                  4.0 + (_pulse.value * 10.0) + (clampedAudio * 12.0);
               return Container(
                 width: widget.size,
                 height: widget.size,
@@ -172,9 +173,11 @@ class _InoOrbV2State extends State<InoOrbV2>
                         child: Lottie.memory(
                           dotlottie.animations.values.first,
                           fit: BoxFit.cover,
-                          repeat: widget.state != PresenceState.paused &&
+                          repeat:
+                              widget.state != PresenceState.paused &&
                               widget.state != PresenceState.disconnected,
-                          animate: widget.state != PresenceState.paused &&
+                          animate:
+                              widget.state != PresenceState.paused &&
                               widget.state != PresenceState.disconnected,
                         ),
                       );
@@ -313,9 +316,7 @@ class _InoFlyingOrbOverlayState extends State<InoFlyingOrbOverlay> {
                       decoration: BoxDecoration(
                         color: const Color(0xCC0F172A),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: halo.withValues(alpha: 0.55),
-                        ),
+                        border: Border.all(color: halo.withValues(alpha: 0.55)),
                       ),
                       child: Text(
                         label,

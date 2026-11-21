@@ -61,7 +61,7 @@ public sealed class VennSystemOneFacts
         await using var os = TestOS.Local();
         os.Register(typeof(AIModule).Assembly);
 
-        var venn = os.Get<IVennSystemOne>(IVennSystemOne.InoKey(new BrainId("test")));
+        var venn = os.Get<IVennSystemOne>(IVennSystemOne.DefaultKey(new BrainId("test")));
 
         // Cold text query abstains -> escalate to System 2.
         var cold = await venn.ChooseForText("which part of the codebase handles authentication?");

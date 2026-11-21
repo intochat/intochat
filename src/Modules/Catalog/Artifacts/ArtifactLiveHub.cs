@@ -6,7 +6,7 @@ using DigitalBrain;
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>Versioned metadata for a live workspace artifact shared between Ino (MCP) and WASM studios.</summary>
-public sealed record ArtifactMetadata(
+internal sealed record ArtifactMetadata(
     string Path,
     string MimeType,
     int Version,
@@ -16,7 +16,7 @@ public sealed record ArtifactMetadata(
     DateTimeOffset UpdatedAt);
 
 [Signal("os.artifact.changed")]
-public sealed record ArtifactChanged(
+internal sealed record ArtifactChanged(
     string Path,
     int Version,
     string Sha256,
@@ -27,7 +27,7 @@ public sealed record ArtifactChanged(
 /// Versioned artifact store + live SSE fan-out hub enabling Ino (via MCP/tools)
 /// and interactive WASM studios to share the exact same live document state.
 /// </summary>
-public sealed class ArtifactLiveHub
+internal sealed class ArtifactLiveHub
 {
     private readonly string _rootDirectory;
     private readonly ConcurrentDictionary<string, ArtifactMetadata> _meta = new(StringComparer.OrdinalIgnoreCase);

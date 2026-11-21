@@ -36,41 +36,43 @@ void main() {
     expect(tapped, equals(1));
   });
 
-  testWidgets('InoFlyingOrbOverlay flies to new target Offset with status pill', (
-    tester,
-  ) async {
-    var target = const Offset(40, 40);
+  testWidgets(
+    'InoFlyingOrbOverlay flies to new target Offset with status pill',
+    (tester) async {
+      var target = const Offset(40, 40);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: UiTheme.dark(null),
-        home: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: StatefulBuilder(
-            builder: (context, setState) => Stack(
-              children: [
-                InoFlyingOrbOverlay(
-                  position: target,
-                  state: PresenceState.searching,
-                  statusText: 'Inspecting Auth…',
-                  onTap: () => setState(() => target = const Offset(300, 220)),
-                ),
-              ],
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark(null),
+          home: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: StatefulBuilder(
+              builder: (context, setState) => Stack(
+                children: [
+                  InoFlyingOrbOverlay(
+                    position: target,
+                    state: PresenceState.searching,
+                    statusText: 'Inspecting Auth…',
+                    onTap: () =>
+                        setState(() => target = const Offset(300, 220)),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    expect(find.text('Inspecting Auth…'), findsOneWidget);
-    final initialPos = tester.getTopLeft(find.byType(InoOrbV2));
+      expect(find.text('Inspecting Auth…'), findsOneWidget);
+      final initialPos = tester.getTopLeft(find.byType(InoOrbV2));
 
-    await tester.tap(find.byType(InoOrbV2));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.byType(InoOrbV2));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
 
-    final flownPos = tester.getTopLeft(find.byType(InoOrbV2));
-    expect(flownPos.dx - initialPos.dx, closeTo(260, 20));
-  });
+      final flownPos = tester.getTopLeft(find.byType(InoOrbV2));
+      expect(flownPos.dx - initialPos.dx, closeTo(260, 20));
+    },
+  );
 }

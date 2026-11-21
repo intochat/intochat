@@ -4,7 +4,7 @@ using IntoChat.OS.Modules.AI.Memory;
 namespace IntoChat.OS.Modules.AI.Venn;
 
 [Neuron("ai.venn")]
-internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null) : Neuron<VennSystemOneState>, IVennSystemOne
+internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null, TimeProvider? clock = null) : Neuron<VennSystemOneState>, IVennSystemOne
 {
     private const int MaxPrecedents = 4096;
 
@@ -55,7 +55,7 @@ internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null) : Ne
             Embedding: normalized,
             Action: action.Trim(),
             OutcomeScore: Math.Clamp(outcomeScore, -1.0, 1.0),
-            RecordedAt: DateTimeOffset.UtcNow);
+            RecordedAt: clock?.GetUtcNow() ?? default);
 
         var existing = State.Precedents ?? [];
         var updated = existing.Length >= MaxPrecedents

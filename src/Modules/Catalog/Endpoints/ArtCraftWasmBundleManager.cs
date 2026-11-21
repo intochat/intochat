@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// On-demand downloader & cache manager for ArtCraft Rust WASM release bundles
 /// (<see cref="ArtCraftAppDescriptor.WebReleaseZipUrl"/>).
 /// </summary>
-public static class ArtCraftWasmBundleManager
+internal static class ArtCraftWasmBundleManager
 {
     private static readonly ILogger Log = OsConsoleLog.For(typeof(ArtCraftWasmBundleManager));
     private static readonly SemaphoreSlim InstallGate = new(1, 1);

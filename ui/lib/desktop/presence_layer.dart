@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flame/game.dart';
@@ -305,10 +305,7 @@ class PresenceLayerState extends State<PresenceLayer>
                           key: const ValueKey('presence-sphere'),
                           behavior: HitTestBehavior.opaque,
                           onTap: widget.onOpenIno,
-                          child: InoOrbV2(
-                            state: state,
-                            size: sphereRadius * 2,
-                          ),
+                          child: InoOrbV2(state: state, size: sphereRadius * 2),
                         ),
                       ),
                     ),

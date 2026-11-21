@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn.Dynamic;
 
-public sealed record DynamicNeuronCompileResult(
+internal sealed record DynamicNeuronCompileResult(
     bool Success,
     string[] Diagnostics,
     DynamicNeuronHandle? Handle);
@@ -15,7 +15,7 @@ public sealed record DynamicNeuronCompileResult(
 /// Allows Ino to compile, load, execute, hot-swap, and unload C# neuron logic on the fly
 /// without restarting the host process.
 /// </summary>
-public sealed class DynamicNeuronHandle : IDisposable
+internal sealed class DynamicNeuronHandle : IDisposable
 {
     private CollectibleNeuronLoadContext? _context;
     private Assembly? _assembly;
@@ -58,7 +58,7 @@ internal sealed class CollectibleNeuronLoadContext(string name)
 /// <summary>
 /// Compiles C# source in-memory with Roslyn and loads it into a collectible AssemblyLoadContext.
 /// </summary>
-public static class DynamicNeuronHost
+internal static class DynamicNeuronHost
 {
     private static readonly Lazy<MetadataReference[]> DefaultReferences = new(ResolveDefaultReferences);
 
