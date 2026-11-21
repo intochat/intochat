@@ -673,6 +673,13 @@ public sealed class ModelCatalog
                 }
                 return (false, NotInstalledReason);
 
+            case AiProvider.SherpaOnnx:
+                if (local.InstalledById.TryGetValue(card.Id.Value, out var sherpaHit) && sherpaHit.Probe.Reachable)
+                {
+                    return (true, null);
+                }
+                return (false, NotInstalledReason);
+
             case AiProvider.OpenAICompatible:
                 if (local.InstalledById.TryGetValue(card.Id.Value, out var compatHit) && compatHit.Probe.Reachable)
                 {
@@ -826,11 +833,12 @@ public sealed class ModelCatalog
         => provider is AiProvider.OpenAI or AiProvider.Anthropic or AiProvider.Google or AiProvider.XAI or AiProvider.OpenRouter;
 
     private static bool IsDeviceProvider(AiProvider provider)
-        => provider is AiProvider.Ollama or AiProvider.FoundryLocal or AiProvider.OpenAICompatible;
+        => provider is AiProvider.Ollama or AiProvider.FoundryLocal or AiProvider.OpenAICompatible or AiProvider.SherpaOnnx;
 
     private static AiProvider ProviderOf(RuntimeId id)
         => id == RuntimeId.Ollama ? AiProvider.Ollama
             : id == RuntimeId.FoundryLocal ? AiProvider.FoundryLocal
+            : string.Equals(id.Value, "sherpa-onnx", StringComparison.OrdinalIgnoreCase) ? AiProvider.SherpaOnnx
             : AiProvider.OpenAICompatible;
 
     private static async Task<bool> AnyProviderConfigured(

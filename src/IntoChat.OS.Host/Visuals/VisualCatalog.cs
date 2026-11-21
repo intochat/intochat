@@ -50,6 +50,7 @@ public static class VisualCatalog
         "provider:foundry",
         "provider:foundrylocal",
         "provider:openaicompatible",
+        "provider:sherpaonnx",
 
         // Capabilities
         "capability:memory",
@@ -110,6 +111,9 @@ public static class VisualCatalog
 
     private static readonly VisualDescriptor OpenAICompatibleProvider =
         new("OpenAI-Compatible", "provider:openaicompatible", "#10A37F", "OpenAI-Compatible");
+
+    private static readonly VisualDescriptor SherpaOnnxProvider =
+        new("sherpa-onnx", "provider:sherpaonnx", "#10A37F", "sherpa-onnx");
 
     private static readonly FrozenDictionary<string, VisualDescriptor> Contracts = CreateContracts();
 
@@ -240,6 +244,7 @@ public static class VisualCatalog
             "openrouter" or "provider:openrouter" => OpenRouterProvider,
             "foundry" or "foundrylocal" or "foundry-local" or "provider:foundry" or "provider:foundrylocal" => FoundryProvider,
             "openaicompatible" or "openai-compatible" or "openai-compat" or "provider:openaicompatible" => OpenAICompatibleProvider,
+            "sherpaonnx" or "sherpa-onnx" or "provider:sherpaonnx" => SherpaOnnxProvider,
             _ => new(provider.Trim(), "brand:intochat", "#6366F1", provider.Trim()),
         };
     }
@@ -372,6 +377,7 @@ public static class VisualCatalog
         Add(FoundryProvider, "provider:foundry");
         entries.Add(new("provider:foundrylocal", FoundryProvider with { IconKey = "provider:foundrylocal" }));
         Add(OpenAICompatibleProvider, "provider:openaicompatible");
+        Add(SherpaOnnxProvider, "provider:sherpaonnx");
 
         // All 17 ArtCraft Studios + IArtCraftStudio contract
         Add(new("ArtCraft", "artcraft:artcraft", "#6366F1", "ArtCraft Studio"),

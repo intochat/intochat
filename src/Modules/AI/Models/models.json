@@ -6,6 +6,7 @@
       "Think": "qwen2.5-coder:14b",
       "Fast": "gemma4:e2b",
       "Hear": "whisper-large-v3-turbo",
+      "Speak": "kokoro-82m",
       "Embed": "embeddinggemma"
     },
     "cloud": {
@@ -13,6 +14,8 @@
       "Think": "gpt-5.6-luna",
       "Fast": "gpt-5.4-nano",
       "Hear": "gpt-4o-transcribe",
+      "Speak": "gpt-4o-mini-tts",
+      "Talk": "gpt-realtime",
       "Embed": "text-embedding-3-small",
       "Image": "gpt-image-1"
     }
@@ -374,6 +377,43 @@
       "can": ["Hear"],
       "tier": "Fast",
       "aliases": ["IWhisperTiny", "WhisperTiny"]
+    },
+    {
+      "id": "kokoro-82m",
+      "member": "Kokoro82M",
+      "provider": "SherpaOnnx",
+      "family": "Kokoro",
+      "name": "Kokoro 82M",
+      "where": "Device",
+      "can": ["Speak"],
+      "tier": "Fast",
+      "bytes": 352199577,
+      "aliases": ["kokoro"],
+      "price": { "input": 0, "output": 0, "cached": 0, "reasoning": 0 }
+    },
+    {
+      "id": "gpt-4o-mini-tts",
+      "member": "Gpt4oMiniTts",
+      "provider": "OpenAI",
+      "family": "GPT-4o TTS",
+      "name": "GPT-4o Mini TTS",
+      "where": "Cloud",
+      "can": ["Speak"],
+      "tier": "Fast",
+      "aliases": ["IGpt4oMiniTts", "Gpt4oMiniTts"],
+      "price": { "input": 0.60, "output": 12.00, "cached": 0.60, "reasoning": 0 }
+    },
+    {
+      "id": "gpt-realtime",
+      "member": "GptRealtime",
+      "provider": "OpenAI",
+      "family": "GPT Realtime",
+      "name": "GPT Realtime",
+      "where": "Cloud",
+      "can": ["Talk"],
+      "tier": "Balanced",
+      "aliases": ["IGptRealtime", "GptRealtime"],
+      "price": { "input": 32.00, "output": 64.00, "cached": 32.00, "reasoning": 0 }
     },
     {
       "id": "gpt-image-1",

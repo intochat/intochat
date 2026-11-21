@@ -26,6 +26,7 @@ public sealed class VisualCatalogFacts
         "provider:foundry",
         "provider:foundrylocal",
         "provider:openaicompatible",
+        "provider:sherpaonnx",
         // Capabilities
         "capability:memory",
         "capability:codegraph",
@@ -56,9 +57,9 @@ public sealed class VisualCatalogFacts
     ];
 
     [Fact]
-    public void FrozenIconVocabularyMatchesTheCanonical43Keys()
+    public void FrozenIconVocabularyMatchesTheCanonicalKeys()
     {
-        Assert.Equal(43, ExpectedFrozenIconKeys.Length);
+        Assert.Equal(44, ExpectedFrozenIconKeys.Length);
         Assert.Equal(
             ExpectedFrozenIconKeys.OrderBy(static k => k, StringComparer.Ordinal),
             VisualCatalog.AllIconKeys.OrderBy(static k => k, StringComparer.Ordinal));
@@ -150,6 +151,8 @@ public sealed class VisualCatalogFacts
     [InlineData("provider:foundrylocal", "Foundry Local", "provider:foundry", "#0078D4", "Foundry Local")]
     [InlineData("openaicompatible", "OpenAI-Compatible", "provider:openaicompatible", "#10A37F", "OpenAI-Compatible")]
     [InlineData("provider:openaicompatible", "OpenAI-Compatible", "provider:openaicompatible", "#10A37F", "OpenAI-Compatible")]
+    [InlineData("sherpaonnx", "sherpa-onnx", "provider:sherpaonnx", "#10A37F", "sherpa-onnx")]
+    [InlineData("provider:sherpaonnx", "sherpa-onnx", "provider:sherpaonnx", "#10A37F", "sherpa-onnx")]
     public void ForProviderResolvesCanonicalAndAliasProviders(
         string provider,
         string expectedLabel,

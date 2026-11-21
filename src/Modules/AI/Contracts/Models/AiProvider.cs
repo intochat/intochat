@@ -18,4 +18,6 @@ public enum AiProvider
     Host,
     // An OpenAI-compatible HTTP endpoint attached by URL (e.g. LM Studio, vLLM, LiteLLM).
     OpenAICompatible,
+    // In-process sherpa-onnx runtime serving Kokoro TTS and Silero VAD on the local device.
+    SherpaOnnx,
 }
