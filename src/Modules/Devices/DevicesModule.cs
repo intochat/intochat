@@ -59,6 +59,7 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.AddHttpClient("devices.ollama", static client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.AddHttpClient("devices.openai-compat");
 
         var initial = section.Get<DevicesOptions>() ?? new DevicesOptions();
         if (initial.Ollama.Enabled)
@@ -67,6 +68,20 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.ollama"),
                 sp.GetRequiredService<IOptionsMonitor<DevicesOptions>>(),
                 sp.GetRequiredService<TimeProvider>()));
+        }
+
+        foreach (var (name, entry) in initial.Attach)
+        {
+            if (entry is null || string.IsNullOrWhiteSpace(entry.Url))
+            {
+                continue;
+            }
+            var runtimeName = name;
+            var endpoint = DevicesOptions.ValidateHttpUrl(entry.Url, $"Attach['{runtimeName}'].Url");
+            services.AddSingleton<ILocalRuntime>(sp => new OpenAiCompatRuntime(
+                runtimeName,
+                endpoint,
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.openai-compat")));
         }
     }
 }
