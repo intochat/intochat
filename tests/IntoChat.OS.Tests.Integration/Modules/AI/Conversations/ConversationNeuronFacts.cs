@@ -267,19 +267,6 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
     }
 
     [Fact]
-    public async Task InviteWaitsForFriends()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var runtime = await Start(StubChatClient.Replying("ok"), ct);
-        using var person = runtime.As(Who.Person);
-        var id = runtime.Id(IConversation.Type, IConversation.KeyOf(ConversationId.New()));
-        var conversation = runtime.Get<IConversation>(id);
-
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() => conversation.Invite(new AccountId("a2")));
-        Assert.Contains("S8", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task AnOldInoConversationIsImportedOnFirstRead()
     {
         var ct = TestContext.Current.CancellationToken;

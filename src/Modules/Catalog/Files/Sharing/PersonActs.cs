@@ -23,22 +23,6 @@ internal static class PersonActs
         return string.Equals(owner, person.Account, StringComparison.Ordinal) ? (person.Account, caller.Brain) : throw Refused();
     }
 
-    // A cross-brain call from a person's relay neuron in their own brain: Inside is true, Via is that relay neuron in
-    // caller.Brain, the actor is a person, and that person's account owns caller.Brain.
-    public static async Task<(string Account, BrainId Brain)> RequireRelay(Caller? caller, string relayType, IBrainOwners owners)
-    {
-        if (caller is not { Inside: true, Actor: Actor.Person person, Via: { } via }
-            || string.IsNullOrEmpty(person.Account)
-            || via.Brain != caller.Brain
-            || !string.Equals(via.Type, relayType, StringComparison.Ordinal))
-        {
-            throw Refused();
-        }
-
-        var owner = await owners.OwnerAccount(caller.Brain).ConfigureAwait(true);
-        return string.Equals(owner, person.Account, StringComparison.Ordinal) ? (person.Account, caller.Brain) : throw Refused();
-    }
-
     // The files module acting in its own brain: how a neuron reaches its brain's other neurons and storage while the
     // call it is serving was made by a person of another brain.
     public static IDisposable? AsFilesModule(IServiceProvider services, BrainId brain)
@@ -50,7 +34,7 @@ internal static class PersonActs
     public const string FilesModule = "apps.files";
 
     // One message for every refusal: it tells a caller nothing about which shares exist.
-    public static UnauthorizedAccessException Refused() => new("Sharing is refused for this caller.");
+    public static UnauthorizedAccessException Refused() => FriendRelay.Refused();
 }
 
 internal sealed class IdentityBrainOwners(IServiceProvider services) : IBrainOwners

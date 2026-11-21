@@ -93,7 +93,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
 
     public async Task<WorkspaceShare[]> SharedWithCaller()
     {
-        var (account, _) = await PersonActs.RequireRelay(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
+        var (account, _) = await FriendRelay.Require(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
         return [.. State.Shares.Where(share => share.Account == account)];
     }
 
@@ -157,7 +157,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     // The person the share names, as a person, from the brain they own, through the friend-side relay neuron.
     private async Task<(WorkspaceShare Share, string Account)> Admit(string shareId)
     {
-        var (account, _) = await PersonActs.RequireRelay(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
+        var (account, _) = await FriendRelay.Require(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
         var share = State.Shares.FirstOrDefault(candidate => candidate.Id == shareId && candidate.Account == account);
         return share is null ? throw PersonActs.Refused() : (share, account);
     }

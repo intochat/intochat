@@ -131,7 +131,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
     public async Task<Friend> Accepted(string codeHash, string name)
     {
-        var (account, brain) = await PersonActs.RequireRelay(Context.Caller, FriendsDefaults.TypeName, Owners);
+        var (account, brain) = await FriendRelay.Require(Context.Caller, FriendsDefaults.TypeName, Owners);
         if (brain == Id.Brain) { throw PersonActs.Refused(); }
         await EnsureImported();
 
@@ -165,7 +165,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
     public async Task Unfriended()
     {
-        var (account, brain) = await PersonActs.RequireRelay(Context.Caller, FriendsDefaults.TypeName, Owners);
+        var (account, brain) = await FriendRelay.Require(Context.Caller, FriendsDefaults.TypeName, Owners);
         if (brain == Id.Brain) { throw PersonActs.Refused(); }
         await EnsureImported();
 
@@ -185,11 +185,50 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         return State.Groups;
     }
 
-    public Task GroupSay(GroupInvite group, string text) => throw new NotSupportedException("Implemented in Task 5.");
+    public async Task GroupSay(GroupInvite group, string text)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        await Owner();
+        await EnsureImported();
+        if (!State.Groups.Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
+        {
+            throw FriendRelay.Refused();
+        }
+        var target = new NeuronId(group.Brain, IConversation.Type, IConversation.KeyOf(group.Conversation));
+        await SiloNeurons.Get<IConversation>(services, target).Say(text);
+    }
 
-    public Task<ConversationView> GroupRead(GroupInvite group, long? sinceRevision = null) => throw new NotSupportedException("Implemented in Task 5.");
+    public async Task<ConversationView> GroupRead(GroupInvite group, long? sinceRevision = null)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        await Owner();
+        await EnsureImported();
+        if (!State.Groups.Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
+        {
+            throw FriendRelay.Refused();
+        }
+        var target = new NeuronId(group.Brain, IConversation.Type, IConversation.KeyOf(group.Conversation));
+        return await SiloNeurons.Get<IConversation>(services, target).Read(sinceRevision);
+    }
 
-    public Task Invited(GroupInvite group) => throw new NotSupportedException("Implemented in Task 5.");
+    public async Task Invited(GroupInvite group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        var (account, brain) = await FriendRelay.Require(Context.Caller, IConversation.Type, Owners);
+        if (brain == Id.Brain || group.Brain != brain || !string.Equals(group.By.Value, account, StringComparison.Ordinal))
+        {
+            throw FriendRelay.Refused();
+        }
+        await EnsureImported();
+        var inviter = new AccountId(account);
+        if (!(State.Friends ?? []).Any(friend => friend.Account == inviter))
+        {
+            throw FriendRelay.Refused();
+        }
+
+        var others = State.Groups.Where(existing => existing.Brain != group.Brain || existing.Conversation != group.Conversation);
+        await Store(With(groups: [.. others, group]));
+    }
 
     private async Task EnsureImported()
     {

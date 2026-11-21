@@ -3,6 +3,7 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
@@ -11,8 +12,10 @@ using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.AI.Conversations;
@@ -130,19 +133,42 @@ internal sealed class ConversationNeuron(
         await Resume();
     }
 
-    private bool Authorize()
+    private IBrainOwners Owners => services.GetService<IBrainOwners>() ?? throw FriendRelay.Refused();
+    private IFriends Friends => Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
+
+    private bool IsSameBrainCaller()
     {
         var caller = Context.Caller;
-        if (caller is null || caller.Brain == Id.Brain)
+        return caller is null || caller.Brain == Id.Brain;
+    }
+
+    private void AuthorizeOwnerOnly()
+    {
+        if (!IsSameBrainCaller())
         {
-            return true;
+            throw FriendRelay.Refused();
         }
-        if (caller.Actor is Actor.Person person
-            && State.Participants.OfType<Participant.Human>().Any(p => string.Equals(p.Account.Value, person.Account, StringComparison.Ordinal)))
+    }
+
+    private async Task<AccountId> RequireOwnerAsPersonAsync()
+    {
+        var caller = Context.Caller;
+        if (caller is not { Actor: Actor.Person person }
+            || string.IsNullOrEmpty(person.Account)
+            || caller.Brain != Id.Brain)
         {
-            return false;
+            throw FriendRelay.Refused();
         }
-        throw new UnauthorizedAccessException("Caller is not a participant of this conversation.");
+        if (caller.Via is { } via && (via.Brain != Id.Brain || via.Type is not ("app.ino" or "app.friends")))
+        {
+            throw FriendRelay.Refused();
+        }
+        var owner = await Owners.OwnerAccount(Id.Brain);
+        if (!string.Equals(owner, person.Account, StringComparison.Ordinal))
+        {
+            throw FriendRelay.Refused();
+        }
+        return new AccountId(person.Account);
     }
 
     private AccountId CallerAccount()
@@ -282,7 +308,7 @@ internal sealed class ConversationNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        Authorize();
+        AuthorizeOwnerOnly();
         await Fresh();
         await EnsureImportedAsync();
 
@@ -311,7 +337,12 @@ internal sealed class ConversationNeuron(
 
     public async Task Say(string text, ModelId? model = null)
     {
-        Authorize();
+        if (!IsSameBrainCaller())
+        {
+            await SayAsFriendAsync(text);
+            return;
+        }
+
         if (string.IsNullOrEmpty(text) || text.Length > MaxSayCharacters)
         {
             throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
@@ -356,8 +387,26 @@ internal sealed class ConversationNeuron(
         }
     }
 
+    private async Task SayAsFriendAsync(string text)
+    {
+        await Fresh();
+        var friend = await GroupAdmission.Admit(Context.Caller, Id.Brain, State.Participants, Friends, Owners);
+        if (string.IsNullOrEmpty(text) || text.Length > MaxSayCharacters)
+        {
+            throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
+        }
+
+        var masked = await Runner.Mask(text);
+        if (_write is { } pending) { await pending.Task; }
+
+        var said = new Said(EntryIds.Said(Guid.NewGuid().ToString("N")), new Participant.Human(friend), Clock.GetUtcNow(), masked);
+        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, said);
+        await Persist(State with { Log = nextLog });
+    }
+
     public Task Stop()
     {
+        AuthorizeOwnerOnly();
         if (_active is { } active) { active.Cancel(); }
         else if (State.ActiveRun is { } pending) { _cancelBeforeDrive = pending.RunId; }
         return Task.CompletedTask;
@@ -365,7 +414,7 @@ internal sealed class ConversationNeuron(
 
     public async Task Regenerate(EntryId reply)
     {
-        Authorize();
+        AuthorizeOwnerOnly();
         await Fresh();
         await EnsureImportedAsync();
         EnsureUnblocked();
@@ -414,12 +463,21 @@ internal sealed class ConversationNeuron(
 
     public async Task<ConversationView> Read(long? sinceRevision = null)
     {
-        var isOwner = Authorize();
+        if (!IsSameBrainCaller())
+        {
+            await Fresh();
+            if (_write is { } pendingWrite) { await pendingWrite.Task; }
+            var committed = Committed;
+            await GroupAdmission.Admit(Context.Caller, Id.Brain, committed.Participants, Friends, Owners);
+            var shared = ConversationLog.Visible(committed.Log, sinceRevision, owner: false);
+            return new ConversationView(ConvId, committed.Revision, [.. committed.Participants], shared, Active: null, Runs: [], Blocked: false, Contexts: []);
+        }
+
         await Fresh();
         await EnsureImportedAsync();
         if (_write is { } pending) { await pending.Task; }
         var state = Committed;
-        var visible = ConversationLog.Visible(state.Log, sinceRevision, isOwner);
+        var visible = ConversationLog.Visible(state.Log, sinceRevision, owner: true);
         return new ConversationView(
             ConvId,
             state.Revision,
@@ -435,8 +493,29 @@ internal sealed class ConversationNeuron(
         };
     }
 
-    public Task Invite(AccountId friend)
-        => throw new NotSupportedException("Group conversations arrive with Friends (S8).");
+    public async Task Invite(AccountId friend)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
+        var owner = await RequireOwnerAsPersonAsync();
+        await Fresh();
+        await EnsureImportedAsync();
+
+        var friends = Friends;
+        if (!await friends.IsFriend(friend))
+        {
+            throw FriendRelay.Refused();
+        }
+        var roster = await friends.List();
+        var target = roster.FirstOrDefault(row => row.Account == friend)
+            ?? throw FriendRelay.Refused();
+
+        var participants = WithParticipants(State.Participants, new Participant.Human(owner), new Participant.Human(friend));
+        await Persist(State with { Participants = participants });
+
+        var title = await ReadTitleBestEffortAsync();
+        var invite = new GroupInvite(Id.Brain, ConvId, title, owner);
+        await SiloNeurons.Get<IFriends>(services, FriendsDefaults.Id(target.Brain.Value)).Invited(invite);
+    }
 
     public async Task Drive(string runId, string? model, string? replaces)
     {
@@ -678,6 +757,22 @@ internal sealed class ConversationNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Logger.LogDebug(error, "Session list could not be touched for conversation {ConversationId}.", ConvId);
+        }
+    }
+
+    private async Task<string> ReadTitleBestEffortAsync()
+    {
+        if (!Sessions.IsId(ConvId.Value)) { return ConvId.Value; }
+        try
+        {
+            var session = await Context.Get<ISessionList>(new NeuronId(Id.Brain, Sessions.Type, ISessionList.DefaultKey))
+                .Get(ConvId.Value);
+            return !string.IsNullOrWhiteSpace(session?.Title) ? session.Title : Sessions.NewChat;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Logger.LogDebug(error, "Session list could not be read for conversation {ConversationId}.", ConvId);
+            return Sessions.NewChat;
         }
     }
 

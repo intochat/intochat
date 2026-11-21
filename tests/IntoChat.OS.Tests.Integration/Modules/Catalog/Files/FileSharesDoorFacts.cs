@@ -1,9 +1,11 @@
 using DigitalBrain.Access;
 using IntoChat.OS.Tests;
 using System.Text;
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
 using DigitalBrain.Modules;
@@ -12,9 +14,14 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Testing;
+using IntoChat.OS.Host.Primitives;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Conversations;
 using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Identity.Codes;
+using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
@@ -323,6 +330,64 @@ public sealed class FileSharesDoorFacts
         public IProfile Profile(string brain) => SiloNeurons.Get<IProfile>(runtime.Services, new NeuronId(new BrainId(brain), "os.profile", "profile"));
         public IUserSettings Settings(string brain) => SiloNeurons.Get<IUserSettings>(runtime.Services, IUserSettings.Key(new BrainId(brain)));
         public ISynapseStudio Studio(string brain) => SiloNeurons.Get<ISynapseStudio>(runtime.Services, ISynapseStudio.Key(brain));
+        public IConversation Conversation(string brain, ConversationId id)
+            => SiloNeurons.Get<IConversation>(runtime.Services, new NeuronId(new BrainId(brain), IConversation.Type, IConversation.KeyOf(id)));
+        public ISessionList Sessions(string brain)
+            => SiloNeurons.Get<ISessionList>(runtime.Services, new NeuronId(new BrainId(brain), IntoChat.OS.Modules.Flutter.Conversations.Sessions.Type, ISessionList.DefaultKey));
+
+        public async Task<ConversationId> NewConversation(string brain, string title, params ConversationEntry[] seedEntries)
+        {
+            var id = ConversationId.New();
+            using (As(brain)) { await Sessions(brain).Create(id.Value, title); }
+            if (seedEntries.Length > 0)
+            {
+                await SeedConversationLog(brain, id, seedEntries);
+            }
+            return id;
+        }
+
+        public async Task<GroupInvite> InviteBen(string title, params ConversationEntry[] seedEntries)
+        {
+            var id = await NewConversation(Ada, title, seedEntries);
+            using (As(Ada)) { await Conversation(Ada, id).Invite(new AccountId(Ben)); }
+            using (As(Ben)) { return Assert.Single(await Friends(Ben).Groups(), g => g.Brain == new BrainId(Ada) && g.Conversation == id); }
+        }
+
+        public async Task SeedConversationLog(string brain, ConversationId id, params ConversationEntry[] entries)
+        {
+            var journal = runtime.Services.GetRequiredService<IBrainJournalWriter>();
+            await journal.Claim(brain, Ct);
+            var state = new ConversationState
+            {
+                Revision = 1,
+                Participants = [new Participant.Human(new AccountId(brain))],
+                Log = ConversationLog.Append([], 1, entries),
+                Imported = true,
+            };
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(state, ConversationJsonContext.Default.ConversationState);
+            var grainId = $"neuron.host/{brain}/{IConversation.Type}/{IConversation.KeyOf(id)}";
+            await journal.Append(
+                brain,
+                new JournalStateWrite(grainId, "state", JournalStateChange.Write, null, bytes, null),
+                "",
+                [],
+                Ct);
+        }
+
+        public async Task SeedForgedGroupInvite(string brain, GroupInvite forged)
+        {
+            var journal = runtime.Services.GetRequiredService<IBrainJournalWriter>();
+            await journal.Claim(brain, Ct);
+            var state = new FriendsRecord { Friends = [], Groups = [forged] };
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(state, FriendsJson.Default.FriendsRecord);
+            var grainId = $"neuron.host/{brain}/{FriendsDefaults.TypeName}/{FriendsDefaults.KeyPart}";
+            await journal.Append(
+                brain,
+                new JournalStateWrite(grainId, "state", JournalStateChange.Write, null, bytes, null),
+                "",
+                [],
+                Ct);
+        }
 
         // One makes a code, the other redeems it.
         public async Task Befriend(string minter, string redeemer)
@@ -412,11 +477,17 @@ public sealed class FileSharesDoorFacts
             => Task.CompletedTask;
     }
 
+    private sealed class NoSecrets : ISecretRedactor
+    {
+        public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken) => ValueTask.FromResult(text);
+        public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
+    }
+
     internal sealed class DoorFixture : BothRuntimesFixture
     {
         public override BrainId Brain { get; } = new(Ada);
 
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(IdentityModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
+        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlutterModule), typeof(IdentityModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
@@ -424,10 +495,13 @@ public sealed class FileSharesDoorFacts
             services.Configure<Orleans.Configuration.ClientMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
             services.AddSingleton<IBrainOwners, SameNameOwners>();
             DigitalBrain.Invocation.RuntimeProtocol.Register(CodesJson.Default);
+            DigitalBrain.Invocation.RuntimeProtocol.Register(ConversationJsonContext.Default);
             services.TryAddSingleton<ICodeBook, CodeBook>();
+            services.TryAddSingleton<ISecretRedactor, NoSecrets>();
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
+            services.AddJournalPayloads(typeof(AIModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);
             services.AddJournalPayloads(typeof(FlutterModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
