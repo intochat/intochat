@@ -63,6 +63,27 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
   - `DownloadAsync` accepts `Action<float>?` reporting progress on a **0.0–100.0** percent scale (not `IProgress<float>` and not `0..1`).
   - `StartWebServiceAsync` binds on `Configuration.Web` (`Urls = "http://127.0.0.1:0"`) and exposes bound URLs through `FoundryLocalManager.Instance.Urls`.
 
+### G. sherpa-onnx (Kokoro TTS + Silero VAD)
+- **Verdict (branch a — in-process)**: `SherpaOnnxRuntime` in `src/Modules/Devices/Runtimes/SherpaOnnx` calls `org.k2fsa.sherpa.onnx` `2.0.1` directly in-process (Apache-2.0; transitively pulls `org.k2fsa.sherpa.onnx.runtime.win-x64` `2.0.1` with `sherpa-onnx-c-api.dll` + `onnxruntime.dll`). No KokoroSharp fallback and no `OWED.md` AOT exception are required.
+- **NativeAOT Build & Publish Evidence (`win-x64`)**:
+  - Standalone NativeAOT publish (`net11.0`, `<PublishAot>true</PublishAot>`, `<InvariantGlobalization>true</InvariantGlobalization>`, `<TrimmerSingleWarn>false</TrimmerSingleWarn>`) rooting `OfflineTts` (`Generate` and `GenerateWithCallback`) and `VoiceActivityDetector`: **0 IL2xxx/IL3xxx warnings** (0 warnings total; native artifacts: `SherpaAot.exe` 1.8 MB, `sherpa-onnx-c-api.dll` 4.3 MB, `onnxruntime.dll` 17.8 MB).
+- **NativeAOT Runtime Verification (`IsDynamicCodeSupported == false`, no console window)**:
+  - `OfflineTts` initialized in ~984 ms (`SampleRate=24000`, `NumSpeakers=54`, `Lang="en-us"`), synthesized `"Hello from IntoChat."` in ~265 ms (26,456 samples, 1.102 s, valid 24 kHz WAV), and executed `GenerateWithCallback` cleanly under NativeAOT for barge-in cancellation.
+  - `VoiceActivityDetector` (`silero_vad_v5.onnx`, 16 kHz, 512-sample windows) initialized in ~46 ms and detected the speech segment (`Start=1504` / 0.094 s, `Samples=15648` / 0.978 s).
+- **Verified Model Assets (`k2-fsa/sherpa-onnx` GitHub releases)**:
+  - Kokoro multi-lang v1.0 (`kokoro-multi-lang-v1_0.tar.bz2`): `https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2`, `349,886,476` bytes compressed (`401,239,297` bytes extracted via Windows `tar -xjf`), SHA-256 `60703707bc05ccd48d60e1eb723f38b07d6e474795a0b6a588d7220400e0f7a4`.
+  - Silero VAD v5 (`silero_vad_v5.onnx`): `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad_v5.onnx`, `2,313,101` bytes, SHA-256 `6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396`.
+  - Combined download bytes (for `models.json` `kokoro-82m`): `352,199,577` bytes.
+- **Kokoro Output Rate & Voices**:
+  - Output sample rate: **24,000 Hz** (`OfflineTts.SampleRate` and `OfflineTtsGeneratedAudio.SampleRate`).
+  - 54 voices (`0..53` embedded in `model.onnx` `id2speaker`): default English voice `speakerId = 0` is `af_alloy` (US English female; `0..19` US English `af_*`/`am_*` including `3 = af_heart`, `20..27` UK English `bf_*`/`bm_*`).
+- **Real `org.k2fsa.sherpa.onnx` 2.0.1 C# API Notes**:
+  - `OfflineTtsConfig`, `OfflineTtsModelConfig`, `OfflineTtsKokoroModelConfig`, `VadModelConfig`, and `SileroVadModelConfig` are **structs with public fields** (instantiate via `new OfflineTtsConfig()` / `new VadModelConfig()` for defaults, then assign nested fields directly).
+  - `OfflineTts.Generate(string text, float speed, int speakerId)` names its third parameter `speakerId` (not `sid`). `GenerateWithCallback` accepts `OfflineTtsCallback(IntPtr samples, int n)` returning `1` to continue or `0` to cancel.
+  - `OfflineTtsGeneratedAudio` exposes `Dispose()` **without implementing `IDisposable`** (dispose in `try`/`finally`, not `using`). `OfflineTts` and `VoiceActivityDetector` implement `IDisposable`.
+  - `VoiceActivityDetector(VadModelConfig config, float bufferSizeInSeconds)` takes two constructor arguments (e.g. `60f`); feed `AcceptWaveform(float[])` and drain via `IsSpeechDetected()` / `IsEmpty()` / `Front()` (`SpeechSegment { long Start; float[] Samples; }`) / `Pop()` / `Flush()`.
+  - `--kokoro-data-dir` (`Kokoro.DataDir` / `espeak-ng-data`) is deprecated and ignored in sherpa-onnx >= 2.0.0; omit `DataDir`/`DictDir` and pass `Kokoro.Lexicon = Path.Combine(dir, "lexicon-us-en.txt")` (178,401 entries). Tokens absent from the lexicon (e.g. camelCase `"IntoChat"`) are skipped as OOV, so callers should split camelCase or supply a small supplementary custom lexicon file (comma-separated in `Kokoro.Lexicon`).
+
 ---
 
 ## 2. Readiness Answers
