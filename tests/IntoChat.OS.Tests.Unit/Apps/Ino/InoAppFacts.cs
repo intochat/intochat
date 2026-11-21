@@ -14,6 +14,7 @@ using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Settings;
@@ -449,6 +450,60 @@ public sealed class InoAppFacts
         Assert.Equal(ControlProps.Disabled, refused.Reason);
         Assert.Equal(1, BackgroundAgent.Starts);
         Assert.DoesNotContain(ino.App.Messages, m => m.Text == "second question");
+    }
+
+    [Fact]
+    public async Task ChoosingSwitchesOnlyThisConversation()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = BackgroundOs();
+        os.Register<FakeModelCatalog>();
+        FakeModelCatalog.Reset();
+
+        try
+        {
+            var ino = await os.Install<InoApp>();
+            var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
+            var view = await thread.Read();
+
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.SelectModelKey, "gpt-5.4");
+            await os.Idle();
+
+            Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
+            var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
+            Assert.Null(settings.RoleOf(Role.Chat));
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task MakeDefaultPinsTheChatRole()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = BackgroundOs();
+        os.Register<FakeModelCatalog>();
+        FakeModelCatalog.Reset();
+
+        try
+        {
+            var ino = await os.Install<InoApp>();
+            var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
+            var view = await thread.Read();
+
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.PinModelKey, "gpt-5.4");
+            await os.Idle();
+
+            Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
+            var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
+            Assert.Equal("gpt-5.4", settings.RoleOf(Role.Chat)!.Value.Value);
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+        }
     }
 
     [Fact]
@@ -1295,7 +1350,8 @@ public sealed class InoAppFacts
                 : PickedChat is { Value.Length: > 0 } picked ? Task.FromResult(picked)
                 : Task.FromResult(new ModelId(string.Empty));
 
-        public Task SetRole(Role role, ModelId model) => Task.CompletedTask;
+        public Task SetRole(Role role, ModelId model)
+            => Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).SetRole(role, model);
 
         public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
 

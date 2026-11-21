@@ -392,6 +392,45 @@ public sealed record TablePage(IReadOnlyList<IReadOnlyDictionary<string, string>
     public override int GetHashCode() => HashCode.Combine(Rows.Count, Total);
 }
 
+/// <summary>One model choice shown in a chat composer's model picker.</summary>
+/// <param name="Id">The canonical model id (e.g. "qwen3.5:4b", "gpt-5.4").</param>
+/// <param name="Label">The clean display name for the person.</param>
+/// <param name="Section">"local" or "cloud".</param>
+/// <param name="Icon">The allowlisted provider icon key (e.g. "provider:ollama"); null shows none.</param>
+/// <param name="Abilities">Ability tags ("tools", "vision", "voice", "reasoning"); null when none.</param>
+/// <param name="Available">False when the model cannot currently run (missing key or not installed).</param>
+/// <param name="Note">Why an unavailable model cannot run; null when available.</param>
+/// <param name="Progress">Optional download/install progress in [0, 1]; null when not installing.</param>
+public sealed record ModelChoice(
+    string Id,
+    string Label,
+    string Section,
+    string? Icon = null,
+    IReadOnlyList<string>? Abilities = null,
+    bool Available = true,
+    string? Note = null,
+    double? Progress = null)
+{
+    /// <inheritdoc />
+    public bool Equals(ModelChoice? other) => other is not null
+        && Id == other.Id
+        && Label == other.Label
+        && Section == other.Section
+        && Icon == other.Icon
+        && Available == other.Available
+        && Note == other.Note
+        && Progress == other.Progress
+        && SequenceEquals(Abilities, other.Abilities);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(
+        Id, Label, Section, Icon, Available, Note, Progress,
+        Abilities is null ? 0 : SequenceHash.Of(Abilities));
+
+    private static bool SequenceEquals(IReadOnlyList<string>? a, IReadOnlyList<string>? b)
+        => ReferenceEquals(a, b) || (a is not null && b is not null && a.SequenceEqual(b));
+}
+
 /// <summary>The props of a chat thread: what its parent decides. The thread owns the messages.</summary>
 /// <param name="Placeholder">The composer's placeholder.</param>
 /// <param name="CanSend">False draws the composer disabled (the parent is busy or paused).</param>
@@ -404,9 +443,52 @@ public sealed record TablePage(IReadOnlyList<IReadOnlyDictionary<string, string>
 /// <param name="Error">An error no message carries, drawn under the messages; null draws none.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="Models">The choices offered by the composer model picker; null hides the picker list.</param>
+/// <param name="ActiveModelId">The canonical id of the active model; null when unset.</param>
 public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null,
     bool Dictation = false, string Status = "ready", bool Working = false, string? EmptyText = null, ChatThreadError? Error = null,
-    bool IsEnabled = true, string? AutomationName = null) : ControlProps(IsEnabled, AutomationName);
+    bool IsEnabled = true, string? AutomationName = null, IReadOnlyList<ModelChoice>? Models = null, string? ActiveModelId = null)
+    : ControlProps(IsEnabled, AutomationName)
+{
+    /// <inheritdoc />
+    public bool Equals(ChatThreadProps? other) => other is not null
+        && IsEnabled == other.IsEnabled
+        && AutomationName == other.AutomationName
+        && Placeholder == other.Placeholder
+        && CanSend == other.CanSend
+        && ActiveModelLabel == other.ActiveModelLabel
+        && ActiveProviderIcon == other.ActiveProviderIcon
+        && Dictation == other.Dictation
+        && Status == other.Status
+        && Working == other.Working
+        && EmptyText == other.EmptyText
+        && Equals(Error, other.Error)
+        && ActiveModelId == other.ActiveModelId
+        && SequenceEquals(Models, other.Models);
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(IsEnabled);
+        hash.Add(AutomationName);
+        hash.Add(Placeholder);
+        hash.Add(CanSend);
+        hash.Add(ActiveModelLabel);
+        hash.Add(ActiveProviderIcon);
+        hash.Add(Dictation);
+        hash.Add(Status);
+        hash.Add(Working);
+        hash.Add(EmptyText);
+        hash.Add(Error);
+        hash.Add(ActiveModelId);
+        if (Models is not null) { hash.Add(SequenceHash.Of(Models)); }
+        return hash.ToHashCode();
+    }
+
+    private static bool SequenceEquals(IReadOnlyList<ModelChoice>? a, IReadOnlyList<ModelChoice>? b)
+        => ReferenceEquals(a, b) || (a is not null && b is not null && a.SequenceEqual(b));
+}
 
 // Hashes a list's items in order with the same comparer SequenceEqual uses, so two lists of one length with different items hash apart.
 internal static class SequenceHash

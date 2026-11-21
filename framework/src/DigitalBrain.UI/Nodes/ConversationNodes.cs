@@ -90,3 +90,8 @@ public sealed record ComposerNode(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActiveProviderIcon = null,
     bool Dictation = false);
 
+/// <summary>An addressable model-picker activation target drawn by a chat thread.</summary>
+/// <param name="Key">The node's activation key.</param>
+/// <param name="OnSubmit">The signal emitted with the chosen model id as "value".</param>
+public sealed record ModelSelectNode(string Key, Emit OnSubmit);
+
