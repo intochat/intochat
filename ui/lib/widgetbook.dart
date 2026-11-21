@@ -470,44 +470,56 @@ class _InoOrbV2PlaygroundState extends State<_InoOrbV2Playground> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              UiMixButton(
-                label: 'Fly → Top-Left',
-                style: const UiStyleData(
-                  tone: 'subtle',
-                  paddingX: 12,
-                  paddingY: 6,
-                  radius: 8,
+              Semantics(
+                identifier: 'ino:fly-top-left',
+                button: true,
+                child: UiMixButton(
+                  label: 'Fly → Top-Left',
+                  style: const UiStyleData(
+                    tone: 'subtle',
+                    paddingX: 12,
+                    paddingY: 6,
+                    radius: 8,
+                  ),
+                  onPressed: () => setState(() {
+                    _target = const Offset(36, 36);
+                    _status = 'Inspecting Auth Tree…';
+                  }),
                 ),
-                onPressed: () => setState(() {
-                  _target = const Offset(36, 36);
-                  _status = 'Inspecting Auth Tree…';
-                }),
               ),
-              UiMixButton(
-                label: 'Fly → Center',
-                style: const UiStyleData(
-                  tone: 'accent',
-                  paddingX: 12,
-                  paddingY: 6,
-                  radius: 8,
+              Semantics(
+                identifier: 'ino:fly-center',
+                button: true,
+                child: UiMixButton(
+                  label: 'Fly → Center',
+                  style: const UiStyleData(
+                    tone: 'accent',
+                    paddingX: 12,
+                    paddingY: 6,
+                    radius: 8,
+                  ),
+                  onPressed: () => setState(() {
+                    _target = const Offset(220, 140);
+                    _status = 'System 1 Venn · <5ms match';
+                  }),
                 ),
-                onPressed: () => setState(() {
-                  _target = const Offset(220, 140);
-                  _status = 'System 1 Venn · <5ms match';
-                }),
               ),
-              UiMixButton(
-                label: 'Fly → Bottom-Right',
-                style: const UiStyleData(
-                  tone: 'subtle',
-                  paddingX: 12,
-                  paddingY: 6,
-                  radius: 8,
+              Semantics(
+                identifier: 'ino:fly-bottom-right',
+                button: true,
+                child: UiMixButton(
+                  label: 'Fly → Bottom-Right',
+                  style: const UiStyleData(
+                    tone: 'subtle',
+                    paddingX: 12,
+                    paddingY: 6,
+                    radius: 8,
+                  ),
+                  onPressed: () => setState(() {
+                    _target = const Offset(420, 260);
+                    _status = 'Spawning Live Neuron…';
+                  }),
                 ),
-                onPressed: () => setState(() {
-                  _target = const Offset(420, 260);
-                  _status = 'Spawning Live Neuron…';
-                }),
               ),
             ],
           ),

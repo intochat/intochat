@@ -173,6 +173,10 @@ class _InoOrbV2State extends State<InoOrbV2>
                         child: Lottie.memory(
                           dotlottie.animations.values.first,
                           fit: BoxFit.cover,
+                          imageProviderFactory: (asset) {
+                            final bytes = dotlottie.images[asset.fileName];
+                            return bytes != null ? MemoryImage(bytes) : null;
+                          },
                           repeat:
                               widget.state != PresenceState.paused &&
                               widget.state != PresenceState.disconnected,
