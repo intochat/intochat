@@ -86,7 +86,8 @@ function Set-OwnerOnlyDirectoryAcl {
     $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
     if ($null -eq $currentUser) { return }
 
-    $acl = (Get-Item -LiteralPath $Path).GetAccessControl([System.Security.AccessControl.AccessControlSections]::Access)
+    $dirInfo = [System.IO.DirectoryInfo]::new($Path)
+    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($dirInfo, [System.Security.AccessControl.AccessControlSections]::Access)
     $acl.SetAccessRuleProtection($true, $false)
     foreach ($existing in @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))) {
         $null = $acl.RemoveAccessRule($existing)
@@ -99,7 +100,7 @@ function Set-OwnerOnlyDirectoryAcl {
         [System.Security.AccessControl.AccessControlType]::Allow
     )
     $acl.SetAccessRule($rule)
-    [System.IO.Directory]::SetAccessControl($Path, $acl)
+    [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $acl)
 }
 
 function Register-UserPathEntry {
