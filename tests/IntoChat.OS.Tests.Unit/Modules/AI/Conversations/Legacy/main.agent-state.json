@@ -1,0 +1,1395 @@
+{
+  "revision": 16,
+  "definition": {
+    "displayName": "Ino",
+    "description": "The brain's personal assistant.",
+    "instructions": "You are Ino, the personal AI assistant of IntoChat OS (user: User).",
+    "model": {
+      "model": "qwen2.5-coder:14b",
+      "reasoning": null,
+      "maxOutputTokens": null
+    },
+    "contracts": [
+      "IntoChat.OS.Modules.Apps.IInoStudio",
+      "IntoChat.OS.Modules.Apps.IInoData",
+      "IntoChat.OS.Modules.Apps.IInoSettings",
+      "IntoChat.OS.Modules.Apps.IInoFiles",
+      "IntoChat.OS.Modules.Apps.Runs.IRuns",
+      "IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun",
+      "IntoChat.OS.Modules.Apps.ISynapseStudio",
+      "IntoChat.OS.Modules.Apps.IInoFocus",
+      "IntoChat.OS.Modules.AI.Memory.IMemory",
+      "IntoChat.OS.Modules.AI.Memory.IWorkingMemory",
+      "IntoChat.OS.Modules.AI.Memory.ISessionJournal",
+      "IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector",
+      "IntoChat.OS.Modules.AI.Routing.IRouter",
+      "IntoChat.OS.Modules.Microsoft.Aspire.IAspire",
+      "IntoChat.OS.Modules.Apps.Trace.ITraceReader",
+      "IntoChat.OS.Modules.Apps.Flows.IFlows",
+      "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph"
+    ],
+    "capabilities": [],
+    "routingExamples": [],
+    "maxModelCalls": 16,
+    "timeout": "00:02:00",
+    "maxHistoryMessages": 256,
+    "compactionThreshold": 40,
+    "compactionRecentWindow": 20,
+    "useModelSummarizer": false,
+    "options": null,
+    "contexts": [
+      "context/user.profile",
+      "context/working.memory",
+      "context/session.journal",
+      "context/conversation.inference.tone",
+      "context/conversation.summary",
+      "context/conversation.inference",
+      "context/apps.capabilities",
+      "context/security.posture",
+      "context/ui.focus",
+      "context/ui.state",
+      "context/memory.recall"
+    ]
+  },
+  "summary": null,
+  "activeRun": null,
+  "runs": [
+    {
+      "runId": "350e2fa84d6346db959b40ac07d9af7c",
+      "status": 2,
+      "userText": "Prompt #1",
+      "startedAt": "2026-11-08T15:58:14.2400949+00:00",
+      "endedAt": "2026-11-08T15:58:18.5853112+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen3.5:4b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "cbb9134aea276d0014a022f101c830094c407486337cb89501bf0b8b6a90ab37",
+        "capabilities": "Tools, Vision",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #1.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "0922467cefb6498b842717819c019257",
+      "status": 2,
+      "userText": "Prompt #2",
+      "startedAt": "2026-11-08T16:06:36.6527376+00:00",
+      "endedAt": "2026-11-08T16:06:36.747328+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #2.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "9ba8bfa16ece4f0ab87bbadd4a9bdb8a",
+      "status": 2,
+      "userText": "Prompt #3",
+      "startedAt": "2026-11-08T16:07:26.1757881+00:00",
+      "endedAt": "2026-11-08T16:07:26.1880139+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #3.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "005082654d2c4da2b554e90131b409d4",
+      "status": 2,
+      "userText": "Prompt #4",
+      "startedAt": "2026-11-08T18:12:07.7432926+00:00",
+      "endedAt": "2026-11-08T18:12:07.9224697+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #4.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "35fd5fd56a1b4ddebcfa33347bf7ff31",
+      "status": 2,
+      "userText": "Prompt #5",
+      "startedAt": "2026-11-09T03:34:17.6988807+00:00",
+      "endedAt": "2026-11-09T03:34:17.9570225+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #5.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "f2f3fcd8eb14426499b615f6a0fa3241",
+      "status": 2,
+      "userText": "Prompt #6",
+      "startedAt": "2026-11-09T03:40:06.4288795+00:00",
+      "endedAt": "2026-11-09T03:40:06.6399435+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #6.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "f5674cddc54046518d11ed0942c03935",
+      "status": 2,
+      "userText": "Prompt #7",
+      "startedAt": "2026-11-09T03:54:00.8405021+00:00",
+      "endedAt": "2026-11-09T03:54:01.0348148+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #7.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "ef8772487fc846dc8b5fa6ddaf7f0956",
+      "status": 2,
+      "userText": "Prompt #8",
+      "startedAt": "2026-11-10T04:41:56.6140426+00:00",
+      "endedAt": "2026-11-10T04:41:56.7451274+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #8.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": "d081f226f2bf45d987bb48c6422f7a0a",
+      "failure": 0
+    },
+    {
+      "runId": "2aa76222e3144ffe934c3042a3bc76f0",
+      "status": 2,
+      "userText": "Prompt #9",
+      "startedAt": "2026-11-13T13:31:48.6617691+00:00",
+      "endedAt": "2026-11-13T13:31:48.7514765+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #9.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "f4a6b0294bbe4a01ac517947a60daa66",
+      "status": 2,
+      "userText": "Prompt #10",
+      "startedAt": "2026-11-14T22:55:11.8278518+00:00",
+      "endedAt": "2026-11-14T22:55:12.1404023+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #10.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 1
+    },
+    {
+      "runId": "f509d3aef1ad4028b7fcebf5b0b5c62d",
+      "status": 2,
+      "userText": "Prompt #11",
+      "startedAt": "2026-11-14T22:55:33.5424247+00:00",
+      "endedAt": "2026-11-14T22:55:33.7724275+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #11.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "90187ace5aef403ca71513ac700bfbbd",
+      "status": 2,
+      "userText": "Prompt #12",
+      "startedAt": "2026-11-14T22:55:35.7771814+00:00",
+      "endedAt": "2026-11-14T22:55:35.9998832+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #12.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "1735861691f447a0b17b775dce5713ce",
+      "status": 2,
+      "userText": "Prompt #13",
+      "startedAt": "2026-11-14T22:55:57.7710802+00:00",
+      "endedAt": "2026-11-14T22:55:57.9933589+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #13.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "3fc8e26c900f4849ba4bf26ee30690db",
+      "status": 2,
+      "userText": "Prompt #14",
+      "startedAt": "2026-11-14T22:56:11.6218578+00:00",
+      "endedAt": "2026-11-14T22:56:11.8486109+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #14.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "efe40dad61e94894bfae61a67bcaffb8",
+      "status": 2,
+      "userText": "Prompt #15",
+      "startedAt": "2026-11-15T10:53:55.087069+00:00",
+      "endedAt": "2026-11-15T10:53:55.3258332+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #15.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "dce9eec3a7f74abab529fe45c1c35c65",
+      "status": 2,
+      "userText": "Prompt #16",
+      "startedAt": "2026-11-15T17:22:17.2920669+00:00",
+      "endedAt": "2026-11-15T17:22:17.6096867+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #16.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 1
+    },
+    {
+      "runId": "f4158c3d4fe44c949fef69619e9210a5",
+      "status": 2,
+      "userText": "Prompt #17",
+      "startedAt": "2026-11-15T17:29:15.210765+00:00",
+      "endedAt": "2026-11-15T17:29:15.4360197+00:00",
+      "reply": null,
+      "model": null,
+      "usage": null,
+      "error": "Scrubbed run error #17.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 1
+    },
+    {
+      "runId": "ea95de9f8ddf4b95ad9a260e70b541ff",
+      "status": 1,
+      "userText": "Prompt #18",
+      "startedAt": "2026-11-15T17:29:21.7324077+00:00",
+      "endedAt": "2026-11-15T17:29:37.9798798+00:00",
+      "reply": "Reply #18.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 9542,
+        "outputTokens": 45,
+        "totalTokens": 9587
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "2db3844b96ed41b5a3430901210002f9",
+      "status": 1,
+      "userText": "Prompt #19",
+      "startedAt": "2026-11-15T17:29:54.2469558+00:00",
+      "endedAt": "2026-11-15T17:29:57.9035788+00:00",
+      "reply": "Reply #19.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 9599,
+        "outputTokens": 34,
+        "totalTokens": 9633
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "3ef41f54115b41549828ce54aa13a99f",
+      "status": 1,
+      "userText": "Prompt #20",
+      "startedAt": "2026-11-15T17:33:01.8853971+00:00",
+      "endedAt": "2026-11-15T17:33:06.1526428+00:00",
+      "reply": "Reply #20.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 7362,
+        "outputTokens": 23,
+        "totalTokens": 7385
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "4d6604d65b814b37b8c505a220886a9c",
+      "status": 1,
+      "userText": "Prompt #21",
+      "startedAt": "2026-11-15T17:42:41.9540832+00:00",
+      "endedAt": "2026-11-15T17:43:00.7002479+00:00",
+      "reply": "Reply #21.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 9685,
+        "outputTokens": 34,
+        "totalTokens": 9719
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "8db71ac72b3545ea896eccdb54491b53",
+      "status": 1,
+      "userText": "Prompt #22",
+      "startedAt": "2026-11-16T12:30:33.3512055+00:00",
+      "endedAt": "2026-11-16T12:30:47.3131426+00:00",
+      "reply": "Reply #22.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 7417,
+        "outputTokens": 26,
+        "totalTokens": 7443
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "3dc334baa16b425493339e2dec2b8477",
+      "status": 1,
+      "userText": "Prompt #23",
+      "startedAt": "2026-11-16T12:32:44.1435199+00:00",
+      "endedAt": "2026-11-16T12:32:52.2462006+00:00",
+      "reply": "Reply #23.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 8954,
+        "outputTokens": 206,
+        "totalTokens": 9160
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "638e5c825ef747f48c9c97783d56047e",
+      "status": 1,
+      "userText": "Prompt #24",
+      "startedAt": "2026-11-16T12:33:25.8265997+00:00",
+      "endedAt": "2026-11-16T12:33:32.2460417+00:00",
+      "reply": "Reply #24.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 20132,
+        "outputTokens": 99,
+        "totalTokens": 20231
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "5ea78a46",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFocus\",\"key\":\"owner/ino/files\",\"method\":\"Point\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}",
+          "code": "tool_error",
+          "error": "Scrubbed tool refusal."
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "aef4b07e1fb547e78c4180e40acd8f15",
+      "status": 1,
+      "userText": "Prompt #25",
+      "startedAt": "2026-11-16T12:37:01.6158502+00:00",
+      "endedAt": "2026-11-16T12:37:08.0240408+00:00",
+      "reply": "Reply #25.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 10120,
+        "outputTokens": 52,
+        "totalTokens": 10172
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "91ec174a605847b79cdaaf33d040c593",
+      "status": 1,
+      "userText": "Prompt #26",
+      "startedAt": "2026-11-17T09:46:08.8809501+00:00",
+      "endedAt": "2026-11-17T09:46:28.7464147+00:00",
+      "reply": "Reply #26.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 20476,
+        "outputTokens": 90,
+        "totalTokens": 20566
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "4572d941",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFocus\",\"key\":\"owner/ino/files\",\"method\":\"Point\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}",
+          "code": "tool_error",
+          "error": "Scrubbed tool refusal."
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "537ef2748c704c1e88226aa600eeddfe",
+      "status": 1,
+      "userText": "Prompt #27",
+      "startedAt": "2026-11-17T10:05:37.9097121+00:00",
+      "endedAt": "2026-11-17T10:05:45.9196733+00:00",
+      "reply": "Reply #27.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 21149,
+        "outputTokens": 99,
+        "totalTokens": 21248
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "2d9c98ba",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "b45d0f7656644502a0127df44cffa0ed",
+      "status": 1,
+      "userText": "Prompt #28",
+      "startedAt": "2026-11-17T10:08:49.5061277+00:00",
+      "endedAt": "2026-11-17T10:08:54.2538377+00:00",
+      "reply": "Reply #28.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 21534,
+        "outputTokens": 100,
+        "totalTokens": 21634
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "fab40f9a",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "e4959c1d3ef14beaaa5266b95ede29b3",
+      "status": 1,
+      "userText": "Prompt #29",
+      "startedAt": "2026-11-17T10:11:50.8649671+00:00",
+      "endedAt": "2026-11-17T10:11:55.4596454+00:00",
+      "reply": "Reply #29.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 21924,
+        "outputTokens": 104,
+        "totalTokens": 22028
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "80d32834",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "post/file/op-48bbb2f9f2d54b0a82ba0850d78532c0",
+      "status": 1,
+      "userText": "",
+      "startedAt": "2026-11-17T10:12:23.2081793+00:00",
+      "endedAt": "2026-11-17T10:12:23.2081793+00:00",
+      "reply": "Posted notice #30.",
+      "model": null,
+      "usage": null,
+      "error": null,
+      "toolCalls": [],
+      "posted": true,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "328f5b617a934a1ea2d110d73d3ecf46",
+      "status": 1,
+      "userText": "Prompt #31",
+      "startedAt": "2026-11-17T10:16:40.5066604+00:00",
+      "endedAt": "2026-11-17T10:16:44.9806622+00:00",
+      "reply": "Reply #31.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 22346,
+        "outputTokens": 104,
+        "totalTokens": 22450
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "ffc620e3",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "post/file/op-362104cd22244d4fa7aa90481a0dc150",
+      "status": 1,
+      "userText": "",
+      "startedAt": "2026-11-17T10:16:47.0564521+00:00",
+      "endedAt": "2026-11-17T10:16:47.0564521+00:00",
+      "reply": "Posted notice #32.",
+      "model": null,
+      "usage": null,
+      "error": null,
+      "toolCalls": [],
+      "posted": true,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "6a24048103c248329b839bf1970f8618",
+      "status": 1,
+      "userText": "Prompt #33",
+      "startedAt": "2026-11-17T10:19:00.6024078+00:00",
+      "endedAt": "2026-11-17T10:19:05.3013452+00:00",
+      "reply": "Reply #33.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 22767,
+        "outputTokens": 104,
+        "totalTokens": 22871
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "52e9eb9c",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "post/file/op-98806e6dbee74d269fe0503274b68f95",
+      "status": 1,
+      "userText": "",
+      "startedAt": "2026-11-17T10:19:34.7044893+00:00",
+      "endedAt": "2026-11-17T10:19:34.7044893+00:00",
+      "reply": "Posted notice #34.",
+      "model": null,
+      "usage": null,
+      "error": null,
+      "toolCalls": [],
+      "posted": true,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "f5c9f32145ca42e9a01231b82843a72f",
+      "status": 1,
+      "userText": "Prompt #35",
+      "startedAt": "2026-11-17T10:39:50.905043+00:00",
+      "endedAt": "2026-11-17T10:39:54.5524865+00:00",
+      "reply": "Reply #35.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 11514,
+        "outputTokens": 7,
+        "totalTokens": 11521
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "789823735fdd4edb94033203cd298a83",
+      "status": 1,
+      "userText": "Prompt #36",
+      "startedAt": "2026-11-17T10:39:59.8966172+00:00",
+      "endedAt": "2026-11-17T10:40:04.9283929+00:00",
+      "reply": "Reply #36.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 23234,
+        "outputTokens": 102,
+        "totalTokens": 23336
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "5a4341f0",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "post/file/op-408945aeae5e4a91af788bed5d8d413c",
+      "status": 1,
+      "userText": "",
+      "startedAt": "2026-11-17T10:40:05.5902422+00:00",
+      "endedAt": "2026-11-17T10:40:05.5902422+00:00",
+      "reply": "Posted notice #37.",
+      "model": null,
+      "usage": null,
+      "error": null,
+      "toolCalls": [],
+      "posted": true,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "1cdcc373c6ac4d499930db4a24885054",
+      "status": 1,
+      "userText": "Prompt #38",
+      "startedAt": "2026-11-17T10:46:44.9988644+00:00",
+      "endedAt": "2026-11-17T10:46:49.8162352+00:00",
+      "reply": "Reply #38.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 23811,
+        "outputTokens": 69,
+        "totalTokens": 23880
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "886d26f7",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Find\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "728afb148e0a4337b7edfbeb929dbda5",
+      "status": 1,
+      "userText": "Prompt #39",
+      "startedAt": "2026-11-17T10:50:55.3607632+00:00",
+      "endedAt": "2026-11-17T10:51:00.3585661+00:00",
+      "reply": "Reply #39.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 24108,
+        "outputTokens": 84,
+        "totalTokens": 24192
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "a4e59e75",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Microsoft.Aspire.IAspire\",\"key\":\"owner/ino/files\",\"method\":\"GetResourcesAsync\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}",
+          "code": "tool_error",
+          "error": "Scrubbed tool refusal."
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "4a8bbfe7114b49438e641ac42b9d8d87",
+      "status": 1,
+      "userText": "Prompt #40",
+      "startedAt": "2026-11-17T10:52:11.4670394+00:00",
+      "endedAt": "2026-11-17T10:52:15.5675336+00:00",
+      "reply": "Reply #40.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 24578,
+        "outputTokens": 80,
+        "totalTokens": 24658
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "5130aa46",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Microsoft.Aspire.IAspire\",\"key\":\"owner/ino/files\",\"method\":\"GetResourcesAsync\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "63e523d0c0994d3787ebe3f8dfa8ef30",
+      "status": 1,
+      "userText": "Prompt #41",
+      "startedAt": "2026-11-17T11:15:15.9837401+00:00",
+      "endedAt": "2026-11-17T11:15:21.6608897+00:00",
+      "reply": "Reply #41.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 25042,
+        "outputTokens": 104,
+        "totalTokens": 25146
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "9c655ea6",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"summary\":\"Scrubbed tool output.\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "post/file/op-307db9d973c64482b873273b29c13c2f",
+      "status": 1,
+      "userText": "",
+      "startedAt": "2026-11-17T11:15:29.6458835+00:00",
+      "endedAt": "2026-11-17T11:15:29.6458835+00:00",
+      "reply": "Posted notice #42.",
+      "model": null,
+      "usage": null,
+      "error": null,
+      "toolCalls": [],
+      "posted": true,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "3f8c084d079e4fe38afef8dc8a004bc7",
+      "status": 1,
+      "userText": "Prompt #43",
+      "startedAt": "2026-11-17T14:41:02.0643638+00:00",
+      "endedAt": "2026-11-17T14:41:19.8176145+00:00",
+      "reply": "Reply #43.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 12650,
+        "outputTokens": 8,
+        "totalTokens": 12658
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "2f0dc81d8dc44dbabeab98b97a53a7c0",
+      "status": 1,
+      "userText": "Prompt #44",
+      "startedAt": "2026-11-17T14:41:19.9311527+00:00",
+      "endedAt": "2026-11-17T14:41:22.4241903+00:00",
+      "reply": "Reply #44.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 12678,
+        "outputTokens": 8,
+        "totalTokens": 12686
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "34baa401e53b487bbe78a3a39a6f5cf1",
+      "status": 1,
+      "userText": "Prompt #45",
+      "startedAt": "2026-11-17T14:42:45.4840454+00:00",
+      "endedAt": "2026-11-17T14:42:48.2612208+00:00",
+      "reply": "Reply #45.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 12706,
+        "outputTokens": 8,
+        "totalTokens": 12714
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "b5409dbbb690478297d1bab654e68be7",
+      "status": 1,
+      "userText": "Prompt #46",
+      "startedAt": "2026-11-17T14:42:48.3589347+00:00",
+      "endedAt": "2026-11-17T14:42:50.7764749+00:00",
+      "reply": "Reply #46.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 12734,
+        "outputTokens": 8,
+        "totalTokens": 12742
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "e2cca7445d8f4b809226414013969da7",
+      "status": 1,
+      "userText": "Prompt #47",
+      "startedAt": "2026-11-18T09:25:22.4887894+00:00",
+      "endedAt": "2026-11-18T09:25:40.4926499+00:00",
+      "reply": "Reply #47.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 13046,
+        "outputTokens": 45,
+        "totalTokens": 13091
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "7ade3ca636ee44eba4ba597f3316593b",
+      "status": 1,
+      "userText": "Prompt #48",
+      "startedAt": "2026-11-18T09:39:08.5579979+00:00",
+      "endedAt": "2026-11-18T09:39:15.286869+00:00",
+      "reply": "Reply #48.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 10821,
+        "outputTokens": 69,
+        "totalTokens": 10890
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "7a92ed559fb04e2e937dc15e6f048ebe",
+      "status": 1,
+      "userText": "Prompt #49",
+      "startedAt": "2026-11-19T00:48:12.1121504+00:00",
+      "endedAt": "2026-11-19T00:48:28.2890134+00:00",
+      "reply": "Reply #49.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 13164,
+        "outputTokens": 2,
+        "totalTokens": 13166
+      },
+      "error": null,
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "30a0a0f868be417589f4bb43afb55dae",
+      "status": 1,
+      "userText": "Prompt #50",
+      "startedAt": "2026-11-19T00:48:56.9355345+00:00",
+      "endedAt": "2026-11-19T00:49:01.881069+00:00",
+      "reply": "Reply #50.",
+      "model": {
+        "provider": 4,
+        "model": "qwen2.5-coder:14b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "124d5bc83807978a6ded4eabbb61b3f79ba0a3b819375b1035c2614be55849ee",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 26543,
+        "outputTokens": 84,
+        "totalTokens": 26627
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "9c58cc0f",
+          "name": "neurons_call",
+          "arguments": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFocus\",\"key\":\"owner/ino/files\",\"method\":\"Point\",\"arguments\":\"[\\\"sample.txt\\\"]\"}",
+          "result": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}",
+          "code": "tool_error",
+          "error": "Scrubbed tool refusal."
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    }
+  ],
+  "version": 266,
+  "blocked": false
+}

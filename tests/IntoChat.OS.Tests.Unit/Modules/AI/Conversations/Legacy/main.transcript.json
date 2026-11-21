@@ -1,0 +1,876 @@
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #1"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #2"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #3"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #4"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #5"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #6"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #7"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #8"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #9"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #10"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #11"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #12"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #13"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "5ea78a46",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFocus\",\"key\":\"owner/ino/files\",\"method\":\"Point\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #14"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "5ea78a46",
+        "resultJson": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #16"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #17"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #18"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #19"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "4572d941",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFocus\",\"key\":\"owner/ino/files\",\"method\":\"Point\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #20"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "4572d941",
+        "resultJson": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #22"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #23"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "2d9c98ba",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #24"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "2d9c98ba",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #26"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #27"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "fab40f9a",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #28"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "fab40f9a",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #30"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #31"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "80d32834",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #32"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "80d32834",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #34"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #35"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #36"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "ffc620e3",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #37"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "ffc620e3",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #39"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #40"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #41"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "52e9eb9c",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #42"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "52e9eb9c",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #44"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #45"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #46"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #47"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #48"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "5a4341f0",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #49"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "5a4341f0",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #51"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #52"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #53"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "886d26f7",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Find\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #54"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "886d26f7",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #56"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #57"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "a4e59e75",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Microsoft.Aspire.IAspire\",\"key\":\"owner/ino/files\",\"method\":\"GetResourcesAsync\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #58"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "a4e59e75",
+        "resultJson": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #60"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #61"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "5130aa46",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Microsoft.Aspire.IAspire\",\"key\":\"owner/ino/files\",\"method\":\"GetResourcesAsync\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #62"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "5130aa46",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #64"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #65"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "9c655ea6",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFiles\",\"key\":\"owner/ino/files\",\"method\":\"Write\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #66"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "9c655ea6",
+        "resultJson": "{\"summary\":\"Scrubbed tool output.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #68"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #69"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #70"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #71"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #72"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #73"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #74"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #75"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #76"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #77"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #78"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #79"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #80"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #81"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #82"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #83"
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript user message #84"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "tool-call",
+        "callId": "9c58cc0f",
+        "name": "neurons_call",
+        "argumentsJson": "{\"contract\":\"IntoChat.OS.Modules.Apps.IInoFocus\",\"key\":\"owner/ino/files\",\"method\":\"Point\",\"arguments\":\"[\\\"sample.txt\\\"]\"}"
+      },
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #85"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "$content": "tool-result",
+        "callId": "9c58cc0f",
+        "resultJson": "{\"isError\":true,\"code\":\"tool_error\",\"message\":\"Scrubbed tool refusal.\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "$content": "text",
+        "text": "Transcript assistant message #87"
+      }
+    ]
+  }
+]

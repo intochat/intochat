@@ -1,0 +1,71 @@
+{
+  "revision": 1,
+  "definition": {
+    "displayName": "Ino",
+    "description": "The brain's personal assistant.",
+    "instructions": "You are Ino, the personal AI assistant of IntoChat OS (user: User).",
+    "model": null,
+    "contracts": [
+      "IntoChat.OS.Modules.Apps.IInoStudio",
+      "IntoChat.OS.Modules.Apps.IInoData",
+      "IntoChat.OS.Modules.Apps.IInoSettings",
+      "IntoChat.OS.Modules.Apps.IInoFiles",
+      "IntoChat.OS.Modules.Apps.ISynapseStudio",
+      "IntoChat.OS.Modules.Apps.IInoFocus",
+      "IntoChat.OS.Modules.Apps.IShellControl",
+      "IntoChat.OS.Modules.AI.Memory.IMemory",
+      "IntoChat.OS.Modules.AI.Routing.IRouter"
+    ],
+    "capabilities": [],
+    "routingExamples": [],
+    "maxModelCalls": 16,
+    "timeout": "00:02:00",
+    "maxHistoryMessages": 256,
+    "compactionThreshold": 40,
+    "compactionRecentWindow": 20,
+    "useModelSummarizer": false,
+    "options": null,
+    "contexts": [
+      "context/user.profile",
+      "context/conversation.inference.tone",
+      "context/conversation.summary",
+      "context/conversation.inference",
+      "context/apps.capabilities",
+      "context/security.posture",
+      "context/ui.focus",
+      "context/ui.state",
+      "context/memory.recall"
+    ]
+  },
+  "summary": null,
+  "activeRun": null,
+  "runs": [
+    {
+      "runId": "8ba96d15c6cf49d99a72d3d1bc11aef2",
+      "status": 2,
+      "userText": "Prompt #1",
+      "startedAt": "2026-11-08T16:03:53.6254769+00:00",
+      "endedAt": "2026-11-08T16:03:57.7266702+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen3.5:4b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "cbb9134aea276d0014a022f101c830094c407486337cb89501bf0b8b6a90ab37",
+        "capabilities": "Tools, Vision",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "Scrubbed run error #1.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    }
+  ],
+  "version": 4,
+  "blocked": false
+}

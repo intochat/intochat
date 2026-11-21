@@ -1,0 +1,150 @@
+{
+  "revision": 4,
+  "definition": {
+    "displayName": "Ino",
+    "description": "The brain's personal assistant.",
+    "instructions": "You are Ino, the personal AI assistant of IntoChat OS (user: User).",
+    "model": {
+      "model": "qwen3.5:4b",
+      "reasoning": null,
+      "maxOutputTokens": null
+    },
+    "contracts": [
+      "IntoChat.OS.Modules.Apps.IFiles",
+      "IntoChat.OS.Modules.Apps.IFocus"
+    ],
+    "capabilities": [],
+    "routingExamples": [],
+    "maxModelCalls": 16,
+    "timeout": "00:02:00",
+    "maxHistoryMessages": 256,
+    "compactionThreshold": 40,
+    "compactionRecentWindow": 20,
+    "useModelSummarizer": false,
+    "options": null,
+    "contexts": [
+      "context/user.profile",
+      "context/conversation.summary",
+      "context/security.posture"
+    ]
+  },
+  "summary": "Earlier turns covered setup and initial queries.",
+  "activeRun": null,
+  "runs": [
+    {
+      "runId": "11111111111111111111111111111111",
+      "status": 1,
+      "userText": "Read the long report",
+      "startedAt": "2026-11-18T10:00:00+00:00",
+      "endedAt": "2026-11-18T10:00:05+00:00",
+      "reply": "Here is the summary of the report.",
+      "model": {
+        "provider": 4,
+        "model": "qwen3.5:4b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "rev1",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": {
+        "inputTokens": 120,
+        "outputTokens": 45,
+        "totalTokens": 165
+      },
+      "error": null,
+      "toolCalls": [
+        {
+          "callId": "call-trunc-1",
+          "name": "files_open",
+          "arguments": "{\"path\":\"report.txt\"}",
+          "result": "{\"truncated\":true,\"characters\":9000,\"preview\":\"Large report preview...\"}",
+          "code": null,
+          "error": null
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": "trace-edge-1",
+      "failure": 0
+    },
+    {
+      "runId": "post/link-0123456789abcdef0123456789abcdef",
+      "status": 1,
+      "userText": "",
+      "startedAt": "2026-11-18T10:01:00+00:00",
+      "endedAt": "2026-11-18T10:01:00+00:00",
+      "reply": "Pasted workspace link.",
+      "model": null,
+      "usage": null,
+      "error": null,
+      "toolCalls": [],
+      "posted": true,
+      "flowId": null,
+      "traceId": null,
+      "failure": 0
+    },
+    {
+      "runId": "22222222222222222222222222222222",
+      "status": 2,
+      "userText": "Check status again",
+      "startedAt": "2026-11-18T10:02:00+00:00",
+      "endedAt": "2026-11-18T10:02:02+00:00",
+      "reply": null,
+      "model": {
+        "provider": 4,
+        "model": "qwen3.5:4b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "rev1",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "The provider is temporarily unavailable.",
+      "toolCalls": [],
+      "posted": false,
+      "flowId": null,
+      "traceId": "trace-edge-2",
+      "failure": 3
+    },
+    {
+      "runId": "33333333333333333333333333333333",
+      "status": 3,
+      "userText": "Search all files",
+      "startedAt": "2026-11-18T10:03:00+00:00",
+      "endedAt": "2026-11-18T10:03:04+00:00",
+      "reply": "Starting the search...",
+      "model": {
+        "provider": 4,
+        "model": "qwen3.5:4b",
+        "endpoint": "http://localhost:11434/",
+        "profile": null,
+        "revision": "rev1",
+        "capabilities": "Tools",
+        "reasoning": null,
+        "maxOutputTokens": null
+      },
+      "usage": null,
+      "error": "The run was interrupted.",
+      "toolCalls": [
+        {
+          "callId": "call-cancel-1",
+          "name": "files_find",
+          "arguments": "{\"query\":\"report\"}",
+          "result": null,
+          "code": "tool_cancelled",
+          "error": "Execution ended before the tool call completed."
+        }
+      ],
+      "posted": false,
+      "flowId": null,
+      "traceId": "trace-edge-3",
+      "failure": 0
+    }
+  ],
+  "version": 12,
+  "blocked": true
+}
