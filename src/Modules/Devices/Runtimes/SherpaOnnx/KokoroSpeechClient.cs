@@ -5,18 +5,18 @@ using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.Devices.Runtimes.SherpaOnnx;
 
+// Lightweight non-owning handle returned per Speak() call; SherpaOnnxRuntime owns the underlying
+// ISherpaTts engine so disposing a wrapped OpenTelemetryTextToSpeechClient after one request
+// never destroys the shared native TTS instance.
 internal sealed class KokoroSpeechClient : ITextToSpeechClient
 {
-    private readonly Func<ISherpaTts> _factory;
-    private readonly Lock _gate = new();
+    private readonly Func<ISherpaTts> _resolveTts;
     private readonly TextToSpeechClientMetadata _metadata = new("sherpa-onnx", defaultModelId: KnownModels.Kokoro82M.Id.Value);
-    private ISherpaTts? _tts;
-    private bool _disposed;
 
-    public KokoroSpeechClient(Func<ISherpaTts> factory)
+    public KokoroSpeechClient(Func<ISherpaTts> resolveTts)
     {
-        ArgumentNullException.ThrowIfNull(factory);
-        _factory = factory;
+        ArgumentNullException.ThrowIfNull(resolveTts);
+        _resolveTts = resolveTts;
     }
 
     public async Task<TextToSpeechResponse> GetAudioAsync(
@@ -29,7 +29,7 @@ internal sealed class KokoroSpeechClient : ITextToSpeechClient
 
         var speakerId = SherpaModels.ResolveSpeakerId(options?.VoiceId);
         var speed = ResolveSpeed(options?.Speed);
-        var tts = EnsureTts();
+        var tts = _resolveTts();
         var samples = await Task.Run(() => tts.Synthesize(text, speed, speakerId, cancellationToken), cancellationToken)
             .ConfigureAwait(false);
         var pcm = FloatToPcm16(samples);
@@ -51,7 +51,7 @@ internal sealed class KokoroSpeechClient : ITextToSpeechClient
 
         var speakerId = SherpaModels.ResolveSpeakerId(options?.VoiceId);
         var speed = ResolveSpeed(options?.Speed);
-        var tts = EnsureTts();
+        var tts = _resolveTts();
         var sampleRate = tts.SampleRate > 0 ? tts.SampleRate : SherpaModels.KokoroSampleRate;
 
         foreach (var sentence in SplitSentences(text))
@@ -84,32 +84,7 @@ internal sealed class KokoroSpeechClient : ITextToSpeechClient
         return serviceType.IsInstanceOfType(this) ? this : null;
     }
 
-    public void Dispose()
-    {
-        ISherpaTts? instance;
-        lock (_gate)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            instance = _tts;
-            _tts = null;
-        }
-
-        instance?.Dispose();
-    }
-
-    private ISherpaTts EnsureTts()
-    {
-        lock (_gate)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            return _tts ??= _factory();
-        }
-    }
+    public void Dispose() { }
 
     private static float ResolveSpeed(float? speed)
         => speed is > 0f ? Math.Clamp(speed.Value, 0.5f, 2.0f) : 1.0f;

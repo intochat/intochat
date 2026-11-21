@@ -146,6 +146,110 @@ public sealed class SherpaOnnxRuntimeFacts : IDisposable
         Assert.True(File.Exists(unrelated));
     }
 
+    [Fact]
+    public async Task DisposingFirstWrappedSpeakClientDoesNotBreakNextCall()
+    {
+        var (runtime, _, api) = CreateRuntime();
+        await foreach (var _ in runtime.Install(KnownModels.Kokoro82M.Id, Ct)) { }
+
+        using (var first = runtime.Speak(KnownModels.Kokoro82M.Id)!
+            .AsBuilder()
+            .UseOpenTelemetry(sourceName: "test.sherpa")
+            .Build())
+        {
+            var r1 = await first.GetAudioAsync("First.", null, Ct);
+            Assert.Single(r1.Contents.OfType<DataContent>());
+        }
+
+        Assert.Equal(1, api.CreateTtsCount);
+        Assert.Equal(0, api.DisposeTtsCount);
+
+        using (var second = runtime.Speak(KnownModels.Kokoro82M.Id)!
+            .AsBuilder()
+            .UseOpenTelemetry(sourceName: "test.sherpa")
+            .Build())
+        {
+            var r2 = await second.GetAudioAsync("Second.", null, Ct);
+            var audio = Assert.Single(r2.Contents.OfType<DataContent>());
+            Assert.Equal("audio/pcm;rate=24000", audio.MediaType);
+            Assert.Equal(api.Samples * 2, audio.Data.Length);
+        }
+
+        Assert.Equal(1, api.CreateTtsCount);
+        Assert.Equal(0, api.DisposeTtsCount);
+
+        runtime.Dispose();
+        Assert.Equal(1, api.DisposeTtsCount);
+    }
+
+    [Fact]
+    public async Task InstallStreamsProgressWhileArchiveIsStillDownloading()
+    {
+        var modelDir = Path.Combine(_tempRoot, "models-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(modelDir);
+
+        var (archiveBytes, archiveSha) = BuildTinyKokoroArchive();
+        var vadBytes = "fake-silero-vad-onnx"u8.ToArray();
+        var vadSha = Convert.ToHexStringLower(SHA256.HashData(vadBytes));
+
+        var assets = new SherpaModelAssets(
+            new Uri("https://example.test/kokoro-multi-lang-v1_0.tar.bz2"),
+            archiveBytes.Length,
+            archiveSha,
+            new Uri("https://example.test/silero_vad_v5.onnx"),
+            vadBytes.Length,
+            vadSha);
+
+        var split = archiveBytes.Length / 2;
+        Assert.True(split > 0);
+        var releaseSecondHalf = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new GatedHttpHandler(assets.KokoroArchiveUrl, archiveBytes, split, releaseSecondHalf.Task, assets.VadUrl, vadBytes);
+
+        var options = new DevicesOptions
+        {
+            SherpaOnnx = new SherpaOnnxRuntimeOptions
+            {
+                Enabled = true,
+                ModelDirectory = modelDir,
+            },
+        };
+
+        using var runtime = new SherpaOnnxRuntime(
+            options,
+            new FakeSherpaApi(),
+            new StubHttpClientFactory(handler),
+            TimeProvider.System,
+            NullLogger<SherpaOnnxRuntime>.Instance,
+            assets);
+
+        await using var enumerator = runtime.Install(KnownModels.Kokoro82M.Id, Ct).GetAsyncEnumerator(Ct);
+
+        var sawMidDownload = false;
+        while (await enumerator.MoveNextAsync())
+        {
+            var p = enumerator.Current;
+            if (p.State == InstallState.Downloading && p.Bytes > 0)
+            {
+                Assert.True(p.Bytes < archiveBytes.Length, $"Expected mid-download progress (< {archiveBytes.Length}), got {p.Bytes}.");
+                sawMidDownload = true;
+                releaseSecondHalf.TrySetResult();
+                break;
+            }
+        }
+
+        Assert.True(sawMidDownload);
+
+        InstallProgress? last = null;
+        while (await enumerator.MoveNextAsync())
+        {
+            last = enumerator.Current;
+        }
+
+        Assert.NotNull(last);
+        Assert.Equal(InstallState.Ready, last!.State);
+        Assert.True(runtime.Ready);
+    }
+
     private (SherpaOnnxRuntime Runtime, string ModelDir, FakeSherpaApi Api) CreateRuntime(bool tamperArchive = false)
     {
         var modelDir = Path.Combine(_tempRoot, "models-" + Guid.NewGuid().ToString("N"));
@@ -260,22 +364,95 @@ public sealed class SherpaOnnxRuntimeFacts : IDisposable
         }
     }
 
+    private sealed class GatedHttpHandler(
+        Uri gatedUrl,
+        byte[] gatedPayload,
+        int splitAt,
+        Task releaseGate,
+        Uri otherUrl,
+        byte[] otherPayload) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.RequestUri == gatedUrl)
+            {
+                var content = new StreamContent(new TwoPartGatedStream(gatedPayload, splitAt, releaseGate));
+                content.Headers.ContentLength = gatedPayload.Length;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            }
+
+            if (request.RequestUri == otherUrl)
+            {
+                var content = new ByteArrayContent(otherPayload);
+                content.Headers.ContentLength = otherPayload.Length;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+
+        private sealed class TwoPartGatedStream(byte[] payload, int splitAt, Task releaseGate) : Stream
+        {
+            private int _position;
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => payload.Length;
+            public override long Position { get => _position; set => throw new NotSupportedException(); }
+
+            public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                if (_position >= payload.Length)
+                {
+                    return 0;
+                }
+
+                if (_position == splitAt)
+                {
+                    await releaseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                var end = _position < splitAt ? splitAt : payload.Length;
+                var count = Math.Min(buffer.Length, end - _position);
+                payload.AsSpan(_position, count).CopyTo(buffer.Span);
+                _position += count;
+                return count;
+            }
+
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+    }
+
     private sealed class FakeSherpaApi : ISherpaApi
     {
         public int Samples { get; } = 480;
         public int LastSpeakerId { get; private set; } = -1;
         public float LastSpeed { get; private set; }
+        public int CreateTtsCount { get; private set; }
+        public int DisposeTtsCount { get; private set; }
 
-        public ISherpaTts CreateTts(string modelDirectory) => new FakeTts(this);
+        public ISherpaTts CreateTts(string modelDirectory)
+        {
+            CreateTtsCount++;
+            return new FakeTts(this);
+        }
 
         public ISherpaVad CreateVad(string modelPath, int sampleRate) => new FakeVad(sampleRate);
 
         private sealed class FakeTts(FakeSherpaApi owner) : ISherpaTts
         {
+            private bool _disposed;
+
             public int SampleRate => SherpaModels.KokoroSampleRate;
 
             public float[] Synthesize(string text, float speed, int speakerId, CancellationToken ct)
             {
+                ObjectDisposedException.ThrowIf(_disposed, this);
                 ct.ThrowIfCancellationRequested();
                 owner.LastSpeakerId = speakerId;
                 owner.LastSpeed = speed;
@@ -288,7 +465,14 @@ public sealed class SherpaOnnxRuntimeFacts : IDisposable
                 return data;
             }
 
-            public void Dispose() { }
+            public void Dispose()
+            {
+                if (!_disposed)
+                {
+                    _disposed = true;
+                    owner.DisposeTtsCount++;
+                }
+            }
         }
 
         private sealed class FakeVad(int sampleRate) : ISherpaVad

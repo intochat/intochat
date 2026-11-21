@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Threading.Channels;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices.Voice;
 using Microsoft.Extensions.AI;
@@ -20,7 +21,7 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
     private readonly ILogger<SherpaOnnxRuntime> _logger;
     private readonly SherpaModelAssets _assets;
     private readonly Lock _gate = new();
-    private KokoroSpeechClient? _speakClient;
+    private ISherpaTts? _tts;
     private bool _disposed;
 
     public SherpaOnnxRuntime(
@@ -130,172 +131,138 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
         var vadTempFile = Path.Combine(stagingDir, SherpaModels.VadFileName);
         Directory.CreateDirectory(extractDir);
 
-        string? failure = null;
-        long downloadedTotal = 0;
-
-        try
+        var channel = Channel.CreateUnbounded<InstallProgress>();
+        var installTask = Task.Run(async () =>
         {
-            yield return new InstallProgress(id, InstallState.Downloading, 0, 0, totalBytes);
-
-            using var client = _http.CreateClient(HttpClientName);
-
-            // Download Kokoro archive
-            var kokoroChannel = new List<InstallProgress>();
+            long downloadedTotal = 0;
             try
             {
+                channel.Writer.TryWrite(new InstallProgress(id, InstallState.Downloading, 0, 0, totalBytes));
+
+                using var client = _http.CreateClient(HttpClientName);
+
                 downloadedTotal = await DownloadFileAsync(
                     client,
                     _assets.KokoroArchiveUrl,
                     archiveFile,
                     baseBytes: 0,
                     totalBytes,
-                    bytes => kokoroChannel.Add(ProgressOf(id, InstallState.Downloading, bytes, totalBytes)),
+                    bytes => channel.Writer.TryWrite(ProgressOf(id, InstallState.Downloading, bytes, totalBytes)),
                     ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception error)
-            {
-                _logger.LogWarning(error, "Failed downloading Kokoro model archive from {Url}.", _assets.KokoroArchiveUrl);
-                failure = $"Download failed: {error.Message}";
-            }
 
-            foreach (var p in kokoroChannel)
-            {
-                yield return p;
-            }
-
-            if (failure is not null)
-            {
-                yield return new InstallProgress(id, InstallState.Failed, 0, downloadedTotal, totalBytes, failure);
-                yield break;
-            }
-
-            // Download Silero VAD file
-            var vadChannel = new List<InstallProgress>();
-            try
-            {
                 downloadedTotal = await DownloadFileAsync(
                     client,
                     _assets.VadUrl,
                     vadTempFile,
                     baseBytes: downloadedTotal,
                     totalBytes,
-                    bytes => vadChannel.Add(ProgressOf(id, InstallState.Downloading, bytes, totalBytes)),
+                    bytes => channel.Writer.TryWrite(ProgressOf(id, InstallState.Downloading, bytes, totalBytes)),
                     ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception error)
-            {
-                _logger.LogWarning(error, "Failed downloading Silero VAD model from {Url}.", _assets.VadUrl);
-                failure = $"Download failed: {error.Message}";
-            }
 
-            foreach (var p in vadChannel)
-            {
-                yield return p;
-            }
+                channel.Writer.TryWrite(new InstallProgress(id, InstallState.Verifying, 99, downloadedTotal, totalBytes));
 
-            if (failure is not null)
-            {
-                yield return new InstallProgress(id, InstallState.Failed, 0, downloadedTotal, totalBytes, failure);
-                yield break;
-            }
+                var actualArchiveSha = await ComputeSha256Async(archiveFile, ct).ConfigureAwait(false);
+                if (!string.Equals(actualArchiveSha, _assets.KokoroArchiveSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    channel.Writer.TryWrite(new InstallProgress(
+                        id,
+                        InstallState.Failed,
+                        0,
+                        downloadedTotal,
+                        totalBytes,
+                        $"Kokoro archive checksum mismatch (expected {_assets.KokoroArchiveSha256}, got {actualArchiveSha})."));
+                    return;
+                }
 
-            // Verify SHA-256 checksums before extracting or touching target paths
-            yield return new InstallProgress(id, InstallState.Verifying, 99, downloadedTotal, totalBytes);
+                var actualVadSha = await ComputeSha256Async(vadTempFile, ct).ConfigureAwait(false);
+                if (!string.Equals(actualVadSha, _assets.VadSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    channel.Writer.TryWrite(new InstallProgress(
+                        id,
+                        InstallState.Failed,
+                        0,
+                        downloadedTotal,
+                        totalBytes,
+                        $"Silero VAD checksum mismatch (expected {_assets.VadSha256}, got {actualVadSha})."));
+                    return;
+                }
 
-            var actualArchiveSha = await ComputeSha256Async(archiveFile, ct).ConfigureAwait(false);
-            if (!string.Equals(actualArchiveSha, _assets.KokoroArchiveSha256, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return new InstallProgress(
-                    id,
-                    InstallState.Failed,
-                    0,
-                    downloadedTotal,
-                    totalBytes,
-                    $"Kokoro archive checksum mismatch (expected {_assets.KokoroArchiveSha256}, got {actualArchiveSha}).");
-                yield break;
-            }
-
-            var actualVadSha = await ComputeSha256Async(vadTempFile, ct).ConfigureAwait(false);
-            if (!string.Equals(actualVadSha, _assets.VadSha256, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return new InstallProgress(
-                    id,
-                    InstallState.Failed,
-                    0,
-                    downloadedTotal,
-                    totalBytes,
-                    $"Silero VAD checksum mismatch (expected {_assets.VadSha256}, got {actualVadSha}).");
-                yield break;
-            }
-
-            // Extract Kokoro archive into temp folder and move into place atomically
-            try
-            {
                 await ExtractTarBz2Async(archiveFile, extractDir, ct).ConfigureAwait(false);
                 var extractedKokoro = Path.Combine(extractDir, SherpaModels.KokoroDirectoryName);
                 var extractedModel = Path.Combine(extractedKokoro, SherpaModels.KokoroModelFileName);
                 if (!File.Exists(extractedModel))
                 {
-                    failure = $"Extracted Kokoro archive did not contain {SherpaModels.KokoroDirectoryName}/{SherpaModels.KokoroModelFileName}.";
+                    channel.Writer.TryWrite(new InstallProgress(
+                        id,
+                        InstallState.Failed,
+                        0,
+                        downloadedTotal,
+                        totalBytes,
+                        $"Extracted Kokoro archive did not contain {SherpaModels.KokoroDirectoryName}/{SherpaModels.KokoroModelFileName}."));
+                    return;
                 }
-                else
+
+                ResetTts();
+                var targetKokoro = KokoroDirectory;
+                var backupKokoro = targetKokoro + ".old-" + _clock.GetUtcNow().ToUnixTimeMilliseconds();
+                if (Directory.Exists(targetKokoro))
                 {
-                    ResetSpeakClient();
-                    var targetKokoro = KokoroDirectory;
-                    var backupKokoro = targetKokoro + ".old-" + _clock.GetUtcNow().ToUnixTimeMilliseconds();
-                    if (Directory.Exists(targetKokoro))
-                    {
-                        Directory.Move(targetKokoro, backupKokoro);
-                    }
-
-                    try
-                    {
-                        Directory.Move(extractedKokoro, targetKokoro);
-                        File.Move(vadTempFile, VadModelFile, overwrite: true);
-                    }
-                    catch
-                    {
-                        if (!Directory.Exists(targetKokoro) && Directory.Exists(backupKokoro))
-                        {
-                            Directory.Move(backupKokoro, targetKokoro);
-                        }
-
-                        throw;
-                    }
-
-                    TryDeleteDirectory(backupKokoro);
+                    Directory.Move(targetKokoro, backupKokoro);
                 }
+
+                try
+                {
+                    Directory.Move(extractedKokoro, targetKokoro);
+                    File.Move(vadTempFile, VadModelFile, overwrite: true);
+                }
+                catch
+                {
+                    if (!Directory.Exists(targetKokoro) && Directory.Exists(backupKokoro))
+                    {
+                        Directory.Move(backupKokoro, targetKokoro);
+                    }
+
+                    throw;
+                }
+
+                TryDeleteDirectory(backupKokoro);
+                channel.Writer.TryWrite(new InstallProgress(id, InstallState.Ready, 100, totalBytes, totalBytes));
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                throw;
+                // Propagated after reader loop finishes; staging cleaned in finally.
             }
             catch (Exception error)
             {
-                _logger.LogWarning(error, "Failed extracting Kokoro model archive.");
-                failure = $"Extract failed: {error.Message}";
+                _logger.LogWarning(error, "Failed installing Kokoro 82M for sherpa-onnx.");
+                channel.Writer.TryWrite(new InstallProgress(
+                    id,
+                    InstallState.Failed,
+                    0,
+                    downloadedTotal,
+                    totalBytes,
+                    $"Install failed: {error.Message}"));
             }
-
-            if (failure is not null)
+            finally
             {
-                yield return new InstallProgress(id, InstallState.Failed, 0, downloadedTotal, totalBytes, failure);
-                yield break;
+                TryDeleteDirectory(stagingDir);
+                channel.Writer.TryComplete();
             }
+        }, CancellationToken.None);
 
-            yield return new InstallProgress(id, InstallState.Ready, 100, totalBytes, totalBytes);
+        try
+        {
+            await foreach (var progress in channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                yield return progress;
+            }
         }
         finally
         {
-            TryDeleteDirectory(stagingDir);
+            await installTask.ConfigureAwait(false);
         }
+
+        ct.ThrowIfCancellationRequested();
     }
 
     public Task Remove(ModelId id, CancellationToken ct)
@@ -306,7 +273,7 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
             return Task.CompletedTask;
         }
 
-        ResetSpeakClient();
+        ResetTts();
         TryDeleteDirectory(KokoroDirectory);
         TryDeleteFile(VadModelFile);
         return Task.CompletedTask;
@@ -325,8 +292,9 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return _speakClient ??= new KokoroSpeechClient(() => _api.CreateTts(KokoroDirectory));
         }
+
+        return new KokoroSpeechClient(GetOrCreateTts);
     }
 
     public IVoiceActivity Open(int sampleRate = 16_000)
@@ -351,19 +319,33 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
             _disposed = true;
         }
 
-        ResetSpeakClient();
+        ResetTts();
     }
 
     private bool IsInstalled()
         => File.Exists(KokoroModelFile) && File.Exists(VadModelFile);
 
-    private void ResetSpeakClient()
+    private ISherpaTts GetOrCreateTts()
     {
-        KokoroSpeechClient? existing;
         lock (_gate)
         {
-            existing = _speakClient;
-            _speakClient = null;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!IsInstalled())
+            {
+                throw new InvalidOperationException("Kokoro 82M is not installed.");
+            }
+
+            return _tts ??= _api.CreateTts(KokoroDirectory);
+        }
+    }
+
+    private void ResetTts()
+    {
+        ISherpaTts? existing;
+        lock (_gate)
+        {
+            existing = _tts;
+            _tts = null;
         }
 
         existing?.Dispose();
@@ -391,6 +373,7 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
         await using var target = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, 81_920, useAsync: true);
 
         var buffer = new byte[81_920];
+        var reportStride = Math.Min(1_048_576L, Math.Max(1L, totalBytes / 10));
         long written = 0;
         long lastReported = 0;
         while (true)
@@ -403,7 +386,7 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
 
             await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             written += read;
-            if (written - lastReported >= 1_048_576 || written == totalBytes)
+            if (written - lastReported >= reportStride || baseBytes + written == totalBytes)
             {
                 lastReported = written;
                 report(baseBytes + written);
@@ -411,7 +394,11 @@ internal sealed class SherpaOnnxRuntime : ILocalRuntime, IVoiceActivityDetector,
         }
 
         var finalTotal = baseBytes + written;
-        report(finalTotal);
+        if (written > lastReported)
+        {
+            report(finalTotal);
+        }
+
         return finalTotal;
     }
 
