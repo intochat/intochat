@@ -3,6 +3,8 @@ using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Modules.Devices.Link;
 using IntoChat.OS.Modules.Devices.Runtimes.FoundryLocal;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -59,7 +61,24 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
 
         DigitalBrain.Invocation.RuntimeProtocol.Register(DevicesJson.Default);
         DigitalBrain.Invocation.RuntimeProtocol.Register(DeviceEnrollmentJson.Default);
+        DigitalBrain.Invocation.RuntimeProtocol.Register(DeviceWireJson.Default);
+        DigitalBrain.Invocation.RuntimeProtocol.Register(DeviceLinkJson.Default);
         services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IMachineKeyProtector>(static _ => MachineKeyProtectors.ForCurrentPlatform());
+        services.TryAddSingleton(sp =>
+        {
+            var home = StateHome.Resolve(
+                sp.GetService<IConfiguration>() ?? configuration,
+                sp.GetService<RuntimeOptions>() ?? new RuntimeOptions { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" });
+            return new DeviceCredentials(
+                sp.GetRequiredService<IMachineKeyProtector>(),
+                Path.Combine(home.Path, "devices", "link.bin"));
+        });
+        services.AddHttpClient("devices.cloud", static client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.TryAddSingleton(static sp => new CloudClient(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient("devices.cloud"),
+            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IDeviceEnrollmentRedeemer, DeviceEnrollmentRedeemer>();
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();

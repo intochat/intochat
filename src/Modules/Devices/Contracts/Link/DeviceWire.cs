@@ -126,4 +126,6 @@ public sealed record DeviceChunk(
 [JsonSerializable(typeof(DeviceMessage))]
 [JsonSerializable(typeof(DeviceChatJob))]
 [JsonSerializable(typeof(DeviceChunk))]
+[JsonSerializable(typeof(LinkState))]
+[JsonSerializable(typeof(LinkStatus))]
 public sealed partial class DeviceWireJson : JsonSerializerContext;
