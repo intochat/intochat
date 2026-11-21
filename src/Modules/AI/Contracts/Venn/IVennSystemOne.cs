@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
-using Orleans;
 
 namespace IntoChat.OS.Modules.AI.Venn;
 
@@ -66,7 +65,7 @@ public sealed record VennHeadCompiled(string NeuronKey, int CompiledVersion, int
 
 /// <summary>
 /// S11 — System 1 Vector Decision Model (Venn VDM) neuron.
-/// Separates frozen embeddings (Reader: EmbeddingGemma) from a fast personal
+/// Separates frozen embeddings (Reader: EmbeddingGemma / HybridMemoryEmbedder) from a fast personal
 /// Outcome Store + compiled Decision Head (&lt;1ms local Choice / Score / Noul)
 /// so Ino learns continuously from every interaction and escalates to System 2
 /// only when it abstains.
@@ -75,17 +74,29 @@ public sealed record VennHeadCompiled(string NeuronKey, int CompiledVersion, int
 [DefaultNeuronType("ai.venn")]
 public interface IVennSystemOne
 {
+    static NeuronId InoKey(BrainId brain) => new(brain, "ai.venn", "ino");
+
     Task<VennSystemOneState> RecordOutcome(string domain, string contextSummary, float[] embedding, string action, double outcomeScore = 1.0);
+    Task<VennSystemOneState> LearnFromText(string domain, string contextText, string action, double outcomeScore = 1.0, bool autoCompile = true);
     Task<VennSystemOneState> CompileHead(double? abstentionThreshold = null);
 
     [ReadOnlyCall]
     Task<VennChoiceResult> Choose(float[] queryEmbedding, string[]? candidateActions = null);
 
     [ReadOnlyCall]
+    Task<VennChoiceResult> ChooseForText(string contextText, string[]? candidateActions = null);
+
+    [ReadOnlyCall]
     Task<VennScoreResult> Score(float[] queryEmbedding);
 
     [ReadOnlyCall]
+    Task<VennScoreResult> ScoreForText(string contextText);
+
+    [ReadOnlyCall]
     Task<VennNoulResult> Noul(float[] queryEmbedding, string positiveAction);
+
+    [ReadOnlyCall]
+    Task<VennNoulResult> NoulForText(string contextText, string positiveAction);
 
     [ReadOnlyCall]
     Task<VennSystemOneState> ReadStatus();

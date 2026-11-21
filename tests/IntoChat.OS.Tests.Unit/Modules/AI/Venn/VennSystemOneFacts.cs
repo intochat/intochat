@@ -52,4 +52,40 @@ public sealed class VennSystemOneFacts
         Assert.True(noul.Positive);
         Assert.True(noul.Probability > 0.9);
     }
+
+    [Fact]
+    public async Task VennSystemOneLearnsFromNaturalLanguageTextViaHybridEmbedder()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
+            IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
+        await using var os = TestOS.Local();
+        os.Register(typeof(AIModule).Assembly);
+
+        var venn = os.Get<IVennSystemOne>(IVennSystemOne.InoKey(new BrainId("test")));
+
+        // Cold text query abstains -> escalate to System 2.
+        var cold = await venn.ChooseForText("which part of the codebase handles authentication?");
+        Assert.True(cold.Abstained);
+
+        // Learn from real turns (auto-compiles head immediately).
+        await venn.LearnFromText("codebase", "which part of the codebase handles authentication and login tokens?", "workspace.openTree:Identity", outcomeScore: 1.0);
+        await venn.LearnFromText("codebase", "show me the auth middleware and session login flow", "workspace.openTree:Identity", outcomeScore: 0.95);
+        await venn.LearnFromText("studio", "edit this portrait photo and remove background layers", "artcraft.photocraft", outcomeScore: 1.0);
+
+        // Lower threshold slightly for 384-dim feature-hashed text embeddings.
+        await venn.CompileHead(abstentionThreshold: 0.25);
+
+        // Similar natural-language query routes fast in System 1 without calling an LLM.
+        var authPick = await venn.ChooseForText("where is authentication login handled in this codebase?");
+        Assert.False(authPick.Abstained);
+        Assert.Equal("workspace.openTree:Identity", authPick.ChosenAction);
+
+        var photoPick = await venn.ChooseForText("open portrait photo editor to remove background");
+        Assert.False(photoPick.Abstained);
+        Assert.Equal("artcraft.photocraft", photoPick.ChosenAction);
+
+        // Completely unrelated query abstains cleanly.
+        var unrelated = await venn.ChooseForText("quantum chromodynamics lattice gauge theory");
+        Assert.True(unrelated.Abstained);
+    }
 }

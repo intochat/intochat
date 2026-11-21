@@ -1,11 +1,37 @@
 using DigitalBrain.Neurons;
+using IntoChat.OS.Modules.AI.Memory;
 
 namespace IntoChat.OS.Modules.AI.Venn;
 
 [Neuron("ai.venn")]
-internal sealed class VennSystemOneNeuron : Neuron<VennSystemOneState>, IVennSystemOne
+internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null) : Neuron<VennSystemOneState>, IVennSystemOne
 {
     private const int MaxPrecedents = 4096;
+
+    private async Task<float[]> EmbedTextAsync(string contextText)
+    {
+        if (string.IsNullOrWhiteSpace(contextText))
+        {
+            return [];
+        }
+
+        return embedder is not null
+            ? await embedder.EmbedAsync(contextText).ConfigureAwait(false)
+            : HybridMemoryEmbedder.LocalDeterministicEmbed(contextText);
+    }
+
+    public async Task<VennSystemOneState> LearnFromText(
+        string domain,
+        string contextText,
+        string action,
+        double outcomeScore = 1.0,
+        bool autoCompile = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contextText);
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
+        var state = await RecordOutcome(domain, contextText, vector, action, outcomeScore).ConfigureAwait(false);
+        return autoCompile ? await CompileHead().ConfigureAwait(false) : state;
+    }
 
     public async Task<VennSystemOneState> RecordOutcome(
         string domain,
@@ -136,6 +162,24 @@ internal sealed class VennSystemOneNeuron : Neuron<VennSystemOneState>, IVennSys
         }
 
         return Task.FromResult(new VennChoiceResult(bestAction, bestScore, Abstained: false, scores));
+    }
+
+    public async Task<VennChoiceResult> ChooseForText(string contextText, string[]? candidateActions = null)
+    {
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
+        return await Choose(vector, candidateActions).ConfigureAwait(false);
+    }
+
+    public async Task<VennScoreResult> ScoreForText(string contextText)
+    {
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
+        return await Score(vector).ConfigureAwait(false);
+    }
+
+    public async Task<VennNoulResult> NoulForText(string contextText, string positiveAction)
+    {
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
+        return await Noul(vector, positiveAction).ConfigureAwait(false);
     }
 
     public Task<VennScoreResult> Score(float[] queryEmbedding)
