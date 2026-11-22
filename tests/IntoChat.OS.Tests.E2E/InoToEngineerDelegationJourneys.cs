@@ -89,7 +89,13 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
         var inference = new ArchitectCriticModelInference(plannerPrompts);
         var roslyn = new WorktreeRoslynAnalyzer();
         var coder = new DelegatedRoslynCoder(roslyn);
-        using var liveVerifier = new EngineerLiveVerifier(configuration);
+        using var liveVerifier = new EngineerLiveVerifier(
+            configuration,
+            candidateVerifier: static (_, _) => Task.FromResult(new EngineerLiveReport(
+                true, true, true, true, 0, 0, 0, 0,
+                [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
+                ["span candidate.health status=OK"],
+                "Candidate verified.")));
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton<IConfiguration>(configuration);

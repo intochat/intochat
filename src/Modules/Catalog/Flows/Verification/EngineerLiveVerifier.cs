@@ -47,9 +47,13 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         "surface",
     };
 
+    private const string PlaceboDisabledMessage =
+        "live verification requires a candidate host or configured live endpoint; placebo verification is disabled";
+
     private readonly IServiceProvider? _services;
     private readonly IConfiguration? _configuration;
     private readonly IHttpClientFactory? _httpClientFactory;
+    private readonly Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>? _candidateVerifier;
     private readonly ILogger _logger;
     private readonly ActivityListener _activityListener;
     private readonly Lock _spanGate = new();
@@ -60,11 +64,13 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         IConfiguration? configuration = null,
         IHttpClientFactory? httpClientFactory = null,
         ILogger<EngineerLiveVerifier>? logger = null,
-        IServiceProvider? services = null)
+        IServiceProvider? services = null,
+        Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>? candidateVerifier = null)
     {
         _services = services;
         _configuration = configuration ?? services?.GetService<IConfiguration>();
         _httpClientFactory = httpClientFactory ?? services?.GetService<IHttpClientFactory>();
+        _candidateVerifier = candidateVerifier ?? services?.GetService<Func<EngineerLiveContext, CancellationToken, Task<EngineerLiveReport>>>();
         _logger = (ILogger?)logger ?? OsConsoleLog.For<EngineerLiveVerifier>();
         _activityListener = new ActivityListener
         {
@@ -124,6 +130,63 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         return false;
     }
 
+    internal static EngineerVerificationPlan DeriveVerificationPlan(IReadOnlyList<string> changedFiles)
+    {
+        var calls = new List<EngineerVerificationCall>();
+        var seenTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var raw in changedFiles)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            var norm = EngineerTaskSlices.NormalizePath(raw);
+            var segments = norm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 3
+                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(segments[1], "IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase))
+            {
+                var target = $"app.{segments[2].ToLowerInvariant()}";
+                if (seenTargets.Add(target))
+                {
+                    calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
+                }
+            }
+            else if (segments.Length >= 2
+                && string.Equals(segments[0], "IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase))
+            {
+                var target = $"app.{segments[1].ToLowerInvariant()}";
+                if (seenTargets.Add(target))
+                {
+                    calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
+                }
+            }
+            else if (segments.Length >= 3
+                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(segments[1], "Modules", StringComparison.OrdinalIgnoreCase))
+            {
+                var target = $"module.{segments[2].ToLowerInvariant()}";
+                if (seenTargets.Add(target))
+                {
+                    calls.Add(new EngineerVerificationCall(target, "neurons_list", "ok"));
+                }
+            }
+        }
+
+        if (calls.Count == 0)
+        {
+            calls.Add(new EngineerVerificationCall("neurons_context", "Read", "brainId"));
+        }
+
+        return new EngineerVerificationPlan(
+            HealthPath: "/health",
+            McpCalls: calls,
+            RequireZeroErrorSpans: true,
+            TouchesUi: TouchesUiSurface(changedFiles));
+    }
+
     public Task<EngineerLiveReport> VerifyLiveAsync(
         string worktreePath,
         string goal,
@@ -148,7 +211,8 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         var count5xx = 0;
         var errorSpans = 0;
         var errorLogs = 0;
-        var touchesUi = TouchesUiSurface(changedFiles);
+        var plan = liveContext?.VerificationPlan ?? DeriveVerificationPlan(changedFiles);
+        var touchesUi = plan.TouchesUi;
 
         using (var liveActivity = EngineerTelemetry.Source.StartActivity("engineer.live-verify"))
         {
@@ -163,16 +227,100 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
             liveActivity?.SetStatus(ActivityStatusCode.Ok);
         }
 
+        // Candidate verification path: run the real candidate verifier callback when provided.
+        if (_candidateVerifier is not null)
+        {
+            var effectiveContext = (liveContext ?? new EngineerLiveContext()) with
+            {
+                VerificationPlan = plan,
+                WorktreePath = worktreePath,
+                Goal = goal,
+                ChangedFiles = changedFiles,
+            };
+
+            EngineerLiveReport candidateReport;
+            try
+            {
+                candidateReport = await _candidateVerifier(effectiveContext, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(ex, "Candidate host startup/verification threw an exception.");
+                var detail = $"Candidate startup/verification failed ({ex.GetType().Name}): {ex.Message}";
+                return new EngineerLiveReport(
+                    Succeeded: false,
+                    HostHealthy: false,
+                    McpProbesPassed: false,
+                    PlaywrightPassed: false,
+                    Http4xxCount: 0,
+                    Http5xxCount: 1,
+                    ErrorSpanCount: 1,
+                    ErrorLogCount: 1,
+                    Probes: [new EngineerLiveProbe("candidate-host-startup", "host", false, 500, detail)],
+                    TraceSummaries: [$"span candidate.startup status=ERROR error={ex.GetType().Name}"],
+                    Summary: $"LiveVerify=False · {detail}");
+            }
+
+            var candidateObservedSpans = SnapshotCapturedSpans(liveContext?.TraceId);
+            var candidateFailingSpans = candidateObservedSpans.Where(static s => s.IsError).ToArray();
+            var mergedErrorSpans = candidateReport.ErrorSpanCount + candidateFailingSpans.Length;
+            var mergedProbes = new List<EngineerLiveProbe>(candidateReport.Probes);
+            var mergedTraces = new List<string>(candidateReport.TraceSummaries);
+            if (candidateFailingSpans.Length > 0)
+            {
+                mergedProbes.Add(new EngineerLiveProbe(
+                    "otel-activity-spans",
+                    "otel",
+                    false,
+                    500,
+                    string.Create(CultureInfo.InvariantCulture, $"Detected {candidateFailingSpans.Length} OpenTelemetry error span(s): {string.Join(", ", candidateFailingSpans.Select(static s => s.OperationName))}.")));
+            }
+
+            foreach (var span in candidateObservedSpans.TakeLast(6))
+            {
+                mergedTraces.Add(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"span otel.{span.OperationName} status={(span.IsError ? "ERROR" : "OK")} durationMs={span.DurationMs}"));
+            }
+
+            var candidateSucceeded = candidateReport.Succeeded
+                && candidateReport.HostHealthy
+                && candidateReport.McpProbesPassed
+                && candidateReport.PlaywrightPassed
+                && candidateReport.Http4xxCount == 0
+                && candidateReport.Http5xxCount == 0
+                && mergedErrorSpans == 0
+                && candidateReport.ErrorLogCount == 0;
+
+            var candidateSummary = candidateSucceeded
+                ? candidateReport.Summary
+                : string.IsNullOrWhiteSpace(candidateReport.Summary)
+                    ? string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"LiveVerify=False · Host={candidateReport.HostHealthy}, MCP={candidateReport.McpProbesPassed}, ErrorSpans={mergedErrorSpans}, ErrorLogs={candidateReport.ErrorLogCount}.")
+                    : candidateReport.Summary;
+
+            return candidateReport with
+            {
+                Succeeded = candidateSucceeded,
+                ErrorSpanCount = mergedErrorSpans,
+                Probes = [.. mergedProbes],
+                TraceSummaries = [.. mergedTraces],
+                Summary = candidateSummary,
+            };
+        }
+
         var liveBaseUrl = _configuration?["IntoChatOS:Engineer:LiveBaseUrl"]
             ?? _configuration?["IntoChatOS:Engineer:LoopbackHealthUrl"];
         var mcpUrl = _configuration?["IntoChatOS:Engineer:McpEndpoint"];
         var injectedHttpClient = _services?.GetService<HttpClient>();
         var hasHttpTransport = _httpClientFactory is not null || injectedHttpClient is not null;
 
-        var hostHealthy = true;
+        var hostHealthy = false;
+        var failedClosed = false;
         if (!string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttpTransport)
         {
-            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "aspire-host-health", "host", liveBaseUrl.TrimEnd('/') + "/health", ct).ConfigureAwait(false);
+            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "aspire-host-health", "host", liveBaseUrl.TrimEnd('/') + plan.HealthPath, ct).ConfigureAwait(false);
             probes.Add(probe);
             if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
             if (probe.HttpStatus is >= 500) { count5xx++; }
@@ -181,16 +329,16 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         }
         else
         {
-            var treeExists = Directory.Exists(worktreePath);
-            hostHealthy = treeExists;
+            failedClosed = true;
+            hostHealthy = false;
+            count5xx++;
             probes.Add(new EngineerLiveProbe(
-                "in-process-worktree-host",
+                "candidate-host-required",
                 "host",
-                treeExists,
-                treeExists ? 200 : 500,
-                treeExists ? $"Worktree sandbox '{Path.GetFileName(worktreePath)}' verified healthy." : "Worktree root missing."));
-            if (!treeExists) { count5xx++; errorSpans++; }
-            traces.Add($"span host.sandbox worktree={Path.GetFileName(worktreePath)} healthy={treeExists}");
+                false,
+                503,
+                PlaceboDisabledMessage));
+            traces.Add("span host.candidate status=unconfigured passed=False");
         }
 
         // OpenTelemetry ActivityListener structured span audit (error spans, status codes, durations).
@@ -244,7 +392,8 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
             }
         }
 
-        var mcpPassed = true;
+        var screensToInspect = ResolveScreensToInspect(liveContext, _services);
+        var mcpPassed = !failedClosed;
         if (!string.IsNullOrWhiteSpace(mcpUrl) && hasHttpTransport)
         {
             var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "mcp-behavioral-probe", "mcp", mcpUrl, ct).ConfigureAwait(false);
@@ -254,19 +403,22 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
             mcpPassed = probe.Passed;
             traces.Add($"span mcp.probe endpoint={mcpUrl} passed={probe.Passed}");
         }
-        else
+        else if (!failedClosed && screensToInspect.Count == 0 && !string.IsNullOrWhiteSpace(liveBaseUrl) && hasHttpTransport)
         {
-            probes.Add(new EngineerLiveProbe(
-                "mcp-contract-probe",
-                "mcp",
-                true,
-                200,
-                $"Behavioral contract verified across {changedFiles.Count} changed file(s) with 0 policy/diagnostic errors."));
-            traces.Add($"span mcp.contract files={changedFiles.Count} status=ok");
+            var derivedMcpUrl = liveBaseUrl.TrimEnd('/') + "/mcp";
+            var probe = await ProbeHttpEndpointAsync(_httpClientFactory, injectedHttpClient, "mcp-behavioral-probe", "mcp", derivedMcpUrl, ct).ConfigureAwait(false);
+            probes.Add(probe);
+            if (probe.HttpStatus is >= 400 and < 500) { count4xx++; }
+            if (probe.HttpStatus is >= 500) { count5xx++; }
+            mcpPassed = probe.Passed;
+            traces.Add($"span mcp.probe endpoint={derivedMcpUrl} passed={probe.Passed}");
+        }
+        else if (failedClosed)
+        {
+            mcpPassed = false;
         }
 
         var playwrightPassed = true;
-        var screensToInspect = ResolveScreensToInspect(liveContext, _services);
         var auditedScreenCount = 0;
         var uiViolationsTotal = 0;
 
@@ -438,9 +590,13 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
             && errorSpans == 0
             && errorLogs == 0;
 
-        var summary = string.Create(
-            CultureInfo.InvariantCulture,
-            $"LiveVerify={succeeded} · Host={hostHealthy}, MCP={mcpPassed}, Playwright={playwrightPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}.");
+        var summary = failedClosed
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"LiveVerify=False · {PlaceboDisabledMessage} (Host={hostHealthy}, MCP={mcpPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}).")
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"LiveVerify={succeeded} · Host={hostHealthy}, MCP={mcpPassed}, Playwright={playwrightPassed}, 4xx={count4xx}, 5xx={count5xx}, ErrorSpans={errorSpans}, ErrorLogs={errorLogs}.");
 
         return new EngineerLiveReport(
             Succeeded: succeeded,

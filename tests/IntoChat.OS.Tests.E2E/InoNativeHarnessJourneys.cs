@@ -114,7 +114,13 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
             });
 
         var planner = new DisjointTwoSlicePlanner();
-        using var liveVerifier = new EngineerLiveVerifier(configuration);
+        using var liveVerifier = new EngineerLiveVerifier(
+            configuration,
+            candidateVerifier: static (_, _) => Task.FromResult(new EngineerLiveReport(
+                true, true, true, true, 0, 0, 0, 0,
+                [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
+                ["span candidate.health status=OK"],
+                "Candidate verified.")));
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton<IConfiguration>(configuration);
@@ -344,7 +350,14 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(sp =>
             new EngineerBuildVerifier(configuration, sp.GetRequiredService<ISandboxCommandRunner>()));
         serviceCollection.AddSingleton<ILiveVerifier>(sp =>
-            new EngineerLiveVerifier(configuration: configuration, services: sp));
+            new EngineerLiveVerifier(
+                configuration: configuration,
+                services: sp,
+                candidateVerifier: static (_, _) => Task.FromResult(new EngineerLiveReport(
+                    true, true, true, true, 0, 0, 0, 0,
+                    [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
+                    ["span candidate.health status=OK"],
+                    "Candidate verified."))));
         serviceCollection.AddSingleton(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 

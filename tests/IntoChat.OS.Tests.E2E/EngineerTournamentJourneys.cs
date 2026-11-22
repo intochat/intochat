@@ -77,7 +77,13 @@ public sealed class EngineerTournamentJourneys(TestOSFixture fixture) : E2ETestB
         var roslyn = new WorktreeRoslynAnalyzer();
         var coder = new TwoStrategyTournamentRoslynCoder(roslyn, observedPrompts);
         var planner = new TournamentPlanner();
-        using var liveVerifier = new EngineerLiveVerifier(configuration);
+        using var liveVerifier = new EngineerLiveVerifier(
+            configuration,
+            candidateVerifier: static (_, _) => Task.FromResult(new EngineerLiveReport(
+                true, true, true, true, 0, 0, 0, 0,
+                [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
+                ["span candidate.health status=OK"],
+                "Candidate verified.")));
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton<IConfiguration>(configuration);

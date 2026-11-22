@@ -92,7 +92,13 @@ public sealed class EngineerDogfoodJourneys(TestOSFixture fixture) : E2ETestBase
         serviceCollection.AddSingleton<ISandboxCommandRunner>(auditedSandboxRunner);
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(sp =>
             new EngineerBuildVerifier(configuration, sp.GetRequiredService<ISandboxCommandRunner>()));
-        serviceCollection.AddSingleton<ILiveVerifier>(_ => new EngineerLiveVerifier(configuration));
+        serviceCollection.AddSingleton<ILiveVerifier>(_ => new EngineerLiveVerifier(
+            configuration,
+            candidateVerifier: static (_, _) => Task.FromResult(new EngineerLiveReport(
+                true, true, true, true, 0, 0, 0, 0,
+                [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
+                ["span candidate.health status=OK"],
+                "Candidate verified."))));
         serviceCollection.AddSingleton(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 

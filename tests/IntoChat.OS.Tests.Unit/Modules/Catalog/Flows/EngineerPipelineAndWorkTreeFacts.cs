@@ -588,7 +588,14 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         var treeDir = Path.Combine(_root, "live-verify-wt");
         Directory.CreateDirectory(treeDir);
 
-        using var verifier = new EngineerLiveVerifier();
+        var liveConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["IntoChatOS:Engineer:LiveBaseUrl"] = "http://127.0.0.1:19877",
+            })
+            .Build();
+        var liveHttp = new StubHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        using var verifier = new EngineerLiveVerifier(configuration: liveConfig, httpClientFactory: liveHttp);
         var cleanTrace = new FakeTraceReader(
         [
             new TraceEntry("owner/flow.engineer/r1", 1, "flow.started", DateTimeOffset.UtcNow, "trace-clean", null, "{\"title\":\"Run\"}"),
@@ -643,7 +650,14 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         var treeDir = Path.Combine(_root, "live-verify-other-trace");
         Directory.CreateDirectory(treeDir);
 
-        using var verifier = new EngineerLiveVerifier();
+        var liveConfig = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["IntoChatOS:Engineer:LiveBaseUrl"] = "http://127.0.0.1:19877",
+            })
+            .Build();
+        var liveHttp = new StubHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        using var verifier = new EngineerLiveVerifier(configuration: liveConfig, httpClientFactory: liveHttp);
         var cleanTrace = new FakeTraceReader(
         [
             new TraceEntry("owner/flow.engineer/r2", 1, "flow.started", DateTimeOffset.UtcNow, "trace-mine", null, "{\"title\":\"Run\"}"),
@@ -688,7 +702,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         serviceCollection.AddSingleton<ICoder>(coder);
         serviceCollection.AddSingleton<IEngineerPlanner>(new TwoStepPlanner());
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(new DeterministicBuildVerifier());
-        serviceCollection.AddSingleton<ILiveVerifier>(new EngineerLiveVerifier());
+        serviceCollection.AddSingleton<ILiveVerifier>(new DeterministicLiveVerifier());
         serviceCollection.AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer());
         await using var services = serviceCollection.BuildServiceProvider();
 
