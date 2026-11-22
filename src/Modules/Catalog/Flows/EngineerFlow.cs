@@ -135,7 +135,7 @@ internal sealed class EngineerFlow(
             Slices = effectiveSlices,
         };
         var maxFiles = Math.Max(
-            ChangePolicy.Default.MaxChangedFiles,
+            ResolvePolicy(currentInner.Repository?.Value).MaxChangedFiles,
             effectiveCleanup.Length + effectiveSlices.SelectMany(static s => s.OwnedPaths ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         if (candidatePlan.Validate(maxFiles) is { } validationError)
         {
@@ -326,20 +326,21 @@ internal sealed class EngineerFlow(
             throw new FlowFailed("brainstorm-and-plan", "Goal description is required.");
         }
 
-        if (inner.Plan is not null && inner.RatifiedPlan is { Ratified: true } && inner.Plan.Validate(ChangePolicy.Default.MaxChangedFiles) is null)
+        var policy = ResolvePolicy(inner.Repository.Value);
+        if (inner.Plan is not null && inner.RatifiedPlan is { Ratified: true } && inner.Plan.Validate(policy.MaxChangedFiles) is null)
         {
             return inner.Advance();
         }
 
         EngineerTaskPlan plan;
-        if (inner.Plan is not null && inner.Plan.Validate(ChangePolicy.Default.MaxChangedFiles) is null)
+        if (inner.Plan is not null && inner.Plan.Validate(policy.MaxChangedFiles) is null)
         {
             plan = inner.Plan;
         }
         else
         {
             var activePlanner = Planner;
-            var allowed = ChangePolicy.Default.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+            var allowed = policy.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase).ToArray();
             if (activePlanner is EngineerPlanner stagePlanner)
             {
                 var wm = ResolveWorkingMemoryOnGrainTurn();
@@ -357,7 +358,7 @@ internal sealed class EngineerFlow(
                         inner.Repository.Value,
                         inner.Goal,
                         allowed,
-                        ChangePolicy.Default.MaxChangedFiles,
+                        policy.MaxChangedFiles,
                         brainId,
                         optionalWt,
                         activeRoslyn,
@@ -370,7 +371,7 @@ internal sealed class EngineerFlow(
             else
             {
                 plan = await Task.Run(
-                    () => activePlanner.PlanAsync(inner.Repository.Value, inner.Goal, allowed, ChangePolicy.Default.MaxChangedFiles, ct),
+                    () => activePlanner.PlanAsync(inner.Repository.Value, inner.Goal, allowed, policy.MaxChangedFiles, ct),
                     ct).ConfigureAwait(true);
             }
         }
@@ -380,7 +381,7 @@ internal sealed class EngineerFlow(
             : plan.Slices is { Length: > 0 }
                 ? plan.Slices
                 : EngineerTaskSlices.FromTaskPlan(plan);
-        var cleanupTargets = MergeCleanupTargets(inner.RequestedCleanupTargets, plan.CleanupTargets, slices, ChangePolicy.Default.MaxChangedFiles);
+        var cleanupTargets = MergeCleanupTargets(inner.RequestedCleanupTargets, plan.CleanupTargets, slices, policy.MaxChangedFiles);
 
         var disjointRule = new NoOverlappingFileSlices(slices);
         if (disjointRule.Broken)
@@ -393,7 +394,7 @@ internal sealed class EngineerFlow(
             CleanupTargets = cleanupTargets,
             Slices = slices,
         };
-        if (enrichedPlan.Validate(ChangePolicy.Default.MaxChangedFiles) is { } validationError)
+        if (enrichedPlan.Validate(policy.MaxChangedFiles) is { } validationError)
         {
             throw new FlowFailed("brainstorm-and-plan", validationError);
         }
@@ -489,7 +490,7 @@ internal sealed class EngineerFlow(
 
         var wt = WorkTree;
         var activeRoslyn = Roslyn;
-        var harness = ResolveHarness(inner.Harness);
+        var harness = ResolveHarness(inner.Harness, inner.Repository?.Value);
         var totalInstances = inner.Instances.Length;
         var flowId = Id.ToString();
         var brainId = Id.Brain;
@@ -713,7 +714,10 @@ internal sealed class EngineerFlow(
         }
     }
 
-    private IEngineeringHarness ResolveHarness(EngineeringHarnessKind kind)
+    private ChangePolicy ResolvePolicy(string? repositoryId)
+        => services?.GetService<ChangePolicy>() ?? ChangePolicy.ForRepository(repositoryId);
+
+    private IEngineeringHarness ResolveHarness(EngineeringHarnessKind kind, string? repositoryId)
     {
         if (engineeringHarness is not null && engineeringHarness.Kind == kind)
         {
@@ -725,13 +729,14 @@ internal sealed class EngineerFlow(
             return registered;
         }
 
+        var policy = ResolvePolicy(repositoryId);
         if (kind is EngineeringHarnessKind.ClaudeCli or EngineeringHarnessKind.CodexCli)
         {
             return new ExternalCliHarness(
                 kind,
                 sandboxRunner: services?.GetService<ISandboxCommandRunner>(),
                 roslyn: Roslyn,
-                policy: services?.GetService<ChangePolicy>() ?? ChangePolicy.Default,
+                policy: policy,
                 configuration: services?.GetService<IConfiguration>());
         }
 
@@ -739,7 +744,7 @@ internal sealed class EngineerFlow(
             services: services,
             coder: OptionalCoder,
             roslyn: Roslyn,
-            policy: services?.GetService<ChangePolicy>() ?? ChangePolicy.Default);
+            policy: policy);
     }
 
     private static string[] MergeCleanupTargets(
@@ -875,7 +880,7 @@ internal sealed class EngineerFlow(
         var verifier = BuildVerifier;
         var wt = WorkTree;
         var activeRoslyn = Roslyn;
-        var harness = ResolveHarness(inner.Harness);
+        var harness = ResolveHarness(inner.Harness, inner.Repository?.Value);
         var hydratedSnapshot = await HydrateMissionBrainSnapshotAsync(
             inner.Repository?.Value ?? "os",
             inner.Goal,

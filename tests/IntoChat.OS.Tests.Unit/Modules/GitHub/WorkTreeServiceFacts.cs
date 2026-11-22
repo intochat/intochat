@@ -493,9 +493,9 @@ public sealed class WorkTreeServiceFacts : IDisposable
     {
         var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
-        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+        service.RegisterRepository(new RegisteredRepository("sample", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "toomany01", "Six files test", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("sample"), "toomany01", "Six files test", null, Ct);
         for (var i = 1; i <= 6; i++)
         {
             await File.WriteAllTextAsync(

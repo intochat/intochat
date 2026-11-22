@@ -125,7 +125,7 @@ internal sealed partial class EngineerBuildVerifier(
         var dotnetTestPassed = true;
         var passedTests = 0;
         var failedTests = 0;
-        var testProjects = DiscoverTestProjects(root);
+        var testProjects = DiscoverTestProjects(root, changedFiles, buildProjects);
         if (dotnetBuildPassed && testProjects.Length > 0 && IsLiveCliVerificationEnabled(configuration))
         {
             foreach (var testProj in testProjects)
@@ -246,23 +246,35 @@ internal sealed partial class EngineerBuildVerifier(
     private static bool IsLiveCliVerificationEnabled(IConfiguration? cfg)
         => !string.Equals(cfg?["IntoChatOS:Engineer:RunTestSuites"], "false", StringComparison.OrdinalIgnoreCase);
 
-    private static string[] DiscoverAffectedProjects(string root, IReadOnlyList<string> changedFiles)
+    internal static string[] DiscoverAffectedProjects(string root, IReadOnlyList<string> changedFiles)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        ArgumentNullException.ThrowIfNull(changedFiles);
+
+        var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var projects = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        foreach (var rel in changedFiles.Where(static f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+
+        foreach (var rel in changedFiles.Where(IsProjectAffectingFile))
         {
-            var full = Path.GetFullPath(Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar)));
+            var full = Path.GetFullPath(Path.Combine(fullRoot, rel.Replace('/', Path.DirectorySeparatorChar)));
+            if (rel.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && File.Exists(full))
+            {
+                projects.Add(full);
+                continue;
+            }
+
             var dir = Path.GetDirectoryName(full);
-            while (!string.IsNullOrEmpty(dir) && dir.StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            while (!string.IsNullOrEmpty(dir) && dir.StartsWith(fullRoot, comparison))
             {
                 var found = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.csproj") : [];
                 if (found.Length > 0)
                 {
-                    projects.Add(found[0]);
+                    projects.Add(Path.GetFullPath(found[0]));
                     break;
                 }
 
-                if (string.Equals(dir, root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                if (string.Equals(dir, fullRoot, comparison))
                 {
                     break;
                 }
@@ -274,21 +286,174 @@ internal sealed partial class EngineerBuildVerifier(
         return [.. projects.Order(StringComparer.Ordinal)];
     }
 
-    private static string[] DiscoverTestProjects(string root)
+    internal static string[] DiscoverTestProjects(
+        string root,
+        IReadOnlyList<string> changedFiles,
+        IReadOnlyList<string> affectedProjects)
     {
-        if (!Directory.Exists(root))
+        ArgumentNullException.ThrowIfNull(changedFiles);
+        ArgumentNullException.ThrowIfNull(affectedProjects);
+
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
             return [];
         }
 
-        return
-        [
-            .. Directory.EnumerateFiles(root, "*.Tests*.csproj", SearchOption.AllDirectories)
-                .Where(static p => !p.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
-                    && !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-                .Order(StringComparer.Ordinal)
-                .Take(2),
-        ];
+        var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var affectedSet = new HashSet<string>(
+            affectedProjects.Select(Path.GetFullPath),
+            pathComparer);
+        var selected = new HashSet<string>(pathComparer);
+        var referenceMemo = new Dictionary<string, bool>(pathComparer);
+        var projectRefCache = new Dictionary<string, (bool IsTestProject, string[] References)>(pathComparer);
+
+        foreach (var candidate in Directory.EnumerateFiles(fullRoot, "*.Tests*.csproj", SearchOption.AllDirectories))
+        {
+            if (IsSkippedDirectoryPath(fullRoot, candidate))
+            {
+                continue;
+            }
+
+            var fullProj = Path.GetFullPath(candidate);
+            var fileName = Path.GetFileName(fullProj);
+            if (string.Equals(fileName, "IntoChat.OS.Architecture.Tests.Unit.csproj", StringComparison.OrdinalIgnoreCase))
+            {
+                selected.Add(fullProj);
+                continue;
+            }
+
+            var metadata = ReadProjectMetadata(fullProj, projectRefCache);
+            if (!metadata.IsTestProject)
+            {
+                continue;
+            }
+
+            if (affectedSet.Contains(fullProj))
+            {
+                selected.Add(fullProj);
+                continue;
+            }
+
+            if (IsSlowOrNonUnitTestProject(fileName))
+            {
+                continue;
+            }
+
+            if (affectedSet.Count > 0 && ReferencesAnyAffected(fullProj, affectedSet, referenceMemo, projectRefCache, new HashSet<string>(pathComparer)))
+            {
+                selected.Add(fullProj);
+            }
+        }
+
+        return [.. selected.Order(StringComparer.Ordinal)];
+    }
+
+    private static bool IsProjectAffectingFile(string path)
+        => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSkippedDirectoryPath(string fullRoot, string fullPath)
+    {
+        var relative = Path.GetRelativePath(fullRoot, fullPath);
+        foreach (var segment in relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(segment, "artifacts", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(segment, ".git", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSlowOrNonUnitTestProject(string fileName)
+        => fileName.EndsWith(".Tests.Browser.csproj", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith(".Tests.E2E.csproj", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith(".Tests.Hosting.csproj", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith(".Tests.Support.csproj", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ReferencesAnyAffected(
+        string projectPath,
+        HashSet<string> affectedSet,
+        Dictionary<string, bool> memo,
+        Dictionary<string, (bool IsTestProject, string[] References)> cache,
+        HashSet<string> visiting)
+    {
+        if (memo.TryGetValue(projectPath, out var cached))
+        {
+            return cached;
+        }
+
+        if (!visiting.Add(projectPath))
+        {
+            return false;
+        }
+
+        var metadata = ReadProjectMetadata(projectPath, cache);
+        var matched = false;
+        foreach (var reference in metadata.References)
+        {
+            if (affectedSet.Contains(reference)
+                || ReferencesAnyAffected(reference, affectedSet, memo, cache, visiting))
+            {
+                matched = true;
+                break;
+            }
+        }
+
+        visiting.Remove(projectPath);
+        memo[projectPath] = matched;
+        return matched;
+    }
+
+    private static (bool IsTestProject, string[] References) ReadProjectMetadata(
+        string projectPath,
+        Dictionary<string, (bool IsTestProject, string[] References)> cache)
+    {
+        if (cache.TryGetValue(projectPath, out var existing))
+        {
+            return existing;
+        }
+
+        if (!File.Exists(projectPath))
+        {
+            var missing = (true, Array.Empty<string>());
+            cache[projectPath] = missing;
+            return missing;
+        }
+
+        try
+        {
+            var doc = XDocument.Load(projectPath, LoadOptions.None);
+            var isTestProject = !doc.Descendants()
+                .Any(static e => string.Equals(e.Name.LocalName, "IsTestProject", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(e.Value.Trim(), "false", StringComparison.OrdinalIgnoreCase));
+
+            var projDir = Path.GetDirectoryName(projectPath) ?? string.Empty;
+            var refs = doc.Descendants()
+                .Where(static e => string.Equals(e.Name.LocalName, "ProjectReference", StringComparison.OrdinalIgnoreCase))
+                .Select(static e => e.Attribute("Include")?.Value)
+                .Where(static include => !string.IsNullOrWhiteSpace(include))
+                .Select(include => Path.GetFullPath(Path.Combine(projDir, include!.Trim().Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar))))
+                .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+                .ToArray();
+
+            var parsed = (isTestProject, refs);
+            cache[projectPath] = parsed;
+            return parsed;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            OsConsoleLog.For<EngineerBuildVerifier>().LogSwallowed(ex, $"Failed to parse project references from '{projectPath}'.");
+            var fallback = (true, Array.Empty<string>());
+            cache[projectPath] = fallback;
+            return fallback;
+        }
     }
 
     private static string? ResolveFlutterRoot(string root)

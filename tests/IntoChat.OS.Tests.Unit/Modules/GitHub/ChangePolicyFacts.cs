@@ -99,4 +99,38 @@ public sealed class ChangePolicyFacts
         var title = ChangePolicy.BuildPrTitle("Add helper [no ci]\nsecond line");
         Assert.Equal("Add helper", title);
     }
+
+    [Fact]
+    public void ForRepositoryOs_AllowsEightFilesAndCsprojJson_RefusesDotDirsAndClaudeMd()
+    {
+        var policy = ChangePolicy.ForRepository("os");
+
+        Assert.Equal(8, policy.MaxChangedFiles);
+        Assert.Null(policy.Check(RepoPath.Parse("src/Modules/Web/IntoChat.OS.Modules.Web.csproj")));
+        Assert.Null(policy.Check(RepoPath.Parse("src/Assets/wire/component.json")));
+        Assert.Null(policy.Check(RepoPath.Parse("src/Modules/Web/Foo.cs")));
+
+        var eight = new[]
+        {
+            RepoPath.Parse("src/Modules/Web/IntoChat.OS.Modules.Web.csproj"),
+            RepoPath.Parse("src/Assets/wire/component.json"),
+            RepoPath.Parse("src/Modules/Web/File1.cs"),
+            RepoPath.Parse("src/Modules/Web/File2.cs"),
+            RepoPath.Parse("src/Modules/Web/File3.cs"),
+            RepoPath.Parse("src/Modules/Web/File4.cs"),
+            RepoPath.Parse("src/Modules/Web/File5.cs"),
+            RepoPath.Parse("src/Modules/Web/File6.cs"),
+        };
+        Assert.Null(policy.Check(eight));
+
+        var nine = eight.Append(RepoPath.Parse("src/Modules/Web/File7.cs")).ToArray();
+        var budgetRefusal = policy.Check(nine);
+        Assert.NotNull(budgetRefusal);
+        Assert.Contains("8", budgetRefusal, StringComparison.Ordinal);
+
+        Assert.NotNull(policy.Check(RepoPath.Parse(".github/workflows/ci.yml")));
+        Assert.NotNull(policy.Check(RepoPath.Parse("CLAUDE.md")));
+
+        Assert.Equal(ChangePolicy.Default, ChangePolicy.ForRepository("other-repo"));
+    }
 }

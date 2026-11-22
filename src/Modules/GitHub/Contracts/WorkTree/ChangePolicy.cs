@@ -14,6 +14,8 @@ public sealed partial record ChangePolicy
 {
     public const int DefaultMaxChangedFiles = 5;
 
+    public const int OsMaxChangedFiles = 8;
+
     private static readonly string[] DefaultAllowedExtensions =
     [
         ".cs",
@@ -22,6 +24,13 @@ public sealed partial record ChangePolicy
         ".txt",
         ".xaml",
         ".svg",
+    ];
+
+    private static readonly string[] OsAllowedExtensions =
+    [
+        .. DefaultAllowedExtensions,
+        ".csproj",
+        ".json",
     ];
 
     private static readonly string[] DefaultBlockedFileNames =
@@ -33,6 +42,30 @@ public sealed partial record ChangePolicy
     ];
 
     public static ChangePolicy Default { get; } = new();
+
+    private static ChangePolicy OsProfile { get; } = new(
+        maxChangedFiles: OsMaxChangedFiles,
+        allowedExtensions: OsAllowedExtensions,
+        blockedFileNames: DefaultBlockedFileNames);
+
+    /// <summary>
+    /// Returns the repository-specific <see cref="ChangePolicy"/> profile (P10 for <c>os</c> / <c>intochat</c>,
+    /// or <see cref="Default"/> for all other repositories).
+    /// </summary>
+    public static ChangePolicy ForRepository(string? repositoryId)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryId))
+        {
+            return Default;
+        }
+
+        var normalized = repositoryId.Trim();
+        return string.Equals(normalized, "os", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "intochat", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "intochat/intochat", StringComparison.OrdinalIgnoreCase)
+                ? OsProfile
+                : Default;
+    }
 
     public ChangePolicy(
         int maxChangedFiles = DefaultMaxChangedFiles,

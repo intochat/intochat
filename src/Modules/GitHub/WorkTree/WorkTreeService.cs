@@ -292,7 +292,7 @@ public sealed partial class WorkTreeService : IWorkTree
                 "diff", "--name-only", "-z", "--no-renames", $"{baseSha.Value}..{currentHead.Value}").ConfigureAwait(false);
             GitCommandRunner.EnsureSuccess(existingFilesResult, "list committed files");
             var existingRaw = existingFilesResult.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries);
-            var verifiedExisting = _options.Policy.Enforce(lease.TreePath, existingRaw);
+            var verifiedExisting = ResolvePolicy(lease).Enforce(lease.TreePath, existingRaw);
             await _git.VerifyCSharpFormattingAsync(lease.TreePath, verifiedExisting, ct).ConfigureAwait(false);
             var existingDiff = await RenderUnifiedDiffAsync(lease, currentHead, ct).ConfigureAwait(false);
             return ChangeSet.FromDiff(currentHead, verifiedExisting, existingDiff);
@@ -309,7 +309,7 @@ public sealed partial class WorkTreeService : IWorkTree
             throw new InvalidOperationException("Coder produced zero file modifications in the worktree.");
         }
 
-        var changedPaths = _options.Policy.Enforce(lease.TreePath, rawChangedPaths);
+        var changedPaths = ResolvePolicy(lease).Enforce(lease.TreePath, rawChangedPaths);
         await _git.VerifyCSharpFormattingAsync(lease.TreePath, changedPaths, ct).ConfigureAwait(false);
 
         var pathArgs = changedPaths.Select(static p => p.Value).ToArray();
@@ -390,19 +390,20 @@ public sealed partial class WorkTreeService : IWorkTree
 
         if (rawChangedPaths.Count == 0)
         {
-            var verifiedExisting = _options.Policy.Enforce(lease.TreePath, existingRaw);
+            var verifiedExisting = ResolvePolicy(lease).Enforce(lease.TreePath, existingRaw);
             await _git.VerifyCSharpFormattingAsync(lease.TreePath, verifiedExisting, ct).ConfigureAwait(false);
             var existingDiff = await RenderUnifiedDiffAsync(lease, currentHead, ct).ConfigureAwait(false);
             return ChangeSet.FromDiff(currentHead, verifiedExisting, existingDiff);
         }
 
+        var policy = ResolvePolicy(lease);
         var combinedRaw = existingRaw
             .Concat(rawChangedPaths)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        _ = _options.Policy.Enforce(lease.TreePath, combinedRaw);
+        _ = policy.Enforce(lease.TreePath, combinedRaw);
 
-        var dirtyPaths = _options.Policy.Enforce(lease.TreePath, rawChangedPaths);
+        var dirtyPaths = policy.Enforce(lease.TreePath, rawChangedPaths);
         await _git.VerifyCSharpFormattingAsync(lease.TreePath, dirtyPaths, ct).ConfigureAwait(false);
 
         var pathArgs = dirtyPaths.Select(static p => p.Value).ToArray();
@@ -444,10 +445,15 @@ public sealed partial class WorkTreeService : IWorkTree
             "diff", "--name-only", "-z", "--no-renames", $"{baseSha.Value}..{commitSha.Value}").ConfigureAwait(false);
         GitCommandRunner.EnsureSuccess(finalFilesResult, "list amended committed files");
         var finalRaw = finalFilesResult.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries);
-        var finalPaths = _options.Policy.Enforce(lease.TreePath, finalRaw);
+        var finalPaths = policy.Enforce(lease.TreePath, finalRaw);
         var diff = await RenderUnifiedDiffAsync(lease, commitSha, ct).ConfigureAwait(false);
         return ChangeSet.FromDiff(commitSha, finalPaths, diff);
     }
+
+    private ChangePolicy ResolvePolicy(WorkTreeLease lease)
+        => ReferenceEquals(_options.Policy, ChangePolicy.Default)
+            ? ChangePolicy.ForRepository(lease.RepositoryId)
+            : _options.Policy;
 
     public async Task<string> PushAsync(
         WorkTreeLease lease,
