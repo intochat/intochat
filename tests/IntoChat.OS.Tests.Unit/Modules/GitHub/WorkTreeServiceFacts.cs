@@ -603,6 +603,83 @@ public sealed class WorkTreeServiceFacts : IDisposable
         return binDir;
     }
 
+    [Fact]
+    public async Task LocalOnlyRepositoryWithUnpushedBaseStartsRunAndFastForwardsOnMergeLocal()
+    {
+        var repoPath = Path.Combine(_root, "local-only-repo");
+        var homeDir = Path.Combine(_root, "home-local-only");
+        Directory.CreateDirectory(repoPath);
+        Directory.CreateDirectory(homeDir);
+
+        // No origin remote at all — pure local-only repository with local commits.
+        RunGit(repoPath, ["init", "--initial-branch=main"]);
+        RunGit(repoPath, ["config", "user.name", "Local Owner"]);
+        RunGit(repoPath, ["config", "user.email", "owner@local.test"]);
+        File.WriteAllText(Path.Combine(repoPath, "README.md"), "# Local Only Repo\n");
+        RunGit(repoPath, ["add", "."]);
+        RunGit(repoPath, ["commit", "-m", "Initial local commit"]);
+
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir, VerifyFormatting = false });
+        service.RegisterRepository(new RegisteredRepository("local-app", repoPath, DefaultBaseBranch: "main", LocalOnly: true));
+
+        var lease = await service.PrepareAsync(RepositoryId.Parse("local-app"), "run-local-1", "Add local helper", null, Ct);
+        Assert.Equal("main", lease.BaseBranch);
+
+        var helperPath = Path.Combine(lease.TreePath, "README.md");
+        await File.WriteAllTextAsync(helperPath, "# Local Only Repo\n\nUpdated locally.\n", Ct);
+
+        var committed = await service.VerifyAndCommitAsync(lease, "docs: update local readme", Ct);
+        var mergedSha = await service.MergeLocalAsync(lease, committed.Commit, "main", Ct);
+
+        Assert.Equal(committed.Commit, mergedSha);
+        var mainHead = RunGit(repoPath, ["rev-parse", "refs/heads/main"]).Trim();
+        Assert.Equal(committed.Commit.Value, mainHead);
+        Assert.Contains("Updated locally.", await File.ReadAllTextAsync(Path.Combine(repoPath, "README.md"), Ct), StringComparison.Ordinal);
+
+        await service.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
+    public async Task MergeLocalRefusesNonFastForwardAndShaMismatch()
+    {
+        var repoPath = Path.Combine(_root, "local-only-diverge");
+        var homeDir = Path.Combine(_root, "home-local-diverge");
+        Directory.CreateDirectory(repoPath);
+        Directory.CreateDirectory(homeDir);
+
+        RunGit(repoPath, ["init", "--initial-branch=main"]);
+        RunGit(repoPath, ["config", "user.name", "Local Owner"]);
+        RunGit(repoPath, ["config", "user.email", "owner@local.test"]);
+        File.WriteAllText(Path.Combine(repoPath, "README.md"), "# Diverge Test\n");
+        RunGit(repoPath, ["add", "."]);
+        RunGit(repoPath, ["commit", "-m", "Initial commit"]);
+
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir, VerifyFormatting = false });
+        service.RegisterRepository(new RegisteredRepository("diverge-app", repoPath, DefaultBaseBranch: "main", LocalOnly: true));
+
+        var lease = await service.PrepareAsync(RepositoryId.Parse("diverge-app"), "run-diverge-1", "Add notes", null, Ct);
+        await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Diverge Test\n\nFrom worktree.\n", Ct);
+        var committed = await service.VerifyAndCommitAsync(lease, "docs: worktree change", Ct);
+
+        // 1. SHA mismatch must be refused with SecurityException.
+        var wrongSha = CommitSha.Parse(lease.BaseCommitSha);
+        await Assert.ThrowsAsync<SecurityException>(() =>
+            service.MergeLocalAsync(lease, wrongSha, "main", Ct));
+
+        // 2. Advance main in the source repo so merging committed.Commit is no longer a fast-forward.
+        await File.WriteAllTextAsync(Path.Combine(repoPath, "OTHER.md"), "Concurrent commit on main.\n", Ct);
+        RunGit(repoPath, ["add", "."]);
+        RunGit(repoPath, ["commit", "-m", "Concurrent main commit"]);
+        var mainBefore = RunGit(repoPath, ["rev-parse", "refs/heads/main"]).Trim();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MergeLocalAsync(lease, committed.Commit, "main", Ct));
+
+        Assert.Equal(mainBefore, RunGit(repoPath, ["rev-parse", "refs/heads/main"]).Trim());
+
+        await service.CleanupAsync(lease, Ct);
+    }
+
     private static string RunGit(string workingDirectory, IReadOnlyList<string> args)
         => RunProcess("git", args, workingDirectory);
 

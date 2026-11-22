@@ -37,7 +37,7 @@ public sealed partial class WorkTreeService
             }
         }
 
-        foreach (var candidate in new[] { "refactor/ddd-clean-os", "main", "master" })
+        foreach (var candidate in new[] { "main", "master" })
         {
             var remoteRef = $"refs/remotes/origin/{candidate}";
             if (await RefExistsAsync(sourcePath, remoteRef, ct).ConfigureAwait(false))
@@ -57,6 +57,45 @@ public sealed partial class WorkTreeService
         }
 
         throw new SecurityException("Refusing to start: origin has no remote tracking branches available as a base.");
+    }
+
+    private async Task<(BranchName BaseBranch, string StartRef)> ResolveLocalBaseBranchAsync(
+        string sourcePath,
+        BranchName? requestedBranch,
+        CancellationToken ct)
+    {
+        if (requestedBranch is not null)
+        {
+            var localRef = $"refs/heads/{requestedBranch.Value}";
+            if (await RefExistsAsync(sourcePath, localRef, ct).ConfigureAwait(false))
+            {
+                return (requestedBranch, localRef);
+            }
+
+            throw new InvalidOperationException(
+                $"Refusing to start from local base '{requestedBranch.Value}': branch '{requestedBranch.Value}' does not exist locally.");
+        }
+
+        var headBranch = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--abbrev-ref", "HEAD").ConfigureAwait(false);
+        if (headBranch.ExitCode == 0 && headBranch.StdOut.Trim() is { Length: > 0 } b && b != "HEAD")
+        {
+            var localRef = $"refs/heads/{b}";
+            if (await RefExistsAsync(sourcePath, localRef, ct).ConfigureAwait(false))
+            {
+                return (BranchName.Parse(b), localRef);
+            }
+        }
+
+        foreach (var candidate in new[] { "main", "master" })
+        {
+            var localRef = $"refs/heads/{candidate}";
+            if (await RefExistsAsync(sourcePath, localRef, ct).ConfigureAwait(false))
+            {
+                return (BranchName.Parse(candidate), localRef);
+            }
+        }
+
+        throw new InvalidOperationException("Refusing to start: local repository has no local branches available as a base.");
     }
 
     private async Task<bool> RefExistsAsync(string sourcePath, string fullRef, CancellationToken ct)

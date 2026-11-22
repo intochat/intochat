@@ -127,12 +127,14 @@ internal sealed class RepositoryAllowlist(
                 else if (child["path"] is { Length: > 0 } || child["localPath"] is { Length: > 0 } || child["remoteCloneUrl"] is { Length: > 0 })
                 {
                     var local = child["path"] ?? child["localPath"] ?? Path.Combine(HomeDirectory, "volumes", "sources", child["id"] ?? child.Key);
+                    var localOnly = bool.TryParse(child["localOnly"], out var parsedLocalOnly) && parsedLocalOnly;
                     yield return new RegisteredRepository(
                         child["id"] ?? child.Key,
                         Path.GetFullPath(local),
                         child["githubRepo"] ?? child["remote"],
                         child["baseBranch"] ?? child["defaultBaseBranch"],
-                        child["remoteCloneUrl"] ?? child["cloneUrl"]);
+                        child["remoteCloneUrl"] ?? child["cloneUrl"],
+                        localOnly);
                 }
             }
         }
@@ -214,10 +216,25 @@ internal sealed class RepositoryAllowlist(
 
         var githubRepo = GetStringIgnoreCase(element, "githubRepo") ?? GetStringIgnoreCase(element, "repo") ?? GetStringIgnoreCase(element, "slug");
         var baseBranch = GetStringIgnoreCase(element, "baseBranch") ?? GetStringIgnoreCase(element, "defaultBaseBranch");
+        var localOnly = GetBoolIgnoreCase(element, "localOnly");
         var resolvedLocal = !string.IsNullOrWhiteSpace(localPath)
             ? Path.GetFullPath(localPath.Trim())
             : Path.GetFullPath(Path.Combine(Path.GetTempPath(), "worktree-mirror-placeholder", id.Trim()));
-        return new RegisteredRepository(id.Trim(), resolvedLocal, githubRepo?.Trim(), baseBranch?.Trim(), cloneUrl?.Trim());
+        return new RegisteredRepository(id.Trim(), resolvedLocal, githubRepo?.Trim(), baseBranch?.Trim(), cloneUrl?.Trim(), localOnly);
+    }
+
+    private static bool GetBoolIgnoreCase(JsonElement obj, string name)
+    {
+        foreach (var prop in obj.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)
+                && prop.Value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                return prop.Value.GetBoolean();
+            }
+        }
+
+        return false;
     }
 
     private static string? GetStringIgnoreCase(JsonElement obj, string name)

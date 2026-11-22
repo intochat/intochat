@@ -113,35 +113,55 @@ public sealed partial class WorkTreeService : IWorkTree
         {
             var originUrl = await TryGetOriginUrlAsync(sourcePath, ct).ConfigureAwait(false);
             var pushUrl = await TryGetOriginUrlAsync(sourcePath, ct, push: true).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(originUrl) || string.IsNullOrWhiteSpace(pushUrl))
-            {
-                throw new InvalidOperationException($"Repository '{repo.Id}' has no 'origin' remote configured.");
-            }
-
-            var githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
-            var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
-
-            var fetch = await _git.RunSourceGitAsync(sourcePath, allowLocalFileTransport, ct, "fetch", "origin", "--prune", "--no-tags").ConfigureAwait(false);
-            if (fetch.ExitCode != 0)
-            {
-                _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
-            }
 
             var requestedBase = baseBranch ?? (string.IsNullOrWhiteSpace(repo.DefaultBaseBranch)
                 ? null
                 : BranchName.FromRequestedBase(repo.DefaultBaseBranch));
-            var (resolvedBaseBranch, startRef) = await ResolveRemoteBaseBranchAsync(sourcePath, requestedBase, ct).ConfigureAwait(false);
 
-            var baseShaResult = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--verify", $"{startRef}^{{commit}}").ConfigureAwait(false);
-            GitCommandRunner.EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
-            var baseSha = CommitSha.Parse(baseShaResult.StdOut);
+            string? githubRepo;
+            BranchName resolvedBaseBranch;
+            CommitSha baseSha;
 
-            var unpushed = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-list", "--count", baseSha.Value, "--not", "--remotes=origin").ConfigureAwait(false);
-            GitCommandRunner.EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch.Value}' with origin");
-            if (unpushed.StdOut.Trim() != "0")
+            if (repo.LocalOnly)
             {
-                throw new SecurityException(
-                    $"Refusing to start from base '{resolvedBaseBranch.Value}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
+                githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
+                var (localBaseBranch, localStartRef) = await ResolveLocalBaseBranchAsync(sourcePath, requestedBase, ct).ConfigureAwait(false);
+                resolvedBaseBranch = localBaseBranch;
+
+                var localBaseShaResult = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--verify", $"{localStartRef}^{{commit}}").ConfigureAwait(false);
+                GitCommandRunner.EnsureSuccess(localBaseShaResult, $"resolve local base commit '{localStartRef}'");
+                baseSha = CommitSha.Parse(localBaseShaResult.StdOut);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(originUrl) || string.IsNullOrWhiteSpace(pushUrl))
+                {
+                    throw new InvalidOperationException($"Repository '{repo.Id}' has no 'origin' remote configured.");
+                }
+
+                githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
+                var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
+
+                var fetch = await _git.RunSourceGitAsync(sourcePath, allowLocalFileTransport, ct, "fetch", "origin", "--prune", "--no-tags").ConfigureAwait(false);
+                if (fetch.ExitCode != 0)
+                {
+                    _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
+                }
+
+                var (remoteBaseBranch, startRef) = await ResolveRemoteBaseBranchAsync(sourcePath, requestedBase, ct).ConfigureAwait(false);
+                resolvedBaseBranch = remoteBaseBranch;
+
+                var baseShaResult = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--verify", $"{startRef}^{{commit}}").ConfigureAwait(false);
+                GitCommandRunner.EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
+                baseSha = CommitSha.Parse(baseShaResult.StdOut);
+
+                var unpushed = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-list", "--count", baseSha.Value, "--not", "--remotes=origin").ConfigureAwait(false);
+                GitCommandRunner.EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch.Value}' with origin");
+                if (unpushed.StdOut.Trim() != "0")
+                {
+                    throw new SecurityException(
+                        $"Refusing to start from base '{resolvedBaseBranch.Value}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
+                }
             }
 
             _ = await _git.RunSourceGitAsync(sourcePath, false, ct, "worktree", "prune").ConfigureAwait(false);
@@ -610,6 +630,99 @@ public sealed partial class WorkTreeService : IWorkTree
             Branch: BranchName.Parse(lease.BranchName),
             PushedRef: pushedRef,
             PullRequestUrl: prUrl);
+    }
+
+    public async Task<CommitSha> MergeLocalAsync(
+        WorkTreeLease lease,
+        CommitSha approvedSha,
+        string targetBranch,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(approvedSha);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetBranch);
+
+        var branch = BranchName.Parse(lease.BranchName);
+        if (!branch.IsFeatureBranch)
+        {
+            throw new SecurityException($"Refusing to merge branch '{branch.Value}': branch name must start with 'ino/'.");
+        }
+
+        var parsedTarget = BranchName.Parse(targetBranch);
+
+        await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
+
+        var headResult = await _git.RunLockedGitAsync(lease, false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(headResult, "verify HEAD before local merge");
+        var headSha = CommitSha.Parse(headResult.StdOut);
+        if (headSha != approvedSha)
+        {
+            throw new SecurityException(
+                $"Approved commit SHA mismatch: person approved '{approvedSha.Value}', but worktree HEAD is '{headSha.Value}'.");
+        }
+
+        var dirtyCheck = await _git.RunLockedGitAsync(lease, false, ct, "status", "--porcelain=v1", "-z", "-uall").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(dirtyCheck, "verify clean worktree before local merge");
+        if (!string.IsNullOrEmpty(dirtyCheck.StdOut))
+        {
+            throw new SecurityException("Refusing to merge locally: worktree contains uncommitted modifications after commit verification.");
+        }
+
+        var gate = _volumes.GateFor(lease.SourceRepoPath);
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var targetRef = $"refs/heads/{parsedTarget.Value}";
+            var oldTargetResult = await _git.RunSourceGitAsync(lease.SourceRepoPath, false, ct, "rev-parse", "--verify", $"{targetRef}^{{commit}}").ConfigureAwait(false);
+            GitCommandRunner.EnsureSuccess(oldTargetResult, $"resolve local target branch '{parsedTarget.Value}'");
+            var oldTargetSha = CommitSha.Parse(oldTargetResult.StdOut);
+
+            if (oldTargetSha == approvedSha)
+            {
+                return approvedSha;
+            }
+
+            var ancestorCheck = await _git.RunSourceGitAsync(
+                lease.SourceRepoPath,
+                false,
+                ct,
+                "merge-base",
+                "--is-ancestor",
+                oldTargetSha.Value,
+                approvedSha.Value).ConfigureAwait(false);
+            if (ancestorCheck.ExitCode != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Refusing non-fast-forward local merge: target branch '{parsedTarget.Value}' ('{oldTargetSha.Value}') is not an ancestor of '{approvedSha.Value}'.");
+            }
+
+            var currentBranchResult = await _git.RunSourceGitAsync(lease.SourceRepoPath, false, ct, "symbolic-ref", "-q", "HEAD").ConfigureAwait(false);
+            var currentHeadRef = currentBranchResult.ExitCode == 0 ? currentBranchResult.StdOut.Trim() : string.Empty;
+
+            if (string.Equals(currentHeadRef, targetRef, StringComparison.Ordinal))
+            {
+                var mergeResult = await _git.RunSourceGitAsync(lease.SourceRepoPath, false, ct, "merge", "--ff-only", approvedSha.Value).ConfigureAwait(false);
+                GitCommandRunner.EnsureSuccess(mergeResult, $"fast-forward checked-out branch '{parsedTarget.Value}' to '{approvedSha.Value}'");
+            }
+            else
+            {
+                var updateResult = await _git.RunSourceGitAsync(
+                    lease.SourceRepoPath,
+                    false,
+                    ct,
+                    "update-ref",
+                    targetRef,
+                    approvedSha.Value,
+                    oldTargetSha.Value).ConfigureAwait(false);
+                GitCommandRunner.EnsureSuccess(updateResult, $"fast-forward branch '{parsedTarget.Value}' to '{approvedSha.Value}'");
+            }
+
+            return approvedSha;
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task CleanupAsync(WorkTreeLease lease, CancellationToken ct = default)

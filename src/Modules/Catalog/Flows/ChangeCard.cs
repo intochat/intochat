@@ -40,18 +40,18 @@ internal static class ChangeCard
         return text.ToString();
     }
 
-    public static string Body(Change change) => Draw(change, change.Commit?.HostRenderedDiff);
+    public static string Body(Change change, SelfReviewReport? review = null) => Draw(change, change.Commit?.HostRenderedDiff, review);
 
     // Why this change cannot go on an approval, or null when the card shows all of it. The diff is passed apart from the
     // state so a step can ask before it stores the diff.
-    public static string? Refusal(Change change, string? diff)
+    public static string? Refusal(Change change, string? diff, SelfReviewReport? review = null)
     {
         if (FileNotShownAsText(diff) is { } file)
         {
             return $"The change has a file whose content cannot be shown as text: {file}. Nothing was pushed.";
         }
 
-        var size = Draw(change, diff).Length;
+        var size = Draw(change, diff, review).Length;
         return size <= MaxChars
             ? null
             : string.Create(
@@ -59,7 +59,7 @@ internal static class ChangeCard
                 $"The change is too large to show on one approval card: {size} characters, the limit is {MaxChars}. Nothing was pushed. Ask for a smaller change.");
     }
 
-    private static string Draw(Change change, string? diff)
+    private static string Draw(Change change, string? diff, SelfReviewReport? review = null)
     {
         var text = new StringBuilder();
         text.Append(change.Tree?.GitHubRepo is { Length: > 0 }
@@ -68,6 +68,11 @@ internal static class ChangeCard
         text.Append("\n\n").Append(Header(change));
         Quote(text, GoalLabel, change.Goal);
         Quote(text, SummaryLabel, change.Edit?.Summary);
+
+        if (review is { Findings.Length: > 0 })
+        {
+            text.Append("\n\n### Self-Review\n").Append(review.FormatForCard());
+        }
 
         if (!string.IsNullOrWhiteSpace(diff))
         {

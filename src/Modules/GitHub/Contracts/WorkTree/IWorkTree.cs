@@ -17,7 +17,8 @@ public sealed record RegisteredRepository(
     string LocalPath,
     string? GitHubRepo = null,
     string? DefaultBaseBranch = null,
-    string? RemoteCloneUrl = null);
+    string? RemoteCloneUrl = null,
+    bool LocalOnly = false);
 
 /// <summary>
 /// An active isolated Git worktree lease created for a single or N-parallel engineering run, carrying the Triple Git Lock (R10) anchor.
@@ -170,6 +171,13 @@ public interface IWorkTree
         string prTitle,
         string prBody,
         CancellationToken ct = default);
+
+    Task<CommitSha> MergeLocalAsync(
+        WorkTreeLease lease,
+        CommitSha approvedSha,
+        string targetBranch,
+        CancellationToken ct = default)
+        => throw new NotSupportedException("Local merge is not supported by this worktree implementation.");
 
     Task CleanupAsync(WorkTreeLease lease, CancellationToken ct = default);
 
