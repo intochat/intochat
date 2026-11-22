@@ -198,6 +198,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         var baseId = string.IsNullOrWhiteSpace(rawId) ? ToCamelCase(owner.Name) : rawId!;
         var componentId = baseId.StartsWith("module.", StringComparison.Ordinal) ? baseId : "module." + baseId;
         var provides = ExtractProvides(owner);
+        var reacts = ExtractReacts(owner);
 
         return new ComponentEntryModel(
             owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -207,7 +208,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             face: null,
             operations: ImmutableArray<OperationModel>.Empty,
             provides: provides,
-            inheritedSlots: ImmutableArray<SlotPropertyModel>.Empty);
+            inheritedSlots: ImmutableArray<SlotPropertyModel>.Empty,
+            reacts: reacts);
     }
 
     private static ComponentEntryModel? ExtractScreen(GeneratorSyntaxContext context, CancellationToken cancellationToken)
@@ -228,12 +230,14 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
         var face = ExtractFace(owner);
         var inheritedSlots = ExtractInheritedSlots(owner);
-        if (face is null && inheritedSlots.IsEmpty)
+        var reacts = ExtractReacts(owner);
+        var neuronType = NeuronTypeOf(owner);
+        if (face is null && inheritedSlots.IsEmpty && (neuronType is null || reacts.IsEmpty))
         {
             return null;
         }
 
-        var componentId = NeuronTypeOf(owner) ?? ScreenAliasOf(owner) ?? owner.ToDisplayString();
+        var componentId = neuronType ?? ScreenAliasOf(owner) ?? owner.ToDisplayString();
         var operations = ExtractOperations(owner);
 
         return new ComponentEntryModel(
@@ -244,7 +248,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             face: face,
             operations: operations,
             provides: ImmutableArray<string>.Empty,
-            inheritedSlots: inheritedSlots);
+            inheritedSlots: inheritedSlots,
+            reacts: reacts);
     }
 
     private static ImmutableArray<SlotPropertyModel> ExtractInheritedSlots(INamedTypeSymbol owner)
@@ -416,6 +421,36 @@ public sealed class SlotGenerator : IIncrementalGenerator
                                 builder.Add(fullName);
                             }
                         }
+                    }
+                }
+            }
+        }
+        return builder.ToImmutable();
+    }
+
+    private static ImmutableArray<string> ExtractReacts(INamedTypeSymbol owner)
+    {
+        var builder = ImmutableArray.CreateBuilder<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var current = owner; current is not null; current = current.BaseType)
+        {
+            foreach (var attribute in current.GetAttributes())
+            {
+                var fullName = Rules.FullName(attribute.AttributeClass);
+                if (fullName != "DigitalBrain.Neurons.ReactsAttribute" && fullName != "DigitalBrain.ReactsAttribute")
+                {
+                    continue;
+                }
+
+                if (attribute.ConstructorArguments.Length >= 2
+                    && attribute.ConstructorArguments[1].Kind == TypedConstantKind.Type
+                    && attribute.ConstructorArguments[1].Value is ITypeSymbol signalType
+                    && IsAccessibleForTypeOf(signalType))
+                {
+                    var signalFullName = signalType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    if (seen.Add(signalFullName))
+                    {
+                        builder.Add(signalFullName);
                     }
                 }
             }
@@ -790,6 +825,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 entry.Kind = "Module";
             }
             entry.AddProvides(mod.Provides);
+            entry.AddReacts(mod.Reacts);
         }
 
         foreach (var screen in screens)
@@ -805,6 +841,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             {
                 entry.AddSlot(slot);
             }
+            entry.AddReacts(screen.Reacts);
         }
 
         if (!synapses.IsDefaultOrEmpty)
@@ -1061,6 +1098,14 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 Reacts.Add(signalType);
             }
         }
+
+        public void AddReacts(ImmutableArray<string> signalTypes)
+        {
+            foreach (var signalType in signalTypes)
+            {
+                AddReact(signalType);
+            }
+        }
     }
 
     private sealed class TypeDeclModel : IEquatable<TypeDeclModel>
@@ -1178,7 +1223,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             ComponentFaceModel? face,
             ImmutableArray<OperationModel> operations,
             ImmutableArray<string> provides,
-            ImmutableArray<SlotPropertyModel> inheritedSlots)
+            ImmutableArray<SlotPropertyModel> inheritedSlots,
+            ImmutableArray<string> reacts)
         {
             OwnerFullName = ownerFullName;
             ComponentId = componentId;
@@ -1188,6 +1234,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             Operations = operations;
             Provides = provides;
             InheritedSlots = inheritedSlots;
+            Reacts = reacts;
         }
 
         public string OwnerFullName { get; }
@@ -1198,6 +1245,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public ImmutableArray<OperationModel> Operations { get; }
         public ImmutableArray<string> Provides { get; }
         public ImmutableArray<SlotPropertyModel> InheritedSlots { get; }
+        public ImmutableArray<string> Reacts { get; }
 
         public bool Equals(ComponentEntryModel? other)
         {
@@ -1209,7 +1257,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || !Equals(Face, other.Face)
                 || Operations.Length != other.Operations.Length
                 || Provides.Length != other.Provides.Length
-                || InheritedSlots.Length != other.InheritedSlots.Length)
+                || InheritedSlots.Length != other.InheritedSlots.Length
+                || Reacts.Length != other.Reacts.Length)
             {
                 return false;
             }
@@ -1224,6 +1273,10 @@ public sealed class SlotGenerator : IIncrementalGenerator
             for (var i = 0; i < InheritedSlots.Length; i++)
             {
                 if (!InheritedSlots[i].Equals(other.InheritedSlots[i])) { return false; }
+            }
+            for (var i = 0; i < Reacts.Length; i++)
+            {
+                if (!string.Equals(Reacts[i], other.Reacts[i], StringComparison.Ordinal)) { return false; }
             }
             return true;
         }
@@ -1241,6 +1294,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ Operations.Length;
                 hash = (hash * 397) ^ Provides.Length;
                 hash = (hash * 397) ^ InheritedSlots.Length;
+                hash = (hash * 397) ^ Reacts.Length;
                 return hash;
             }
         }

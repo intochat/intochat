@@ -34,3 +34,14 @@ public sealed class ReentrantAttribute : Attribute;
 /// <summary>Marks a neuron class that keeps no state: the host may run many activations of it and route calls to any.</summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class StatelessNeuronAttribute : Attribute;
+
+/// <summary>Declares that a component reacts to a signal from a source type (e.g., via <c>Follow</c>).</summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = true)]
+public sealed class ReactsAttribute(Type source, Type signal) : Attribute
+{
+    /// <summary>The source contract or neuron type that emits the signal.</summary>
+    public Type Source { get; } = source;
+
+    /// <summary>The signal type reacted to.</summary>
+    public Type Signal { get; } = signal;
+}

@@ -127,17 +127,26 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.TryAddSingleton<ICallerAmbient>(OrleansCallerAmbient.Instance);
         silo.Services.TryAddSingleton<ICallerCarrier>(OrleansCallerAmbient.Instance);
         silo.Services.TryAddSingleton(new EdgeAuthority(OrleansCallerAmbient.Instance));
-        silo.Services.TryAddSingleton(sp => new AccessGate(
-            sp.GetRequiredService<ICallerAmbient>(),
-            async (target, account, ct) =>
-            {
-                if (string.Equals(target.Type, AccessGate.OffersType, StringComparison.Ordinal)) { return null; }
-                var offers = NeuronHosting.Get<IOffers>(sp, new NeuronId(target.Brain, AccessGate.OffersType, IOffers.DefaultKey));
-                using (KernelHop.Enter(target.Brain))
+        silo.Services.TryAddSingleton<IBindingIndex, InMemoryBindingIndex>();
+        silo.Services.TryAddSingleton(sp =>
+        {
+            var bindingOptions = sp.GetService<BindingGateOptions>();
+            return new AccessGate(
+                sp.GetRequiredService<ICallerAmbient>(),
+                async (target, account, ct) =>
                 {
-                    return await offers.RoleOf(target, account, ct).ConfigureAwait(true);
-                }
-            }));
+                    if (string.Equals(target.Type, AccessGate.OffersType, StringComparison.Ordinal)) { return null; }
+                    var offers = NeuronHosting.Get<IOffers>(sp, new NeuronId(target.Brain, AccessGate.OffersType, IOffers.DefaultKey));
+                    using (KernelHop.Enter(target.Brain))
+                    {
+                        return await offers.RoleOf(target, account, ct).ConfigureAwait(true);
+                    }
+                },
+                sp.GetService<IBindingIndex>(),
+                bindingOptions?.Mode ?? BindingEnforcementMode.Off,
+                bindingOptions?.OnMissingBinding,
+                bindingOptions?.PrivilegedComponents);
+        });
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, CallerEdgeFilter>());
         DigitalBrain.Brains.CallerAdmission.Register(OrleansCallerAmbient.Instance);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrainCallFilter>());

@@ -126,6 +126,13 @@ public sealed class SlotGeneratorFacts
                 public string Type { get; } = type;
             }
 
+            [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = true)]
+            public sealed class ReactsAttribute(Type source, Type signal) : Attribute
+            {
+                public Type Source { get; } = source;
+                public Type Signal { get; } = signal;
+            }
+
             public abstract class Neuron
             {
                 public DigitalBrain.Components.Slots Slots { get; } = new();
@@ -440,6 +447,50 @@ public sealed class SlotGeneratorFacts
             Assert.Equal(studioIface, (Type)slot.GetType().GetProperty("Contract")!.GetValue(slot)!);
             Assert.False((bool)slot.GetType().GetProperty("Required")!.GetValue(slot)!);
             Assert.Equal("studio", (string?)slot.GetType().GetProperty("Key")!.GetValue(slot));
+        });
+    }
+
+    [Fact]
+    public void ReactsAttributePopulatesManifestReacts()
+    {
+        const string source = """
+            using DigitalBrain;
+            using DigitalBrain.Neurons;
+            using Sample.UI;
+
+            namespace Sample;
+
+            public interface ISource { }
+
+            [Signal("sample.my-signal")]
+            public sealed record MySignal() : Signal;
+
+            [Signal("sample.other-signal")]
+            public sealed record OtherSignal() : Signal;
+
+            [Neuron("app.follower")]
+            [Screen("app.follower", Title = "Follower")]
+            [Reacts(typeof(ISource), typeof(MySignal))]
+            [Reacts(typeof(ISource), typeof(MySignal))]
+            [Reacts(typeof(ISource), typeof(OtherSignal))]
+            public sealed class FollowerScreen : Neuron
+            {
+            }
+            """;
+
+        WithCompiledAssembly("ReactsProbe", source, assembly =>
+        {
+            var mySignal = assembly.GetType("Sample.MySignal", throwOnError: true)!;
+            var otherSignal = assembly.GetType("Sample.OtherSignal", throwOnError: true)!;
+            System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle);
+
+            var manifestsType = assembly.GetType("DigitalBrain.Components.ComponentManifests", throwOnError: true)!;
+            var manifests = (System.Collections.IDictionary)manifestsType.GetField("All")!.GetValue(null)!;
+            var manifest = Assert.Single(manifests.Values.Cast<object>());
+
+            var reacts = (Type[]?)manifest.GetType().GetProperty("Reacts")!.GetValue(manifest);
+            Assert.NotNull(reacts);
+            Assert.Equal([mySignal, otherSignal], reacts);
         });
     }
 

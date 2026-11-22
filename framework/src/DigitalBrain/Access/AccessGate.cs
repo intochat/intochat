@@ -9,7 +9,11 @@ namespace DigitalBrain.Access;
 /// </summary>
 internal sealed class AccessGate(
     ICallerAmbient callers,
-    Func<NeuronId, string, CancellationToken, ValueTask<Role?>>? roleLookup = null)
+    Func<NeuronId, string, CancellationToken, ValueTask<Role?>>? roleLookup = null,
+    IBindingIndex? bindingIndex = null,
+    BindingEnforcementMode bindingMode = BindingEnforcementMode.Off,
+    Action<MissingBindingEvent>? onMissingBinding = null,
+    IReadOnlySet<string>? privilegedComponents = null)
 {
     internal const string OffersType = "component.offers";
 
@@ -31,8 +35,13 @@ internal sealed class AccessGate(
         if (caller.Actor is Actor.Kernel || caller.Brain == target.Brain)
         {
             var sameBrain = AccessPolicy.Decide(caller, target, call.Access);
-            if (sameBrain.Allowed) { return ValueTask.FromResult(caller); }
-            throw new UnauthorizedAccessException($"{sameBrain.Explanation} ({call.Contract.Name}.{call.Method.Name} on {target.Type})");
+            if (!sameBrain.Allowed)
+            {
+                throw new UnauthorizedAccessException($"{sameBrain.Explanation} ({call.Contract.Name}.{call.Method.Name} on {target.Type})");
+            }
+
+            CheckBinding(caller, target, call);
+            return ValueTask.FromResult(caller);
         }
 
         // Cross-brain wall for non-system targets.
@@ -114,5 +123,37 @@ internal sealed class AccessGate(
         }
 
         return caller;
+    }
+
+    private void CheckBinding(Caller caller, NeuronId target, CallDescriptor call)
+    {
+        if (bindingMode == BindingEnforcementMode.Off
+            || bindingIndex is null
+            || caller.Actor is Actor.Kernel
+            || caller.Brain != target.Brain
+            || target.Brain.IsSystem
+            || caller.Component is not { } component)
+        {
+            return;
+        }
+
+        if (string.Equals(target.Type, component.Value, StringComparison.Ordinal)
+            || target.Type is "synapse.installs" or OffersType
+            || privilegedComponents?.Contains(component.Value) == true)
+        {
+            return;
+        }
+
+        if (bindingIndex.IsBound(caller.Brain, component, target))
+        {
+            return;
+        }
+
+        onMissingBinding?.Invoke(new MissingBindingEvent(caller.Brain, component, target, $"{call.Contract.Name}.{call.Method.Name}"));
+
+        if (bindingMode == BindingEnforcementMode.Enforce)
+        {
+            throw new UnauthorizedAccessException($"binding.missing: component '{component.Value}' has no binding to '{target}'.");
+        }
     }
 }

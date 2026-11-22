@@ -273,7 +273,9 @@ internal sealed class TestNeuronHost : IDisposable
                 .ConfigureAwait(false);
         }
 
-        return Slots.Resolve(Id.Brain, component, needs, record?.EffectiveBindings());
+        var resolved = Slots.Resolve(Id.Brain, component, needs, record?.EffectiveBindings());
+        _os.BindingIndex.Record(Id.Brain, component, resolved);
+        return resolved;
     }
 
     private async Task DeactivateNow(DeactivationCause cause)

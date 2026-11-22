@@ -126,6 +126,8 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             id => Get<IUnitDeployment>(id));
         Delivery = new SynapseRegistry(this);
         Listeners = new TestClusterListeners(this);
+        BindingIndex = options.Services?.GetService(typeof(IBindingIndex)) as IBindingIndex ?? new InMemoryBindingIndex();
+        var bindingOptions = options.Services?.GetService(typeof(BindingGateOptions)) as BindingGateOptions;
         Access = new AccessGate(
             TestCallerAmbient.Instance,
             async (target, account, ct) =>
@@ -137,7 +139,11 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
                         .RoleOf(target, account, ct)
                         .ConfigureAwait(false);
                 }
-            });
+            },
+            BindingIndex,
+            bindingOptions?.Mode ?? BindingEnforcementMode.Off,
+            bindingOptions?.OnMissingBinding,
+            bindingOptions?.PrivilegedComponents);
         DigitalBrain.Brains.CallerAdmission.Register(TestCallerAmbient.Instance);
         Edge = new EdgeAuthority(TestCallerAmbient.Instance);
         Proxies = new TestNeuronProxies(this);
@@ -237,6 +243,9 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 
     /// <summary>The access admission gate of this TestOS.</summary>
     internal AccessGate Access { get; }
+
+    /// <summary>The component slot binding index of this TestOS.</summary>
+    public IBindingIndex BindingIndex { get; }
 
     internal TestClusterListeners Listeners { get; }
 
