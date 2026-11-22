@@ -7,10 +7,14 @@ Operations: research, clear, query
 Researches target companies, scores ICP fit, and maintains a structured table of customer profiles.
 */
 using System.Globalization;
+using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.CustomerResearcher;
@@ -44,15 +48,30 @@ public sealed record ClearResearch() : Signal;
 public sealed record QueryProfiles(string? Filter = null) : Signal;
 
 [Neuron("app.customer-researcher"), Screen("app.customer-researcher", Title = "Customer Researcher")]
-public sealed class CustomerResearcherApp : Screen<CustomerResearcherState>
+public sealed class CustomerResearcherApp(ILogger<CustomerResearcherApp>? logger = null) : Screen<CustomerResearcherState>
 {
+    public const string ProfilesTableKey = "customer_profiles";
+
+    private static readonly TableDefinition ProfilesTableDefinition = new(
+        [
+            new TableColumn("company_name", "text"),
+            new TableColumn("industry", "text"),
+            new TableColumn("summary", "text"),
+            new TableColumn("fit_score", "number"),
+            new TableColumn("status", "text"),
+        ],
+        ["company_name"]);
+
+    private bool _tableDefined;
+
     [On]
-    public Task Research(ResearchCompany request)
+    public async Task Research(ResearchCompany request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.CompanyName))
         {
-            return Show(State with { LastMessage = "Company name is required." });
+            await Show(State with { LastMessage = "Company name is required." });
+            return;
         }
 
         var companyName = request.CompanyName.Trim();
@@ -82,23 +101,82 @@ public sealed class CustomerResearcherApp : Screen<CustomerResearcherState>
             updated.Add(profile);
         }
 
-        return Show(State with
+        await Show(State with
         {
             Profiles = updated,
             LastMessage = $"Researched {companyName} ({industry}, fit {fitScore.ToString(CultureInfo.InvariantCulture)}).",
         });
+
+        await TryPersistProfileAsync(profile);
     }
 
     [On]
-    public Task Clear(ClearResearch request)
+    public async Task Clear(ClearResearch request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Show(State with
+        var existingProfiles = State.Profiles;
+
+        await Show(State with
         {
             Query = "",
             Profiles = [],
             LastMessage = "Cleared all researched customer profiles.",
         });
+
+        await TryClearProfilesAsync(existingProfiles);
+    }
+
+    private async Task TryPersistProfileAsync(CustomerProfile profile)
+    {
+        if (!Implements<ITable>(new NeuronId(Id.Brain, "postgres.table", ProfilesTableKey)))
+        {
+            return;
+        }
+
+        try
+        {
+            var table = Get<ITable>(ProfilesTableKey);
+            if (!_tableDefined)
+            {
+                await table.Define(ProfilesTableDefinition);
+                _tableDefined = true;
+            }
+
+            await table.Upsert(
+                [new TableValue("company_name", JsonSerializer.Serialize(profile.CompanyName))],
+                [
+                    new TableValue("industry", JsonSerializer.Serialize(profile.Industry)),
+                    new TableValue("summary", JsonSerializer.Serialize(profile.Summary)),
+                    new TableValue("fit_score", profile.FitScore.ToString(CultureInfo.InvariantCulture)),
+                    new TableValue("status", JsonSerializer.Serialize(profile.Status)),
+                ]);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogSwallowed(ex, "persisting customer profile to Postgres customer_profiles table");
+        }
+    }
+
+    private async Task TryClearProfilesAsync(IReadOnlyList<CustomerProfile> profiles)
+    {
+        if (profiles.Count == 0
+            || !Implements<ITable>(new NeuronId(Id.Brain, "postgres.table", ProfilesTableKey)))
+        {
+            return;
+        }
+
+        try
+        {
+            var table = Get<ITable>(ProfilesTableKey);
+            foreach (var profile in profiles)
+            {
+                await table.Delete([new TableValue("company_name", JsonSerializer.Serialize(profile.CompanyName))]);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogSwallowed(ex, "clearing customer profiles from Postgres customer_profiles table");
+        }
     }
 
     [On]
