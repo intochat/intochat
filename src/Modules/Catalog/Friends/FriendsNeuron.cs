@@ -1,6 +1,9 @@
+using System.Security.Cryptography;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Components;
+using DigitalBrain.Contracts;
+using DigitalBrain.Invocation;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
@@ -22,6 +25,8 @@ internal sealed class FriendsRecord
     public int Misses { get; set; }
     public DateTimeOffset MissesSince { get; set; }
     public GroupInvite[] Groups { get; set; } = [];
+    public byte[]? SigningKeyPkcs8 { get; set; }
+    public byte[]? ExchangeKeyPkcs8 { get; set; }
 }
 
 // Only the hash of a code is kept.
@@ -43,6 +48,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     {
         await Owner();
         await EnsureImported();
+        await EnsurePublicKeys();
         var now = Context.Time.GetUtcNow();
         var code = Code.New();
         var expires = now + Code.Validity;
@@ -78,11 +84,12 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var me = await Profile.Read();
         var myName = !string.IsNullOrWhiteSpace(me.DisplayName) ? me.DisplayName
             : !string.IsNullOrWhiteSpace(me.Handle) ? me.Handle : owner;
+        var myPublicKeys = await EnsurePublicKeys();
 
         Friend theirs;
         try
         {
-            theirs = await Context.Get<IFriends>(new BindingTarget.Offered(target.Brain, FriendsDefaults.Id(target.Brain.Value))).Accepted(hash, myName);
+            theirs = await Context.Get<IFriends>(new BindingTarget.Offered(target.Brain, FriendsDefaults.Id(target.Brain.Value))).Accepted(hash, myName, myPublicKeys);
         }
         catch (UnauthorizedAccessException)
         {
@@ -92,7 +99,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
         var account = await Owners.OwnerAccount(target.Brain) ?? throw PersonActs.Refused();
         var name = !string.IsNullOrWhiteSpace(theirs.Name) ? theirs.Name : account;
-        var added = new Friend(new AccountId(account), target.Brain, name, now);
+        var added = new Friend(new AccountId(account), target.Brain, name, now, theirs.PublicKeys);
         await Store(With(friends: UpsertFriend(State.Friends ?? [], added)));
         return added;
     }
@@ -132,7 +139,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         return (State.Friends ?? []).Any(friend => friend.Account == account);
     }
 
-    public async Task<Friend> Accepted(string codeHash, string name)
+    public async Task<Friend> Accepted(string codeHash, string name, BrainPublicKeys? publicKeys = null)
     {
         var (account, brain) = await FriendRelay.Require(Context.Caller, FriendsDefaults.TypeName, Owners);
         if (brain == Id.Brain) { throw PersonActs.Refused(); }
@@ -149,9 +156,10 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             throw PersonActs.Refused();
         }
 
+        var myPublicKeys = await EnsurePublicKeys();
         var remaining = State.Pending.Where(pending => pending != match && pending.ExpiresAt > now).ToArray();
         var redeemerName = !string.IsNullOrWhiteSpace(name) ? name : account;
-        var added = new Friend(new AccountId(account), brain, redeemerName, now);
+        var added = new Friend(new AccountId(account), brain, redeemerName, now, publicKeys);
         await Store(With(pending: remaining, refused: 0, friends: UpsertFriend(State.Friends ?? [], added)));
         await Book.Spend(match.Hash);
 
@@ -163,7 +171,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
                 : !string.IsNullOrWhiteSpace(mine.Handle) ? mine.Handle : Id.Brain.Value;
         }
         var myAccount = await Owners.OwnerAccount(Id.Brain) ?? Id.Brain.Value;
-        return new Friend(new AccountId(myAccount), Id.Brain, myName, now);
+        return new Friend(new AccountId(myAccount), Id.Brain, myName, now, myPublicKeys);
     }
 
     public async Task Unfriended()
@@ -234,6 +242,34 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         await Store(With(groups: [.. others, group]));
     }
 
+    [ReadOnlyCall]
+    public async Task<BrainPublicKeys> PublicKeys(CancellationToken ct = default)
+    {
+        _ = ct;
+        RequireSameBrain();
+        return await EnsurePublicKeys();
+    }
+
+    private async Task<BrainPublicKeys> EnsurePublicKeys()
+    {
+        if (State.SigningKeyPkcs8 is { Length: > 0 } signingPkcs8
+            && State.ExchangeKeyPkcs8 is { Length: > 0 } exchangePkcs8)
+        {
+            using var signing = ECDsa.Create();
+            signing.ImportPkcs8PrivateKey(signingPkcs8, out _);
+            using var exchange = ECDiffieHellman.Create();
+            exchange.ImportPkcs8PrivateKey(exchangePkcs8, out _);
+            return new BrainPublicKeys(signing.ExportSubjectPublicKeyInfo(), exchange.ExportSubjectPublicKeyInfo());
+        }
+
+        using var generated = BrainKeyPair.Generate();
+        var publicKeys = generated.ExportPublicKeys();
+        await Store(With(
+            signingKeyPkcs8: generated.SigningKey.ExportPkcs8PrivateKey(),
+            exchangeKeyPkcs8: generated.ExchangeKey.ExportPkcs8PrivateKey()));
+        return publicKeys;
+    }
+
     private async Task EnsureImported()
     {
         if (State.Friends is not null) { return; }
@@ -286,7 +322,9 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         Friend[]? friends = null,
         int? misses = null,
         DateTimeOffset? missesSince = null,
-        GroupInvite[]? groups = null)
+        GroupInvite[]? groups = null,
+        byte[]? signingKeyPkcs8 = null,
+        byte[]? exchangeKeyPkcs8 = null)
         => new()
         {
             Pending = pending ?? State.Pending,
@@ -295,6 +333,8 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             Misses = misses ?? State.Misses,
             MissesSince = missesSince ?? State.MissesSince,
             Groups = groups ?? State.Groups,
+            SigningKeyPkcs8 = signingKeyPkcs8 ?? State.SigningKeyPkcs8,
+            ExchangeKeyPkcs8 = exchangeKeyPkcs8 ?? State.ExchangeKeyPkcs8,
         };
 }
 

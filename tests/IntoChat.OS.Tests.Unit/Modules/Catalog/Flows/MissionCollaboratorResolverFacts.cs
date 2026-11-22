@@ -71,11 +71,12 @@ public sealed class MissionCollaboratorResolverFacts
         public Task Unfriend(AccountId friend) => throw new NotSupportedException();
         public Task<Friend[]> List() => Task.FromResult(roster);
         public Task<bool> IsFriend(AccountId account) => Task.FromResult(roster.Any(f => f.Account == account));
-        public Task<Friend> Accepted(string codeHash, string name) => throw new NotSupportedException();
+        public Task<Friend> Accepted(string codeHash, string name, DigitalBrain.Invocation.BrainPublicKeys? publicKeys = null) => throw new NotSupportedException();
         public Task Unfriended() => throw new NotSupportedException();
         public Task<GroupInvite[]> Groups() => Task.FromResult<GroupInvite[]>([]);
         public Task GroupSay(GroupInvite group, string text) => throw new NotSupportedException();
         public Task<ConversationView> GroupRead(GroupInvite group, long? sinceRevision = null) => throw new NotSupportedException();
         public Task Invited(GroupInvite group) => throw new NotSupportedException();
+        public Task<DigitalBrain.Invocation.BrainPublicKeys> PublicKeys(CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

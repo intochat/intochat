@@ -181,4 +181,47 @@ public sealed class FriendsFacts
         Assert.Empty(await world.Friends(Ada).List());
         Assert.Empty(await world.Door(Ada).Shares());
     }
+
+    [Fact]
+    public async Task RedeemingACodeExchangesBrainPublicKeysOnBothSides()
+    {
+        await using var world = await World.Start();
+
+        Code code;
+        using (As(Ada)) { code = await world.Friends(Ada).Mint(); }
+        using (As(Eve)) { await world.Friends(Eve).Redeem(code); }
+
+        var ct = TestContext.Current.CancellationToken;
+        DigitalBrain.Invocation.BrainPublicKeys adaKeys, adaKeysAgain, eveKeys;
+        Friend[] adaFriends, eveFriends;
+        using (As(Ada))
+        {
+            adaKeys = await world.Friends(Ada).PublicKeys(ct);
+            adaKeysAgain = await world.Friends(Ada).PublicKeys(ct);
+            adaFriends = await world.Friends(Ada).List();
+        }
+        using (As(Eve))
+        {
+            eveKeys = await world.Friends(Eve).PublicKeys(ct);
+            eveFriends = await world.Friends(Eve).List();
+        }
+
+        Assert.NotEmpty(adaKeys.SigningKey);
+        Assert.NotEmpty(adaKeys.ExchangeKey);
+        Assert.Equal(adaKeys.SigningKey, adaKeysAgain.SigningKey);
+        Assert.Equal(adaKeys.ExchangeKey, adaKeysAgain.ExchangeKey);
+        Assert.NotEmpty(eveKeys.SigningKey);
+        Assert.NotEmpty(eveKeys.ExchangeKey);
+        Assert.NotEqual(adaKeys.SigningKey, eveKeys.SigningKey);
+
+        var eveOnAda = Assert.Single(adaFriends, f => f.Account == new AccountId(Eve));
+        Assert.NotNull(eveOnAda.PublicKeys);
+        Assert.Equal(eveKeys.SigningKey, eveOnAda.PublicKeys.SigningKey);
+        Assert.Equal(eveKeys.ExchangeKey, eveOnAda.PublicKeys.ExchangeKey);
+
+        var adaOnEve = Assert.Single(eveFriends, f => f.Account == new AccountId(Ada));
+        Assert.NotNull(adaOnEve.PublicKeys);
+        Assert.Equal(adaKeys.SigningKey, adaOnEve.PublicKeys.SigningKey);
+        Assert.Equal(adaKeys.ExchangeKey, adaOnEve.PublicKeys.ExchangeKey);
+    }
 }
