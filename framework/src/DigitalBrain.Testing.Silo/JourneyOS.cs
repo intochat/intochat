@@ -13,29 +13,39 @@ public sealed class JourneyOS : IAsyncDisposable
     private readonly FakeSet _fakes;
     private readonly ConcurrentDictionary<string, Person> _people = new(StringComparer.Ordinal);
 
-    private JourneyOS(JourneyFixture fixture, INeuronRuntime runtime, FakeSet fakes)
+    private JourneyOS(JourneyFixture fixture, INeuronRuntime runtime, FakeSet fakes, string environmentName)
     {
         _fixture = fixture;
         Runtime = runtime;
         _fakes = fakes;
+        EnvironmentName = environmentName;
     }
 
     /// <summary>Starts a new <see cref="JourneyOS"/> on <paramref name="kind"/> with <paramref name="modules"/> and optional <paramref name="fakes"/>.</summary>
-    public static async Task<JourneyOS> Start(
+    public static Task<JourneyOS> Start(
         NeuronRuntimeKind kind,
         IReadOnlyList<Type> modules,
         Action<FakeSet>? fakes = null,
         CancellationToken ct = default)
+        => Start(kind, modules, JourneyEnvironment.Test("test", fakes ?? (static _ => { })), ct);
+
+    /// <summary>Starts a new <see cref="JourneyOS"/> on <paramref name="kind"/> with <paramref name="modules"/> and a named <paramref name="environment"/>.</summary>
+    public static async Task<JourneyOS> Start(
+        NeuronRuntimeKind kind,
+        IReadOnlyList<Type> modules,
+        JourneyEnvironment environment,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(modules);
+        ArgumentNullException.ThrowIfNull(environment);
         var fakeSet = new FakeSet();
-        fakes?.Invoke(fakeSet);
+        environment.Configure(fakeSet);
 
         var fixture = new JourneyFixture(modules, fakeSet);
         try
         {
             var runtime = await fixture.Start(kind, ct).ConfigureAwait(false);
-            return new JourneyOS(fixture, runtime, fakeSet);
+            return new JourneyOS(fixture, runtime, fakeSet, environment.Name);
         }
         catch
         {
@@ -43,6 +53,9 @@ public sealed class JourneyOS : IAsyncDisposable
             throw;
         }
     }
+
+    /// <summary>The name of the <see cref="JourneyEnvironment"/> this harness was started with.</summary>
+    public string EnvironmentName { get; }
 
     /// <summary>The underlying neuron runtime.</summary>
     public INeuronRuntime Runtime { get; }

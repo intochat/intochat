@@ -98,4 +98,33 @@ public sealed class JourneyOSFacts
 
         Assert.Contains(nameof(FakeEchoEdge), error.Message, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task SameJourneyRunsUnderTwoNamedEnvironments(NeuronRuntimeKind kind)
+    {
+        var alpha = JourneyEnvironment.Test("env-alpha", fakes => fakes.Add<IEchoEdge, FakeEchoEdge>(new("alpha")));
+        var beta = JourneyEnvironment.Test("env-beta", fakes => fakes.Add<IEchoEdge, FakeEchoEdge>(new("beta")));
+
+        var (alphaEnv, alphaReply) = await RunEchoJourney(kind, alpha);
+        var (betaEnv, betaReply) = await RunEchoJourney(kind, beta);
+
+        Assert.Equal("env-alpha", alphaEnv);
+        Assert.Equal("alpha", alphaReply);
+        Assert.Equal("env-beta", betaEnv);
+        Assert.Equal("beta", betaReply);
+    }
+
+    private static async Task<(string EnvironmentName, string Reply)> RunEchoJourney(NeuronRuntimeKind kind, JourneyEnvironment environment)
+    {
+        await using var os = await JourneyOS.Start(
+            kind,
+            [typeof(EchoTestModule)],
+            environment,
+            TestContext.Current.CancellationToken);
+
+        var ada = os.Person("ada");
+        var reply = await ada.Get<IEchoContract>(new NeuronId(ada.Brain, "facts.echo", "main")).Say();
+        return (os.EnvironmentName, reply);
+    }
 }

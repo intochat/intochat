@@ -19,10 +19,13 @@ using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
 using IntoChat.OS.Modules.Identity.Grants;
+using IntoChat.OS.Modules.Microsoft.GitHub;
+using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.Modules.Web.Search;
 using IntoChat.OS.Tests.Support.Fakes.AI;
+using IntoChat.OS.Tests.Support.Fakes.GitHub;
 using IntoChat.OS.Tests.Support.Fakes.Postgres;
 using IntoChat.OS.Tests.Support.Fakes.Web;
 using Microsoft.Extensions.AI;
@@ -74,6 +77,27 @@ public static class OsFakes
             {
                 services.AddSingleton<IAccessAdmissionStage>(sp =>
                     GrantAccessAdmissionStage.ForStore(store, sp.GetRequiredService<ICallerAmbient>()));
+            });
+    }
+
+    /// <summary>Registers <see cref="FakeGitHub"/> and GitHub webhook ingress services for both TestOS and Silo.</summary>
+    public static FakeSet GitHub(this FakeSet fakes, Action<FakeGitHub>? seed = null)
+    {
+        ArgumentNullException.ThrowIfNull(fakes);
+        var github = new FakeGitHub();
+        seed?.Invoke(github);
+        return fakes
+            .Add<IGitHubRepositorySource, FakeGitHub>(github)
+            .Add<IGitHubUserAccess, FakeGitHub>(github)
+            .Add<IGitHubInstallationVerifier, FakeGitHub>(github)
+            .Add<IModuleIntegrations<GitHubModule>, FakeGitHub>(github)
+            .Configure(services =>
+            {
+                DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(
+                    services,
+                    typeof(DigitalBrain.Capabilities.Connections.ConnectionUpdated).Assembly);
+                services.TryAddSingleton<GitHubAppRegistration>();
+                services.TryAddSingleton<GitHubWebhookIngress>();
             });
     }
 

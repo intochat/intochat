@@ -5,6 +5,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Log;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -63,10 +64,10 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             using (edge.Enter(edge.Module(GitHubModule.ManifestName, new BrainId("system"))))
             {
                 var byInstallation = installation is { } instId
-                    ? await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.Key(instId)).Read()
+                    ? await GetNeuron<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(instId)).Read()
                     : [];
                 var byRepository = repository is > 0
-                    ? await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.RepositoryKey(repository.Value)).Read()
+                    ? await GetNeuron<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.RepositoryKey(repository.Value)).Read()
                     : [];
                 installationKeys = [.. byInstallation];
                 keys = [.. byInstallation.Concat(byRepository).Distinct(StringComparer.Ordinal)];
@@ -82,7 +83,7 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                 using var activity = GitHubTelemetry.Source.StartActivity("github.webhook.accept", ActivityKind.Producer);
                 try
                 {
-                    var target = SiloNeurons.Get<IGitHubInbound>(plain, key);
+                    var target = GetNeuron<IGitHubInbound>(key);
                     if (await target.Coordinates().ConfigureAwait(false) is not { } coordinates
                         || repository is not null && coordinates.RepositoryId != repository)
                     {
@@ -166,6 +167,11 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
         var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body);
         return CryptographicOperations.FixedTimeEquals(supplied, expected);
     }
+
+    private T GetNeuron<T>(string fullKey) where T : class
+        => plain.GetService<INeuronProxies>() is { } proxies
+            ? proxies.Get<T>(SiloNeurons.IdOf(typeof(T), fullKey))
+            : SiloNeurons.Get<T>(plain, fullKey);
 
     private static string? Header(IReadOnlyDictionary<string, string[]> headers, string name)
     {

@@ -6,6 +6,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Limits;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 
@@ -55,6 +56,11 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         if (ServiceProvider?.GetService(typeof(Func<long, IGitHubRepositoryIndex>)) is Func<long, IGitHubRepositoryIndex> resolver)
         {
             return resolver(installationOrNegRepoId);
+        }
+
+        if (ServiceProvider?.GetService(typeof(INeuronProxies)) is INeuronProxies proxies)
+        {
+            return proxies.Get<IGitHubRepositoryIndex>(SiloNeurons.IdOf(typeof(IGitHubRepositoryIndex), IGitHubRepositoryIndex.Key(installationOrNegRepoId)));
         }
 
         return null;

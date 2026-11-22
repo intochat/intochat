@@ -63,7 +63,7 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         services.AddSingleton<GitHubAppRegistration>();
         services.AddSingleton<GitHubInstallationTokens>();
         services.AddSingleton<IGitHubInstallationVerifier>(services => services.GetRequiredService<GitHubInstallationTokens>());
-        services.AddSingleton<IGitHubRepositorySource, GitHubRepositorySource>();
+        services.TryAddSingleton<IGitHubRepositorySource, GitHubRepositorySource>();
         services.AddSingleton<IGitHubUserAccess, GitHubUserAccess>();
         services.AddSingleton<GitHubWebhookIngress>();
         services.AddSingleton<IHttpSurface, GitHubWebhookSurface>();
