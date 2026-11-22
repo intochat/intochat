@@ -5,7 +5,7 @@ import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/ui_colors.dart';
-import '../ui/ui_control_surface.dart';
+import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` (`NakedToggle(asSwitch: true)`) + `mix` toggle control

@@ -7,7 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
-import '../src/ui/ino/ino_orb_v2.dart';
+import '../src/widgets/ino/ino_orb_v2.dart';
 
 /// How long the sphere flies to a focus; a cut under reduced motion.
 const presenceFlight = Duration(milliseconds: 420);

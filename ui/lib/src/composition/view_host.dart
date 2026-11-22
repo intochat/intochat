@@ -13,8 +13,8 @@ import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
-import '../ui/neuron_widget.dart';
-import '../ui/ui_neuron_registry.dart';
+import '../widgets/neuron/neuron_widget.dart';
+import '../widgets/neuron/ui_neuron_registry.dart';
 import 'slot_route.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a

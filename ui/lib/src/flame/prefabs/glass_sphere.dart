@@ -6,7 +6,7 @@ import 'package:flutter/painting.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../../design/tokens.dart' show IcBrainShaderMode;
-import '../../lumen/neuron_icon.dart';
+import '../../theme/neuron_icon.dart';
 import '../ino_presence.dart';
 
 const _accent = Color(0xFF3D7EFF);

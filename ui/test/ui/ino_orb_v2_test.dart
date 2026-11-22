@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/ui/ino/ino_orb_v2.dart';
+import 'package:intochat_os_flutter_shell/src/widgets/ino/ino_orb_v2.dart';
 
 void main() {
   testWidgets('InoOrbV2 renders all 8 PresenceStates and fires onTap', (

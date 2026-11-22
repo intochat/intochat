@@ -15,7 +15,7 @@ export 'src/entries/entries_client.dart';
 export 'src/entries/ui_entry_control.dart';
 export 'src/preferences/local_preferences.dart';
 export 'src/preferences/ui_preference_control.dart';
-export 'src/lumen/neuron_icon.dart';
+export 'src/theme/neuron_icon.dart';
 export 'src/models/window_state.dart';
 export 'src/signals/rejected.dart';
 export 'src/theme/brand_visuals.dart';
@@ -24,9 +24,9 @@ export 'src/theme/ui_theme.dart';
 
 export 'src/composition/view_host.dart';
 export 'src/primitives/primitives.dart';
-export 'src/ui/neuron_widget.dart';
-export 'src/ui/ui_neuron_registry.dart';
-export 'src/ui/code_editor/code_editor_widget.dart'
+export 'src/widgets/neuron/neuron_widget.dart';
+export 'src/widgets/neuron/ui_neuron_registry.dart';
+export 'src/widgets/neuron/code_editor_widget.dart'
     show
         CodeEditorNeuronWidget,
         buildIcCodeHighlightTheme,
@@ -67,7 +67,7 @@ export 'src/voice_mode/voice_mode_view.dart';
 export 'src/theme/ui_shadows.dart';
 export 'src/theme/ui_tokens.dart';
 export 'src/components/workspace/ui_workspace_components.dart';
-export 'src/shell_icon.dart';
+export 'src/theme/shell_icon.dart';
 
 export 'src/design/tokens.dart';
 export 'src/design/keys.dart';

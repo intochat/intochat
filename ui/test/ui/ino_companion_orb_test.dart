@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
-import 'package:intochat_os_flutter_shell/src/ui/ino/ino_companion_orb.dart';
+import 'package:intochat_os_flutter_shell/src/widgets/ino/ino_companion_orb.dart';
 
 void main() {
   testWidgets(

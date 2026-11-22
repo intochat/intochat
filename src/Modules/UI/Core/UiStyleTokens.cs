@@ -47,6 +47,22 @@ public enum UiSurfaceTone
 }
 
 /// <summary>
+/// Optional state-specific style overrides (hover, press, focus) attached to a <see cref="UiStyleRef"/>.
+/// Any <see langword="null"/> property inherits from the base <see cref="UiStyleRef"/>.
+/// </summary>
+[GenerateSerializer, Alias("ui.core.style-state-override")]
+public sealed record UiStyleStateOverride(
+    [property: Id(0)] UiSurfaceTone? Tone = null,
+    [property: Id(1)] UiTypeRole? Typography = null,
+    [property: Id(2)] UiElevation? Elevation = null,
+    [property: Id(3)] string? Icon = null,
+    [property: Id(4)] UiMotionPreset? Motion = null,
+    [property: Id(5)] double? PaddingX = null,
+    [property: Id(6)] double? PaddingY = null,
+    [property: Id(7)] double? Gap = null,
+    [property: Id(8)] double? Radius = null);
+
+/// <summary>
 /// Declarative theme, layout, typography, iconography, elevation, and motion attachment
 /// carried uniformly by every UI control neuron. When layout values (e.g. <see cref="PaddingX"/>,
 /// <see cref="PaddingY"/>, <see cref="Radius"/>) are specified in C#, Flutter's <c>UiStyleMapper</c>
@@ -62,4 +78,7 @@ public sealed record UiStyleRef(
     [property: Id(5)] double? PaddingX = null,
     [property: Id(6)] double? PaddingY = null,
     [property: Id(7)] double? Gap = null,
-    [property: Id(8)] double? Radius = null);
+    [property: Id(8)] double? Radius = null,
+    [property: Id(9)] UiStyleStateOverride? Hover = null,
+    [property: Id(10)] UiStyleStateOverride? Press = null,
+    [property: Id(11)] UiStyleStateOverride? Focus = null);

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntoChat UI Architecture — Root Cause & Unified C# ↔ FlutterMix Roadmap</title>
+<style>
+  :root {
+    --bg: #0f0e0d;
+    --surface: #1a1816;
+    --surface-2: #24211e;
+    --border: #332e2a;
+    --text: #f3efe9;
+    --muted: #a69d94;
+    --accent: #e87a48;
+    --accent-soft: rgba(232, 122, 72, 0.14);
+    --green: #4ade80;
+    --green-soft: rgba(74, 222, 128, 0.12);
+    --red: #f87171;
+    --red-soft: rgba(248, 113, 113, 0.12);
+    --blue: #60a5fa;
+    --blue-soft: rgba(96, 165, 250, 0.12);
+    --radius: 12px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.55;
+    padding: 36px 24px 80px;
+  }
+  .container { max-width: 1120px; margin: 0 auto; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: var(--accent-soft);
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  h1 { margin: 0 0 10px; font-size: 32px; letter-spacing: -0.02em; }
+  .subtitle { color: var(--muted); font-size: 16px; margin: 0; max-width: 820px; }
+  h2 {
+    margin: 40px 0 14px;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h3 { margin: 0 0 8px; font-size: 16px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card.bad { border-color: rgba(248, 113, 113, 0.35); background: linear-gradient(180deg, var(--red-soft), var(--surface) 45%); }
+  .card.good { border-color: rgba(74, 222, 128, 0.35); background: linear-gradient(180deg, var(--green-soft), var(--surface) 45%); }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .pill.red { background: var(--red-soft); color: var(--red); }
+  .pill.green { background: var(--green-soft); color: var(--green); }
+  .pill.blue { background: var(--blue-soft); color: var(--blue); }
+  .pill.accent { background: var(--accent-soft); color: var(--accent); }
+  .layer {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 8px 0;
+    font-size: 13.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .layer span.meta { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  .arrow { text-align: center; color: var(--muted); font-size: 14px; margin: 2px 0; }
+  pre {
+    margin: 12px 0 0;
+    background: #12100e;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #e8e2da;
+  }
+  .kw { color: #f472b6; }
+  .ty { color: #60a5fa; }
+  .str { color: #4ade80; }
+  .cm { color: #8c8279; font-style: italic; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tab-btn {
+    background: var(--surface-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab-btn.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .roadmap-step {
+    position: relative;
+    padding-left: 28px;
+    border-left: 2px solid var(--border);
+    margin-left: 10px;
+    padding-bottom: 24px;
+  }
+  .roadmap-step:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .roadmap-dot {
+    position: absolute;
+    left: -8px;
+    top: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+  }
+  .roadmap-dot.done { background: var(--green); }
+  ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+  li { margin: 4px 0; }
+  code { font-family: var(--mono); font-size: 12.5px; color: #f3c6a8; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .kpi .num { font-size: 24px; font-weight: 700; color: var(--text); }
+  .kpi .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <span class="badge">UI Architecture Roadmap · C# ↔ FlutterMix + NakedUI</span>
+    <h1>Eliminating the 5-Layer UI Complexity</h1>
+    <p class="subtitle">
+      Why <code>ui/lib/</code> grew to 274 files across 5 overlapping widget layers — and how unifying C# <code>MixStyle</code>
+      with a single <code>naked_ui</code> + <code>fluttermix</code> primitive layer cuts complexity in half.
+    </p>
+  </header>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="num">274 → ~160</div><div class="lbl">Target Dart files in <code>ui/lib/</code></div></div>
+    <div class="kpi"><div class="num">42 → 1</div><div class="lbl">Single-file dirs in <code>src/ui/</code></div></div>
+    <div class="kpi"><div class="num">5 → 2</div><div class="lbl">Widget layers (Primitives + Adapters)</div></div>
+    <div class="kpi"><div class="num">1:1</div><div class="lbl">C# <code>MixStyle</code> ↔ Flutter <code>BoxStyler</code></div></div>
+  </div>
+
+  <h2>1. The Main Source of Complexity</h2>
+  <div class="grid-2">
+    <div class="card bad">
+      <h3><span class="pill red">OLD</span> Two Competing UI Paradigms + 5 Overlapping Layers</h3>
+      <p style="color:var(--muted);font-size:13.5px;margin-top:6px;">
+        Every control (e.g. Toggle, Select, Card, Toast) was built <strong>3 to 5 times</strong> because declarative
+        <code>DigitalBrain.UI</code> nodes and stateful <code>IntoChat.OS.Modules.UI</code> neurons never shared one primitive layer or style DSL:
+      </p>
+      <div class="layer"><span>1. <code>src/nodes/toggle_switch_view.dart</code> + <code>switch.dart</code></span><span class="meta">Declarative JSON</span></div>
+      <div class="layer"><span>2. <code>src/ui/toggle/toggle_widget.dart</code></span><span class="meta">Stateful UI Neuron</span></div>
+      <div class="layer"><span>3. <code>src/components/toggle/ui_toggle.dart</code></span><span class="meta">Legacy Component</span></div>
+      <div class="layer"><span>4. <code>src/design/tokens.dart</code> vs <code>src/theme/ui_tokens.dart</code></span><span class="meta">2 Design Systems</span></div>
+      <div class="layer"><span>5. <code>src/lumen/</code> + <code>src/shell_icon.dart</code> + <code>src/theme/ui_icon.dart</code></span><span class="meta">3 Icon Locations</span></div>
+    </div>
+
+    <div class="card good">
+      <h3><span class="pill green">NEW</span> One C# MixStyle Contract → One Flutter Primitive Layer</h3>
+      <p style="color:var(--muted);font-size:13.5px;margin-top:6px;">
+        C# mirrors <code>fluttermix</code> directly via a fluent <code>MixStyle</code> record. Both declarative nodes and stateful UI neurons become <strong>thin 10-line adapters</strong> over one shared primitive set:
+      </p>
+      <div class="layer"><span><strong>C# Domain / Screen</strong> (<code>DigitalBrain.UI</code>)</span><span class="meta">MixStyle + Typed Signals</span></div>
+      <div class="arrow">↓ JSON wire contract (style + props + emit)</div>
+      <div class="layer"><span><strong>Thin Adapters</strong> (<code>src/nodes/</code> + <code>src/widgets/neuron/</code>)</span><span class="meta">Binding only — 0 styling</span></div>
+      <div class="arrow">↓ 1:1 prop &amp; style pass-through</div>
+      <div class="layer"><span><strong>Primitives</strong> (<code>src/primitives/*.dart</code>)</span><span class="meta">naked_ui + fluttermix</span></div>
+      <div class="arrow">↓ reads single token source</div>
+      <div class="layer"><span><strong>Theme</strong> (<code>src/theme/</code>)</span><span class="meta">UiColors + UiTokens</span></div>
+    </div>
+  </div>
+
+  <h2>2. Code Examples: Old vs. New (C# ↔ FlutterMix)</h2>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('csharp', this)">C# Screen &amp; MixStyle DSL</button>
+    <button class="tab-btn" onclick="showTab('flutter', this)">Flutter Primitive + Adapter</button>
+    <button class="tab-btn" onclick="showTab('wire', this)">JSON Wire Contract</button>
+  </div>
+
+  <div id="tab-csharp" class="tab-panel active">
+    <div class="grid-2">
+      <div class="card bad">
+        <h3><span class="pill red">OLD C#</span> Ad-hoc strings, raw emits, no hover/press/layout styling</h3>
+<pre><span class="cm">// Old SettingsViewRenderer.cs — stringly-typed emit, no Mix styling</span>
+<span class="kw">new</span> <span class="ty">NavItem</span>(
+    key: <span class="str">$"nav-{entry.SectionId}"</span>,
+    label: entry.Title,
+    icon: entry.Icon,
+    selected: isSelected,
+    <span class="cm">// Fragile string emit — broke silently when signal changed!</span>
+    emit: <span class="ty">AppSignals</span>.Emit(<span class="str">"settings"</span>, <span class="str">"navigate"</span>, entry.SectionId)
+);
+
+<span class="cm">// Old Button — limited to fixed enum, cannot express padding/radius/hover</span>
+<span class="kw">new</span> <span class="ty">Button</span>(<span class="str">"save"</span>, <span class="str">"Save Changes"</span>, Sends(<span class="kw">new</span> <span class="ty">SaveSettings</span>()))</pre>
+      </div>
+      <div class="card good">
+        <h3><span class="pill green">NEW C#</span> Fluent <code>MixStyle</code> mirroring FlutterMix + Typed Signals</h3>
+<pre><span class="cm">// New C# — mirrors fluttermix BoxStyler + naked_ui interaction states</span>
+<span class="kw">new</span> <span class="ty">Button</span>(
+    key: <span class="str">"save"</span>,
+    label: <span class="str">"Save Changes"</span>,
+    emit: Sends(<span class="kw">new</span> <span class="ty">SaveSettings</span>()),
+    style: <span class="ty">Mix</span>.Style()
+        .Tone(<span class="ty">UiTone</span>.Accent)
+        .Padding(x: 16, y: 10)
+        .Radius(8)
+        .Elevation(<span class="ty">UiElevation</span>.Raised)
+        .OnHover(s =&gt; s.Tone(<span class="ty">UiTone</span>.AccentStrong))
+        .OnPress(s =&gt; s.Scale(0.97))
+        .Motion(<span class="ty">UiMotion</span>.Snappy)
+);</pre>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-flutter" class="tab-panel">
+    <div class="grid-2">
+      <div class="card bad">
+        <h3><span class="pill red">OLD Flutter</span> Duplicated Material widgets + hardcoded colors</h3>
+<pre><span class="cm">// Old checkbox_widget.dart — raw Material Checkbox + InkWell</span>
+<span class="ty">InkWell</span>(
+  borderRadius: <span class="ty">BorderRadius</span>.circular(8),
+  onTap: isEnabled ? () =&gt; invoke(<span class="str">'Toggle'</span>) : <span class="kw">null</span>,
+  child: <span class="ty">Row</span>(children: [
+    <span class="ty">Checkbox</span>(value: isChecked, onChanged: ...),
+    <span class="ty">Text</span>(label, style: <span class="ty">TextStyle</span>(color: c.textStrong)),
+  ]),
+);
+<span class="cm">// Plus a SECOND copy in nodes/check_box_view.dart!</span></pre>
+      </div>
+      <div class="card good">
+        <h3><span class="pill green">NEW Flutter</span> 10-line Adapter → Single <code>src/primitives/checkbox.dart</code></h3>
+<pre><span class="cm">// Both nodes/check_box_view.dart AND widgets/neuron/checkbox_widget.dart:</span>
+<span class="kw">return</span> <span class="ty">UiMixCheckbox</span>(
+  value: isChecked,
+  enabled: isEnabled,
+  label: label,
+  style: <span class="ty">UiStyleData</span>.fromJson(node.style), <span class="cm">// 1:1 from C# Mix.Style()</span>
+  onChanged: (_) =&gt; onToggle(),
+);
+
+<span class="cm">// Inside src/primitives/checkbox.dart (single source of truth):</span>
+<span class="ty">NakedCheckbox</span>( <span class="cm">// a11y + keyboard + focus + hover + press</span>
+  child: <span class="ty">Box</span>(style: <span class="ty">UiStyleMapper</span>.boxStyler(context, style), ...),
+);</pre>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-wire" class="tab-panel">
+    <div class="card">
+      <h3><span class="pill blue">WIRE CONTRACT</span> Compact JSON produced by C# <code>Mix.Style()</code> and consumed by <code>UiStyleMapper</code></h3>
+<pre>{
+  <span class="str">"kind"</span>: <span class="str">"button"</span>,
+  <span class="str">"key"</span>: <span class="str">"save"</span>,
+  <span class="str">"label"</span>: <span class="str">"Save Changes"</span>,
+  <span class="str">"command"</span>: { <span class="str">"signal"</span>: <span class="str">"settings.save"</span> },
+  <span class="str">"style"</span>: {
+    <span class="str">"tone"</span>: <span class="str">"accent"</span>,
+    <span class="str">"px"</span>: 16, <span class="str">"py"</span>: 10, <span class="str">"radius"</span>: 8,
+    <span class="str">"elevation"</span>: <span class="str">"raised"</span>,
+    <span class="str">"motion"</span>: <span class="str">"snappy"</span>,
+    <span class="str">"hover"</span>: { <span class="str">"tone"</span>: <span class="str">"accentStrong"</span> },
+    <span class="str">"press"</span>: { <span class="str">"scale"</span>: 0.97 }
+  }
+}</pre>
+    </div>
+  </div>
+
+  <h2>3. Execution Roadmap</h2>
+  <div class="card">
+    <div class="roadmap-step">
+      <div class="roadmap-dot done"></div>
+      <h3>Phase 1 — Retire <code>forui</code> &amp; Legacy <code>components/kit/</code> <span class="pill green">DONE</span></h3>
+      <ul>
+        <li>Removed <code>forui</code>, <code>forui_lucide</code>, and <code>sugar</code> from <code>pubspec.yaml</code>.</li>
+        <li>Deleted <code>lib/src/components/kit/</code> and flattened all 15 primitives into <code>lib/src/primitives/*.dart</code> (<code>button.dart</code>, <code>checkbox.dart</code>, <code>toggle.dart</code>, <code>tabs.dart</code>, <code>surface.dart</code>, etc.).</li>
+      </ul>
+    </div>
+    <div class="roadmap-step">
+      <div class="roadmap-dot"></div>
+      <h3>Phase 2 — Flatten <code>ui/lib/src/</code> Folder Tree <span class="pill accent">NEXT</span></h3>
+      <ul>
+        <li>Flatten the 42 single-file dirs in <code>src/ui/*/</code> into <code>src/widgets/neuron/*.dart</code>.</li>
+        <li>Fold single-file dirs: <code>src/lumen/</code> + <code>src/shell_icon.dart</code> → <code>src/theme/</code>; <code>src/models/</code> + <code>src/signals/</code> → <code>src/runtime/models/</code>; <code>src/voice_input/</code> + <code>src/voice_mode/</code> → <code>src/widgets/voice/</code>.</li>
+        <li>Merge <code>src/design/tokens.dart</code> into <code>src/theme/ui_tokens.dart</code> (1 design system).</li>
+      </ul>
+    </div>
+    <div class="roadmap-step">
+      <div class="roadmap-dot"></div>
+      <h3>Phase 3 — C# <code>Mix.Style()</code> Fluent DSL ↔ Flutter <code>UiStyleMapper</code></h3>
+      <ul>
+        <li>Extend C# <code>UiStyleRef</code> (<code>DigitalBrain.UI</code>) with fluent <code>Mix.Style()</code> builder + <code>OnHover</code>/<code>OnPress</code>/<code>OnFocus</code> state overrides.</li>
+        <li>Wire <code>UiStyleMapper</code> in <code>src/primitives/style.dart</code> to map state overrides directly to <code>fluttermix</code> <code>BoxStyler</code> + <code>naked_ui</code> widget states.</li>
+      </ul>
+    </div>
+    <div class="roadmap-step">
+      <div class="roadmap-dot"></div>
+      <h3>Phase 4 — Retire Remaining Legacy Material &amp; Duplicate <code>components/</code></h3>
+      <ul>
+        <li>Delete duplicate <code>src/components/toggle/</code>, <code>infobar/</code>, <code>progress/</code>, <code>button/</code> once all callers use <code>src/primitives/</code>.</li>
+        <li>Drop redundant <code>intochat_os_flutter_shell.dart</code> wrapper and <code>workspace/application_surface.dart</code> shim.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

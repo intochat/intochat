@@ -8,7 +8,7 @@ import '../primitives/toast.dart';
 import '../theme/wire_node_values.dart';
 import '../voice_mode/audio_out.dart';
 import '../voice_mode/mic_stream.dart';
-import '../ui/neuron_widget.dart' show NeuronMethodCaller;
+import '../widgets/neuron/neuron_widget.dart' show NeuronMethodCaller;
 
 /// Watches one signal type on a neuron contract, yielding decoded JSON payloads.
 typedef NeuronSignalWatcher = Stream<Map<String, dynamic>> Function(

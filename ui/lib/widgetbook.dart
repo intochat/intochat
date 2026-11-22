@@ -7,9 +7,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 // ignore: depend_on_referenced_packages
 import 'package:widgetbook/widgetbook.dart';
 
-import 'src/ui/ino/ino_companion_orb.dart';
-import 'src/ui/ino/ino_orb_v2.dart';
-import 'src/ui/ui_control_surface.dart';
+import 'src/widgets/ino/ino_companion_orb.dart';
+import 'src/widgets/ino/ino_orb_v2.dart';
+import 'src/widgets/neuron/ui_control_surface.dart';
 
 /// Free, open-source IntoChat.OS UI Kit & Neuron Widgetbook workbench.
 ///

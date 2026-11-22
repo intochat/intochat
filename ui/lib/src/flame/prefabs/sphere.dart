@@ -11,7 +11,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_svg/flutter_svg.dart' as svg;
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import '../../shell_icon.dart';
+import '../../theme/shell_icon.dart';
 import '../behavior/default_idle_tree.dart';
 import '../behavior/tree_runtime.dart';
 import '../graph_semantics.dart';
