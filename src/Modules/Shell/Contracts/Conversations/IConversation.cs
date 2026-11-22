@@ -1,4 +1,5 @@
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Models;
@@ -6,7 +7,7 @@ using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Flutter.Conversations;
 
-[NeuronAlias(IConversation.Type), DefaultNeuronType(IConversation.Type), Shareable]
+[NeuronAlias(IConversation.Type), DefaultNeuronType(IConversation.Type), Shareable, Offered]
 public interface IConversation
 {
     const string Type = "conversation";

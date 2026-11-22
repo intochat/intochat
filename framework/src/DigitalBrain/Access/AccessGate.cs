@@ -13,13 +13,18 @@ internal sealed class AccessGate(
     IBindingIndex? bindingIndex = null,
     BindingEnforcementMode bindingMode = BindingEnforcementMode.Off,
     Action<MissingBindingEvent>? onMissingBinding = null,
-    IReadOnlySet<string>? privilegedComponents = null)
+    IReadOnlySet<string>? privilegedComponents = null,
+    Func<IEnumerable<IAccessAdmissionStage>>? admissionStages = null)
 {
     internal const string OffersType = "component.offers";
+    private IAccessAdmissionStage[]? _stages;
+
+    private IAccessAdmissionStage[] Stages => _stages ??= admissionStages is null ? [] : [.. admissionStages()];
 
     /// <summary>
     /// Evaluates access permissions for the target neuron and bound call.
-    /// Same-brain and kernel calls complete synchronously without allocating a state machine.
+    /// Same-brain and kernel calls complete synchronously without allocating a state machine when no
+    /// <see cref="IAccessAdmissionStage"/> is registered.
     /// </summary>
     /// <returns>The caller under which the operation runs.</returns>
     /// <exception cref="UnauthorizedAccessException">Access is denied or the call carries no caller.</exception>
@@ -41,7 +46,9 @@ internal sealed class AccessGate(
             }
 
             CheckBinding(caller, target, call);
-            return ValueTask.FromResult(caller);
+            return Stages.Length == 0
+                ? ValueTask.FromResult(caller)
+                : RunStagesAsync(target, caller, new AccessCall(call.Contract, call.Method.Name, call.Access, call.ReadOnly), cancellationToken);
         }
 
         // Cross-brain wall for non-system targets.
@@ -57,12 +64,15 @@ internal sealed class AccessGate(
         }
 
         // [Offered] check for foreign callers on non-system targets (skip self-lookup on component.offers).
+        var info = new AccessCall(call.Contract, call.Method.Name, call.Access, call.ReadOnly);
         if (!target.Brain.IsSystem && IsOffered(call) && !string.Equals(target.Type, OffersType, StringComparison.Ordinal))
         {
-            return AdmitOfferedAsync(caller, target, call.ReadOnly, call.Contract.Name, call.Method.Name, cancellationToken);
+            return AdmitOfferedAsync(caller, target, info, cancellationToken);
         }
 
-        return ValueTask.FromResult(caller);
+        return Stages.Length == 0
+            ? ValueTask.FromResult(caller)
+            : RunStagesAsync(target, caller, info, cancellationToken);
     }
 
     /// <summary>
@@ -100,11 +110,11 @@ internal sealed class AccessGate(
     private async ValueTask<Caller> AdmitOfferedAsync(
         Caller caller,
         NeuronId target,
-        bool readOnly,
-        string contractName,
-        string methodName,
+        AccessCall call,
         CancellationToken cancellationToken)
     {
+        var contractName = call.Contract.Name;
+        var methodName = call.Method;
         var account = caller.For?.Account;
         if (string.IsNullOrWhiteSpace(account) || roleLookup is null)
         {
@@ -117,9 +127,28 @@ internal sealed class AccessGate(
             throw new UnauthorizedAccessException($"offer.none: {contractName}.{methodName} on {target} has no offer for '{account}'.");
         }
 
-        if (role == Role.Viewer && !readOnly)
+        if (role == Role.Viewer && !call.ReadOnly)
         {
             throw new UnauthorizedAccessException($"offer.read-only: {contractName}.{methodName} on {target} requires Editor role (caller '{account}' has Viewer).");
+        }
+
+        if (Stages.Length > 0)
+        {
+            return await RunStagesAsync(target, caller, call, cancellationToken).ConfigureAwait(true);
+        }
+
+        return caller;
+    }
+
+    private async ValueTask<Caller> RunStagesAsync(
+        NeuronId target,
+        Caller caller,
+        AccessCall call,
+        CancellationToken cancellationToken)
+    {
+        foreach (var stage in Stages)
+        {
+            await stage.AdmitAsync(target, call, cancellationToken).ConfigureAwait(true);
         }
 
         return caller;

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Components;
 using DigitalBrain.Kernel;
@@ -17,6 +18,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
+using IntoChat.OS.Modules.Identity.Grants;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.Modules.Web.Search;
@@ -55,6 +57,23 @@ public static class OsFakes
             .Configure(services =>
             {
                 services.TryAddSingleton<IFriendCheck>(sp => new FriendsFriendCheck(sp.GetRequiredService<INeuronProxies>()));
+            });
+    }
+
+    /// <summary>
+    /// Registers an in-memory <see cref="InMemoryGrantStore"/> and wires <see cref="GrantCallFilterStage"/> through
+    /// <see cref="IAccessAdmissionStage"/> so grant and zero-token enforcement run on both TestOS and Silo.
+    /// </summary>
+    public static FakeSet Grants(this FakeSet fakes, params Grant[] initialGrants)
+    {
+        ArgumentNullException.ThrowIfNull(fakes);
+        var store = new InMemoryGrantStore(initialGrants);
+        return fakes
+            .Add<InMemoryGrantStore, InMemoryGrantStore>(store)
+            .Configure(services =>
+            {
+                services.AddSingleton<IAccessAdmissionStage>(sp =>
+                    GrantAccessAdmissionStage.ForStore(store, sp.GetRequiredService<ICallerAmbient>()));
             });
     }
 

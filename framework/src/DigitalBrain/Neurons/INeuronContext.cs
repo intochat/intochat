@@ -43,6 +43,9 @@ public interface INeuronContext
     /// <summary>The slot bindings active for this neuron activation.</summary>
     IReadOnlyList<Binding> Bindings => [];
 
+    /// <summary>The standing <see cref="IOffers"/> registry of this neuron's brain.</summary>
+    IOffers Offers => Get<IOffers>(new NeuronId(Id.Brain, "component.offers", IOffers.DefaultKey));
+
     /// <summary>A typed interface to the target of a bound slot.</summary>
     T Get<T>(BindingTarget target) where T : class => target switch
     {

@@ -145,7 +145,8 @@ public static class RuntimeSiloBuilderExtensions
                 sp.GetService<IBindingIndex>(),
                 bindingOptions?.Mode ?? BindingEnforcementMode.Off,
                 bindingOptions?.OnMissingBinding,
-                bindingOptions?.PrivilegedComponents);
+                bindingOptions?.PrivilegedComponents,
+                () => sp.GetServices<IAccessAdmissionStage>());
         });
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, CallerEdgeFilter>());
         DigitalBrain.Brains.CallerAdmission.Register(OrleansCallerAmbient.Instance);

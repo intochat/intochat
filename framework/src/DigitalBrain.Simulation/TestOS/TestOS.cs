@@ -143,7 +143,8 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             BindingIndex,
             bindingOptions?.Mode ?? BindingEnforcementMode.Off,
             bindingOptions?.OnMissingBinding,
-            bindingOptions?.PrivilegedComponents);
+            bindingOptions?.PrivilegedComponents,
+            () => options.Services?.GetService(typeof(IEnumerable<IAccessAdmissionStage>)) as IEnumerable<IAccessAdmissionStage> ?? []);
         DigitalBrain.Brains.CallerAdmission.Register(TestCallerAmbient.Instance);
         Edge = new EdgeAuthority(TestCallerAmbient.Instance);
         Proxies = new TestNeuronProxies(this);

@@ -162,6 +162,36 @@ public sealed record Grant
     [IgnoreDataMember, JsonIgnore]
     public bool IsCanonical => Grantee.Length > 0 && Scope.Length > 0;
 
+    /// <summary>
+    /// Unified subject projection: returns <see cref="Grantee"/> when populated, otherwise canonicalizes legacy
+    /// <see cref="AppId"/> as <c>app:{AppId}</c>.
+    /// </summary>
+    [IgnoreDataMember, JsonIgnore]
+    public string Subject => Grantee.Length > 0
+        ? Grantee
+        : AppId.Length > 0
+            ? (AppId.StartsWith("app:", StringComparison.Ordinal) ? AppId : "app:" + AppId)
+            : "";
+
+    /// <summary>
+    /// Projects this grant's scope (<see cref="Scope"/> or legacy <see cref="SemanticTypeId"/>) to a normalized role
+    /// name (<c>"editor"</c> or <c>"viewer"</c>).
+    /// </summary>
+    [IgnoreDataMember, JsonIgnore]
+    public string RoleName
+    {
+        get
+        {
+            var effective = Scope.Length > 0 ? Scope : SemanticTypeId;
+            return string.Equals(effective, "editor", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(effective, "write", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(effective, GrantRelations.Run, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(effective, "*", StringComparison.Ordinal)
+                ? "editor"
+                : "viewer";
+        }
+    }
+
     /// <summary>Creates a canonical tuple grant.</summary>
     public static Grant Tuple(
         string owner,

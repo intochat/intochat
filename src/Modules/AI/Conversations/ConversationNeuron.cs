@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Components;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Host.Conversations;
@@ -72,6 +73,7 @@ internal sealed class ConversationNeuron(
     {
         _state = base.State;
         _blocked = _state.Blocked;
+        await SyncPersistedOffersAsync(cancellationToken);
         await Resume();
     }
 
@@ -139,6 +141,36 @@ internal sealed class ConversationNeuron(
 
     private IBrainOwners Owners => services.GetService<IBrainOwners>() ?? throw FriendRelay.Refused();
     private IFriends Friends => Context.Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
+    private IOffers Offers => Context.Offers;
+
+    private async Task SyncPersistedOffersAsync(CancellationToken cancellationToken)
+    {
+        if (State.Participants.Length == 0) { return; }
+        var owners = services.GetService<IBrainOwners>();
+        if (owners is null) { return; }
+        var ownerAccount = await owners.OwnerAccount(Id.Brain, cancellationToken);
+        var offers = Offers;
+        foreach (var human in State.Participants.OfType<Participant.Human>())
+        {
+            if (string.IsNullOrWhiteSpace(human.Account.Value)
+                || string.Equals(human.Account.Value, ownerAccount, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (await offers.RoleOf(Id, human.Account.Value, cancellationToken) is null)
+                {
+                    await offers.Offer(Id, human.Account.Value, DigitalBrain.Components.Role.Editor, cancellationToken);
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Persisted participant is no longer a confirmed friend; leave without an offer.
+            }
+        }
+    }
 
     private bool IsSameBrainCaller()
     {
@@ -460,7 +492,12 @@ internal sealed class ConversationNeuron(
     private async Task SayAsFriendAsync(string text)
     {
         await Fresh();
-        var friend = await GroupAdmission.Admit(Context.Caller, Id.Brain, State.Participants, Friends, Owners);
+        var account = Context.Caller?.For?.Account;
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            throw FriendRelay.Refused();
+        }
+        var friend = new AccountId(account);
         if (string.IsNullOrEmpty(text) || text.Length > MaxSayCharacters)
         {
             throw new ArgumentException($"Message text must contain 1 to {MaxSayCharacters} characters.", nameof(text));
@@ -538,7 +575,6 @@ internal sealed class ConversationNeuron(
             await Fresh();
             if (_write is { } pendingWrite) { await pendingWrite.Task; }
             var committed = Committed;
-            await GroupAdmission.Admit(Context.Caller, Id.Brain, committed.Participants, Friends, Owners);
             var shared = ConversationLog.Visible(committed.Log, sinceRevision, owner: false);
             return new ConversationView(ConvId, committed.Revision, [.. committed.Participants], shared, Active: null, Runs: [], Blocked: false, Contexts: []);
         }
@@ -581,6 +617,7 @@ internal sealed class ConversationNeuron(
 
         var participants = WithParticipants(State.Participants, new Participant.Human(owner), new Participant.Human(friend));
         await Persist(State with { Participants = participants });
+        await Offers.Offer(Id, friend.Value, DigitalBrain.Components.Role.Editor);
 
         var title = await ReadTitleBestEffortAsync();
         var invite = new GroupInvite(Id.Brain, ConvId, title, owner);

@@ -1,4 +1,5 @@
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -30,7 +31,7 @@ public static class FileSharesDefaults
 
 // The door of a brain's shared files: the one contract a person of another brain can reach. It holds the list of shares
 // and decides every request from the kernel-stamped caller and that list, with no cache.
-[Shareable, NeuronAlias(FileSharesDefaults.TypeName), DefaultNeuronType(FileSharesDefaults.TypeName)]
+[Shareable, Offered, NeuronAlias(FileSharesDefaults.TypeName), DefaultNeuronType(FileSharesDefaults.TypeName)]
 public interface IFileShares
 {
     // The brain's owner, acting as a person. An app, an agent or a unit is refused.
@@ -43,10 +44,10 @@ public interface IFileShares
     [Internal] Task DropAccount(string account);
 
     // The person a share names, acting as a person from the brain they own.
-    [Shared] Task<WorkspaceShare[]> SharedWithCaller();
-    [Shared] Task<WorkspaceShare> Describe(string shareId);
-    [Shared] Task<SharedEntry[]> List(string shareId, string? relativePath);
-    [Shared] Task<byte[]?> Read(string shareId, string? relativePath);
+    [Shared, ReadOnlyCall] Task<WorkspaceShare[]> SharedWithCaller();
+    [Shared, ReadOnlyCall] Task<WorkspaceShare> Describe(string shareId);
+    [Shared, ReadOnlyCall] Task<SharedEntry[]> List(string shareId, string? relativePath);
+    [Shared, ReadOnlyCall] Task<byte[]?> Read(string shareId, string? relativePath);
     [Shared] Task<SharedEntry> Write(string shareId, string relativePath, byte[] content);
 }
 

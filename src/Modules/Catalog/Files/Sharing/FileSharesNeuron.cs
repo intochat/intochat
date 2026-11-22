@@ -1,5 +1,7 @@
+using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Components;
 using DigitalBrain.State;
 using IntoChat.OS.Modules.Identity.Contracts;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +27,29 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
 
     private IBrainOwners Owners => services.GetRequiredService<IBrainOwners>();
     private TimeProvider Clock => Context.Time;
+    private IOffers Offers => Context.Offers;
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await base.OnActivate(cancellationToken);
+        if (State.Shares.Length == 0) { return; }
+
+        foreach (var group in State.Shares.GroupBy(static s => s.Account, StringComparer.Ordinal))
+        {
+            var desired = group.Any(static s => s.Role == ShareRole.Editor) ? Role.Editor : Role.Viewer;
+            try
+            {
+                if (await Offers.RoleOf(Id, group.Key, cancellationToken) != desired)
+                {
+                    await Offers.Offer(Id, group.Key, desired, cancellationToken);
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Persisted share belongs to an ex-friend; leave without an offer.
+            }
+        }
+    }
 
     public async Task<WorkspaceShare> Share(string account, string path, ShareRole role)
     {
@@ -43,15 +68,20 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
 
         var share = new WorkspaceShare(Guid.NewGuid().ToString("N"), account, canonical, item.Kind == ItemKind.Folder, role, Clock.GetUtcNow());
         var kept = State.Shares.Where(existing => existing.Account != account || existing.Path != canonical);
-        await Commit([.. kept, share], State.Saves);
+        WorkspaceShare[] nextShares = [.. kept, share];
+        await Commit(nextShares, State.Saves);
+        await SyncOfferForAccountAsync(account, nextShares);
         return share;
     }
 
     public async Task Unshare(string shareId)
     {
         await Owner();
-        if (State.Shares.All(share => share.Id != shareId)) { return; }
-        await Commit([.. State.Shares.Where(share => share.Id != shareId)], State.Saves);
+        var removed = State.Shares.FirstOrDefault(share => share.Id == shareId);
+        if (removed is null) { return; }
+        WorkspaceShare[] nextShares = [.. State.Shares.Where(share => share.Id != shareId)];
+        await Commit(nextShares, State.Saves);
+        await SyncOfferForAccountAsync(removed.Account, nextShares);
     }
 
     public async Task UnshareAccount(string account)
@@ -70,6 +100,19 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     {
         if (State.Shares.All(share => share.Account != account)) { return; }
         await Commit([.. State.Shares.Where(share => share.Account != account)], State.Saves);
+        await Offers.Revoke(Id, account);
+    }
+
+    private Task SyncOfferForAccountAsync(string account, WorkspaceShare[] shares)
+    {
+        var remaining = shares.Where(s => string.Equals(s.Account, account, StringComparison.Ordinal)).ToArray();
+        if (remaining.Length == 0)
+        {
+            return Offers.Revoke(Id, account);
+        }
+
+        var highest = remaining.Any(static s => s.Role == ShareRole.Editor) ? Role.Editor : Role.Viewer;
+        return Offers.Offer(Id, account, highest);
     }
 
     private IFriends Friends => Get<IFriends>(FriendsDefaults.Id(Id.Brain.Value));
