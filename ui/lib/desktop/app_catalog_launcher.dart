@@ -22,13 +22,17 @@ class SmartAppTileSpec {
         (titleOverride != null && titleOverride.trim().isNotEmpty)
         ? titleOverride.trim()
         : spec.title;
+    final cleanCategory =
+        (categoryOverride != null && categoryOverride.trim().isNotEmpty)
+        ? categoryOverride.trim()
+        : spec.category;
     return SmartAppTileSpec(
       id: id,
       name: cleanTitle,
       icon: spec.icon,
       color: spec.gradientTop,
       accentHex: spec.accentHex,
-      category: categoryOverride ?? spec.category,
+      category: cleanCategory,
       neuronUri: 'neuron://local/apps/$id',
     );
   }
@@ -158,7 +162,7 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
 
-  static const List<String> _categories = [
+  static const List<String> _defaultCategories = [
     'All',
     'ArtCraft Studio',
     'Micro-Apps',
@@ -170,6 +174,17 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
     'Social',
     'System',
   ];
+
+  List<String> _availableCategories() {
+    final categories = <String>[..._defaultCategories];
+    for (final spec in widget.apps) {
+      final cat = spec.category.trim();
+      if (cat.isNotEmpty && !categories.contains(cat)) {
+        categories.add(cat);
+      }
+    }
+    return categories;
+  }
 
   @override
   void dispose() {
@@ -292,7 +307,7 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        for (final cat in _categories)
+                        for (final cat in _availableCategories())
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
                             child: Btn(
