@@ -21,6 +21,8 @@ export 'src/signals/rejected.dart';
 export 'src/theme/brand_visuals.dart';
 export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
+export 'src/theme/mix_tokens.dart';
+export 'src/theme/theme_studio_panel.dart';
 
 export 'src/composition/view_host.dart';
 export 'src/primitives/primitives.dart';

@@ -36,15 +36,23 @@ Future<List<Map<String, dynamic>>> _loadShowcaseCatalog() async {
   }
 }
 
-final class IntoChatWidgetbookApp extends StatelessWidget {
+final class IntoChatWidgetbookApp extends StatefulWidget {
   const IntoChatWidgetbookApp({super.key, required this.catalog});
 
   final List<Map<String, dynamic>> catalog;
 
   @override
+  State<IntoChatWidgetbookApp> createState() => _IntoChatWidgetbookAppState();
+}
+
+class _IntoChatWidgetbookAppState extends State<IntoChatWidgetbookApp> {
+  UiThemeSeeds _seeds = UiThemeSeeds.warmDark;
+  bool _studioOpen = false;
+
+  @override
   Widget build(BuildContext context) {
     final catalogComponents = <WidgetbookComponent>[
-      for (final entry in catalog)
+      for (final entry in widget.catalog)
         if ((entry['examples'] as List?)?.isNotEmpty == true)
           WidgetbookComponent(
             name:
@@ -63,13 +71,68 @@ final class IntoChatWidgetbookApp extends StatelessWidget {
     ];
 
     return Widgetbook.material(
+      appBuilder: (context, child) {
+        final colors = _seeds.toUiColors();
+        return UiSeedThemeScope(
+          seeds: _seeds,
+          child: Material(
+            color: colors.page,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.elevated,
+                    border: Border(bottom: BorderSide(color: colors.hairline)),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        'IntoChat.OS Widgetbook',
+                        style: TextStyle(
+                          color: colors.strong,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      UiMixChip(
+                        label: _studioOpen
+                            ? 'Hide Theme Studio'
+                            : 'Theme Studio',
+                        selected: _studioOpen,
+                        semanticsId: 'widgetbook:theme-studio-toggle',
+                        style: const UiStyleData(
+                          tone: 'accent',
+                          paddingX: 10,
+                          paddingY: 4,
+                          radius: 999,
+                        ),
+                        onSelected: (next) =>
+                            setState(() => _studioOpen = next),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_studioOpen)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                    child: ThemeStudioPanel(
+                      seeds: _seeds,
+                      onChanged: (next) => setState(() => _seeds = next),
+                    ),
+                  ),
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        );
+      },
       addons: [
-        MaterialThemeAddon(
-          themes: [
-            WidgetbookTheme(name: 'Dark', data: UiTheme.dark(null)),
-            WidgetbookTheme(name: 'Light', data: UiTheme.light(null)),
-          ],
-        ),
         TextScaleAddon(min: 0.85, max: 1.5),
         AlignmentAddon(initialAlignment: Alignment.center),
       ],
