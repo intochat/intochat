@@ -100,7 +100,10 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         var ciRevision = Hash(JsonSerializer.Serialize(
             new PullRequestCiRevisionPayload(revision, ciSha, complete, ci.Checks),
             GitHubAotJsonContext.Default.PullRequestCiRevisionPayload));
-        return new PullRequestSnapshot(number, BoundedString(pull, "title", 1024), BoundedString(pull, "html_url", 2048), pull.GetProperty("state").GetString() == "open", pull.GetProperty("draft").GetBoolean(), head, @base, merge, ciSha, ci.Checks.ToArray(), complete, _time.GetUtcNow(), pull.GetProperty("created_at").GetDateTimeOffset(), revision, ciRevision, repository.RepositoryId, OptionalString(pull.GetProperty("base"), "ref"));
+        var author = pull.TryGetProperty("user", out var user) && user.ValueKind == JsonValueKind.Object
+            ? OptionalString(user, "login") ?? string.Empty
+            : string.Empty;
+        return new PullRequestSnapshot(number, BoundedString(pull, "title", 1024), BoundedString(pull, "html_url", 2048), pull.GetProperty("state").GetString() == "open", pull.GetProperty("draft").GetBoolean(), head, @base, merge, ciSha, ci.Checks.ToArray(), complete, _time.GetUtcNow(), pull.GetProperty("created_at").GetDateTimeOffset(), revision, ciRevision, repository.RepositoryId, OptionalString(pull.GetProperty("base"), "ref"), author);
     }
 
     public async Task<IReadOnlyList<PullRequestSnapshot>> ListOpenPullRequestsAsync(GitHubRepository repository, CancellationToken cancellationToken)
@@ -409,6 +412,40 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         };
 
         await client.PullRequest.Merge(repository.RepositoryId, request.PullRequestNumber, octokitMerge).WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<ReviewSubmitted> SubmitReviewAsync(GitHubRepository repository, SubmitReviewRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentOutOfRangeException.ThrowIfLessThan(request.Number, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.HeadSha);
+        using var activity = Activities.StartActivity("github.submit_review");
+        activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.pull_request.number", request.Number);
+
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.PullRequestsWrite, cancellationToken).ConfigureAwait(false);
+        var client = new Octokit.GitHubClient(connection);
+        var reviewEvent = request.Verdict switch
+        {
+            ReviewVerdict.Approve => Octokit.PullRequestReviewEvent.Approve,
+            ReviewVerdict.RequestChanges => Octokit.PullRequestReviewEvent.RequestChanges,
+            _ => Octokit.PullRequestReviewEvent.Comment,
+        };
+        var create = new Octokit.PullRequestReviewCreate
+        {
+            CommitId = request.HeadSha,
+            Body = request.Body,
+            Event = reviewEvent,
+            Comments = request.Comments
+                .Select(static c => new Octokit.DraftPullRequestReviewComment(c.Body, c.Path, c.Line))
+                .ToList(),
+        };
+
+        var created = await client.PullRequest.Review.Create(repository.RepositoryId, request.Number, create).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return new ReviewSubmitted(
+            created.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            request.Number,
+            request.HeadSha,
+            request.Verdict);
     }
 
     public async Task<GitHubReviewEvidence> GetReviewEvidenceAsync(GitHubRepository repository, PullRequestSnapshot snapshot, CancellationToken cancellationToken)

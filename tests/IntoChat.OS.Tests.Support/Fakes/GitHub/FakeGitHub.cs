@@ -37,11 +37,25 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
     private readonly Lock _gate = new();
     private readonly Dictionary<string, SeededRepository> _repositories = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<RecordedIssueComment> _issueComments = [];
+    private readonly List<SubmitReviewRequest> _submittedReviews = [];
     private long _nextRepositoryId = 10_000;
     private long _nextInstallationId = 9_000;
     private long _nextCommentId = 1_000;
+    private long _nextReviewId = 5_000;
     private long _appId = 77;
     private string _webhookSecret = DefaultWebhookSecret;
+
+    /// <summary>Reviews submitted through <see cref="IRepository.SubmitReview"/>.</summary>
+    public IReadOnlyList<SubmitReviewRequest> SubmittedReviews
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _submittedReviews];
+            }
+        }
+    }
 
     /// <summary>Sets the GitHub App ID advertised to <see cref="GitHubAppRegistration"/>.</summary>
     public FakeGitHub AppId(long appId)
@@ -136,7 +150,8 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
         string? baseSha = null,
         string? baseBranch = "main",
         string? revision = null,
-        string? ciRevision = null)
+        string? ciRevision = null,
+        string author = "")
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(number, 1);
         ArgumentException.ThrowIfNullOrWhiteSpace(headSha);
@@ -161,7 +176,8 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
                 Revision: revision ?? $"pr-{number}-{headSha[..Math.Min(8, headSha.Length)]}",
                 CiRevision: ciRevision ?? "ci-ok",
                 RepositoryId: repo.RepositoryId,
-                BaseBranch: baseBranch);
+                BaseBranch: baseBranch,
+                Author: author);
         }
         return this;
     }
@@ -367,6 +383,21 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
             var url = $"https://github.com/{repository.Owner}/{repository.Name}/issues/{issueNumber}#issuecomment-{id}";
             _issueComments.Add(new RecordedIssueComment($"{repository.Owner}/{repository.Name}", issueNumber, body, [.. labels], requestId));
             return Task.FromResult(new IssueCommentResult(issueNumber, id, url, [.. labels], requestId));
+        }
+    }
+
+    Task<ReviewSubmitted> IGitHubRepositorySource.SubmitReviewAsync(
+        GitHubRepository repository,
+        SubmitReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            var id = (++_nextReviewId).ToString(CultureInfo.InvariantCulture);
+            _submittedReviews.Add(request);
+            return Task.FromResult(new ReviewSubmitted(id, request.Number, request.HeadSha, request.Verdict));
         }
     }
 

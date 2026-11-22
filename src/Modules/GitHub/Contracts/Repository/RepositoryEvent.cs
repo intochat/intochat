@@ -9,4 +9,5 @@ public sealed record RepositoryEvent(
     string BodyHash,
     long? Installation = null,
     long? Repository = null,
-    long? App = null);
+    long? App = null,
+    string? Author = null);

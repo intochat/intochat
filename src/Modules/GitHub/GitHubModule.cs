@@ -32,6 +32,7 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
             new("github.branch.push", "push a GitHub branch", null),
             new("github.pull-request.create", "create a GitHub pull request", null),
             new("github.review.reply", "reply to a GitHub review comment", null),
+            new("github.review.submit", "submit a GitHub pull request review", null),
             new("github.pull-request.merge", "merge a GitHub pull request", null),
             new("github.issue.comment", "comment on a GitHub issue", null),
             new("github.issue.label", "add labels to a GitHub issue", null),

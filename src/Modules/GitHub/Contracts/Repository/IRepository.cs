@@ -48,4 +48,6 @@ public interface IRepository
     Task<IssueCommentPreview[]> ReadPendingIssueDrafts() => throw new NotSupportedException();
 
     Task<bool> DismissIssueDraft(string previewId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ReviewSubmitted> SubmitReview(SubmitReviewRequest request, CancellationToken ct = default) => throw new NotSupportedException();
 }

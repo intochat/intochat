@@ -11,8 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Identity.Connections.OAuth;
 
 // Unified /integrations/{provider} edge for OAuth redirects (/integrations/oauth/callback, /integrations/{provider}/oauth/callback,
-// /integrations/{provider}/callback, and legacy /connections/oauth/{provider}/callback) and inbound webhooks
-// (POST /integrations/{provider}/webhook and POST /integrations/{provider}), routing to target grains via 3-part ConnectionKeys.
+// /integrations/{provider}/callback, and legacy /connections/oauth/{provider}/callback).
 public sealed class OAuthCallback : IHttpSurface
 {
     public const string CanonicalCallbackPath = "/integrations/oauth/callback";
@@ -20,8 +19,6 @@ public sealed class OAuthCallback : IHttpSurface
     private const string LegacyPrefix = "/connections/oauth/";
     private const string OAuthCallbackSuffix = "/oauth/callback";
     private const string CallbackSuffix = "/callback";
-    private const string WebhookSuffix = "/webhook";
-    public const string ConnectionKeyHeader = "X-IntoChat-Connection-Key";
 
     // ASP.NET Core's per-request Information log, which prints the full query string.
     internal const string RequestLogCategory = "Microsoft.AspNetCore.Hosting.Diagnostics";
@@ -76,80 +73,11 @@ public sealed class OAuthCallback : IHttpSurface
         return false;
     }
 
-    public static bool TryMatchWebhookPath(string? path, out string provider)
-    {
-        provider = "";
-        if (string.IsNullOrWhiteSpace(path) || !path.StartsWith(IntegrationsPrefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (path.EndsWith(WebhookSuffix, StringComparison.Ordinal)
-            && path.Length > IntegrationsPrefix.Length + WebhookSuffix.Length)
-        {
-            var segment = path[IntegrationsPrefix.Length..^WebhookSuffix.Length];
-            if (!segment.Contains('/', StringComparison.Ordinal))
-            {
-                provider = Uri.UnescapeDataString(segment);
-                return !string.IsNullOrWhiteSpace(provider);
-            }
-        }
-
-        var tail = path[IntegrationsPrefix.Length..].TrimEnd('/');
-        if (tail.Length > 0 && !tail.Contains('/', StringComparison.Ordinal)
-            && !string.Equals(tail, "registration", StringComparison.OrdinalIgnoreCase))
-        {
-            provider = Uri.UnescapeDataString(tail);
-            return !string.IsNullOrWhiteSpace(provider);
-        }
-
-        return false;
-    }
-
-    public static bool TryResolveWebhookConnectionKey(HttpRequest request, string provider, out string connectionKey)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
-        connectionKey = "";
-
-        var rawKey = request.Query["connectionKey"].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(rawKey) && request.Headers.TryGetValue(ConnectionKeyHeader, out var headerValues))
-        {
-            rawKey = headerValues.FirstOrDefault();
-        }
-
-        if (!string.IsNullOrWhiteSpace(rawKey))
-        {
-            if (!ConnectionKeys.TryParse(rawKey, out var parsed) || !string.Equals(parsed.ConnectorId, provider, StringComparison.Ordinal))
-            {
-                return false;
-            }
-            connectionKey = ConnectionKeys.For(parsed.BrainId, parsed.ConnectorId, parsed.ConnectionId);
-            return true;
-        }
-
-        var brain = request.Query["brain"].FirstOrDefault() ?? request.Query["brainId"].FirstOrDefault();
-        var connectionId = request.Query["connectionId"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(brain) && !string.IsNullOrWhiteSpace(connectionId) && BrainScope.IsValidId(brain))
-        {
-            connectionKey = ConnectionKeys.For(brain, provider, connectionId);
-            return true;
-        }
-
-        return false;
-    }
-
     public void Map(IApplicationBuilder app)
     {
         app.Use(async (context, next) =>
         {
             var path = context.Request.Path.Value ?? "";
-            if (HttpMethods.IsPost(context.Request.Method) && TryMatchWebhookPath(path, out var webhookProvider))
-            {
-                await HandleWebhookAsync(context, webhookProvider);
-                return;
-            }
-
             if (!TryMatchCallbackPath(path, out var connector))
             {
                 await next(context);
@@ -205,51 +133,6 @@ public sealed class OAuthCallback : IHttpSurface
             }
             finally { Redact(context); }
         });
-    }
-
-    internal static async Task HandleWebhookAsync(HttpContext context, string provider)
-    {
-        if (!TryResolveWebhookConnectionKey(context.Request, provider, out var connectionKey))
-        {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            context.Response.ContentType = "application/json";
-            await System.Text.Json.JsonSerializer.SerializeAsync(
-                context.Response.Body,
-                new { error = $"A valid 3-part ConnectionKey for provider '{provider}' is required." },
-                cancellationToken: context.RequestAborted);
-            return;
-        }
-
-        if (context.RequestServices?.GetService<AuthorityNeurons>() is { } neurons)
-        {
-            try
-            {
-                _ = neurons.ConnectionInbound(connectionKey);
-            }
-            catch (Exception error) when (error is ArgumentException or InvalidOperationException)
-            {
-                if (context.RequestServices?.GetService<ILoggerFactory>()?.CreateLogger(nameof(OAuthCallback)) is { } logger)
-                {
-                    logger.LogWarning(error, "Unable to enqueue inbound connection signal for {ConnectionKey} on provider {Provider}.", connectionKey, provider);
-                }
-                else
-                {
-                    System.Diagnostics.Trace.TraceWarning("Unable to enqueue inbound connection signal for '{0}': {1}", connectionKey, error.Message);
-                }
-            }
-        }
-
-        context.Response.StatusCode = StatusCodes.Status200OK;
-        context.Response.ContentType = "application/json";
-        await System.Text.Json.JsonSerializer.SerializeAsync(
-            context.Response.Body,
-            new
-            {
-                status = "accepted",
-                connectionKey,
-                provider,
-            },
-            cancellationToken: context.RequestAborted);
     }
 
     // Callback query strings carry authorization codes; traces keep only the path.

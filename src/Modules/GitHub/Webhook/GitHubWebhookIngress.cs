@@ -100,9 +100,11 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                         continue;
                     }
                     GitHubTelemetry.TagReceipt(activity, coordinates, delivery!, classification.Number);
+                    var author = GitHubWebhookHandler.String(payload, "pull_request", "user", "login")
+                        ?? GitHubWebhookHandler.String(payload, "sender", "login");
                     var fact = new RepositoryEvent(delivery!, eventName,
                         classification.Revoke ? "revoked" : GitHubWebhookHandler.String(payload, "action"),
-                        classification.Number, hash, installation, repository, app);
+                        classification.Number, hash, installation, repository, app, author);
                     var accepted = await target.AcceptRepositoryEvent(fact, cancellationToken).ConfigureAwait(false);
                     results.Add(accepted ? GitHubWebhookAcceptance.Accepted : GitHubWebhookAcceptance.Duplicate);
                 }

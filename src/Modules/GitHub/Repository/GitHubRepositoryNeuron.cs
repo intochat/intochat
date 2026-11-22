@@ -526,6 +526,22 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         }, ct => _source.ReplyToReviewCommentAsync(repository, request, ct), outerCt), CancellationToken.None).ConfigureAwait(true);
     }
 
+    public async Task<ReviewSubmitted> SubmitReview(SubmitReviewRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentOutOfRangeException.ThrowIfLessThan(request.Number, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.HeadSha);
+        ct.ThrowIfCancellationRequested();
+        RequireAvailable();
+
+        return await ExecuteWithAuthAsync((repository, outerCt) => Policies.Guard("github.review.submit", 1m, new Dictionary<string, string>
+        {
+            ["Repository"] = RepositoryFact,
+            ["Number"] = request.Number.ToString(CultureInfo.InvariantCulture),
+            ["Verdict"] = request.Verdict.ToString(),
+        }, guardCt => _source.SubmitReviewAsync(repository, request, guardCt), outerCt), ct).ConfigureAwait(true);
+    }
+
     public async Task MergePullRequest(MergePullRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -715,10 +731,35 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         {
             change |= trigger.Action == "closed" ? PullRequestChange.Closed : PullRequestChange.Opened;
         }
+        else if (trigger?.Number == snapshot.Number && trigger.Action == "ready_for_review")
+        {
+            change |= PullRequestChange.Updated;
+        }
 
         if (change != 0)
         {
-            facts.Add(new(snapshot.Number, $"{snapshot.Revision}:{snapshot.CiRevision}", $"github:{snapshot.RepositoryId}:{snapshot.Number}"));
+            var kind = change.HasFlag(PullRequestChange.Closed)
+                ? PullRequestKind.Closed
+                : change.HasFlag(PullRequestChange.Opened)
+                    ? PullRequestKind.Opened
+                    : (trigger?.Number == snapshot.Number && trigger.Action == "ready_for_review")
+                        || (previous is not null && previous.IsDraft && !snapshot.IsDraft)
+                        ? PullRequestKind.ReadyForReview
+                        : change.HasFlag(PullRequestChange.Updated)
+                            ? PullRequestKind.Updated
+                            : PullRequestKind.ChecksChanged;
+            var author = !string.IsNullOrWhiteSpace(snapshot.Author)
+                ? snapshot.Author
+                : (trigger?.Number == snapshot.Number ? trigger.Author ?? string.Empty : string.Empty);
+
+            facts.Add(new(
+                snapshot.Number,
+                $"{snapshot.Revision}:{snapshot.CiRevision}",
+                $"github:{snapshot.RepositoryId}:{snapshot.Number}",
+                Kind: kind,
+                HeadSha: snapshot.HeadSha,
+                Author: author,
+                IsDraft: snapshot.IsDraft));
         }
 
         return null;

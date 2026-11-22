@@ -17,7 +17,8 @@ public sealed record PullRequestSnapshot(
     string Revision,
     string CiRevision,
     long RepositoryId = 0,
-    string? BaseBranch = null);
+    string? BaseBranch = null,
+    string Author = "");
 
 public sealed record GitHubCheck(
     string Name,

@@ -9,6 +9,7 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Modules.LocalDisk;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity;
@@ -65,44 +66,26 @@ public sealed class IntegrationsAndZeroTokenFacts
     }
 
     [Fact]
-    public async Task InboundWebhookRoutesResolveThreePartConnectionKeysAndReturnAccepted()
+    public async Task UnsignedIntegrationsWebhookRouteIsNotAcceptedAndReturns404()
     {
-        Assert.True(OAuthCallback.TryMatchWebhookPath("/integrations/github/webhook", out var provider1));
-        Assert.Equal("github", provider1);
-
-        Assert.True(OAuthCallback.TryMatchWebhookPath("/integrations/github", out var provider2));
-        Assert.Equal("github", provider2);
-
-        Assert.False(OAuthCallback.TryMatchWebhookPath("/integrations/github/registration", out _));
+        var app = new ApplicationBuilder(new EmptyServiceProvider());
+        new OAuthCallback().Map(app);
+        app.Run(context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return Task.CompletedTask;
+        });
+        var pipeline = app.Build();
 
         var context = new DefaultHttpContext();
         context.Request.Method = HttpMethods.Post;
-        context.Request.Path = "/integrations/github/webhook";
-        context.Request.QueryString = new QueryString("?connectionKey=local/connection/github/personal");
+        context.Request.Path = "/integrations/other/webhook";
+        context.Request.QueryString = new QueryString("?connectionKey=local/connection/other/personal");
         context.Response.Body = new MemoryStream();
 
-        await OAuthCallback.HandleWebhookAsync(context, "github");
-        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        await pipeline(context);
 
-        context.Response.Body.Position = 0;
-        using var doc = await JsonDocument.ParseAsync(context.Response.Body, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal("accepted", doc.RootElement.GetProperty("status").GetString());
-        Assert.Equal("local/connection/github/personal", doc.RootElement.GetProperty("connectionKey").GetString());
-        Assert.Equal("github", doc.RootElement.GetProperty("provider").GetString());
-
-        // Header-based 3-part ConnectionKey resolution
-        var headerContext = new DefaultHttpContext();
-        headerContext.Request.Method = HttpMethods.Post;
-        headerContext.Request.Path = "/integrations/github";
-        headerContext.Request.Headers[OAuthCallback.ConnectionKeyHeader] = "neuron://local/connection/github/work";
-        Assert.True(OAuthCallback.TryResolveWebhookConnectionKey(headerContext.Request, "github", out var resolvedWork));
-        Assert.Equal("local/connection/github/work", resolvedWork);
-
-        // Query brain + connectionId resolution
-        var partsContext = new DefaultHttpContext();
-        partsContext.Request.QueryString = new QueryString("?brain=local&connectionId=team");
-        Assert.True(OAuthCallback.TryResolveWebhookConnectionKey(partsContext.Request, "google-drive", out var resolvedTeam));
-        Assert.Equal("local/connection/google-drive/team", resolvedTeam);
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
     }
 
     [Fact]

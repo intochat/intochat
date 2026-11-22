@@ -23,18 +23,6 @@ internal static class IntegrationCatalogEndpoints
                 ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnector(context.RequestServices, entry.Id)).ToArray())
                 : Results.Unauthorized());
 
-        // Inbound webhooks for external providers resolve the target connection neuron via 3-part ConnectionKeys.
-        endpoints.MapPost("/integrations/{provider}/webhook", async (string provider, HttpContext context) =>
-        {
-            await OAuthCallback.HandleWebhookAsync(context, provider);
-            return Results.Empty;
-        });
-        endpoints.MapPost("/integrations/{provider}", async (string provider, HttpContext context) =>
-        {
-            await OAuthCallback.HandleWebhookAsync(context, provider);
-            return Results.Empty;
-        });
-
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");
         group.AddEndpointFilter(async (context, next) =>

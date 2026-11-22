@@ -12,4 +12,5 @@ internal interface IGitHubRepositorySource
     Task MergePullRequestAsync(GitHubRepository repository, MergePullRequest request, CancellationToken cancellationToken);
     Task<IssueSnapshot> GetIssueAsync(GitHubRepository repository, int number, CancellationToken cancellationToken) => throw new NotSupportedException();
     Task<IssueCommentResult> CommentOnIssueAsync(GitHubRepository repository, int issueNumber, string body, string[] labels, string requestId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    Task<ReviewSubmitted> SubmitReviewAsync(GitHubRepository repository, SubmitReviewRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
