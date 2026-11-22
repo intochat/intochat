@@ -834,18 +834,23 @@ class WorkspaceAppState extends State<WorkspaceApp>
       themeMode: UiTheme.modeFor(effectiveTheme),
       builder: (context, child) {
         final brightness = Theme.of(context).brightness;
-        return IcTheme(
-          colors: IcColors.forPreset(
-            preset,
-            dark: brightness == Brightness.dark,
-          ),
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              disableAnimations:
-                  store.settings.reducedMotion ||
-                  MediaQuery.disableAnimationsOf(context),
+        return UiSeedThemeScope(
+          seeds: brightness == Brightness.dark
+              ? UiThemeSeeds.warmDark
+              : UiThemeSeeds.warmPaper,
+          child: IcTheme(
+            colors: IcColors.forPreset(
+              preset,
+              dark: brightness == Brightness.dark,
             ),
-            child: child!,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                disableAnimations:
+                    store.settings.reducedMotion ||
+                    MediaQuery.disableAnimationsOf(context),
+              ),
+              child: child!,
+            ),
           ),
         );
       },

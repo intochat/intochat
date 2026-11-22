@@ -432,11 +432,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // 1. Dynamic app 'helloworld' appears in the Dock and notified dynamicExtras for CommandPalette
-      expect(
-        find.byKey(const ValueKey('dock-item-helloworld')),
-        findsOneWidget,
-      );
+      // 1. Dynamic app 'helloworld' is registered in dynamicExtras (not in the active-only dock while closed)
+      expect(find.byKey(const ValueKey('dock-item-helloworld')), findsNothing);
       expect(dynamicExtras.any((s) => s.id == 'helloworld'), isTrue);
 
       // 2. Open All Apps Launcher and verify 'helloworld' tile is listed under 'All' & 'Micro-Apps'
@@ -454,7 +451,7 @@ void main() {
       expect(helloTile, findsOneWidget);
       expect(find.text('Hello World'), findsWidgets);
 
-      // 3. Click 'Hello World' tile in All Apps Launcher -> opens WindowFrame with live viewport!
+      // 3. Click 'Hello World' tile in All Apps Launcher -> opens WindowFrame with live viewport and appears in active dock!
       await tester.tap(helloTile);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
@@ -462,6 +459,10 @@ void main() {
 
       expect(find.byType(WindowFrame), findsOneWidget);
       expect(find.text('Hello from live runtime grain!'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('dock-item-helloworld')),
+        findsOneWidget,
+      );
       expect(
         activations.any(
           (a) => a['application'] == 'helloworld' && a['operation'] == 'open',
