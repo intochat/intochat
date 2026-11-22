@@ -2,6 +2,19 @@ using System.Collections.Concurrent;
 
 namespace DigitalBrain.Components;
 
+/// <summary>The role a component plays in the operating system.</summary>
+public enum ComponentKind
+{
+    /// <summary>A module providing capabilities, neurons, or integrations.</summary>
+    Module,
+    /// <summary>A user-facing application or screen.</summary>
+    App,
+    /// <summary>A synapse-driven state unit.</summary>
+    Unit,
+    /// <summary>An autonomous agent component.</summary>
+    Agent,
+}
+
 /// <summary>Display metadata for a component's user-facing screen.</summary>
 public sealed record ComponentFace(
     string Title,
@@ -18,24 +31,59 @@ public sealed record OperationSpec(
     string? SignalAlias = null);
 
 /// <summary>
-/// Declared metadata for a component: its id, the slots its neurons declare, optional screen face, and declared operations.
+/// Declared metadata for a component: its id, kind, version, slots, optional screen face, declared operations, and contract/signal edges.
 /// </summary>
 public sealed record ComponentManifest(
     ComponentId Id,
     SlotNeed[] Slots,
     ComponentFace? Face = null,
-    OperationSpec[]? Operations = null)
+    OperationSpec[]? Operations = null,
+    ComponentKind Kind = ComponentKind.App,
+    string Version = "1.0",
+    Type[]? Provides = null,
+    Type[]? Emits = null,
+    Type[]? Reacts = null)
 {
     /// <summary>Declared operations on this component.</summary>
     public OperationSpec[] Operations { get; init; } = Operations ?? [];
 
-    /// <summary>Returns a copy with <paramref name="additional"/> merged by name, preserving order.</summary>
+    /// <summary>Capability or contract types provided by this component.</summary>
+    public Type[] Provides { get; init; } = Provides ?? [];
+
+    /// <summary>Signal types emitted by this component.</summary>
+    public Type[] Emits { get; init; } = Emits ?? [];
+
+    /// <summary>Signal types this component reacts to.</summary>
+    public Type[] Reacts { get; init; } = Reacts ?? [];
+
+    /// <summary>Returns a copy with <paramref name="additional"/> merged by name/type, preserving order.</summary>
     internal ComponentManifest Merge(ComponentManifest additional)
     {
         var mergedSlots = MergeSlots(additional.Slots).Slots;
         var mergedFace = Face ?? additional.Face;
         var mergedOps = MergeOperations(additional.Operations);
-        return this with { Slots = mergedSlots, Face = mergedFace, Operations = mergedOps };
+        var mergedKind = Kind == ComponentKind.Module || additional.Kind == ComponentKind.Module
+            ? ComponentKind.Module
+            : (Kind == ComponentKind.App && additional.Kind != ComponentKind.App ? additional.Kind : Kind);
+        var mergedVersion = (string.IsNullOrWhiteSpace(Version) || string.Equals(Version, "1.0", StringComparison.Ordinal))
+            && !string.IsNullOrWhiteSpace(additional.Version)
+            && !string.Equals(additional.Version, "1.0", StringComparison.Ordinal)
+            ? additional.Version
+            : Version;
+        var mergedProvides = MergeTypes(Provides, additional.Provides);
+        var mergedEmits = MergeTypes(Emits, additional.Emits);
+        var mergedReacts = MergeTypes(Reacts, additional.Reacts);
+        return this with
+        {
+            Slots = mergedSlots,
+            Face = mergedFace,
+            Operations = mergedOps,
+            Kind = mergedKind,
+            Version = mergedVersion,
+            Provides = mergedProvides,
+            Emits = mergedEmits,
+            Reacts = mergedReacts,
+        };
     }
 
     /// <summary>Returns a copy with <paramref name="additional"/> slots merged by name, preserving order.</summary>
@@ -60,6 +108,19 @@ public sealed record ComponentManifest(
         foreach (var op in additional)
         {
             if (seen.Add(op.Name)) { merged.Add(op); }
+        }
+        return [.. merged];
+    }
+
+    private static Type[] MergeTypes(Type[] existing, Type[] additional)
+    {
+        if (additional.Length == 0) { return existing; }
+        if (existing.Length == 0) { return additional; }
+        var seen = new HashSet<Type>(existing);
+        var merged = new List<Type>(existing);
+        foreach (var type in additional)
+        {
+            if (seen.Add(type)) { merged.Add(type); }
         }
         return [.. merged];
     }

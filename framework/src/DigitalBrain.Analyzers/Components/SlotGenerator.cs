@@ -11,7 +11,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace DigitalBrain.Analyzers.Components;
 
 /// <summary>
-/// Generates partial property getters and <c>[ModuleInitializer]</c> manifest registrations for <c>[Slot]</c> properties on neurons.
+/// Generates partial property getters for <c>[Slot]</c> properties and <c>[ModuleInitializer]</c> manifest registrations
+/// for <c>[Slot]</c> neurons, <c>[Module]</c> classes, <c>[Screen]</c> classes, and <c>[Synapse]</c> units.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class SlotGenerator : IIncrementalGenerator
@@ -22,6 +23,37 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 "DigitalBrain.SlotAttribute",
                 predicate: static (node, _) => node is PropertyDeclarationSyntax,
                 transform: static (ctx, ct) => ExtractProperty(ctx, ct))
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
+            .Collect();
+
+        var modulesByModulesNs = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "DigitalBrain.Modules.ModuleAttribute",
+                predicate: static (node, _) => node is ClassDeclarationSyntax,
+                transform: static (ctx, ct) => ExtractModule(ctx, ct))
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
+            .Collect();
+
+        var modulesByRootNs = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "DigitalBrain.ModuleAttribute",
+                predicate: static (node, _) => node is ClassDeclarationSyntax,
+                transform: static (ctx, ct) => ExtractModule(ctx, ct))
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
+            .Collect();
+
+        var screens = context.SyntaxProvider.CreateSyntaxProvider(
+                predicate: static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
+                transform: static (ctx, ct) => ExtractScreen(ctx, ct))
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
+            .Collect();
+
+        var synapses = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "DigitalBrain.SynapseAttribute",
+                predicate: static (node, _) => node is MethodDeclarationSyntax,
+                transform: static (ctx, ct) => ExtractSynapse(ctx, ct))
             .Where(static model => model is not null)
             .Select(static (model, _) => model!)
             .Collect();
@@ -46,9 +78,20 @@ public sealed class SlotGenerator : IIncrementalGenerator
             return (CanRegister: canRegister, AssemblyName: assemblyName);
         });
 
+        var combined = properties
+            .Combine(modulesByModulesNs)
+            .Combine(modulesByRootNs)
+            .Combine(screens)
+            .Combine(synapses)
+            .Combine(registrationProbe);
+
         context.RegisterSourceOutput(
-            properties.Combine(registrationProbe),
-            static (spc, pair) => Emit(spc, pair.Left, pair.Right.CanRegister, pair.Right.AssemblyName));
+            combined,
+            static (spc, data) =>
+            {
+                var (((((props, mods1), mods2), scrs), syns), probe) = data;
+                Emit(spc, props, mods1, mods2, scrs, syns, probe.CanRegister, probe.AssemblyName);
+            });
     }
 
     private static SlotPropertyModel? ExtractProperty(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
@@ -91,7 +134,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         }
 
         var slotName = explicitName ?? ToCamelCase(property.Name);
-        var componentId = NeuronTypeOf(owner) ?? owner.ToDisplayString();
+        var componentId = NeuronTypeOf(owner) ?? ScreenAliasOf(owner) ?? owner.ToDisplayString();
         var face = ExtractFace(owner);
         var operations = ExtractOperations(owner);
         var ns = owner.ContainingNamespace.IsGlobalNamespace ? string.Empty : owner.ContainingNamespace.ToDisplayString();
@@ -103,6 +146,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             chain.Add(new TypeDeclModel(kind, current.Name));
         }
         chain.Reverse();
+
+        var isAccessible = IsAccessibleOwner(owner) && !owner.IsStatic && IsAccessibleForTypeOf(property.Type);
 
         return new SlotPropertyModel(
             ns,
@@ -117,7 +162,234 @@ public sealed class SlotGenerator : IIncrementalGenerator
             slotName,
             key,
             required,
-            isPartial);
+            isPartial,
+            isAccessible);
+    }
+
+    private static ComponentEntryModel? ExtractModule(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (context.TargetSymbol is not INamedTypeSymbol owner
+            || owner.IsStatic
+            || !IsAccessibleOwner(owner))
+        {
+            return null;
+        }
+
+        string? rawId = null;
+        foreach (var attribute in context.Attributes)
+        {
+            if (attribute.ConstructorArguments.Length > 0
+                && attribute.ConstructorArguments[0].Value is string id
+                && !string.IsNullOrWhiteSpace(id))
+            {
+                rawId = id.Trim();
+                break;
+            }
+        }
+
+        var baseId = string.IsNullOrWhiteSpace(rawId) ? ToCamelCase(owner.Name) : rawId!;
+        var componentId = baseId.StartsWith("module.", StringComparison.Ordinal) ? baseId : "module." + baseId;
+        var provides = ExtractProvides(owner);
+
+        return new ComponentEntryModel(
+            owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            componentId,
+            "Module",
+            isStatic: false,
+            face: null,
+            operations: ImmutableArray<OperationModel>.Empty,
+            provides: provides);
+    }
+
+    private static ComponentEntryModel? ExtractScreen(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (context.Node is not ClassDeclarationSyntax classDecl)
+        {
+            return null;
+        }
+
+        if (context.SemanticModel.GetDeclaredSymbol(classDecl, cancellationToken) is not INamedTypeSymbol owner
+            || owner.IsStatic
+            || !IsAccessibleOwner(owner))
+        {
+            return null;
+        }
+
+        var face = ExtractFace(owner);
+        if (face is null)
+        {
+            return null;
+        }
+
+        var componentId = NeuronTypeOf(owner) ?? ScreenAliasOf(owner) ?? owner.ToDisplayString();
+        var operations = ExtractOperations(owner);
+
+        return new ComponentEntryModel(
+            owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            componentId,
+            "App",
+            isStatic: false,
+            face: face,
+            operations: operations,
+            provides: ImmutableArray<string>.Empty);
+    }
+
+    private static SynapseEntryModel? ExtractSynapse(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (context.TargetSymbol is not IMethodSymbol method
+            || method.ContainingType is not { } owner
+            || !IsAccessibleOwner(owner))
+        {
+            return null;
+        }
+
+        string? stateAlias = null;
+        string? reactSignal = null;
+
+        foreach (var attribute in context.Attributes)
+        {
+            var args = attribute.ConstructorArguments;
+            if (args.Length >= 2)
+            {
+                if (args[0].Kind == TypedConstantKind.Type
+                    && args[0].Value is ITypeSymbol signalType
+                    && IsAccessibleForTypeOf(signalType))
+                {
+                    reactSignal = signalType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                }
+                if (args[1].Value is string into && !string.IsNullOrWhiteSpace(into))
+                {
+                    stateAlias = ExtractStateAlias(into);
+                }
+            }
+            else if (args.Length == 1 && args[0].Value is string from && !string.IsNullOrWhiteSpace(from))
+            {
+                stateAlias = ExtractStateAlias(from);
+            }
+            break;
+        }
+
+        return new SynapseEntryModel(
+            owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            owner.Name,
+            owner.IsStatic,
+            stateAlias,
+            reactSignal);
+    }
+
+    private static string? ExtractStateAlias(string raw)
+    {
+        var slash = raw.IndexOf('/');
+        var state = slash < 0 ? raw : raw.Substring(0, slash);
+        return string.IsNullOrWhiteSpace(state) ? null : state.Trim();
+    }
+
+    private static ImmutableArray<string> ExtractProvides(INamedTypeSymbol owner)
+    {
+        var builder = ImmutableArray.CreateBuilder<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var attribute in owner.GetAttributes())
+        {
+            if (attribute.AttributeClass?.Name != "ProvidesAttribute")
+            {
+                continue;
+            }
+
+            foreach (var arg in attribute.ConstructorArguments)
+            {
+                if (arg.Kind == TypedConstantKind.Type && arg.Value is ITypeSymbol singleType && IsAccessibleForTypeOf(singleType))
+                {
+                    var fullName = singleType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    if (seen.Add(fullName))
+                    {
+                        builder.Add(fullName);
+                    }
+                }
+                else if (arg.Kind == TypedConstantKind.Array)
+                {
+                    foreach (var elem in arg.Values)
+                    {
+                        if (elem.Kind == TypedConstantKind.Type && elem.Value is ITypeSymbol elemType && IsAccessibleForTypeOf(elemType))
+                        {
+                            var fullName = elemType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                            if (seen.Add(fullName))
+                            {
+                                builder.Add(fullName);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return builder.ToImmutable();
+    }
+
+    private static bool IsAccessibleOwner(INamedTypeSymbol owner)
+    {
+        if (owner.TypeKind != TypeKind.Class || (owner.IsAbstract && !owner.IsStatic))
+        {
+            return false;
+        }
+
+        for (var current = owner; current is not null; current = current.ContainingType)
+        {
+            if (current.IsGenericType || current.IsFileLocal)
+            {
+                return false;
+            }
+            if (current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAccessibleForTypeOf(ITypeSymbol type)
+    {
+        if (type is ITypeParameterSymbol || type is IErrorTypeSymbol)
+        {
+            return false;
+        }
+        if (type is IArrayTypeSymbol array)
+        {
+            return IsAccessibleForTypeOf(array.ElementType);
+        }
+        if (type is not INamedTypeSymbol named || named.IsUnboundGenericType)
+        {
+            return false;
+        }
+
+        for (var current = named; current is not null; current = current.ContainingType)
+        {
+            if (current.IsFileLocal)
+            {
+                return false;
+            }
+            if (current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return false;
+            }
+            if (current.IsGenericType)
+            {
+                foreach (var arg in current.TypeArguments)
+                {
+                    if (!IsAccessibleForTypeOf(arg))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     private static ComponentFaceModel? ExtractFace(INamedTypeSymbol type)
@@ -177,6 +449,21 @@ public sealed class SlotGenerator : IIncrementalGenerator
             string.IsNullOrWhiteSpace(category) ? null : category);
     }
 
+    private static string? ScreenAliasOf(INamedTypeSymbol type)
+    {
+        foreach (var attribute in type.GetAttributes())
+        {
+            if (attribute.AttributeClass?.Name == "ScreenAttribute"
+                && attribute.ConstructorArguments.Length > 0
+                && attribute.ConstructorArguments[0].Value is string alias
+                && !string.IsNullOrWhiteSpace(alias))
+            {
+                return alias.Trim();
+            }
+        }
+        return null;
+    }
+
     private static ImmutableArray<OperationModel> ExtractOperations(INamedTypeSymbol type)
     {
         var ops = ImmutableArray.CreateBuilder<OperationModel>();
@@ -216,10 +503,13 @@ public sealed class SlotGenerator : IIncrementalGenerator
             var signalAlias = SignalAliasOf(inputParam);
             var opName = OperationNameOf(method, signalAlias);
             var parametersJson = Contracts.ToolSchemaGenerator.BuildInputParametersJson(inputParam);
+            var inputFullName = IsAccessibleForTypeOf(inputParam)
+                ? inputParam.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                : null;
             ops.Add(new OperationModel(
                 opName,
                 description,
-                inputParam.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                inputFullName,
                 parametersJson,
                 signalAlias));
         }
@@ -294,82 +584,168 @@ public sealed class SlotGenerator : IIncrementalGenerator
     private static void Emit(
         SourceProductionContext context,
         ImmutableArray<SlotPropertyModel> properties,
+        ImmutableArray<ComponentEntryModel> modules1,
+        ImmutableArray<ComponentEntryModel> modules2,
+        ImmutableArray<ComponentEntryModel> screens,
+        ImmutableArray<SynapseEntryModel> synapses,
         bool canRegister,
         string assemblyName)
     {
-        if (properties.IsDefaultOrEmpty)
+        if (!properties.IsDefaultOrEmpty)
         {
-            return;
-        }
+            var slotGroups = properties
+                .GroupBy(static p => p.OwnerFullName, StringComparer.Ordinal)
+                .OrderBy(static g => g.Key, StringComparer.Ordinal);
 
-        var groups = properties
-            .GroupBy(static p => p.OwnerFullName, StringComparer.Ordinal)
-            .OrderBy(static g => g.Key, StringComparer.Ordinal)
-            .ToList();
-
-        foreach (var group in groups)
-        {
-            var partialProps = group.Where(static p => p.IsPartial).ToList();
-            if (partialProps.Count == 0)
+            foreach (var group in slotGroups)
             {
-                continue;
+                var partialProps = group.Where(static p => p.IsPartial).ToList();
+                if (partialProps.Count == 0)
+                {
+                    continue;
+                }
+
+                var first = partialProps[0];
+                var sb = new StringBuilder();
+                sb.AppendLine("// <auto-generated/>");
+                sb.AppendLine("#nullable enable");
+                sb.AppendLine();
+
+                var indent = string.Empty;
+                if (first.Namespace.Length > 0)
+                {
+                    sb.Append("namespace ").AppendLine(first.Namespace);
+                    sb.AppendLine("{");
+                    indent = "    ";
+                }
+
+                foreach (var decl in first.TypeChain)
+                {
+                    sb.Append(indent).Append("partial ").Append(decl.Kind).Append(' ').AppendLine(decl.Name);
+                    sb.Append(indent).AppendLine("{");
+                    indent += "    ";
+                }
+
+                foreach (var prop in partialProps)
+                {
+                    sb.Append(indent)
+                        .Append(prop.Accessibility)
+                        .Append(" partial ")
+                        .Append(prop.ContractFullName)
+                        .Append(' ')
+                        .Append(prop.PropertyName)
+                        .Append(" => Slots.Get<")
+                        .Append(prop.ContractFullName)
+                        .Append(">(")
+                        .Append(CSharpLiteral(prop.SlotName))
+                        .AppendLine(");");
+                }
+
+                for (var i = first.TypeChain.Length - 1; i >= 0; i--)
+                {
+                    indent = indent.Substring(0, indent.Length - 4);
+                    sb.Append(indent).AppendLine("}");
+                }
+
+                if (first.Namespace.Length > 0)
+                {
+                    sb.AppendLine("}");
+                }
+
+                var hintName = "DigitalBrain.Slots." + SanitizeIdentifier(first.OwnerFullName) + ".g.cs";
+                context.AddSource(hintName, sb.ToString());
             }
-
-            var first = partialProps[0];
-            var sb = new StringBuilder();
-            sb.AppendLine("// <auto-generated/>");
-            sb.AppendLine("#nullable enable");
-            sb.AppendLine();
-
-            var indent = string.Empty;
-            if (first.Namespace.Length > 0)
-            {
-                sb.Append("namespace ").AppendLine(first.Namespace);
-                sb.AppendLine("{");
-                indent = "    ";
-            }
-
-            foreach (var decl in first.TypeChain)
-            {
-                sb.Append(indent).Append("partial ").Append(decl.Kind).Append(' ').AppendLine(decl.Name);
-                sb.Append(indent).AppendLine("{");
-                indent += "    ";
-            }
-
-            foreach (var prop in partialProps)
-            {
-                sb.Append(indent)
-                    .Append(prop.Accessibility)
-                    .Append(" partial ")
-                    .Append(prop.ContractFullName)
-                    .Append(' ')
-                    .Append(prop.PropertyName)
-                    .Append(" => Slots.Get<")
-                    .Append(prop.ContractFullName)
-                    .Append(">(")
-                    .Append(CSharpLiteral(prop.SlotName))
-                    .AppendLine(");");
-            }
-
-            for (var i = first.TypeChain.Length - 1; i >= 0; i--)
-            {
-                indent = indent.Substring(0, indent.Length - 4);
-                sb.Append(indent).AppendLine("}");
-            }
-
-            if (first.Namespace.Length > 0)
-            {
-                sb.AppendLine("}");
-            }
-
-            var hintName = "DigitalBrain.Slots." + SanitizeIdentifier(first.OwnerFullName) + ".g.cs";
-            context.AddSource(hintName, sb.ToString());
         }
 
         if (!canRegister)
         {
             return;
         }
+
+        var merged = new Dictionary<string, MergedComponent>(StringComparer.Ordinal);
+
+        if (!properties.IsDefaultOrEmpty)
+        {
+            foreach (var prop in properties)
+            {
+                if (!prop.IsAccessible)
+                {
+                    continue;
+                }
+
+                if (!merged.TryGetValue(prop.OwnerFullName, out var entry))
+                {
+                    entry = new MergedComponent(prop.OwnerFullName, prop.ComponentId, "App", isStatic: false);
+                    merged[prop.OwnerFullName] = entry;
+                }
+                entry.AddSlot(prop);
+                entry.Face ??= prop.Face;
+                entry.AddOperations(prop.Operations);
+            }
+        }
+
+        foreach (var mod in modules1.Concat(modules2))
+        {
+            if (!merged.TryGetValue(mod.OwnerFullName, out var entry))
+            {
+                entry = new MergedComponent(mod.OwnerFullName, mod.ComponentId, "Module", mod.IsStatic);
+                merged[mod.OwnerFullName] = entry;
+            }
+            else
+            {
+                entry.ComponentId = mod.ComponentId;
+                entry.Kind = "Module";
+            }
+            entry.AddProvides(mod.Provides);
+        }
+
+        foreach (var screen in screens)
+        {
+            if (!merged.TryGetValue(screen.OwnerFullName, out var entry))
+            {
+                entry = new MergedComponent(screen.OwnerFullName, screen.ComponentId, "App", screen.IsStatic);
+                merged[screen.OwnerFullName] = entry;
+            }
+            entry.Face ??= screen.Face;
+            entry.AddOperations(screen.Operations);
+        }
+
+        if (!synapses.IsDefaultOrEmpty)
+        {
+            foreach (var group in synapses.GroupBy(static s => s.OwnerFullName, StringComparer.Ordinal))
+            {
+                var items = group.ToList();
+                var first = items[0];
+                var alias = items.Select(static i => i.StateAlias).FirstOrDefault(static a => !string.IsNullOrWhiteSpace(a))
+                    ?? ToCamelCase(first.OwnerName);
+                var unitId = alias.StartsWith("unit.", StringComparison.Ordinal) ? alias : "unit." + alias;
+
+                if (!merged.TryGetValue(first.OwnerFullName, out var entry))
+                {
+                    entry = new MergedComponent(first.OwnerFullName, unitId, "Unit", first.IsStatic);
+                    merged[first.OwnerFullName] = entry;
+                }
+                else if (entry.Kind == "App")
+                {
+                    entry.Kind = "Unit";
+                }
+
+                foreach (var item in items)
+                {
+                    if (!string.IsNullOrWhiteSpace(item.ReactSignalFullName))
+                    {
+                        entry.AddReact(item.ReactSignalFullName!);
+                    }
+                }
+            }
+        }
+
+        if (merged.Count == 0)
+        {
+            return;
+        }
+
+        var ordered = merged.Values.OrderBy(static c => c.OwnerFullName, StringComparer.Ordinal).ToList();
 
         var initSb = new StringBuilder();
         var className = "DigitalBrain_ComponentSlots_" + SanitizeIdentifier(assemblyName);
@@ -384,80 +760,117 @@ public sealed class SlotGenerator : IIncrementalGenerator
         initSb.AppendLine("    internal static void Initialize()");
         initSb.AppendLine("    {");
 
-        foreach (var group in groups)
+        foreach (var comp in ordered)
         {
-            var items = group.ToList();
-            var first = items[0];
-            initSb.Append("        global::DigitalBrain.Components.ComponentRegistry.Register(typeof(")
-                .Append(first.OwnerFullName)
-                .Append("), new global::DigitalBrain.Components.ComponentId(")
-                .Append(CSharpLiteral(first.ComponentId))
-                .AppendLine("));");
+            if (!comp.IsStatic)
+            {
+                initSb.Append("        global::DigitalBrain.Components.ComponentRegistry.Register(typeof(")
+                    .Append(comp.OwnerFullName)
+                    .Append("), new global::DigitalBrain.Components.ComponentId(")
+                    .Append(CSharpLiteral(comp.ComponentId))
+                    .AppendLine("));");
 
-            initSb.AppendLine("        global::DigitalBrain.Components.ComponentManifests.Register(");
-            initSb.Append("            typeof(").Append(first.OwnerFullName).AppendLine("),");
-            initSb.AppendLine("            new global::DigitalBrain.Components.ComponentManifest(");
-            initSb.Append("                new global::DigitalBrain.Components.ComponentId(").Append(CSharpLiteral(first.ComponentId)).AppendLine("),");
-            initSb.AppendLine("                new global::DigitalBrain.Components.SlotNeed[]");
-            initSb.AppendLine("                {");
-            foreach (var prop in items)
-            {
-                initSb.Append("                    new global::DigitalBrain.Components.SlotNeed(")
-                    .Append(CSharpLiteral(prop.SlotName))
-                    .Append(", typeof(")
-                    .Append(prop.ContractFullName)
-                    .Append("), ")
-                    .Append(prop.Required ? "true" : "false")
-                    .Append(", ")
-                    .Append(prop.Key is null ? "null" : CSharpLiteral(prop.Key))
-                    .AppendLine("),");
-            }
-            if (first.Face is null && first.Operations.Length == 0)
-            {
-                initSb.AppendLine("                }));");
+                initSb.AppendLine("        global::DigitalBrain.Components.ComponentManifests.Register(");
+                initSb.Append("            typeof(").Append(comp.OwnerFullName).AppendLine("),");
             }
             else
             {
-                initSb.AppendLine("                },");
-                if (first.Face is { } face)
+                initSb.AppendLine("        global::DigitalBrain.Components.ComponentManifests.Register(");
+            }
+
+            initSb.AppendLine("            new global::DigitalBrain.Components.ComponentManifest(");
+            initSb.Append("                new global::DigitalBrain.Components.ComponentId(")
+                .Append(CSharpLiteral(comp.ComponentId))
+                .AppendLine("),");
+
+            var hasExtras = comp.Face is not null
+                || comp.Operations.Count > 0
+                || !string.Equals(comp.Kind, "App", StringComparison.Ordinal)
+                || comp.Provides.Count > 0
+                || comp.Reacts.Count > 0;
+
+            if (comp.Slots.Count == 0)
+            {
+                initSb.Append("                global::System.Array.Empty<global::DigitalBrain.Components.SlotNeed>()")
+                    .AppendLine(hasExtras ? "," : "));");
+            }
+            else
+            {
+                initSb.AppendLine("                new global::DigitalBrain.Components.SlotNeed[]");
+                initSb.AppendLine("                {");
+                foreach (var prop in comp.Slots)
                 {
-                    initSb.Append("                new global::DigitalBrain.Components.ComponentFace(")
-                        .Append(CSharpLiteral(face.Title))
+                    initSb.Append("                    new global::DigitalBrain.Components.SlotNeed(")
+                        .Append(CSharpLiteral(prop.SlotName))
+                        .Append(", typeof(")
+                        .Append(prop.ContractFullName)
+                        .Append("), ")
+                        .Append(prop.Required ? "true" : "false")
                         .Append(", ")
-                        .Append(CSharpLiteral(face.Description))
-                        .Append(", ")
-                        .Append(face.Icon is null ? "null" : CSharpLiteral(face.Icon))
-                        .Append(", ")
-                        .Append(face.Category is null ? "null" : CSharpLiteral(face.Category))
+                        .Append(prop.Key is null ? "null" : CSharpLiteral(prop.Key))
                         .AppendLine("),");
                 }
-                else
+                initSb.Append("                }")
+                    .AppendLine(hasExtras ? "," : "));");
+            }
+
+            if (hasExtras)
+            {
+                var extraParts = new List<string>();
+
+                if (comp.Face is { } face)
                 {
-                    initSb.AppendLine("                null,");
+                    extraParts.Add(
+                        "                Face: new global::DigitalBrain.Components.ComponentFace("
+                        + CSharpLiteral(face.Title) + ", "
+                        + CSharpLiteral(face.Description) + ", "
+                        + (face.Icon is null ? "null" : CSharpLiteral(face.Icon)) + ", "
+                        + (face.Category is null ? "null" : CSharpLiteral(face.Category)) + ")");
                 }
-                if (first.Operations.Length > 0)
+
+                if (comp.Operations.Count > 0)
                 {
-                    initSb.AppendLine("                new global::DigitalBrain.Components.OperationSpec[]");
-                    initSb.AppendLine("                {");
-                    foreach (var op in first.Operations)
+                    var opSb = new StringBuilder();
+                    opSb.AppendLine("                Operations: new global::DigitalBrain.Components.OperationSpec[]");
+                    opSb.AppendLine("                {");
+                    foreach (var op in comp.Operations)
                     {
-                        initSb.Append("                    new global::DigitalBrain.Components.OperationSpec(")
+                        opSb.Append("                    new global::DigitalBrain.Components.OperationSpec(")
                             .Append(CSharpLiteral(op.Name))
                             .Append(", ")
                             .Append(CSharpLiteral(op.Description))
-                            .Append(", typeof(")
-                            .Append(op.InputFullName)
-                            .Append("), ")
+                            .Append(", ")
+                            .Append(op.InputFullName is null ? "null" : "typeof(" + op.InputFullName + ")")
+                            .Append(", ")
                             .Append(CSharpLiteral(op.ParametersJson))
                             .Append(", ")
                             .Append(op.SignalAlias is null ? "null" : CSharpLiteral(op.SignalAlias))
                             .AppendLine("),");
                     }
-                    initSb.AppendLine("                }));");
+                    opSb.Append("                }");
+                    extraParts.Add(opSb.ToString());
                 }
-                else
+
+                if (!string.Equals(comp.Kind, "App", StringComparison.Ordinal))
                 {
-                    initSb.AppendLine("                null));");
+                    extraParts.Add("                Kind: global::DigitalBrain.Components.ComponentKind." + comp.Kind);
+                }
+
+                if (comp.Provides.Count > 0)
+                {
+                    var typesList = string.Join(", ", comp.Provides.Select(static t => "typeof(" + t + ")"));
+                    extraParts.Add("                Provides: new global::System.Type[] { " + typesList + " }");
+                }
+
+                if (comp.Reacts.Count > 0)
+                {
+                    var typesList = string.Join(", ", comp.Reacts.Select(static t => "typeof(" + t + ")"));
+                    extraParts.Add("                Reacts: new global::System.Type[] { " + typesList + " }");
+                }
+
+                for (var i = 0; i < extraParts.Count; i++)
+                {
+                    initSb.Append(extraParts[i]).AppendLine(i + 1 < extraParts.Count ? "," : "));");
                 }
             }
         }
@@ -487,6 +900,70 @@ public sealed class SlotGenerator : IIncrementalGenerator
             sb.Insert(0, '_');
         }
         return sb.ToString();
+    }
+
+    private sealed class MergedComponent
+    {
+        private readonly HashSet<string> _slotNames = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _opNames = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _providesSet = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _reactsSet = new(StringComparer.Ordinal);
+
+        public MergedComponent(string ownerFullName, string componentId, string kind, bool isStatic)
+        {
+            OwnerFullName = ownerFullName;
+            ComponentId = componentId;
+            Kind = kind;
+            IsStatic = isStatic;
+        }
+
+        public string OwnerFullName { get; }
+        public string ComponentId { get; set; }
+        public string Kind { get; set; }
+        public bool IsStatic { get; }
+        public ComponentFaceModel? Face { get; set; }
+        public List<SlotPropertyModel> Slots { get; } = new();
+        public List<OperationModel> Operations { get; } = new();
+        public List<string> Provides { get; } = new();
+        public List<string> Reacts { get; } = new();
+
+        public void AddSlot(SlotPropertyModel slot)
+        {
+            if (_slotNames.Add(slot.SlotName))
+            {
+                Slots.Add(slot);
+            }
+        }
+
+        public void AddOperations(ImmutableArray<OperationModel> ops)
+        {
+            foreach (var op in ops)
+            {
+                if (_opNames.Add(op.Name))
+                {
+                    Operations.Add(op);
+                }
+            }
+        }
+
+        public void AddProvides(ImmutableArray<string> provides)
+        {
+            foreach (var type in provides)
+            {
+                if (_providesSet.Add(type))
+                {
+                    Provides.Add(type);
+                }
+            }
+        }
+
+        public void AddReact(string signalType)
+        {
+            if (_reactsSet.Add(signalType))
+            {
+                Reacts.Add(signalType);
+            }
+        }
     }
 
     private sealed class TypeDeclModel : IEquatable<TypeDeclModel>
@@ -555,7 +1032,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
     private sealed class OperationModel : IEquatable<OperationModel>
     {
-        public OperationModel(string name, string description, string inputFullName, string parametersJson, string? signalAlias)
+        public OperationModel(string name, string description, string? inputFullName, string parametersJson, string? signalAlias)
         {
             Name = name;
             Description = description;
@@ -566,7 +1043,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
         public string Name { get; }
         public string Description { get; }
-        public string InputFullName { get; }
+        public string? InputFullName { get; }
         public string ParametersJson { get; }
         public string? SignalAlias { get; }
 
@@ -586,9 +1063,122 @@ public sealed class SlotGenerator : IIncrementalGenerator
             {
                 var hash = StringComparer.Ordinal.GetHashCode(Name);
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(Description);
-                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(InputFullName);
+                hash = (hash * 397) ^ (InputFullName is null ? 0 : StringComparer.Ordinal.GetHashCode(InputFullName));
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(ParametersJson);
                 hash = (hash * 397) ^ (SignalAlias is null ? 0 : StringComparer.Ordinal.GetHashCode(SignalAlias));
+                return hash;
+            }
+        }
+    }
+
+    private sealed class ComponentEntryModel : IEquatable<ComponentEntryModel>
+    {
+        public ComponentEntryModel(
+            string ownerFullName,
+            string componentId,
+            string kind,
+            bool isStatic,
+            ComponentFaceModel? face,
+            ImmutableArray<OperationModel> operations,
+            ImmutableArray<string> provides)
+        {
+            OwnerFullName = ownerFullName;
+            ComponentId = componentId;
+            Kind = kind;
+            IsStatic = isStatic;
+            Face = face;
+            Operations = operations;
+            Provides = provides;
+        }
+
+        public string OwnerFullName { get; }
+        public string ComponentId { get; }
+        public string Kind { get; }
+        public bool IsStatic { get; }
+        public ComponentFaceModel? Face { get; }
+        public ImmutableArray<OperationModel> Operations { get; }
+        public ImmutableArray<string> Provides { get; }
+
+        public bool Equals(ComponentEntryModel? other)
+        {
+            if (other is null
+                || !string.Equals(OwnerFullName, other.OwnerFullName, StringComparison.Ordinal)
+                || !string.Equals(ComponentId, other.ComponentId, StringComparison.Ordinal)
+                || !string.Equals(Kind, other.Kind, StringComparison.Ordinal)
+                || IsStatic != other.IsStatic
+                || !Equals(Face, other.Face)
+                || Operations.Length != other.Operations.Length
+                || Provides.Length != other.Provides.Length)
+            {
+                return false;
+            }
+            for (var i = 0; i < Operations.Length; i++)
+            {
+                if (!Operations[i].Equals(other.Operations[i])) { return false; }
+            }
+            for (var i = 0; i < Provides.Length; i++)
+            {
+                if (!string.Equals(Provides[i], other.Provides[i], StringComparison.Ordinal)) { return false; }
+            }
+            return true;
+        }
+
+        public override bool Equals(object? obj) => Equals(obj as ComponentEntryModel);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = StringComparer.Ordinal.GetHashCode(OwnerFullName);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(ComponentId);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(Kind);
+                hash = (hash * 397) ^ (Face?.GetHashCode() ?? 0);
+                hash = (hash * 397) ^ Operations.Length;
+                hash = (hash * 397) ^ Provides.Length;
+                return hash;
+            }
+        }
+    }
+
+    private sealed class SynapseEntryModel : IEquatable<SynapseEntryModel>
+    {
+        public SynapseEntryModel(
+            string ownerFullName,
+            string ownerName,
+            bool isStatic,
+            string? stateAlias,
+            string? reactSignalFullName)
+        {
+            OwnerFullName = ownerFullName;
+            OwnerName = ownerName;
+            IsStatic = isStatic;
+            StateAlias = stateAlias;
+            ReactSignalFullName = reactSignalFullName;
+        }
+
+        public string OwnerFullName { get; }
+        public string OwnerName { get; }
+        public bool IsStatic { get; }
+        public string? StateAlias { get; }
+        public string? ReactSignalFullName { get; }
+
+        public bool Equals(SynapseEntryModel? other)
+            => other is not null
+               && string.Equals(OwnerFullName, other.OwnerFullName, StringComparison.Ordinal)
+               && string.Equals(OwnerName, other.OwnerName, StringComparison.Ordinal)
+               && IsStatic == other.IsStatic
+               && string.Equals(StateAlias, other.StateAlias, StringComparison.Ordinal)
+               && string.Equals(ReactSignalFullName, other.ReactSignalFullName, StringComparison.Ordinal);
+
+        public override bool Equals(object? obj) => Equals(obj as SynapseEntryModel);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = StringComparer.Ordinal.GetHashCode(OwnerFullName);
+                hash = (hash * 397) ^ (StateAlias is null ? 0 : StringComparer.Ordinal.GetHashCode(StateAlias));
+                hash = (hash * 397) ^ (ReactSignalFullName is null ? 0 : StringComparer.Ordinal.GetHashCode(ReactSignalFullName));
                 return hash;
             }
         }
@@ -609,7 +1199,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             string slotName,
             string? key,
             bool required,
-            bool isPartial)
+            bool isPartial,
+            bool isAccessible)
         {
             Namespace = ns;
             TypeChain = typeChain;
@@ -624,6 +1215,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             Key = key;
             Required = required;
             IsPartial = isPartial;
+            IsAccessible = isAccessible;
         }
 
         public string Namespace { get; }
@@ -639,6 +1231,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public string? Key { get; }
         public bool Required { get; }
         public bool IsPartial { get; }
+        public bool IsAccessible { get; }
 
         public bool Equals(SlotPropertyModel? other)
         {
@@ -655,6 +1248,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || !string.Equals(Key, other.Key, StringComparison.Ordinal)
                 || Required != other.Required
                 || IsPartial != other.IsPartial
+                || IsAccessible != other.IsAccessible
                 || TypeChain.Length != other.TypeChain.Length)
             {
                 return false;

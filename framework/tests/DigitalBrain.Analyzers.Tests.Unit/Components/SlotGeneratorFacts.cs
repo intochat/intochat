@@ -16,6 +16,8 @@ public sealed class SlotGeneratorFacts
 
         namespace DigitalBrain
         {
+            public abstract record Signal;
+
             [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property, Inherited = false)]
             public sealed class SlotAttribute : Attribute
             {
@@ -23,15 +25,66 @@ public sealed class SlotGeneratorFacts
                 public string? Key { get; set; }
                 public bool Required { get; set; } = true;
             }
+
+            [AttributeUsage(AttributeTargets.Method, Inherited = false)]
+            public sealed class OnAttribute : Attribute { }
+
+            [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+            public sealed class SignalAttribute(string alias) : Attribute
+            {
+                public string Alias { get; } = alias;
+            }
+
+            [AttributeUsage(AttributeTargets.Method, Inherited = false)]
+            public sealed class SynapseAttribute : Attribute
+            {
+                public SynapseAttribute(Type from, string into) { Signal = from; State = into; }
+                public SynapseAttribute(string signalAlias, string into) { SignalAlias = signalAlias; State = into; }
+                public SynapseAttribute(string from) { State = from; }
+                public Type? Signal { get; }
+                public string? SignalAlias { get; }
+                public string State { get; }
+                public string? Every { get; init; }
+            }
+        }
+
+        namespace DigitalBrain.Modules
+        {
+            [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+            public sealed class ModuleAttribute(string id) : Attribute
+            {
+                public string Id { get; } = id;
+            }
+
+            [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+            public sealed class ProvidesAttribute(params Type[] contracts) : Attribute
+            {
+                public Type[] Contracts { get; } = contracts;
+            }
         }
 
         namespace DigitalBrain.Components
         {
+            public enum ComponentKind { Module, App, Unit, Agent }
+
             public readonly record struct ComponentId(string Value);
 
             public sealed record SlotNeed(string Name, Type Contract, bool Required = true, string? Key = null);
 
-            public sealed record ComponentManifest(ComponentId Id, SlotNeed[] Slots);
+            public sealed record ComponentFace(string Title, string Description = "", string? Icon = null, string? Category = null);
+
+            public sealed record OperationSpec(string Name, string Description = "", Type? Input = null, string? ParametersJson = null, string? SignalAlias = null);
+
+            public sealed record ComponentManifest(
+                ComponentId Id,
+                SlotNeed[] Slots,
+                ComponentFace? Face = null,
+                OperationSpec[]? Operations = null,
+                ComponentKind Kind = ComponentKind.App,
+                string Version = "1.0",
+                Type[]? Provides = null,
+                Type[]? Emits = null,
+                Type[]? Reacts = null);
 
             public static class ComponentRegistry
             {
@@ -42,6 +95,7 @@ public sealed class SlotGeneratorFacts
             public static class ComponentManifests
             {
                 public static readonly Dictionary<ComponentId, ComponentManifest> All = new();
+                public static void Register(ComponentManifest manifest) => All[manifest.Id] = manifest;
                 public static void Register(Type neuronClass, ComponentManifest manifest) => All[manifest.Id] = manifest;
             }
 
@@ -69,12 +123,25 @@ public sealed class SlotGeneratorFacts
                 public DigitalBrain.Components.Slots Slots { get; } = new();
             }
         }
+
+        namespace Sample.UI
+        {
+            [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+            public sealed class ScreenAttribute(string? alias = null) : Attribute
+            {
+                public string? Alias { get; } = alias;
+                public string? Title { get; init; }
+                public string? Icon { get; init; }
+                public string? Category { get; set; }
+            }
+        }
         """;
 
     private static MetadataReference[] References =>
     [
         MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(System.ComponentModel.DescriptionAttribute).Assembly.Location),
         MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
         MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
     ];
@@ -171,6 +238,184 @@ public sealed class SlotGeneratorFacts
 
             var cacheSlot = slots.Cast<object>().Single(s => (string)s.GetType().GetProperty("Name")!.GetValue(s)! == "cache");
             Assert.False((bool)cacheSlot.GetType().GetProperty("Required")!.GetValue(cacheSlot)!);
+        }
+        finally
+        {
+            alc.Unload();
+        }
+    }
+
+    [Fact]
+    public void AModuleWithoutSlotsGetsARegisteredManifest()
+    {
+        const string source = """
+            using DigitalBrain.Modules;
+
+            namespace Sample;
+
+            public interface IWeatherService { }
+
+            [Module("weather")]
+            [Provides(typeof(IWeatherService))]
+            public sealed class WeatherModule { }
+            """;
+
+        WithCompiledAssembly("ModuleProbe", source, assembly =>
+        {
+            var moduleType = assembly.GetType("Sample.WeatherModule", throwOnError: true)!;
+            System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle);
+
+            var manifestsType = assembly.GetType("DigitalBrain.Components.ComponentManifests", throwOnError: true)!;
+            var manifests = (System.Collections.IDictionary)manifestsType.GetField("All")!.GetValue(null)!;
+            var manifest = Assert.Single(manifests.Values.Cast<object>());
+
+            var id = manifest.GetType().GetProperty("Id")!.GetValue(manifest)!;
+            Assert.Equal("module.weather", (string)id.GetType().GetProperty("Value")!.GetValue(id)!);
+
+            var kind = manifest.GetType().GetProperty("Kind")!.GetValue(manifest)!;
+            Assert.Equal("Module", kind.ToString());
+
+            var provides = (Type[]?)manifest.GetType().GetProperty("Provides")!.GetValue(manifest);
+            Assert.NotNull(provides);
+            var weatherServiceType = assembly.GetType("Sample.IWeatherService", throwOnError: true)!;
+            Assert.Equal([weatherServiceType], provides);
+
+            var registryType = assembly.GetType("DigitalBrain.Components.ComponentRegistry", throwOnError: true)!;
+            var registered = (System.Collections.IDictionary)registryType.GetField("All")!.GetValue(null)!;
+            Assert.True(registered.Contains(moduleType));
+        });
+    }
+
+    [Fact]
+    public void AScreenWithoutSlotsGetsARegisteredManifest()
+    {
+        const string source = """
+            using System.ComponentModel;
+            using DigitalBrain;
+            using DigitalBrain.Neurons;
+            using Sample.UI;
+
+            namespace Sample;
+
+            [Signal("notes.save")]
+            public sealed record SaveNote(string Body) : Signal;
+
+            [Neuron("app.notes")]
+            [Screen("app.notes", Title = "Notes", Icon = "file-text", Category = "Workspace")]
+            [Description("Lightweight notes screen.")]
+            public sealed class NotesScreen : Neuron
+            {
+                [On]
+                [Description("Save a note.")]
+                public void OnSave(SaveNote signal) { }
+            }
+            """;
+
+        WithCompiledAssembly("ScreenProbe", source, assembly =>
+        {
+            var screenType = assembly.GetType("Sample.NotesScreen", throwOnError: true)!;
+            System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle);
+
+            var registryType = assembly.GetType("DigitalBrain.Components.ComponentRegistry", throwOnError: true)!;
+            var registered = (System.Collections.IDictionary)registryType.GetField("All")!.GetValue(null)!;
+            Assert.True(registered.Contains(screenType));
+
+            var manifestsType = assembly.GetType("DigitalBrain.Components.ComponentManifests", throwOnError: true)!;
+            var manifests = (System.Collections.IDictionary)manifestsType.GetField("All")!.GetValue(null)!;
+            var manifest = Assert.Single(manifests.Values.Cast<object>());
+
+            var id = manifest.GetType().GetProperty("Id")!.GetValue(manifest)!;
+            Assert.Equal("app.notes", (string)id.GetType().GetProperty("Value")!.GetValue(id)!);
+            Assert.Equal("App", manifest.GetType().GetProperty("Kind")!.GetValue(manifest)!.ToString());
+
+            var face = manifest.GetType().GetProperty("Face")!.GetValue(manifest);
+            Assert.NotNull(face);
+            Assert.Equal("Notes", (string)face!.GetType().GetProperty("Title")!.GetValue(face)!);
+            Assert.Equal("Lightweight notes screen.", (string)face.GetType().GetProperty("Description")!.GetValue(face)!);
+            Assert.Equal("file-text", (string?)face.GetType().GetProperty("Icon")!.GetValue(face));
+            Assert.Equal("Workspace", (string?)face.GetType().GetProperty("Category")!.GetValue(face));
+
+            var ops = (Array?)manifest.GetType().GetProperty("Operations")!.GetValue(manifest);
+            Assert.NotNull(ops);
+            var op = Assert.Single(ops!.Cast<object>());
+            Assert.Equal("save", (string)op.GetType().GetProperty("Name")!.GetValue(op)!);
+            Assert.Equal("notes.save", (string?)op.GetType().GetProperty("SignalAlias")!.GetValue(op));
+        });
+    }
+
+    [Fact]
+    public void ASynapseClassGetsARegisteredManifestWithReacts()
+    {
+        const string source = """
+            using DigitalBrain;
+
+            namespace Sample;
+
+            [Signal("time.tick")]
+            public sealed record Tick() : Signal;
+
+            public static class WatcherUnit
+            {
+                [Synapse(typeof(Tick), "watch.web", Every = "every 5m")]
+                public static void Poll(Tick tick) { }
+
+                [Synapse("watch.web")]
+                public static string Show() => "ok";
+            }
+            """;
+
+        WithCompiledAssembly("SynapseProbe", source, assembly =>
+        {
+            var tickType = assembly.GetType("Sample.Tick", throwOnError: true)!;
+            System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle);
+
+            var manifestsType = assembly.GetType("DigitalBrain.Components.ComponentManifests", throwOnError: true)!;
+            var manifests = (System.Collections.IDictionary)manifestsType.GetField("All")!.GetValue(null)!;
+            var manifest = Assert.Single(manifests.Values.Cast<object>());
+
+            var id = manifest.GetType().GetProperty("Id")!.GetValue(manifest)!;
+            Assert.Equal("unit.watch.web", (string)id.GetType().GetProperty("Value")!.GetValue(id)!);
+            Assert.Equal("Unit", manifest.GetType().GetProperty("Kind")!.GetValue(manifest)!.ToString());
+
+            var reacts = (Type[]?)manifest.GetType().GetProperty("Reacts")!.GetValue(manifest);
+            Assert.NotNull(reacts);
+            Assert.Equal([tickType], reacts);
+        });
+    }
+
+    private static void WithCompiledAssembly(string assemblyName, string source, Action<Assembly> verify)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [
+                CSharpSyntaxTree.ParseText(Prelude, parseOptions, cancellationToken: ct),
+                CSharpSyntaxTree.ParseText(source, parseOptions, cancellationToken: ct),
+            ],
+            References,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            generators: [new SlotGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var generatorDiagnostics, ct);
+
+        Assert.Empty(generatorDiagnostics);
+        var errors = outputCompilation.GetDiagnostics(ct).Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.Empty(errors);
+
+        using var pe = new MemoryStream();
+        var emit = outputCompilation.Emit(pe, cancellationToken: ct);
+        Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+        pe.Position = 0;
+
+        var alc = new AssemblyLoadContext(assemblyName + "Alc", isCollectible: true);
+        try
+        {
+            var assembly = alc.LoadFromStream(pe);
+            verify(assembly);
         }
         finally
         {
