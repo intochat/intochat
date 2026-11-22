@@ -202,6 +202,18 @@ public sealed class Slots
         return _bindings.TryGetValue(slot, out var binding) ? binding : null;
     }
 
+    /// <summary>Updates the active in-memory binding for <paramref name="slot"/> in the current activation.</summary>
+    public void Rebind(string slot, BindingTarget target)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(slot);
+        ArgumentNullException.ThrowIfNull(target);
+        _bindings[slot] = new Binding(slot, target);
+    }
+
+    /// <summary>Returns a typed interface to an offered neuron on another brain.</summary>
+    public T Offered<T>(BrainId owner, NeuronId neuron) where T : class
+        => _resolver.Resolve<T>(new BindingTarget.Offered(owner, neuron));
+
     /// <summary>
     /// Resolves activation bindings for <paramref name="needs"/> against <paramref name="installed"/> bindings and contract defaults.
     /// Throws <see cref="ActivationRefusedException"/> with <see cref="ActivationRefusedException.SlotUnbound"/> when any required slot remains unbound.

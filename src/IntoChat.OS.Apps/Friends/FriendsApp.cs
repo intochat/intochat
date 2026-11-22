@@ -2,20 +2,23 @@
 # Friends
 Role: Default
 Shipped: true
-Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, fork_app, filter-scope, ui.command
+Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, fork_app, filter-scope, publish-social-post, refresh-feed, react-to-post, open-friend-room, send-room-message, ui.command
 
 Personal social profile, friends, files shared with friends, and interactive App-Post feed.
 A friend is confirmed with a code: one person makes it, the other redeems it. A folder or file of the workspace is shared
 with a confirmed friend as Viewer or Editor; what friends shared appears under Shared with me.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
+using System.ComponentModel;
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Logging;
@@ -63,6 +66,21 @@ public sealed record FriendsForkPost(string PostId = "post-1", string? NewPostId
 [Signal("friends.filter-scope")]
 public sealed record FriendsFilterScope(string Scope = "all") : Signal;
 
+[Signal("friends.publish-social-post")]
+public sealed record PublishSocialPost(string Text = "") : Signal;
+
+[Signal("friends.refresh-feed")]
+public sealed record RefreshFeed() : Signal;
+
+[Signal("friends.react-to-post")]
+public sealed record ReactToPost(string OwnerBrain = "", string PostId = "", string Reaction = "like") : Signal;
+
+[Signal("friends.open-friend-room")]
+public sealed record OpenFriendRoom(string RoomKey = "", string FriendAccount = "", string RoomOwnerBrain = "") : Signal;
+
+[Signal("friends.send-room-message")]
+public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey = "", string Text = "") : Signal;
+
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
 public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 {
@@ -93,6 +111,11 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 new("fork-post", "Fork an interactive App-Post template (and its embedded app slots) into a new post."),
                 new("fork_app", "Fork and install an App-Post unit template into Creator and submit to IInstalls consent loop."),
                 new("filter-scope", "Filter the feed by scope (all, public, friends)."),
+                new("publish-social-post", "Publish a social post visible to confirmed friends."),
+                new("refresh-feed", "Refresh social posts from yourself and confirmed friends."),
+                new("react-to-post", "Add a reaction to a social post."),
+                new("open-friend-room", "Create, invite to, or join a live friend chat room."),
+                new("send-room-message", "Send a chat message to the active friend room."),
                 new(UiCommand.SignalAlias, "Dispatch a typed Friends aggregate command."),
             ],
             Settings: [],
@@ -196,6 +219,9 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
     [Slot(Key = FileSharesDefaults.KeyPart)] private partial IFileShares Door { get; }
     [Slot(Key = SharedWithMeDefaults.KeyPart)] private partial ISharedWithMe Mine { get; }
     [Slot(Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
+    [Slot(Required = false)] private partial IPosts? SocialPosts { get; }
+    [Slot(Required = false)] private partial SlotCollection<IRoom> SocialRooms { get; }
+    [Slot(Required = false)] private partial IRooms? RoomIndex { get; }
     [Slot(Key = "apps/friends/" + CodeField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField CodeFieldSlot { get; }
     [Slot(Key = "apps/friends/" + PathField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField PathFieldSlot { get; }
     [Slot(Key = "apps/friends/" + TextField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField TextFieldSlot { get; }
@@ -397,6 +423,251 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         return ApplyDecisionAsync(State.SelectScope(targetScope));
     }
 
+    [On, Description("Publish a social post visible to confirmed friends.")]
+    public Task PublishSocial(PublishSocialPost request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("publish social post", async () =>
+        {
+            if (SocialPosts is not { } posts)
+            {
+                return State with { Status = "Social posts are unavailable." };
+            }
+
+            var text = string.IsNullOrWhiteSpace(request.Text) ? State.SocialPostDraft : request.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return State with { Status = "Post text is required." };
+            }
+
+            var roster = await TryReadRosterAsync();
+            var audience = roster
+                .Select(static f => f.Account.Value)
+                .Where(static a => !string.IsNullOrWhiteSpace(a))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            await posts.Publish(new PostDraft(text.Trim(), audience));
+            var feed = await LoadSocialFeedAsync(roster);
+            return State with
+            {
+                Roster = roster,
+                SocialPostDraft = "",
+                SocialFeed = feed,
+                Status = $"Published social post ({feed.Length} post(s) in feed).",
+            };
+        });
+    }
+
+    [On, Description("Refresh social posts from yourself and confirmed friends.")]
+    public Task RefreshSocialFeed(RefreshFeed request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("refresh social feed", async () =>
+        {
+            var roster = await TryReadRosterAsync();
+            var feed = await LoadSocialFeedAsync(roster);
+            return State with
+            {
+                Roster = roster,
+                SocialFeed = feed,
+                Status = $"Refreshed social feed ({feed.Length} post(s)).",
+            };
+        });
+    }
+
+    [On, Description("React to a social post.")]
+    public Task ReactToSocialPost(ReactToPost request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("react to post", async () =>
+        {
+            if (string.IsNullOrWhiteSpace(request.PostId) || string.IsNullOrWhiteSpace(request.Reaction))
+            {
+                return State with { Status = "Post ID and reaction are required." };
+            }
+
+            var ownerBrain = string.IsNullOrWhiteSpace(request.OwnerBrain)
+                ? CurrentBrainId().Value
+                : request.OwnerBrain.Trim();
+            var posts = string.Equals(ownerBrain, CurrentBrainId().Value, StringComparison.Ordinal)
+                ? SocialPosts
+                : Slots.Offered<IPosts>(new BrainId(ownerBrain), new NeuronId(new BrainId(ownerBrain), "social.posts", IPosts.DefaultKey));
+
+            if (posts is null)
+            {
+                return State with { Status = "Social posts are unavailable." };
+            }
+
+            await posts.React(request.PostId.Trim(), request.Reaction.Trim());
+            var roster = await TryReadRosterAsync();
+            var feed = await LoadSocialFeedAsync(roster);
+            return State with
+            {
+                Roster = roster,
+                SocialFeed = feed,
+                Status = $"Reacted '{request.Reaction.Trim()}' to post.",
+            };
+        });
+    }
+
+    [On, Description("Create, invite a friend to, or join a live chat room.")]
+    public Task OpenRoom(OpenFriendRoom request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("open friend room", async () =>
+        {
+            if (string.IsNullOrWhiteSpace(request.RoomKey))
+            {
+                return State with { Status = "Room key is required." };
+            }
+
+            var roomKey = request.RoomKey.Trim();
+            var ownBrain = CurrentBrainId();
+            var ownerBrainValue = string.IsNullOrWhiteSpace(request.RoomOwnerBrain)
+                ? ownBrain.Value
+                : request.RoomOwnerBrain.Trim();
+            var isOwnRoom = string.Equals(ownerBrainValue, ownBrain.Value, StringComparison.Ordinal);
+
+            var roster = await TryReadRosterAsync();
+            var room = ResolveRoom(ownerBrainValue, roomKey, isOwnRoom);
+            if (room is null)
+            {
+                return State with { Status = "Social rooms are unavailable." };
+            }
+
+            if (isOwnRoom && !string.IsNullOrWhiteSpace(request.FriendAccount))
+            {
+                var friendAccount = request.FriendAccount.Trim();
+                var friend = roster.FirstOrDefault(f =>
+                    string.Equals(f.Account.Value, friendAccount, StringComparison.OrdinalIgnoreCase));
+                if (friend is not null)
+                {
+                    await room.Invite(friend.Account.Value, friend.Brain, Role.Editor);
+                }
+            }
+
+            await room.Here();
+            var view = await room.Read();
+            var roomId = new NeuronId(new BrainId(ownerBrainValue), "social.room", roomKey);
+            if (RoomIndex is { } index)
+            {
+                _ = await index.LastRevision(roomId);
+            }
+
+            return State with
+            {
+                Roster = roster,
+                ActiveRoom = new ActiveFriendRoom(ownerBrainValue, roomKey, view.Revision, view.Messages, view.PresentAccounts),
+                Status = isOwnRoom ? $"Opened room '{roomKey}'." : $"Joined room '{roomKey}'.",
+            };
+        });
+    }
+
+    [On, Description("Send a chat message in the active friend room.")]
+    public Task SendRoomChat(SendRoomMessage request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("send room message", async () =>
+        {
+            var ownBrain = CurrentBrainId();
+            var ownerBrainValue = string.IsNullOrWhiteSpace(request.RoomOwnerBrain)
+                ? State.ActiveRoom?.OwnerBrain ?? ownBrain.Value
+                : request.RoomOwnerBrain.Trim();
+            var roomKey = string.IsNullOrWhiteSpace(request.RoomKey)
+                ? State.ActiveRoom?.RoomKey ?? ""
+                : request.RoomKey.Trim();
+            var text = string.IsNullOrWhiteSpace(request.Text) ? State.RoomMessageDraft : request.Text;
+
+            if (string.IsNullOrWhiteSpace(roomKey))
+            {
+                return State with { Status = "Open a room before sending a message." };
+            }
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return State with { Status = "Message text is required." };
+            }
+
+            var isOwnRoom = string.Equals(ownerBrainValue, ownBrain.Value, StringComparison.Ordinal);
+            var room = ResolveRoom(ownerBrainValue, roomKey, isOwnRoom);
+            if (room is null)
+            {
+                return State with { Status = "Social rooms are unavailable." };
+            }
+
+            await room.Say(text.Trim());
+            await room.Here();
+            var view = await room.Read();
+
+            return State with
+            {
+                RoomMessageDraft = "",
+                ActiveRoom = new ActiveFriendRoom(ownerBrainValue, roomKey, view.Revision, view.Messages, view.PresentAccounts),
+                Status = $"Sent message to room '{roomKey}'.",
+            };
+        });
+    }
+
+    private IRoom? ResolveRoom(string ownerBrainValue, string roomKey, bool isOwnRoom)
+    {
+        if (isOwnRoom)
+        {
+            return SocialRooms.TryGet(roomKey);
+        }
+
+        var ownerBrain = new BrainId(ownerBrainValue);
+        return Slots.Offered<IRoom>(ownerBrain, new NeuronId(ownerBrain, "social.room", roomKey));
+    }
+
+    private async Task<SocialFeedItem[]> LoadSocialFeedAsync(Friend[] roster)
+    {
+        var items = new List<SocialFeedItem>();
+        var ownBrain = CurrentBrainId().Value;
+
+        if (SocialPosts is { } ownPosts)
+        {
+            try
+            {
+                var page = await ownPosts.Since(0);
+                foreach (var post in page.Posts)
+                {
+                    items.Add(new SocialFeedItem(ownBrain, post.Id, post.Author, post.Text, post.Reactions, post.Comments, post.Sequence, post.CreatedAt));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Own social posts could not be read.");
+            }
+        }
+
+        foreach (var friend in roster)
+        {
+            if (string.IsNullOrWhiteSpace(friend.Brain.Value) || string.Equals(friend.Brain.Value, ownBrain, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                var friendPosts = Slots.Offered<IPosts>(friend.Brain, new NeuronId(friend.Brain, "social.posts", IPosts.DefaultKey));
+                var page = await friendPosts.Since(0);
+                foreach (var post in page.Posts)
+                {
+                    items.Add(new SocialFeedItem(friend.Brain.Value, post.Id, post.Author, post.Text, post.Reactions, post.Comments, post.Sequence, post.CreatedAt));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Friend social posts could not be read (no offer or unavailable).");
+            }
+        }
+
+        return items
+            .OrderByDescending(static p => p.CreatedAt)
+            .ThenByDescending(static p => p.Sequence)
+            .ToArray();
+    }
+
     public Task PublishQuickPostAsync() => Publish(new FriendsPublish("Interactive revenue & sketch board", "friends"));
     public Task ForkAndInstallPostAsync(string postId) => ForkApp(new FriendsForkApp(postId));
     public Task ForkPostTemplateAsync(string postId) => ForkPost(new FriendsForkPost(postId));
@@ -494,6 +765,8 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{(state.PinnedApps ?? []).Length} Pinned", BadgeTone.Accent, "cpu")
             ],
             showRoster ? RenderFriends(state, roster) : null,
+            showFeed ? RenderSocialFeed(state) : null,
+            showRoster || showFeed ? RenderFriendRoom(state) : null,
             showShared ? RenderSharedByMe(state) : null,
             showShared ? RenderSharedWithMe(state) : null,
             showFeed
@@ -504,12 +777,82 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         ];
     }
 
+    private Node RenderSocialFeed(FriendsAppState state)
+    {
+        var feed = state.SocialFeed ?? [];
+        var postRows = feed.Select(item =>
+        {
+            var reactionsSummary = item.Reactions is { Length: > 0 }
+                ? $" · {item.Reactions.Length} reaction(s)"
+                : "";
+            return (Node)HStack(Space.Sm)[
+                Text($"{item.Author}: {item.Text}{reactionsSummary}"),
+                Button("Like", "heart")
+                    .Key($"btn:react-like:{item.OwnerBrain}:{item.PostId}")
+                    .Small()
+                    .Sends(Sends(new ReactToPost(item.OwnerBrain, item.PostId, "like")))
+            ];
+        });
+
+        return Card("Social Feed", "Publish updates to your friends and pull their latest posts.")[
+            VStack(Space.Sm,
+            [
+                HStack(Space.Sm)[
+                    TextField("Social Post", "Share an update with friends")
+                        .Key("input:social-post")
+                        .Value(state.SocialPostDraft)
+                        .OnChange<FriendsAppState>(s => s.SetSocialPostDraft(Arg.Text)),
+                    PrimaryButton("Publish Post", "send")
+                        .Key("btn:social-publish")
+                        .Small()
+                        .Sends(Sends(new PublishSocialPost(state.SocialPostDraft))),
+                    GhostButton("Refresh Feed", Icons.RefreshCw)
+                        .Key("btn:social-refresh-feed")
+                        .Small()
+                        .Sends(Sends(new RefreshFeed()))
+                ],
+                .. postRows,
+            ])
+        ];
+    }
+
+    private Node RenderFriendRoom(FriendsAppState state)
+    {
+        var room = state.ActiveRoom;
+        var subtitle = room is null
+            ? "Open a room with a friend to chat live."
+            : $"Room '{room.RoomKey}' · Present: {(room.PresentAccounts.Length > 0 ? string.Join(", ", room.PresentAccounts) : "nobody yet")}";
+
+        var messageNodes = room is { Messages.Length: > 0 }
+            ? room.Messages.Select(m => (Node)Text($"{m.Author}: {m.Text}")).ToArray()
+            : [];
+
+        return Card("Room Chat", subtitle)[
+            VStack(Space.Sm,
+            [
+                .. messageNodes,
+                HStack(Space.Sm)[
+                    TextField("Room Message", "Say something in the room")
+                        .Key("input:room-message")
+                        .Value(state.RoomMessageDraft)
+                        .OnChange<FriendsAppState>(s => s.SetRoomMessageDraft(Arg.Text)),
+                    PrimaryButton("Send", "send")
+                        .Key("btn:room-send")
+                        .Small()
+                        .Sends(Sends(new SendRoomMessage(room?.OwnerBrain ?? "", room?.RoomKey ?? "", state.RoomMessageDraft)))
+                ],
+            ])
+        ];
+    }
+
     // Friends, how to add one, and the path to share. Every entry in IFriends is confirmed.
     private Node RenderFriends(FriendsAppState state, Friend[] roster)
     {
         var rows = roster.Select(friend => (Node)HStack(Space.Sm,
         [
             new TagPill($"{friend.Name} (@{friend.Account.Value})", "accent", "users"),
+            Button("Chat", Icons.MessageSquare).Key($"btn:open-room:{friend.Account.Value}").Small().Sends(Sends(new OpenFriendRoom("chat", friend.Account.Value))),
+            Button("Join Room", "door-open").Key($"btn:join-room:{friend.Brain.Value}:chat").Small().Sends(Sends(new OpenFriendRoom("chat", friend.Account.Value, friend.Brain.Value))),
             Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account.Value}").Small().OnClick(() => ShareTypedPathAsync(friend.Account.Value, "viewer")),
             Button("Share as editor", "pencil").Key($"share-editor:{friend.Account.Value}").Small().OnClick(() => ShareTypedPathAsync(friend.Account.Value, "editor")),
             GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account.Value}").Small().OnClick(() => UnfriendAsync(friend.Account.Value)),

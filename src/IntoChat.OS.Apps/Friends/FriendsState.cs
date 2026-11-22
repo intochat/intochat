@@ -1,9 +1,27 @@
 using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Friends;
+
+public sealed record SocialFeedItem(
+    string OwnerBrain,
+    string PostId,
+    string Author,
+    string Text,
+    PostReaction[] Reactions,
+    PostComment[] Comments,
+    long Sequence,
+    DateTimeOffset CreatedAt);
+
+public sealed record ActiveFriendRoom(
+    string OwnerBrain,
+    string RoomKey,
+    long Revision,
+    RoomMessage[] Messages,
+    string[] PresentAccounts);
 
 // What is open from Shared with me: a folder's entries, or one file's text.
 public sealed record FriendsOpenedShare(
@@ -46,6 +64,17 @@ public sealed record FriendsAppState(
 
     // Display projection refreshed from IFriends.List() on Open and after each roster act; never the source of truth.
     public Friend[] Roster { get; init; } = [];
+
+    public string SocialPostDraft { get; init; } = "";
+    public SocialFeedItem[] SocialFeed { get; init; } = [];
+    public string RoomMessageDraft { get; init; } = "";
+    public ActiveFriendRoom? ActiveRoom { get; init; }
+
+    [IgnoreExplore]
+    public FriendsAppState SetSocialPostDraft(string? draft) => this with { SocialPostDraft = draft ?? "" };
+
+    [IgnoreExplore]
+    public FriendsAppState SetRoomMessageDraft(string? draft) => this with { RoomMessageDraft = draft ?? "" };
 
     // ── Domain Invariants ────────────────────────────────────────────────────
 
