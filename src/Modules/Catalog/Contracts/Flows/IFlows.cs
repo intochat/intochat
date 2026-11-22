@@ -17,6 +17,9 @@ public interface IFlows
     // The canonical flow type of an autonomous multi-stage engineering run across 1..N worktrees (EngineerFlow).
     const string EngineerFlow = "flow.engineer";
 
+    // The durable PR review pipeline flow type (PrReviewFlow).
+    const string PrReviewFlow = "flow.pr-review";
+
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "flows", "flows/index");
 
     [DigitalBrain.Contracts.ReadOnlyCall]

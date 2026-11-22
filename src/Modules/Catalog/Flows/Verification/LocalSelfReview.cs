@@ -41,6 +41,136 @@ internal sealed class LocalSelfReview
         return new SelfReviewReport([.. findings]);
     }
 
+    public static SelfReviewReport ReviewUnifiedDiff(string diffText)
+    {
+        if (string.IsNullOrWhiteSpace(diffText))
+        {
+            return SelfReviewReport.Empty;
+        }
+
+        var findings = new List<ReviewFinding>();
+        string? currentPath = null;
+        var currentNewLine = 0;
+        var snippetLines = new List<string>();
+        var lineMap = new List<int>();
+        var addedLines = new HashSet<int>();
+
+        void FlushCurrentFile()
+        {
+            if (currentPath is null || snippetLines.Count == 0 || addedLines.Count == 0)
+            {
+                snippetLines.Clear();
+                lineMap.Clear();
+                addedLines.Clear();
+                return;
+            }
+
+            var snippetFindings = new List<ReviewFinding>();
+            ReviewSource(currentPath, string.Join('\n', snippetLines), snippetFindings);
+            foreach (var finding in snippetFindings)
+            {
+                var index = finding.Line - 1;
+                if (index >= 0 && index < lineMap.Count)
+                {
+                    var mappedLine = lineMap[index];
+                    if (addedLines.Contains(mappedLine))
+                    {
+                        findings.Add(finding with { Line = mappedLine });
+                    }
+                }
+            }
+
+            snippetLines.Clear();
+            lineMap.Clear();
+            addedLines.Clear();
+        }
+
+        foreach (var rawLine in diffText.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+        {
+            if (rawLine.StartsWith("+++ ", StringComparison.Ordinal))
+            {
+                FlushCurrentFile();
+                var target = rawLine[4..].Trim();
+                if (target.StartsWith("b/", StringComparison.Ordinal))
+                {
+                    target = target[2..];
+                }
+
+                currentPath = !string.Equals(target, "/dev/null", StringComparison.Ordinal)
+                    && target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                    ? target.Replace('\\', '/')
+                    : null;
+                currentNewLine = 0;
+                continue;
+            }
+
+            if (currentPath is null)
+            {
+                continue;
+            }
+
+            if (rawLine.StartsWith("@@ ", StringComparison.Ordinal))
+            {
+                currentNewLine = ParseHunkNewStart(rawLine);
+                continue;
+            }
+
+            if (rawLine.StartsWith("diff --git ", StringComparison.Ordinal)
+                || rawLine.StartsWith("--- ", StringComparison.Ordinal)
+                || rawLine.StartsWith("\\ ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (rawLine.StartsWith('+'))
+            {
+                if (currentNewLine <= 0)
+                {
+                    currentNewLine = 1;
+                }
+
+                snippetLines.Add(rawLine[1..]);
+                lineMap.Add(currentNewLine);
+                addedLines.Add(currentNewLine);
+                currentNewLine++;
+            }
+            else if (rawLine.StartsWith(' '))
+            {
+                if (currentNewLine <= 0)
+                {
+                    currentNewLine = 1;
+                }
+
+                snippetLines.Add(rawLine[1..]);
+                lineMap.Add(currentNewLine);
+                currentNewLine++;
+            }
+        }
+
+        FlushCurrentFile();
+        return new SelfReviewReport([.. findings]);
+    }
+
+    private static int ParseHunkNewStart(string header)
+    {
+        var plusIndex = header.IndexOf('+', StringComparison.Ordinal);
+        if (plusIndex < 0)
+        {
+            return 1;
+        }
+
+        var start = plusIndex + 1;
+        var end = start;
+        while (end < header.Length && char.IsDigit(header[end]))
+        {
+            end++;
+        }
+
+        return end > start && int.TryParse(header[start..end], out var parsed) && parsed > 0
+            ? parsed
+            : 1;
+    }
+
     private static void ReviewSource(string path, string sourceText, List<ReviewFinding> findings)
     {
         var tree = CSharpSyntaxTree.ParseText(sourceText, path: path);

@@ -4,6 +4,7 @@ using System.Text.Json;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
+using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.Logging;
 
@@ -227,13 +228,21 @@ internal static class EngineerPipelineStages
         ChangeSet? commit,
         string planId,
         Func<ConfirmationResult?, CommitSha, string> ensureCanPublish,
-        CancellationToken ct)
+        CancellationToken ct,
+        IRepository? repository = null)
     {
         var activeLease = lease ?? throw new FlowFailed("push", "Worktree lease is missing.");
         var verifiedCommit = commit ?? throw new FlowFailed("push", "Verified CommitSha is missing.");
 
         var outcome = await confirmationRequests.Outcome(planId).ConfigureAwait(true);
         var humanApprover = ensureCanPublish(outcome, verifiedCommit.Commit);
+
+        if (repository is not null)
+        {
+            await repository.PushBranch(new PushBranchRequest(activeLease.BranchName, verifiedCommit.Commit.Value)).ConfigureAwait(true);
+            return (humanApprover, verifiedCommit.Commit, $"refs/heads/{activeLease.BranchName}");
+        }
+
         var pushedRef = await Task.Run(() => workTree.PushAsync(activeLease, verifiedCommit.Commit, ct), ct).ConfigureAwait(true);
 
         return (humanApprover, verifiedCommit.Commit, pushedRef);
@@ -249,7 +258,8 @@ internal static class EngineerPipelineStages
         string? summary,
         string? modelId,
         EngineerPullRequestContext? engineerContext,
-        CancellationToken ct)
+        CancellationToken ct,
+        IRepository? repository = null)
     {
         var activeLease = lease ?? throw new FlowFailed("pr", "Worktree lease is missing.");
         var verifiedCommit = commit ?? throw new FlowFailed("pr", "Verified CommitSha is missing.");
@@ -257,6 +267,18 @@ internal static class EngineerPipelineStages
 
         var prTitle = ChangePolicy.BuildPrTitle(goal);
         var prBody = BuildPullRequestBody(goal, summary, modelId, verifiedCommit, humanApprover, planId, engineerContext);
+
+        if (repository is not null)
+        {
+            var baseBranch = string.IsNullOrWhiteSpace(activeLease.BaseBranch) ? "main" : activeLease.BaseBranch;
+            var created = await repository.CreatePullRequest(new CreatePullRequest(
+                Title: prTitle,
+                HeadBranch: activeLease.BranchName,
+                BaseBranch: baseBranch,
+                Body: prBody,
+                Draft: true)).ConfigureAwait(true);
+            return created.Url;
+        }
 
         return await Task.Run(
             () => workTree.CreateDraftPullRequestAsync(activeLease, prTitle, prBody, ct),

@@ -38,6 +38,8 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
     private readonly Dictionary<string, SeededRepository> _repositories = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<RecordedIssueComment> _issueComments = [];
     private readonly List<SubmitReviewRequest> _submittedReviews = [];
+    private readonly List<PushBranchRequest> _pushedBranches = [];
+    private readonly List<CreatePullRequest> _createdPullRequests = [];
     private long _nextRepositoryId = 10_000;
     private long _nextInstallationId = 9_000;
     private long _nextCommentId = 1_000;
@@ -53,6 +55,30 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
             lock (_gate)
             {
                 return [.. _submittedReviews];
+            }
+        }
+    }
+
+    /// <summary>Branches pushed through <see cref="IRepository.PushBranch"/>.</summary>
+    public IReadOnlyList<PushBranchRequest> PushedBranches
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _pushedBranches];
+            }
+        }
+    }
+
+    /// <summary>Pull requests created through <see cref="IRepository.CreatePullRequest"/>.</summary>
+    public IReadOnlyList<CreatePullRequest> CreatedPullRequests
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _createdPullRequests];
             }
         }
     }
@@ -151,7 +177,8 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
         string? baseBranch = "main",
         string? revision = null,
         string? ciRevision = null,
-        string author = "")
+        string author = "",
+        string? diff = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(number, 1);
         ArgumentException.ThrowIfNullOrWhiteSpace(headSha);
@@ -178,6 +205,10 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
                 RepositoryId: repo.RepositoryId,
                 BaseBranch: baseBranch,
                 Author: author);
+            if (diff is not null)
+            {
+                repo.PullRequestDiffs[number] = diff;
+            }
         }
         return this;
     }
@@ -313,23 +344,43 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
     Task<GitHubReviewEvidence> IGitHubRepositorySource.GetReviewEvidenceAsync(GitHubRepository repository, PullRequestSnapshot snapshot, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(new GitHubReviewEvidence(snapshot.HeadSha, snapshot.BaseSha, string.Empty, "empty", Complete: true, ReviewComments: []));
+        string diffText = string.Empty;
+        lock (_gate)
+        {
+            var repo = FindRepositoryLocked(repository);
+            if (repo is not null && repo.PullRequestDiffs.TryGetValue(snapshot.Number, out var seededDiff))
+            {
+                diffText = seededDiff;
+            }
+        }
+
+        var hash = string.IsNullOrEmpty(diffText)
+            ? "empty"
+            : Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(diffText)));
+        return Task.FromResult(new GitHubReviewEvidence(snapshot.HeadSha, snapshot.BaseSha, diffText, hash, Complete: true, ReviewComments: []));
     }
 
     Task IGitHubRepositorySource.PushBranchAsync(GitHubRepository repository, PushBranchRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            _pushedBranches.Add(request);
+        }
         return Task.CompletedTask;
     }
 
     Task<PullRequestView> IGitHubRepositorySource.CreatePullRequestAsync(GitHubRepository repository, CreatePullRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
             var repo = EnsureRepositoryLocked($"{repository.Owner}/{repository.Name}");
             var number = repo.PullRequests.Count == 0 ? 1 : repo.PullRequests.Keys.Max() + 1;
             var sha = new string('a', 40);
+            _createdPullRequests.Add(request);
             var view = new PullRequestView(
                 number,
                 request.Title,
@@ -337,7 +388,7 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
                 sha,
                 new string('0', 40),
                 IsOpen: true,
-                IsDraft: false);
+                IsDraft: request.Draft);
             return Task.FromResult(view);
         }
     }
@@ -477,6 +528,7 @@ public sealed class FakeGitHub : IGitHubRepositorySource, IGitHubUserAccess, IGi
         public long InstallationId { get; set; } = installationId;
         public Dictionary<int, IssueSnapshot> Issues { get; } = [];
         public Dictionary<int, PullRequestSnapshot> PullRequests { get; } = [];
+        public Dictionary<int, string> PullRequestDiffs { get; } = [];
     }
 
     private sealed record RecordedIssueComment(string Repository, int IssueNumber, string Body, string[] Labels, string RequestId);
