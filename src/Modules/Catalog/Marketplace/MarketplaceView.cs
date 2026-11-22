@@ -15,7 +15,7 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
         var edge = neurons.GetService<EdgeAuthority>();
         using (edge?.Enter(edge.Module("apps.marketplace", new BrainId("system"))))
         {
-            people = await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).List().WaitAsync(ct);
+            people = await Marketplace().List().WaitAsync(ct);
         }
         return [.. await Shipped(), .. people];
     }
@@ -29,9 +29,14 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
         var edge = neurons.GetService<EdgeAuthority>();
         using (edge?.Enter(edge.Module("apps.marketplace", new BrainId("system"))))
         {
-            return await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).Read(publisher, name).WaitAsync(ct);
+            return await Marketplace().Read(publisher, name).WaitAsync(ct);
         }
     }
+
+    private IMarketplace Marketplace()
+        => neurons.GetService<INeuronProxies>() is { } proxies
+            ? proxies.Get<IMarketplace>(new NeuronId(new BrainId("system"), "apps.marketplace", "main"))
+            : SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key);
 
     private async Task<IReadOnlyList<MarketplaceListing>> Shipped()
     {

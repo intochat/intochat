@@ -54,6 +54,24 @@ public static class OsFakes
                 new OptionsWrapper<WebModuleOptions>(new WebModuleOptions { Provider = SearchProvider.Searxng }));
     }
 
+    /// <summary>Registers the Catalog services needed for <see cref="IAppStore"/> on both TestOS and Silo.</summary>
+    public static FakeSet Catalog(this FakeSet fakes)
+    {
+        ArgumentNullException.ThrowIfNull(fakes);
+        return fakes.Configure(services =>
+        {
+            services.AddLogging();
+            services.AddSingleton(new CompiledAppsRegistration(typeof(IntoChat.OS.Apps.ShippedShellAppsModule).Assembly));
+            services.TryAddSingleton(FeatureCatalog.From);
+            services.TryAddSingleton<FeatureLoader>();
+            services.TryAddSingleton<MarketplaceView>();
+            services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
+            services.TryAddSingleton<AppInstaller>();
+            services.RemoveAll<IBrainObserver>();
+            services.AddSingleton<IBrainObserver, CompiledBrainObserver>();
+        });
+    }
+
     /// <summary>
     /// Registers a <see cref="ScriptedChatClient"/> driven by <paramref name="script"/> together with the
     /// AI module services needed to drive conversations and tool calls on both TestOS and Silo.

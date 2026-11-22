@@ -106,15 +106,34 @@ public sealed class DirectNeuronSessionDriver : IAppSessionDriver
     }
 
     /// <inheritdoc />
+    public async Task<PublishedView> TypeAsync(string key, string text, CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(text);
+        ct.ThrowIfCancellationRequested();
+
+        var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
+        using (var scope = _edge.Enter(_person))
+        {
+            await _screen.Activate(current.Alias, current.Generation, key, fieldValue: text).ConfigureAwait(false);
+        }
+        await WaitForIdleAsync(ct).ConfigureAwait(false);
+        return await ReadViewAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<PublishedView> SendAsync<TSignal>(TSignal signal, CancellationToken ct = default) where TSignal : Signal
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(signal);
         ct.ThrowIfCancellationRequested();
 
+        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias ?? typeof(TSignal).Name;
+        var payload = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, typeof(TSignal));
         using (var scope = _edge.Enter(_person))
         {
-            await _screen.Request(signal).ConfigureAwait(false);
+            await _screen.Dispatch(new DigitalBrain.UI.Command(".", alias, payload)).ConfigureAwait(false);
         }
         await WaitForIdleAsync(ct).ConfigureAwait(false);
         return await ReadViewAsync(ct).ConfigureAwait(false);

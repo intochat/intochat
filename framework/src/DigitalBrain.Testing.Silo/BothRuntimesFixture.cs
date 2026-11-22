@@ -127,6 +127,13 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public Task Restart(CancellationToken ct) => os.Restart();
 
+        public Task SeedState(NeuronId id, string json, CancellationToken ct)
+        {
+            using var doc = JsonDocument.Parse(json);
+            os.Journal(id.Brain).Seed(id, doc.RootElement.Clone());
+            return Task.CompletedTask;
+        }
+
         public async ValueTask DisposeAsync()
         {
             await os.DisposeAsync().ConfigureAwait(false);
@@ -179,6 +186,24 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         }
 
         public Task Restart(CancellationToken ct) => host.Restart(ct);
+
+        public async Task SeedState(NeuronId id, string json, CancellationToken ct)
+        {
+            var journal = host.Services.GetRequiredService<IBrainJournalWriter>();
+            await journal.Claim(id.Brain.Value, ct).ConfigureAwait(false);
+            var types = host.Services.GetService<NeuronTypeRegistry>();
+            var grainType = types is not null && types.TryGet(id.Type, out var neuronClass)
+                ? NeuronTypeRegistry.GrainTypeOf(NeuronTypeRegistry.PolicyOf(neuronClass))
+                : "neuron.host";
+            var grainId = Orleans.Runtime.GrainId.Create(grainType, id.ToString()).ToString();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            await journal.Append(
+                id.Brain.Value,
+                new JournalStateWrite(grainId, "state", JournalStateChange.Write, null, bytes, null),
+                id.ToString(),
+                [],
+                ct).ConfigureAwait(false);
+        }
 
         public ValueTask DisposeAsync() => host.DisposeAsync();
     }

@@ -92,6 +92,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
         var slotName = explicitName ?? ToCamelCase(property.Name);
         var componentId = NeuronTypeOf(owner) ?? owner.ToDisplayString();
+        var face = ExtractFace(owner);
+        var operations = ExtractOperations(owner);
         var ns = owner.ContainingNamespace.IsGlobalNamespace ? string.Empty : owner.ContainingNamespace.ToDisplayString();
 
         var chain = new List<TypeDeclModel>();
@@ -107,6 +109,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             chain.ToImmutableArray(),
             owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             componentId,
+            face,
+            operations,
             property.Name,
             AccessibilityKeyword(property.DeclaredAccessibility),
             property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -114,6 +118,130 @@ public sealed class SlotGenerator : IIncrementalGenerator
             key,
             required,
             isPartial);
+    }
+
+    private static ComponentFaceModel? ExtractFace(INamedTypeSymbol type)
+    {
+        AttributeData? screenAttr = null;
+        string? classDescription = null;
+
+        foreach (var attribute in type.GetAttributes())
+        {
+            var fullName = Rules.FullName(attribute.AttributeClass);
+            if (attribute.AttributeClass?.Name == "ScreenAttribute")
+            {
+                screenAttr = attribute;
+            }
+            else if (fullName == "System.ComponentModel.DescriptionAttribute"
+                && attribute.ConstructorArguments.Length > 0
+                && attribute.ConstructorArguments[0].Value is string desc)
+            {
+                classDescription = desc;
+            }
+        }
+
+        if (screenAttr is null)
+        {
+            return null;
+        }
+
+        string? title = null;
+        string? description = null;
+        string? icon = null;
+        string? category = null;
+
+        foreach (var named in screenAttr.NamedArguments)
+        {
+            if (string.Equals(named.Key, "Title", StringComparison.Ordinal) && named.Value.Value is string rawTitle)
+            {
+                title = rawTitle;
+            }
+            else if (string.Equals(named.Key, "Description", StringComparison.Ordinal) && named.Value.Value is string rawDesc)
+            {
+                description = rawDesc;
+            }
+            else if (string.Equals(named.Key, "Icon", StringComparison.Ordinal) && named.Value.Value is string rawIcon)
+            {
+                icon = rawIcon;
+            }
+            else if (string.Equals(named.Key, "Category", StringComparison.Ordinal) && named.Value.Value is string rawCat)
+            {
+                category = rawCat;
+            }
+        }
+
+        return new ComponentFaceModel(
+            string.IsNullOrWhiteSpace(title) ? type.Name : title!,
+            description ?? classDescription ?? string.Empty,
+            string.IsNullOrWhiteSpace(icon) ? null : icon,
+            string.IsNullOrWhiteSpace(category) ? null : category);
+    }
+
+    private static ImmutableArray<OperationModel> ExtractOperations(INamedTypeSymbol type)
+    {
+        var ops = ImmutableArray.CreateBuilder<OperationModel>();
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not IMethodSymbol method
+                || method.IsStatic
+                || method.MethodKind != MethodKind.Ordinary
+                || method.Parameters.Length == 0)
+            {
+                continue;
+            }
+
+            var hasOn = false;
+            var description = string.Empty;
+            foreach (var attribute in method.GetAttributes())
+            {
+                var fullName = Rules.FullName(attribute.AttributeClass);
+                if (fullName == "DigitalBrain.OnAttribute" || fullName == "DigitalBrain.Neurons.OnAttribute")
+                {
+                    hasOn = true;
+                }
+                else if (fullName == "System.ComponentModel.DescriptionAttribute"
+                    && attribute.ConstructorArguments.Length > 0
+                    && attribute.ConstructorArguments[0].Value is string rawDesc)
+                {
+                    description = rawDesc;
+                }
+            }
+
+            if (!hasOn)
+            {
+                continue;
+            }
+
+            var inputParam = method.Parameters[0].Type;
+            var opName = OperationNameOf(method, inputParam);
+            ops.Add(new OperationModel(
+                opName,
+                description,
+                inputParam.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+        }
+
+        return ops.ToImmutable();
+    }
+
+    private static string OperationNameOf(IMethodSymbol method, ITypeSymbol inputType)
+    {
+        foreach (var attribute in inputType.GetAttributes())
+        {
+            var fullName = Rules.FullName(attribute.AttributeClass);
+            if ((fullName == "DigitalBrain.SignalAttribute" || fullName == "DigitalBrain.Signals.SignalAttribute")
+                && attribute.ConstructorArguments.Length > 0
+                && attribute.ConstructorArguments[0].Value is string alias
+                && !string.IsNullOrWhiteSpace(alias))
+            {
+                var dot = alias.LastIndexOf('.');
+                if (dot >= 0 && dot + 1 < alias.Length)
+                {
+                    return alias.Substring(dot + 1);
+                }
+                return alias;
+            }
+        }
+        return ToCamelCase(method.Name);
     }
 
     private static string? NeuronTypeOf(INamedTypeSymbol type)
@@ -271,7 +399,50 @@ public sealed class SlotGenerator : IIncrementalGenerator
                     .Append(prop.Key is null ? "null" : CSharpLiteral(prop.Key))
                     .AppendLine("),");
             }
-            initSb.AppendLine("                }));");
+            if (first.Face is null && first.Operations.Length == 0)
+            {
+                initSb.AppendLine("                }));");
+            }
+            else
+            {
+                initSb.AppendLine("                },");
+                if (first.Face is { } face)
+                {
+                    initSb.Append("                new global::DigitalBrain.Components.ComponentFace(")
+                        .Append(CSharpLiteral(face.Title))
+                        .Append(", ")
+                        .Append(CSharpLiteral(face.Description))
+                        .Append(", ")
+                        .Append(face.Icon is null ? "null" : CSharpLiteral(face.Icon))
+                        .Append(", ")
+                        .Append(face.Category is null ? "null" : CSharpLiteral(face.Category))
+                        .AppendLine("),");
+                }
+                else
+                {
+                    initSb.AppendLine("                null,");
+                }
+                if (first.Operations.Length > 0)
+                {
+                    initSb.AppendLine("                new global::DigitalBrain.Components.OperationSpec[]");
+                    initSb.AppendLine("                {");
+                    foreach (var op in first.Operations)
+                    {
+                        initSb.Append("                    new global::DigitalBrain.Components.OperationSpec(")
+                            .Append(CSharpLiteral(op.Name))
+                            .Append(", ")
+                            .Append(CSharpLiteral(op.Description))
+                            .Append(", typeof(")
+                            .Append(op.InputFullName)
+                            .AppendLine(")),");
+                    }
+                    initSb.AppendLine("                }));");
+                }
+                else
+                {
+                    initSb.AppendLine("                null));");
+                }
+            }
         }
 
         initSb.AppendLine("    }");
@@ -328,6 +499,76 @@ public sealed class SlotGenerator : IIncrementalGenerator
         }
     }
 
+    private sealed class ComponentFaceModel : IEquatable<ComponentFaceModel>
+    {
+        public ComponentFaceModel(string title, string description, string? icon, string? category)
+        {
+            Title = title;
+            Description = description;
+            Icon = icon;
+            Category = category;
+        }
+
+        public string Title { get; }
+        public string Description { get; }
+        public string? Icon { get; }
+        public string? Category { get; }
+
+        public bool Equals(ComponentFaceModel? other)
+            => other is not null
+               && string.Equals(Title, other.Title, StringComparison.Ordinal)
+               && string.Equals(Description, other.Description, StringComparison.Ordinal)
+               && string.Equals(Icon, other.Icon, StringComparison.Ordinal)
+               && string.Equals(Category, other.Category, StringComparison.Ordinal);
+
+        public override bool Equals(object? obj) => Equals(obj as ComponentFaceModel);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = StringComparer.Ordinal.GetHashCode(Title);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(Description);
+                hash = (hash * 397) ^ (Icon is null ? 0 : StringComparer.Ordinal.GetHashCode(Icon));
+                hash = (hash * 397) ^ (Category is null ? 0 : StringComparer.Ordinal.GetHashCode(Category));
+                return hash;
+            }
+        }
+    }
+
+    private sealed class OperationModel : IEquatable<OperationModel>
+    {
+        public OperationModel(string name, string description, string inputFullName)
+        {
+            Name = name;
+            Description = description;
+            InputFullName = inputFullName;
+        }
+
+        public string Name { get; }
+        public string Description { get; }
+        public string InputFullName { get; }
+
+        public bool Equals(OperationModel? other)
+            => other is not null
+               && string.Equals(Name, other.Name, StringComparison.Ordinal)
+               && string.Equals(Description, other.Description, StringComparison.Ordinal)
+               && string.Equals(InputFullName, other.InputFullName, StringComparison.Ordinal);
+
+        public override bool Equals(object? obj) => Equals(obj as OperationModel);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = StringComparer.Ordinal.GetHashCode(Name);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(Description);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(InputFullName);
+                return hash;
+            }
+        }
+    }
+
     private sealed class SlotPropertyModel : IEquatable<SlotPropertyModel>
     {
         public SlotPropertyModel(
@@ -335,6 +576,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             ImmutableArray<TypeDeclModel> typeChain,
             string ownerFullName,
             string componentId,
+            ComponentFaceModel? face,
+            ImmutableArray<OperationModel> operations,
             string propertyName,
             string accessibility,
             string contractFullName,
@@ -347,6 +590,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             TypeChain = typeChain;
             OwnerFullName = ownerFullName;
             ComponentId = componentId;
+            Face = face;
+            Operations = operations;
             PropertyName = propertyName;
             Accessibility = accessibility;
             ContractFullName = contractFullName;
@@ -360,6 +605,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public ImmutableArray<TypeDeclModel> TypeChain { get; }
         public string OwnerFullName { get; }
         public string ComponentId { get; }
+        public ComponentFaceModel? Face { get; }
+        public ImmutableArray<OperationModel> Operations { get; }
         public string PropertyName { get; }
         public string Accessibility { get; }
         public string ContractFullName { get; }
@@ -374,6 +621,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || !string.Equals(Namespace, other.Namespace, StringComparison.Ordinal)
                 || !string.Equals(OwnerFullName, other.OwnerFullName, StringComparison.Ordinal)
                 || !string.Equals(ComponentId, other.ComponentId, StringComparison.Ordinal)
+                || !Equals(Face, other.Face)
+                || Operations.Length != other.Operations.Length
                 || !string.Equals(PropertyName, other.PropertyName, StringComparison.Ordinal)
                 || !string.Equals(Accessibility, other.Accessibility, StringComparison.Ordinal)
                 || !string.Equals(ContractFullName, other.ContractFullName, StringComparison.Ordinal)
@@ -389,6 +638,10 @@ public sealed class SlotGenerator : IIncrementalGenerator
             {
                 if (!TypeChain[i].Equals(other.TypeChain[i])) { return false; }
             }
+            for (var i = 0; i < Operations.Length; i++)
+            {
+                if (!Operations[i].Equals(other.Operations[i])) { return false; }
+            }
             return true;
         }
 
@@ -401,6 +654,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 var hash = StringComparer.Ordinal.GetHashCode(OwnerFullName);
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(PropertyName);
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(SlotName);
+                hash = (hash * 397) ^ (Face?.GetHashCode() ?? 0);
+                hash = (hash * 397) ^ Operations.Length;
                 return hash;
             }
         }

@@ -1,13 +1,14 @@
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.CustomerResearcher;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Tests.Integration.Ino;
 using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Tests.Integration.Journeys;
+using IntoChat.OS.Tests.Support.Fakes;
+using IntoChat.OS.Tests.Support.Fakes.Postgres;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace IntoChat.OS.Tests.Integration.Apps;
@@ -27,17 +28,11 @@ public sealed class InoCustomerResearcherJourneyFacts(InoSiloFixture inoFixture)
     [Fact]
     public async Task ResearchJetBrains_PersistsToCustomerProfilesTable_AndInoVisualizesQueriedRow()
     {
-        // --- Turn 1: Research "JetBrains" via CustomerResearcherApp with an in-memory ITable ---
-        var tableStore = new CustomerResearcherAppContractFacts.PostgresTableSpyRecorder();
-        var services = new ServiceCollection()
-            .AddSingleton(tableStore)
-            .BuildServiceProvider();
+        // --- Turn 1: Research "JetBrains" via CustomerResearcherApp with real TableNeuron + FakeTableStore ---
+        await using var os = await Journey.Start(NeuronRuntimeKind.TestOS, f => f.Postgres().WebSearch(), Ct);
+        var alice = os.Person("alice");
 
-        await using var os = TestOS.Local(o => o.Services = services);
-        os.Register<CustomerResearcherApp>();
-        os.Register<CustomerResearcherAppContractFacts.SpyPostgresTableNeuron>();
-
-        await using var researcherApp = await AppSession.OpenAsync<CustomerResearcherApp>(os, ct: Ct);
+        await using var researcherApp = await alice.Open<CustomerResearcherApp>(ct: Ct);
         researcherApp.ShouldDisplayText("Customer Researcher");
 
         await researcherApp.Send(
@@ -54,33 +49,21 @@ public sealed class InoCustomerResearcherJourneyFacts(InoSiloFixture inoFixture)
             .ShouldDisplayText("Developer Tools")
             .ShouldDisplayText("95");
 
-        // (b) The persisted postgres.table/customer_profiles returns "JetBrains" when queried.
-        var table = os.Get<ITable>(new NeuronId(new BrainId("default"), "postgres.table", CustomerResearcherApp.ProfilesTableKey));
-        var defaultCaller = os.Edge.Person("default", "default", new BrainId("default"));
-        using (os.Edge.Enter(defaultCaller))
-        {
-            var readRow = await table.Read([new TableValue("company_name", JsonSerializer.Serialize("JetBrains"))]);
-            Assert.NotNull(readRow);
-            Assert.Contains(readRow, v => v.Column == "company_name" && v.Json == "\"JetBrains\"");
-            Assert.Contains(readRow, v => v.Column == "industry" && v.Json == "\"Developer Tools\"");
-            Assert.Contains(readRow, v => v.Column == "fit_score" && v.Json == "95");
-
-            var pagedRows = await table.Page(offset: 0, limit: 50);
-            Assert.Single(pagedRows);
-            Assert.Contains(pagedRows[0], v => v.Column == "company_name" && v.Json == "\"JetBrains\"");
-        }
+        // (b) The persisted postgres.table/customer_profiles stores "JetBrains".
+        var tableStore = os.Fake<FakeTableStore>();
+        var persistedRows = tableStore.RowsFor(alice.Brain, "app.customer-researcher", CustomerResearcherApp.ProfilesTableKey);
+        Assert.Single(persistedRows);
+        Assert.Contains(persistedRows[0], v => v.Column == "company_name" && v.Json == "\"JetBrains\"");
+        Assert.Contains(persistedRows[0], v => v.Column == "industry" && v.Json == "\"Developer Tools\"");
+        Assert.Contains(persistedRows[0], v => v.Column == "fit_score" && v.Json == "95");
 
         // --- Turn 2: Ask Ino to query & visualize the persisted customer_profiles table ---
         var brain = inoFixture.NewBrain("crjourney");
         using var _ = inoFixture.AsPerson(brain);
 
-        inoFixture.Model.Respond(async (_, _, _) =>
+        inoFixture.Model.Respond((_, _, _) =>
         {
-            TableValue[][] rows;
-            using (os.Edge.Enter(defaultCaller))
-            {
-                rows = await table.Page(offset: 0, limit: 50);
-            }
+            var rows = tableStore.RowsFor(alice.Brain, "app.customer-researcher", CustomerResearcherApp.ProfilesTableKey);
 
             var lines = new List<string>
             {
@@ -100,7 +83,7 @@ public sealed class InoCustomerResearcherJourneyFacts(InoSiloFixture inoFixture)
                 lines.Add($"| {company} | {industry} | {fitScore} | {status} | {summary} |");
             }
 
-            return new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Join("\n", lines)));
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Join("\n", lines))));
         });
 
         var inoScreen = inoFixture.InoScreen(brain);

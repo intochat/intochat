@@ -41,4 +41,3 @@ A pull request that adds a line here is not done until the line is gone.
 - Gemini Live as a second cloud Talk card (`GeminiLiveRealtimeClient : IRealtimeClient`, WebSocket), ~5× cheaper than OpenAI Realtime. Owner: the repo owner.
 - Cloud Talk carries no tools; wire S2 `ContractTool`s through `FunctionInvokingRealtimeClient`. Owner: the repo owner.
 - MarkItDotNet core (ElBruno.MarkItDotNet 0.9.5): 8 AOT warnings (5 collapsed), 39.1 MB publish EXE (trims ReverseMarkdown converters at runtime without TrimmerRootAssembly); for attachments slice; owner S-attachments.
-- Named skip `"red until Task 1.8"` on `CustomerResearcherSharingJourney.ResearchingACompanyStoresItsProfileInTheOwnersTable` (`tests/IntoChat.OS.Tests.Integration/Journeys/CustomerResearcherSharingJourney.cs`, added in Task 1.3): remove the skip once Task 1.8 wires persistence through the real table. Owner: the repo owner.

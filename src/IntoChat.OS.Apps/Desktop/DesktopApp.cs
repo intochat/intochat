@@ -138,7 +138,6 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
         ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
-        ("customer-researcher", "Customer Researcher", "neuron://local/apps/customer-researcher", "search", "Workspace", "orleans-grain"),
         ("calculator", "Calculator", "neuron://local/apps/calculator", "calculator", "Workspace", "orleans-grain"),
         ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
         ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool", "Studio", "orleans-grain"),
@@ -168,6 +167,26 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
                 : entry)
             .ToList();
         var knownIds = items.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var manifest in DigitalBrain.Components.ComponentManifests.All.OrderBy(static m => m.Id.Value, StringComparer.Ordinal))
+        {
+            if (manifest.Face is not { Category: { Length: > 0 } category }
+                || !manifest.Id.Value.StartsWith("app.", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var appId = manifest.Id.Value["app.".Length..];
+            if (string.IsNullOrWhiteSpace(appId) || !knownIds.Add(appId))
+            {
+                continue;
+            }
+
+            var appUri = brain is { Length: > 0 } b
+                ? $"neuron://{b}/apps/{appId}"
+                : $"neuron://local/apps/{appId}";
+            items.Add((appId, manifest.Face.Title, appUri, manifest.Face.Icon ?? "app-window", category, "orleans-grain"));
+        }
 
         foreach (var unitAlias in State.DeployedUnits ?? [])
         {

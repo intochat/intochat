@@ -1,139 +1,137 @@
 using DigitalBrain;
-using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.CustomerResearcher;
-using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Web;
+using IntoChat.OS.Tests.Integration.Journeys;
+using IntoChat.OS.Tests.Support.Fakes;
+using IntoChat.OS.Tests.Support.Fakes.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace IntoChat.OS.Tests.Integration.Apps;
 
-public sealed class CustomerResearcherAppContractFacts(FlagshipAppsRuntimeFixture fixture)
-    : AppConcurrencyAndIsolationContract<CustomerResearcherApp, FlagshipAppsRuntimeFixture>(fixture)
+public sealed class CustomerResearcherRuntimeFixture : BothRuntimesFixture
+{
+    private readonly FakeSet _fakes = new FakeSet().Postgres().WebSearch();
+
+    protected override IReadOnlyList<Type> Modules => Journey.SliceModules;
+
+    protected override void ConfigureTestOS(IServiceCollection services) => _fakes.Apply(services);
+
+    protected override void ConfigureSilo(IServiceCollection services) => _fakes.Apply(services);
+}
+
+public sealed class CustomerResearcherAppContractFacts(CustomerResearcherRuntimeFixture fixture)
+    : AppConcurrencyAndIsolationContract<CustomerResearcherApp, CustomerResearcherRuntimeFixture>(fixture)
 {
     protected override string? ConcurrentActivationKey => "btn:clear";
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
-    public async Task ResearchAndClear_PersistsProfilesAndClearsCleanly_ViaAppSession(NeuronRuntimeKind kind)
+    public async Task TypingACompanyAndClickingResearchSavesIt(NeuronRuntimeKind kind)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var app = await Open(kind, ct: ct);
+        await using var os = await Journey.Start(
+            kind,
+            f => f.Postgres().WebSearch(w => w.Answer("Acme", new WebResult("Acme Corp", new Uri("https://acme.example"), "Global industrial robotics leader."))),
+            ct);
 
-        app.ShouldDisplayText("Customer Researcher");
-        var initialGen = app.CurrentView.Generation;
+        var alice = os.Person("alice");
+        await using var app = await alice.Open<CustomerResearcherApp>(ct: ct);
 
-        await app.Send(new ResearchCompany("Acme Corp", "SaaS", "Enterprise workflow automation", 92), ct);
-        Assert.True(app.CurrentView.Generation > initialGen, "Expected generation to increment after researching Acme Corp.");
-        app.ShouldDisplayText("Acme Corp")
+        app.ShouldDisplayText("Customer Researcher")
+            .ShouldDisplayText("No companies researched yet");
+
+        await app.Type("input:company", "Acme", ct);
+        await app.Click("btn:research", ct);
+
+        app.ShouldDisplayText("Acme")
+            .ShouldDisplayText("Global industrial robotics leader.");
+        Assert.Single(os.Fake<FakeTableStore>().RowsFor(alice.Brain, "app.customer-researcher", CustomerResearcherApp.ProfilesTableKey));
+    }
+
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task ProfilesSurviveReactivationBecauseTheTableIsTheSource(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = await Journey.Start(kind, f => f.Postgres().WebSearch(), ct);
+
+        var alice = os.Person("alice");
+        await using (var app = await alice.Open<CustomerResearcherApp>("main", ct))
+        {
+            await app.Send(new ResearchCompany("Acme Corp", "SaaS", "Enterprise workflow automation", 92), ct);
+            app.ShouldDisplayText("Acme Corp");
+        }
+
+        await os.Runtime.Restart(ct);
+
+        await using var reopened = await alice.Open<CustomerResearcherApp>("main", ct);
+        reopened.ShouldDisplayText("Acme Corp")
             .ShouldDisplayText("SaaS")
-            .ShouldDisplayText("92");
-
-        var afterFirstGen = app.CurrentView.Generation;
-        await app.Send(new ResearchCompany("Globex", "AI", "Autonomous agents", 88), ct);
-        Assert.True(app.CurrentView.Generation > afterFirstGen, "Expected generation to increment after researching Globex.");
-        app.ShouldDisplayText("Acme Corp")
-            .ShouldDisplayText("Globex")
-            .ShouldDisplayText("AI")
-            .ShouldDisplayText("88");
-
-        await app.Click("btn:clear", ct);
-        app.ShouldDisplayText("No companies researched yet");
+            .ShouldDisplayText("Enterprise workflow automation");
     }
 
-    [Fact]
-    public async Task ResearchAndClear_PersistsAndDeletesRows_WhenPostgresTableIsAttached()
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task ATableFailureIsShownNotSwallowed(NeuronRuntimeKind kind)
     {
         var ct = TestContext.Current.CancellationToken;
-        var recorder = new PostgresTableSpyRecorder();
-        var services = new ServiceCollection().AddSingleton(recorder).BuildServiceProvider();
-        await using var os = TestOS.Local(o => o.Services = services);
-        os.Register<CustomerResearcherApp>();
-        os.Register<SpyPostgresTableNeuron>();
+        await using var os = await Journey.Start(kind, f => f.Postgres().WebSearch(), ct);
 
-        await using var app = await AppSession.OpenAsync<CustomerResearcherApp>(os, ct: ct);
+        var alice = os.Person("alice");
+        await using var app = await alice.Open<CustomerResearcherApp>(ct: ct);
 
-        await app.Send(new ResearchCompany("Acme Corp", "SaaS", "Enterprise workflow automation", 92), ct);
+        os.Fake<FakeTableStore>().FailNext();
 
-        Assert.Single(recorder.Definitions);
-        Assert.Equal(["company_name"], recorder.Definitions[0].PrimaryKey);
-        Assert.Contains(recorder.Definitions[0].Columns, c => c.Name == "company_name" && c.Type == "text");
-        Assert.Contains(recorder.Definitions[0].Columns, c => c.Name == "industry" && c.Type == "text");
-        Assert.Contains(recorder.Definitions[0].Columns, c => c.Name == "summary" && c.Type == "text");
-        Assert.Contains(recorder.Definitions[0].Columns, c => c.Name == "fit_score" && c.Type == "number");
-        Assert.Contains(recorder.Definitions[0].Columns, c => c.Name == "status" && c.Type == "text");
+        await app.Send(new ResearchCompany("FailCo", "FinTech", "Payment rails", 85), ct);
 
-        Assert.Single(recorder.Upserts);
-        var (key, values) = recorder.Upserts[0];
-        Assert.Equal("company_name", key[0].Column);
-        Assert.Equal("\"Acme Corp\"", key[0].Json);
-        Assert.Contains(values, v => v.Column == "industry" && v.Json == "\"SaaS\"");
-        Assert.Contains(values, v => v.Column == "summary" && v.Json == "\"Enterprise workflow automation\"");
-        Assert.Contains(values, v => v.Column == "fit_score" && v.Json == "92");
-        Assert.Contains(values, v => v.Column == "status" && v.Json == "\"High Fit\"");
-
-        await app.Send(new ClearResearch(), ct);
-
-        Assert.Single(recorder.Deletes);
-        Assert.Equal("company_name", recorder.Deletes[0][0].Column);
-        Assert.Equal("\"Acme Corp\"", recorder.Deletes[0][0].Json);
+        app.ShouldDisplayText("Could not save")
+            .ShouldNotDisplayText("FailCo");
+        Assert.Empty(os.Fake<FakeTableStore>().RowsFor(alice.Brain, "app.customer-researcher", CustomerResearcherApp.ProfilesTableKey));
     }
 
-    internal sealed class PostgresTableSpyRecorder
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task StateWrittenBeforeThisChangeStillLoads(NeuronRuntimeKind kind)
     {
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, TableValue[]>> _tables = new(StringComparer.Ordinal);
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = await Journey.Start(kind, f => f.Postgres().WebSearch(), ct);
 
-        public List<TableDefinition> Definitions { get; } = [];
-        public List<(TableValue[] Key, TableValue[] Values)> Upserts { get; } = [];
-        public List<TableValue[]> Deletes { get; } = [];
+        var alice = os.Person("alice");
+        var screenId = new NeuronId(alice.Brain, "app.customer-researcher", "legacy");
+        const string legacyJson = """
+            {"Query":"x","Profiles":[{"CompanyName":"LegacyCo","Industry":"Retail","Summary":"Old cached row","FitScore":75,"Status":"Qualified"}],"LastMessage":null}
+            """;
+        await os.Runtime.SeedState(screenId, legacyJson, ct);
 
-        public void RecordUpsert(string tableKey, TableValue[] key, TableValue[] values)
-        {
-            Upserts.Add((key, values));
-            var rows = _tables.GetOrAdd(tableKey, _ => new(StringComparer.Ordinal));
-            rows[SerializeKey(key)] = [.. key, .. values];
-        }
+        await using var app = await alice.Open<CustomerResearcherApp>("legacy", ct);
 
-        public bool RecordDelete(string tableKey, TableValue[] key)
-        {
-            Deletes.Add(key);
-            return _tables.TryGetValue(tableKey, out var rows) && rows.TryRemove(SerializeKey(key), out _);
-        }
-
-        public TableValue[]? Read(string tableKey, TableValue[] key)
-            => _tables.TryGetValue(tableKey, out var rows) && rows.TryGetValue(SerializeKey(key), out var row) ? row : null;
-
-        public TableValue[][] Page(string tableKey, int offset, int limit)
-            => _tables.TryGetValue(tableKey, out var rows) ? rows.Values.Skip(offset).Take(limit).ToArray() : [];
-
-        private static string SerializeKey(TableValue[] key)
-            => string.Join("|", key.Select(k => $"{k.Column}={k.Json}"));
+        // The legacy "Query" field deserializes into Draft and is rendered in input:company.
+        app.ShouldDisplayText("x");
     }
 
-    [Neuron("postgres.table")]
-    internal sealed class SpyPostgresTableNeuron(PostgresTableSpyRecorder recorder) : Neuron, ITable
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task TheAppIsInTheCatalogWithItsOperations(NeuronRuntimeKind kind)
     {
-        public Task<AcceptedTable> Define(TableDefinition definition)
-        {
-            recorder.Definitions.Add(definition);
-            return Task.FromResult(new AcceptedTable(Id.Key, definition, 1));
-        }
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = await Journey.Start(kind, f => f.Postgres().WebSearch().Catalog(), ct);
 
-        public Task<bool> Upsert(TableValue[] key, TableValue[] values)
-        {
-            recorder.RecordUpsert(Id.Key, key, values);
-            return Task.FromResult(true);
-        }
+        var alice = os.Person("alice");
+        var store = alice.Get<IAppStore>(new NeuronId(alice.Brain, "apps.store", IAppStore.Relative));
 
-        public Task<bool> Delete(TableValue[] key)
-        {
-            recorder.RecordDelete(Id.Key, key);
-            return Task.FromResult(true);
-        }
+        var entries = await store.List();
+        var listed = Assert.Single(entries, e => e.Name == "customer-researcher");
+        Assert.Equal("Customer Researcher", listed.Title);
 
-        public Task<TableValue[]?> Read(TableValue[] key)
-            => Task.FromResult(recorder.Read(Id.Key, key));
+        var catalog = os.Runtime.Services.GetRequiredService<FeatureCatalog>();
+        var bundle = await catalog.Find(ShippedApps.Publisher, "customer-researcher");
+        Assert.NotNull(bundle);
 
-        public Task<TableValue[][]> Page(int offset = 0, int limit = 200)
-            => Task.FromResult(recorder.Page(Id.Key, offset, limit));
+        var opNames = bundle.Manifest.Operations.Select(o => o.Name).ToArray();
+        Assert.Contains("research", opNames);
+        Assert.Contains("clear", opNames);
+        Assert.Contains("refresh", opNames);
+
+        var slotNames = bundle.Manifest.Slots.Select(s => s.Name).ToArray();
+        Assert.Contains("customers", slotNames);
+        Assert.Contains("search", slotNames);
     }
 }

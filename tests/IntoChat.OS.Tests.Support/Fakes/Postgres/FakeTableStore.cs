@@ -52,6 +52,16 @@ public sealed class FakeTableStore : ITableStore
         }
     }
 
+    /// <summary>Returns all rows in the table owned by <paramref name="ownerComponent"/> in <paramref name="brain"/> with logical key <paramref name="tableKey"/>.</summary>
+    public TableValue[][] RowsFor(DigitalBrain.BrainId brain, string ownerComponent, string tableKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerComponent);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableKey);
+        var owner = new TableOwner(brain.Value, ownerComponent);
+        var physical = TablePolicy.PhysicalName(owner.Key, $"{brain.Value}/{tableKey}");
+        return Rows(physical);
+    }
+
     Task ITableStore.DefineAsync(TablePlacement placement, string table, TableDefinition definition, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

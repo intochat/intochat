@@ -24,6 +24,7 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
         "heading",
         "caption",
         "badge",
+        "uiValue",
     };
 
     private readonly IAppSessionDriver _driver;
@@ -47,6 +48,18 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         CurrentView = await _driver.ActivateAsync(key, ct).ConfigureAwait(false);
+        return CurrentView;
+    }
+
+    /// <summary>Types <paramref name="text"/> into the input node with <paramref name="key"/> and updates <see cref="CurrentView"/>.</summary>
+    /// <param name="key">The input node key.</param>
+    /// <param name="text">The text value to submit.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<PublishedView> Type(string key, string text, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(text);
+        CurrentView = await _driver.TypeAsync(key, text, ct).ConfigureAwait(false);
         return CurrentView;
     }
 
@@ -97,6 +110,22 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
         return this;
     }
 
+    /// <summary>Asserts that <see cref="CurrentView"/> does not have an enabled node with <paramref name="key"/>.</summary>
+    /// <param name="key">The node key that must be absent or disabled.</param>
+    public AppSession<TScreen> ShouldNotHaveEnabled(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (FindNodeByKey(CurrentView.View, key) is { } node)
+        {
+            var isEnabled = !node.TryGetProperty("enabled", out var enabledProp)
+                || enabledProp.ValueKind != JsonValueKind.False;
+            Assert.False(
+                isEnabled,
+                $"Expected node '{key}' in view of {typeof(TScreen).Name} (generation {CurrentView.Generation}) not to be enabled, but it was enabled.");
+        }
+        return this;
+    }
+
     /// <summary>Asserts that <see cref="CurrentView"/> has generation <paramref name="expectedGeneration"/>.</summary>
     /// <param name="expectedGeneration">The expected view generation.</param>
     public AppSession<TScreen> ShouldHaveGeneration(long expectedGeneration)
@@ -107,6 +136,42 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
 
     /// <inheritdoc />
     public ValueTask DisposeAsync() => _driver.DisposeAsync();
+
+    private static JsonElement? FindNodeByKey(JsonElement element, string key)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (element.TryGetProperty("key", out var keyProp)
+                    && keyProp.ValueKind == JsonValueKind.String
+                    && string.Equals(keyProp.GetString(), key, StringComparison.Ordinal))
+                {
+                    return element;
+                }
+
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array
+                        && FindNodeByKey(property.Value, key) is { } found)
+                    {
+                        return found;
+                    }
+                }
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (FindNodeByKey(item, key) is { } found)
+                    {
+                        return found;
+                    }
+                }
+                break;
+        }
+
+        return null;
+    }
 
     private static string ExtractRenderedText(JsonElement view)
     {
@@ -130,6 +195,11 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
                             parts.Add(text);
                         }
                     }
+                    else if (property.Value.ValueKind == JsonValueKind.Array
+                        && string.Equals(property.Name, "rows", StringComparison.OrdinalIgnoreCase))
+                    {
+                        CollectTableRows(property.Value, parts);
+                    }
                     else if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
                     {
                         CollectText(property.Value, parts);
@@ -143,6 +213,29 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
                     CollectText(item, parts);
                 }
                 break;
+        }
+    }
+
+    private static void CollectTableRows(JsonElement rows, List<string> parts)
+    {
+        foreach (var item in rows.EnumerateArray())
+        {
+            switch (item.ValueKind)
+            {
+                case JsonValueKind.String:
+                    var text = item.GetString();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        parts.Add(text);
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    CollectTableRows(item, parts);
+                    break;
+                case JsonValueKind.Object:
+                    CollectText(item, parts);
+                    break;
+            }
         }
     }
 }

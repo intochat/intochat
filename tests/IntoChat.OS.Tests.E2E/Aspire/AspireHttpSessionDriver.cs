@@ -91,6 +91,32 @@ public sealed class AspireHttpSessionDriver : IAppSessionDriver
     }
 
     /// <inheritdoc />
+    public async Task<PublishedView> TypeAsync(string key, string text, CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(text);
+        ct.ThrowIfCancellationRequested();
+
+        var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
+        using var response = await _host.Os.PostAsJsonAsync(
+            $"/brains/{_scope}/apps/event",
+            new
+            {
+                kind = "view",
+                name = ViewNodeName,
+                key,
+                generation = current.Generation,
+                value = text,
+            },
+            ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        await WaitForSettledViewAsync(current.Generation, ct).ConfigureAwait(false);
+        return await ReadViewAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<PublishedView> SendAsync<TSignal>(TSignal signal, CancellationToken ct = default) where TSignal : Signal
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

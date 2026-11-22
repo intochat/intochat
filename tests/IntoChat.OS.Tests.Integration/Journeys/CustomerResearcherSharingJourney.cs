@@ -10,7 +10,6 @@ public sealed class CustomerResearcherSharingJourney
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task ResearchingACompanyStoresItsProfileInTheOwnersTable(NeuronRuntimeKind kind)
     {
-        Assert.Skip("red until Task 1.8");
         var ct = TestContext.Current.CancellationToken;
         await using var os = await Journey.Start(kind, f => f.Postgres(), ct);
         var alice = os.Person("alice");
@@ -19,6 +18,6 @@ public sealed class CustomerResearcherSharingJourney
         await app.Send(new ResearchCompany("Acme Corp", "Logistics", "A logistics company.", 92), ct);
 
         app.ShouldDisplayText("Acme Corp");
-        Assert.Single(os.Fake<FakeTableStore>().Rows("customer_profiles"));
+        Assert.Single(os.Fake<FakeTableStore>().RowsFor(alice.Brain, "app.customer-researcher", CustomerResearcherApp.ProfilesTableKey));
     }
 }

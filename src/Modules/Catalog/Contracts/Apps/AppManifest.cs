@@ -117,7 +117,9 @@ public sealed record AppManifest(
     // Where the app sits in the desktop's dock (ascending); null keeps it out of the dock.
     int? Dock = null,
     // A studio is an app Ino hands a routed prompt to and lists among its studios.
-    bool Studio = false)
+    bool Studio = false,
+    // Optional catalog category for desktop and launcher grouping (e.g. "Workspace", "Studio").
+    string? Category = null)
 {
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()

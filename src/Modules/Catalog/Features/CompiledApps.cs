@@ -1,4 +1,6 @@
 using System.Reflection;
+using DigitalBrain.Components;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -6,8 +8,8 @@ namespace IntoChat.OS.Modules.Apps;
 // at start (ino and settings are the shell's); the host finds their bundles here, so it names no app.
 public sealed record CompiledAppsRegistration(Assembly Assembly, Type[]? Boot = null);
 
-// Compiled apps in a module assembly: each public static AppBundle Bundle shipped by the module, paired with
-// its [Neuron("app.<name>")] screen class when compiled as a screen neuron (or its declaring bundle owner type).
+// Compiled apps in a module assembly: each public static AppBundle Bundle shipped by the module (winning where present),
+// plus any [Neuron("app.<name>")] screen class with a generated ComponentManifest, paired with its screen class.
 internal static class CompiledApps
 {
     internal readonly record struct Compiled(string Owner, AppBundle Bundle, FeatureOrigin.ModuleSource Origin, Type AppType);
@@ -37,5 +39,46 @@ internal static class CompiledApps
             var appType = screenTypes.GetValueOrDefault(bundle.Name, type);
             yield return new(ShippedApps.Publisher, bundle, new FeatureOrigin.ModuleSource(assembly), appType);
         }
+        foreach (var (name, type) in screenTypes.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            if (seen.Contains(name)) { continue; }
+            var manifest = ComponentManifests.Of(type) ?? ComponentManifests.Of(new ComponentId("app." + name));
+            if (manifest is null) { continue; }
+            var bundle = BundleFromManifest(name, type, manifest);
+            seen.Add(name);
+            yield return new(ShippedApps.Publisher, bundle, new FeatureOrigin.ModuleSource(assembly), type);
+        }
     }
+
+    private static AppBundle BundleFromManifest(string name, Type appType, ComponentManifest manifest)
+    {
+        var title = !string.IsNullOrWhiteSpace(manifest.Face?.Title) ? manifest.Face!.Title : name;
+        var description = manifest.Face?.Description ?? string.Empty;
+        var operations = manifest.Operations
+            .Select(static op => new AppOperation(op.Name, op.Description))
+            .ToArray();
+        var slots = manifest.Slots
+            .Select(static slot => new AppSlot(slot.Name, ContractIdOf(slot.Contract)))
+            .ToArray();
+        var appManifest = new AppManifest(
+            Title: title,
+            Description: description,
+            Operations: operations,
+            Settings: [],
+            Slots: slots,
+            Icon: manifest.Face?.Icon,
+            Category: manifest.Face?.Category);
+        return new AppBundle(
+            Name: name,
+            Version: "1.0.0",
+            Manifest: appManifest,
+            Spec: string.Empty,
+            Files: new Dictionary<string, string>(StringComparer.Ordinal),
+            CompiledType: appType.AssemblyQualifiedName);
+    }
+
+    private static string ContractIdOf(Type contract)
+        => contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
+            ?? contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
+            ?? contract.Name;
 }

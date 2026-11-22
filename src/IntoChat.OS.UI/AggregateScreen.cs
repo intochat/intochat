@@ -27,6 +27,9 @@ public sealed class ScreenAttribute(string? alias = null) : Attribute
 
     /// <summary>Optional Lucide icon slug representing the screen.</summary>
     public string? Icon { get; init; }
+
+    /// <summary>Optional catalog category for desktop and launcher grouping (e.g. "Workspace", "Studio").</summary>
+    public string? Category { get; set; }
 }
 
 /// <summary>

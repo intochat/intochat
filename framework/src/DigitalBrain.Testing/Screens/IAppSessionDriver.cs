@@ -16,6 +16,12 @@ public interface IAppSessionDriver : IAsyncDisposable
     /// <param name="ct">Cancellation token.</param>
     Task<PublishedView> ActivateAsync(string key, CancellationToken ct = default);
 
+    /// <summary>Submits a text field value to a keyed input node in the current view and returns the updated view.</summary>
+    /// <param name="key">The input node key in the current view.</param>
+    /// <param name="text">The text value to submit.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<PublishedView> TypeAsync(string key, string text, CancellationToken ct = default);
+
     /// <summary>Sends a typed signal to the screen, waits for idle, and returns the updated view.</summary>
     /// <typeparam name="TSignal">The signal type.</typeparam>
     /// <param name="signal">The signal instance.</param>
