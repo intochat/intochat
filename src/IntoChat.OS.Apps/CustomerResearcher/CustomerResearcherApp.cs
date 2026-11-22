@@ -13,6 +13,7 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -76,7 +77,9 @@ public sealed class CustomerResearcherApp(ILogger<CustomerResearcherApp>? logger
 
         var companyName = request.CompanyName.Trim();
         var industry = string.IsNullOrWhiteSpace(request.Industry) ? "General" : request.Industry.Trim();
-        var summary = string.IsNullOrWhiteSpace(request.Summary) ? $"Profile researched for {companyName}." : request.Summary.Trim();
+        var summary = string.IsNullOrWhiteSpace(request.Summary)
+            ? await TryResearchSummaryAsync(companyName, industry) ?? $"Profile researched for {companyName}."
+            : request.Summary.Trim();
         var fitScore = Math.Clamp(request.FitScore, 0, 100);
         var status = fitScore >= 85 ? "High Fit" : fitScore >= 60 ? "Qualified" : "Low Fit";
 
@@ -124,6 +127,32 @@ public sealed class CustomerResearcherApp(ILogger<CustomerResearcherApp>? logger
         });
 
         await TryClearProfilesAsync(existingProfiles);
+    }
+
+    private async Task<string?> TryResearchSummaryAsync(string companyName, string industry)
+    {
+        if (!Implements<IWebSearch>(new NeuronId(Id.Brain, "web.search", IWebSearch.DefaultKey)))
+        {
+            return null;
+        }
+
+        try
+        {
+            var webSearch = Get<IWebSearch>(IWebSearch.DefaultKey);
+            var query = string.Equals(industry, "General", StringComparison.OrdinalIgnoreCase)
+                ? $"{companyName} company overview"
+                : $"{companyName} {industry} company overview";
+            var results = await webSearch.Search(query, count: 3);
+            var snippet = results
+                .Select(static r => string.IsNullOrWhiteSpace(r.Snippet) ? r.Title : r.Snippet)
+                .FirstOrDefault(static s => !string.IsNullOrWhiteSpace(s));
+            return snippet?.Trim();
+        }
+        catch (Exception ex)
+        {
+            logger?.LogSwallowed(ex, "querying web search for customer company overview");
+            return null;
+        }
     }
 
     private async Task TryPersistProfileAsync(CustomerProfile profile)

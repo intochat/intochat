@@ -138,6 +138,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
         ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
+        ("customer-researcher", "Customer Researcher", "neuron://local/apps/customer-researcher", "search", "Workspace", "orleans-grain"),
         ("calculator", "Calculator", "neuron://local/apps/calculator", "calculator", "Workspace", "orleans-grain"),
         ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
         ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool", "Studio", "orleans-grain"),

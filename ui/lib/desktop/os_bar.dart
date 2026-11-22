@@ -24,6 +24,7 @@ class OsBar extends StatelessWidget {
     this.paletteOpen = false,
     this.allAppsOpen = false,
     this.showingDesktop = false,
+    this.themeStudioOpen = false,
     this.notifications = 0,
     this.presence,
     this.tokensToday = 14800,
@@ -32,6 +33,7 @@ class OsBar extends StatelessWidget {
     this.onToggleAllApps,
     this.onToggleShowDesktop,
     this.onCycleStylePreset,
+    this.onToggleThemeStudio,
     this.onLaunchApp,
     this.onSecondaryTapApp,
     this.onHoverTooltip,
@@ -51,6 +53,7 @@ class OsBar extends StatelessWidget {
   final bool paletteOpen;
   final bool allAppsOpen;
   final bool showingDesktop;
+  final bool themeStudioOpen;
   final int notifications;
 
   /// Ino's presence; a dot in its colour shows beside the bell while smart mode is on.
@@ -61,6 +64,7 @@ class OsBar extends StatelessWidget {
   final VoidCallback? onToggleAllApps;
   final VoidCallback? onToggleShowDesktop;
   final VoidCallback? onCycleStylePreset;
+  final VoidCallback? onToggleThemeStudio;
   final ValueChanged<String>? onLaunchApp;
   final void Function(String appId, Offset globalPos)? onSecondaryTapApp;
   final void Function(String? label, double anchorX)? onHoverTooltip;
@@ -189,11 +193,13 @@ class OsBar extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: _StatusTray(
                 stylePreset: stylePreset,
+                themeStudioOpen: themeStudioOpen,
                 notifications: notifications,
                 presence: presence,
                 tokensToday: tokensToday,
                 connected: connected,
                 onCycleStylePreset: onCycleStylePreset,
+                onToggleThemeStudio: onToggleThemeStudio,
                 onOpenNotifications: onOpenNotifications,
                 onOpenCompute: onOpenCompute,
                 onOpenSettings: onOpenSettings,
@@ -369,11 +375,13 @@ class _DockAppItemState extends State<_DockAppItem> {
 class _StatusTray extends StatelessWidget {
   const _StatusTray({
     required this.stylePreset,
+    required this.themeStudioOpen,
     required this.notifications,
     this.presence,
     required this.tokensToday,
     required this.connected,
     this.onCycleStylePreset,
+    this.onToggleThemeStudio,
     this.onOpenNotifications,
     this.onOpenCompute,
     this.onOpenSettings,
@@ -382,11 +390,13 @@ class _StatusTray extends StatelessWidget {
   });
 
   final IcStylePreset stylePreset;
+  final bool themeStudioOpen;
   final int notifications;
   final PresenceState? presence;
   final int tokensToday;
   final bool connected;
   final VoidCallback? onCycleStylePreset;
+  final VoidCallback? onToggleThemeStudio;
   final VoidCallback? onOpenNotifications;
   final VoidCallback? onOpenCompute;
   final VoidCallback? onOpenSettings;
@@ -421,6 +431,20 @@ class _StatusTray extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        if (onToggleThemeStudio != null) ...[
+          _BarButton(
+            key: const ValueKey('os-bar-theme-studio'),
+            tooltip: 'Theme Studio',
+            selected: themeStudioOpen,
+            onTap: onToggleThemeStudio!,
+            child: Icon(
+              LucideIcons.slidersHorizontal,
+              size: 14,
+              color: themeStudioOpen ? c.accent : c.textBody,
             ),
           ),
           const SizedBox(width: 4),

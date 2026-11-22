@@ -8,6 +8,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 import '../workspace/cross_window_router.dart';
 import '../workspace/spatial_app_canvas.dart';
+import '../workspace/workspace_app.dart';
 import 'desktop_overlays.dart';
 import 'os_bar.dart';
 import 'presence_layer.dart';
@@ -195,6 +196,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'settings',
   };
   bool _allAppsOpen = false;
+  bool _themeStudioOpen = false;
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   DesktopSystemSheetKind _systemSheet = DesktopSystemSheetKind.none;
@@ -627,6 +629,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
 
     if (e.logicalKey == LogicalKeyboardKey.escape && e is KeyDownEvent) {
+      if (_themeStudioOpen) {
+        setState(() => _themeStudioOpen = false);
+        return true;
+      }
       if (_allAppsOpen) {
         setState(() => _allAppsOpen = false);
         return true;
@@ -1912,6 +1918,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   paletteOpen: widget.paletteOpen,
                   allAppsOpen: _allAppsOpen,
                   showingDesktop: _showDesktopOnly || visibleWindows.isEmpty,
+                  themeStudioOpen: _themeStudioOpen,
                   notifications: _notificationsCount,
                   presence: _smart ? _presenceState : null,
                   profileMenu: widget.profileMenu,
@@ -1919,12 +1926,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     setState(() {
                       _popover = DesktopPopoverKind.none;
                       _allAppsOpen = false;
+                      _themeStudioOpen = false;
                     });
                     widget.onTogglePalette();
                   },
                   onToggleAllApps: () {
                     setState(() {
                       _popover = DesktopPopoverKind.none;
+                      _themeStudioOpen = false;
                       _allAppsOpen = !_allAppsOpen;
                     });
                   },
@@ -1932,6 +1941,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     setState(() {
                       _popover = DesktopPopoverKind.none;
                       _allAppsOpen = false;
+                      _themeStudioOpen = false;
                       _showDesktopOnly = !_showDesktopOnly;
                     });
                   },
@@ -1940,6 +1950,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         (IcStylePreset.values.indexOf(widget.stylePreset) + 1) %
                         IcStylePreset.values.length;
                     widget.onSelectPreset(IcStylePreset.values[nextIdx]);
+                  },
+                  onToggleThemeStudio: () {
+                    setState(() {
+                      _popover = DesktopPopoverKind.none;
+                      _allAppsOpen = false;
+                      _themeStudioOpen = !_themeStudioOpen;
+                    });
                   },
                   onLaunchApp: (appId) {
                     setState(() {
@@ -2140,6 +2157,39 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     },
                   ),
                 ),
+
+              // 10. Floating Live Theme Studio Overlay (anchored bottom-right above the OS bar)
+              if (_themeStudioOpen) ...[
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: kOsBarHeight,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _themeStudioOpen = false),
+                  ),
+                ),
+                Positioned(
+                  right: 16,
+                  bottom:
+                      (widget.barLayout == BarLayout.classicBottom ? 0 : 6) +
+                      kOsBarHeight +
+                      8,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 340),
+                    child: Builder(
+                      builder: (context) {
+                        final controller = UiThemeSeedsController.of(context);
+                        return ThemeStudioPanel(
+                          seeds: controller.seeds,
+                          onChanged: controller.setSeeds,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );
