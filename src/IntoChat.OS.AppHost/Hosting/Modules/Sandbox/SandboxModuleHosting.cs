@@ -161,8 +161,15 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
         string[] sourceDirs =
         [
             Path.Combine("src", "IntoChat.OS"),
+            Path.Combine("src", "IntoChat.OS.Host"),
             Path.Combine("src", "IntoChat.OS.UI"),
             Path.Combine("src", "IntoChat.OS.Sandbox"),
+            Path.Combine("src", "Modules", "Roslyn"),
+            Path.Combine("src", "Modules", "AI", "Contracts"),
+            Path.Combine("src", "Modules", "AI", "Generators"),
+            Path.Combine("src", "Modules", "Catalog", "Contracts"),
+            Path.Combine("src", "Modules", "Identity", "Contracts"),
+            Path.Combine("src", "Modules", "Shell", "Contracts"),
             Path.Combine("framework", "src"),
         ];
         foreach (var relDir in sourceDirs)
@@ -172,6 +179,14 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
             {
                 CopyDirectoryFiltered(srcDir, Path.Combine(stagedRoot, relDir));
             }
+        }
+
+        var modelsJsonSrc = Path.Combine(repoRoot, "src", "Modules", "AI", "Models", "models.json");
+        if (File.Exists(modelsJsonSrc))
+        {
+            var modelsJsonDest = Path.Combine(stagedRoot, "src", "Modules", "AI", "Models", "models.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(modelsJsonDest)!);
+            File.Copy(modelsJsonSrc, modelsJsonDest, overwrite: true);
         }
 
         var stagedFeedDir = Path.Combine(stagedRoot, "local-feed");
