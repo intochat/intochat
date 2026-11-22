@@ -1,8 +1,16 @@
+using System.Runtime.CompilerServices;
 using System.Security;
+using IntoChat.OS.Modules.Devices;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Flows;
@@ -259,6 +267,209 @@ public sealed class LocalLlmCoderFacts : IDisposable
         Assert.NotNull(systemPrompt);
         Assert.Contains(customPolicy.Describe(), systemPrompt!, StringComparison.Ordinal);
         Assert.Equal(["code/First.cs"], edit.TouchedFiles);
+    }
+
+    [Fact]
+    public async Task NoThinkModel_ThrowsNoProviderConfiguredInsteadOfDowngradingToChatModel()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(config);
+        services.AddSingleton<IModuleIntegrations<AIModule>>(new UnconfiguredAiIntegrations());
+        services.AddSingleton<ILocalRuntime>(new FakeOllamaRuntime(null, KnownModels.Qwen35));
+        AIModule.ConfigureServices(services, config);
+        var inferenceCalls = 0;
+        services.AddSingleton<IModelInference>(new ScriptedModelInference(
+            _ =>
+            {
+                inferenceCalls++;
+                return new AiMessage("assistant", [new AiToolCall("call-1", "write_file", """{"path":"code/Downgraded.cs","content":"// bad"}""")]);
+            },
+            _ => new AiMessage("assistant", [new AiText("done")])));
+
+        await using var sp = services.BuildServiceProvider();
+        var coder = new LocalLlmCoder(sp, config);
+        var lease = CreateLease("run-no-think");
+
+        var ex = await Assert.ThrowsAsync<NoProviderConfiguredException>(() => coder.EditAsync(lease, "Add feature", Ct));
+        Assert.Contains("Think", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("qwen2.5-coder:14b", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, inferenceCalls);
+    }
+
+    [Fact]
+    public async Task OllamaRequest_IncludesConfiguredNumCtx()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
+                ["IntoChatOS:Coder:ContextWindowTokens"] = "16384",
+            })
+            .Build();
+
+        ChatOptions? capturedChatOptions = null;
+        var chatClient = new CapturingScriptedChatClient(
+            (_, options) =>
+            {
+                capturedChatOptions = options;
+                return new ChatResponse(new ChatMessage(ChatRole.Assistant,
+                [
+                    new FunctionCallContent("call-w", "write_file", new Dictionary<string, object?>
+                    {
+                        ["path"] = "code/NumCtx.cs",
+                        ["content"] = "namespace Demo;\npublic static class NumCtx {}\n",
+                    }),
+                ]));
+            },
+            (_, options) =>
+            {
+                capturedChatOptions = options;
+                return new ChatResponse(new ChatMessage(ChatRole.Assistant, "Added NumCtx.cs."));
+            });
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(config);
+        services.AddSingleton<IModuleIntegrations<AIModule>>(new UnconfiguredAiIntegrations());
+        services.AddSingleton<ILocalRuntime>(new FakeOllamaRuntime(chatClient, KnownModels.Qwen25Coder14B));
+        AIModule.ConfigureServices(services, config);
+
+        InferenceRequest? capturedInferenceRequest = null;
+        services.AddSingleton<IModelInference>(sp =>
+            new SpyModelInference(sp.GetRequiredService<InferenceService>(), req => capturedInferenceRequest = req));
+
+        await using var sp = services.BuildServiceProvider();
+        var coder = new LocalLlmCoder(sp, config);
+        var lease = CreateLease("run-num-ctx");
+
+        var edit = await coder.EditAsync(lease, "Add NumCtx.cs", Ct);
+
+        Assert.Equal(["code/NumCtx.cs"], edit.TouchedFiles);
+        Assert.NotNull(capturedInferenceRequest?.Options?.Provider);
+        var ollamaOpts = Assert.IsType<OllamaInferenceOptions>(capturedInferenceRequest!.Options!.Provider);
+        Assert.Equal(16384, ollamaOpts.ContextWindowTokens);
+        Assert.NotNull(capturedChatOptions?.AdditionalProperties);
+        Assert.Equal(16384, capturedChatOptions!.AdditionalProperties!["num_ctx"]);
+    }
+
+    [Fact]
+    public void BindOptions_ReadsMaxToolRoundsTimeoutAndContextWindow()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["IntoChatOS:Coder:Model"] = "qwen2.5-coder:14b",
+                ["IntoChatOS:Coder:MaxToolRounds"] = "24",
+                ["IntoChatOS:Coder:TimeoutSeconds"] = "420",
+                ["IntoChatOS:Coder:ContextWindowTokens"] = "24576",
+            })
+            .Build();
+
+        var options = LocalLlmCoder.BindOptions(config);
+
+        Assert.Equal("qwen2.5-coder:14b", options.PreferredModel);
+        Assert.Equal(24, options.MaxToolRounds);
+        Assert.Equal(TimeSpan.FromSeconds(420), options.Timeout);
+        Assert.Equal(24576, options.ContextWindowTokens);
+    }
+
+    private WorkTreeLease CreateLease(string runId) => new(
+        RunId: runId,
+        RepositoryId: "os",
+        SourceRepoPath: _treePath,
+        TreePath: _treePath,
+        RealGitDirPath: _treePath,
+        GitPointerSha256Hex: new string('b', 64),
+        BaseBranch: "main",
+        BaseCommitSha: new string('a', 40),
+        BranchName: "ino/" + runId,
+        GitHubRepo: "intochat/os");
+
+    private sealed class UnconfiguredAiIntegrations : IModuleIntegrations<AIModule>
+    {
+        public IIntegrationHandle Get(string integrationId) => new UnconfiguredHandle(integrationId);
+
+        private sealed class UnconfiguredHandle(string id) : IIntegrationHandle
+        {
+            public string IntegrationId => id;
+            public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+                => Task.FromResult(new IntegrationSnapshot { IntegrationId = id, Status = IntegrationStatus.Unconfigured, MissingFields = ["api_key"] });
+            public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default)
+                => throw new InvalidOperationException("Unconfigured");
+            public Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default)
+                => throw new InvalidOperationException("Unconfigured");
+        }
+    }
+
+    private sealed class FakeOllamaRuntime(IChatClient? chatClient, params ModelCard[] installed) : ILocalRuntime
+    {
+        public RuntimeId Id => RuntimeId.Ollama;
+
+        public Task<RuntimeStatus> Probe(CancellationToken ct)
+            => Task.FromResult(new RuntimeStatus(Id, Reachable: true, Version: "0.9.0", Endpoint: new Uri("http://127.0.0.1:11434")));
+
+        public async IAsyncEnumerable<ModelCard> Catalog([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in installed) { yield return card; }
+        }
+
+        public async IAsyncEnumerable<ModelCard> Installed([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            foreach (var card in installed)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return card;
+            }
+        }
+
+        public async IAsyncEnumerable<InstallProgress> Install(ModelId id, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task Remove(ModelId id, CancellationToken ct) => Task.CompletedTask;
+
+        public IChatClient Chat(ModelId id) => chatClient ?? throw new NotSupportedException("Chat client should not be invoked.");
+    }
+
+    private sealed class CapturingScriptedChatClient(params Func<IEnumerable<ChatMessage>, ChatOptions?, ChatResponse>[] turns) : IChatClient
+    {
+        private readonly Queue<Func<IEnumerable<ChatMessage>, ChatOptions?, ChatResponse>> _turns = new(turns);
+
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(_turns.Dequeue()(messages, options));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
+    private sealed class SpyModelInference(IModelInference inner, Action<InferenceRequest> onGenerate) : IModelInference
+    {
+        public bool HasProfile(string name) => inner.HasProfile(name);
+
+        public Task<ModelDescriptor> Describe(ModelSelection? selection, ModelId? model, CancellationToken cancellationToken, string? brainId)
+            => inner.Describe(selection, model, cancellationToken, brainId);
+
+        public Task<InferenceResult> Generate(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
+        {
+            onGenerate(request);
+            return inner.Generate(request, model, cancellationToken, brainId);
+        }
+
+        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, ModelId? model, CancellationToken cancellationToken, string? brainId)
+            => inner.GenerateStreaming(request, model, cancellationToken, brainId);
     }
 
     private sealed class SlowTimeoutInference : IModelInference

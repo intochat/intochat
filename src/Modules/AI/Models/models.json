@@ -260,6 +260,7 @@
       "can": ["Text", "Tools"],
       "tier": "Deep",
       "bytes": 9000000000,
+      "context": 32768,
       "aliases": ["qwen2.5-coder"],
       "price": { "input": 0, "output": 0, "cached": 0, "reasoning": 0 }
     },

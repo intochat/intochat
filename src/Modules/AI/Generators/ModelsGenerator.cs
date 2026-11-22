@@ -56,7 +56,7 @@ public sealed class ModelsGenerator : IIncrementalGenerator
 
     private static readonly HashSet<string> AllowedModelKeys = new(StringComparer.Ordinal)
     {
-        "id", "member", "provider", "family", "name", "where", "can", "tier", "bytes", "aliases", "price",
+        "id", "member", "provider", "family", "name", "where", "can", "tier", "bytes", "context", "aliases", "price",
     };
 
     private static readonly HashSet<string> AllowedPriceKeys = new(StringComparer.Ordinal)
@@ -281,6 +281,19 @@ public sealed class ModelsGenerator : IIncrementalGenerator
             bytes = parsedBytes;
         }
 
+        int? contextWindowTokens = null;
+        if (TryGetProperty(obj, "context", out var contextVal) && contextVal.Kind != JsonKind.Null)
+        {
+            if (contextVal.Kind != JsonKind.Number
+                || !int.TryParse(contextVal.RawNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedContext)
+                || parsedContext <= 0)
+            {
+                Report(context, $"Model entry '{label}' has invalid \"context\" value.");
+                return false;
+            }
+            contextWindowTokens = parsedContext;
+        }
+
         var aliases = new List<string>();
         if (TryGetProperty(obj, "aliases", out var aliasesVal) && aliasesVal.Kind != JsonKind.Null)
         {
@@ -326,7 +339,7 @@ public sealed class ModelsGenerator : IIncrementalGenerator
             price = new PriceEntry(input, output, cached, reasoning);
         }
 
-        entry = new ModelEntry(id, member, provider, family, name, where, abilities, tier, bytes, aliases, price);
+        entry = new ModelEntry(id, member, provider, family, name, where, abilities, tier, bytes, contextWindowTokens, aliases, price);
         return true;
     }
 
@@ -432,6 +445,15 @@ public sealed class ModelsGenerator : IIncrementalGenerator
             {
                 sb.Append(entry.Bytes.Value.ToString(CultureInfo.InvariantCulture));
                 sb.Append('L');
+            }
+            else
+            {
+                sb.Append("null");
+            }
+            sb.Append(", ");
+            if (entry.ContextWindowTokens.HasValue)
+            {
+                sb.Append(entry.ContextWindowTokens.Value.ToString(CultureInfo.InvariantCulture));
             }
             else
             {
@@ -704,6 +726,7 @@ public sealed class ModelsGenerator : IIncrementalGenerator
             List<string> can,
             string tier,
             long? bytes,
+            int? contextWindowTokens,
             List<string> aliases,
             PriceEntry? price)
         {
@@ -716,6 +739,7 @@ public sealed class ModelsGenerator : IIncrementalGenerator
             Can = can;
             Tier = tier;
             Bytes = bytes;
+            ContextWindowTokens = contextWindowTokens;
             Aliases = aliases;
             Price = price;
         }
@@ -729,6 +753,7 @@ public sealed class ModelsGenerator : IIncrementalGenerator
         public List<string> Can { get; }
         public string Tier { get; }
         public long? Bytes { get; }
+        public int? ContextWindowTokens { get; }
         public List<string> Aliases { get; }
         public PriceEntry? Price { get; }
     }

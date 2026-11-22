@@ -71,7 +71,8 @@ public sealed record ModelCard(
     Abilities Can,
     Tier Tier,
     ModelPrice? Price = null,
-    long? Bytes = null);
+    long? Bytes = null,
+    int? ContextWindowTokens = null);
 
 public static class ModelCards
 {

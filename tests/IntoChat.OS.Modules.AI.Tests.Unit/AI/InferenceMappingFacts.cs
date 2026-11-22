@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
@@ -127,5 +128,22 @@ public sealed class InferenceMappingFacts
         Assert.Equal(new ModelSelection(null, "high", 50), selection);
         Assert.Equal(new InferenceOptions(MaxOutputTokens: 50), settings);
         Assert.Equal((null, null), InferenceMapping.Merge(null, null));
+    }
+
+    [Fact]
+    public void OllamaContextWindowMapsToNumCtxWithinDeclaredCardLimit()
+    {
+        Assert.Equal(32768, KnownModels.Qwen25Coder14B.ContextWindowTokens);
+
+        var resolved = new ResolvedModel(AiProvider.Ollama, KnownModels.Qwen25Coder14B.Id.Value, "http://127.0.0.1:11434/", null, "rev", Abilities.Text | Abilities.Tools, null, null);
+        var descriptor = new ModelDescriptor("Ollama", resolved.Model, null, "rev", CapabilitySupport.Supported, CapabilitySupport.Unknown, CapabilitySupport.Unknown,
+            ContextWindowTokens: KnownModels.Qwen25Coder14B.ContextWindowTokens);
+
+        var chatOptions = InferenceMapping.CreateOptions(resolved, new InferenceOptions(Provider: new OllamaInferenceOptions(ContextWindowTokens: 16384)), descriptor);
+
+        Assert.NotNull(chatOptions.AdditionalProperties);
+        Assert.Equal(16384, chatOptions.AdditionalProperties!["num_ctx"]);
+        Assert.Throws<ArgumentException>(() =>
+            InferenceMapping.CreateOptions(resolved, new InferenceOptions(Provider: new OllamaInferenceOptions(ContextWindowTokens: 65536)), descriptor));
     }
 }

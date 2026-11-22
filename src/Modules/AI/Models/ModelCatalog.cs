@@ -1243,9 +1243,12 @@ public sealed class ModelCatalog
         var declared = profile?.Capabilities;
         CapabilitySupport Support(Abilities capability) => model.Capabilities.HasFlag(capability)
             ? CapabilitySupport.Supported : declared is null ? CapabilitySupport.Unknown : CapabilitySupport.Unsupported;
+        var card = KnownModels.Find(model.Model);
+        if (card is not null && card.Provider != model.Provider) { card = null; }
+        var contextWindowTokens = profile?.ContextWindowTokens ?? card?.ContextWindowTokens;
         return new(model.Provider.ToString(), model.Model, model.Profile, model.Revision,
             Support(Abilities.Tools), Support(Abilities.Vision), Support(Abilities.StructuredOutput),
-            profile?.ContextWindowTokens, profile?.MaximumOutputTokens, SupportFlag(profile?.SupportsTemperature),
+            contextWindowTokens, profile?.MaximumOutputTokens, SupportFlag(profile?.SupportsTemperature),
             SupportFlag(profile?.SupportsTopP), profile?.AllowedReasoning?.ToArray());
     }
 

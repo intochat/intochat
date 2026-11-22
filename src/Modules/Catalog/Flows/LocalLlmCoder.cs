@@ -7,6 +7,7 @@ using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.AI;
@@ -30,6 +31,9 @@ internal sealed class LocalLlmCoderOptions
 
     /// <summary>Hard wall-clock budget for a coding turn loop before failing with <see cref="TimeoutException"/>.</summary>
     public TimeSpan? Timeout { get; set; }
+
+    /// <summary>Requested Ollama context window (<c>num_ctx</c>) in tokens when running against an Ollama model that declares a context limit.</summary>
+    public int? ContextWindowTokens { get; set; } = 16384;
 
     /// <summary>Optional external CLI executable fallback (disabled unless explicitly configured).</summary>
     public string? FallbackCliExecutable { get; set; }
@@ -265,10 +269,22 @@ internal sealed class LocalLlmCoder : ICoder
                 throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
             }
 
+            if (explicitSelection is null
+                && resolved.Profile is null
+                && KnownModels.Find(resolved.Model) is { Tier: not Tier.Deep } downgraded)
+            {
+                var expectedThink = KnownModels.Defaults.Device.TryGetValue(Role.Think, out var thinkId)
+                    ? thinkId.Value
+                    : KnownModels.Qwen25Coder14B.Id.Value;
+                throw new NoProviderConfiguredException(
+                    $"No Think/Deep model (such as '{expectedThink}') is available for coding; refusing to silently downgrade to '{downgraded.Id.Value}' ({downgraded.Tier} tier). Pull '{expectedThink}' in Ollama, configure a Think model, or set IntoChatOS:Coder:Model explicitly.");
+            }
+
             var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
             var selection = ToSelection(resolved);
             var desc = await effectiveInference.Describe(selection, model: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
-            return new InferenceServiceRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
+            var ollamaCtx = ResolveOllamaContextWindow(resolved.Provider == AiProvider.Ollama, desc);
+            return new InferenceServiceRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported, ollamaCtx);
         }
 
         if (inference is not null)
@@ -289,7 +305,9 @@ internal sealed class LocalLlmCoder : ICoder
                         && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
                             || _services?.GetService<IChatClient>() is not null))
                     {
-                        return new InferenceServiceRunner(inference, selection, desc.Model, desc.Temperature == CapabilitySupport.Supported);
+                        var isOllama = string.Equals(desc.Provider, nameof(AiProvider.Ollama), StringComparison.OrdinalIgnoreCase);
+                        var ollamaCtx = ResolveOllamaContextWindow(isOllama, desc);
+                        return new InferenceServiceRunner(inference, selection, desc.Model, desc.Temperature == CapabilitySupport.Supported, ollamaCtx);
                     }
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested && ex is ArgumentException or InvalidOperationException or NotSupportedException or ProviderUnavailableException)
@@ -302,13 +320,20 @@ internal sealed class LocalLlmCoder : ICoder
         throw new InvalidOperationException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
     }
 
+    private int? ResolveOllamaContextWindow(bool isOllama, ModelDescriptor desc)
+        => isOllama
+            && _options.ContextWindowTokens is { } requestedCtx and > 0
+            && desc.ContextWindowTokens is { } maxCtx and > 0
+            ? (int)Math.Min(requestedCtx, maxCtx)
+            : null;
+
     private static ModelSelection? ToSelection(ResolvedModel resolved)
         => resolved.Provider == AiProvider.Host ? null
             : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
             : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
             : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
 
-    private static LocalLlmCoderOptions BindOptions(IConfiguration? configuration)
+    internal static LocalLlmCoderOptions BindOptions(IConfiguration? configuration)
     {
         var opts = new LocalLlmCoderOptions();
         if (configuration is null) { return opts; }
@@ -318,9 +343,17 @@ internal sealed class LocalLlmCoder : ICoder
         {
             opts.FallbackCliExecutable = cli;
         }
+        if (int.TryParse(configuration["IntoChatOS:Coder:MaxToolRounds"], NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxRounds) && maxRounds > 0)
+        {
+            opts.MaxToolRounds = maxRounds;
+        }
         if (double.TryParse(configuration["IntoChatOS:Coder:TimeoutSeconds"], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
         {
             opts.Timeout = TimeSpan.FromSeconds(seconds);
+        }
+        if (int.TryParse(configuration["IntoChatOS:Coder:ContextWindowTokens"], NumberStyles.Integer, CultureInfo.InvariantCulture, out var contextWindow) && contextWindow > 0)
+        {
+            opts.ContextWindowTokens = contextWindow;
         }
 
         return opts;
@@ -332,13 +365,24 @@ internal sealed class LocalLlmCoder : ICoder
         Task<InferenceResult> InvokeAsync(IReadOnlyList<AiMessage> messages, IReadOnlyList<InferenceTool> tools, CancellationToken ct);
     }
 
-    private sealed class InferenceServiceRunner(IModelInference inference, ModelSelection? selection, string modelId, bool supportsTemperature) : IModelTurnRunner
+    private sealed class InferenceServiceRunner(
+        IModelInference inference,
+        ModelSelection? selection,
+        string modelId,
+        bool supportsTemperature,
+        int? ollamaContextWindowTokens) : IModelTurnRunner
     {
         public string ModelId => modelId;
 
         public Task<InferenceResult> InvokeAsync(IReadOnlyList<AiMessage> messages, IReadOnlyList<InferenceTool> tools, CancellationToken ct)
         {
-            var options = supportsTemperature ? new InferenceOptions(Temperature: 0.1f) : null;
+            var temperature = supportsTemperature ? 0.1f : (float?)null;
+            var provider = ollamaContextWindowTokens is { } ctx
+                ? new OllamaInferenceOptions(ContextWindowTokens: ctx)
+                : null;
+            var options = temperature is not null || provider is not null
+                ? new InferenceOptions(Temperature: temperature, Provider: provider)
+                : null;
             var req = new InferenceRequest(messages, Model: selection, Options: options, Tools: tools);
             return inference.Generate(req, model: null, cancellationToken: ct, brainId: null);
         }
