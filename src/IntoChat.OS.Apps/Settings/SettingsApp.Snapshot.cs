@@ -46,7 +46,7 @@ public sealed partial class SettingsApp
     {
         var computeProjection = await ReadComputeSummaryAsync(State);
         var approvals = await TryReadPendingApprovalsAsync();
-        var user = await Get<IUserSettings>("settings").Read();
+        var user = await UserSettings.Read();
         var deployedUnits = await TryReadDeployedUnitsAsync();
         var teamRoster = await TryReadTeamRosterAsync();
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
@@ -111,12 +111,15 @@ public sealed partial class SettingsApp
         var chosen = new ModelId(trimmed);
         var persistedViaCatalog = false;
 
-        if (TryBrainOrNull() is { Value.Length: > 0 } brain)
+        if (TryBrainOrNull() is { Value.Length: > 0 })
         {
             try
             {
-                await Get<IModelCatalog>(IModelCatalog.Key(brain.Value)).SetRole(role, chosen);
-                persistedViaCatalog = true;
+                if (ModelCatalog is { } catalog)
+                {
+                    await catalog.SetRole(role, chosen);
+                    persistedViaCatalog = true;
+                }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -128,7 +131,7 @@ public sealed partial class SettingsApp
         {
             try
             {
-                await Get<IUserSettings>("settings").SetRole(role, chosen);
+                await UserSettings.SetRole(role, chosen);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -239,7 +242,13 @@ public sealed partial class SettingsApp
 
         try
         {
-            var catalog = Get<IModelCatalog>(IModelCatalog.Key(brain.Value));
+            if (ModelCatalog is not { } catalog)
+            {
+                var fallbackProviders = deviceView is not null
+                    ? BuildProviderRows([], new Dictionary<string, ModelAvailability>(StringComparer.OrdinalIgnoreCase), deviceView, endpoint)
+                    : State.Providers;
+                return (State.Roles, fallbackProviders, null, endpoint, deviceView);
+            }
             var cards = await catalog.List();
             var availability = (await catalog.Availability())
                 .ToDictionary(static a => a.Model.Value, StringComparer.OrdinalIgnoreCase);
@@ -444,7 +453,7 @@ public sealed partial class SettingsApp
     private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync(IReadOnlyList<UserVariableEntry> variables)
     {
         var dict = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        var vault = SecretVault ?? TryGetOptional<ISecretVault>("vault");
+        var vault = SecretVault ?? Vault;
         string[] secretKeys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "BRAVE_API_KEY", "TAVILY_API_KEY"];
         foreach (var key in secretKeys)
         {
@@ -483,7 +492,7 @@ public sealed partial class SettingsApp
     {
         try
         {
-            var deployed = await Get<ISynapseStudio>("ino/synapses").List();
+            var deployed = await SynapseStudio.List();
             return [.. deployed.Select(d => d.SourceKey).Where(k => !string.IsNullOrWhiteSpace(k)).OrderBy(k => k, StringComparer.Ordinal)];
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -497,7 +506,7 @@ public sealed partial class SettingsApp
     {
         try
         {
-            return await Get<IFriends>(FriendsDefaults.KeyPart).List();
+            return Friends is { } friends ? await friends.List() : State.TeamRoster;
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -510,7 +519,7 @@ public sealed partial class SettingsApp
     {
         try
         {
-            return [.. await Get<IApprovals>("approvals/index").Pending()];
+            return Approvals is { } approvals ? [.. await approvals.Pending()] : State.PendingApprovals;
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -523,7 +532,11 @@ public sealed partial class SettingsApp
     {
         try
         {
-            var compute = await Get<ICompute>("compute").Read();
+            if (Compute is not { } computeSlot)
+            {
+                return baseline;
+            }
+            var compute = await computeSlot.Read();
             var budgetMicros = compute.MonthlyBudgetMicros > 0
                 ? compute.MonthlyBudgetMicros
                 : ComputeState.DefaultMonthlyBudgetMicros;
@@ -654,7 +667,7 @@ public sealed partial class SettingsApp
 
         var key = request.Key!.Trim();
         var val = request.Value ?? "";
-        var updated = await Get<IUserSettings>("settings").SetVariable(key, val);
+        var updated = await UserSettings.SetVariable(key, val);
         var variables = updated.Variables ?? [];
         var secrets = await InspectSecretStatusesAsync(variables);
         await UpdateAsync((State with { SecretStatuses = secrets }).ApplyStoredVariables(key, variables));
@@ -675,8 +688,11 @@ public sealed partial class SettingsApp
         var next = decision.Next;
         try
         {
-            await Get<ICompute>("compute").SetBudget(cap);
-            next = await ReadComputeSummaryAsync(next);
+            if (Compute is { } compute)
+            {
+                await compute.SetBudget(cap);
+                next = await ReadComputeSummaryAsync(next);
+            }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -695,7 +711,7 @@ public sealed partial class SettingsApp
     {
         ArgumentNullException.ThrowIfNull(request);
         var brainId = TryCurrentBrainId();
-        var snapshot = await PortableBrainArchive.ExportAsync(brainId, Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
+        var snapshot = await PortableBrainArchive.ExportAsync(brainId, UserSettings, Profile, SynapseStudio);
         await UpdateAsync(State.RecordExportedArchive(PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
     }
 
@@ -804,7 +820,7 @@ public sealed partial class SettingsApp
         IReadOnlyList<UserVariableEntry> variables = State.Variables ?? [];
         try
         {
-            var updated = await Get<IUserSettings>("settings").SetVariable(SettingsControls.WebSearchProviderVariable, normalized);
+            var updated = await UserSettings.SetVariable(SettingsControls.WebSearchProviderVariable, normalized);
             variables = updated.Variables ?? [];
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -833,7 +849,7 @@ public sealed partial class SettingsApp
         IReadOnlyList<UserVariableEntry> variables = State.Variables ?? [];
         try
         {
-            var updated = await Get<IUserSettings>("settings").SetVariable(SettingsControls.WebSearxngUrlVariable, trimmed);
+            var updated = await UserSettings.SetVariable(SettingsControls.WebSearxngUrlVariable, trimmed);
             variables = updated.Variables ?? [];
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -855,7 +871,7 @@ public sealed partial class SettingsApp
         IReadOnlyList<UserVariableEntry> variables = baseline.Variables ?? [];
         try
         {
-            var user = await Get<IUserSettings>("settings").Read();
+            var user = await UserSettings.Read();
             if (user.Variables is not null)
             {
                 variables = user.Variables;

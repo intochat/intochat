@@ -6,6 +6,7 @@ Operations: open, send, retry, stop, smart, use-local, choose-model, save-provid
 */
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Neurons;
@@ -33,9 +34,21 @@ namespace IntoChat.OS.Apps.Ino;
 
 [Neuron("app.ino")]
 [Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles)]
-public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavigatedTo<InoNavArgs>, INavigatedFrom
+public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavigatedTo<InoNavArgs>, INavigatedFrom
 {
     private const string ApprovalsKey = "approvals/index", DataKey = "ino/data", ModelsKey = "main";
+
+    [Slot(Key = "settings")] private partial IUserSettings UserSettings { get; }
+    [Slot(Key = IInoRecords.Key)] private partial IInoRecords Records { get; }
+    [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
+    [Slot(Key = DataKey)] private partial IData Data { get; }
+    [Slot(Key = "memory", Required = false)] private partial IMemory? Memory { get; }
+    [Slot(Key = "main", Required = false)] private partial IAppStudio? AppStudio { get; }
+    [Slot(Key = ModelsKey)] private partial IModelCatalog ModelCatalog { get; }
+    [Slot(Key = ISessionList.DefaultKey)] private partial ISessionList SessionList { get; }
+    [Slot(Key = IGrantsNeuron.DefaultKey)] private partial IGrantsNeuron Grants { get; }
+    [Slot(Key = ApprovalsKey)] private partial IApprovals Approvals { get; }
+    [Slot(Key = "ino/profile-writer")] private partial IProfileContextWriter ProfileWriter { get; }
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
@@ -299,7 +312,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         }
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         var snapshot = await RefreshPickerAsync();
-        var settings = await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await Get<IUserSettings>("settings").Read());
+        var settings = await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await UserSettings.Read());
         Voice = await InoModelSetup.InitializeViewAsync(Setup, snapshot, settings);
         await InoModelSetup.OpenSessionAsync(Setup, State.ConversationId);
         var conversationKey = InoModel.ConversationKeyOf(State.ConversationId);
@@ -312,7 +325,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task Open(InoOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var settings = await Get<IUserSettings>("settings").Read();
+        var settings = await UserSettings.Read();
         var snapshot = await RefreshPickerAsync();
         var (_, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings, snapshot);
         Voice = await InoModelSetup.ReadVoiceAsync(Setup, snapshot.Catalog?.Availability);
@@ -356,7 +369,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         var input = request.Input ?? string.Empty;
         if (input.Length > InoLinkCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
         var id = request.Request.ToString("N");
-        var records = Get<IInoRecords>(IInoRecords.Key);
+        var records = Records;
         var kept = await records.Read();
         if (!kept.Links.Any(link => link.Request == id))
         {
@@ -376,9 +389,9 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             if (emptyCheck.IsRefused) { await RecordRejectionAsync(emptyCheck.Rejection); }
             return;
         }
-        var settings = await Get<IUserSettings>("settings").Read();
+        var settings = await UserSettings.Read();
         if (text.StartsWith('/')) { await InoModelSetup.HandleSlashCommandAsync(Setup, text, settings, StartConversationAsync); return; }
-        if (await ReadOptionalAsync("compute", false, async () => (await Get<ICompute>("compute").Read()).BudgetExceeded))
+        if (Compute is { } compute && await ReadOptionalAsync("compute", false, async () => (await compute.Read()).BudgetExceeded))
         {
             await Commit(InoModel.BudgetExceeded(State));
             return;
@@ -479,7 +492,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task Smart(InoSmart request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var updated = await Get<IUserSettings>("settings").SetVariable(InoModelSetup.SmartVariable, request.On ? "on" : "off");
+        var updated = await UserSettings.SetVariable(InoModelSetup.SmartVariable, request.On ? "on" : "off");
         await Commit(State with { Smart = InoModelSetup.IsSmart(updated) });
     }
 
@@ -487,7 +500,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        try { var data = Get<IData>(DataKey); var result = await data.Connect(request.ConnectionString ?? string.Empty); await Commit(InoModel.DecideConnectDb(State, (await data.Read()).ConnectedDatabase, result.Text, result.Card)); }
+        try { var data = Data; var result = await data.Connect(request.ConnectionString ?? string.Empty); await Commit(InoModel.DecideConnectDb(State, (await data.Read()).ConnectedDatabase, result.Text, result.Card)); }
         catch (Exception error) when (error is not OperationCanceledException) { if (Logger is { } log) { InoLog.LogDatabaseFailed(log, error, "connect-db"); } await Commit(State with { Status = $"Could not connect: {error.Message}" }); }
     }
 
@@ -500,7 +513,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         DataQueryResult result;
         try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs, Context.Caller?.Brain ?? default); }
         catch (Exception error) when (error is not OperationCanceledException) { if (Logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); } await Commit(State with { Status = $"Could not run the query: {error.Message}" }); return; }
-        if (TryGetOptional<IMemory>("memory") is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6)); }
+        if (Memory is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6)); }
         await Commit(InoModel.DecideQueryDbSuccess(State, result, database));
     }
 
@@ -510,8 +523,8 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         ArgumentNullException.ThrowIfNull(request);
         var sentence = string.IsNullOrWhiteSpace(request.Sentence) ? "Update focused app" : request.Sentence.Trim();
         var target = request.Focus is { Length: > 0 } ? request.Focus[0] : "scratch";
-        if (TryGetOptional<IAppStudio>("main") is { } studio) { target = await ReadOptionalAsync("app-studio", target, async () => (await studio.Build(sentence)).Name); }
-        if (TryGetOptional<IMemory>("memory") is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6)); }
+        if (AppStudio is { } studio) { target = await ReadOptionalAsync("app-studio", target, async () => (await studio.Build(sentence)).Name); }
+        if (Memory is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6)); }
         await Commit(InoModel.DecideMake(State, target, sentence, CurrentBrain.Value));
     }
 
@@ -569,7 +582,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
             {
                 CompletedRunId = lastCompleted.RunId;
                 var tokens = ComputeRunTokens(lastCompleted);
-                await TryOptionalAsync("compute-record", () => Get<ICompute>("compute").Record("ino", tokens));
+                if (Compute is { } compute) { await TryOptionalAsync("compute-record", () => compute.Record("ino", tokens)); }
                 next = next with { Approvals = await InoModelSetup.ReadApprovalsAsync(Setup, next.Approvals) };
             }
         }
@@ -583,7 +596,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         {
             await TryOptionalAsync("ino-links", async () =>
             {
-                var records = await Get<IInoRecords>(IInoRecords.Key).Read();
+                var records = await Records.Read();
                 LinksJson = records.Links.Length == 0
                     ? null
                     : InoLinkCard.SerializeLinks(records.Links);
@@ -665,7 +678,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         UserSettingsState? cachedSettings = null,
         InoRuntimeSnapshot? snapshot = null)
     {
-        var settings = cachedSettings ?? await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await Get<IUserSettings>("settings").Read());
+        var settings = cachedSettings ?? await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await UserSettings.Read());
         if (settings is null) { return; }
         var (_, effectiveModel, _) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings, snapshot);
         await InoModelSetup.EnsureSeatedAsync(Setup, conversationId, settings, effectiveModel);
@@ -693,14 +706,14 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         () => State,
         Commit,
         () => CurrentBrain,
-        () => Get<IModelCatalog>(new NeuronId(CurrentBrain, "ai.models", ModelsKey)),
+        () => ModelCatalog,
         GetThisDevice,
-        () => Get<IUserSettings>("settings"),
+        () => UserSettings,
         Get<IConversation>,
-        () => Get<ISessionList>(ISessionList.DefaultKey),
-        () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey),
-        () => Get<IApprovals>(ApprovalsKey),
-        () => Get<IProfileContextWriter>("ino/profile-writer"),
+        () => SessionList,
+        () => Grants,
+        () => Approvals,
+        () => ProfileWriter,
         Follow<IConversation, ConversationChanged>,
         RefreshConversationAsync,
         TryOptionalAsync,
@@ -762,7 +775,6 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
     private bool IsCurrentConversation(ConversationChanged? changed) => changed is not null && string.Equals(changed.Id.Value, State.ConversationId, StringComparison.Ordinal);
     private DateTimeOffset NowUtc() { if (Clock is not null) { return Clock.GetUtcNow(); } try { return Context.Time.GetUtcNow(); } catch (InvalidOperationException error) { LogOptional(error, "clock"); return TimeProvider.System.GetUtcNow(); } }
     private BrainId CurrentBrain { get { try { return Id.Brain; } catch (InvalidOperationException error) { LogOptional(error, "brain-id"); return default; } } }
-    private T? TryGetOptional<T>(string key) where T : class { try { return Get<T>(key); } catch (InvalidOperationException error) { LogOptional(error, typeof(T).Name); return null; } }
     private async Task TryOptionalAsync(string target, Func<Task> action) { try { await action(); } catch (Exception error) when (error is not OperationCanceledException) { LogOptional(error, target); } }
     private async Task<T> ReadOptionalAsync<T>(string target, T fallback, Func<Task<T>> action) { try { return await action(); } catch (Exception error) when (error is not OperationCanceledException) { LogOptional(error, target); return fallback; } }
     private void LogOptional(Exception error, string target) { if (Logger is { } log) { InoLog.LogOptionalUnavailable(log, error, target); } }

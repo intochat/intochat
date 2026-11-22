@@ -13,6 +13,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Kernel;
@@ -107,6 +108,20 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public const string GitHubPatFormKey = "settings/forms/github-pat";
     public const string GitHubIssueCommentPolicyRuleId = "settings.github.issue.comment";
     public const string GitHubIssueCommentAction = "github.issue.comment";
+
+    [Slot(Key = ApiKeysFormKey, Required = false)] private partial IForm? ApiKeysForm { get; }
+    [Slot(Key = GitHubPatFormKey, Required = false)] private partial IForm? GitHubPatForm { get; }
+    [Slot(Key = "settings")] private partial IUserSettings UserSettings { get; }
+    [Slot(Key = "profile")] private partial IProfile Profile { get; }
+    [Slot(Key = "ino/synapses")] private partial ISynapseStudio SynapseStudio { get; }
+    [Slot(Key = "vault", Required = false)] private partial ISecretVault? Vault { get; }
+    [Slot(Key = "default", Required = false)] private partial IPolicies? Policies { get; }
+    [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
+    [Slot(Key = IStudio.DefaultKey, Required = false)] private partial IStudio? Studio { get; }
+    [Slot(Key = "main", Required = false)] private partial IModelCatalog? ModelCatalog { get; }
+    [Slot(Key = FriendsDefaults.KeyPart, Required = false)] private partial IFriends? Friends { get; }
+    [Slot(Key = "approvals/index", Required = false)] private partial IApprovals? Approvals { get; }
+    [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
 
     [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SynapseAliasPattern();
@@ -210,8 +225,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
         try
         {
-            var form = Get<IForm>(ApiKeysFormKey);
-            if ((await form.Read()).Version == 0)
+            if (ApiKeysForm is { } form && (await form.Read()).Version == 0)
             {
                 await form.Configure(
                     "Seal API keys in Secure Vault",
@@ -239,8 +253,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     {
         try
         {
-            var githubForm = Get<IForm>(GitHubPatFormKey);
-            if ((await githubForm.Read()).Version == 0)
+            if (GitHubPatForm is { } githubForm && (await githubForm.Read()).Version == 0)
             {
                 await githubForm.Configure(
                     "Connect GitHub Repository (Fine-Grained PAT & Webhook)",
@@ -267,7 +280,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 #pragma warning restore CA1031
     }
 
-    private new SettingsSlots Slots => new(
+    private SettingsSlots ChildSlots => new(
         Child<ToggleSwitchNeuron, ToggleSwitchProps>,
         Child<ComboBoxNeuron, ComboBoxProps>,
         Child<IntoChat.OS.Apps.Controls.FormNeuron, FormProps>);
@@ -282,7 +295,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         }
         try
         {
-            await Get<IUserSettings>("settings").SetVariable($"settings.toggle.{toggle.Key}", toggled.IsOn ? "true" : "false");
+            await UserSettings.SetVariable($"settings.toggle.{toggle.Key}", toggled.IsOn ? "true" : "false");
         }
 #pragma warning disable CA1031 // Best-effort persistence when settings neuron is absent in unit tests.
         catch (Exception ex)
@@ -452,7 +465,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
 
     private BrainPreferenceStore ResolvePreferenceStore()
-        => PreferenceStore is { } configured ? configured : new BrainPreferenceStore(Get<IUserSettings>("settings"));
+        => PreferenceStore is { } configured ? configured : new BrainPreferenceStore(UserSettings);
 
     private string TryCurrentBrainId()
         => ResolveBrainId(error => Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation."))?.Value ?? string.Empty;
@@ -468,8 +481,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
         var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson) ? State.ExportedArchiveJson! : request.ArchiveJson;
         var snapshot = PortableBrainArchive.FromJson(archiveJson);
-        var settings = Get<IUserSettings>("settings");
-        await PortableBrainArchive.ImportAsync(snapshot, settings, Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
+        var settings = UserSettings;
+        await PortableBrainArchive.ImportAsync(snapshot, settings, Profile, SynapseStudio);
         var user = await settings.Read();
         var computeProjection = await ReadComputeSummaryAsync(State);
         var approvals = await TryReadPendingApprovalsAsync();
@@ -499,7 +512,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public View Render() => PreviewView(State);
 
     protected override Node Render(SettingsAppState state)
-        => SettingsViewRenderer.RenderRoot(state, Slots, state.LastRejection ?? base.LastRejection);
+        => SettingsViewRenderer.RenderRoot(state, ChildSlots, state.LastRejection ?? base.LastRejection);
 
     // The controls are controlled: their values are props of this view, so a save re-renders them; nothing is pushed to them.
     private Task UpdateAsync(SettingsAppState next) => Show(next with { LastRejection = null });
@@ -520,7 +533,4 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
         await UpdateAsync(decision.Next);
     }
-
-    private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, Log);
 }

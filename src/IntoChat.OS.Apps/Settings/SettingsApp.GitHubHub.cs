@@ -71,7 +71,7 @@ public sealed partial class SettingsApp
 
         var patRef = submitted.SecretRefs is not null && submitted.SecretRefs.TryGetValue("PersonalAccessToken", out var pRef) ? pRef : null;
         var webhookRef = submitted.SecretRefs is not null && submitted.SecretRefs.TryGetValue("WebhookSecret", out var wRef) ? wRef : null;
-        var vault = SecretVault ?? TryGetOptional<ISecretVault>("vault");
+        var vault = SecretVault ?? Vault;
         string? unsealedPat = null;
         if (patRef is not null && !string.IsNullOrWhiteSpace(patRef.VaultKey) && vault is not null)
         {
@@ -152,55 +152,59 @@ public sealed partial class SettingsApp
         {
             try
             {
-                var policies = Get<IPolicies>(NeuronId.Parse(IPolicies.Key(brain.Value)));
-                var existing = await policies.List();
-                foreach (var rule in existing.Where(static r =>
-                    string.Equals(r.Id, GitHubIssueCommentPolicyRuleId, StringComparison.Ordinal)
-                    || string.Equals(r.Action, GitHubIssueCommentAction, StringComparison.Ordinal)))
+                if (Policies is { } policies)
                 {
-                    await policies.Retire(rule.Id);
-                }
-
-                if (string.Equals(preset, "reset", StringComparison.Ordinal))
-                {
-                    await policies.Retire(GitHubIssueCommentPolicyRuleId);
-                }
-                else
-                {
-                    var now = Context.Time.GetUtcNow();
-                    var rule = string.Equals(preset, "auto-10", StringComparison.Ordinal)
-                        ? new PolicyRule(
-                            Id: GitHubIssueCommentPolicyRuleId,
-                            Action: GitHubIssueCommentAction,
-                            Measure: PolicyMeasure.Count,
-                            Window: new PolicyWindow(PolicyWindowKind.Rolling, TimeSpan.FromHours(1)),
-                            Limit: 10m,
-                            Condition: null,
-                            Text: "Allow at most 10 count of comment on a GitHub issue per rolling 01:00:00",
-                            AdoptedAt: now)
-                        : new PolicyRule(
-                            Id: GitHubIssueCommentPolicyRuleId,
-                            Action: GitHubIssueCommentAction,
-                            Measure: PolicyMeasure.Count,
-                            Window: new PolicyWindow(PolicyWindowKind.None, null),
-                            Limit: 0m,
-                            Condition: null,
-                            Text: "Allow at most 0 count of comment on a GitHub issue per call",
-                            AdoptedAt: now);
-
-                    var outcome = await policies.Propose(rule);
-                    if (outcome.Status == ProposalStatus.Pending && !string.IsNullOrWhiteSpace(outcome.PlanId))
+                    var existing = await policies.List();
+                    foreach (var rule in existing.Where(static r =>
+                        string.Equals(r.Id, GitHubIssueCommentPolicyRuleId, StringComparison.Ordinal)
+                        || string.Equals(r.Action, GitHubIssueCommentAction, StringComparison.Ordinal)))
                     {
-                        pendingPlanId = outcome.PlanId;
-                        try
+                        await policies.Retire(rule.Id);
+                    }
+
+                    if (string.Equals(preset, "reset", StringComparison.Ordinal))
+                    {
+                        await policies.Retire(GitHubIssueCommentPolicyRuleId);
+                    }
+                    else
+                    {
+                        var now = Context.Time.GetUtcNow();
+                        var rule = string.Equals(preset, "auto-10", StringComparison.Ordinal)
+                            ? new PolicyRule(
+                                Id: GitHubIssueCommentPolicyRuleId,
+                                Action: GitHubIssueCommentAction,
+                                Measure: PolicyMeasure.Count,
+                                Window: new PolicyWindow(PolicyWindowKind.Rolling, TimeSpan.FromHours(1)),
+                                Limit: 10m,
+                                Condition: null,
+                                Text: "Allow at most 10 count of comment on a GitHub issue per rolling 01:00:00",
+                                AdoptedAt: now)
+                            : new PolicyRule(
+                                Id: GitHubIssueCommentPolicyRuleId,
+                                Action: GitHubIssueCommentAction,
+                                Measure: PolicyMeasure.Count,
+                                Window: new PolicyWindow(PolicyWindowKind.None, null),
+                                Limit: 0m,
+                                Condition: null,
+                                Text: "Allow at most 0 count of comment on a GitHub issue per call",
+                                AdoptedAt: now);
+
+                        var outcome = await policies.Propose(rule);
+                        if (outcome.Status == ProposalStatus.Pending && !string.IsNullOrWhiteSpace(outcome.PlanId))
                         {
-                            await Get<IConfirmationInbox>(NeuronId.Parse(IConfirmationInbox.Key(brain.Value)))
-                                .Resolve(outcome.PlanId, approve: true);
-                            pendingPlanId = null;
-                        }
-                        catch (Exception confirmEx) when (confirmEx is not OperationCanceledException)
-                        {
-                            Log.LogDebug(confirmEx, "Policy proposal {PlanId} awaits direct Person confirmation.", outcome.PlanId);
+                            pendingPlanId = outcome.PlanId;
+                            try
+                            {
+                                if (ConfirmationInbox is { } inbox)
+                                {
+                                    await inbox.Resolve(outcome.PlanId, approve: true);
+                                    pendingPlanId = null;
+                                }
+                            }
+                            catch (Exception confirmEx) when (confirmEx is not OperationCanceledException)
+                            {
+                                Log.LogDebug(confirmEx, "Policy proposal {PlanId} awaits direct Person confirmation.", outcome.PlanId);
+                            }
                         }
                     }
                 }
@@ -254,8 +258,9 @@ public sealed partial class SettingsApp
         {
             try
             {
-                var studio = Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
-                result = await studio.CreateIssueTriageSynapse(connectionKey, mode);
+                result = Studio is { } studio
+                    ? await studio.CreateIssueTriageSynapse(connectionKey, mode)
+                    : new InoToolResult("Issue triage Synapse installer unavailable.", Ok: false);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -383,15 +388,18 @@ public sealed partial class SettingsApp
 
         try
         {
-            var rules = await Get<IPolicies>(NeuronId.Parse(IPolicies.Key(brain.Value))).List();
-            if (rules.FirstOrDefault(static r => string.Equals(r.Action, GitHubIssueCommentAction, StringComparison.Ordinal)) is { } adopted)
+            if (Policies is { } policies)
             {
-                var detectedPreset = adopted.Limit == 0m && adopted.Window.Kind == PolicyWindowKind.None
-                    ? "draft-only"
-                    : adopted.Limit == 10m && adopted.Window.Kind == PolicyWindowKind.Rolling
-                        ? "auto-10"
-                        : next.GitHubTriagePolicyPreset;
-                next = next with { GitHubTriagePolicyPreset = detectedPreset, GitHubTriagePolicyPlanId = null };
+                var rules = await policies.List();
+                if (rules.FirstOrDefault(static r => string.Equals(r.Action, GitHubIssueCommentAction, StringComparison.Ordinal)) is { } adopted)
+                {
+                    var detectedPreset = adopted.Limit == 0m && adopted.Window.Kind == PolicyWindowKind.None
+                        ? "draft-only"
+                        : adopted.Limit == 10m && adopted.Window.Kind == PolicyWindowKind.Rolling
+                            ? "auto-10"
+                            : next.GitHubTriagePolicyPreset;
+                    next = next with { GitHubTriagePolicyPreset = detectedPreset, GitHubTriagePolicyPlanId = null };
+                }
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)

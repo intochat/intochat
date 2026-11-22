@@ -9,6 +9,7 @@ WinUI 3-style IntoChat UI Kit Gallery powered by live `IntoChat.OS.Modules.UI` n
 */
 using System.Globalization;
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
@@ -268,7 +269,7 @@ public sealed record GalleryAppState(
 
 [Neuron("app.gallery")]
 [Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
-public sealed class GalleryApp : AggregateScreen<GalleryAppState>
+public sealed partial class GalleryApp : AggregateScreen<GalleryAppState>
 {
     public const string AppName = "gallery";
 
@@ -319,6 +320,54 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoKanbanKey = "gallery/kanban/demo";
     public const string IconSuggestKey = "gallery/icons/suggest";
     public const string IconGridKey = "gallery/icons/grid";
+
+    [Slot(Key = "settings", Required = false)] private partial IUserSettings? UserSettings { get; }
+    [Slot(Key = StreamChartKey, Required = false)] private partial IChart? StreamChart { get; }
+    [Slot(Key = RevenueChartKey, Required = false)] private partial IChart? RevenueChart { get; }
+    [Slot(Key = WifiToggleKey, Required = false)] private partial IToggle? WifiToggle { get; }
+    [Slot(Key = LockedToggleKey, Required = false)] private partial IToggle? LockedToggle { get; }
+    [Slot(Key = RememberCheckKey, Required = false)] private partial ICheckBox? RememberCheck { get; }
+    [Slot(Key = ModelSelectKey, Required = false)] private partial ISelect? ModelSelect { get; }
+    [Slot(Key = DemoTabsKey, Required = false)] private partial ITabs? DemoTabs { get; }
+    [Slot(Key = DemoExpanderKey, Required = false)] private partial IExpander? DemoExpander { get; }
+    [Slot(Key = DemoListBoxKey, Required = false)] private partial IListBox? DemoListBox { get; }
+    [Slot(Key = SpansTableKey, Required = false)] private partial ITable? SpansTable { get; }
+    [Slot(Key = DemoFormKey, Required = false)] private partial IForm? DemoForm { get; }
+    [Slot(Key = DemoDialogKey, Required = false)] private partial IDialog? DemoDialog { get; }
+    [Slot(Key = DevUiChatKey, Required = false)] private partial IChatThread? DevUiChat { get; }
+    [Slot(Key = DemoSliderKey, Required = false)] private partial ISlider? DemoSlider { get; }
+    [Slot(Key = DemoRadioKey, Required = false)] private partial IRadioButtons? DemoRadio { get; }
+    [Slot(Key = DemoNumberKey, Required = false)] private partial INumberBox? DemoNumber { get; }
+    [Slot(Key = DemoRatingKey, Required = false)] private partial IRating? DemoRating { get; }
+    [Slot(Key = DemoColorKey, Required = false)] private partial IColorPicker? DemoColor { get; }
+    [Slot(Key = DemoBreadcrumbKey, Required = false)] private partial IBreadcrumbBar? DemoBreadcrumb { get; }
+    [Slot(Key = DemoAutoSuggestKey, Required = false)] private partial IAutoSuggestBox? DemoAutoSuggest { get; }
+    [Slot(Key = DemoTreeViewKey, Required = false)] private partial ITreeView? DemoTreeView { get; }
+    [Slot(Key = DemoProgressKey, Required = false)] private partial IProgressIndicator? DemoProgress { get; }
+    [Slot(Key = DemoInfoBarKey, Required = false)] private partial IInfoBar? DemoInfoBar { get; }
+    [Slot(Key = DemoDatePickerKey, Required = false)] private partial IDatePicker? DemoDatePicker { get; }
+    [Slot(Key = DemoTimePickerKey, Required = false)] private partial ITimePicker? DemoTimePicker { get; }
+    [Slot(Key = DemoCalendarKey, Required = false)] private partial ICalendarView? DemoCalendar { get; }
+    [Slot(Key = DemoContextMenuKey, Required = false)] private partial IContextMenu? DemoContextMenu { get; }
+    [Slot(Key = DemoGridViewKey, Required = false)] private partial IGridView? DemoGridView { get; }
+    [Slot(Key = DemoImageViewerKey, Required = false)] private partial IImageViewer? DemoImageViewer { get; }
+    [Slot(Key = DemoMediaPlayerKey, Required = false)] private partial IMediaPlayer? DemoMediaPlayer { get; }
+    [Slot(Key = DemoCommandBarKey, Required = false)] private partial ICommandBar? DemoCommandBar { get; }
+    [Slot(Key = DemoCodeEditorKey, Required = false)] private partial ICodeEditor? DemoCodeEditor { get; }
+    [Slot(Key = DemoMarkdownKey, Required = false)] private partial IMarkdownViewer? DemoMarkdown { get; }
+    [Slot(Key = DemoSplitButtonKey, Required = false)] private partial ISplitButton? DemoSplitButton { get; }
+    [Slot(Key = DemoPersonKey, Required = false)] private partial IPersonPicture? DemoPerson { get; }
+    [Slot(Key = DemoTeachingTipKey, Required = false)] private partial ITeachingTip? DemoTeachingTip { get; }
+    [Slot(Key = DemoStepperKey, Required = false)] private partial IStepper? DemoStepper { get; }
+    [Slot(Key = DemoPropertyGridKey, Required = false)] private partial IPropertyGrid? DemoPropertyGrid { get; }
+    [Slot(Key = DemoPipsPagerKey, Required = false)] private partial IPipsPager? DemoPipsPager { get; }
+    [Slot(Key = DemoInfoBadgeKey, Required = false)] private partial IInfoBadge? DemoInfoBadge { get; }
+    [Slot(Key = DemoToastKey, Required = false)] private partial INotificationToast? DemoToast { get; }
+    [Slot(Key = DemoFilePickerKey, Required = false)] private partial IFilePicker? DemoFilePicker { get; }
+    [Slot(Key = DemoToggleSplitButtonKey, Required = false)] private partial IToggleSplitButton? DemoToggleSplitButton { get; }
+    [Slot(Key = DemoKanbanKey, Required = false)] private partial IKanbanBoard? DemoKanban { get; }
+    [Slot(Key = IconSuggestKey, Required = false)] private partial IAutoSuggestBox? IconSuggest { get; }
+    [Slot(Key = IconGridKey, Required = false)] private partial IGridView? IconGrid { get; }
 
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Host.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
@@ -377,7 +426,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 
         var preset = State.StylePreset;
         var barLayout = State.BarLayout;
-        if (TryGetOptional<IUserSettings>("settings") is { } settings)
+        if (UserSettings is { } settings)
         {
             var userPref = await settings.Read();
             preset = userPref.StylePreset;
@@ -419,7 +468,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         {
             var nextNum = State.StreamPointCounter + 1;
             var val = 55 + (nextNum * 29 % 95);
-            if (TryGetOptional<IChart>(StreamChartKey) is { } chart)
+            if (StreamChart is { } chart)
             {
                 await chart.Append(new ChartPoint($"T{nextNum}", val, $"evt-{nextNum}"));
             }
@@ -434,7 +483,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         if (raw.StartsWith("revenue:filter:", StringComparison.OrdinalIgnoreCase))
         {
             var filter = raw["revenue:filter:".Length..].Trim().ToLowerInvariant();
-            if (TryGetOptional<IChart>(RevenueChartKey) is { } chart)
+            if (RevenueChart is { } chart)
             {
                 var sourceAddress = new NeuronId(Id.Brain, "ui.sample-chart-source", "default").ToString();
                 await chart.Bind(sourceAddress, new ChartQuery(Filter: filter));
@@ -450,7 +499,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         if (raw == "toggle:lock")
         {
             var nextDisabled = !State.LockedToggleDisabled;
-            if (TryGetOptional<IToggle>(LockedToggleKey) is { } toggle)
+            if (LockedToggle is { } toggle)
             {
                 await toggle.SetEnabled(!nextDisabled);
             }
@@ -464,7 +513,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 
         if (raw == "dialog:open")
         {
-            if (TryGetOptional<IDialog>(DemoDialogKey) is { } dlg)
+            if (DemoDialog is { } dlg)
             {
                 await dlg.Open("Create folder", "Enter a folder name to test IDialog confirm-with-input.", "Create", "Cancel", inputLabel: "Folder name", inputPlaceholder: "e.g. q4-reports");
             }
@@ -474,7 +523,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 
         if (raw == "toast:show")
         {
-            if (TryGetOptional<INotificationToast>(DemoToastKey) is { } toast)
+            if (DemoToast is { } toast)
             {
                 await toast.Show("Wave 3 Notification", "Live INotificationToast pushed over gRPC.", severity: "info", actionLabel: "Inspect", actionId: "inspect");
             }
@@ -498,7 +547,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         if (raw.StartsWith("code:lang:", StringComparison.OrdinalIgnoreCase))
         {
             var lang = raw["code:lang:".Length..].Trim().ToLowerInvariant();
-            if (TryGetOptional<ICodeEditor>(DemoCodeEditorKey) is { } ed)
+            if (DemoCodeEditor is { } ed)
             {
                 var (fileTitle, sample) = CodeSampleForLanguage(lang);
                 await ed.Configure(fileTitle, lang, sample);
@@ -532,7 +581,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         ArgumentNullException.ThrowIfNull(request);
         var preset = string.IsNullOrWhiteSpace(request.StylePreset) ? State.StylePreset : request.StylePreset.Trim();
         var barLayout = string.IsNullOrWhiteSpace(request.BarLayout) ? GalleryLibrary.DefaultBarLayoutFor(preset, State.BarLayout) : request.BarLayout.Trim();
-        if (TryGetOptional<IUserSettings>("settings") is { } settings)
+        if (UserSettings is { } settings)
         {
             var saved = await settings.SetUiIdentity(preset, barLayout);
             preset = saved.StylePreset;
@@ -554,7 +603,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         _seeded = true;
         try
         {
-            if (TryGetOptional<IChart>(StreamChartKey) is { } streamChart && (await streamChart.Read()).Version == 0)
+            if (StreamChart is { } streamChart && (await streamChart.Read()).Version == 0)
             {
                 await streamChart.Render(new ChartSpec(
                     Title: "Live Signal Stream (Append)",
@@ -573,28 +622,28 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     From: "Stream"));
             }
 
-            if (TryGetOptional<IChart>(RevenueChartKey) is { } revenueChart && (await revenueChart.Read()).Version == 0)
+            if (RevenueChart is { } revenueChart && (await revenueChart.Read()).Version == 0)
             {
                 var sourceAddress = new NeuronId(Id.Brain, "ui.sample-chart-source", "default").ToString();
                 await revenueChart.Bind(sourceAddress, new ChartQuery(Filter: "all"));
             }
 
-            if (TryGetOptional<IToggle>(WifiToggleKey) is { } wifi && (await wifi.Read()).Version == 0)
+            if (WifiToggle is { } wifi && (await wifi.Read()).Version == 0)
             {
                 await wifi.Configure("Live telemetry stream", isOn: true, isEnabled: true, onLabel: "Active", offLabel: "Paused");
             }
 
-            if (TryGetOptional<IToggle>(LockedToggleKey) is { } locked && (await locked.Read()).Version == 0)
+            if (LockedToggle is { } locked && (await locked.Read()).Version == 0)
             {
                 await locked.Configure("Protected policy switch", isOn: true, isEnabled: false, onLabel: "Enforced", offLabel: "Off");
             }
 
-            if (TryGetOptional<ICheckBox>(RememberCheckKey) is { } check && (await check.Read()).Version == 0)
+            if (RememberCheck is { } check && (await check.Read()).Version == 0)
             {
                 await check.Configure("Persist workspace layout across restarts", isChecked: true);
             }
 
-            if (TryGetOptional<ISelect>(ModelSelectKey) is { } select && (await select.Read()).Version == 0)
+            if (ModelSelect is { } select && (await select.Read()).Version == 0)
             {
                 await select.Configure("Default reasoning model",
                 [
@@ -604,7 +653,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                 ], "claude-sonnet-4-5");
             }
 
-            if (TryGetOptional<ITabs>(DemoTabsKey) is { } tabs && (await tabs.Read()).Version == 0)
+            if (DemoTabs is { } tabs && (await tabs.Read()).Version == 0)
             {
                 await tabs.Configure(
                 [
@@ -614,7 +663,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                 ], "overview");
             }
 
-            if (TryGetOptional<IExpander>(DemoExpanderKey) is { } expander && (await expander.Read()).Version == 0)
+            if (DemoExpander is { } expander && (await expander.Read()).Version == 0)
             {
                 await expander.Configure(
                     "Why every control is a Neuron",
@@ -622,7 +671,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     isExpanded: true);
             }
 
-            if (TryGetOptional<IListBox>(DemoListBoxKey) is { } listBox && (await listBox.Read()).Version == 0)
+            if (DemoListBox is { } listBox && (await listBox.Read()).Version == 0)
             {
                 await listBox.Configure(
                 [
@@ -633,7 +682,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                 ], "chart");
             }
 
-            if (TryGetOptional<ITable>(SpansTableKey) is { } table && (await table.Read()).Version == 0)
+            if (SpansTable is { } table && (await table.Read()).Version == 0)
             {
                 var tableSource = new NeuronId(Id.Brain, "ui.sample-table-source", "default").ToString();
                 await table.Bind(
@@ -648,7 +697,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     pageSize: 5);
             }
 
-            if (TryGetOptional<IForm>(DemoFormKey) is { } form && (await form.Read()).Version == 0)
+            if (DemoForm is { } form && (await form.Read()).Version == 0)
             {
                 await form.Configure("Workspace & Vault Secret Form",
                 [
@@ -659,7 +708,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                 submitLabel: "Save form");
             }
 
-            if (TryGetOptional<IChatThread>(DevUiChatKey) is { } chat && (await chat.Read()).Version == 0)
+            if (DevUiChat is { } chat && (await chat.Read()).Version == 0)
             {
                 await chat.Configure("demo", "Ino DevUI Workbench", "claude-sonnet-4-5",
                 [
@@ -689,11 +738,11 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                 ], "Ready · Click Compact to summarize older turns.", 1240, 215);
             }
 
-            if (TryGetOptional<ISlider>(DemoSliderKey) is { } slider && (await slider.Read()).Version == 0)
+            if (DemoSlider is { } slider && (await slider.Read()).Version == 0)
             {
                 await slider.Configure("Reasoning budget", min: 0, max: 100, step: 5, value: 65, unit: "%");
             }
-            if (TryGetOptional<IRadioButtons>(DemoRadioKey) is { } radio && (await radio.Read()).Version == 0)
+            if (DemoRadio is { } radio && (await radio.Read()).Version == 0)
             {
                 await radio.Configure("Execution topology",
                 [
@@ -702,28 +751,28 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new RadioOption("hybrid", "Hybrid Local + Cloud"),
                 ], "local");
             }
-            if (TryGetOptional<INumberBox>(DemoNumberKey) is { } number && (await number.Read()).Version == 0)
+            if (DemoNumber is { } number && (await number.Read()).Version == 0)
             {
                 await number.Configure("Monthly spend cap", value: 50, min: 5, max: 500, step: 10, prefix: "$");
             }
-            if (TryGetOptional<IRating>(DemoRatingKey) is { } rating && (await rating.Read()).Version == 0)
+            if (DemoRating is { } rating && (await rating.Read()).Version == 0)
             {
                 await rating.Configure("Response quality", value: 4, max: 5);
             }
-            if (TryGetOptional<IColorPicker>(DemoColorKey) is { } color && (await color.Read()).Version == 0)
+            if (DemoColor is { } color && (await color.Read()).Version == 0)
             {
                 await color.Configure("Accent color", "#1F5EFF");
             }
-            if (TryGetOptional<IBreadcrumbBar>(DemoBreadcrumbKey) is { } crumb && (await crumb.Read()).Version == 0)
+            if (DemoBreadcrumb is { } crumb && (await crumb.Read()).Version == 0)
             {
                 await crumb.SetItems([new BreadcrumbItem("root", "Workspace"), new BreadcrumbItem("docs", "Documents"), new BreadcrumbItem("q4", "Q4 Reports")]);
             }
-            if (TryGetOptional<IAutoSuggestBox>(DemoAutoSuggestKey) is { } suggest && (await suggest.Read()).Version == 0)
+            if (DemoAutoSuggest is { } suggest && (await suggest.Read()).Version == 0)
             {
                 await suggest.Configure("Search 21 Modules.UI neurons…",
                     ["IChart", "ITable", "IChatThread", "IToggle", "ICheckBox", "ISelect", "ITabs", "IExpander", "IListBox", "IForm", "IDialog", "ISlider", "IRadioButtons", "INumberBox", "IRating", "IColorPicker", "IBreadcrumbBar", "IAutoSuggestBox", "ITreeView", "IProgressIndicator", "IInfoBar"]);
             }
-            if (TryGetOptional<ITreeView>(DemoTreeViewKey) is { } tree && (await tree.Read()).Version == 0)
+            if (DemoTreeView is { } tree && (await tree.Read()).Version == 0)
             {
                 await tree.Configure(
                 [
@@ -735,27 +784,27 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new TreeNode("gallery", "GalleryApp.cs", ParentId: "apps"),
                 ], expandedIds: ["src", "ui"], selectedId: "chart");
             }
-            if (TryGetOptional<IProgressIndicator>(DemoProgressKey) is { } prog && (await prog.Read()).Version == 0)
+            if (DemoProgress is { } prog && (await prog.Read()).Version == 0)
             {
                 await prog.SetProgress("Indexing brain knowledge graph", 0.78, isIndeterminate: false, kind: "bar");
             }
-            if (TryGetOptional<IInfoBar>(DemoInfoBarKey) is { } info && (await info.Read()).Version == 0)
+            if (DemoInfoBar is { } info && (await info.Read()).Version == 0)
             {
                 await info.Show("WinUI 3 Neuron Kit", "All 28 interactive controls are real DigitalBrain neurons synced over gRPC.", severity: "success");
             }
-            if (TryGetOptional<IDatePicker>(DemoDatePickerKey) is { } dp && (await dp.Read()).Version == 0)
+            if (DemoDatePicker is { } dp && (await dp.Read()).Version == 0)
             {
                 await dp.Configure("Release target date", "2026-11-19", minDate: "2026-01-01", maxDate: "2027-12-31");
             }
-            if (TryGetOptional<ITimePicker>(DemoTimePickerKey) is { } tp && (await tp.Read()).Version == 0)
+            if (DemoTimePicker is { } tp && (await tp.Read()).Version == 0)
             {
                 await tp.Configure("Daily digest time", 9, 30, use24Hour: true);
             }
-            if (TryGetOptional<ICalendarView>(DemoCalendarKey) is { } cal && (await cal.Read()).Version == 0)
+            if (DemoCalendar is { } cal && (await cal.Read()).Version == 0)
             {
                 await cal.Configure("Sprint milestones", 2026, 11, ["2026-11-19", "2026-11-24"], multiSelect: true);
             }
-            if (TryGetOptional<IContextMenu>(DemoContextMenuKey) is { } menu && (await menu.Read()).Version == 0)
+            if (DemoContextMenu is { } menu && (await menu.Read()).Version == 0)
             {
                 await menu.Configure("File Actions",
                 [
@@ -764,7 +813,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new ContextMenuItem("delete", "Delete", "trash", "Del", Destructive: true),
                 ]);
             }
-            if (TryGetOptional<IGridView>(DemoGridViewKey) is { } gv && (await gv.Read()).Version == 0)
+            if (DemoGridView is { } gv && (await gv.Read()).Version == 0)
             {
                 await gv.Configure("Workspace Assets",
                 [
@@ -774,15 +823,15 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new GridViewItem("data", "q4-metrics.csv", "82 KB · Table", "table", Badge: "CSV"),
                 ], selectedId: "arch", columns: 2);
             }
-            if (TryGetOptional<IImageViewer>(DemoImageViewerKey) is { } img && (await img.Read()).Version == 0)
+            if (DemoImageViewer is { } img && (await img.Read()).Version == 0)
             {
                 await img.Configure("Design System Preview", "", "Interactive zoom & rotation backed by IImageViewer neuron");
             }
-            if (TryGetOptional<IMediaPlayer>(DemoMediaPlayerKey) is { } mp && (await mp.Read()).Version == 0)
+            if (DemoMediaPlayer is { } mp && (await mp.Read()).Version == 0)
             {
                 await mp.Configure("IntoChat OS Ambient Focus", "Neural Audio Engine", "", kind: "audio", durationSeconds: 215);
             }
-            if (TryGetOptional<ICommandBar>(DemoCommandBarKey) is { } cb && (await cb.Read()).Version == 0)
+            if (DemoCommandBar is { } cb && (await cb.Read()).Version == 0)
             {
                 await cb.Configure(
                 [
@@ -793,16 +842,16 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new CommandBarItem("reset", "Reset State", "refresh-cw", Primary: false),
                 ]);
             }
-            if (TryGetOptional<ICodeEditor>(DemoCodeEditorKey) is { } ed && (await ed.Read()).Version == 0)
+            if (DemoCodeEditor is { } ed && (await ed.Read()).Version == 0)
             {
                 await ed.Configure("ChartDemo.cs", "csharp",
                     "var chart = Get<IChart>(\"gallery/charts/stream\");\nawait chart.Append(new ChartPoint(\"T6\", 94, \"evt-6\"));");
             }
-            if (TryGetOptional<IMarkdownViewer>(DemoMarkdownKey) is { } md && (await md.Read()).Version == 0)
+            if (DemoMarkdown is { } md && (await md.Read()).Version == 0)
             {
                 await md.SetDocument("Architecture Note", "## IntoChat UI Neurons\nEvery interactive widget is a **durable DDD neuron** under `IntoChat.OS.Modules.UI` synced 1-to-1 over gRPC.");
             }
-            if (TryGetOptional<ISplitButton>(DemoSplitButtonKey) is { } sb && (await sb.Read()).Version == 0)
+            if (DemoSplitButton is { } sb && (await sb.Read()).Version == 0)
             {
                 await sb.Configure("Build & Test",
                 [
@@ -811,15 +860,15 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new SplitButtonOption("e2e", "Run Chromium E2E", "globe"),
                 ], "play", "build-test");
             }
-            if (TryGetOptional<IPersonPicture>(DemoPersonKey) is { } pp && (await pp.Read()).Version == 0)
+            if (DemoPerson is { } pp && (await pp.Read()).Version == 0)
             {
                 await pp.Configure("Ino Assistant", "Claude Sonnet 4.5 · Ready", presence: "online");
             }
-            if (TryGetOptional<ITeachingTip>(DemoTeachingTipKey) is { } tip && (await tip.Read()).Version == 0)
+            if (DemoTeachingTip is { } tip && (await tip.Read()).Version == 0)
             {
                 await tip.Show("Direct gRPC Neurons", "All 42 UI controls talk directly to DigitalBrain neurons with zero host round-trips.", "Explore Charts");
             }
-            if (TryGetOptional<IStepper>(DemoStepperKey) is { } stepper && (await stepper.Read()).Version == 0)
+            if (DemoStepper is { } stepper && (await stepper.Read()).Version == 0)
             {
                 await stepper.Configure(
                 [
@@ -830,26 +879,26 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new StepperStep("pr", "Review & PR", StepperStatuses.Pending, "Approval gate"),
                 ], activeStepId: "implement", title: "Engineer Autonomous Pipeline");
             }
-            if (TryGetOptional<IPropertyGrid>(DemoPropertyGridKey) is { } propGrid && (await propGrid.Read()).Version == 0)
+            if (DemoPropertyGrid is { } propGrid && (await propGrid.Read()).Version == 0)
             {
                 await propGrid.LoadJson(
                     "Live Neuron State",
                     "{\"neuron\":\"app.gallery\",\"version\":3,\"healthy\":true,\"metrics\":{\"uiNeurons\":42,\"p95Ms\":4.2},\"tags\":[\"winui3\",\"grpc\"]}",
                     readOnly: false);
             }
-            if (TryGetOptional<IPipsPager>(DemoPipsPagerKey) is { } pips && (await pips.Read()).Version == 0)
+            if (DemoPipsPager is { } pips && (await pips.Read()).Version == 0)
             {
                 await pips.Configure(pageCount: 5, selectedIndex: 0, maxVisiblePips: 5);
             }
-            if (TryGetOptional<IInfoBadge>(DemoInfoBadgeKey) is { } badge && (await badge.Read()).Version == 0)
+            if (DemoInfoBadge is { } badge && (await badge.Read()).Version == 0)
             {
                 await badge.Configure("Pending PR reviews", value: 7, severity: "attention");
             }
-            if (TryGetOptional<INotificationToast>(DemoToastKey) is { } toast && (await toast.Read()).Version == 0)
+            if (DemoToast is { } toast && (await toast.Read()).Version == 0)
             {
                 await toast.Show("Wave 3 UI Parity Ready", "All 42 Modules.UI neurons compiled with zero warnings.", severity: "success", actionLabel: "Open Report", actionId: "open-report", id: "toast-1");
             }
-            if (TryGetOptional<IFilePicker>(DemoFilePickerKey) is { } picker && (await picker.Read()).Version == 0)
+            if (DemoFilePicker is { } picker && (await picker.Read()).Version == 0)
             {
                 await picker.Configure(
                     "Select Workspace Artifact",
@@ -862,7 +911,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     ],
                     filters: ["*", ".cs", ".md", ".json"]);
             }
-            if (TryGetOptional<IToggleSplitButton>(DemoToggleSplitButtonKey) is { } tsb && (await tsb.Read()).Version == 0)
+            if (DemoToggleSplitButton is { } tsb && (await tsb.Read()).Version == 0)
             {
                 await tsb.Configure(
                     "Live Watch",
@@ -875,7 +924,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     icon: "activity",
                     selectedOptionId: "all");
             }
-            if (TryGetOptional<IKanbanBoard>(DemoKanbanKey) is { } kanban && (await kanban.Read()).Version == 0)
+            if (DemoKanban is { } kanban && (await kanban.Read()).Version == 0)
             {
                 await kanban.Configure(
                     "Sprint Delivery Board",
@@ -891,7 +940,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     ],
                     selectedCardId: "c1");
             }
-            if (TryGetOptional<IGridView>(IconGridKey) is { } iconGrid && (await iconGrid.Read()).Version == 0)
+            if (IconGrid is { } iconGrid && (await iconGrid.Read()).Version == 0)
             {
                 await SeedIconBrowserAsync("All");
             }
@@ -914,13 +963,13 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     private async Task SeedIconBrowserAsync(string category)
     {
         var entries = GalleryIconCatalog.ForCategory(category);
-        if (TryGetOptional<IAutoSuggestBox>(IconSuggestKey) is { } suggest)
+        if (IconSuggest is { } suggest)
         {
             await suggest.Configure(
                 $"Search {entries.Length} Lucide icon slugs ({category})…",
                 entries.Select(e => e.Slug).ToArray());
         }
-        if (TryGetOptional<IGridView>(IconGridKey) is { } grid)
+        if (IconGrid is { } grid)
         {
             await grid.Configure(
                 $"Icon Catalog · {category} ({entries.Length} glyphs · click any tile to copy slug)",
@@ -940,16 +989,4 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
         "markdown" => ("ARCHITECTURE.md", "# IntoChat UI Neurons\n\n- **42 stateful controls** synced over `gRPC`\n- Live `re_highlight` syntax coloring in light & dark presets"),
         _ => ("ChartDemo.cs", "var chart = Get<IChart>(\"gallery/charts/stream\");\nawait chart.Append(new ChartPoint(\"T6\", 94, \"evt-6\"));"),
     };
-
-    private T? TryGetOptional<T>(string key) where T : class
-    {
-        try { return Get<T>(key); }
-#pragma warning disable CA1031 // Optional service in unit tests.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            _logger.LogDebug(ex, "{Service} is optional when GalleryApp runs in tests.", typeof(T).Name);
-            return null;
-        }
-    }
 }
