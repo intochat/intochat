@@ -9,6 +9,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace DigitalBrain.Testing;
@@ -91,10 +92,12 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         {
             TestOS? os = null;
             var services = new ServiceCollection();
+            services.AddOptions();
             services.AddSingleton(_ => os!.Edge);
             services.AddSingleton(_ => os!.Callers);
             services.AddSingleton(_ => os!.Proxies);
             configure(services);
+            services.TryAddSingleton<TimeProvider>(_ => os!.Clock);
             var serviceRoot = services.BuildServiceProvider();
             os = TestOS.Local(options => options.Services = serviceRoot);
             os.Register(typeof(Signal).Assembly);
@@ -148,7 +151,13 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         public static async Task<SiloRuntime> Start(BrainId brain, IReadOnlyList<Type> modules, Action<IServiceCollection> configure,
             IReadOnlyDictionary<string, string?> configuration, string? home, CancellationToken ct)
         {
-            Assembly[] assemblies = [.. modules.Select(module => module.Assembly).Append(typeof(Signal).Assembly).Distinct()];
+            Assembly[] assemblies =
+            [
+                .. modules.Select(module => module.Assembly)
+                    .Concat(modules.Select(module => module.GetProperty("Contracts", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as Assembly).OfType<Assembly>())
+                    .Append(typeof(Signal).Assembly)
+                    .Distinct(),
+            ];
             var factory = new LocalSiloHostFactory(new BrainStorageRegistration(assemblies), configure);
             var options = new InProcessHostOptions { Home = home, Modules = modules, Configuration = configuration };
             var host = await factory.Start(options, ct).ConfigureAwait(false);
@@ -196,14 +205,19 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
             var journal = host.Services.GetRequiredService<IBrainJournalWriter>();
             await journal.Claim(id.Brain.Value, ct).ConfigureAwait(false);
             var types = host.Services.GetService<NeuronTypeRegistry>();
-            var grainType = types is not null && types.TryGet(id.Type, out var neuronClass)
-                ? NeuronTypeRegistry.GrainTypeOf(NeuronTypeRegistry.PolicyOf(neuronClass))
+            Type? neuronClass = null;
+            var hasClass = types is not null && types.TryGet(id.Type, out neuronClass);
+            var grainType = hasClass
+                ? NeuronTypeRegistry.GrainTypeOf(NeuronTypeRegistry.PolicyOf(neuronClass!))
                 : "neuron.host";
+            var stateName = hasClass
+                ? neuronClass!.GetCustomAttribute<DigitalBrain.Neurons.NeuronAttribute>(inherit: false)?.State ?? NeuronTypeRegistry.DefaultStateName
+                : NeuronTypeRegistry.DefaultStateName;
             var grainId = Orleans.Runtime.GrainId.Create(grainType, id.ToString()).ToString();
             var bytes = System.Text.Encoding.UTF8.GetBytes(json);
             await journal.Append(
                 id.Brain.Value,
-                new JournalStateWrite(grainId, "state", JournalStateChange.Write, null, bytes, null),
+                new JournalStateWrite(grainId, stateName, JournalStateChange.Write, null, bytes, null),
                 id.ToString(),
                 [],
                 ct).ConfigureAwait(false);

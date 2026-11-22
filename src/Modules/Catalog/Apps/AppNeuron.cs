@@ -1,6 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Components;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -36,6 +38,8 @@ internal sealed partial class AppNeuron(
     private bool Exists => State.Manifest is not null;
     // The os full key "{brain}/apps/{name}" the app was addressed by as a grain.
     private string Key => Id.FullKey();
+    // The component id this app's typed bindings are recorded under in IInstalls.
+    private ComponentId AppComponentId => new("app." + Name());
 
     // Every activation reconciles an interrupted turn, then queues the program's restore as its own turn.
     protected override async Task OnActivate(CancellationToken cancellationToken)
@@ -44,6 +48,7 @@ internal sealed partial class AppNeuron(
         await Interrupt();
         if (State.Manifest is null || State.Refused is not null) { return; }
         if (await RefuseLegacy()) { return; }
+        await MigrateLegacyConnections(cancellationToken);
         if (HasProgram(State)) { Defer(() => Get<IAppRestore>(Id).Restore()); }
     }
 
@@ -91,6 +96,77 @@ internal sealed partial class AppNeuron(
         if (State.LegacyPrincipal is null) { return; }
         var next = State.Clone();
         if (next.MigrateLegacyPrincipal()) { await Store(next); }
+    }
+
+    // Mirrors legacy AppState.Connections into IInstalls typed bindings when IInstalls does not yet hold typed bindings for this app.
+    private async Task MigrateLegacyConnections(CancellationToken cancellationToken)
+    {
+        if (State.ConnectionEntries.Length == 0) { return; }
+        var bindings = TypedConnectionBindings(State);
+        if (bindings.Length == 0) { return; }
+        try
+        {
+            var installs = Get<IInstalls>(new DigitalBrain.NeuronId(Id.Brain, "synapse.installs", "default"));
+            var existing = await installs.Describe(AppComponentId.Value, cancellationToken);
+            if (existing?.Typed is { Length: > 0 }) { return; }
+            await installs.BindComponent(AppComponentId, bindings, cancellationToken);
+        }
+        catch (InvalidOperationException error)
+        {
+            (logger ?? services?.GetService<ILogger<AppNeuron>>())?.LogDebug(
+                error, "Could not migrate legacy connections for app {App} because installs neuron is unavailable.", Key);
+        }
+    }
+
+    // Writes connection slot bindings into IInstalls alongside any existing non-connection typed bindings.
+    private async Task SyncConnectionBindings(AppState state, CancellationToken cancellationToken)
+    {
+        var bindings = TypedConnectionBindings(state);
+        if (bindings.Length == 0) { return; }
+        try
+        {
+            var installs = Get<IInstalls>(new DigitalBrain.NeuronId(Id.Brain, "synapse.installs", "default"));
+            var existing = await installs.Describe(AppComponentId.Value, cancellationToken);
+            var merged = MergeTypedBindings(existing?.Typed, bindings);
+            await installs.BindComponent(AppComponentId, merged, cancellationToken);
+        }
+        catch (InvalidOperationException error)
+        {
+            (logger ?? services?.GetService<ILogger<AppNeuron>>())?.LogDebug(
+                error, "Could not sync typed bindings for app {App} because installs neuron is unavailable.", Key);
+        }
+    }
+
+    private Binding[] TypedConnectionBindings(AppState state)
+    {
+        var connections = state.Connections;
+        if (connections.Count == 0) { return []; }
+        var brain = BrainId();
+        var slots = state.Manifest?.Slots ?? [];
+        var result = new List<Binding>(connections.Count);
+        foreach (var (slot, connectionId) in connections)
+        {
+            if (string.IsNullOrWhiteSpace(slot) || string.IsNullOrWhiteSpace(connectionId)) { continue; }
+            var key = ConnectionKeys.Is(connectionId)
+                ? connectionId
+                : ConnectionKeys.For(brain, ConnectorForSlot(slot, slots), connectionId);
+            result.Add(new Binding(slot, new BindingTarget.Connection(key)));
+        }
+        return [.. result];
+    }
+
+    private static string ConnectorForSlot(string slot, AppSlot[] slots)
+    {
+        var declared = slots.FirstOrDefault(s => string.Equals(s.Name, slot, StringComparison.Ordinal))?.Connector;
+        if (!string.IsNullOrWhiteSpace(declared)) { return declared; }
+        return string.Equals(slot, "tables", StringComparison.Ordinal) ? "postgres" : slot;
+    }
+
+    private static Binding[] MergeTypedBindings(Binding[]? existing, Binding[] updated)
+    {
+        if (existing is not { Length: > 0 }) { return updated; }
+        var updatedSlots = new HashSet<string>(updated.Select(b => b.Slot), StringComparer.Ordinal);
+        return [.. existing.Where(b => !updatedSlots.Contains(b.Slot)), .. updated];
     }
 
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);
@@ -195,6 +271,10 @@ internal sealed partial class AppNeuron(
         foreach (var (slot, id) in connections ?? []) { next.PutConnection(slot, id); }
         AdvanceProgram(next);
         await Persist(next);
+        if (connections is { Count: > 0 })
+        {
+            await SyncConnectionBindings(next, CancellationToken.None);
+        }
         // The running program reads its settings from the deployment configuration, so a
         // configure hands it the whole thing again.
         await Deploy();
