@@ -1730,6 +1730,49 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         Assert.False(failingScore.ZeroTelemetryErrors);
     }
 
+    [Fact]
+    public void BuildVerifier_ParsesTrxCountsAndFailingTestNames()
+    {
+        const string trxXml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <TestRun id="6bfebc1f-930e-4796-b65c-d5e9a13b1e48" name="agent@host" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+              <Results>
+                <UnitTestResult testName="Demo.CalculatorFacts.Add_ReturnsSum" outcome="Passed" duration="00:00:00.0100000" />
+                <UnitTestResult testName="Demo.CalculatorFacts.Divide_ByZero_Throws" outcome="Failed" duration="00:00:00.0250000">
+                  <Output>
+                    <ErrorInfo>
+                      <Message>Assert.Throws() Failure: Expected typeof(DivideByZeroException) but no exception was thrown.</Message>
+                      <StackTrace>at Demo.CalculatorFacts.Divide_ByZero_Throws() in CalculatorFacts.cs:line 42</StackTrace>
+                    </ErrorInfo>
+                  </Output>
+                </UnitTestResult>
+                <UnitTestResult testName="Demo.CalculatorFacts.Multiply_LargeNumbers" outcome="Passed" duration="00:00:00.0050000" />
+                <UnitTestResult testName="Demo.CalculatorFacts.FutureFeature_Skipped" outcome="NotExecuted" duration="00:00:00.0000000" />
+              </Results>
+              <ResultSummary outcome="Failed">
+                <Counters total="4" executed="3" passed="2" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" notExecuted="1" />
+              </ResultSummary>
+            </TestRun>
+            """;
+
+        var parsed = EngineerBuildVerifier.ParseTrxXml(trxXml);
+
+        Assert.Equal(2, parsed.Passed);
+        Assert.Equal(1, parsed.Failed);
+        Assert.Equal(1, parsed.Skipped);
+        var diagnostic = Assert.Single(parsed.Diagnostics);
+        Assert.Contains("Demo.CalculatorFacts.Divide_ByZero_Throws", diagnostic, StringComparison.Ordinal);
+        Assert.Contains("DivideByZeroException", diagnostic, StringComparison.Ordinal);
+
+        var trxPath = Path.Combine(_root, "sample-results.trx");
+        File.WriteAllText(trxPath, trxXml, Encoding.UTF8);
+        var fromFile = EngineerBuildVerifier.ParseTrxFile(trxPath);
+        Assert.Equal(2, fromFile.Passed);
+        Assert.Equal(1, fromFile.Failed);
+        Assert.Equal(1, fromFile.Skipped);
+        Assert.Single(fromFile.Diagnostics);
+    }
+
     private sealed class FakeTraceReader(TraceEntry[] entries) : ITraceReader
     {
         public Task<TracePage> ReadTrace(string traceId, long since, int limit)

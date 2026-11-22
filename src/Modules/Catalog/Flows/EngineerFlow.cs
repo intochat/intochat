@@ -35,6 +35,7 @@ internal sealed class EngineerFlow(
 {
     public const string Alias = IFlows.EngineerFlow;
     public const string ConfirmationKind = "engineer.publish";
+    public const int MaxBuildRepairRounds = 3;
     private const string PlanPrefix = "app:engineer";
 
     public static readonly TimeSpan ApprovalWindow = EngineerPipelineStages.DefaultApprovalWindow;
@@ -872,30 +873,74 @@ internal sealed class EngineerFlow(
     private async Task<StepResult<EngineerRun>> BuildAndTestStepAsync(EngineerRun inner, CancellationToken ct)
     {
         var verifier = BuildVerifier;
-        var tasks = inner.Instances.Select(async instance =>
-        {
-            if (instance.Commit is null || instance.Lease is null)
-            {
-                return instance.WithComputedScore();
-            }
+        var wt = WorkTree;
+        var activeRoslyn = Roslyn;
+        var harness = ResolveHarness(inner.Harness);
+        var hydratedSnapshot = await HydrateMissionBrainSnapshotAsync(
+            inner.Repository?.Value ?? "os",
+            inner.Goal,
+            ct).ConfigureAwait(true);
+        var runId = EffectiveRunId(inner);
+        var flowId = Id.ToString();
+        var brainId = Id.Brain;
+        var totalInstances = inner.Instances.Length;
+        var baseRatifiedPlan = inner.RatifiedPlan ?? (inner.Plan is { } plan
+            ? new RatifiedPlan(
+                Goal: inner.Goal,
+                ArchitectureSummary: plan.ArchitectureSummary,
+                CleanupTargets: [],
+                Slices: EngineerTaskSlices.FromTaskPlan(plan),
+                Ratified: true,
+                RatifiedBy: "auto",
+                RatifiedAt: Context.Time.GetUtcNow(),
+                Harness: inner.Harness)
+            : new RatifiedPlan(
+                Goal: inner.Goal,
+                ArchitectureSummary: string.Empty,
+                CleanupTargets: [],
+                Slices: [],
+                Ratified: true,
+                RatifiedBy: "auto",
+                RatifiedAt: Context.Time.GetUtcNow(),
+                Harness: inner.Harness));
+        var grainScheduler = TaskScheduler.Current;
 
-            if (instance.Build is { Succeeded: true })
-            {
-                return instance.WithComputedScore();
-            }
+        Task PublishProgressLive(OperationProgressed signal) =>
+            Task.Factory.StartNew(
+                async () =>
+                {
+                    try
+                    {
+                        await Publish(signal).ConfigureAwait(true);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        ConsoleLogger.LogDebug(ex, "Skipping live OperationProgressed publish on stopping grain.");
+                    }
+                },
+                CancellationToken.None,
+                TaskCreationOptions.None,
+                grainScheduler).Unwrap();
 
-            var changedPaths = instance.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
-            var lease = instance.Lease;
-            var report = verifier is EngineerBuildVerifier stageVerifier
-                ? await Task.Run(() => stageVerifier.VerifyAsync(lease, changedPaths, ct), ct).ConfigureAwait(false)
-                : await Task.Run(() => verifier.VerifyAsync(lease.TreePath, changedPaths, ct), ct).ConfigureAwait(false);
-            return (instance with
-            {
-                Build = report,
-                Status = report.Succeeded ? "built" : "failed",
-                FailureDetail = report.Succeeded ? null : report.Summary,
-            }).WithComputedScore();
-        }).ToArray();
+        var tasks = inner.Instances.Select(instance => Task.Run(
+            () => BuildAndRepairInstanceAsync(
+                instance,
+                brainId,
+                flowId,
+                inner.Repository,
+                runId,
+                inner.Goal,
+                inner.Harness,
+                totalInstances,
+                baseRatifiedPlan,
+                hydratedSnapshot,
+                wt,
+                harness,
+                activeRoslyn,
+                verifier,
+                PublishProgressLive,
+                ct),
+            ct)).ToArray();
 
         var results = await Task.WhenAll(tasks).ConfigureAwait(true);
         var passing = results.Where(static i => i.Build is { Succeeded: true } && i.Commit is not null).ToArray();
@@ -908,6 +953,171 @@ internal sealed class EngineerFlow(
 
         var nextWinner = EngineerRun.SelectDefaultWinnerIndex(results);
         return inner.WithUpdatedInstances(results, nextWinner).Advance();
+    }
+
+    private static async Task<EngineerInstance> BuildAndRepairInstanceAsync(
+        EngineerInstance instance,
+        BrainId brainId,
+        string flowId,
+        RepositoryId? repository,
+        string runId,
+        string goal,
+        EngineeringHarnessKind harnessKind,
+        int totalInstances,
+        RatifiedPlan baseRatifiedPlan,
+        InoHydratedBrainSnapshot hydratedSnapshot,
+        IWorkTree wt,
+        IEngineeringHarness harness,
+        IWorktreeRoslyn activeRoslyn,
+        IEngineerBuildVerifier verifier,
+        Func<OperationProgressed, Task> onProgress,
+        CancellationToken ct)
+    {
+        if (instance.Commit is null || instance.Lease is null)
+        {
+            return instance.WithComputedScore();
+        }
+
+        if (instance.Build is { Succeeded: true })
+        {
+            return instance.WithComputedScore();
+        }
+
+        var current = instance;
+        var lease = instance.Lease;
+        var currentCommit = instance.Commit;
+        var changedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
+        var report = await VerifyInstanceBuildAsync(verifier, lease, changedPaths, ct).ConfigureAwait(false);
+
+        var (strategyId, strategyLabel, strategyLens) = EngineerCandidateStrategies.ForCandidate(instance.InstanceIndex);
+        var effectiveStrategy = string.IsNullOrWhiteSpace(instance.Strategy) ? strategyId : instance.Strategy!;
+        var ownedPaths = (baseRatifiedPlan.Slices ?? [])
+            .SelectMany(static s => s.OwnedPaths ?? [])
+            .Where(static p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var repairRound = 0;
+        while (!report.Succeeded && repairRound < MaxBuildRepairRounds)
+        {
+            ct.ThrowIfCancellationRequested();
+            repairRound++;
+
+            var repairGoal = BuildRepairGoalPrompt(goal, repairRound, report);
+            var repairSlice = new EngineerTaskSlice(
+                SliceId: string.Create(CultureInfo.InvariantCulture, $"build-repair-r{repairRound}"),
+                Title: string.Create(CultureInfo.InvariantCulture, $"Build & test repair round {repairRound}/{MaxBuildRepairRounds}"),
+                OwnedPaths: ownedPaths,
+                DependsOnSliceIds: [],
+                Status: "pending",
+                Percent: 0,
+                AssignedAgentKey: string.Create(CultureInfo.InvariantCulture, $"ino.repair-r{repairRound}"),
+                Language: "csharp",
+                Instructions: repairGoal);
+            var repairPlan = baseRatifiedPlan with
+            {
+                Goal = repairGoal,
+                CleanupTargets = [],
+                Slices = [repairSlice],
+            };
+
+            var repairRequest = new EngineeringHarnessRequest(
+                FlowId: flowId,
+                RunId: runId,
+                RepositoryId: repository?.Value ?? lease.RepositoryId,
+                Goal: repairGoal,
+                WorktreeId: lease.EffectiveLeaseId,
+                WorktreePath: lease.TreePath,
+                InstanceIndex: instance.InstanceIndex,
+                TotalInstances: totalInstances,
+                Strategy: effectiveStrategy,
+                StrategyLabel: strategyLabel,
+                StrategyPromptLens: strategyLens,
+                Harness: harnessKind,
+                RatifiedPlan: repairPlan,
+                Brain: brainId,
+                BaseBranch: lease.BaseBranch,
+                SourceRepositoryPath: lease.SourceRepoPath);
+
+            try
+            {
+                var harnessResult = harness is InoNativeHarness inoNative
+                    ? await inoNative.ExecuteWithContextAsync(
+                        repairRequest,
+                        preHydrated: hydratedSnapshot,
+                        recordJournalMilestone: false,
+                        onProgress: onProgress,
+                        ct: ct).ConfigureAwait(false)
+                    : await harness.ExecuteAsync(repairRequest, onProgress, ct).ConfigureAwait(false);
+
+                if (harnessResult.Succeeded)
+                {
+                    var touchedRepoPaths = harnessResult.TouchedFiles
+                        .Select(static raw => RepoPath.TryParse(raw, out var parsed) ? parsed : null)
+                        .OfType<RepoPath>()
+                        .Distinct()
+                        .OrderBy(static p => p.Value, StringComparer.Ordinal)
+                        .ToArray();
+
+                    var liveCsPaths = touchedRepoPaths
+                        .Where(p => p.IsCSharp && !(current.DeletedFiles ?? []).Contains(p.Value, StringComparer.OrdinalIgnoreCase))
+                        .Select(static p => p.Value)
+                        .ToArray();
+                    var roslynDiagnostics = liveCsPaths.Length > 0
+                        ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct).ConfigureAwait(false)).ToArray()
+                        : current.RoslynDiagnostics ?? [];
+
+                    var commitMessage = ChangePolicy.BuildCommitMessage(goal, harnessResult.Summary);
+                    currentCommit = await wt.VerifyAndAmendAsync(lease, currentCommit.Commit, commitMessage, ct).ConfigureAwait(false);
+                    changedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
+
+                    current = current with
+                    {
+                        Edit = new CoderEdit(
+                            harnessResult.Summary,
+                            harnessResult.ModelId,
+                            touchedRepoPaths),
+                        RoslynDiagnostics = roslynDiagnostics,
+                        Commit = currentCommit,
+                    };
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                ConsoleLogger.LogSwallowed(
+                    ex,
+                    $"engineer worktree instance #{instance.InstanceIndex} build repair round {repairRound}/{MaxBuildRepairRounds} failed");
+            }
+
+            report = await VerifyInstanceBuildAsync(verifier, lease, changedPaths, ct).ConfigureAwait(false);
+        }
+
+        return (current with
+        {
+            Build = report,
+            Status = report.Succeeded ? "built" : "failed",
+            FailureDetail = report.Succeeded ? null : report.Summary,
+        }).WithComputedScore();
+    }
+
+    private static Task<EngineerBuildReport> VerifyInstanceBuildAsync(
+        IEngineerBuildVerifier verifier,
+        WorkTreeLease lease,
+        string[] changedPaths,
+        CancellationToken ct)
+        => verifier is EngineerBuildVerifier stageVerifier
+            ? stageVerifier.VerifyAsync(lease, changedPaths, ct)
+            : verifier.VerifyAsync(lease.TreePath, changedPaths, ct);
+
+    private static string BuildRepairGoalPrompt(string originalGoal, int repairRound, EngineerBuildReport report)
+    {
+        var diagnosticsBlock = report.Diagnostics is { Length: > 0 }
+            ? string.Join("\n", report.Diagnostics.Take(25).Select(static d => $"- {d}"))
+            : $"- {report.Summary}";
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{originalGoal}\n\n[Build & Test Repair — Round {repairRound}/{MaxBuildRepairRounds}]\nPrevious build/test verification failed: {report.Summary}\nDiagnostics:\n{diagnosticsBlock}\nFix all reported compiler errors and failing tests inside the worktree.");
     }
 
     private async Task<StepResult<EngineerRun>> LiveVerifyStepAsync(EngineerRun inner, CancellationToken ct)

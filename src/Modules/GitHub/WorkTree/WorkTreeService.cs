@@ -348,6 +348,107 @@ public sealed partial class WorkTreeService : IWorkTree
         return ChangeSet.FromDiff(commitSha, changedPaths, diff);
     }
 
+    public async Task<ChangeSet> VerifyAndAmendAsync(
+        WorkTreeLease lease,
+        CommitSha expectedPreviousHead,
+        string commitMessage,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(expectedPreviousHead);
+        ArgumentException.ThrowIfNullOrWhiteSpace(commitMessage);
+
+        await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
+
+        var headCheck = await _git.RunLockedGitAsync(lease, false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(headCheck, "read worktree HEAD");
+        var currentHead = CommitSha.Parse(headCheck.StdOut);
+        if (currentHead != expectedPreviousHead)
+        {
+            throw new SecurityException(
+                $"Worktree HEAD ('{currentHead.Value}') does not match expected prior host commit ('{expectedPreviousHead.Value}').");
+        }
+
+        await EnsureSingleCommitAheadAsync(lease, currentHead, ct).ConfigureAwait(false);
+
+        var baseSha = CommitSha.Parse(lease.BaseCommitSha);
+        var statusResult = await _git.RunLockedGitAsync(
+            lease,
+            false,
+            ct,
+            "status", "-z", "--porcelain=v1", "--no-renames", "-uall").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(statusResult, "inspect worktree status");
+        var rawChangedPaths = ParsePorcelainZPaths(statusResult.StdOut);
+
+        var existingFilesResult = await _git.RunLockedGitAsync(
+            lease,
+            false,
+            ct,
+            "diff", "--name-only", "-z", "--no-renames", $"{baseSha.Value}..{currentHead.Value}").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(existingFilesResult, "list committed files");
+        var existingRaw = existingFilesResult.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+
+        if (rawChangedPaths.Count == 0)
+        {
+            var verifiedExisting = _options.Policy.Enforce(lease.TreePath, existingRaw);
+            await _git.VerifyCSharpFormattingAsync(lease.TreePath, verifiedExisting, ct).ConfigureAwait(false);
+            var existingDiff = await RenderUnifiedDiffAsync(lease, currentHead, ct).ConfigureAwait(false);
+            return ChangeSet.FromDiff(currentHead, verifiedExisting, existingDiff);
+        }
+
+        var combinedRaw = existingRaw
+            .Concat(rawChangedPaths)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _ = _options.Policy.Enforce(lease.TreePath, combinedRaw);
+
+        var dirtyPaths = _options.Policy.Enforce(lease.TreePath, rawChangedPaths);
+        await _git.VerifyCSharpFormattingAsync(lease.TreePath, dirtyPaths, ct).ConfigureAwait(false);
+
+        var pathArgs = dirtyPaths.Select(static p => p.Value).ToArray();
+        var stageResult = await _git.RunLockedGitAsync(lease, false, ct, ["add", "-A", "--", .. pathArgs]).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(stageResult, "stage repaired files");
+
+        var lsStage = await _git.RunLockedGitAsync(lease, false, ct, ["ls-files", "--stage", "-z", "--", .. pathArgs]).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(lsStage, "verify staged git index modes");
+        VerifyIndexModes(lsStage.StdOut);
+
+        var cleanMessage = ChangePolicy.SanitizeCommitText(commitMessage);
+        if (cleanMessage.Length == 0)
+        {
+            cleanMessage = "chore(ino): automated change";
+        }
+
+        var amendResult = await _git.RunLockedGitAsync(
+            lease,
+            false,
+            ct,
+            "-c", $"user.name={AuthorName}",
+            "-c", $"user.email={AuthorEmail}",
+            "-c", "commit.gpgsign=false",
+            "commit", "--amend", "--no-verify", "-m", cleanMessage).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(amendResult, "amend single worktree commit");
+
+        await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
+
+        var shaResult = await _git.RunLockedGitAsync(lease, false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(shaResult, "read amended commit SHA");
+        var commitSha = CommitSha.Parse(shaResult.StdOut);
+
+        await EnsureSingleCommitAheadAsync(lease, commitSha, ct).ConfigureAwait(false);
+
+        var finalFilesResult = await _git.RunLockedGitAsync(
+            lease,
+            false,
+            ct,
+            "diff", "--name-only", "-z", "--no-renames", $"{baseSha.Value}..{commitSha.Value}").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(finalFilesResult, "list amended committed files");
+        var finalRaw = finalFilesResult.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+        var finalPaths = _options.Policy.Enforce(lease.TreePath, finalRaw);
+        var diff = await RenderUnifiedDiffAsync(lease, commitSha, ct).ConfigureAwait(false);
+        return ChangeSet.FromDiff(commitSha, finalPaths, diff);
+    }
+
     public async Task<string> PushAsync(
         WorkTreeLease lease,
         CommitSha approvedSha,

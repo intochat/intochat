@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
@@ -21,6 +22,11 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
+internal sealed record TrxParseResult(
+    int Passed,
+    int Failed,
+    int Skipped,
+    string[] Diagnostics);
 
 internal sealed partial class EngineerBuildVerifier(
     IConfiguration? configuration = null,
@@ -125,22 +131,65 @@ internal sealed partial class EngineerBuildVerifier(
             foreach (var testProj in testProjects)
             {
                 var testTarget = useContainerVolumeSandbox ? ToRelativeUnixPath(root, testProj) : testProj;
-                var testRes = await ExecuteVerificationToolAsync(
-                    lease,
-                    "dotnet",
-                    ["test", testTarget, "-c", "Release", "--nologo", "--disable-build-servers", "-v", "minimal"],
-                    root,
-                    relativeWorkingDir: null,
-                    ct).ConfigureAwait(false);
-                var combined = testRes.StdOut + "\n" + testRes.StdErr;
-                var (p, f) = ParseTestCounts(combined);
-                passedTests += p;
-                failedTests += f;
-                CollectDiagnosticLines(combined, diagnostics);
-                if (testRes.ExitCode != 0 || f > 0)
+                var trxDir = useContainerVolumeSandbox
+                    ? Path.Combine(root, ".intochat-trx-" + Guid.NewGuid().ToString("N")[..8])
+                    : Path.Combine(Path.GetTempPath(), "intochat-trx-" + Guid.NewGuid().ToString("N")[..8]);
+                Directory.CreateDirectory(trxDir);
+                var trxDirArg = useContainerVolumeSandbox ? ToRelativeUnixPath(root, trxDir) : trxDir;
+
+                try
                 {
-                    dotnetTestPassed = false;
-                    errors += Math.Max(1, f);
+                    var isMtp = UsesMicrosoftTestingPlatform(root, testProj, _logger);
+                    string[] testArgs = isMtp
+                        ?
+                        [
+                            "test", "--project", testTarget, "-c", "Release",
+                            "--results-directory", trxDirArg,
+                            "--report-xunit-trx", "--report-xunit-trx-filename", "results.trx",
+                        ]
+                        :
+                        [
+                            "test", testTarget, "-c", "Release", "--nologo", "--disable-build-servers", "-v", "minimal",
+                            "--logger", "trx;LogFileName=results.trx",
+                            "--results-directory", trxDirArg,
+                        ];
+
+                    var testRes = await ExecuteVerificationToolAsync(
+                        lease,
+                        "dotnet",
+                        testArgs,
+                        root,
+                        relativeWorkingDir: null,
+                        ct).ConfigureAwait(false);
+                    var combined = testRes.StdOut + "\n" + testRes.StdErr;
+                    CollectDiagnosticLines(combined, diagnostics);
+
+                    var trxFile = FindTrxFile(trxDir);
+                    int p;
+                    int f;
+                    if (trxFile is not null)
+                    {
+                        var trx = ParseTrxFile(trxFile);
+                        p = trx.Passed;
+                        f = trx.Failed;
+                        diagnostics.AddRange(trx.Diagnostics);
+                    }
+                    else
+                    {
+                        (p, f) = ParseTestCounts(combined);
+                    }
+
+                    passedTests += p;
+                    failedTests += f;
+                    if (testRes.ExitCode != 0 || f > 0)
+                    {
+                        dotnetTestPassed = false;
+                        errors += Math.Max(1, f);
+                    }
+                }
+                finally
+                {
+                    TryDeleteDirectory(trxDir, _logger);
                 }
             }
         }
@@ -268,17 +317,192 @@ internal sealed partial class EngineerBuildVerifier(
         }
     }
 
+    internal static TrxParseResult ParseTrxFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var xml = File.ReadAllText(path, Encoding.UTF8);
+        return ParseTrxXml(xml);
+    }
+
+    internal static TrxParseResult ParseTrxXml(string xml)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(xml);
+        var doc = XDocument.Parse(xml, LoadOptions.None);
+
+        var unitResults = doc
+            .Descendants()
+            .Where(static e => string.Equals(e.Name.LocalName, "UnitTestResult", StringComparison.Ordinal))
+            .ToArray();
+
+        var failureDiagnostics = new List<string>();
+        var countedPassed = 0;
+        var countedFailed = 0;
+        var countedSkipped = 0;
+
+        foreach (var result in unitResults)
+        {
+            var outcome = result.Attribute("outcome")?.Value ?? string.Empty;
+            if (string.Equals(outcome, "Passed", StringComparison.OrdinalIgnoreCase))
+            {
+                countedPassed++;
+            }
+            else if (string.Equals(outcome, "NotExecuted", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(outcome, "Skipped", StringComparison.OrdinalIgnoreCase))
+            {
+                countedSkipped++;
+            }
+            else if (string.Equals(outcome, "Failed", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(outcome, "Error", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(outcome, "Timeout", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(outcome, "Aborted", StringComparison.OrdinalIgnoreCase))
+            {
+                countedFailed++;
+                var testName = result.Attribute("testName")?.Value?.Trim();
+                if (string.IsNullOrWhiteSpace(testName))
+                {
+                    testName = "(unnamed test)";
+                }
+
+                var errorInfo = result
+                    .Descendants()
+                    .FirstOrDefault(static e => string.Equals(e.Name.LocalName, "ErrorInfo", StringComparison.Ordinal));
+                var message = errorInfo?
+                    .Elements()
+                    .FirstOrDefault(static e => string.Equals(e.Name.LocalName, "Message", StringComparison.Ordinal))
+                    ?.Value?.Trim();
+                if (string.IsNullOrWhiteSpace(message))
+                {
+                    message = errorInfo?
+                        .Elements()
+                        .FirstOrDefault(static e => string.Equals(e.Name.LocalName, "StackTrace", StringComparison.Ordinal))
+                        ?.Value?.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .FirstOrDefault();
+                }
+
+                var compactMessage = string.IsNullOrWhiteSpace(message)
+                    ? string.Empty
+                    : string.Join(' ', message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+                failureDiagnostics.Add(string.IsNullOrWhiteSpace(compactMessage)
+                    ? $"Failed test '{testName}'"
+                    : $"Failed test '{testName}': {compactMessage}");
+            }
+        }
+
+        var counters = doc
+            .Descendants()
+            .FirstOrDefault(static e => string.Equals(e.Name.LocalName, "Counters", StringComparison.Ordinal));
+
+        if (counters is not null)
+        {
+            var passed = ParseXmlInt(counters, "passed");
+            var failed = ParseXmlInt(counters, "failed")
+                + ParseXmlInt(counters, "error")
+                + ParseXmlInt(counters, "timeout")
+                + ParseXmlInt(counters, "aborted");
+            var notExecuted = ParseXmlInt(counters, "notExecuted");
+            var skipped = notExecuted > 0 ? notExecuted : countedSkipped;
+            return new TrxParseResult(passed, failed, skipped, [.. failureDiagnostics]);
+        }
+
+        return new TrxParseResult(countedPassed, countedFailed, countedSkipped, [.. failureDiagnostics]);
+    }
+
+    private static int ParseXmlInt(XElement element, string attributeName)
+        => int.TryParse(element.Attribute(attributeName)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : 0;
+
+    private static string? FindTrxFile(string trxDir)
+    {
+        if (!Directory.Exists(trxDir))
+        {
+            return null;
+        }
+
+        var direct = Path.Combine(trxDir, "results.trx");
+        if (File.Exists(direct))
+        {
+            return direct;
+        }
+
+        return Directory.EnumerateFiles(trxDir, "*.trx", SearchOption.AllDirectories).FirstOrDefault();
+    }
+
+    private static bool UsesMicrosoftTestingPlatform(string root, string testProjectPath, ILogger logger)
+    {
+        try
+        {
+            var globalJson = Path.Combine(root, "global.json");
+            if (File.Exists(globalJson)
+                && File.ReadAllText(globalJson, Encoding.UTF8).Contains("Microsoft.Testing.Platform", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var propsFile = Path.Combine(root, "Directory.Build.props");
+            if (File.Exists(propsFile))
+            {
+                var props = File.ReadAllText(propsFile, Encoding.UTF8);
+                if (props.Contains("UseMicrosoftTestingPlatformRunner", StringComparison.OrdinalIgnoreCase)
+                    || props.Contains("xunit.v3.mtp", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            if (File.Exists(testProjectPath))
+            {
+                var proj = File.ReadAllText(testProjectPath, Encoding.UTF8);
+                if (proj.Contains("UseMicrosoftTestingPlatformRunner", StringComparison.OrdinalIgnoreCase)
+                    || proj.Contains("xunit.v3.mtp", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (IOException ex)
+        {
+            logger.LogSwallowed(ex, "Failed to inspect project metadata for Microsoft.Testing.Platform detection; falling back to VSTest flags.");
+        }
+
+        return false;
+    }
+
+    private static void TryDeleteDirectory(string path, ILogger logger)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogSwallowed(ex, "Best-effort cleanup of temporary TRX results directory.");
+        }
+    }
+
     private static (int Passed, int Failed) ParseTestCounts(string output)
     {
         var m = TestSummaryRegex().Match(output);
-        if (!m.Success)
+        if (m.Success)
         {
-            return (0, 0);
+            var failed = int.TryParse(m.Groups["failed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var f) ? f : 0;
+            var passed = int.TryParse(m.Groups["passed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var p) ? p : 0;
+            return (passed, failed);
         }
 
-        var failed = int.TryParse(m.Groups["failed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var f) ? f : 0;
-        var passed = int.TryParse(m.Groups["passed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var p) ? p : 0;
-        return (passed, failed);
+        var mtp = MtpTestSummaryRegex().Match(output);
+        if (mtp.Success)
+        {
+            var failed = int.TryParse(mtp.Groups["failed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var f) ? f : 0;
+            var passed = int.TryParse(mtp.Groups["passed"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var p) ? p : 0;
+            return (passed, failed);
+        }
+
+        return (0, 0);
     }
 
     private async Task<(int ExitCode, string StdOut, string StdErr)> RunToolAsync(
@@ -345,5 +569,8 @@ internal sealed partial class EngineerBuildVerifier(
 
     [GeneratedRegex(@"Failed:\s*(?<failed>\d+).*?Passed:\s*(?<passed>\d+)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex TestSummaryRegex();
+
+    [GeneratedRegex(@"failed:\s*(?<failed>\d+).*?succeeded:\s*(?<passed>\d+)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex MtpTestSummaryRegex();
 }
 

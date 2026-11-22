@@ -146,6 +146,13 @@ public interface IWorkTree
         string commitMessage,
         CancellationToken ct = default);
 
+    Task<ChangeSet> VerifyAndAmendAsync(
+        WorkTreeLease lease,
+        CommitSha expectedPreviousHead,
+        string commitMessage,
+        CancellationToken ct = default)
+        => VerifyAndCommitAsync(lease, commitMessage, ct);
+
     Task<string> PushAsync(
         WorkTreeLease lease,
         CommitSha approvedSha,
