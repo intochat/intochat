@@ -94,7 +94,7 @@ public sealed class AppUiUnitOwnershipFacts
             => Activate(alias, generation, nodeKey, fieldValue, by);
 
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
-        public Task<PublishedView?> ReadSlot(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+        public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
         public Task Dispatch(DigitalBrain.UI.Command command) => Task.CompletedTask;
     }
 

@@ -27,7 +27,7 @@ stop from the props routed with that write.
 public sealed class ThreadParent : Screen<ThreadParentState>
 {
     protected override View Render(ThreadParentState state)
-        => new("Parent", Slot<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps(Working: state.Working, Status: state.Working ? "working" : "ready")));
+        => new("Parent", Child<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps(Working: state.Working, Status: state.Working ? "working" : "ready")));
 
     [On]
     public async Task Work(Work work)

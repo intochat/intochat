@@ -26,10 +26,10 @@ public sealed class TableParent : Screen<TableParentState>
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Slot<QueryTableNeuron, QueryTableProps>("people", new QueryTableProps("People", Columns, "local/control.sampleTableSource/people")),
-            Slot<QueryTableNeuron, QueryTableProps>("broken", new QueryTableProps("Broken", Columns, "local/test.failingTableSource/x")),
-            Slot<QueryTableNeuron, QueryTableProps>("wrong", new QueryTableProps("Wrong", Columns, "local/test.notATableSource/x")),
-            Slot<QueryTableNeuron, QueryTableProps>("probe", new QueryTableProps("Probe", Columns, "local/test.recordingTableSource/x")),
+            Child<QueryTableNeuron, QueryTableProps>("people", new QueryTableProps("People", Columns, "local/control.sampleTableSource/people")),
+            Child<QueryTableNeuron, QueryTableProps>("broken", new QueryTableProps("Broken", Columns, "local/test.failingTableSource/x")),
+            Child<QueryTableNeuron, QueryTableProps>("wrong", new QueryTableProps("Wrong", Columns, "local/test.notATableSource/x")),
+            Child<QueryTableNeuron, QueryTableProps>("probe", new QueryTableProps("Probe", Columns, "local/test.recordingTableSource/x")),
         ]));
     }
 }

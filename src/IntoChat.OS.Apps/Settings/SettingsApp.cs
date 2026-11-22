@@ -186,14 +186,14 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     {
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
-        // Settings reacts to its control neurons through synapses: one wire per slot, told apart by SignalSlot.
-        foreach (var toggle in SettingsControls.Toggles) { await FollowSlot<ToggleSwitchNeuron, Toggled>(toggle.Key); }
-        foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
-        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Search);
-        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Regional);
-        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.InstallModel);
-        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.SearxngUrl);
-        await FollowSlot<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.McpAddForm);
+        // Settings reacts to its control neurons through synapses: one wire per child, told apart by SignalChild.
+        foreach (var toggle in SettingsControls.Toggles) { await FollowChild<ToggleSwitchNeuron, Toggled>(toggle.Key); }
+        foreach (var combo in SettingsControls.Combos) { await FollowChild<ComboBoxNeuron, SelectionChanged>(combo.Key); }
+        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Search);
+        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.Regional);
+        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.InstallModel);
+        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.SearxngUrl);
+        await FollowChild<IntoChat.OS.Apps.Controls.FormNeuron, Submitted>(SettingsControls.McpAddForm);
         if (ThisMachine is { Value.Length: > 0 } machine)
         {
             try
@@ -268,15 +268,15 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     }
 
     private new SettingsSlots Slots => new(
-        Slot<ToggleSwitchNeuron, ToggleSwitchProps>,
-        Slot<ComboBoxNeuron, ComboBoxProps>,
-        Slot<IntoChat.OS.Apps.Controls.FormNeuron, FormProps>);
+        Child<ToggleSwitchNeuron, ToggleSwitchProps>,
+        Child<ComboBoxNeuron, ComboBoxProps>,
+        Child<IntoChat.OS.Apps.Controls.FormNeuron, FormProps>);
 
     [On]
     public async Task OnToggled(Toggled toggled)
     {
         ArgumentNullException.ThrowIfNull(toggled);
-        if (SettingsControls.ToggleOf(SignalSlot) is not { } toggle || toggle.Get(State) == toggled.IsOn)
+        if (SettingsControls.ToggleOf(SignalChild) is not { } toggle || toggle.Get(State) == toggled.IsOn)
         {
             return;
         }
@@ -297,7 +297,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public Task OnSelectionChanged(SelectionChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        var key = SignalSlot;
+        var key = SignalChild;
         if (SettingsControls.RoleOf(key) is { } role)
         {
             return SetRoleAsync(role, changed.Id);
@@ -323,7 +323,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     {
         ArgumentNullException.ThrowIfNull(submitted);
         string? Value(string field) => submitted.Values.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
-        return SignalSlot switch
+        return SignalChild switch
         {
             SettingsControls.Search => UpdateAsync(State.Filter(Value("query") ?? "")),
             SettingsControls.Regional => SavePreferences(new SettingsSavePreferences(

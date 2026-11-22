@@ -57,20 +57,20 @@ class ViewHost extends StatefulWidget {
   /// whatever its kind, so an approval card inside an app or unit view stays display-only.
   final bool embedded;
 
-  /// True when mounted inline via a `NeuronRef` (`Slot`) inside a parent view or chat turn.
+  /// True when mounted inline via a `NeuronRef` (`Screen.Child<T>`, wire `refKind: 'slot'`) inside a parent view or chat turn.
   final bool inlineSlot;
 
-  /// Current `NeuronRef` (`Slot`) recursion depth (capped at [maxSlotDepth] = 4).
+  /// Current `NeuronRef` (`Screen.Child<T>`) recursion depth (capped at [maxSlotDepth] = 4).
   final int slotDepth;
 
-  /// Visited `neuronUri` / resolved view names along the active `Slot` chain.
+  /// Visited `neuronUri` / resolved view names along the active child-ref chain.
   final Set<String> slotAncestors;
 
-  /// For a `slot` child: the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
+  /// For a UI child (wire `refKind: 'slot'`): the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
   final String? actNeuron;
   final String slotPath;
 
-  /// For a slot: the props its parent wrote on the slot node (see [NodeContext.slotProps]).
+  /// For a UI child: the props its parent wrote on the `NeuronRef` node (see [NodeContext.slotProps]).
   final Map<String, dynamic> slotProps;
 
   final NeuronLoader load;

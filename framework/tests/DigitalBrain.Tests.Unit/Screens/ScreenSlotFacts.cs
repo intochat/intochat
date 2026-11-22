@@ -22,7 +22,7 @@ public sealed record Boom : Signal;
 [Neuron("app.slot-grandparent")]
 public sealed class SlotGrandparentScreen : Screen<SampleCounterState>
 {
-    protected override View Render(SampleCounterState state) => new("Grandparent", new Column([Slot<SlotParentScreen>("mid")]));
+    protected override View Render(SampleCounterState state) => new("Grandparent", new Column([Child<SlotParentScreen>("mid")]));
 }
 
 [Neuron("app.slot-child")]
@@ -43,7 +43,7 @@ public sealed class SlotChildScreen : Screen<SampleCounterState>
 public sealed class SlotParentScreen : Screen<SlotParentState>
 {
     protected override View Render(SlotParentState state)
-        => new("Parent", new Column([new Heading($"Pings: {state.Pings}"), .. state.Keys.Select(k => (Node)Slot<SlotChildScreen>(k))]));
+        => new("Parent", new Column([new Heading($"Pings: {state.Pings}"), .. state.Keys.Select(k => (Node)Child<SlotChildScreen>(k))]));
 
     [On]
     public Task When(Ping signal) => Show(State with { Pings = State.Pings + 1 });

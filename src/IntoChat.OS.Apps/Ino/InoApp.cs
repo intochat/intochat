@@ -86,7 +86,7 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         => InoView.ScreenNode(
             state,
             Voice,
-            props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
+            props => Child<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
             ConversationView,
             SessionsPage,
             ThreadFailureText,
@@ -193,20 +193,20 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
 
     [On]
     public Task OnThreadRetry(RetryRequested? requested)
-        => requested is not null && SignalSlot == InoView.ConversationKey ? RetryTurnAsync(requested.Id) : Task.CompletedTask;
+        => requested is not null && SignalChild == InoView.ConversationKey ? RetryTurnAsync(requested.Id) : Task.CompletedTask;
 
     [On]
     public Task OnThreadSubmitted(Submitted? submitted)
-        => submitted is not null && SignalSlot == InoView.ConversationKey && submitted.Values.TryGetValue("text", out var text)
+        => submitted is not null && SignalChild == InoView.ConversationKey && submitted.Values.TryGetValue("text", out var text)
             ? Send(new InoSend(Message: text)) : Task.CompletedTask;
 
     [On]
     public Task OnThreadStop(StopRequested? requested)
-        => requested is not null && SignalSlot == InoView.ConversationKey ? Stop(new InoStop()) : Task.CompletedTask;
+        => requested is not null && SignalChild == InoView.ConversationKey ? Stop(new InoStop()) : Task.CompletedTask;
 
     [On]
     public Task OnThreadModelSelected(ChatModelSelected? selected)
-        => selected is not null && SignalSlot == InoView.ConversationKey
+        => selected is not null && SignalChild == InoView.ConversationKey
             ? ChooseModel(new InoChooseModel(Model: selected.ModelId, MakeDefault: selected.MakeDefault))
             : Task.CompletedTask;
 
@@ -287,10 +287,10 @@ public sealed class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavig
         await base.OnActivate(cancellationToken);
         await TryOptionalAsync("conversation-thread", async () =>
         {
-            await FollowSlot<ChatThreadNeuron, RetryRequested>(InoView.ConversationKey);
-            await FollowSlot<ChatThreadNeuron, Submitted>(InoView.ConversationKey);
-            await FollowSlot<ChatThreadNeuron, StopRequested>(InoView.ConversationKey);
-            await FollowSlot<ChatThreadNeuron, ChatModelSelected>(InoView.ConversationKey);
+            await FollowChild<ChatThreadNeuron, RetryRequested>(InoView.ConversationKey);
+            await FollowChild<ChatThreadNeuron, Submitted>(InoView.ConversationKey);
+            await FollowChild<ChatThreadNeuron, StopRequested>(InoView.ConversationKey);
+            await FollowChild<ChatThreadNeuron, ChatModelSelected>(InoView.ConversationKey);
         });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         if (ThisMachine is { Value.Length: > 0 } machine)

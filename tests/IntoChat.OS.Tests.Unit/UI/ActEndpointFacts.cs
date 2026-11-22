@@ -30,7 +30,7 @@ public sealed class ActEndpointFacts
         public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(null);
         public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
-        public Task<PublishedView?> ReadSlot(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+        public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
         public Task Dispatch(Command command)
         {
             if (command.Target == "dark-mode" && command.Signal == "toggle.boom") { return Task.FromException(new InvalidOperationException("dark-mode could not toggle")); }

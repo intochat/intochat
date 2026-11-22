@@ -22,12 +22,12 @@ public sealed class SlotSenderParent : Screen<SampleCounterState>
     public async Task Ping(SlotPing ping)
     {
         ArgumentNullException.ThrowIfNull(ping);
-        var before = SignalSlot;
+        var before = SignalChild;
         await Gates[ping.Tag].Task;
-        Seen[ping.Tag] = (before, SignalSlot);
+        Seen[ping.Tag] = (before, SignalChild);
     }
 
-    public string? SlotOutsideDelivery => SignalSlot;
+    public string? SlotOutsideDelivery => SignalChild;
 }
 
 // The slot a followed signal came from is scoped to its delivery, not stored on the neuron: interleaved deliveries each see their own.

@@ -14,8 +14,8 @@ namespace DigitalBrain;
 public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : class, new()
 {
     private PublishedView? _view;
-    private Dictionary<string, SlotEntry> _children = new(StringComparer.Ordinal);
-    private Dictionary<string, SlotEntry>? _rendering;
+    private Dictionary<string, ChildEntry> _children = new(StringComparer.Ordinal);
+    private Dictionary<string, ChildEntry>? _rendering;
     private string _cause = "reaction";
 
     /// <summary>The alias the view is stored under and the owner its emits name: the neuron type.</summary>
@@ -52,16 +52,16 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     protected Task Follow<TSource, TSignal>(string key) where TSource : class where TSignal : Signal
         => Context.Wires.Ensure<TSignal>(IdOf(typeof(TSource), key));
 
-    /// <summary>Ensures <typeparamref name="TSignal"/> published by this screen's slot child <paramref name="key"/> (a <typeparamref name="TChild"/>) reaches its <c>[On]</c> reaction, where <see cref="SignalSlot"/> names the key. Durable and idempotent.</summary>
+    /// <summary>Ensures <typeparamref name="TSignal"/> published by this screen's child <paramref name="key"/> (a <typeparamref name="TChild"/>) reaches its <c>[On]</c> reaction, where <see cref="SignalChild"/> names the key. Durable and idempotent.</summary>
     /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
-    protected Task FollowSlot<TChild, TSignal>(string key) where TChild : class where TSignal : Signal
+    protected Task FollowChild<TChild, TSignal>(string key) where TChild : class where TSignal : Signal
         => Follow<TChild, TSignal>(ScreenExtensions.ChildAddress(Id, key));
 
     /// <summary>
-    /// The key of the slot child that published the signal the running reaction handles (one <see cref="FollowSlot{TChild, TSignal}"/>
-    /// wired), or null when the signal came from elsewhere or the reaction runs for a command. It tells two slots of one control kind apart.
+    /// The key of the child that published the signal the running reaction handles (one <see cref="FollowChild{TChild, TSignal}"/>
+    /// wired), or null when the signal came from elsewhere or the reaction runs for a command. It tells two children of one control kind apart.
     /// </summary>
-    protected string? SignalSlot
+    protected string? SignalChild
     {
         get
         {
@@ -73,62 +73,62 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     }
 
     /// <summary>
-    /// The view of <paramref name="state"/> drawn outside a save (a preview): slots render as in a save but nothing is stored and the
-    /// slots the current view routes to are unchanged. A screen no runtime attached addresses its slots under the brain id "preview", which names no real brain: such slot ids
+    /// The view of <paramref name="state"/> drawn outside a save (a preview): children render as in a save but nothing is stored and the
+    /// children the current view routes to are unchanged. A screen no runtime attached addresses its children under the brain id "preview", which names no real brain: such child ids
     /// are for drawing only and are never routed (a detached screen has no runtime to route through).
     /// </summary>
     protected View RenderDetached(TState state)
     {
         var outer = _rendering;
-        _rendering = new Dictionary<string, SlotEntry>(StringComparer.Ordinal);
+        _rendering = new Dictionary<string, ChildEntry>(StringComparer.Ordinal);
         try { return Render(state); }
         finally { _rendering = outer; }
     }
 
-    /// <summary>The view node of this screen's child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron. Rendering it creates nothing; the client's first read of the slot (or a <see cref="Send"/>) does.</summary>
+    /// <summary>The view node of this screen's child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron. Rendering it creates nothing; the client's first read of the child (or a <see cref="Send"/>) does.</summary>
     /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
     /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
-    protected NeuronRef Slot<TChild>(string key) where TChild : class => AddSlot<TChild>(key, props: null);
+    protected NeuronRef Child<TChild>(string key) where TChild : class => AddChild<TChild>(key, props: null);
 
     /// <summary>
     /// The view node of child <paramref name="key"/> with <paramref name="props"/>: the setup this screen decides (label, header,
-    /// enabled, content). They are written on the slot node and re-render with this screen; the child stores only what the user
-    /// changes. A command sent through this screen to a slot whose props are disabled is refused with <see cref="ControlProps.Disabled"/>.
+    /// enabled, content). They are written on the child node and re-render with this screen; the child stores only what the user
+    /// changes. A command sent through this screen to a child whose props are disabled is refused with <see cref="ControlProps.Disabled"/>.
     /// Rendering it creates nothing.
     /// </summary>
     /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
     /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
-    /// <exception cref="InvalidOperationException">The props hold a slot: control content is data nodes only, because a slot there would
+    /// <exception cref="InvalidOperationException">The props hold a child ref: control content is data nodes only, because a child there would
     /// be routed under the control's key instead of this screen's.</exception>
-    protected NeuronRef Slot<TChild, TProps>(string key, TProps props) where TChild : class, IControl<TProps> where TProps : ControlProps
+    protected NeuronRef Child<TChild, TProps>(string key, TProps props) where TChild : class, IControl<TProps> where TProps : ControlProps
     {
         ArgumentNullException.ThrowIfNull(props);
-        return AddSlot<TChild>(key, props);
+        return AddChild<TChild>(key, props);
     }
 
-    private NeuronRef AddSlot<TChild>(string key, ControlProps? props)
+    private NeuronRef AddChild<TChild>(string key, ControlProps? props)
     {
         ScreenExtensions.CheckChildKey(key);
-        var rendering = _rendering ?? throw new InvalidOperationException($"Slot '{key}' of '{Alias}' is rendered outside Render.");
+        var rendering = _rendering ?? throw new InvalidOperationException($"Child '{key}' of '{Alias}' is rendered outside Render.");
         var parent = IsAttached ? Id : new NeuronId(new BrainId("preview"), "preview", "preview");
         var child = new NeuronId(parent.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(parent, key));
-        if (!rendering.TryAdd(key, new SlotEntry(child, props))) { throw new InvalidOperationException($"The view of '{Alias}' names slot '{key}' twice."); }
+        if (!rendering.TryAdd(key, new ChildEntry(child, props))) { throw new InvalidOperationException($"The view of '{Alias}' names child '{key}' twice."); }
         if (props is null) { return new NeuronRef("slot", child.ToString()); }
         var wire = PooledJson.Encode(props, props.GetType());
-        if (HoldsSlot(wire))
+        if (HoldsChildRef(wire))
         {
-            throw new InvalidOperationException($"The props of slot '{key}' of '{Alias}' hold a slot; control content is data nodes only.");
+            throw new InvalidOperationException($"The props of child '{key}' of '{Alias}' hold a child; control content is data nodes only.");
         }
         return new NeuronRef("slot", child.ToString(), wire);
     }
 
     // True when the JSON holds a neuronRef node of refKind "slot" at any depth.
-    private static bool HoldsSlot(JsonElement json) => json.ValueKind switch
+    private static bool HoldsChildRef(JsonElement json) => json.ValueKind switch
     {
-        JsonValueKind.Array => json.EnumerateArray().Any(HoldsSlot),
+        JsonValueKind.Array => json.EnumerateArray().Any(HoldsChildRef),
         JsonValueKind.Object => (json.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "neuronRef"
                 && json.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == "slot")
-            || json.EnumerateObject().Any(property => HoldsSlot(property.Value)),
+            || json.EnumerateObject().Any(property => HoldsChildRef(property.Value)),
         _ => false,
     };
 
@@ -170,14 +170,14 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     }
 
     /// <inheritdoc />
-    public Task<PublishedView?> ReadSlot(string path)
+    public Task<PublishedView?> ReadChild(string path)
     {
         try
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
-            var slot = Hop(path, out var rest);
-            var child = Get<IScreen>(slot.Id);
-            return rest == "." ? child.Read() : child.ReadSlot(rest);
+            var childEntry = Hop(path, out var rest);
+            var child = Get<IScreen>(childEntry.Id);
+            return rest == "." ? child.Read() : child.ReadChild(rest);
         }
         catch (Exception error) when (error is ArgumentException or ActivationRefusedException)
         {
@@ -185,18 +185,18 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         }
     }
 
-    // One hop of a key path, the routing Send and ReadSlot share: the first key must name a slot of the current view; the rest
+    // One hop of a key path, the routing Send and ReadChild share: the first key must name a child of the current view; the rest
     // ("." when none) is for that child to resolve, and none of its hops may be empty, "." or "..".
-    private SlotEntry Hop(string target, out string rest)
+    private ChildEntry Hop(string target, out string rest)
     {
         var path = target.StartsWith("./", StringComparison.Ordinal) ? target[2..] : target;
         var slash = path.IndexOf('/', StringComparison.Ordinal);
         var key = slash < 0 ? path : path[..slash];
         rest = slash < 0 ? "." : path[(slash + 1)..];
         ScreenExtensions.CheckChildKey(key);
-        if (!_children.TryGetValue(key, out var slot)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
+        if (!_children.TryGetValue(key, out var child)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
         if (rest != "." && rest.Split('/').Any(hop => hop is "" or "." or "..")) { throw new ArgumentException($"Target path '{target}' has an empty, '.' or '..' hop.", nameof(target)); }
-        return slot;
+        return child;
     }
 
     /// <summary>
@@ -351,7 +351,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return SaveAndCacheView(next, entry, shown, children);
     }
 
-    private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown, Dictionary<string, SlotEntry> children)
+    private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown, Dictionary<string, ChildEntry> children)
     {
         await Seat.Save(next, entry).ConfigureAwait(true);
         _view = (PublishedView)shown;
@@ -359,9 +359,9 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         _cause = "reaction";
     }
 
-    private JsonElement RenderValidated(TState state, out Dictionary<string, SlotEntry> children)
+    private JsonElement RenderValidated(TState state, out Dictionary<string, ChildEntry> children)
     {
-        children = new Dictionary<string, SlotEntry>(StringComparer.Ordinal);
+        children = new Dictionary<string, ChildEntry>(StringComparer.Ordinal);
         _rendering = children;
         View view;
         try { view = Render(state); }
@@ -402,8 +402,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             .Any(p => string.Equals(p.Name, "State", StringComparison.OrdinalIgnoreCase)));
     }
 
-    // A child slot of the current view: its address and the props its parent gave it (null for a plain slot).
-    private readonly record struct SlotEntry(NeuronId Id, ControlProps? Props);
+    // A UI child of the current view: its address and the props its parent gave it (null for a plain child).
+    private readonly record struct ChildEntry(NeuronId Id, ControlProps? Props);
 
     private NeuronId IdOf(Type contract, string key) => new(Id.Brain, TypeOf(contract), key);
 

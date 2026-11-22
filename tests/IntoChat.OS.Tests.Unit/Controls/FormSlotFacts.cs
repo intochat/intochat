@@ -26,12 +26,12 @@ public sealed class FormParent : Screen<FormParentState>
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Slot<FormNeuron, FormProps>("profile", new FormProps([
+            Child<FormNeuron, FormProps>("profile", new FormProps([
                 new FormInput("name", "Name", MaxLength: 5),
                 new FormInput("age", "Age", FormFieldKind.Number),
                 new FormInput("id", "Id", Value: "ada-1", IsReadOnly: true),
             ], "Save", IsEnabled: !state.Locked)),
-            Slot<FormNeuron, FormProps>("keys", new FormProps([new FormInput("label", "Label"), new FormInput("token", "Token", FormFieldKind.Secret)], "Seal")),
+            Child<FormNeuron, FormProps>("keys", new FormProps([new FormInput("label", "Label"), new FormInput("token", "Token", FormFieldKind.Secret)], "Seal")),
         ]));
     }
 }

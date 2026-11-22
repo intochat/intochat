@@ -20,13 +20,13 @@ public sealed record SlotReadState
 [Neuron("app.slotread")]
 public sealed class SlotReadAppScreen : Screen<SlotReadState>
 {
-    protected override View Render(SlotReadState state) => new("Slot read", new Column([new Heading("Top"), Slot<SlotReadPanelScreen>("panel")]));
+    protected override View Render(SlotReadState state) => new("Slot read", new Column([new Heading("Top"), Child<SlotReadPanelScreen>("panel")]));
 }
 
 [Neuron("test.slotread-panel")]
 public sealed class SlotReadPanelScreen : Screen<SlotReadState>
 {
-    protected override View Render(SlotReadState state) => new("Panel", new Column([new Heading("Panel text"), Slot<SlotReadLeafScreen>("leaf")]));
+    protected override View Render(SlotReadState state) => new("Panel", new Column([new Heading("Panel text"), Child<SlotReadLeafScreen>("leaf")]));
 }
 
 [Neuron("test.slotread-leaf")]
@@ -61,7 +61,7 @@ public sealed class SlotReadEndpointFacts
 
     private static async Task<(int Status, string Body)> Read(INeuronProxies brain, string name, string path, string scope = Scope)
     {
-        var result = await AppUiEndpoints.ReadSlot(name, path, brain, scope, Ct, Alice);
+        var result = await AppUiEndpoints.ReadChild(name, path, brain, scope, Ct, Alice);
         var status = Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 200;
         var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
         return (status, JsonSerializer.Serialize(value, AppUiEndpoints.ViewJson));
@@ -144,7 +144,7 @@ public sealed class SlotReadEndpointFacts
         var (os, brain) = await Start();
         await using var __ = os;
 
-        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, Alice, new Unloaded());
+        var result = await AppUiEndpoints.ReadChild("slotread", "panel", brain, Scope, Ct, Alice, new Unloaded());
 
         Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Contains("NotLoaded", JsonSerializer.Serialize(Assert.IsAssignableFrom<IValueHttpResult>(result).Value), StringComparison.Ordinal);
@@ -158,7 +158,7 @@ public sealed class SlotReadEndpointFacts
         using var _ = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("bob", "bob", new BrainId("other")));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+            () => AppUiEndpoints.ReadChild("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
     }
 
     [Fact]
@@ -168,9 +168,9 @@ public sealed class SlotReadEndpointFacts
         var (os, brain) = await Start();
         await using var __ = os;
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadSlot("slotread", "panel", brain, "other", Ct, Alice));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadSlot("slotread/view", "panel", brain, Scope, Ct, Alice));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, caller: null));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadChild("slotread", "panel", brain, "other", Ct, Alice));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadChild("slotread/view", "panel", brain, Scope, Ct, Alice));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadChild("slotread", "panel", brain, Scope, Ct, caller: null));
     }
 }
 
@@ -235,7 +235,7 @@ public sealed class ScreenViewMarkFacts
         await os.Idle();
 
         var view = Body(await AppUiEndpoints.ReadNode("view", "owner/apps/slotread/view", new Proxies(os), Scope, Ct));
-        var slot = Body(await AppUiEndpoints.ReadSlot("slotread", "panel", new Proxies(os), Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+        var slot = Body(await AppUiEndpoints.ReadChild("slotread", "panel", new Proxies(os), Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
 
         Assert.Contains("\"acts\":\"act\"", view, StringComparison.Ordinal);
         Assert.Contains("\"acts\":\"act\"", slot, StringComparison.Ordinal);
@@ -269,7 +269,7 @@ public sealed class ScreenViewMarkFacts
         public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
         public Task Dispatch(Command command) => Task.FromException(error);
-        public Task<PublishedView?> ReadSlot(string path) => Task.FromException<PublishedView?>(error);
+        public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(error);
     }
 
     private sealed class ScreenBrain(IScreen screen) : INeuronProxies
@@ -283,7 +283,7 @@ public sealed class ScreenViewMarkFacts
         using var _ = AsPerson();
         var brain = new ScreenBrain(new FailingScreen(new ActivationRefusedException(ActivationRefusedException.Stale)));
 
-        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+        var result = await AppUiEndpoints.ReadChild("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Contains(ActivationRefusedException.Stale, Body(result), StringComparison.Ordinal);
@@ -295,7 +295,7 @@ public sealed class ScreenViewMarkFacts
         using var _ = AsPerson();
         var brain = new ScreenBrain(new FailingScreen(new InvalidOperationException("the panel broke")));
 
-        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+        var result = await AppUiEndpoints.ReadChild("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Contains("HandlerFailed", Body(result), StringComparison.Ordinal);
@@ -306,7 +306,7 @@ public sealed class ScreenViewMarkFacts
         using var _ = AsPerson();
         var brain = new ScreenBrain(new FailingScreen(new ArgumentException("the panel's handler broke")));
 
-        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+        var result = await AppUiEndpoints.ReadChild("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Contains("HandlerFailed", Body(result), StringComparison.Ordinal);
@@ -330,7 +330,7 @@ public sealed class ScreenViewMarkFacts
         using var _ = AsPerson();
         var brain = new ScreenBrain(new FailingScreen(new ArgumentException("unused")));
 
-        var result = await AppUiEndpoints.ReadSlot("slotread", "a/../b", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+        var result = await AppUiEndpoints.ReadChild("slotread", "a/../b", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
     }

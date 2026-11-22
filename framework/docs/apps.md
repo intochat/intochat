@@ -23,15 +23,15 @@ A client reads the view through `IScreen`: `Open()` and `Read()` return the `Pub
 A node carries an `Emit` built with `Emits(signal)`: activating it brings that signal back to the screen's own `[On]` reaction.
 `Follow<TSource, TSignal>(key)` makes a signal of another neuron reach the screen.
 
-## Controls and slots
+## Controls and child screens
 
-A screen can put another neuron in its view with `Slot<TChild>(key)`. A control neuron (a check box, a list box, a live chart) takes props as well: `Slot<TChild, TProps>(key, props)`, where the child implements `IControl<TProps>` and `TProps` derives from `ControlProps`. Props are what the parent decides and re-render with the parent; the child stores only what the user changes. When the parent owns the value (a preference), it passes it in the props and the child only signals.
+A screen can put another neuron in its view with `Child<TChild>(key)`. A control neuron (a check box, a list box, a live chart) takes props as well: `Child<TChild, TProps>(key, props)`, where the child implements `IControl<TProps>` and `TProps` derives from `ControlProps`. Props are what the parent decides and re-render with the parent; the child stores only what the user changes. When the parent owns the value (a preference), it passes it in the props and the child only signals.
 
-A slot names its child by key, never by id. A command to a child goes through the parent: `IScreen.Dispatch(command)` takes a target of `"."` (the screen), a key, or a key path `"a/b"` that each child resolves one hop further. A key the current view does not show is refused with `ActivationRefusedException.UnknownChild`. Props that implement `ICommandGate` check a command before the child sees it, and a slot whose props are disabled refuses every command. `IScreen.ReadSlot(path)` reads a child's view the same way.
+A child ref names its child by key, never by id. A command to a child goes through the parent: `IScreen.Dispatch(command)` takes a target of `"."` (the screen), a key, or a key path `"a/b"` that each child resolves one hop further. A key the current view does not show is refused with `ActivationRefusedException.UnknownChild`. Props that implement `ICommandGate` check a command before the child sees it, and a child whose props are disabled refuses every command. `IScreen.ReadChild(path)` reads a child's view the same way.
 
-`FollowSlot<TChild, TSignal>(key)` makes a signal of a slot child reach the parent's `[On]` reaction, where `SignalSlot` names the key it came from. `RenderDetached(state)` draws a preview without saving anything.
+`FollowChild<TChild, TSignal>(key)` makes a signal of a child reach the parent's `[On]` reaction, where `SignalChild` names the key it came from. `RenderDetached(state)` draws a preview without saving anything.
 
-On the OS edge, a screen's commands go to `POST /brains/{id}/act` and its slot views to `GET /brains/{id}/apps/{name}/slots/{path}`. The host marks a screen's view with `"acts": "act"` (`View.ActRoute`) when it serves it; a view has no such property, so an app cannot set the mark. The act route answers 400 for a malformed request, 409 with a reason for a refusal, and 422 `HandlerFailed` when the handler throws.
+On the OS edge, a screen's commands go to `POST /brains/{id}/act` and its child views to `GET /brains/{id}/apps/{name}/slots/{path}` (wire `refKind` remains `"slot"` for client compatibility). The host marks a screen's view with `"acts": "act"` (`View.ActRoute`) when it serves it; a view has no such property, so an app cannot set the mark. The act route answers 400 for a malformed request, 409 with a reason for a refusal, and 422 `HandlerFailed` when the handler throws.
 
 ## Example
 

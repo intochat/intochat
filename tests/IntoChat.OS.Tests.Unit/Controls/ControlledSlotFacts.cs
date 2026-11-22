@@ -28,17 +28,17 @@ public sealed class ControlledParent : Screen<ControlledParentState>
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
-        await FollowSlot<ToggleSwitchNeuron, Toggled>("dark");
-        await FollowSlot<ComboBoxNeuron, SelectionChanged>("theme");
+        await FollowChild<ToggleSwitchNeuron, Toggled>("dark");
+        await FollowChild<ComboBoxNeuron, SelectionChanged>("theme");
     }
 
     protected override View Render(ControlledParentState state)
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Slot<ToggleSwitchNeuron, ToggleSwitchProps>("dark", new ToggleSwitchProps("Dark mode", IsOn: state.DarkMode)),
-            Slot<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")], SelectedId: state.Theme)),
-            Slot<ToggleSwitchNeuron, ToggleSwitchProps>("free", new ToggleSwitchProps("Free")),
+            Child<ToggleSwitchNeuron, ToggleSwitchProps>("dark", new ToggleSwitchProps("Dark mode", IsOn: state.DarkMode)),
+            Child<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")], SelectedId: state.Theme)),
+            Child<ToggleSwitchNeuron, ToggleSwitchProps>("free", new ToggleSwitchProps("Free")),
         ]));
     }
 
@@ -46,14 +46,14 @@ public sealed class ControlledParent : Screen<ControlledParentState>
     public Task OnToggled(Toggled toggled)
     {
         ArgumentNullException.ThrowIfNull(toggled);
-        return SignalSlot == "dark" ? Show(State with { DarkMode = toggled.IsOn }) : Task.CompletedTask;
+        return SignalChild == "dark" ? Show(State with { DarkMode = toggled.IsOn }) : Task.CompletedTask;
     }
 
     [On]
     public Task OnSelectionChanged(SelectionChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        return SignalSlot == "theme" ? Show(State with { Theme = changed.Id }) : Task.CompletedTask;
+        return SignalChild == "theme" ? Show(State with { Theme = changed.Id }) : Task.CompletedTask;
     }
 }
 

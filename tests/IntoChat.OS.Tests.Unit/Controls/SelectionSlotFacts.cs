@@ -40,12 +40,12 @@ public sealed class SelectionParent : Screen<SelectionParentState>
     }
 
     private View Draw(bool privacyRemoved) => new("Parent", new Column([
-        Slot<TabStripNeuron, TabStripProps>("tabs", new TabStripProps(privacyRemoved
+        Child<TabStripNeuron, TabStripProps>("tabs", new TabStripProps(privacyRemoved
             ? [new TabStripItem("general", "General"), new TabStripItem("about", "About")]
             : [new TabStripItem("general", "General"), new TabStripItem("privacy", "Privacy")])),
-        Slot<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")])),
-        Slot<ListBoxNeuron, ListBoxProps>("devices", new ListBoxProps([new ListBoxItem("laptop", "Laptop"), new ListBoxItem("phone", "Phone", "Yesterday")])),
-        Slot<ListBoxNeuron, ListBoxProps>("history", new ListBoxProps([new ListBoxItem("1", "Signed in")], ListSelectionMode.None)),
+        Child<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")])),
+        Child<ListBoxNeuron, ListBoxProps>("devices", new ListBoxProps([new ListBoxItem("laptop", "Laptop"), new ListBoxItem("phone", "Phone", "Yesterday")])),
+        Child<ListBoxNeuron, ListBoxProps>("history", new ListBoxProps([new ListBoxItem("1", "Signed in")], ListSelectionMode.None)),
     ]));
 }
 

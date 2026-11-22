@@ -1794,7 +1794,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         public Task Dispatch(DigitalBrain.UI.Command command) => Task.CompletedTask;
 
-        public Task<PublishedView?> ReadSlot(string path) => Task.FromResult<PublishedView?>(null);
+        public Task<PublishedView?> ReadChild(string path) => Task.FromResult<PublishedView?>(null);
     }
 
     private sealed class RecordingSandboxRunner(List<SandboxCommandRequest> sink) : ISandboxCommandRunner

@@ -59,27 +59,27 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         AppActivationScope.Notify(this);
         _brain = Id.Brain.Value;
         await base.OnActivate(cancellationToken);
-        await FollowSlot<ListBoxNeuron, SelectionChanged>(UiKitPages.Nav);
-        await FollowSlot<CheckBoxNeuron, Toggled>("checkBox");
-        await FollowSlot<ToggleSwitchNeuron, Toggled>("toggleSwitch");
-        await FollowSlot<ToggleSwitchNeuron, Toggled>(UiKitPages.ControlledSwitch);
-        await FollowSlot<ExpanderNeuron, Expanded>("expander");
-        await FollowSlot<TabStripNeuron, SelectionChanged>("tabStrip");
-        await FollowSlot<ComboBoxNeuron, SelectionChanged>("comboBox");
-        await FollowSlot<ComboBoxNeuron, SelectionChanged>(UiKitPages.ModelPicker);
-        await FollowSlot<ListBoxNeuron, SelectionChanged>("listBox");
-        await FollowSlot<FormNeuron, Submitted>("form");
-        await FollowSlot<LiveChartNeuron, ChartChanged>("liveChart");
-        await FollowSlot<LiveChartNeuron, ChartChanged>(UiKitPages.LiveChart);
-        await FollowSlot<QueryTableNeuron, TableChanged>("queryTable");
-        await FollowSlot<QueryTableNeuron, TableChanged>(UiKitPages.TableQuery);
+        await FollowChild<ListBoxNeuron, SelectionChanged>(UiKitPages.Nav);
+        await FollowChild<CheckBoxNeuron, Toggled>("checkBox");
+        await FollowChild<ToggleSwitchNeuron, Toggled>("toggleSwitch");
+        await FollowChild<ToggleSwitchNeuron, Toggled>(UiKitPages.ControlledSwitch);
+        await FollowChild<ExpanderNeuron, Expanded>("expander");
+        await FollowChild<TabStripNeuron, SelectionChanged>("tabStrip");
+        await FollowChild<ComboBoxNeuron, SelectionChanged>("comboBox");
+        await FollowChild<ComboBoxNeuron, SelectionChanged>(UiKitPages.ModelPicker);
+        await FollowChild<ListBoxNeuron, SelectionChanged>("listBox");
+        await FollowChild<FormNeuron, Submitted>("form");
+        await FollowChild<LiveChartNeuron, ChartChanged>("liveChart");
+        await FollowChild<LiveChartNeuron, ChartChanged>(UiKitPages.LiveChart);
+        await FollowChild<QueryTableNeuron, TableChanged>("queryTable");
+        await FollowChild<QueryTableNeuron, TableChanged>(UiKitPages.TableQuery);
         foreach (var thread in ThreadSlots)
         {
-            await FollowSlot<ChatThreadNeuron, MessageAppended>(thread);
-            await FollowSlot<ChatThreadNeuron, MessageUpdated>(thread);
-            await FollowSlot<ChatThreadNeuron, RetryRequested>(thread);
-            await FollowSlot<ChatThreadNeuron, Submitted>(thread);
-            await FollowSlot<ChatThreadNeuron, StopRequested>(thread);
+            await FollowChild<ChatThreadNeuron, MessageAppended>(thread);
+            await FollowChild<ChatThreadNeuron, MessageUpdated>(thread);
+            await FollowChild<ChatThreadNeuron, RetryRequested>(thread);
+            await FollowChild<ChatThreadNeuron, Submitted>(thread);
+            await FollowChild<ChatThreadNeuron, StopRequested>(thread);
         }
     }
 
@@ -109,7 +109,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
     {
         ArgumentNullException.ThrowIfNull(changed);
         var logged = Log(changed);
-        return SignalSlot switch
+        return SignalChild switch
         {
             UiKitPages.Nav when UiKitPages.Find(changed.Id) is { } page => ShowPage(page.Id, logged),
             UiKitPages.ModelPicker when UiKitPages.Models.Any(model => model.Id == changed.Id) => Show(logged with { Model = changed.Id }),
@@ -122,7 +122,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
     {
         ArgumentNullException.ThrowIfNull(toggled);
         var logged = Log(toggled);
-        return Show(SignalSlot == UiKitPages.ControlledSwitch ? logged with { ControlledOn = toggled.IsOn } : logged);
+        return Show(SignalChild == UiKitPages.ControlledSwitch ? logged with { ControlledOn = toggled.IsOn } : logged);
     }
 
     [On]
@@ -144,7 +144,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
     private UiKitState Log<TSignal>(TSignal signal) where TSignal : Signal
     {
         ArgumentNullException.ThrowIfNull(signal);
-        return State.Logged(new UiKitEvent(SignalSlot ?? "(outside)", AliasOf(typeof(TSignal)),
+        return State.Logged(new UiKitEvent(SignalChild ?? "(outside)", AliasOf(typeof(TSignal)),
             JsonSerializer.Serialize(signal, typeof(TSignal), JsonSerializerOptions.Web), Context.Time.GetUtcNow()));
     }
 
@@ -169,7 +169,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
     {
         ArgumentNullException.ThrowIfNull(state);
         var page = UiKitPages.Find(state.Page) ?? UiKitPages.All[0];
-        var nav = Slot<ListBoxNeuron, ListBoxProps>(UiKitPages.Nav, new ListBoxProps(
+        var nav = Child<ListBoxNeuron, ListBoxProps>(UiKitPages.Nav, new ListBoxProps(
             [.. UiKitPages.All.Select(item => new ListBoxItem(item.Id, item.Title, Group: item.Group))], AutomationName: "UI Kit pages", SelectedId: page.Id));
         return new SplitPane(nav, new Column(
         [
@@ -189,23 +189,23 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         }
         return page.Id switch
         {
-            "checkBox" => [Slot<CheckBoxNeuron, CheckBoxProps>("checkBox", new CheckBoxProps("Remember me"))],
+            "checkBox" => [Child<CheckBoxNeuron, CheckBoxProps>("checkBox", new CheckBoxProps("Remember me"))],
             "toggleSwitch" =>
             [
-                Slot<ToggleSwitchNeuron, ToggleSwitchProps>("toggleSwitch", new ToggleSwitchProps("Wi-Fi (uncontrolled: the switch keeps its value)", "On", "Off")),
-                Slot<ToggleSwitchNeuron, ToggleSwitchProps>(UiKitPages.ControlledSwitch,
+                Child<ToggleSwitchNeuron, ToggleSwitchProps>("toggleSwitch", new ToggleSwitchProps("Wi-Fi (uncontrolled: the switch keeps its value)", "On", "Off")),
+                Child<ToggleSwitchNeuron, ToggleSwitchProps>(UiKitPages.ControlledSwitch,
                     new ToggleSwitchProps("Controlled: the UI Kit owns this value", "On", "Off", IsOn: state.ControlledOn)),
                 new Text(state.ControlledOn ? "The UI Kit stored: on" : "The UI Kit stored: off"),
             ],
-            "expander" => [Slot<ExpanderNeuron, ExpanderProps>("expander", new ExpanderProps("Details", [new Text("Shown while expanded.")]))],
-            "tabStrip" => [Slot<TabStripNeuron, TabStripProps>("tabStrip", new TabStripProps([new("home", "Home"), new("files", "Files"), new("share", "Share")]))],
-            "comboBox" => [Slot<ComboBoxNeuron, ComboBoxProps>("comboBox", new ComboBoxProps("Theme", [new("light", "Light"), new("dark", "Dark"), new("auto", "Auto")]))],
-            "listBox" => [Slot<ListBoxNeuron, ListBoxProps>("listBox", new ListBoxProps([new("ana", "Ana", "Design"), new("ben", "Ben", "Research"), new("cy", "Cy")]))],
-            "form" => [Slot<FormNeuron, FormProps>("form", new FormProps(
+            "expander" => [Child<ExpanderNeuron, ExpanderProps>("expander", new ExpanderProps("Details", [new Text("Shown while expanded.")]))],
+            "tabStrip" => [Child<TabStripNeuron, TabStripProps>("tabStrip", new TabStripProps([new("home", "Home"), new("files", "Files"), new("share", "Share")]))],
+            "comboBox" => [Child<ComboBoxNeuron, ComboBoxProps>("comboBox", new ComboBoxProps("Theme", [new("light", "Light"), new("dark", "Dark"), new("auto", "Auto")]))],
+            "listBox" => [Child<ListBoxNeuron, ListBoxProps>("listBox", new ListBoxProps([new("ana", "Ana", "Design"), new("ben", "Ben", "Research"), new("cy", "Cy")]))],
+            "form" => [Child<FormNeuron, FormProps>("form", new FormProps(
                 [new FormInput("name", "Name", Placeholder: "Your name", MaxLength: 40), new FormInput("age", "Age", FormFieldKind.Number), new FormInput("bio", "Bio", FormFieldKind.Multiline)],
                 "Save"))],
             "liveChart" or UiKitPages.LiveChart => [Chart(page.Id)],
-            "queryTable" or UiKitPages.TableQuery => [Slot<QueryTableNeuron, QueryTableProps>(page.Id, new QueryTableProps("People",
+            "queryTable" or UiKitPages.TableQuery => [Child<QueryTableNeuron, QueryTableProps>(page.Id, new QueryTableProps("People",
                 [new("id", "Id"), new("name", "Name"), new("status", "Status")], $"{_brain}/control.sampleTableSource/{UiKitPages.SampleSourceKey}"))],
             "chatThread" => [Thread("chatThread", new ChatThreadProps("Write a message", AutomationName: "Chat thread"))],
             UiKitPages.Message => [Thread(page.Id, new ChatThreadProps(AutomationName: "Message"))],
@@ -214,7 +214,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
             UiKitPages.ActivityRow => [Thread(page.Id, new ChatThreadProps(AutomationName: "Activity row"))],
             UiKitPages.Composer =>
             [
-                Slot<ComboBoxNeuron, ComboBoxProps>(UiKitPages.ModelPicker, new ComboBoxProps("Model", UiKitPages.Models)),
+                Child<ComboBoxNeuron, ComboBoxProps>(UiKitPages.ModelPicker, new ComboBoxProps("Model", UiKitPages.Models)),
                 Thread(page.Id, new ChatThreadProps("Message the model", ActiveModelLabel: UiKitPages.Models.First(model => model.Id == state.Model).Label, AutomationName: "Composer")),
             ],
             UiKitPages.Empty => [Thread(page.Id, new ChatThreadProps(EmptyText: "Ask anything to start.", AutomationName: "Empty"))],
@@ -223,11 +223,11 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         };
     }
 
-    private Node Thread(string key, ChatThreadProps props) => Slot<ChatThreadNeuron, ChatThreadProps>(key, props);
+    private Node Thread(string key, ChatThreadProps props) => Child<ChatThreadNeuron, ChatThreadProps>(key, props);
 
     private Node Chart(string key) => new Column(
     [
-        Slot<LiveChartNeuron, LiveChartProps>(key, new LiveChartProps("Live points")),
+        Child<LiveChartNeuron, LiveChartProps>(key, new LiveChartProps("Live points")),
         new Button("append", "Append point", Sends(new UiKitAppend()), Tone: ButtonTone.Accent, AutomationName: "Append point"),
     ]);
 

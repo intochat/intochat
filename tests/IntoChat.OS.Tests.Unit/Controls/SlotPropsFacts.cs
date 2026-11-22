@@ -31,10 +31,10 @@ public sealed class PropsParent : Screen<PropsParentState>
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Slot<CheckBoxNeuron, CheckBoxProps>("terms", new CheckBoxProps(state.Label, state.TermsEnabled)),
-            Slot<CheckBoxNeuron>("plain"),
+            Child<CheckBoxNeuron, CheckBoxProps>("terms", new CheckBoxProps(state.Label, state.TermsEnabled)),
+            Child<CheckBoxNeuron>("plain"),
             .. state.NestSlot
-                ? new Node[] { Slot<ExpanderNeuron, ExpanderProps>("more", new ExpanderProps("More", [new Text("Data is fine"), Slot<CheckBoxNeuron>("inner")])) }
+                ? new Node[] { Child<ExpanderNeuron, ExpanderProps>("more", new ExpanderProps("More", [new Text("Data is fine"), Child<CheckBoxNeuron>("inner")])) }
                 : [],
         ]));
     }
@@ -179,7 +179,7 @@ public sealed class SlotPropsFacts : IAsyncDisposable
     {
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => Tell(new NestSlot()));
 
-        Assert.Contains("slot 'more'", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("child 'more'", refused.Message, StringComparison.Ordinal);
         Assert.Contains("data nodes only", refused.Message, StringComparison.Ordinal);
     }
 

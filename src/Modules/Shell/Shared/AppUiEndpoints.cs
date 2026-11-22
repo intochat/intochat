@@ -53,7 +53,7 @@ internal static class AppUiEndpoints
         apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger));
         apps.MapGet("/{name}/slots/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
-            => ReadSlot(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
+            => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
         OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
 
@@ -96,12 +96,12 @@ internal static class AppUiEndpoints
         return Results.Ok(new { delivered = true });
     }
 
-    // GET /apps/{name}/slots/{path}: the view of a slot child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
-    // and its slot table, one key per hop ("a/b"), never by the child's neuron id (which the response does not carry either: its own
-    // slots are named by key). Responses: 200 the view; 400 a malformed path; 404 {reason: UnknownChild} a key the view does not show;
+    // GET /apps/{name}/slots/{path}: the view of a UI child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
+    // and its child table, one key per hop ("a/b"), never by the child's neuron id (which the response does not carry either: its own
+    // children are named by key). Responses: 200 the view; 400 a malformed path; 404 {reason: UnknownChild} a key the view does not show;
     // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed
     // (an ArgumentException from the handler included: 400 is only for the path checked before it runs).
-    internal static async Task<IResult> ReadSlot(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
+    internal static async Task<IResult> ReadChild(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
         IHostedAppTypes? hosted = null, ILogger? logger = null)
     {
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
@@ -126,7 +126,7 @@ internal static class AppUiEndpoints
         }
         try
         {
-            var view = await brain.Get<IScreen>(new NeuronId(new BrainId(scope), alias, "default")).ReadSlot(path).WaitAsync(ct);
+            var view = await brain.Get<IScreen>(new NeuronId(new BrainId(scope), alias, "default")).ReadChild(path).WaitAsync(ct);
             return Results.Json(SlotKeys.Screen(view), ViewJson);
         }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.UnknownChild)

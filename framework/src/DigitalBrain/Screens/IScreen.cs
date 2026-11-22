@@ -69,7 +69,7 @@ public interface IScreen
     /// child key its current view shows, or a key path "a/b" that each child's own Dispatch resolves one hop further. The parent
     /// owns its children, so a client acts on a child only through this call; a handler's failure reaches the caller.
     /// </summary>
-    /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    /// <exception cref="ActivationRefusedException">The current view names no child with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     Task Dispatch(DigitalBrain.UI.Command command);
 
     /// <summary>
@@ -77,10 +77,10 @@ public interface IScreen
     /// command: each parent resolves only a key its current view shows. A client reads a child only through its top-level screen.
     /// </summary>
     /// <param name="path">The key path, relative to this screen.</param>
-    /// <exception cref="ActivationRefusedException">A hop names no slot of its view (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    /// <exception cref="ActivationRefusedException">A hop names no child of its view (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     /// <exception cref="ArgumentException">The path is empty or has an empty, "." or ".." hop.</exception>
     [ReadOnlyCall]
-    Task<PublishedView?> ReadSlot(string path);
+    Task<PublishedView?> ReadChild(string path);
 }
 
 /// <summary>

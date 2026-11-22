@@ -20,7 +20,7 @@ A test app whose screen slots a chat thread under "conversation", so the screen 
 public sealed class SlotDemoApp : Screen<SlotDemoState>
 {
     protected override View Render(SlotDemoState state)
-        => new("Slot demo", new Column([new Text("Demo"), Slot<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps("Ask anything.", Status: "failed", Error: new ChatThreadError("Ino could not answer.", ActionLabel: "Try again", Retry: true)))]));
+        => new("Slot demo", new Column([new Text("Demo"), Child<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps("Ask anything.", Status: "failed", Error: new ChatThreadError("Ino could not answer.", ActionLabel: "Try again", Retry: true)))]));
 }
 
 // MCP and HTTP readers see a screen's slots in place, their controls under the slot key path, and act on them through the slot.

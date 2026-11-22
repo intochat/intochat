@@ -24,8 +24,8 @@ public sealed class ChartParent : Screen<ChartParentState>
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Slot<LiveChartNeuron, LiveChartProps>("spend", new LiveChartProps("Spend", "line")),
-            Slot<LiveChartNeuron, LiveChartProps>("odd", new LiveChartProps("Odd", "donut")),
+            Child<LiveChartNeuron, LiveChartProps>("spend", new LiveChartProps("Spend", "line")),
+            Child<LiveChartNeuron, LiveChartProps>("odd", new LiveChartProps("Odd", "donut")),
         ]));
     }
 }
