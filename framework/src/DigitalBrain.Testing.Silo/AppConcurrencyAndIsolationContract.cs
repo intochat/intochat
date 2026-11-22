@@ -23,6 +23,10 @@ public abstract class AppConcurrencyAndIsolationContract<TScreen, TFixture>(TFix
     /// </summary>
     protected virtual string? ConcurrentActivationKey => null;
 
+    /// <summary>Opens a new <see cref="AppSession{TScreen}"/> on the specified runtime.</summary>
+    protected Task<AppSession<TScreen>> Open(NeuronRuntimeKind kind, string? key = null, CancellationToken ct = default)
+        => fixture.Open<TScreen>(kind, key, ct);
+
     /// <summary>Verifies that opening a fresh screen instance renders a valid initial view.</summary>
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task ColdStart_RendersValidInitialView(NeuronRuntimeKind kind)

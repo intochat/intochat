@@ -43,6 +43,13 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
     public Task<INeuronRuntime> Runtime(NeuronRuntimeKind kind)
         => _shared.GetOrAdd(kind, value => new Lazy<Task<INeuronRuntime>>(() => Start(value, CancellationToken.None))).Value;
 
+    public async Task<AppSession<TScreen>> Open<TScreen>(NeuronRuntimeKind kind, string? key = null, CancellationToken ct = default)
+        where TScreen : class
+    {
+        var runtime = await Runtime(kind).ConfigureAwait(false);
+        return await AppSession.OpenAsync<TScreen>(runtime, key, ct).ConfigureAwait(false);
+    }
+
     // A runtime of kind that the caller disposes; home keeps the silo's state folder (null: a fresh temporary one) and
     // siloServices runs after ConfigureSilo (fault injection, controls).
     [Module("both-runtimes-core")]

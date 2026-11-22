@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Examples.Calculator;
 using DigitalBrain.Identity.Local;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -23,31 +22,17 @@ public sealed class CalculatorRuntimeFacts(CalculatorRuntimeFixture fixture) : I
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task CalculatorScreenAgreesOnBothRuntimes(NeuronRuntimeKind kind)
     {
-        var runtime = await fixture.Runtime(kind);
-        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
+        var ct = TestContext.Current.CancellationToken;
+        await using var app = await fixture.Open<CalculatorScreen>(kind, ct: ct);
+        app.ShouldDisplayText("0");
 
-        var calcId = runtime.Id("app.calculator", "default");
-        var screen = runtime.Get<IScreen>(calcId);
+        await app.Send(new CalculatorPress("7"), ct);
+        await app.Send(new CalculatorPress("+"), ct);
+        await app.Send(new CalculatorPress("5"), ct);
+        await app.Send(new CalculatorPress("="), ct);
+        app.ShouldDisplayText("12");
 
-        var initialView = await screen.Read();
-        Assert.NotNull(initialView);
-        Assert.Contains("0", initialView.View.GetRawText());
-
-        await screen.Request<CalculatorPress>(new("7"));
-        await screen.Request<CalculatorPress>(new("+"));
-        await screen.Request<CalculatorPress>(new("5"));
-        await screen.Request<CalculatorPress>(new("="));
-        await runtime.Idle();
-
-        var view = await screen.Read();
-        Assert.NotNull(view);
-        Assert.Contains("12", view.View.GetRawText());
-
-        await screen.Request<CalculatorClear>(new());
-        await runtime.Idle();
-
-        var cleared = await screen.Read();
-        Assert.NotNull(cleared);
-        Assert.Contains("0", cleared.View.GetRawText());
+        await app.Send(new CalculatorClear(), ct);
+        app.ShouldDisplayText("0");
     }
 }
