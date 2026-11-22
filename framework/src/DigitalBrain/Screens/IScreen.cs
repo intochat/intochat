@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
@@ -11,6 +12,7 @@ namespace DigitalBrain;
 /// <param name="Generation">The generation of the view seen by the caller.</param>
 /// <param name="NodeKey">The unique key of the activated view node.</param>
 /// <param name="FieldValue">Optional field value if node is an input field.</param>
+[method: JsonConstructor]
 public sealed record ScreenAction(string? Alias, long Generation, string NodeKey, string? FieldValue = null)
 {
     /// <summary>Creates a screen action without an explicit view alias.</summary>

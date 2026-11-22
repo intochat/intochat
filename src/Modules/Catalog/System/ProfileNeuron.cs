@@ -1,4 +1,6 @@
+using DigitalBrain.Components;
 using DigitalBrain.Log;
+using IntoChat.OS.Modules.Identity.Contracts.Handles;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
 
@@ -20,6 +22,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         var normalizedDisplayName = string.IsNullOrWhiteSpace(displayName)
             ? (string.IsNullOrWhiteSpace(State.DisplayName) ? normalizedHandle : State.DisplayName)
             : displayName.Trim();
+        var previousHandle = State.Handle;
         var next = State with
         {
             Handle = normalizedHandle,
@@ -31,8 +34,50 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
             SharedApps = State.SharedApps ?? [],
         };
         await Save(next, new ProfileChanged(next.Handle, next.Posts.Length));
+        await TryClaimHandleAsync(previousHandle, normalizedHandle);
         return next;
     }
+
+    private async Task TryClaimHandleAsync(string previousHandle, string nextHandle)
+    {
+        if (string.IsNullOrWhiteSpace(nextHandle) || string.IsNullOrWhiteSpace(Id.Brain.Value))
+        {
+            return;
+        }
+        if (Context.ClassOf(IHandleDirectory.TypeName) is null)
+        {
+            return;
+        }
+
+        var normalized = IHandleDirectory.Normalize(nextHandle);
+        if (!IHandleDirectory.IsValid(normalized))
+        {
+            return;
+        }
+
+        var claimed = await HandleOf(normalized).Claim(Id.Brain.Value);
+
+        if (claimed && !string.IsNullOrWhiteSpace(previousHandle))
+        {
+            var prevNormalized = IHandleDirectory.Normalize(previousHandle);
+            if (!string.Equals(prevNormalized, normalized, StringComparison.Ordinal) && IHandleDirectory.IsValid(prevNormalized))
+            {
+                await HandleOf(prevNormalized).Release(Id.Brain.Value);
+            }
+        }
+    }
+
+    private IHandleDirectory HandleOf(string normalizedHandle)
+    {
+        var handleId = IHandleDirectory.IdOf(normalizedHandle);
+        return Context.Get<IHandleDirectory>(new BindingTarget.Offered(handleId.Brain, handleId));
+    }
+
+    private IApp AppOf(string alias)
+        => Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, $"apps/{alias}"));
+
+    private ISynapseStudio StudioOf(string brainId)
+        => Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
 
     public async Task<ProfileState> PublishPost(string id, string content, Audience? audience = null)
     {
@@ -152,7 +197,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
                 try
                 {
                     var remixed = pkg with { Key = newPostId.Trim() };
-                    await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, $"apps/{newPostId.Trim()}")).Import(remixed.ToAppBundle());
+                    await AppOf(newPostId.Trim()).Import(remixed.ToAppBundle());
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
@@ -162,7 +207,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
 
             try
             {
-                var studio = Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
+                var studio = StudioOf(brainId);
                 await studio.DeployFiles(source.TemplateAppId, filesToDeploy, new Dictionary<string, string>(StringComparer.Ordinal));
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -192,7 +237,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         {
             var brainId = Id.Brain.Value ?? string.Empty;
             if (string.IsNullOrWhiteSpace(brainId)) { return files; }
-            var studio = Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
+            var studio = StudioOf(brainId);
             foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
             if (files.Count > 0)
             {
@@ -208,7 +253,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         {
             try
             {
-                var exported = await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, $"apps/{alias}")).Export();
+                var exported = await AppOf(alias).Export();
                 if (exported?.Files is { Count: > 0 })
                 {
                     foreach (var (path, text) in exported.Files)

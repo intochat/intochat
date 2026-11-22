@@ -157,8 +157,10 @@ public sealed class ShareableContractAnalyzer : DiagnosticAnalyzer
             return true;
         }
 
-        // CancellationToken, Guid, DateTimeOffset, TimeSpan
-        if (fullName is "System.Guid" or "System.DateTimeOffset" or "System.TimeSpan" or "System.Threading.CancellationToken")
+        // CancellationToken, Guid, DateTimeOffset, TimeSpan, and DigitalBrain identity record structs
+        // (Roslyn reports IsRecord == false for `record struct` types imported from assembly metadata.)
+        if (fullName is "System.Guid" or "System.DateTimeOffset" or "System.TimeSpan" or "System.Threading.CancellationToken"
+            or "DigitalBrain.BrainId" or "DigitalBrain.NeuronId")
         {
             return true;
         }

@@ -37,7 +37,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
     private IFileShares Door => Get<IFileShares>(FileSharesDefaults.Id(Id.Brain.Value));
-    private IOffers Offers => Get<IOffers>(new NeuronId(Id.Brain, "component.offers", IOffers.DefaultKey));
+    private IOffers Offers => Context.Offers;
 
     public async Task<Code> Mint()
     {
