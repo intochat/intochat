@@ -78,8 +78,12 @@ public static class OperatingSystemHosting
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/devui/", DisplayText = "DevUI" });
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/widgetbook/", DisplayText = "Widgetbook" });
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/orleans/", DisplayText = "Orleans Dashboard" });
-            // A local kernel may read this AppHost through Aspire's own MCP server (Ino's IAspire); a cloud one never learns where it is.
-            if (!profile.Cloud) { silo.WithEnvironment("IntoChatOS__Aspire__AppHostPath", Path.Combine(builder.AppHostDirectory, "IntoChat.OS.AppHost.csproj")); }
+            // A local kernel may read this AppHost through Aspire's own MCP server (Ino's IAspire) and inspect this checkout as the "os" repository; a cloud one never learns where it is.
+            if (!profile.Cloud)
+            {
+                silo.WithEnvironment("IntoChatOS__Aspire__AppHostPath", Path.Combine(builder.AppHostDirectory, "IntoChat.OS.AppHost.csproj"));
+                ProjectLocalCheckout(silo, builder);
+            }
             // One encrypted local brain store for this deployment.
             silo.WithReference(os)
                 .WithOsEnvironment(IntoChatOSNames.TopologyKey, profile.Topology)
@@ -140,5 +144,41 @@ public static class OperatingSystemHosting
     {
         foreach (var key in profile.ModuleOverrides) { resource.WithOsEnvironment(key, builder.Configuration[key]!); }
         return resource;
+    }
+
+    internal static void ProjectLocalCheckout<T>(IResourceBuilder<T> silo, IDistributedApplicationBuilder builder)
+        where T : IResourceWithEnvironment
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var osRepoSection = builder.Configuration.GetSection("IntoChatOS:Repositories:os");
+        var alreadyConfigured = !string.IsNullOrWhiteSpace(osRepoSection.Value) || osRepoSection.GetChildren().Any();
+        if (!alreadyConfigured && FindCheckoutRoot(builder.AppHostDirectory) is { Length: > 0 } checkoutRoot)
+        {
+            silo.WithEnvironment("IntoChatOS__Repositories__os", checkoutRoot);
+        }
+    }
+
+    internal static string? FindCheckoutRoot(string? startDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(startDirectory))
+        {
+            return null;
+        }
+
+        var dir = new DirectoryInfo(Path.GetFullPath(startDirectory));
+        while (dir is not null)
+        {
+            var gitMarker = Path.Combine(dir.FullName, ".git");
+            if (Directory.Exists(gitMarker) || File.Exists(gitMarker))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return null;
     }
 }
