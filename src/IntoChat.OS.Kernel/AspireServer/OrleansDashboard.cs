@@ -19,12 +19,14 @@ public static class OrleansDashboard
         ArgumentNullException.ThrowIfNull(app);
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard)
         {
-            var isLocalTopology = string.Equals(app.Configuration["IntoChatOS:Topology"], "local", StringComparison.OrdinalIgnoreCase);
+            var isLocalLoopbackAllowed = app.Environment.IsDevelopment()
+                || string.Equals(app.Configuration["IntoChatOS:Topology"], "local", StringComparison.OrdinalIgnoreCase);
             Orleans.Dashboard.ServiceCollectionExtensions.MapOrleansDashboard(app, routePrefix: Path)
+                .AllowAnonymous()
                 .AddEndpointFilter(async (context, next) =>
                 {
                     var isAuthenticated = context.HttpContext.RequestServices.GetService<DigitalBrain.Access.ICallerAmbient>()?.Current is not null;
-                    var isLocalLoopback = isLocalTopology
+                    var isLocalLoopback = isLocalLoopbackAllowed
                         && context.HttpContext.Connection.RemoteIpAddress is { } remoteIp
                         && IPAddress.IsLoopback(remoteIp);
                     return isAuthenticated || isLocalLoopback ? await next(context) : Results.Unauthorized();
