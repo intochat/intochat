@@ -19,6 +19,9 @@ namespace IntoChat.OS.Modules.Flutter.Workspace;
 internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
     : UiNeuron<WorkspaceStorage>, IWorkspace
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IApp> Apps { get; }
+
     // The brain's one workspace, keyed {brain}/main (R4-19); its signals and paths name the brain.
     private string Brain => Id.Brain.Value;
 
@@ -103,7 +106,7 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         if (matchedName is null) { return false; }
 
         var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, matchedName).Key;
-        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(appKey) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), appKey))).Read(), matchedName);
+        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(appKey) : Apps[DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), appKey)]).Read(), matchedName);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]

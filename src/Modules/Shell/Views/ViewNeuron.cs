@@ -15,9 +15,11 @@ namespace IntoChat.OS.Modules.Flutter.Views;
 
 // Stores an app's View as its wire JSON, verbatim; resolves an activation by key and hands the typed action to the edge.
 [Neuron(UIVocabulary.ViewType)]
-internal sealed class ViewNeuron
+internal sealed partial class ViewNeuron
     : UiNeuron<ViewState>, IView
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<Fields.IField> Fields { get; }
     public async Task Publish(long generation, View view)
     {
         RequireWriter();
@@ -31,7 +33,7 @@ internal sealed class ViewNeuron
         foreach (var (name, kind) in ViewValidation.Fields(ViewValidation.Parse(json)))
         {
             if (app is not null && name.StartsWith(app, StringComparison.Ordinal) && name.Length > app.Length && !name.Split('/').Any(segment => segment.Length == 0 || segment.StartsWith('.')))
-            { await Get<Fields.IField>(new DigitalBrain.NeuronId(Id.Brain, UIVocabulary.FieldType, name)).Configure(kind); }
+            { await Fields[name].Configure(kind); }
         }
     }
 

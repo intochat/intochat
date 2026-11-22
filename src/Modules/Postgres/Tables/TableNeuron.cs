@@ -34,6 +34,12 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
 {
     public const string GrainType = "postgres.table";
 
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IPostgresTableHost> TableHosts { get; }
+
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<ITableIndex> TableIndices { get; }
+
     // The os key "{brain}/{key}" a table is named by in its index and its physical name.
     private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
 
@@ -84,13 +90,13 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     private TablePlacement Pinned => State.Placement ?? TablePlacement.Shared;
 
     private ITableStore Tables(TablePlacement placement)
-        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(Context.Get<IPostgresTableHost>(DigitalBrain.Capabilities.Connections.ConnectionKeys.IdFor(placement.Name!))) : provider;
+        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(TableHosts[DigitalBrain.Capabilities.Connections.ConnectionKeys.IdFor(placement.Name!)]) : provider;
 
     // The index is a plain neuron (06-08) reached as this neuron, so TableLifecycleGuard sees this table's host as the caller.
     private ITableIndex Tables(string owner)
     {
         var brain = BrainKey.ScopeOf(owner) ?? throw new UnauthorizedAccessException("This storage key does not name a brain.");
-        return Context.Get<ITableIndex>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), TableIndexNeuron.GrainType, owner[(brain.Length + 1)..]));
+        return TableIndices[new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), TableIndexNeuron.GrainType, owner[(brain.Length + 1)..])];
     }
 
     public async Task Retire(string owner)

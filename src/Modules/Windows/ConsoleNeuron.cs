@@ -13,8 +13,11 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/console.
 [DigitalBrain.Neurons.Neuron("windows.console")]
-internal sealed class ConsoleNeuron(MachineId thisMachine, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IConsole
+internal sealed partial class ConsoleNeuron(MachineId thisMachine) : DigitalBrain.Neurons.Neuron, IConsole
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IWindows> WindowsMachines { get; }
+
     private const int MaxOutputChars = 20_000;
 
     // IConsole.Run's ResponseTimeout is five minutes; the command must end before the call does.
@@ -26,7 +29,7 @@ internal sealed class ConsoleNeuron(MachineId thisMachine, IServiceProvider serv
         var connection = WindowsKeys.Connection(Id.FullKey());
         if (ConnectionKeys.Parse(connection).ConnectionId != thisMachine.Value)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        var roots = await SiloNeurons.Get<IWindows>(services, connection).Roots();
+        var roots = await WindowsMachines[DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IWindows), connection)].Roots();
         var directory = PathConfinement.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 

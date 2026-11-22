@@ -15,9 +15,12 @@ internal sealed record TableIndexState
 
 // A plain neuron (06-08). Its state saves without a signal: which tables exist is no one's to watch.
 [DigitalBrain.Neurons.Neuron(GrainType)]
-internal sealed class TableIndexNeuron : DigitalBrain.Neurons.Neuron<TableIndexState>, ITableIndex
+internal sealed partial class TableIndexNeuron : DigitalBrain.Neurons.Neuron<TableIndexState>, ITableIndex
 {
     public const string GrainType = "postgres.tables";
+
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<ITableLifetime> TableLifetimes { get; }
 
     private readonly SemaphoreSlim writes = new(1, 1);
 
@@ -52,7 +55,7 @@ internal sealed class TableIndexNeuron : DigitalBrain.Neurons.Neuron<TableIndexS
         // The write gate is released before calls back to tables, so closed scopes refuse promptly.
         // Each call leaves as this neuron, so TableLifecycleGuard sees the index as the caller.
         foreach (var table in State.Tables)
-        { await Context.Get<ITableLifetime>(SiloNeurons.IdOf(typeof(ITableLifetime), table)).Retire(OwnerKey); }
+        { await TableLifetimes[SiloNeurons.IdOf(typeof(ITableLifetime), table)].Retire(OwnerKey); }
     }
 
     // A fresh install of the same app: its old tables were dropped by Retire, so it starts empty.

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace IntoChat.OS.Modules.Web.Search;
 
 [Neuron("web.search"), StatelessNeuron]
-internal sealed class WebSearchNeuron(
+internal sealed partial class WebSearchNeuron(
     IHttpClientFactory? clients = null,
     IOptions<WebModuleOptions>? options = null,
     IBrainProviderKeys? brainKeys = null,
@@ -18,6 +18,8 @@ internal sealed class WebSearchNeuron(
     IEnumerable<ISearchAdapter>? adapters = null,
     IEnumerable<SearchAdapterRegistration>? adapterRegistrations = null) : Neuron, IWebSearch
 {
+    [DigitalBrain.Slot(Key = IUserSettings.DefaultKey, Required = false)]
+    private partial IUserSettings? UserSettings { get; }
     internal const string ProviderVariable = "web.search.provider";
     internal const string SearxngUrlVariable = "web.search.searxng-url";
 
@@ -87,8 +89,8 @@ internal sealed class WebSearchNeuron(
 
         try
         {
-            var settings = await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", IUserSettings.DefaultKey)).Read().ConfigureAwait(false);
-            if (settings.Variables is { Length: > 0 })
+            var settings = UserSettings is { } settingsNeuron ? await settingsNeuron.Read().ConfigureAwait(false) : null;
+            if (settings?.Variables is { Length: > 0 })
             {
                 foreach (var entry in settings.Variables)
                 {

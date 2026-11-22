@@ -6,18 +6,22 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 // At most one candidate is live per brain; the rest wait here in proposal order.
 // A plain neuron since 06-06d.
 [DigitalBrain.Neurons.Neuron("aspire.candidates")]
-internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.Neurons.Neuron<CandidateQueueState>, ICandidates
+internal sealed partial class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.Neurons.Neuron<CandidateQueueState>, ICandidates
 {
+    [DigitalBrain.Slot(Key = IDeployment.Relative)]
+    private partial IDeployment LiveCluster { get; }
+
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<ICandidate> CandidateSlots { get; }
+
     private CandidateQueueState Snapshot => State;
     private string BrainId => Id.Brain.Value;
-    private T Peer<T>(string relative) where T : class
-        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), new DigitalBrain.NeuronId(Id.Brain, Id.Type, relative).FullKey()));
 
     public async Task<string> Propose(CandidateProposal proposal)
     {
         ArgumentNullException.ThrowIfNull(proposal);
         await Heal();
-        var cluster = await Peer<IDeployment>(IDeployment.Relative).Read();
+        var cluster = await LiveCluster.Read();
         var prepared = await host.Prepare(cluster.CurrentSha, proposal.Summary, proposal.Files, CancellationToken.None);
         var candidate = Candidate(prepared.Sha);
         await candidate.Propose(proposal.Branch, proposal.Summary, proposal.Plan);
@@ -52,7 +56,7 @@ internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.N
 
     private static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
 
-    private ICandidate Candidate(string sha) => Peer<ICandidate>(ICandidate.Relative(sha));
+    private ICandidate Candidate(string sha) => CandidateSlots[ICandidate.Relative(sha)];
 
     public Task<string?> Live() => Task.FromResult(Snapshot.Live);
 

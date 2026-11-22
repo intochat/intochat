@@ -112,4 +112,67 @@ public sealed class SocialPostsAndRoomsJourney
         var directory = alice.Get<IHandleDirectory>(handleId);
         Assert.Equal(alice.Brain.Value, await directory.Resolve());
     }
+
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task BobForksAlicesSharedAppDefinitionWithEmptyStateAndNoBindingsOfHers(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = await Journey.Start(kind, _ => { }, ct);
+        var alice = os.Person("alice");
+        var bob = os.Person("bob");
+
+        // 1. Alice and Bob become friends.
+        await alice.Befriend(bob, ct);
+
+        // 2. Alice binds her own instance of "customer-notes" in her brain, then shares ONLY its app definition.
+        var aliceNotesTarget = new NeuronId(alice.Brain, "postgres.table", "alice-private-notes");
+        var aliceInstalls = alice.Get<IInstalls>(new NeuronId(alice.Brain, "synapse.installs", "default"));
+        await aliceInstalls.BindComponent(
+            new ComponentId("customer-notes"),
+            [new Binding("notes", new BindingTarget.Local(aliceNotesTarget))],
+            ct);
+
+        var alicePostsId = new NeuronId(alice.Brain, "social.posts", IPosts.DefaultKey);
+        var alicePosts = alice.Get<IPosts>(alicePostsId);
+        var share = new AppDefinitionShare(
+            "customer-notes",
+            "Customer Notes",
+            [new SharedSourceFile("App.cs", "// unit source")]);
+        var postId = await alicePosts.Publish(
+            new PostDraft("Sharing my Customer Notes app!", [bob.Account], SharedApp: share),
+            ct);
+        Assert.False(string.IsNullOrWhiteSpace(postId));
+
+        // 3. Bob pulls Alice's post and receives only source files + title/id (no author state, no author bindings).
+        var bobViewOfAlicePosts = bob.Get<IPosts>(alicePostsId);
+        var bobPage = await bobViewOfAlicePosts.Since(0, ct);
+        var seenByBob = Assert.Single(bobPage.Posts);
+        Assert.Equal(postId, seenByBob.Id);
+        var received = Assert.IsType<AppDefinitionShare>(seenByBob.SharedApp);
+        Assert.Equal("customer-notes", received.AppId);
+        Assert.Equal("Customer Notes", received.Title);
+        var file = Assert.Single(received.Files);
+        Assert.Equal("App.cs", file.Path);
+        Assert.Equal("// unit source", file.Content);
+
+        // 4. Bob forks/binds the shared app definition in Bob's own brain with Bob's own Local binding.
+        var bobNotesTarget = new NeuronId(bob.Brain, "postgres.table", "bob-notes");
+        var bobInstalls = bob.Get<IInstalls>(new NeuronId(bob.Brain, "synapse.installs", "default"));
+        await bobInstalls.BindComponent(
+            new ComponentId(received.AppId),
+            [new Binding("notes", new BindingTarget.Local(bobNotesTarget))],
+            ct);
+
+        // 5. Bob's install record contains ONLY Bob's bindings and NONE of Alice's brain/bindings.
+        var bobRecord = await bobInstalls.Describe(received.AppId, ct);
+        Assert.NotNull(bobRecord);
+        var bobBindings = bobRecord.EffectiveBindings();
+        var bobBinding = Assert.Single(bobBindings);
+        Assert.Equal("notes", bobBinding.Slot);
+        var local = Assert.IsType<BindingTarget.Local>(bobBinding.Target);
+        Assert.Equal(bobNotesTarget, local.Neuron);
+        Assert.Equal(bob.Brain, local.Neuron.Brain);
+        Assert.NotEqual(alice.Brain, local.Neuron.Brain);
+        Assert.DoesNotContain(bobBindings, b => b.Target is BindingTarget.Local l && l.Neuron.Brain == alice.Brain);
+    }
 }

@@ -26,14 +26,15 @@ internal sealed class McpServerStore
 // activation holds one client and reuses it. The client is a cache: a broken session is dropped and the
 // call retried once on a fresh one; what the brain knows about the server lives in the persisted state.
 [DigitalBrain.Neurons.Neuron("mcp.server", State = "mcp.server")]
-internal sealed class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerStore>, IMcpServer
+internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerStore>, IMcpServer
 {
     private const int MaxText = 128 * 1024;
     private static readonly TimeSpan CallBudget = TimeSpan.FromMinutes(5);
 
     private McpClient? _client;
     private Uri? _endpoint;
-    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
+    [DigitalBrain.Slot(Key = "default")]
+    private partial DigitalBrain.Limits.IPolicies Policies { get; }
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
     {

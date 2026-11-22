@@ -22,16 +22,19 @@ internal sealed record McpToolConnectionState : ConnectionState
 
 // A connection neuron representing an external MCP tool source offering tool@1.
 [Neuron(IMcpToolConnection.TypeName, State = "mcp.tool")]
-internal sealed class McpToolConnection(
+internal sealed partial class McpToolConnection(
     IMcpServer? underlyingServer = null,
     ILogger<McpToolConnection>? logger = null)
     : ConnectionNeuron<McpToolConnectionState>, IMcpToolConnection
 {
     private readonly ILogger _log = logger ?? McpConsoleLog.For<McpToolConnection>();
 
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IMcpServer> McpServers { get; }
+
     private IMcpServer Server => underlyingServer
         ?? (Context is not null
-            ? Context.Get<IMcpServer>(new NeuronId(Id.Brain, "mcp.server", Id.Key))
+            ? McpServers[Id.Key]
             : throw new InvalidOperationException("No MCP server or neuron context configured for this connection."));
 
     public Task<IReadOnlyList<string>> List()

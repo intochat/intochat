@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Salesforce;
 
 [DigitalBrain.Neurons.Neuron("salesforce", State = "salesforce")]
-internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
+internal sealed partial class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
 {
     private const int MaxWriteArgumentsBytes = 24 * 1024;
     private ILogger Log => GetLogger();
@@ -22,7 +22,8 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
     private readonly ISalesforceProvider _provider;
     private readonly TimeProvider _time;
 
-    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
+    [DigitalBrain.Slot(Key = "default")]
+    private partial DigitalBrain.Limits.IPolicies Policies { get; }
 
     public SalesforceNeuron(
         ISalesforceProvider provider,

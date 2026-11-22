@@ -18,9 +18,11 @@ internal sealed record SessionListState
 }
 
 [Neuron(Sessions.Type)]
-internal sealed class SessionListNeuron(ILogger<SessionListNeuron>? logger = null)
+internal sealed partial class SessionListNeuron(ILogger<SessionListNeuron>? logger = null)
     : UiNeuron<SessionListState>, ISessionList
 {
+    [DigitalBrain.Slot(Key = IInoConversations.DefaultKey, Required = false)]
+    private partial IInoConversations? LegacyConversations { get; }
     private const string LegacyPrefix = "ino/conversations/";
     private bool _importChecked;
 
@@ -144,7 +146,7 @@ internal sealed class SessionListNeuron(ILogger<SessionListNeuron>? logger = nul
         string[] legacyKeys;
         try
         {
-            legacyKeys = await Context.Get<IInoConversations>(new NeuronId(Id.Brain, "ino.conversations", IInoConversations.DefaultKey)).List();
+            legacyKeys = LegacyConversations is { } legacy ? await legacy.List() : [];
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

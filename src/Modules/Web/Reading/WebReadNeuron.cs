@@ -10,10 +10,12 @@ using Microsoft.Extensions.Options;
 namespace IntoChat.OS.Modules.Web.Reading;
 
 [Neuron("web.read"), StatelessNeuron]
-internal sealed class WebReadNeuron(
+internal sealed partial class WebReadNeuron(
     IHttpClientFactory? clients = null,
     IOptions<WebModuleOptions>? options = null) : Neuron, IWebRead
 {
+    [DigitalBrain.Slot(Key = "web/browser", Required = false)]
+    private partial IPlaywright? Browser { get; }
     private const int MinLettersBeforeBrowserFallback = 400;
     private static readonly HttpClient FallbackClient = new(HostBoundHttp.Handler(VettedConnect.Dns)) { Timeout = HostBoundHttp.Timeout };
 
@@ -67,7 +69,10 @@ internal sealed class WebReadNeuron(
     {
         try
         {
-            var browser = Get<IPlaywright>(new NeuronId(Id.Brain, "playwright", "web/browser"));
+            if (Browser is not { } browser)
+            {
+                return (url, title, markdown);
+            }
             await browser.Start().ConfigureAwait(false);
             var observed = await browser.Navigate(url.AbsoluteUri).ConfigureAwait(false);
             var resolvedUrl = Uri.TryCreate(observed.Url, UriKind.Absolute, out var parsed) ? parsed : url;

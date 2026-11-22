@@ -7,8 +7,10 @@ using IntoChat.OS.Modules.UI.Table.Signals;
 namespace IntoChat.OS.Modules.UI.Table;
 
 [Neuron("ui.table")]
-internal sealed class TableNeuron : UiNeuronBase<TableState>, ITable
+internal sealed partial class TableNeuron : UiNeuronBase<TableState>, ITable
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IUiTableSource> TableSources { get; }
     public async Task<TableState> Bind(string sourceNeuronId, string title, IReadOnlyList<TableColumn> columns, int pageSize = 10)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceNeuronId);
@@ -92,7 +94,7 @@ internal sealed class TableNeuron : UiNeuronBase<TableState>, ITable
     private async Task<TableState> ExecuteBoundQuery(TableState basis)
     {
         var sourceId = basis.SourceNeuronId!;
-        if (!NeuronId.TryParse(sourceId, out var address) || !Implements<IUiTableSource>(address))
+        if (!NeuronId.TryParse(sourceId, out var address) || !TableSources.Exists(address))
         {
             var invalid = basis with
             {
@@ -108,7 +110,7 @@ internal sealed class TableNeuron : UiNeuronBase<TableState>, ITable
 
         try
         {
-            var page = await Get<IUiTableSource>(address).Query(new UiTableQuery(basis.Filter, basis.SortBy, basis.Descending, basis.Page, basis.PageSize));
+            var page = await TableSources[address].Query(new UiTableQuery(basis.Filter, basis.SortBy, basis.Descending, basis.Page, basis.PageSize));
             var next = basis with
             {
                 Version = basis.Version + 1,

@@ -30,6 +30,9 @@ internal sealed partial class PageToolsNeuron : DigitalBrain.Neurons.Neuron<Page
             """{"type":"object","properties":{"method":{"type":"string"},"params":{"type":"object"}},"required":["method"]}""", false),
     ];
 
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IPlaywright> Browsers { get; }
+
     private string Brain => Id.Brain.Value;
 
     public async Task<PageToolsState> Configure(PageToolsSpec spec, CancellationToken ct = default)
@@ -66,7 +69,7 @@ internal sealed partial class PageToolsNeuron : DigitalBrain.Neurons.Neuron<Page
         // The page answers from its frame loop: a hidden page never settles, so bound it inside the page.
         var expression = $"Promise.race([{call}, new Promise((_, reject) => setTimeout(() => reject(new Error('page not rendering')), {RenderingBudgetMs}))])";
         string json;
-        try { json = await Context.Get<IPlaywright>(new DigitalBrain.NeuronId(Id.Brain, "playwright", state.Driver[(Brain.Length + 1)..])).Evaluate(expression, ct); }
+        try { json = await Browsers[state.Driver[(Brain.Length + 1)..]].Evaluate(expression, ct); }
         catch (Exception error) when (error.Message.Contains("page not rendering", StringComparison.Ordinal))
         {
             OsConsoleLog.For<PageToolsNeuron>().LogSwallowed(error, "running Playwright page tool while page is hidden");

@@ -11,7 +11,7 @@ using IntoChat.OS.Modules.Devices.Link;
 namespace IntoChat.OS.Modules.Devices;
 
 [Neuron("devices.device")]
-internal sealed class DeviceNeuron(
+internal sealed partial class DeviceNeuron(
     MachineId thisMachine,
     IHardwareProbe hardware,
     IEnumerable<ILocalRuntime> runtimes,
@@ -19,6 +19,11 @@ internal sealed class DeviceNeuron(
     EdgeAuthority? edge = null,
     DeviceWorker? worker = null) : Neuron<DeviceState>, IDevice, IDeviceInstallReports
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IDeviceInstallReports> InstallReports { get; }
+
+    [DigitalBrain.Slot(Key = "main")]
+    private partial IModelCatalog ModelCatalog { get; }
     private const int MaxRecent = 20;
 
     private readonly ILocalRuntime[] _runtimes = OrderRuntimes(runtimes);
@@ -46,7 +51,7 @@ internal sealed class DeviceNeuron(
                 ?? (await ResolveRuntimeAsync(entry.Model, cancellationToken).ConfigureAwait(false))?.Runtime;
             if (runtime is not null)
             {
-                installer.Enqueue(Id, entry.Model, runtime, Get<IDeviceInstallReports>(Id));
+                installer.Enqueue(Id, entry.Model, runtime, InstallReports[Id]);
             }
         }
     }
@@ -278,11 +283,11 @@ internal sealed class DeviceNeuron(
                     State with { Queue = updated },
                     new InstallChanged(model, updated[existingIndex].State, updated[existingIndex].Percent)).ConfigureAwait(false);
             }
-            installer.Enqueue(Id, model, resolved.Runtime, Get<IDeviceInstallReports>(Id));
+            installer.Enqueue(Id, model, resolved.Runtime, InstallReports[Id]);
             return;
         }
 
-        var activeNow = installer.Enqueue(Id, model, resolved.Runtime, Get<IDeviceInstallReports>(Id));
+        var activeNow = installer.Enqueue(Id, model, resolved.Runtime, InstallReports[Id]);
         var initialState = activeNow ? InstallState.Downloading : InstallState.Queued;
         var entry = new Install(
             Model: model,
@@ -302,11 +307,11 @@ internal sealed class DeviceNeuron(
     private async Task SetRoleAsync(Role role, ModelId model)
     {
         using var scope = edge?.Enter(edge.Module(DevicesModule.ManifestName, Id.Brain));
-        await Get<IModelCatalog>(new NeuronId(Id.Brain, "ai.models", "main")).SetRole(role, model).ConfigureAwait(false);
+        await ModelCatalog.SetRole(role, model).ConfigureAwait(false);
     }
 
     private Task<RoleMap> ReadCatalogRolesAsync()
-        => Get<IModelCatalog>(new NeuronId(Id.Brain, "ai.models", "main")).Roles();
+        => ModelCatalog.Roles();
 
     private static Role? FindAssignedRole(RoleMap roles, ModelId model)
     {

@@ -1,6 +1,8 @@
 using System.Reflection;
+using DigitalBrain.Components;
 using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Http;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyModel;
 using IntoChat.OS.Host.Modules;
 
@@ -164,6 +166,22 @@ public static class OperatingSystemModules
         return baseModules.Any(module => module.Type == windows.Type) ? baseModules : [.. baseModules, windows];
     }
 
+    // P6 privileged modules exempt from same-brain slot binding audit warnings while carrying host/silo plumbing.
+    private static readonly HashSet<string> PrivilegedBindingComponents = new(StringComparer.Ordinal)
+    {
+        "IntoChat.OS.Modules.AI",
+        "IntoChat.OS.Modules.Catalog",
+        "IntoChat.OS.Modules.Devices",
+        "IntoChat.OS.Modules.GitHub",
+        "IntoChat.OS.Modules.Google",
+        "IntoChat.OS.Modules.Identity",
+        "IntoChat.OS.Modules.Mcp",
+        "IntoChat.OS.Modules.Postgres",
+        "IntoChat.OS.Modules.Roslyn",
+        "IntoChat.OS.Modules.Storage",
+        "IntoChat.OS.Modules.Windows",
+    };
+
     // Composes the given modules (the portable composition by default) and the OS apps.
     public static IntoChatOSServerBuilder AddOperatingSystem(this IntoChatOSServerBuilder server, IReadOnlyList<OsModule>? modules = null)
     {
@@ -176,6 +194,22 @@ public static class OperatingSystemModules
             services.AddSingleton<IntoChat.OS.Modules.Microsoft.Azure.IPulumiEngine>(new Install.KernelPulumiEngine(selected));
             services.AddMeteredHttpPipelines(selected);
             services.AddOperatingSystemApps();
+            services.TryAddSingleton(sp =>
+            {
+                var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("IntoChat.OS.Kernel.BindingGate");
+                return new BindingGateOptions
+                {
+                    Mode = BindingEnforcementMode.Audit,
+                    PrivilegedComponents = PrivilegedBindingComponents,
+                    OnMissingBinding = logger is null
+                        ? null
+                        : ev => logger.LogWarning(
+                            "binding.missing: component={Component} target={Target} op={Operation}",
+                            ev.Component.Value,
+                            ev.Target,
+                            ev.Operation),
+                };
+            });
         });
         return server;
     }

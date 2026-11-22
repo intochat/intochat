@@ -7,8 +7,10 @@ using IntoChat.OS.Modules.UI.Chart.Signals;
 namespace IntoChat.OS.Modules.UI.Chart;
 
 [Neuron("ui.chart")]
-internal sealed class ChartNeuron : UiNeuronBase<ChartState>, IChart
+internal sealed partial class ChartNeuron : UiNeuronBase<ChartState>, IChart
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IChartSource> ChartSources { get; }
     public async Task<ChartState> Render(ChartSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
@@ -147,7 +149,7 @@ internal sealed class ChartNeuron : UiNeuronBase<ChartState>, IChart
     private async Task<ChartState> ExecuteBoundQuery(ChartState basis)
     {
         var sourceId = basis.SourceNeuronId!;
-        if (!NeuronId.TryParse(sourceId, out var address) || !Implements<IChartSource>(address))
+        if (!NeuronId.TryParse(sourceId, out var address) || !ChartSources.Exists(address))
         {
             var invalid = basis with
             {
@@ -161,7 +163,7 @@ internal sealed class ChartNeuron : UiNeuronBase<ChartState>, IChart
 
         try
         {
-            var result = await Get<IChartSource>(address).Query(basis.Query ?? new ChartQuery());
+            var result = await ChartSources[address].Query(basis.Query ?? new ChartQuery());
             var series = NormalizeSeries(result.Series);
             var next = basis with
             {

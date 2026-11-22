@@ -10,17 +10,27 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
 // A plain neuron (06-08): reminders through Context.Reminders, the retained last DeploymentChanged is the runtime's.
 [DigitalBrain.Neurons.Neuron("aspire.deployment")]
-internal sealed class DeploymentNeuron(
+internal sealed partial class DeploymentNeuron(
     IClusterHost host,
     IntoChat.OS.Host.Cluster.IClusterMembershipFeed membership,
     ILogger<DeploymentNeuron> log)
     : DigitalBrain.Neurons.Neuron<AspireDeploymentState>, IDeployment, IDeploymentDriver
 {
+    [DigitalBrain.Slot(Key = IntoChat.OS.Modules.Apps.Flows.IFlows.DefaultKey)]
+    private partial IntoChat.OS.Modules.Apps.Flows.IFlows Flows { get; }
+
+    [DigitalBrain.Slot(Key = ICandidates.Relative, Required = false)]
+    private partial ICandidates? CandidatesSlot { get; }
+
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<ICandidate> CandidateSlots { get; }
+
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IDeploymentDriver> Drivers { get; }
+
     // The state, loaded on activation; a step that moves nothing visible saves it without a signal.
     private AspireDeploymentState Snapshot => State;
     private string BrainId => Id.Brain.Value;
-    private T Peer<T>(string relative) where T : class
-        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), new NeuronId(Id.Brain, Id.Type, relative).FullKey()));
     private readonly Guid activation = Guid.NewGuid();
     private IAsyncDisposable? membershipSubscription;
     private long membershipVersion = long.MinValue;
@@ -96,7 +106,7 @@ internal sealed class DeploymentNeuron(
     private Task StartFlow(string key, string title)
     {
         var inner = new DeployInner { TargetSha = Snapshot.TargetSha!, PreviousSha = Snapshot.PreviousSha, Remaining = Snapshot.Remaining };
-        return Get<IntoChat.OS.Modules.Apps.Flows.IFlows>(IntoChat.OS.Modules.Apps.Flows.IFlows.Key(BrainId))
+        return Flows
             .Start(DeployFlow.Alias, title, null, System.Text.Json.JsonSerializer.Serialize(inner, DeployFlow.Json), CancellationToken.None, key);
     }
 
@@ -148,7 +158,7 @@ internal sealed class DeploymentNeuron(
         }
     }
 
-    private ICandidate CandidatePeer(string sha) => Peer<ICandidate>(ICandidate.Relative(sha));
+    private ICandidate CandidatePeer(string sha) => CandidateSlots[ICandidate.Relative(sha)];
 
     private async Task Finish(string? failure)
     {
@@ -197,8 +207,11 @@ internal sealed class DeploymentNeuron(
         {
             await Guarded(() => CandidatePeer(abandoned).Abandon($"the cluster restarted onto {current}, not {abandoned}"), "fail the abandoned promotion");
         }
-        await Guarded(() => Peer<ICandidates>(ICandidates.Relative).Heal(), "heal the candidate queue");
-        var receiver = Get<IDeploymentDriver>(Id);
+        if (CandidatesSlot is { } candidates)
+        {
+            await Guarded(candidates.Heal, "heal the candidate queue");
+        }
+        var receiver = Drivers[Id];
         membershipSubscription = membership.Subscribe(snapshot => receiver.MembershipChanged(activation, snapshot));
         try { await MembershipChanged(activation, membership.Current); }
         catch (Exception error) when (error is not OperationCanceledException)

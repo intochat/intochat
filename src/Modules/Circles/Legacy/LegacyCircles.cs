@@ -86,8 +86,11 @@ internal sealed class LegacyCircleNeuron : Neuron<CircleRecord>, ILegacyCircle
 }
 
 [Neuron("circles.chat")]
-internal sealed class LegacyCircleChatNeuron : Neuron<CircleChatRecord>, ILegacyCircleChat
+internal sealed partial class LegacyCircleChatNeuron : Neuron<CircleChatRecord>, ILegacyCircleChat
 {
+    [DigitalBrain.Slot(Key = "circle")]
+    private partial ILegacyCircle Circle { get; }
+
     public async Task<CircleLine[]> Read(long since)
     {
         if (Context.Caller is not { For.Account: var account } caller || caller.Brain != Id.Brain)
@@ -95,7 +98,7 @@ internal sealed class LegacyCircleChatNeuron : Neuron<CircleChatRecord>, ILegacy
             throw new UnauthorizedAccessException($"The caller is not in circle {Id.Brain.Value}.");
         }
 
-        var circle = await Get<ILegacyCircle>(new NeuronId(Id.Brain, CircleGrainType.Name, "circle")).State();
+        var circle = await Circle.State();
         if (!circle.Members.Contains(account, StringComparer.Ordinal))
         {
             throw new UnauthorizedAccessException($"The caller is not a member of circle {Id.Brain.Value}.");

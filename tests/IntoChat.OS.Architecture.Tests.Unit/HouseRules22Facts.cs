@@ -1658,7 +1658,7 @@ public sealed class HouseRules22Facts
         }
 
         const int AppsAmbientReachCap = 0;
-        const int ModulesAmbientReachCap = 240;
+        const int ModulesAmbientReachCap = 206;
 
         Assert.True(
             appsCount <= AppsAmbientReachCap,
@@ -1717,7 +1717,6 @@ public sealed class HouseRules22Facts
         "IntoChat.OS.Modules.Mcp",
         "IntoChat.OS.Modules.Postgres",
         "IntoChat.OS.Modules.Roslyn",
-        "IntoChat.OS.Modules.Shell",
         "IntoChat.OS.Modules.Storage",
         "IntoChat.OS.Modules.Windows",
     };

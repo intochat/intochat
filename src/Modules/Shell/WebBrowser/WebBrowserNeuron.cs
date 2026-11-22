@@ -15,11 +15,12 @@ namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 // Reentrancy is safe because all state updates and driver operations are sequenced using monotonic generation counters (_generation)
 // and idempotent connection status transitions, preventing race conditions or corruptions during concurrent turn interleaving.
 [Neuron(UIVocabulary.WebBrowserType), Reentrant]
-internal sealed class WebBrowserNeuron(
-    ILogger<WebBrowserNeuron> logger,
-    IServiceProvider services)
+internal sealed partial class WebBrowserNeuron(
+    ILogger<WebBrowserNeuron> logger)
     : UiNeuron<WebBrowserState>, IWebBrowser, IWebBrowserConnector
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IPlaywright> Browsers { get; }
     private const int ReasonClip = 200;
     // Keeps the activation (and with it the attached session) alive while a page is attached (R4-18, ITimers keep-alive).
     private const string KeepAlive = "session";
@@ -33,8 +34,7 @@ internal sealed class WebBrowserNeuron(
     private Task? _connecting;
     private Task? _disconnecting;
     private string DriverKey => Snapshot.PlaywrightKey ?? FullKey;
-    // The browser is a plain neuron (06-06d); this neuron is still a grain and reaches it through the plain-neuron seam.
-    private IPlaywright Driver => SiloNeurons.Get<IPlaywright>(services, DriverKey);
+    private IPlaywright Driver => Browsers[DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IPlaywright), DriverKey)];
 
     public async Task Configure(string playwrightKey)
     {

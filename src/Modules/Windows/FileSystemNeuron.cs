@@ -9,8 +9,11 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/files. Read-only: writes go through the storage capability as approved operations.
 [DigitalBrain.Neurons.Neuron("windows.files")]
-internal sealed class FileSystemNeuron(MachineId thisMachine, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IFileSystem
+internal sealed partial class FileSystemNeuron(MachineId thisMachine) : DigitalBrain.Neurons.Neuron, IFileSystem
 {
+    [DigitalBrain.Slot(Required = false)]
+    private partial DigitalBrain.Components.SlotCollection<IWindows> WindowsMachines { get; }
+
     public async Task<string> Read(string path, CancellationToken cancellationToken = default) =>
         await File.ReadAllTextAsync(await Resolve(path), cancellationToken);
 
@@ -23,6 +26,6 @@ internal sealed class FileSystemNeuron(MachineId thisMachine, IServiceProvider s
         var connection = WindowsKeys.Connection(Id.FullKey());
         if (ConnectionKeys.Parse(connection).ConnectionId != thisMachine.Value)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        return PathConfinement.Resolve(await SiloNeurons.Get<IWindows>(services, connection).Roots(), path);
+        return PathConfinement.Resolve(await WindowsMachines[DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IWindows), connection)].Roots(), path);
     }
 }

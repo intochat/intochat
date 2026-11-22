@@ -24,6 +24,7 @@ internal sealed class PostsNeuron : Neuron<PostsState>, IPosts
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
+        var sharedApp = SanitizeSharedApp(draft.SharedApp);
         var sequence = State.NextSequence + 1;
         var postId = Guid.NewGuid().ToString("N");
         var post = new SocialPost(
@@ -34,7 +35,8 @@ internal sealed class PostsNeuron : Neuron<PostsState>, IPosts
             [],
             [],
             sequence,
-            Context.Time.GetUtcNow());
+            Context.Time.GetUtcNow(),
+            sharedApp);
 
         await Store(new PostsState([.. State.Posts, post], sequence)).ConfigureAwait(true);
 
@@ -139,5 +141,20 @@ internal sealed class PostsNeuron : Neuron<PostsState>, IPosts
             }
         }
         throw new KeyNotFoundException($"Post '{postId}' was not found.");
+    }
+
+    private static AppDefinitionShare? SanitizeSharedApp(AppDefinitionShare? share)
+    {
+        if (share is null)
+        {
+            return null;
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(share.AppId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(share.Title);
+        var files = (share.Files ?? [])
+            .Where(static f => f is not null && !string.IsNullOrWhiteSpace(f.Path))
+            .Select(static f => new SharedSourceFile(f.Path.Trim(), f.Content ?? string.Empty))
+            .ToArray();
+        return new AppDefinitionShare(share.AppId.Trim(), share.Title.Trim(), files);
     }
 }

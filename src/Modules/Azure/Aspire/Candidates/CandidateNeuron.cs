@@ -9,17 +9,19 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 // A plain neuron since 06-06d. The index, the live cluster (still a grain) and the candidates are reached through the brain's
 // in-process client, as before.
 [DigitalBrain.Neurons.Neuron("aspire.candidate")]
-internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier verifier, ILogger<CandidateNeuron> log)
+internal sealed partial class CandidateNeuron(ICandidateHost host, ICandidateVerifier verifier, ILogger<CandidateNeuron> log)
     : DigitalBrain.Neurons.Neuron<CandidateState>, ICandidate
 {
+    [DigitalBrain.Slot(Key = ICandidates.Relative)]
+    private partial ICandidates Index { get; }
+
+    [DigitalBrain.Slot(Key = IDeployment.Relative)]
+    private partial IDeployment LiveCluster { get; }
+
     private CandidateState Snapshot => State;
     private string Key => Id.FullKey();
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);
-    private T Peer<T>(string relative) where T : class
-        => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), new DigitalBrain.NeuronId(Id.Brain, Id.Type, relative).FullKey()));
-    private ICandidates Index => Peer<ICandidates>(ICandidates.Relative);
-    private IDeployment LiveCluster => Peer<IDeployment>(IDeployment.Relative);
 
     public Task<CandidateSnapshot> Read() => Task.FromResult(Describe());
 

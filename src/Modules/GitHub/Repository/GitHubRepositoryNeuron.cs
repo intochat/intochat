@@ -15,7 +15,7 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 // One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
 // access once; installation tokens minted from the App key (or a sealed Fine-Grained PAT) do the ongoing work.
 [DigitalBrain.Neurons.Neuron("github", State = "github")]
-internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepositoryState>, IRepository, IGitHubInbound
+internal sealed partial class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepositoryState>, IRepository, IGitHubInbound
 {
     internal const int MaxProcessedDeliveries = 512;
     internal const int MaxPullRequests = 512;
@@ -42,7 +42,8 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     private string NormalizedAuthKind => string.Equals(Snapshot.AuthKind, "pat", StringComparison.OrdinalIgnoreCase) ? "pat" : "app";
     private bool IsPatAuth => NormalizedAuthKind == "pat";
     private GitHubRepository Repository => new(FullKey, Snapshot.AppId, Snapshot.InstallationId, Snapshot.RepositoryId, Snapshot.Owner, Snapshot.Name, NormalizedAuthKind);
-    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
+    [DigitalBrain.Slot(Key = "default")]
+    private partial DigitalBrain.Limits.IPolicies Policies { get; }
     private string RepositoryFact => $"{Snapshot.Owner}/{Snapshot.Name}";
 
     // The installation/repository index is a plain neuron in the system brain (06-06d); negative ids index PAT repositories.

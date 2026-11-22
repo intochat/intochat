@@ -4,7 +4,12 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Social;
 
-public sealed record PostDraft(string Text, string[] AudienceAccounts);
+public sealed record SharedSourceFile(string Path, string Content);
+
+/// <summary>A shareable app definition carrying only source files, title, and id (never author state, bindings, or secrets).</summary>
+public sealed record AppDefinitionShare(string AppId, string Title, SharedSourceFile[] Files);
+
+public sealed record PostDraft(string Text, string[] AudienceAccounts, AppDefinitionShare? SharedApp = null);
 
 public sealed record PostReaction(string Account, string Kind, DateTimeOffset At);
 
@@ -18,7 +23,8 @@ public sealed record SocialPost(
     PostReaction[] Reactions,
     PostComment[] Comments,
     long Sequence,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    AppDefinitionShare? SharedApp = null);
 
 public sealed record PostPage(SocialPost[] Posts, long NextCursor);
 
