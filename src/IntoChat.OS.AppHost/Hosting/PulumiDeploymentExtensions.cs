@@ -18,6 +18,8 @@ public static class PulumiDeploymentExtensions
     public const string PackageDryRunStepName = "package-dry-run";
     public const string PackageMsixStepName = "package-msix";
     public const string ResetStepName = "reset";
+    public const string LaunchLinuxWslStepName = "launch-linux-wsl";
+    public const string LaunchAndroidStepName = "launch-android";
     public const string PulumiStepName = "pulumi";
     public const string PulumiPreviewStepName = "pulumi-preview";
     public const string PulumiRefreshStepName = "pulumi-refresh";
@@ -94,6 +96,28 @@ public static class PulumiDeploymentExtensions
                 throw new InvalidOperationException($"Local reset failed with exit code {exitCode}.");
             }
             await task.SucceedAsync("Local checkout state reset.", context.CancellationToken);
+        });
+
+        builder.Pipeline.AddStep(LaunchLinuxWslStepName, async context =>
+        {
+            await using var task = await context.ReportingStep.CreateTaskAsync("Launching IntoChat OS Linux (WSL)", context.CancellationToken);
+            var result = await IntoChatOSHostingExtensions.LaunchLinuxWslAsync();
+            if (!result.Success)
+            {
+                throw new InvalidOperationException(result.Message ?? "Failed to launch Linux (WSL).");
+            }
+            await task.SucceedAsync("Launched IntoChat OS Linux window on WSL (port 5081).", context.CancellationToken);
+        });
+
+        builder.Pipeline.AddStep(LaunchAndroidStepName, async context =>
+        {
+            await using var task = await context.ReportingStep.CreateTaskAsync("Launching IntoChat OS on connected Android phone", context.CancellationToken);
+            var result = await IntoChatOSHostingExtensions.LaunchAndroidAsync(builder.AppHostDirectory);
+            if (!result.Success)
+            {
+                throw new InvalidOperationException(result.Message ?? "Failed to launch Android.");
+            }
+            await task.SucceedAsync("Launched Flutter on connected Android device.", context.CancellationToken);
         });
 
         return builder;

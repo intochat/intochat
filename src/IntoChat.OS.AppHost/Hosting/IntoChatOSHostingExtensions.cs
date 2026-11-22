@@ -248,7 +248,7 @@ public static class IntoChatOSHostingExtensions
         }
     }
 
-    private static Task<ExecuteCommandResult> LaunchLinuxWslAsync()
+    internal static Task<ExecuteCommandResult> LaunchLinuxWslAsync()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -277,7 +277,7 @@ public static class IntoChatOSHostingExtensions
         }
     }
 
-    private static Task<ExecuteCommandResult> LaunchAndroidAsync(string appHostDirectory)
+    internal static Task<ExecuteCommandResult> LaunchAndroidAsync(string appHostDirectory)
     {
         var uiDir = Path.GetFullPath(Path.Combine(appHostDirectory, "..", "..", "ui"));
         if (!Directory.Exists(uiDir))
