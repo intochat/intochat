@@ -70,14 +70,7 @@ public static class WebViewTicketEndpoints
                 return Results.Unauthorized();
             }
 
-            var now = DateTimeOffset.UtcNow;
-            PruneExpired(now);
-
-            var token = CreateBase64UrlToken();
-            var ticket = new WebViewTicket(principal, target!, now + TicketTtl);
-            Tickets[token] = ticket;
-
-            var enterUrl = $"{EnterPath}?ticket={Uri.EscapeDataString(token)}";
+            var enterUrl = IssueTicket(principal, target!);
             return Results.Ok(new { enterUrl });
         });
 
@@ -146,6 +139,31 @@ public static class WebViewTicketEndpoints
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Mints a short-lived, single-use <c>/auth/webview-enter?ticket=...</c> URL for
+    /// <paramref name="principal"/> targeting <paramref name="relativePath"/>.
+    /// </summary>
+    public static string IssueTicket(ClaimsPrincipal principal, string relativePath)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        if (!IsSafeRelativeTarget(relativePath))
+        {
+            throw new ArgumentException("Invalid target path. Must be a safe relative path starting with '/'.", nameof(relativePath));
+        }
+
+        var cookiePrincipal = string.Equals(principal.Identity?.AuthenticationType, CookieAuthenticationDefaults.AuthenticationScheme, StringComparison.Ordinal)
+            ? principal
+            : new ClaimsPrincipal(new ClaimsIdentity(principal.Claims, CookieAuthenticationDefaults.AuthenticationScheme));
+
+        var now = DateTimeOffset.UtcNow;
+        PruneExpired(now);
+
+        var token = CreateBase64UrlToken();
+        Tickets[token] = new WebViewTicket(cookiePrincipal, relativePath, now + TicketTtl);
+
+        return $"{EnterPath}?ticket={Uri.EscapeDataString(token)}";
     }
 
     private static ClaimsPrincipal? ResolveCookiePrincipal(HttpContext http, AuthOptions options)

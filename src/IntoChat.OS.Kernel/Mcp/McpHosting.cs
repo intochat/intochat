@@ -36,12 +36,14 @@ public static class McpHosting
         services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.OsKernel.For);
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();
+        services.TryAddSingleton<Auth.InternalPageInspector>();
         services.TryAddScoped<OsNeuronSurface>();
         var mcpSerializerOptions = new System.Text.Json.JsonSerializerOptions(ModelContextProtocol.McpJsonUtilities.DefaultOptions);
         mcpSerializerOptions.TypeInfoResolverChain.Insert(0, KernelMcpJsonContext.Default);
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
             .WithTools<Tools.NeuronTools>(mcpSerializerOptions)
             .WithTools<Tools.ScreenTools>(mcpSerializerOptions)
+            .WithTools<Tools.InternalPageTools>(mcpSerializerOptions)
             .WithTools<McpCaller>(mcpSerializerOptions);
     }
 

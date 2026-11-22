@@ -7,6 +7,7 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Kernel.Auth;
 using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Screens;
@@ -45,4 +46,5 @@ namespace IntoChat.OS.Kernel.Mcp;
 [JsonSerializable(typeof(AppInstallRequest))]
 [JsonSerializable(typeof(AppBundle))]
 [JsonSerializable(typeof(NotificationRequest))]
+[JsonSerializable(typeof(InternalPageReport))]
 internal sealed partial class KernelMcpJsonContext : JsonSerializerContext;
