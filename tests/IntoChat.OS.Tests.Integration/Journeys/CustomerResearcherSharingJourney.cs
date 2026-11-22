@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Components;
 using DigitalBrain.Testing;
@@ -73,5 +74,18 @@ public sealed class CustomerResearcherSharingJourney
 
         Assert.Equal(2, os.Fake<FakeTableStore>().RowsFor(alice.Brain, "app.customer-researcher", CustomerResearcherApp.ProfilesTableKey).Length);
         script.ShouldBeFinished();
+    }
+
+    [Fact]
+    public async Task CustomerResearcherSharingJourney_TestOS_CompletesWithinBudget()
+    {
+        const long budgetMs = 3_000;
+        var sw = Stopwatch.StartNew();
+        await AliceSharesHerCustomersWithBob(NeuronRuntimeKind.TestOS);
+        sw.Stop();
+
+        Assert.True(
+            sw.ElapsedMilliseconds < budgetMs,
+            $"TestOS sharing journey took {sw.ElapsedMilliseconds}ms, exceeding the {budgetMs}ms budget.");
     }
 }

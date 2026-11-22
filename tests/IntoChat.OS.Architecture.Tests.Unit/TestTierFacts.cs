@@ -1,3 +1,6 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -6,6 +9,12 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // Every list is absolute: there is no legacy baseline.
 public sealed partial class TestTierFacts
 {
+    private static readonly HashSet<string> MockHarnessTypes = new(StringComparer.Ordinal)
+    {
+        "OllamaRuntimeFacts",
+        "ScriptedOllama",
+    };
+
     [Fact]
     public void AModuleTestProjectCarriesATierSuffix()
     {
@@ -196,6 +205,222 @@ public sealed partial class TestTierFacts
         Assert.True(offenders.Count == 0,
             "Every test project has at least one [Fact], [Theory] or [Scenario]:\n" + string.Join('\n', offenders));
     }
+
+    [Fact]
+    public void TestsUsingRealLocalModelsCarryTheNeedsModelTrait()
+    {
+        var offenders = new List<string>();
+        foreach (var project in Repository.TestProjects())
+        {
+            foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))
+            {
+                var relative = Repository.Relative(file);
+                var source = File.ReadAllText(file);
+                offenders.AddRange(FindUntaggedRealModelTests(source, relative));
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "Tests that hit a real local model must carry [Trait(\"needs\", \"model\")]:\n" + string.Join('\n', offenders));
+    }
+
+    [Fact]
+    public void RealModelCoderJourneyIsDetectedAndProperlyTagged()
+    {
+        var journeyFile = Repository.TestProjects()
+            .SelectMany(project => Repository.SourceFiles(project.Directory, "RealModelCoderJourney.cs"))
+            .Single();
+        var source = File.ReadAllText(journeyFile);
+        var relative = Repository.Relative(journeyFile);
+
+        var detected = FindRealModelTests(source, relative);
+        Assert.NotEmpty(detected);
+        Assert.All(detected, entry => Assert.True(entry.HasNeedsModelTrait, $"{entry.DisplayName} should carry [Trait(\"needs\", \"model\")]."));
+    }
+
+    [Fact]
+    public void SyntheticTestUsingOllamaRuntimeWithoutNeedsModelTraitIsCaught()
+    {
+        const string untagged = """
+            using IntoChat.OS.Modules.Devices;
+            using Xunit;
+
+            public sealed class SyntheticRealModelFacts
+            {
+                [Fact]
+                public async Task HitsRealLocalOllama()
+                {
+                    var runtime = new OllamaRuntime("http://127.0.0.1:11434");
+                    await runtime.Probe(CancellationToken.None);
+                }
+            }
+            """;
+
+        var offenders = FindUntaggedRealModelTests(untagged, "SyntheticRealModelFacts.cs");
+        var offender = Assert.Single(offenders);
+        Assert.Contains("SyntheticRealModelFacts.HitsRealLocalOllama", offender, StringComparison.Ordinal);
+
+        const string taggedOnMethod = """
+            using IntoChat.OS.Modules.Devices;
+            using Xunit;
+
+            public sealed class SyntheticRealModelFacts
+            {
+                [Fact]
+                [Trait("needs", "model")]
+                public async Task HitsRealLocalOllama()
+                {
+                    var runtime = new OllamaRuntime("http://127.0.0.1:11434");
+                    await runtime.Probe(CancellationToken.None);
+                }
+            }
+            """;
+
+        Assert.Empty(FindUntaggedRealModelTests(taggedOnMethod, "SyntheticRealModelFacts.cs"));
+    }
+
+    internal static string[] FindUntaggedRealModelTests(string source, string fileLabel)
+        => [.. FindRealModelTests(source, fileLabel)
+            .Where(entry => !entry.HasNeedsModelTrait)
+            .Select(entry => $"{entry.DisplayName} uses real local Ollama without [Trait(\"needs\", \"model\")]")];
+
+    internal static RealModelTestMatch[] FindRealModelTests(string source, string fileLabel)
+    {
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var root = tree.GetCompilationUnitRoot();
+        var matches = new List<RealModelTestMatch>();
+
+        foreach (var typeDecl in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+        {
+            var className = typeDecl.Identifier.ValueText;
+            if (MockHarnessTypes.Contains(className))
+            {
+                continue;
+            }
+
+            var testMethods = typeDecl.Members
+                .OfType<MethodDeclarationSyntax>()
+                .Where(IsTestMethod)
+                .ToArray();
+            if (testMethods.Length == 0)
+            {
+                continue;
+            }
+
+            if (UsesMockHttpOrLoopbackHarness(typeDecl))
+            {
+                continue;
+            }
+
+            var classHasTrait = HasNeedsModelTrait(typeDecl.AttributeLists);
+            var classFieldsHave11434 = typeDecl.Members
+                .Where(member => member is FieldDeclarationSyntax or PropertyDeclarationSyntax)
+                .Any(ContainsPort11434Literal);
+
+            foreach (var method in testMethods)
+            {
+                var methodUsesRealModel =
+                    CreatesOllamaRuntimeDirectly(method)
+                    || ((classFieldsHave11434 || ContainsPort11434Literal(method)) && WiresRealOllamaRuntime(typeDecl, method));
+
+                if (!methodUsesRealModel)
+                {
+                    continue;
+                }
+
+                var hasTrait = classHasTrait || HasNeedsModelTrait(method.AttributeLists);
+                matches.Add(new RealModelTestMatch($"{fileLabel}: {className}.{method.Identifier.ValueText}", hasTrait));
+            }
+        }
+
+        return [.. matches];
+    }
+
+    internal sealed record RealModelTestMatch(string DisplayName, bool HasNeedsModelTrait);
+
+    private static bool IsTestMethod(MethodDeclarationSyntax method)
+        => method.AttributeLists
+            .SelectMany(list => list.Attributes)
+            .Any(attr =>
+            {
+                var name = SimpleAttributeName(attr);
+                return name is "Fact" or "FactAttribute" or "Theory" or "TheoryAttribute";
+            });
+
+    private static bool HasNeedsModelTrait(SyntaxList<AttributeListSyntax> attributeLists)
+        => attributeLists
+            .SelectMany(list => list.Attributes)
+            .Any(attr =>
+            {
+                var name = SimpleAttributeName(attr);
+                if (name is not ("Trait" or "TraitAttribute"))
+                {
+                    return false;
+                }
+
+                var args = attr.ArgumentList?.Arguments;
+                if (args is not { Count: 2 })
+                {
+                    return false;
+                }
+
+                return TryGetStringLiteral(args.Value[0].Expression) == "needs"
+                    && TryGetStringLiteral(args.Value[1].Expression) == "model";
+            });
+
+    private static bool UsesMockHttpOrLoopbackHarness(ClassDeclarationSyntax typeDecl)
+        => typeDecl.DescendantNodes().OfType<IdentifierNameSyntax>().Any(id =>
+            id.Identifier.ValueText is "HttpMessageHandler" or "ScriptedOllama" or "TcpListener");
+
+    private static bool CreatesOllamaRuntimeDirectly(SyntaxNode node)
+        => node.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Any(creation =>
+        {
+            var typeText = creation.Type.ToString();
+            return typeText == "OllamaRuntime" || typeText.EndsWith(".OllamaRuntime", StringComparison.Ordinal);
+        });
+
+    private static bool ContainsPort11434Literal(SyntaxNode node)
+        => node.DescendantNodes().OfType<LiteralExpressionSyntax>().Any(literal =>
+            literal.IsKind(SyntaxKind.StringLiteralExpression)
+            && literal.Token.ValueText.Contains("11434", StringComparison.Ordinal));
+
+    private static bool WiresRealOllamaRuntime(ClassDeclarationSyntax typeDecl, MethodDeclarationSyntax method)
+    {
+        if (CreatesOllamaRuntimeDirectly(typeDecl))
+        {
+            return true;
+        }
+
+        var identifiers = method.DescendantNodes().OfType<IdentifierNameSyntax>()
+            .Select(id => id.Identifier.ValueText)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (identifiers.Contains("OllamaRuntime") || identifiers.Contains("OllamaApiClient"))
+        {
+            return true;
+        }
+
+        return identifiers.Contains("DevicesModule")
+            && identifiers.Contains("ConfigureServices")
+            && (identifiers.Contains("ILocalRuntime")
+                || identifiers.Contains("IModelInference")
+                || identifiers.Contains("ICoder")
+                || identifiers.Contains("ModelCatalog"));
+    }
+
+    private static string SimpleAttributeName(AttributeSyntax attribute) => attribute.Name switch
+    {
+        IdentifierNameSyntax id => id.Identifier.ValueText,
+        QualifiedNameSyntax qualified => qualified.Right.Identifier.ValueText,
+        AliasQualifiedNameSyntax alias => alias.Name.Identifier.ValueText,
+        _ => attribute.Name.ToString(),
+    };
+
+    private static string? TryGetStringLiteral(ExpressionSyntax expression)
+        => expression is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression)
+            ? literal.Token.ValueText
+            : null;
 
     private static IEnumerable<string> TestProjects() => Repository.TestProjects().Select(project => project.Path);
 

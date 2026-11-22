@@ -5,6 +5,10 @@
     <NoWarn>$(NoWarn);DB0045</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
