@@ -1705,6 +1705,89 @@ public sealed class HouseRules22Facts
         Assert.Equal(2, CountAmbientReach(contextSample));
     }
 
+    // Rule #23 (Decision P6): SiloNeurons.Get<T> in src/Modules/* is restricted to a closed privileged allowlist.
+    private static readonly HashSet<string> PrivilegedSiloNeuronModules = new(StringComparer.Ordinal)
+    {
+        "IntoChat.OS.Modules.AI",
+        "IntoChat.OS.Modules.Catalog",
+        "IntoChat.OS.Modules.Devices",
+        "IntoChat.OS.Modules.GitHub",
+        "IntoChat.OS.Modules.Google",
+        "IntoChat.OS.Modules.Identity",
+        "IntoChat.OS.Modules.Mcp",
+        "IntoChat.OS.Modules.Postgres",
+        "IntoChat.OS.Modules.Roslyn",
+        "IntoChat.OS.Modules.Shell",
+        "IntoChat.OS.Modules.Storage",
+        "IntoChat.OS.Modules.Windows",
+    };
+
+    [Fact]
+    public void HouseRule23_SiloNeuronsGetRestrictedToPrivilegedAllowlist()
+    {
+        var offenders = new List<string>();
+        var activeModules = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var src in ProductionSources.Value)
+        {
+            if (!src.ProjectName.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var lines = FindSiloNeuronsGetGenericLines(src.Root);
+            if (lines.Count == 0)
+            {
+                continue;
+            }
+
+            activeModules.Add(src.ProjectName);
+            if (!PrivilegedSiloNeuronModules.Contains(src.ProjectName))
+            {
+                foreach (var line in lines)
+                {
+                    offenders.Add($"{DisplayPath(src)}:{line} ({src.ProjectName})");
+                }
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "SiloNeurons.Get<T> is restricted to PrivilegedSiloNeuronModules (Decision P6):\n" + string.Join('\n', offenders));
+
+        var staleAllowlistEntries = PrivilegedSiloNeuronModules
+            .Where(module => !activeModules.Contains(module))
+            .OrderBy(static m => m, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            staleAllowlistEntries.Count == 0,
+            "PrivilegedSiloNeuronModules contains module(s) with 0 SiloNeurons.Get<T> calls; tighten the allowlist by removing:\n"
+            + string.Join('\n', staleAllowlistEntries));
+    }
+
+    private static List<int> FindSiloNeuronsGetGenericLines(CompilationUnitSyntax root)
+    {
+        var lines = new List<int>();
+        foreach (var inv in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax { Name: GenericNameSyntax { Identifier.Text: "Get" } } ma)
+            {
+                var receiver = ma.Expression switch
+                {
+                    IdentifierNameSyntax id => id.Identifier.Text,
+                    MemberAccessExpressionSyntax inner => inner.Name.Identifier.Text,
+                    _ => null,
+                };
+                if (receiver == "SiloNeurons")
+                {
+                    lines.Add(inv.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+                }
+            }
+        }
+        return lines;
+    }
+
     private static int CountAmbientReach(SyntaxTree tree)
     {
         var count = 0;

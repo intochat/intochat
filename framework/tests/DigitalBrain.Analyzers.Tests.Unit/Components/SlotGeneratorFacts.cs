@@ -12,6 +12,7 @@ public sealed class SlotGeneratorFacts
     private const string Prelude = """
         using System;
         using System.Collections.Generic;
+        using System.Threading;
         using System.Threading.Tasks;
 
         namespace DigitalBrain
@@ -136,6 +137,19 @@ public sealed class SlotGeneratorFacts
             public abstract class Neuron
             {
                 public DigitalBrain.Components.Slots Slots { get; } = new();
+            }
+        }
+
+        namespace DigitalBrain.Kernel
+        {
+            public sealed record ScreenSignalHandler(Type SignalType, Func<object, DigitalBrain.Signal, CancellationToken, Task> Dispatch);
+
+            public static class ScreenSignals
+            {
+                public static readonly Dictionary<Type, IReadOnlyDictionary<string, ScreenSignalHandler>> Registered = new();
+
+                public static void Register(Type screenType, IReadOnlyDictionary<string, ScreenSignalHandler> handlers)
+                    => Registered[screenType] = handlers;
             }
         }
 
@@ -492,6 +506,136 @@ public sealed class SlotGeneratorFacts
             Assert.NotNull(reacts);
             Assert.Equal([mySignal, otherSignal], reacts);
         });
+    }
+
+    [Fact]
+    public async Task AScreenWithOnMethodsEmitsDirectSignalDispatchWithoutReflection()
+    {
+        const string source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DigitalBrain;
+            using DigitalBrain.Neurons;
+            using Sample.UI;
+
+            namespace Sample;
+
+            [Signal("counter.inc")]
+            public sealed record Increment(int Delta) : Signal;
+
+            [Signal("counter.reset")]
+            public sealed record Reset() : Signal;
+
+            public sealed record SetLabel(string Label) : Signal;
+
+            [Neuron("app.counter")]
+            [Screen("app.counter", Title = "Counter")]
+            public sealed class CounterScreen : Neuron
+            {
+                public int Value { get; private set; }
+                public string? Label { get; private set; }
+                public bool SawToken { get; private set; }
+
+                [On]
+                public Task OnIncrement(Increment signal, CancellationToken ct)
+                {
+                    Value += signal.Delta;
+                    SawToken = ct.CanBeCanceled;
+                    return Task.CompletedTask;
+                }
+
+                [On]
+                public void OnReset(Reset signal) => Value = 0;
+
+                [On]
+                public ValueTask OnSetLabel(SetLabel signal)
+                {
+                    Label = signal.Label;
+                    return ValueTask.CompletedTask;
+                }
+            }
+            """;
+
+        var ct = TestContext.Current.CancellationToken;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var compilation = CSharpCompilation.Create(
+            "ScreenDispatchProbe",
+            [
+                CSharpSyntaxTree.ParseText(Prelude, parseOptions, cancellationToken: ct),
+                CSharpSyntaxTree.ParseText(source, parseOptions, cancellationToken: ct),
+            ],
+            References,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            generators: [new SlotGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var generatorDiagnostics, ct);
+
+        Assert.Empty(generatorDiagnostics);
+        var errors = outputCompilation.GetDiagnostics(ct).Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.Empty(errors);
+
+        var generatedText = outputCompilation.SyntaxTrees
+            .Single(t => t.FilePath.EndsWith("DigitalBrain.ComponentSlots.g.cs", StringComparison.Ordinal))
+            .GetText(ct)
+            .ToString();
+
+        Assert.Contains("ScreenSignals.Register(", generatedText, StringComparison.Ordinal);
+        Assert.Contains("OnIncrement(", generatedText, StringComparison.Ordinal);
+        Assert.Contains("OnReset(", generatedText, StringComparison.Ordinal);
+        Assert.Contains("OnSetLabel(", generatedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MethodInfo", generatedText, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Invoke(", generatedText, StringComparison.Ordinal);
+
+        using var pe = new MemoryStream();
+        var emit = outputCompilation.Emit(pe, cancellationToken: ct);
+        Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+        pe.Position = 0;
+
+        var alc = new AssemblyLoadContext("ScreenDispatchProbeAlc", isCollectible: true);
+        try
+        {
+            var assembly = alc.LoadFromStream(pe);
+            System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle);
+
+            var screenType = assembly.GetType("Sample.CounterScreen", throwOnError: true)!;
+            var screen = Activator.CreateInstance(screenType)!;
+            var screenSignalsType = assembly.GetType("DigitalBrain.Kernel.ScreenSignals", throwOnError: true)!;
+            var registered = (System.Collections.IDictionary)screenSignalsType.GetField("Registered")!.GetValue(null)!;
+            Assert.True(registered.Contains(screenType));
+
+            var handlers = (System.Collections.IDictionary)registered[screenType]!;
+            Assert.Equal(3, handlers.Count);
+            Assert.True(handlers.Contains("counter.inc"));
+            Assert.True(handlers.Contains("counter.reset"));
+            Assert.True(handlers.Contains("SetLabel"));
+
+            var incSignal = Activator.CreateInstance(assembly.GetType("Sample.Increment", throwOnError: true)!, 7)!;
+            var incHandler = handlers["counter.inc"]!;
+            var incDispatch = (Delegate)incHandler.GetType().GetProperty("Dispatch")!.GetValue(incHandler)!;
+            using var cts = new CancellationTokenSource();
+            await (Task)incDispatch.DynamicInvoke(screen, incSignal, cts.Token)!;
+            Assert.Equal(7, (int)screenType.GetProperty("Value")!.GetValue(screen)!);
+            Assert.True((bool)screenType.GetProperty("SawToken")!.GetValue(screen)!);
+
+            var resetSignal = Activator.CreateInstance(assembly.GetType("Sample.Reset", throwOnError: true)!)!;
+            var resetHandler = handlers["counter.reset"]!;
+            var resetDispatch = (Delegate)resetHandler.GetType().GetProperty("Dispatch")!.GetValue(resetHandler)!;
+            await (Task)resetDispatch.DynamicInvoke(screen, resetSignal, CancellationToken.None)!;
+            Assert.Equal(0, (int)screenType.GetProperty("Value")!.GetValue(screen)!);
+
+            var labelSignal = Activator.CreateInstance(assembly.GetType("Sample.SetLabel", throwOnError: true)!, "hello")!;
+            var labelHandler = handlers["SetLabel"]!;
+            var labelDispatch = (Delegate)labelHandler.GetType().GetProperty("Dispatch")!.GetValue(labelHandler)!;
+            await (Task)labelDispatch.DynamicInvoke(screen, labelSignal, CancellationToken.None)!;
+            Assert.Equal("hello", (string?)screenType.GetProperty("Label")!.GetValue(screen));
+        }
+        finally
+        {
+            alc.Unload();
+        }
     }
 
     private static void WithCompiledAssembly(string assemblyName, string source, Action<Assembly> verify)

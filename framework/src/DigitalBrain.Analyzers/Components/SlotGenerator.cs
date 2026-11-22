@@ -63,19 +63,26 @@ public sealed class SlotGenerator : IIncrementalGenerator
             var assemblyName = comp.AssemblyName ?? string.Empty;
             var registry = comp.GetTypeByMetadataName("DigitalBrain.Components.ComponentRegistry");
             var manifests = comp.GetTypeByMetadataName("DigitalBrain.Components.ComponentManifests");
-            if (registry is null || manifests is null)
+            var canRegister = false;
+            if (registry is not null && manifests is not null)
             {
-                return (CanRegister: false, AssemblyName: assemblyName);
+                var regMethod = registry.GetMembers("Register").OfType<IMethodSymbol>().FirstOrDefault();
+                var manMethod = manifests.GetMembers("Register").OfType<IMethodSymbol>().FirstOrDefault();
+                canRegister = regMethod is not null
+                    && manMethod is not null
+                    && comp.IsSymbolAccessibleWithin(regMethod, comp.Assembly)
+                    && comp.IsSymbolAccessibleWithin(manMethod, comp.Assembly);
             }
 
-            var regMethod = registry.GetMembers("Register").OfType<IMethodSymbol>().FirstOrDefault();
-            var manMethod = manifests.GetMembers("Register").OfType<IMethodSymbol>().FirstOrDefault();
-            var canRegister = regMethod is not null
-                && manMethod is not null
-                && comp.IsSymbolAccessibleWithin(regMethod, comp.Assembly)
-                && comp.IsSymbolAccessibleWithin(manMethod, comp.Assembly);
+            var screenSignals = comp.GetTypeByMetadataName("DigitalBrain.Kernel.ScreenSignals");
+            var screenSignalHandler = comp.GetTypeByMetadataName("DigitalBrain.Kernel.ScreenSignalHandler");
+            var screenRegisterMethod = screenSignals?.GetMembers("Register").OfType<IMethodSymbol>().FirstOrDefault();
+            var canRegisterScreenSignals = screenRegisterMethod is not null
+                && screenSignalHandler is not null
+                && comp.IsSymbolAccessibleWithin(screenRegisterMethod, comp.Assembly)
+                && comp.IsSymbolAccessibleWithin(screenSignalHandler, comp.Assembly);
 
-            return (CanRegister: canRegister, AssemblyName: assemblyName);
+            return (CanRegister: canRegister, CanRegisterScreenSignals: canRegisterScreenSignals, AssemblyName: assemblyName);
         });
 
         var combined = properties
@@ -90,7 +97,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             static (spc, data) =>
             {
                 var (((((props, mods1), mods2), scrs), syns), probe) = data;
-                Emit(spc, props, mods1, mods2, scrs, syns, probe.CanRegister, probe.AssemblyName);
+                Emit(spc, props, mods1, mods2, scrs, syns, probe.CanRegister, probe.CanRegisterScreenSignals, probe.AssemblyName);
             });
     }
 
@@ -209,7 +216,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             operations: ImmutableArray<OperationModel>.Empty,
             provides: provides,
             inheritedSlots: ImmutableArray<SlotPropertyModel>.Empty,
-            reacts: reacts);
+            reacts: reacts,
+            signalHandlers: ImmutableArray<ScreenSignalHandlerModel>.Empty);
     }
 
     private static ComponentEntryModel? ExtractScreen(GeneratorSyntaxContext context, CancellationToken cancellationToken)
@@ -239,6 +247,9 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
         var componentId = neuronType ?? ScreenAliasOf(owner) ?? owner.ToDisplayString();
         var operations = ExtractOperations(owner);
+        var signalHandlers = face is not null || DerivesFromScreen(owner)
+            ? ExtractScreenSignalHandlers(owner, context.SemanticModel.Compilation)
+            : ImmutableArray<ScreenSignalHandlerModel>.Empty;
 
         return new ComponentEntryModel(
             owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -249,7 +260,134 @@ public sealed class SlotGenerator : IIncrementalGenerator
             operations: operations,
             provides: ImmutableArray<string>.Empty,
             inheritedSlots: inheritedSlots,
-            reacts: reacts);
+            reacts: reacts,
+            signalHandlers: signalHandlers);
+    }
+
+    private static bool DerivesFromScreen(INamedTypeSymbol owner)
+    {
+        for (var current = owner.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.Name == "Screen"
+                && current.ContainingNamespace is { IsGlobalNamespace: false } ns
+                && ns.ToDisplayString() == "DigitalBrain")
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool DerivesFromSignal(ITypeSymbol type)
+    {
+        for (var current = type as INamedTypeSymbol; current is not null; current = current.BaseType)
+        {
+            if (Rules.FullName(current) == "DigitalBrain.Signal")
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static ImmutableArray<ScreenSignalHandlerModel> ExtractScreenSignalHandlers(INamedTypeSymbol owner, Compilation compilation)
+    {
+        var builder = ImmutableArray.CreateBuilder<ScreenSignalHandlerModel>();
+        var seenAliases = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var current = owner; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers())
+            {
+                if (member is not IMethodSymbol method
+                    || method.IsStatic
+                    || method.MethodKind != MethodKind.Ordinary)
+                {
+                    continue;
+                }
+
+                var hasOn = false;
+                foreach (var attribute in method.GetAttributes())
+                {
+                    var fullName = Rules.FullName(attribute.AttributeClass);
+                    if (fullName == "DigitalBrain.OnAttribute" || fullName == "DigitalBrain.Neurons.OnAttribute")
+                    {
+                        hasOn = true;
+                        break;
+                    }
+                }
+
+                if (!hasOn)
+                {
+                    continue;
+                }
+
+                if (method.Parameters.Length == 0)
+                {
+                    continue;
+                }
+
+                var signalType = method.Parameters[0].Type;
+                if (!DerivesFromSignal(signalType) || signalType.IsAbstract)
+                {
+                    continue;
+                }
+
+                if (method.Parameters.Length > 2
+                    || (method.Parameters.Length == 2 && Rules.FullName(method.Parameters[1].Type as INamedTypeSymbol) != "System.Threading.CancellationToken")
+                    || method.IsGenericMethod
+                    || !compilation.IsSymbolAccessibleWithin(method, compilation.Assembly)
+                    || !IsAccessibleForTypeOf(signalType))
+                {
+                    return ImmutableArray<ScreenSignalHandlerModel>.Empty;
+                }
+
+                var returnKind = ClassifyHandlerReturnKind(method);
+                if (returnKind == HandlerReturnKind.Unsupported)
+                {
+                    return ImmutableArray<ScreenSignalHandlerModel>.Empty;
+                }
+
+                var alias = SignalAliasOf(signalType) ?? signalType.Name;
+                if (!seenAliases.Add(alias))
+                {
+                    continue;
+                }
+
+                builder.Add(new ScreenSignalHandlerModel(
+                    alias,
+                    signalType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    method.Name,
+                    method.Parameters.Length == 2,
+                    returnKind));
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static HandlerReturnKind ClassifyHandlerReturnKind(IMethodSymbol method)
+    {
+        if (method.ReturnsVoid)
+        {
+            return HandlerReturnKind.Void;
+        }
+
+        if (method.ReturnType is INamedTypeSymbol named
+            && named.ContainingNamespace is { IsGlobalNamespace: false } ns
+            && ns.ToDisplayString() == "System.Threading.Tasks")
+        {
+            if (named.Name == "Task")
+            {
+                return HandlerReturnKind.Task;
+            }
+            if (named.Name == "ValueTask")
+            {
+                return HandlerReturnKind.ValueTask;
+            }
+        }
+
+        return HandlerReturnKind.Unsupported;
     }
 
     private static ImmutableArray<SlotPropertyModel> ExtractInheritedSlots(INamedTypeSymbol owner)
@@ -717,6 +855,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         ImmutableArray<ComponentEntryModel> screens,
         ImmutableArray<SynapseEntryModel> synapses,
         bool canRegister,
+        bool canRegisterScreenSignals,
         string assemblyName)
     {
         if (!properties.IsDefaultOrEmpty)
@@ -842,6 +981,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 entry.AddSlot(slot);
             }
             entry.AddReacts(screen.Reacts);
+            entry.AddSignalHandlers(screen.SignalHandlers);
         }
 
         if (!synapses.IsDefaultOrEmpty)
@@ -1007,6 +1147,36 @@ public sealed class SlotGenerator : IIncrementalGenerator
                     initSb.Append(extraParts[i]).AppendLine(i + 1 < extraParts.Count ? "," : "));");
                 }
             }
+
+            if (canRegisterScreenSignals && !comp.IsStatic && comp.SignalHandlers.Count > 0)
+            {
+                initSb.AppendLine("        global::DigitalBrain.Kernel.ScreenSignals.Register(");
+                initSb.Append("            typeof(").Append(comp.OwnerFullName).AppendLine("),");
+                initSb.AppendLine("            new global::System.Collections.Generic.Dictionary<string, global::DigitalBrain.Kernel.ScreenSignalHandler>(global::System.StringComparer.Ordinal)");
+                initSb.AppendLine("            {");
+                foreach (var handler in comp.SignalHandlers)
+                {
+                    var callArgs = handler.TakesCancellationToken
+                        ? "(" + handler.SignalTypeFullName + ")signal, ct"
+                        : "(" + handler.SignalTypeFullName + ")signal";
+                    var invocation = "((" + comp.OwnerFullName + ")screen)." + handler.MethodName + "(" + callArgs + ")";
+                    var lambda = handler.ReturnKind switch
+                    {
+                        HandlerReturnKind.Void => "static (screen, signal, ct) => { " + invocation + "; return global::System.Threading.Tasks.Task.CompletedTask; }",
+                        HandlerReturnKind.ValueTask => "static (screen, signal, ct) => " + invocation + ".AsTask()",
+                        _ => "static (screen, signal, ct) => " + invocation,
+                    };
+
+                    initSb.Append("                [")
+                        .Append(CSharpLiteral(handler.Alias))
+                        .Append("] = new global::DigitalBrain.Kernel.ScreenSignalHandler(typeof(")
+                        .Append(handler.SignalTypeFullName)
+                        .Append("), ")
+                        .Append(lambda)
+                        .AppendLine("),");
+                }
+                initSb.AppendLine("            });");
+            }
         }
 
         initSb.AppendLine("    }");
@@ -1042,6 +1212,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         private readonly HashSet<string> _opNames = new(StringComparer.Ordinal);
         private readonly HashSet<string> _providesSet = new(StringComparer.Ordinal);
         private readonly HashSet<string> _reactsSet = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _handlerAliases = new(StringComparer.Ordinal);
 
         public MergedComponent(string ownerFullName, string componentId, string kind, bool isStatic)
         {
@@ -1060,6 +1231,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public List<OperationModel> Operations { get; } = new();
         public List<string> Provides { get; } = new();
         public List<string> Reacts { get; } = new();
+        public List<ScreenSignalHandlerModel> SignalHandlers { get; } = new();
 
         public void AddSlot(SlotPropertyModel slot)
         {
@@ -1104,6 +1276,71 @@ public sealed class SlotGenerator : IIncrementalGenerator
             foreach (var signalType in signalTypes)
             {
                 AddReact(signalType);
+            }
+        }
+
+        public void AddSignalHandlers(ImmutableArray<ScreenSignalHandlerModel> handlers)
+        {
+            foreach (var handler in handlers)
+            {
+                if (_handlerAliases.Add(handler.Alias))
+                {
+                    SignalHandlers.Add(handler);
+                }
+            }
+        }
+    }
+
+    private enum HandlerReturnKind
+    {
+        Unsupported = 0,
+        Void = 1,
+        Task = 2,
+        ValueTask = 3,
+    }
+
+    private sealed class ScreenSignalHandlerModel : IEquatable<ScreenSignalHandlerModel>
+    {
+        public ScreenSignalHandlerModel(
+            string alias,
+            string signalTypeFullName,
+            string methodName,
+            bool takesCancellationToken,
+            HandlerReturnKind returnKind)
+        {
+            Alias = alias;
+            SignalTypeFullName = signalTypeFullName;
+            MethodName = methodName;
+            TakesCancellationToken = takesCancellationToken;
+            ReturnKind = returnKind;
+        }
+
+        public string Alias { get; }
+        public string SignalTypeFullName { get; }
+        public string MethodName { get; }
+        public bool TakesCancellationToken { get; }
+        public HandlerReturnKind ReturnKind { get; }
+
+        public bool Equals(ScreenSignalHandlerModel? other)
+            => other is not null
+               && string.Equals(Alias, other.Alias, StringComparison.Ordinal)
+               && string.Equals(SignalTypeFullName, other.SignalTypeFullName, StringComparison.Ordinal)
+               && string.Equals(MethodName, other.MethodName, StringComparison.Ordinal)
+               && TakesCancellationToken == other.TakesCancellationToken
+               && ReturnKind == other.ReturnKind;
+
+        public override bool Equals(object? obj) => Equals(obj as ScreenSignalHandlerModel);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = StringComparer.Ordinal.GetHashCode(Alias);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(SignalTypeFullName);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(MethodName);
+                hash = (hash * 397) ^ (TakesCancellationToken ? 1 : 0);
+                hash = (hash * 397) ^ (int)ReturnKind;
+                return hash;
             }
         }
     }
@@ -1224,7 +1461,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             ImmutableArray<OperationModel> operations,
             ImmutableArray<string> provides,
             ImmutableArray<SlotPropertyModel> inheritedSlots,
-            ImmutableArray<string> reacts)
+            ImmutableArray<string> reacts,
+            ImmutableArray<ScreenSignalHandlerModel> signalHandlers)
         {
             OwnerFullName = ownerFullName;
             ComponentId = componentId;
@@ -1235,6 +1473,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             Provides = provides;
             InheritedSlots = inheritedSlots;
             Reacts = reacts;
+            SignalHandlers = signalHandlers;
         }
 
         public string OwnerFullName { get; }
@@ -1246,6 +1485,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public ImmutableArray<string> Provides { get; }
         public ImmutableArray<SlotPropertyModel> InheritedSlots { get; }
         public ImmutableArray<string> Reacts { get; }
+        public ImmutableArray<ScreenSignalHandlerModel> SignalHandlers { get; }
 
         public bool Equals(ComponentEntryModel? other)
         {
@@ -1258,7 +1498,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || Operations.Length != other.Operations.Length
                 || Provides.Length != other.Provides.Length
                 || InheritedSlots.Length != other.InheritedSlots.Length
-                || Reacts.Length != other.Reacts.Length)
+                || Reacts.Length != other.Reacts.Length
+                || SignalHandlers.Length != other.SignalHandlers.Length)
             {
                 return false;
             }
@@ -1278,6 +1519,10 @@ public sealed class SlotGenerator : IIncrementalGenerator
             {
                 if (!string.Equals(Reacts[i], other.Reacts[i], StringComparison.Ordinal)) { return false; }
             }
+            for (var i = 0; i < SignalHandlers.Length; i++)
+            {
+                if (!SignalHandlers[i].Equals(other.SignalHandlers[i])) { return false; }
+            }
             return true;
         }
 
@@ -1295,6 +1540,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ Provides.Length;
                 hash = (hash * 397) ^ InheritedSlots.Length;
                 hash = (hash * 397) ^ Reacts.Length;
+                hash = (hash * 397) ^ SignalHandlers.Length;
                 return hash;
             }
         }

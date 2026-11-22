@@ -299,12 +299,31 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return Handle(signal, ViewNodes.Payload(args, fieldValue: null, by: null));
     }
 
-    private async Task Handle(string alias, JsonElement payload)
+    private Task Handle(string alias, JsonElement payload)
     {
+        if (ScreenSignals.FindHandler(GetType(), alias) is { } handler)
+        {
+            var dispatched = (Signal?)RuntimeProtocol.Deserialize(payload, handler.SignalType)
+                ?? throw new ArgumentException($"The payload of '{alias}' is null.", nameof(payload));
+            return InvokeHandler(alias, handler.Dispatch, dispatched);
+        }
+
         var type = ScreenSignals.Find(GetType(), alias)
             ?? throw new ArgumentException($"Screen '{Alias}' has no [On] reaction for '{alias}'.", nameof(alias));
         var signal = (Signal?)RuntimeProtocol.Deserialize(payload, type)
             ?? throw new ArgumentException($"The payload of '{alias}' is null.", nameof(payload));
+        return InvokeFallback(alias, signal);
+    }
+
+    private async Task InvokeHandler(string alias, Func<object, Signal, CancellationToken, Task> dispatch, Signal signal)
+    {
+        _cause = alias;
+        try { await dispatch(this, signal, CancellationToken.None).ConfigureAwait(true); }
+        finally { _cause = "reaction"; }
+    }
+
+    private async Task InvokeFallback(string alias, Signal signal)
+    {
         _cause = alias;
         try { _ = await ReactionTable.React(this, signal, CancellationToken.None).ConfigureAwait(true); }
         finally { _cause = "reaction"; }
