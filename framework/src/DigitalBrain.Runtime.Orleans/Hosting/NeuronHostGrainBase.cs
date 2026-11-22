@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Rules;
@@ -106,6 +107,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             var context = new HostNeuronContext(id, this.GetGrainId(), registration, bound, grains, types,
                 ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, Defer, delivery, journal, nudge);
             NeuronAttachment.Attach(neuron, context);
+            context.SetBindings(await LoadBindings(id, neuronClass, cancellationToken).ConfigureAwait(true));
             // An activation resumes stored work: it runs as the scheduler of its brain, whoever's call woke it (owner decision 3,
             // 17 Nov). The waking call's caller is restored for the call itself.
             using (_callers.Enter(Caller.OfScheduler(_id.Brain)))
@@ -122,6 +124,29 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             ReleaseUnit();
             throw;
         }
+    }
+
+    private async Task<IReadOnlyList<Binding>> LoadBindings(NeuronId id, Type neuronClass, CancellationToken cancellationToken)
+    {
+        if (string.Equals(id.Type, OrleansInstallHooks.InstallsType, StringComparison.Ordinal)
+            || !ComponentManifests.HasSlots(neuronClass))
+        {
+            return [];
+        }
+
+        var component = ComponentRegistry.Of(neuronClass) ?? new ComponentId(id.Type);
+        var needs = ComponentManifests.SlotsOf(neuronClass);
+        InstallRecord? record = null;
+        if (types.TryGetRegistration(OrleansInstallHooks.InstallsType, out _))
+        {
+            var installs = NeuronHosting.Get<IInstalls>(ServiceProvider, new NeuronId(id.Brain, OrleansInstallHooks.InstallsType, "default"));
+            using (KernelHop.Enter(id.Brain))
+            {
+                record = await installs.Describe(component.Value, cancellationToken).ConfigureAwait(true);
+            }
+        }
+
+        return Slots.Resolve(id.Brain, component, needs, record?.EffectiveBindings());
     }
 
     private void ReleaseUnit()

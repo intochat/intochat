@@ -1,3 +1,5 @@
+using DigitalBrain.Components;
+
 namespace DigitalBrain.Units;
 
 /// <summary>The state of the installs neuron: one record per installed alias and the asks waiting for the person.</summary>
@@ -57,4 +59,13 @@ public sealed record InstallsState(IReadOnlyList<InstallRecord> Records, IReadOn
 
     internal InstallsState RemoveRecord(string alias)
         => this with { Records = [.. Records.Where(r => r.Alias != alias)] };
+
+    internal InstallsState BindComponent(ComponentId component, Binding[] bindings, DateTimeOffset at)
+    {
+        var existing = FindRecord(component.Value);
+        var updated = existing is not null
+            ? existing with { Typed = bindings }
+            : new InstallRecord(component.Value, string.Empty, new Dictionary<string, string>(), [], at, bindings);
+        return this with { Records = [.. Records.Where(r => r.Alias != component.Value), updated] };
+    }
 }

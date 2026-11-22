@@ -1,3 +1,5 @@
+using DigitalBrain.Components;
+
 namespace DigitalBrain.Units;
 
 /// <summary>A synapse app was installed with the needs that were approved.</summary>
@@ -23,3 +25,8 @@ public sealed record InstallDenied(string Alias, string PlanId, string Reason) :
 /// <param name="Alias">The state alias.</param>
 [Signal("synapse.retired")]
 public sealed record Retired(string Alias) : Signal;
+
+/// <summary>Typed slot bindings were recorded for a component.</summary>
+/// <param name="Component">The component id.</param>
+[Signal("component.bound")]
+public sealed record ComponentBound(ComponentId Component) : Signal;

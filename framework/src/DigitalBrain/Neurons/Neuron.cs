@@ -1,3 +1,4 @@
+using DigitalBrain.Components;
 using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Rules;
@@ -13,12 +14,24 @@ public abstract class Neuron
 {
     private INeuronContext? _context;
     private INeuronSeat? _seat;
+    private Slots? _slots;
 
     /// <summary>This neuron's id.</summary>
     protected NeuronId Id => Context.Id;
 
     /// <summary>What the runtime gives this neuron. Available once attached.</summary>
     protected INeuronContext Context => _context ?? throw new InvalidOperationException("The neuron is not attached to a runtime.");
+
+    /// <summary>Resolves this neuron's declared <c>[Slot]</c> properties against its activation bindings.</summary>
+    protected Slots Slots => _slots ??= new Slots(
+        ComponentRegistry.Of(GetType()) ?? new ComponentId(Id.Type),
+        Context.Bindings,
+        new ContextSlotResolver(Context));
+
+    private sealed class ContextSlotResolver(INeuronContext context) : ISlotTargetResolver
+    {
+        public T Resolve<T>(BindingTarget target) where T : class => context.Get<T>(target);
+    }
 
     // True once a runtime attached this neuron; a detached instance (a preview) has no id.
     internal bool IsAttached => _context is not null;

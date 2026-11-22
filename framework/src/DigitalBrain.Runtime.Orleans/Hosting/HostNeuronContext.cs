@@ -1,3 +1,4 @@
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
@@ -29,6 +30,7 @@ internal sealed class HostNeuronContext : INeuronContext, INeuronSeat, IHostNeur
     private readonly HostTimers _timers;
     private readonly IHostTicks _ticks;
     private readonly KernelState _state;
+    private IReadOnlyList<Binding> _bindings = [];
 
     public HostNeuronContext(
         NeuronId id,
@@ -100,11 +102,22 @@ internal sealed class HostNeuronContext : INeuronContext, INeuronSeat, IHostNeur
 
     public Type? ClassOf(string neuronType) => _types.TryGet(neuronType, out var neuronClass) ? neuronClass : null;
 
+    public IReadOnlyList<Binding> Bindings => _bindings;
+
+    internal void SetBindings(IReadOnlyList<Binding> bindings) => _bindings = bindings;
+
     public T Get<T>(NeuronId target) where T : class
     {
         if (target.Brain != Id.Brain) { throw new ArgumentException($"Neuron {target} belongs to another brain than {Id}.", nameof(target)); }
         return NeuronProxy.Create<T>(target, new OrleansInvocationSink(_grains, _types, Id, Access.OrleansCallerAmbient.Instance, callerClass: _registration.Class));
     }
+
+    public T Get<T>(BindingTarget target) where T : class => target switch
+    {
+        BindingTarget.Local local => Get<T>(local.Neuron),
+        BindingTarget.Offered offered => NeuronProxy.Create<T>(offered.Neuron, new OrleansInvocationSink(_grains, _types, Id, Access.OrleansCallerAmbient.Instance, callerClass: _registration.Class)),
+        _ => throw new NotSupportedException($"Binding target {target.GetType().Name} is not supported by this context."),
+    };
 
     public void Defer(Func<Task> work)
     {

@@ -1,3 +1,4 @@
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 
 namespace DigitalBrain.Units;
@@ -38,18 +39,46 @@ public sealed record InstallRequest(string Alias, IReadOnlyDictionary<string, st
 /// </param>
 public sealed record InstallOutcome(InstallStatus Status, string Sentence, string? Reason);
 
-/// <summary>An installed synapse app, as the person approved it.</summary>
-/// <param name="Alias">The state alias.</param>
+/// <summary>An installed synapse app or bound component, as the person approved it.</summary>
+/// <param name="Alias">The state alias or component id.</param>
 /// <param name="NeedsHash">The <see cref="SynapseNeeds.Hash"/> that was approved.</param>
-/// <param name="Bindings">Slot name to connection key text.</param>
+/// <param name="Bindings">Slot name to connection key text (legacy synapse bindings).</param>
 /// <param name="Schedules">The schedule texts it runs on.</param>
 /// <param name="ConsentedAt">When the person approved.</param>
+/// <param name="Typed">Typed slot bindings, or null for records written before typed bindings existed.</param>
 public sealed record InstallRecord(
     string Alias,
     string NeedsHash,
     IReadOnlyDictionary<string, string> Bindings,
     IReadOnlyList<string> Schedules,
-    DateTimeOffset ConsentedAt);
+    DateTimeOffset ConsentedAt,
+    Binding[]? Typed = null)
+{
+    /// <summary>
+    /// All active bindings for this record: explicit <see cref="Typed"/> entries plus any legacy <see cref="Bindings"/>
+    /// entries not already present in <see cref="Typed"/>, read as <see cref="BindingTarget.Connection"/>.
+    /// </summary>
+    public IReadOnlyList<Binding> EffectiveBindings()
+    {
+        var result = new List<Binding>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        if (Typed is { Length: > 0 })
+        {
+            foreach (var binding in Typed)
+            {
+                if (seen.Add(binding.Slot)) { result.Add(binding); }
+            }
+        }
+        if (Bindings is { Count: > 0 })
+        {
+            foreach (var (slot, connectionKey) in Bindings)
+            {
+                if (seen.Add(slot)) { result.Add(new Binding(slot, new BindingTarget.Connection(connectionKey))); }
+            }
+        }
+        return result;
+    }
+}
 
 /// <summary>An install waiting for the person's answer.</summary>
 /// <param name="PlanId">The confirmation plan id.</param>
@@ -116,4 +145,10 @@ public interface IInstalls
     /// <param name="alias">The state alias.</param>
     /// <param name="ct">Cancellation.</param>
     Task Rewire(string alias, CancellationToken ct = default);
+
+    /// <summary>Records typed slot bindings for a component, creating or updating its install record.</summary>
+    /// <param name="component">The component id.</param>
+    /// <param name="bindings">The typed slot bindings.</param>
+    /// <param name="ct">Cancellation.</param>
+    Task BindComponent(ComponentId component, Binding[] bindings, CancellationToken ct = default);
 }

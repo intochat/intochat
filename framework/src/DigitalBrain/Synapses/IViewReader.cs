@@ -70,12 +70,20 @@ public sealed class ActivationRefusedException : InvalidOperationException
     /// <summary>A command names a child address, but the view's owner has no child slots (a unit or a slotless app).</summary>
     public const string NoSlots = "NoSlots";
 
+    /// <summary>A required component slot has no binding and no default.</summary>
+    public const string SlotUnbound = "slot.unbound";
+
     /// <summary>No reason was given (the standard exception constructors).</summary>
     public const string Unspecified = "Unspecified";
 
     /// <summary>Creates the exception for <paramref name="reason"/>.</summary>
     /// <param name="reason">One of the reason constants.</param>
     public ActivationRefusedException(string reason) : base($"The activation was refused: {reason}.") => Reason = reason;
+
+    /// <summary>Creates the exception for <paramref name="reason"/> with a specific <paramref name="message"/>.</summary>
+    /// <param name="reason">One of the reason constants.</param>
+    /// <param name="message">The human-readable refusal message.</param>
+    public ActivationRefusedException(string reason, string message) : base(message) => Reason = reason;
 
     /// <summary>Creates the exception.</summary>
     public ActivationRefusedException() : this(Unspecified) { }

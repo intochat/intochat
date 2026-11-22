@@ -1,3 +1,4 @@
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Contracts;
 using DigitalBrain.Log;
@@ -209,6 +210,14 @@ public sealed class InstallsNeuron(ISynapseCatalogSource catalog, IInstallHooks 
 
     /// <inheritdoc />
     public Task Uninstall(string alias, CancellationToken ct = default) => Retire(alias, ct);
+
+    /// <inheritdoc />
+    public async Task BindComponent(ComponentId component, Binding[] bindings, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(component.Value, nameof(component));
+        ArgumentNullException.ThrowIfNull(bindings);
+        await Save(State.BindComponent(component, bindings, Context.Time.GetUtcNow()), [new ComponentBound(component)]).ConfigureAwait(true);
+    }
 
     /// <inheritdoc />
     [ReadOnlyCall]

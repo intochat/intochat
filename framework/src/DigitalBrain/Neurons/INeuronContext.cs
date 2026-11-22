@@ -1,4 +1,5 @@
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Neurons;
@@ -38,6 +39,16 @@ public interface INeuronContext
 
     /// <summary>A typed interface to another neuron of the same brain.</summary>
     T Get<T>(NeuronId id) where T : class;
+
+    /// <summary>The slot bindings active for this neuron activation.</summary>
+    IReadOnlyList<Binding> Bindings => [];
+
+    /// <summary>A typed interface to the target of a bound slot.</summary>
+    T Get<T>(BindingTarget target) where T : class => target switch
+    {
+        BindingTarget.Local local => Get<T>(local.Neuron),
+        _ => throw new NotSupportedException($"Binding target {target.GetType().Name} is not supported by this context."),
+    };
 
     /// <summary>The class the runtime registered for <paramref name="neuronType"/>, or null when it knows none.</summary>
     Type? ClassOf(string neuronType) => null;

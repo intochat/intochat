@@ -1,5 +1,6 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Log;
@@ -14,6 +15,7 @@ internal sealed class TestNeuronContext : INeuronContext, INeuronSeat
 {
     private readonly TestNeuronHost _host;
     private readonly KernelState _state;
+    private IReadOnlyList<Binding> _bindings = [];
 
     public TestNeuronContext(TestNeuronHost host)
     {
@@ -84,11 +86,22 @@ internal sealed class TestNeuronContext : INeuronContext, INeuronSeat
 
     public Type? ClassOf(string neuronType) => _host.OS.ClassOf(neuronType);
 
+    public IReadOnlyList<Binding> Bindings => _bindings;
+
+    internal void SetBindings(IReadOnlyList<Binding> bindings) => _bindings = bindings;
+
     public T Get<T>(NeuronId id) where T : class
     {
         if (id.Brain != Id.Brain) { throw new ArgumentException($"Neuron {id} belongs to another brain than {Id}.", nameof(id)); }
         return _host.OS.Proxy<T>(Id, id);
     }
+
+    public T Get<T>(BindingTarget target) where T : class => target switch
+    {
+        BindingTarget.Local local => Get<T>(local.Neuron),
+        BindingTarget.Offered offered => _host.OS.Proxy<T>(Id, offered.Neuron),
+        _ => throw new NotSupportedException($"Binding target {target.GetType().Name} is not supported by this context."),
+    };
 
     public void Defer(Func<Task> work)
     {

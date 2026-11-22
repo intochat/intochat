@@ -4,9 +4,11 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
+using DigitalBrain.Units;
 
 namespace DigitalBrain.Testing;
 
@@ -253,6 +255,7 @@ internal sealed class TestNeuronHost : IDisposable
             // As the runtime host: an activation runs as the scheduler of its brain, whoever's call woke it; the caller is restored after.
             using (TestCallerAmbient.Instance.Enter(Caller.OfScheduler(Id.Brain)))
             {
+                context.SetBindings(await LoadBindings().ConfigureAwait(false));
                 await NeuronAttachment.Activate(neuron, CancellationToken.None).ConfigureAwait(false);
             }
             _neuron = neuron;
@@ -260,6 +263,27 @@ internal sealed class TestNeuronHost : IDisposable
             return neuron;
         }
         finally { _activating.Release(); }
+    }
+
+    private async Task<IReadOnlyList<Binding>> LoadBindings()
+    {
+        if (string.Equals(Id.Type, "synapse.installs", StringComparison.Ordinal)
+            || !ComponentManifests.HasSlots(Class))
+        {
+            return [];
+        }
+
+        var component = ComponentRegistry.Of(Class) ?? new ComponentId(Id.Type);
+        var needs = ComponentManifests.SlotsOf(Class);
+        InstallRecord? record = null;
+        if (_os.ClassOf("synapse.installs") is not null)
+        {
+            record = await _os.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"))
+                .Describe(component.Value, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
+        return Slots.Resolve(Id.Brain, component, needs, record?.EffectiveBindings());
     }
 
     private async Task DeactivateNow(DeactivationCause cause)
