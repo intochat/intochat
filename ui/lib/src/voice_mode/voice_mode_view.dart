@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' show PresenceState;
+
 import '../design/tokens.dart';
+import '../widgets/ino/ino_orb_v2.dart';
 import 'audio_out.dart';
 import 'mic_stream.dart';
 import 'talk_socket.dart';
@@ -42,6 +45,10 @@ class _VoiceModeViewState extends State<VoiceModeView> {
 
   TalkPhase _phase = TalkPhase.listening;
   double _micLevel = 0.0;
+  double _ttsLevel = 0.0;
+  bool _pushToTalk = false;
+  bool _pttHeld = false;
+  bool _muteWhileSpeaking = false;
   String _heard = '';
   String _reply = '';
   String? _error;
@@ -89,8 +96,12 @@ class _VoiceModeViewState extends State<VoiceModeView> {
 
   void _onMicFrame(Uint8List pcm16) {
     if (_closing) return;
-    _socket?.send(pcm16);
-    final rms = _pcm16Rms(pcm16);
+    final gatedByPtt = _pushToTalk && !_pttHeld;
+    final gatedByEcho = _muteWhileSpeaking && _phase == TalkPhase.speaking;
+    if (!gatedByPtt && !gatedByEcho) {
+      _socket?.send(pcm16);
+    }
+    final rms = (gatedByPtt || gatedByEcho) ? 0.0 : _pcm16Rms(pcm16);
     final smoothed = (_micLevel * 0.55 + rms * 0.45).clamp(0.0, 1.0);
     if ((smoothed - _micLevel).abs() > 0.01 && mounted) {
       setState(() => _micLevel = smoothed);
@@ -100,6 +111,11 @@ class _VoiceModeViewState extends State<VoiceModeView> {
   void _onAudio(Uint8List pcm16) {
     if (_closing) return;
     widget.out.push(pcm16);
+    final rms = _pcm16Rms(pcm16);
+    final smoothed = (_ttsLevel * 0.55 + rms * 0.45).clamp(0.0, 1.0);
+    if ((smoothed - _ttsLevel).abs() > 0.01 && mounted) {
+      setState(() => _ttsLevel = smoothed);
+    }
   }
 
   void _onEvent(TalkEvent event) {
@@ -197,17 +213,23 @@ class _VoiceModeViewState extends State<VoiceModeView> {
     TalkPhase.speaking => 'Speaking',
   };
 
-  Color _orbAccent(IcColors c) => switch (_phase) {
-    TalkPhase.listening => c.accent,
-    TalkPhase.thinking => c.working,
-    TalkPhase.speaking => c.done,
-  };
+  PresenceState get _presenceState {
+    if (_error != null) return PresenceState.disconnected;
+    return switch (_phase) {
+      TalkPhase.listening => PresenceState.listening,
+      TalkPhase.thinking => PresenceState.working,
+      TalkPhase.speaking => PresenceState.idle,
+    };
+  }
+
+  double get _activeLevel {
+    if (_error != null) return 0.0;
+    return math.max(_micLevel, _ttsLevel);
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
-    final accent = _error != null ? c.error : _orbAccent(c);
-    final scale = 1.0 + (_error == null ? _micLevel * 0.35 : 0.0);
 
     return CallbackShortcuts(
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
@@ -221,8 +243,28 @@ class _VoiceModeViewState extends State<VoiceModeView> {
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          FilterChip(
+                            key: const ValueKey('voice-ptt-toggle'),
+                            label: Text(_pushToTalk ? 'Push-to-talk' : 'Hands-free VAD'),
+                            selected: _pushToTalk,
+                            onSelected: (v) => setState(() {
+                              _pushToTalk = v;
+                              _pttHeld = false;
+                            }),
+                          ),
+                          FilterChip(
+                            key: const ValueKey('voice-echo-gate-toggle'),
+                            label: const Text('Speaker safe'),
+                            selected: _muteWhileSpeaking,
+                            onSelected: (v) => setState(() => _muteWhileSpeaking = v),
+                          ),
+                        ],
+                      ),
                       Semantics(
                         container: true,
                         button: true,
@@ -253,54 +295,37 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                               child: GestureDetector(
                                 key: const ValueKey('voice-orb'),
                                 onTap: _interrupt,
+                                onLongPressStart: _pushToTalk
+                                    ? (_) => setState(() => _pttHeld = true)
+                                    : null,
+                                onLongPressEnd: _pushToTalk
+                                    ? (_) => setState(() => _pttHeld = false)
+                                    : null,
                                 child: MouseRegion(
                                   cursor: SystemMouseCursors.click,
-                                  child: AnimatedScale(
-                                    scale: scale,
-                                    duration: const Duration(milliseconds: 80),
-                                    curve: Curves.easeOut,
-                                    child: AnimatedContainer(
-                                      duration: IcMotion.fast,
-                                      width: 176,
-                                      height: 176,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: RadialGradient(
-                                          colors: [
-                                            accent.withValues(alpha: 0.92),
-                                            accent.withValues(alpha: 0.45),
-                                            accent.withValues(alpha: 0.14),
-                                          ],
-                                          stops: const [0.0, 0.62, 1.0],
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: accent.withValues(
-                                              alpha: 0.28 + _micLevel * 0.24,
-                                            ),
-                                            blurRadius: 36,
-                                            spreadRadius: 6,
-                                          ),
-                                        ],
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          _error != null
-                                              ? 'Error'
-                                              : _phaseLabel,
-                                          style: IcType.text(
-                                            16,
-                                            weight: FontWeight.w600,
-                                            color: c.onAccent,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                  child: InoOrbV2(
+                                    state: _presenceState,
+                                    size: 176,
+                                    audioLevel: _activeLevel,
+                                    semanticsId: 'voice-mode:orb',
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 12),
+                            Text(
+                              _error != null
+                                  ? 'Error'
+                                  : (_pushToTalk && !_pttHeld && _phase == TalkPhase.listening
+                                      ? 'Hold orb to speak'
+                                      : _phaseLabel),
+                              style: IcType.text(
+                                15,
+                                weight: FontWeight.w600,
+                                color: _error != null ? c.error : c.textStrong,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
                             if (_error case final error?)
                               Container(
                                 padding: const EdgeInsets.symmetric(

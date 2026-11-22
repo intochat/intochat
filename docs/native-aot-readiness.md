@@ -91,7 +91,7 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
 ### Q1: Can I run Native AOT with Aspire right now?
 **Yes!**
 - **How Aspire runs the Kernel**:
-  - By default during inner-loop development (`dotnet run intochat-os.cs` or running `IntoChat.OS.AppHost`), Aspire launches `IntoChat.OS.Kernel.csproj` via `AddDotnetProject`, which runs the standard JIT build for fast 2-second incremental rebuilds, **unless** a live build is active (`live.json`) or you publish the AOT binary.
+  - By default during inner-loop development (`dotnet run intochat.cs` or running `IntoChat.OS.AppHost`), Aspire launches `IntoChat.OS.Kernel.csproj` via `AddDotnetProject`, which runs the standard JIT build for fast 2-second incremental rebuilds, **unless** a live build is active (`live.json`) or you publish the AOT binary.
   - All AOT architectural changes (`AotNeuronProxy_*`, `OrleansAotResponses`, `KernelMcpJsonContext`, `RuntimeJsonContext`) are active and 100% compatible with both JIT (Aspire dev loop) and Native AOT (`IntoChatOSAot=true`).
   - If you want Aspire to orchestrate the compiled Native AOT binary directly, or if you run the Native AOT `IntoChat.OS.Kernel.exe` alongside Aspire's resources (Azurite, Postgres, ClickHouse, Foundry Local / Ollama, Sandbox container), it uses the exact same `IntoChatOS:Topology` (`local`, `local+cloud`, or `cloud`) and environment variables that Aspire injects.
 

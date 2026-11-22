@@ -15,6 +15,8 @@ using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Devices.Voice;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
@@ -25,8 +27,10 @@ using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.Modules.Web.Search;
 using IntoChat.OS.Tests.Support.Fakes.AI;
+using IntoChat.OS.Tests.Support.Fakes.Devices;
 using IntoChat.OS.Tests.Support.Fakes.GitHub;
 using IntoChat.OS.Tests.Support.Fakes.Postgres;
+using IntoChat.OS.Tests.Support.Fakes.Voice;
 using IntoChat.OS.Tests.Support.Fakes.Web;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -169,6 +173,48 @@ public static class OsFakes
             .Add<IChatClient, ScriptedChatClient>(client)
             .Add<IAiCredentials, NoConfiguredProviders>(new())
             .Add<ISecretRedactor, NoOpSecretRedactor>(new());
+    }
+
+    /// <summary>
+    /// Registers a reusable in-memory <see cref="FakeLocalRuntime"/> in one line for local-model
+    /// discovery, install, and inference tests without needing Ollama or Foundry Local running.
+    /// </summary>
+    public static FakeSet LocalRuntime(this FakeSet fakes, Action<FakeLocalRuntime>? seed = null)
+    {
+        ArgumentNullException.ThrowIfNull(fakes);
+        var runtime = new FakeLocalRuntime();
+        seed?.Invoke(runtime);
+        return fakes.Configure(services =>
+        {
+            services.AddSingleton(runtime);
+            services.AddSingleton<ILocalRuntime>(runtime);
+        });
+    }
+
+    /// <summary>
+    /// Registers deterministic <see cref="FakeSpeechToTextClient"/>, <see cref="FakeTextToSpeechClient"/>,
+    /// <see cref="FakeVoiceActivityDetector"/>, and a voice-ready <see cref="FakeLocalRuntime"/> (Whisper + Kokoro)
+    /// in one line for dictation, read-aloud, and full-duplex local voice-to-voice tests.
+    /// </summary>
+    public static FakeSet Voice(this FakeSet fakes, Func<string>? transcript = null, byte[]? audioPcm = null)
+    {
+        ArgumentNullException.ThrowIfNull(fakes);
+        var stt = new FakeSpeechToTextClient(transcript);
+        var tts = new FakeTextToSpeechClient(audioPcm);
+        var vad = new FakeVoiceActivityDetector(ready: true);
+        var voiceRuntime = new FakeLocalRuntime(new RuntimeId("fake-voice"))
+        {
+            SpeechToTextClient = stt,
+            TextToSpeechClient = tts,
+        }.WithInstalled(KnownModels.WhisperLargeV3Turbo, KnownModels.Kokoro82M);
+
+        return fakes
+            .Add<FakeSpeechToTextClient, FakeSpeechToTextClient>(stt)
+            .Add<FakeTextToSpeechClient, FakeTextToSpeechClient>(tts)
+            .Add<ISpeechToTextClient, FakeSpeechToTextClient>(stt)
+            .Add<ITextToSpeechClient, FakeTextToSpeechClient>(tts)
+            .Add<IVoiceActivityDetector, FakeVoiceActivityDetector>(vad)
+            .Configure(services => services.AddSingleton<ILocalRuntime>(voiceRuntime));
     }
 
     private sealed class SameNameBrainOwners : IBrainOwners

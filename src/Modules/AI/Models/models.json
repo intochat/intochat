@@ -2,8 +2,8 @@
   "version": 1,
   "defaults": {
     "device": {
-      "Chat": "qwen3.5:4b",
-      "Think": "qwen2.5-coder:14b",
+      "Chat": "gemma4:12b",
+      "Think": "gemma4:12b",
       "Fast": "gemma4:e2b",
       "Hear": "whisper-large-v3-turbo",
       "Speak": "kokoro-82m",
@@ -225,6 +225,20 @@
       "aliases": ["IDeepSeekV41Flash", "DeepSeekV41Flash", "deepseekv41flash"]
     },
     {
+      "id": "gemma4:12b",
+      "member": "Gemma412B",
+      "provider": "Ollama",
+      "family": "Gemma 4",
+      "name": "Gemma 4 12B",
+      "where": "Device",
+      "can": ["Text", "Tools", "Vision"],
+      "tier": "Deep",
+      "bytes": 8100000000,
+      "context": 131072,
+      "aliases": ["IGemma412B", "Gemma412B", "gemma4-12b"],
+      "price": { "input": 0, "output": 0, "cached": 0, "reasoning": 0 }
+    },
+    {
       "id": "gemma4:e2b",
       "member": "Gemma4",
       "provider": "Ollama",
@@ -234,7 +248,7 @@
       "can": ["Text", "Tools", "Vision"],
       "tier": "Fast",
       "bytes": 5200000000,
-      "aliases": ["IGemma4", "Gemma4", "gemma4", "gemma4:12b"],
+      "aliases": ["IGemma4", "Gemma4", "gemma4"],
       "price": { "input": 0, "output": 0, "cached": 0, "reasoning": 0 }
     },
     {

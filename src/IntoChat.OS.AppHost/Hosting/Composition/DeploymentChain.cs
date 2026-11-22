@@ -26,6 +26,11 @@ public static class DeploymentChain
         os = os.WithHosting<AIModuleHosting, AIOptions>(plan.Ai);
         if (plan.Devices is not null && profile.IsEnabled("devices"))
         {
+            if (plan.Devices.Ollama.Enabled
+                && string.Equals(plan.Devices.Ollama.Endpoint, IntoChat.OS.Host.Configuration.IntoChatOSNames.LocalOllamaEndpoint, StringComparison.OrdinalIgnoreCase))
+            {
+                AIHostingExtensions.EnsureAutoOllamaContainer(os, plan.Devices.Ollama.Endpoint);
+            }
             os = os.WithModule<DevicesModule, DevicesOptions>(plan.Devices);
         }
 

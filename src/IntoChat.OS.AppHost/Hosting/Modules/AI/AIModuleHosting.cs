@@ -1,6 +1,7 @@
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 
@@ -13,6 +14,25 @@ public sealed class AIModuleHosting : ModuleHosting<AIModule>
 
 public static partial class AIHostingExtensions
 {
+    internal static void EnsureAutoOllamaContainer(IntoChatOSBuilder brain, string endpoint)
+    {
+        if (brain.ApplicationBuilder.ExecutionContext.IsPublishMode)
+        {
+            return;
+        }
+        if (!brain.ApplicationBuilder.Configuration.GetValue("IntoChatOS:Ollama:AutoContainer", defaultValue: true))
+        {
+            return;
+        }
+        if (AIHostingState.IsHostOllamaListening(endpoint))
+        {
+            return;
+        }
+
+        var module = new IntoChatOSModuleBuilder<AIModuleHosting>(brain);
+        _ = State(module).EnsureOllama();
+    }
+
     internal static void ConfigureDeclaration(IntoChatOSBuilder brain, AIOptions options)
     {
         var module = new IntoChatOSModuleBuilder<AIModuleHosting>(brain);

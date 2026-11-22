@@ -63,7 +63,7 @@ public sealed class ModelsFacts
     }
 
     [Theory]
-    [InlineData("gemma4:12b", "gemma4:e2b")]
+    [InlineData("gemma4-12b", "gemma4:12b")]
     [InlineData("sonnet-4.6", "claude-sonnet-4-6")]
     [InlineData("opus-4.6", "claude-opus-4-6")]
     [InlineData("gemini-3.1-pro", "gemini-3.1-pro-preview")]

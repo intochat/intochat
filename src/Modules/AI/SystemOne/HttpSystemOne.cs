@@ -20,6 +20,13 @@ internal sealed class HttpSystemOne(
     internal const string IntegrationId = "typesafe";
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
+    public async Task<bool> IsReadyAsync(CancellationToken cancellationToken)
+    {
+        var handle = integrations.Get(IntegrationId);
+        var snapshot = await handle.ReadAsync(cancellationToken).ConfigureAwait(false);
+        return snapshot.Status == IntegrationStatus.Ready;
+    }
+
     public async Task<SystemOneResult> Ask(SystemOneRequest request, CancellationToken cancellationToken)
     {
         var handle = integrations.Get(IntegrationId);

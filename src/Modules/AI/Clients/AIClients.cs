@@ -36,12 +36,6 @@ internal static class AIClients
     internal static void Add(IServiceCollection services)
     {
         services.TryAddSingleton<ProviderExecutionGate>();
-        foreach (var card in KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Text) && Factories.ContainsKey(c.Provider)))
-        {
-            services.AddKeyedSingleton<IChatClient>(
-                card.Id,
-                (provider, _) => BuildChatPipeline(provider, card));
-        }
 
         foreach (var card in KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)))
         {
@@ -115,15 +109,6 @@ internal static class AIClients
 
     private static Funding FundingOf(string provider)
         => Enum.TryParse<AiProvider>(provider, out var parsed) ? FundingOf(parsed) : Funding.Local;
-
-    private static IChatClient BuildChatPipeline(IServiceProvider provider, ModelCard card)
-        => BuildChatPipeline(provider, card, Rebuilding(provider, card.Provider,
-            ct => Factories[card.Provider].CreateChatClient(
-                card, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct)));
-
-    // A keyed provider's client is rebuilt when its registration is re-read, so a cleared or rotated key takes effect without a restart.
-    private static IChatClient Rebuilding(IServiceProvider services, AiProvider provider, Func<CancellationToken, Task<IChatClient>> create)
-        => new RebuildingChatClient(create, GenerationOf(services, provider));
 
     private static Func<CancellationToken, Task<long>> GenerationOf(IServiceProvider services, AiProvider provider)
         => ct => AiIntegrations.KeyedProviders.Contains(provider)
@@ -208,10 +193,11 @@ internal static class AIClients
         // configured: silently switching it changes vector dimensions and orphans
         // every existing vector collection.
         var local = KnownModels.EmbeddingGemma;
-        if (string.IsNullOrEmpty(configuration.Ollama.Endpoint))
+        var hasLocalRuntime = provider.GetServices<ILocalRuntime>().Any(static r => r.Id == RuntimeId.Ollama);
+        if (!hasLocalRuntime && string.IsNullOrEmpty(configuration.Ollama.Endpoint))
         {
             throw new InvalidOperationException(
-                $"No embedding model is configured. Supply an Ollama endpoint for {local.Id}, "
+                $"No embedding model is configured. Enable a local Ollama runtime for {local.Id}, "
                 + $"or pin {AIKeys.Role(Where.Cloud, Role.Embed)} to a configured cloud embedding "
                 + $"({string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)).Select(static c => c.Id.Value))}).");
         }

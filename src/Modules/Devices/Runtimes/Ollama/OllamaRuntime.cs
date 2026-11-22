@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Devices;
 
 public sealed class OllamaRuntime : ILocalRuntime
 {
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(1_500);
     private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(5);
 

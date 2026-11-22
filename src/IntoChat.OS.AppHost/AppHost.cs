@@ -9,8 +9,8 @@ builder.AddIntoChatOSPipelines();
 builder.AddIntoChatOS("Modules")
     .WithAI(ai => ai
         .Device(d => d.Ollama().FoundryLocal().Attach("lmstudio", new Uri("http://localhost:1234/v1"))
-                      .Roles(r => r.Chat(KnownModels.Qwen35).Think(KnownModels.Qwen25Coder14B).Hear(KnownModels.WhisperLargeV3Turbo).Speak(KnownModels.Kokoro82M))
-                      .Prefetch(KnownModels.Qwen35, KnownModels.Qwen25Coder14B))
+                      .Roles(r => r.Chat(KnownModels.Gemma412B).Think(KnownModels.Gemma412B).Hear(KnownModels.WhisperLargeV3Turbo).Speak(KnownModels.Kokoro82M).Embed(KnownModels.EmbeddingGemma))
+                      .Prefetch(KnownModels.Gemma412B, KnownModels.WhisperLargeV3Turbo, KnownModels.Kokoro82M, KnownModels.EmbeddingGemma))
         .Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash).Think(KnownModels.Gpt56Luna).Embed(KnownModels.TextEmbedding3Small).Speak(KnownModels.Gpt4oMiniTts).Talk(KnownModels.GptRealtime)))
         .Web(w => w.SearXng().MicrosoftLearn().Brave(cloudOnly: true)))
     .WithPostgres("intochat_os").WithGitHub().WithPlaywright()

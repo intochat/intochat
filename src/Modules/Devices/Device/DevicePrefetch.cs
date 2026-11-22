@@ -119,6 +119,7 @@ internal sealed class DevicePrefetch(
             var device = SiloNeurons.Get<IDevice>(services, IDevice.Key(brainId, thisMachine.Value));
             _ = await device.Read().ConfigureAwait(false);
 
+            var hardware = services.GetService<IHardwareProbe>()?.Read();
             foreach (var raw in options.Value.Prefetch)
             {
                 ct.ThrowIfCancellationRequested();
@@ -127,13 +128,14 @@ internal sealed class DevicePrefetch(
                     continue;
                 }
 
+                var modelId = ResolveFitModel(raw.Trim(), hardware);
                 try
                 {
-                    await device.Install(new ModelId(raw.Trim())).ConfigureAwait(false);
+                    await device.Install(modelId).ConfigureAwait(false);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"prefetching model '{raw}' on device '{thisMachine.Value}'");
+                    OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"prefetching model '{modelId.Value}' on device '{thisMachine.Value}'");
                 }
             }
         }
@@ -144,5 +146,20 @@ internal sealed class DevicePrefetch(
         {
             OsConsoleLog.For<DevicePrefetch>().LogSwallowed(error, $"starting device prefetch for '{thisMachine.Value}'");
         }
+    }
+
+    private static ModelId ResolveFitModel(string rawId, Hardware? hardware)
+    {
+        var requested = new ModelId(rawId);
+        if (hardware is null)
+        {
+            return requested;
+        }
+        var card = KnownModels.Find(rawId);
+        if (card is { Bytes: > 0 } && card.Can.HasFlag(Abilities.Text) && FitRule.Of(card.Bytes, hardware) == Fit.WontFit)
+        {
+            return KnownModels.Qwen35.Id;
+        }
+        return requested;
     }
 }

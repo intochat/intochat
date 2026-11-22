@@ -19,7 +19,9 @@ internal static class FitRule
         var need = (modelBytes * WeightOverheadFactor) + RuntimeOverheadBytes;
         var accelerators = hardware.Accelerators ?? [];
         var hasMetal = accelerators.Contains(Accelerator.Metal);
-        var hasDiscreteGpu = accelerators.Contains(Accelerator.Cuda) || accelerators.Contains(Accelerator.DirectML);
+        var hasDiscreteGpu = accelerators.Contains(Accelerator.Cuda)
+            || accelerators.Contains(Accelerator.DirectML)
+            || hardware.VramBytes >= 1024L * 1024L * 1024L;
 
         var gpu = hasMetal
             ? hardware.RamBytes * MetalGpuShare

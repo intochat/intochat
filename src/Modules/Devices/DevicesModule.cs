@@ -80,7 +80,7 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
         {
             var home = StateHome.Resolve(
                 sp.GetService<IConfiguration>() ?? configuration,
-                sp.GetService<RuntimeOptions>() ?? new RuntimeOptions { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" });
+                sp.GetService<RuntimeOptions>() ?? new RuntimeOptions { HomeKey = IntoChatOSNames.HomeKey, DefaultHomeDirectoryName = ".intochat" });
             return new DeviceCredentials(
                 sp.GetRequiredService<IMachineKeyProtector>(),
                 Path.Combine(home.Path, "devices", "link.bin"));

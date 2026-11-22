@@ -65,6 +65,13 @@ public static partial class AIHostingExtensions
                 .WithEnvironment("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
                     EnableSensitiveData ? "true" : "false");
 
+            if (_ollama is not null && _ollamaModels.Count == 0)
+            {
+                builder
+                    .WithAnnotation(new WaitAnnotation(_ollama.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
+                    .WithEnvironment(ModuleConfiguration.EnvironmentName(DevicesHostingExtensions.OllamaEndpointKey), _ollama.Resource.UriExpression);
+            }
+
             foreach (var (modelId, resource) in _ollamaModels)
             {
                 builder
@@ -87,6 +94,24 @@ public static partial class AIHostingExtensions
 
         internal IResourceBuilder<OllamaResource> EnsureOllama()
             => _ollama ??= AddOllama();
+
+        internal static bool IsHostOllamaListening(string endpoint)
+        {
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            {
+                return false;
+            }
+            try
+            {
+                using var tcp = new System.Net.Sockets.TcpClient();
+                var connect = tcp.ConnectAsync(uri.Host, uri.Port);
+                return connect.Wait(TimeSpan.FromMilliseconds(200)) && tcp.Connected;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
 
         private static readonly Lazy<bool> NvidiaGpuAvailable = new(DetectNvidiaGpu);
 

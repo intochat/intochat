@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
+import '../src/widgets/ino/ino_orb_v2.dart';
 import '../workspace/cross_window_router.dart';
 import '../workspace/spatial_app_canvas.dart';
 import '../workspace/workspace_app.dart';
@@ -1789,6 +1790,24 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         isCompact: true,
                       ),
                     ),
+                    if (_systemSheet == DesktopSystemSheetKind.none &&
+                        topWindow?.appId != 'ino')
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: InoOrbV2(
+                          state: _presenceState,
+                          size: 48,
+                          semanticsId: 'compact:ino-orb',
+                          onTap: () {
+                            setState(() {
+                              _allAppsOpen = false;
+                              _themeStudioOpen = false;
+                            });
+                            _launchOrFocusApp('ino', windows, dockButtons);
+                          },
+                        ),
+                      ),
                     if (_systemSheet != DesktopSystemSheetKind.none)
                       Positioned.fill(
                         child: DesktopSystemModalSheet(

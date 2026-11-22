@@ -184,7 +184,8 @@ Future<({_FakeServer server, _FakeMic mic, _FakeOut out})> _pumpOrbRoute(
     ),
   );
   await tester.tap(find.text('Open'));
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 350));
   return (server: server, mic: mic, out: out);
 }
 

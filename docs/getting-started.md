@@ -16,9 +16,9 @@ The `preflight` profile checks all of these. It also checks free disk space, fre
 Run from the repository root:
 
 ```
-dotnet run intochat-os.cs preflight   # check the machine, change nothing
-dotnet run intochat-os.cs local       # check, pull the model if missing, start against host Ollama
-dotnet run intochat-os.cs             # default profile, includes the Flutter shell
+dotnet run intochat.cs preflight   # check the machine, change nothing
+dotnet run intochat.cs local       # check, pull the model if missing, start against host Ollama
+dotnet run intochat.cs             # default profile, includes the Flutter shell
 ```
 
 This starts the Aspire AppHost in `src/IntoChat.OS.AppHost`, which starts the kernel.

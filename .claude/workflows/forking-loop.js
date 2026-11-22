@@ -1,7 +1,7 @@
 export const meta = {
   name: 'forking-loop',
   description: 'One customer round of the forking loop: persona customers use the running OS through intochat-os-mcp, ask for synapses in one sentence, and file every unmet need as a wish; a triager sorts the wishes',
-  whenToUse: 'After the OS is running (dotnet run intochat-os.cs, all resources Healthy) and the fast path (IApp.WriteSynapse / Assistant make) is live. Pass args {personas: [{file, brief}], round: <n>, context: <shared driving instructions>}.',
+  whenToUse: 'After the OS is running (dotnet run intochat.cs, all resources Healthy) and the fast path (IApp.WriteSynapse / Assistant make) is live. Pass args {personas: [{file, brief}], round: <n>, context: <shared driving instructions>}.',
   phases: [
     { title: 'Customers', detail: 'one agent per persona drives the OS and judges the outcome against its acceptance line' },
     { title: 'Triage', detail: 'sort unmet outcomes into fast-path fixes, module work and gate wishes' },

@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.AI.Venn;
 
 namespace IntoChat.OS.Tests.Unit.Modules.AI.Venn;
@@ -87,5 +88,63 @@ public sealed class VennSystemOneFacts
         // Completely unrelated query abstains cleanly.
         var unrelated = await venn.ChooseForText("quantum chromodynamics lattice gauge theory");
         Assert.True(unrelated.Abstained);
+    }
+
+    [Fact]
+    public async Task SystemOneUsesVennFastPathOutOfTheBoxWithoutTypeSafe()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
+            IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
+        await using var os = TestOS.Local();
+        os.Register(typeof(AIModule).Assembly);
+
+        var venn = os.Get<IVennSystemOne>(IVennSystemOne.DefaultKey(new BrainId("test")));
+        await venn.LearnFromText("intent", "open settings to configure local models", "settings.open", outcomeScore: 1.0);
+        await venn.CompileHead(abstentionThreshold: 0.25);
+
+        var systemOne = os.Get<ISystemOne>(new NeuronId(new BrainId("test"), "ai.systemone", "main"));
+        var request = new SystemOneRequest(
+            "open settings to configure models",
+            new Dictionary<string, SystemOneQuestion>(StringComparer.Ordinal)
+            {
+                ["intent"] = new SystemOneQuestion.Choice(
+                    "Which action?",
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        ["settings.open"] = "Open Settings",
+                        ["github.prs"] = "List Pull Requests",
+                    }),
+            });
+
+        var result = await systemOne.Ask(request, TestContext.Current.CancellationToken);
+        Assert.Equal(SystemOneNeuron.VennModelName, result.Model);
+        Assert.Equal(0, result.InputTokens);
+        var choice = Assert.IsType<SystemOneAnswer.Choice>(result.Answers["intent"]);
+        Assert.Equal("settings.open", choice.Value);
+        Assert.True(choice.Confidence >= 0.25);
+    }
+
+    [Fact]
+    public void LocalSystemOneEscalatorParsesChoiceScoreAndNoulJson()
+    {
+        var questions = new Dictionary<string, SystemOneQuestion>(StringComparer.Ordinal)
+        {
+            ["route"] = new SystemOneQuestion.Choice("Pick app", new() { ["settings"] = null, ["notes"] = null }),
+            ["urgency"] = new SystemOneQuestion.Score("Rate urgency", ["0=low", "1=high"]),
+            ["needs_tools"] = new SystemOneQuestion.Noul("Needs external tools?"),
+        };
+
+        var json = """{"route":{"choice":"settings","confidence":0.92},"urgency":{"score":0.8,"confidence":0.85},"needs_tools":{"noul":0.1}}""";
+        var parsed = LocalSystemOneEscalator.ParseAnswers(json, questions);
+
+        var route = Assert.IsType<SystemOneAnswer.Choice>(parsed["route"]);
+        Assert.Equal("settings", route.Value);
+        Assert.Equal(0.92, route.Confidence, 2);
+
+        var urgency = Assert.IsType<SystemOneAnswer.Score>(parsed["urgency"]);
+        Assert.Equal(0.8, urgency.Value, 2);
+
+        var needsTools = Assert.IsType<SystemOneAnswer.Noul>(parsed["needs_tools"]);
+        Assert.Equal(0.1, needsTools.Value, 2);
     }
 }

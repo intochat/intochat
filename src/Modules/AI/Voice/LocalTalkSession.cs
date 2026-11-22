@@ -311,6 +311,22 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
             var messages = BuildConversationMessages(heard);
             var pending = new StringBuilder();
             var fullReply = new StringBuilder();
+            var sentences = Channel.CreateBounded<string>(new BoundedChannelOptions(8)
+            {
+                SingleReader = true,
+                SingleWriter = true,
+            });
+            var ttsTask = Task.Run(async () =>
+            {
+                await foreach (var sentence in sentences.Reader.ReadAllAsync(turnCts.Token).ConfigureAwait(false))
+                {
+                    if (!await SpeakSentenceAsync(turnId, responseId, sentence, turnCts.Token).ConfigureAwait(false))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }, turnCts.Token);
 
             try
             {
@@ -333,25 +349,26 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
                         Text = delta,
                     }))
                     {
+                        sentences.Writer.TryComplete();
                         return;
                     }
 
                     foreach (var sentence in SentenceChunker.Complete(pending))
                     {
-                        if (!await SpeakSentenceAsync(turnId, responseId, sentence, turnCts.Token).ConfigureAwait(false))
-                        {
-                            return;
-                        }
+                        await sentences.Writer.WriteAsync(sentence, turnCts.Token).ConfigureAwait(false);
                     }
                 }
 
                 var remainder = pending.ToString().Trim();
                 if (remainder.Length > 0)
                 {
-                    if (!await SpeakSentenceAsync(turnId, responseId, remainder, turnCts.Token).ConfigureAwait(false))
-                    {
-                        return;
-                    }
+                    await sentences.Writer.WriteAsync(remainder, turnCts.Token).ConfigureAwait(false);
+                }
+
+                sentences.Writer.TryComplete();
+                if (!await ttsTask.ConfigureAwait(false))
+                {
+                    return;
                 }
 
                 _history.Add(new ChatMessage(ChatRole.User, heard));
@@ -369,10 +386,12 @@ internal sealed class LocalTalkSession : IRealtimeClientSession
             }
             catch (OperationCanceledException) when (turnCts.IsCancellationRequested)
             {
+                sentences.Writer.TryComplete();
                 return;
             }
             catch (Exception error)
             {
+                sentences.Writer.TryComplete();
                 OsConsoleLog.For<LocalTalkSession>().LogSwallowed(error, "generating or speaking reply in LocalTalk");
                 WriteTurnMessage(turnId, new ErrorRealtimeServerMessage
                 {

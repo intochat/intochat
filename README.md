@@ -31,12 +31,12 @@ The shell speaks one protocol. The only difference between the three is the brai
 Prerequisites: the .NET SDK pinned in [`global.json`](global.json) (.NET 11 preview), Docker (Linux containers) and, for the local profile, [Ollama](https://ollama.com) running on the host.
 
 ```
-dotnet run intochat-os.cs preflight   # check the machine, change nothing
-dotnet run intochat-os.cs local       # start a lean profile against host Ollama
-dotnet run intochat-os.cs             # default profile, includes the Flutter shell
+dotnet run intochat.cs preflight   # check the machine, change nothing
+dotnet run intochat.cs local       # start a lean profile against host Ollama
+dotnet run intochat.cs             # default profile, includes the Flutter shell
 ```
 
-Run from the repository root. Profiles and options are described in the header of [`intochat-os.cs`](intochat-os.cs).
+Run from the repository root. Profiles and options are described in the header of [`intochat.cs`](intochat.cs).
 
 ## The framework
 

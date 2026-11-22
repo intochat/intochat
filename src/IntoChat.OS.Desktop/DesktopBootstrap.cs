@@ -648,6 +648,10 @@ internal static partial class DesktopBootstrap
         environment[AspNetCoreUrlsEnvVar] = kernelUrl.GetLeftPart(UriPartial.Authority);
         environment[HomeEnvVar] = layout.HomeDirectory;
         environment[TopologyEnvVar] = "local";
+        environment["IntoChatOS__Modules__devices__Options__Prefetch__0"] = "gemma4:12b";
+        environment["IntoChatOS__Modules__devices__Options__Prefetch__1"] = "whisper-large-v3-turbo";
+        environment["IntoChatOS__Modules__devices__Options__Prefetch__2"] = "kokoro-82m";
+        environment["IntoChatOS__Modules__devices__Options__Prefetch__3"] = "embeddinggemma";
         environment[ConfiguredCustodyAcknowledgedEnvVar] = "true";
         environment[AuthPostureEnvVar] = "Open";
         environment[AuthorityIdentityPostureEnvVar] = "Open";

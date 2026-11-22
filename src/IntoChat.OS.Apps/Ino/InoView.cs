@@ -603,9 +603,12 @@ public static partial class InoView
             new("OpenRouter", "Cloud API key in Secure store"),
         ];
 
-        var subtitle = preferredLocal is { Length: > 0 } local
-            ? $"Local Ollama model {local} was detected on this machine, or paste a provider API key below."
-            : "Start local Ollama or paste an OpenAI, Anthropic, Google, or OpenRouter API key below.";
+        var activeDownload = device?.Queue.FirstOrDefault(static q => q.State is InstallState.Downloading or InstallState.Queued or InstallState.Verifying);
+        var subtitle = activeDownload is not null
+            ? $"Preparing local model {activeDownload.Model.Value} ({activeDownload.State.ToString().ToLowerInvariant()}){(activeDownload.Percent > 0 ? $" · {(int)Math.Round(activeDownload.Percent)}%" : "")}. You can also paste a cloud API key below."
+            : preferredLocal is { Length: > 0 } local
+                ? $"Local Ollama model {local} was detected on this machine, or paste a provider API key below."
+                : "Start local Ollama or paste an OpenAI, Anthropic, Google, or OpenRouter API key below.";
         Node? useLocal = preferredLocal is { Length: > 0 } preferred
             ? PrimaryButton($"Use local model ({preferred})", "cpu").Key(UseLocalKey).Emits(AppSignals.Emits("ino", new InoUseLocalModel(Model: preferred))).ToNode()
             : null;

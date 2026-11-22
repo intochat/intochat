@@ -91,8 +91,8 @@ public sealed partial class ModelPolicyFacts
         Assert.True(StoredModel.TryRead("ollama:qwen2.5-coder:14b", profiles, out var colonTag));
         Assert.Equal("qwen2.5-coder:14b", colonTag.Model);
 
-        Assert.True(StoredModel.TryRead("gemma4:12b", profiles, out var gemmaAlias));
-        Assert.Equal("gemma4:e2b", gemmaAlias.Model);
+        Assert.True(StoredModel.TryRead("gemma4:12b", profiles, out var gemma12B));
+        Assert.Equal("gemma4:12b", gemma12B.Model);
 
         Assert.False(StoredModel.TryRead("", profiles, out _));
         Assert.False(StoredModel.TryRead("   ", profiles, out _));
@@ -154,6 +154,7 @@ public sealed partial class ModelPolicyFacts
         {
             o.Ollama.Endpoint = "http://127.0.0.1:11434";
             o.Roles.Device[Role.Chat] = KnownModels.Qwen35.Id.Value;
+            o.Roles.Device[Role.Think] = KnownModels.Qwen25Coder14B.Id.Value;
         });
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
@@ -186,7 +187,7 @@ public sealed partial class ModelPolicyFacts
         var chatClient = provider.GetRequiredService<IChatClient>();
 
         Assert.NotNull(chatClient);
-        Assert.Equal("qwen3.5:4b", KnownModels.Defaults.Device[Role.Chat].Value);
+        Assert.Equal("gemma4:12b", KnownModels.Defaults.Device[Role.Chat].Value);
         Assert.Equal(LocalModelOptions.DefaultModel, KnownModels.Defaults.Device[Role.Chat].Value);
     }
 
@@ -249,8 +250,8 @@ public sealed partial class ModelPolicyFacts
     }
 
     [Fact]
-    public void TheLocalDefaultChatModelIsTheQwen35Card()
-        => Assert.Equal(KnownModels.Qwen35.Id, KnownModels.Defaults.Device[Role.Chat]);
+    public void TheLocalDefaultChatModelIsTheGemma412BCard()
+        => Assert.Equal(KnownModels.Gemma412B.Id, KnownModels.Defaults.Device[Role.Chat]);
 
     private static string FindSolutionFile()
     {

@@ -168,7 +168,7 @@ internal sealed class HardwareProbe : IHardwareProbe
             {
                 return 0;
             }
-            var stdout = process.StandardOutput.ReadToEnd();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
             if (!process.WaitForExit(1_500))
             {
                 try { process.Kill(entireProcessTree: true); }
@@ -178,6 +178,7 @@ internal sealed class HardwareProbe : IHardwareProbe
                 }
                 return 0;
             }
+            var stdout = stdoutTask.GetAwaiter().GetResult();
             return process.ExitCode == 0 ? ParseNvidiaSmi(stdout) : 0;
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)

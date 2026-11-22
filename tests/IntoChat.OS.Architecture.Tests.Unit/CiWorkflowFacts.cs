@@ -153,8 +153,8 @@ public sealed partial class CiWorkflowFacts
     private static string[] Uses(string text) =>
         Regex.Matches(text, @"(?m)^\s*(?:-\s*)?uses:\s*(?<action>\S+)").Select(m => m.Groups["action"].Value).Distinct().ToArray();
 
-    private const string PackagingCommand = "dotnet run intochat-os.cs -- package-release --rid win-x64";
-    private const string PackagingDryRunCommand = "dotnet run intochat-os.cs -- package-dry-run --rid win-x64";
+    private const string PackagingCommand = "dotnet run intochat.cs -- package-release --rid win-x64";
+    private const string PackagingDryRunCommand = "dotnet run intochat.cs -- package-dry-run --rid win-x64";
 
     // The deploy facts above say "zero scripts": deploys go through Kernel install, and packaging the desktop bundle
     // runs through the C# ReleasePackager command on IntoChat.OS.AppHost.

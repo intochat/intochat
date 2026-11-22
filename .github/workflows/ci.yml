@@ -389,7 +389,7 @@ jobs:
 
       - name: Dry-run the Windows release packaging
         shell: pwsh
-        run: dotnet run intochat-os.cs -- package-dry-run --rid win-x64
+        run: dotnet run intochat.cs -- package-dry-run --rid win-x64
 
   ci:
     name: ci

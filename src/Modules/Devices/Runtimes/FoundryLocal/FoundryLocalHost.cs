@@ -153,7 +153,7 @@ internal sealed class FoundryLocalHost(IFoundryLocalApi api, IOptionsMonitor<Dev
 internal sealed class SdkFoundryLocalApi(ILogger<SdkFoundryLocalApi> logger) : IFoundryLocalApi
 {
     private const long MiB = 1024L * 1024L;
-    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan LoadTimeout = TimeSpan.FromMinutes(2);
 
     private readonly ConcurrentDictionary<string, LoadedAudioModel> _audioModels = new(StringComparer.OrdinalIgnoreCase);

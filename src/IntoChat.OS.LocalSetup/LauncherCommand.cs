@@ -2,7 +2,7 @@ namespace IntoChat.OS.LocalSetup;
 
 public enum LauncherKind { Default, Headless, ConfigFile, Local, Preflight, Reset, Unknown }
 
-// What intochat-os.cs was asked to do. The first argument not starting with '-' selects the profile; the
+// What intochat.cs was asked to do. The first argument not starting with '-' selects the profile; the
 // launcher's own flags are consumed, everything else (and everything after a bare "--") goes to the AppHost.
 public sealed record LauncherCommand(
     LauncherKind Kind,

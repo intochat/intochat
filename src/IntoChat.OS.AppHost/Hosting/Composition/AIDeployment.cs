@@ -90,6 +90,16 @@ public sealed class AIDeployment
                     AddDistinct(prefetch, hearCard.Id.Value);
                 }
 
+                if (_device.RoleBindings.Bindings.TryGetValue(Role.Speak, out var speakCard))
+                {
+                    AddDistinct(prefetch, speakCard.Id.Value);
+                }
+
+                if (_device.RoleBindings.Bindings.TryGetValue(Role.Embed, out var embedCard))
+                {
+                    AddDistinct(prefetch, embedCard.Id.Value);
+                }
+
                 if (configuration[IntoChatOSHostingOptions.LocalModelKey] is { Length: > 0 } localModel
                     && !string.IsNullOrWhiteSpace(localModel))
                 {
