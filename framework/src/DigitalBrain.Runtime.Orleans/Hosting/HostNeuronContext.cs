@@ -115,7 +115,7 @@ internal sealed class HostNeuronContext : INeuronContext, INeuronSeat, IHostNeur
     public T Get<T>(BindingTarget target) where T : class => target switch
     {
         BindingTarget.Local local => Get<T>(local.Neuron),
-        BindingTarget.Offered offered => NeuronProxy.Create<T>(offered.Neuron, new OrleansInvocationSink(_grains, _types, Id, Access.OrleansCallerAmbient.Instance, callerClass: _registration.Class)),
+        BindingTarget.Offered offered => NeuronProxy.Create<T>(offered.Neuron, new OrleansInvocationSink(_grains, _types, Id, Access.OrleansCallerAmbient.Instance, callerClass: _registration.Class, transport: _services.GetService<IBrainTransport>())),
         _ => throw new NotSupportedException($"Binding target {target.GetType().Name} is not supported by this context."),
     };
 

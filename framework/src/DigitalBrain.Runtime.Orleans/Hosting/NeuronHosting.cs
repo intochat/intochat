@@ -39,7 +39,8 @@ internal static class NeuronHosting
         => new(services.GetRequiredService<IGrainFactory>(), services.GetService<NeuronTypeRegistry>(),
             services.GetService<HostedCaller>()?.Id,
             Access.OrleansCallerAmbient.Instance, asKernel: false,
-            services.GetService<NeuronStreamAuthorizer>() is { } gate ? (target, call) => gate.Authorize(services, target, call) : null);
+            services.GetService<NeuronStreamAuthorizer>() is { } gate ? (target, call) => gate.Authorize(services, target, call) : null,
+            transport: services.GetService<IBrainTransport>());
 
     /// <summary>A typed proxy executing under kernel authority in the target's brain.</summary>
     internal static T AsKernel<T>(IServiceProvider services, NeuronId id) where T : class

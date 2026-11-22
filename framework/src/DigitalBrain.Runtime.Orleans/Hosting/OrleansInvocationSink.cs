@@ -22,7 +22,8 @@ internal sealed class OrleansInvocationSink(
     ICallerCarrier? callers = null,
     bool asKernel = false,
     Func<NeuronId, RuntimeInvocation, Task>? beforeStream = null,
-    Type? callerClass = null) : IInvocationSink
+    Type? callerClass = null,
+    IBrainTransport? transport = null) : IInvocationSink
 {
     private readonly ICallerCarrier _callers = callers ?? OrleansCallerAmbient.Instance;
 
@@ -30,6 +31,11 @@ internal sealed class OrleansInvocationSink(
     public async Task<JsonElement?> Invoke(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
     {
         using var _ = InProcessCallerScope.Enter();
+        if (transport is not null && transport.IsRemote(target.Brain))
+        {
+            Hop(target);
+            return await transport.InvokeRemoteAsync(target, Stamped(call), cancellationToken).ConfigureAwait(false);
+        }
         var (host, neuronClass) = await Host(target, call, cancellationToken).ConfigureAwait(false);
         Hop(target);
         var invocation = Stamped(call);
@@ -42,6 +48,12 @@ internal sealed class OrleansInvocationSink(
     public async Task Post(NeuronId target, RuntimeInvocation call)
     {
         using var _ = InProcessCallerScope.Enter();
+        if (transport is not null && transport.IsRemote(target.Brain))
+        {
+            Hop(target);
+            await transport.PostRemoteAsync(target, Stamped(call)).ConfigureAwait(false);
+            return;
+        }
         var (host, neuronClass) = await Host(target, call, CancellationToken.None).ConfigureAwait(false);
         Hop(target);
         var invocation = Stamped(call);

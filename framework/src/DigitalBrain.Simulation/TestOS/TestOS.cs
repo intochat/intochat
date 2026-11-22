@@ -127,6 +127,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         Delivery = new SynapseRegistry(this);
         Listeners = new TestClusterListeners(this);
         BindingIndex = options.Services?.GetService(typeof(IBindingIndex)) as IBindingIndex ?? new InMemoryBindingIndex();
+        Transport = options.Services?.GetService(typeof(IBrainTransport)) as IBrainTransport;
         var bindingOptions = options.Services?.GetService(typeof(BindingGateOptions)) as BindingGateOptions;
         Access = new AccessGate(
             TestCallerAmbient.Instance,
@@ -248,6 +249,9 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     /// <summary>The component slot binding index of this TestOS.</summary>
     public IBindingIndex BindingIndex { get; }
 
+    /// <summary>Optional cross-cluster transport for brains hosted outside this TestOS.</summary>
+    public IBrainTransport? Transport { get; }
+
     internal TestClusterListeners Listeners { get; }
 
     /// <summary>The confirmation gate every neuron's <c>Context.Confirm</c> asks (07 D-03); set its policy and answer as a person here.</summary>
@@ -344,9 +348,20 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     /// <exception cref="InvalidOperationException">No class is registered for the id's type.</exception>
     public T Get<T>(NeuronId id) where T : class
     {
-        _ = Host(id);
+        if (Transport?.IsRemote(id.Brain) != true)
+        {
+            _ = Host(id);
+        }
         return NeuronProxy.Create<T>(id, new CallerSink(this, null));
     }
+
+    /// <summary>Dispatches a raw invocation to a local neuron host through this TestOS's access gate.</summary>
+    public Task<JsonElement?> InvokeLocalAsync(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken = default)
+        => Host(target).Invoke(call, cancellationToken);
+
+    /// <summary>Dispatches a one-way raw invocation to a local neuron host through this TestOS's access gate.</summary>
+    public Task PostLocalAsync(NeuronId target, RuntimeInvocation call)
+        => Host(target).Post(call);
 
     /// <summary>Activates <paramref name="id"/> if it is not active; on activation it catches up on its synapses.</summary>
     public Task Activate(NeuronId id) => Track(Host(id).Activate());
@@ -610,7 +625,10 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 
     internal T Proxy<T>(NeuronId caller, NeuronId target) where T : class
     {
-        _ = Host(target);
+        if (Transport?.IsRemote(target.Brain) != true)
+        {
+            _ = Host(target);
+        }
         return NeuronProxy.Create<T>(target, new CallerSink(this, caller));
     }
 
@@ -682,18 +700,26 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         return quiet;
     }
 
-    // The proxy's sink: stamps the caller, then hands the call to the target's host.
+    // The proxy's sink: stamps the caller, then hands the call to the target's host (or remote transport).
     private sealed class CallerSink(TestOS os, NeuronId? caller) : IInvocationSink
     {
         public Task<JsonElement?> Invoke(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
         {
             using var frame = Hop(target);
+            if (os.Transport is { } transport && transport.IsRemote(target.Brain))
+            {
+                return transport.InvokeRemoteAsync(target, Stamp(call), cancellationToken);
+            }
             return os.Host(target).Invoke(Stamp(call), cancellationToken);
         }
 
         public Task Post(NeuronId target, RuntimeInvocation call)
         {
             using var frame = Hop(target);
+            if (os.Transport is { } transport && transport.IsRemote(target.Brain))
+            {
+                return transport.PostRemoteAsync(target, Stamp(call));
+            }
             return os.Host(target).Post(Stamp(call));
         }
 

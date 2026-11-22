@@ -11,6 +11,10 @@ namespace DigitalBrain.Invocation;
 /// <summary>Source-generated metadata for the runtime's own envelope types and the common primitive arguments (06 D-12 stays JSON).</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(RuntimeInvocation))]
+[JsonSerializable(typeof(BrainEnvelope))]
+[JsonSerializable(typeof(BrainPublicKeys))]
+[JsonSerializable(typeof(RemoteInvocationRequest))]
+[JsonSerializable(typeof(RemoteInvocationResponse))]
 [JsonSerializable(typeof(Gap))]
 [JsonSerializable(typeof(NeuronId))]
 [JsonSerializable(typeof(DigitalBrain.Kernel.Subscription))]
