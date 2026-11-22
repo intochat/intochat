@@ -78,15 +78,39 @@ public sealed class CustomerResearcherAppContractFacts(FlagshipAppsRuntimeFixtur
         Assert.Equal("\"Acme Corp\"", recorder.Deletes[0][0].Json);
     }
 
-    private sealed class PostgresTableSpyRecorder
+    internal sealed class PostgresTableSpyRecorder
     {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, TableValue[]>> _tables = new(StringComparer.Ordinal);
+
         public List<TableDefinition> Definitions { get; } = [];
         public List<(TableValue[] Key, TableValue[] Values)> Upserts { get; } = [];
         public List<TableValue[]> Deletes { get; } = [];
+
+        public void RecordUpsert(string tableKey, TableValue[] key, TableValue[] values)
+        {
+            Upserts.Add((key, values));
+            var rows = _tables.GetOrAdd(tableKey, _ => new(StringComparer.Ordinal));
+            rows[SerializeKey(key)] = [.. key, .. values];
+        }
+
+        public bool RecordDelete(string tableKey, TableValue[] key)
+        {
+            Deletes.Add(key);
+            return _tables.TryGetValue(tableKey, out var rows) && rows.TryRemove(SerializeKey(key), out _);
+        }
+
+        public TableValue[]? Read(string tableKey, TableValue[] key)
+            => _tables.TryGetValue(tableKey, out var rows) && rows.TryGetValue(SerializeKey(key), out var row) ? row : null;
+
+        public TableValue[][] Page(string tableKey, int offset, int limit)
+            => _tables.TryGetValue(tableKey, out var rows) ? rows.Values.Skip(offset).Take(limit).ToArray() : [];
+
+        private static string SerializeKey(TableValue[] key)
+            => string.Join("|", key.Select(k => $"{k.Column}={k.Json}"));
     }
 
     [Neuron("postgres.table")]
-    private sealed class SpyPostgresTableNeuron(PostgresTableSpyRecorder recorder) : Neuron, ITable
+    internal sealed class SpyPostgresTableNeuron(PostgresTableSpyRecorder recorder) : Neuron, ITable
     {
         public Task<AcceptedTable> Define(TableDefinition definition)
         {
@@ -96,18 +120,20 @@ public sealed class CustomerResearcherAppContractFacts(FlagshipAppsRuntimeFixtur
 
         public Task<bool> Upsert(TableValue[] key, TableValue[] values)
         {
-            recorder.Upserts.Add((key, values));
+            recorder.RecordUpsert(Id.Key, key, values);
             return Task.FromResult(true);
         }
 
         public Task<bool> Delete(TableValue[] key)
         {
-            recorder.Deletes.Add(key);
+            recorder.RecordDelete(Id.Key, key);
             return Task.FromResult(true);
         }
 
-        public Task<TableValue[]?> Read(TableValue[] key) => Task.FromResult<TableValue[]?>(null);
+        public Task<TableValue[]?> Read(TableValue[] key)
+            => Task.FromResult(recorder.Read(Id.Key, key));
 
-        public Task<TableValue[][]> Page(int offset = 0, int limit = 200) => Task.FromResult<TableValue[][]>([]);
+        public Task<TableValue[][]> Page(int offset = 0, int limit = 200)
+            => Task.FromResult(recorder.Page(Id.Key, offset, limit));
     }
 }
