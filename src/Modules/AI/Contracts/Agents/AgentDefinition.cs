@@ -22,4 +22,5 @@ public sealed record AgentDefinition
     public bool UseModelSummarizer { get; init; }
     public InferenceOptions? Options { get; init; }
     public string[] Contexts { get; init; } = [];
+    public bool IncludeComponentOperations { get; init; }
 }

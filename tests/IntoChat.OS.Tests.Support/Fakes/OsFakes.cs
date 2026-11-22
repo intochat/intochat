@@ -86,6 +86,10 @@ public static class OsFakes
             .Configure(services =>
             {
                 AIModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+                DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(
+                    services,
+                    typeof(IntoChat.OS.Modules.AI.Agents.IAgent).Assembly,
+                    typeof(IntoChat.OS.Modules.Flutter.Conversations.ConversationChanged).Assembly);
                 services.RemoveAll<BrainKeyAvailability>();
                 services.RemoveAll<IBrainObserver>();
                 services.AddSingleton<IBrainObserver, CompiledBrainObserver>();

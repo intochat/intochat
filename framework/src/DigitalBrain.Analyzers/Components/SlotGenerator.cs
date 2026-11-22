@@ -213,17 +213,21 @@ public sealed class SlotGenerator : IIncrementalGenerator
             }
 
             var inputParam = method.Parameters[0].Type;
-            var opName = OperationNameOf(method, inputParam);
+            var signalAlias = SignalAliasOf(inputParam);
+            var opName = OperationNameOf(method, signalAlias);
+            var parametersJson = Contracts.ToolSchemaGenerator.BuildInputParametersJson(inputParam);
             ops.Add(new OperationModel(
                 opName,
                 description,
-                inputParam.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                inputParam.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                parametersJson,
+                signalAlias));
         }
 
         return ops.ToImmutable();
     }
 
-    private static string OperationNameOf(IMethodSymbol method, ITypeSymbol inputType)
+    private static string? SignalAliasOf(ITypeSymbol inputType)
     {
         foreach (var attribute in inputType.GetAttributes())
         {
@@ -233,13 +237,22 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 && attribute.ConstructorArguments[0].Value is string alias
                 && !string.IsNullOrWhiteSpace(alias))
             {
-                var dot = alias.LastIndexOf('.');
-                if (dot >= 0 && dot + 1 < alias.Length)
-                {
-                    return alias.Substring(dot + 1);
-                }
                 return alias;
             }
+        }
+        return null;
+    }
+
+    private static string OperationNameOf(IMethodSymbol method, string? signalAlias)
+    {
+        if (!string.IsNullOrWhiteSpace(signalAlias))
+        {
+            var dot = signalAlias!.LastIndexOf('.');
+            if (dot >= 0 && dot + 1 < signalAlias.Length)
+            {
+                return signalAlias.Substring(dot + 1);
+            }
+            return signalAlias;
         }
         return ToCamelCase(method.Name);
     }
@@ -434,7 +447,11 @@ public sealed class SlotGenerator : IIncrementalGenerator
                             .Append(CSharpLiteral(op.Description))
                             .Append(", typeof(")
                             .Append(op.InputFullName)
-                            .AppendLine(")),");
+                            .Append("), ")
+                            .Append(CSharpLiteral(op.ParametersJson))
+                            .Append(", ")
+                            .Append(op.SignalAlias is null ? "null" : CSharpLiteral(op.SignalAlias))
+                            .AppendLine("),");
                     }
                     initSb.AppendLine("                }));");
                 }
@@ -538,22 +555,28 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
     private sealed class OperationModel : IEquatable<OperationModel>
     {
-        public OperationModel(string name, string description, string inputFullName)
+        public OperationModel(string name, string description, string inputFullName, string parametersJson, string? signalAlias)
         {
             Name = name;
             Description = description;
             InputFullName = inputFullName;
+            ParametersJson = parametersJson;
+            SignalAlias = signalAlias;
         }
 
         public string Name { get; }
         public string Description { get; }
         public string InputFullName { get; }
+        public string ParametersJson { get; }
+        public string? SignalAlias { get; }
 
         public bool Equals(OperationModel? other)
             => other is not null
                && string.Equals(Name, other.Name, StringComparison.Ordinal)
                && string.Equals(Description, other.Description, StringComparison.Ordinal)
-               && string.Equals(InputFullName, other.InputFullName, StringComparison.Ordinal);
+               && string.Equals(InputFullName, other.InputFullName, StringComparison.Ordinal)
+               && string.Equals(ParametersJson, other.ParametersJson, StringComparison.Ordinal)
+               && string.Equals(SignalAlias, other.SignalAlias, StringComparison.Ordinal);
 
         public override bool Equals(object? obj) => Equals(obj as OperationModel);
 
@@ -564,6 +587,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 var hash = StringComparer.Ordinal.GetHashCode(Name);
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(Description);
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(InputFullName);
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(ParametersJson);
+                hash = (hash * 397) ^ (SignalAlias is null ? 0 : StringComparer.Ordinal.GetHashCode(SignalAlias));
                 return hash;
             }
         }

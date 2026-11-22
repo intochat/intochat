@@ -13,7 +13,9 @@ public sealed record ComponentFace(
 public sealed record OperationSpec(
     string Name,
     string Description = "",
-    Type? Input = null);
+    Type? Input = null,
+    string? ParametersJson = null,
+    string? SignalAlias = null);
 
 /// <summary>
 /// Declared metadata for a component: its id, the slots its neurons declare, optional screen face, and declared operations.

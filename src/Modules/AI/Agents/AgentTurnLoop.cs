@@ -26,6 +26,7 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
     string[] Contracts, string[] Contexts, ModelSelection? Model, InferenceOptions? Options, int MaxModelCalls, bool Streaming)
 {
     public string? AgentName { get; init; }
+    public bool IncludeComponentOperations { get; init; }
 }
 
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
@@ -87,7 +88,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetService<OsNeuronSurface>();
-        // B06: Callable tools come strictly from the agent definition's declared contracts; context entries never widen tools.
+        // B06: Callable tools come from the agent definition's declared contracts and installed components' operations; context entries never widen tools.
         string[] composed = surface is null
             ? []
             : [.. plan.Contracts.Select(static name => LoadedContracts.CurrentName(name, ContractAssemblyPrefixes)).Distinct(StringComparer.Ordinal)];
@@ -117,6 +118,14 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             }
         }
 
+        if (plan.IncludeComponentOperations && services.GetService<DigitalBrain.Neurons.INeuronProxies>() is { } proxies)
+        {
+            edge ??= services.GetService<DigitalBrain.Access.EdgeAuthority>();
+            var operationTools = AgentTools.Operations(edge, proxies, plan.Conversation);
+            routableTools.AddRange(operationTools);
+            allTools.AddRange(operationTools);
+        }
+
         var catalog = services.GetRequiredService<ModelCatalog>();
         var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);
         var resolved = await catalog.Resolve(plan.ScopeId, selection, allTools.Count > 0, ct);
@@ -135,9 +144,10 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             }
         }
 
-        if (restricted is not null)
+        if (restricted is not null || routableTools.Count > 0)
         {
-            var useNativeWebSearch = resolved.Provider == AiProvider.Anthropic
+            var useNativeWebSearch = restricted is not null
+                && resolved.Provider == AiProvider.Anthropic
                 && composed.Contains(typeof(IWebSearch).FullName!, StringComparer.Ordinal)
                 && await IsNativeWebSearchEnabledAsync(restricted, edge, plan.Conversation, ct);
             if (useNativeWebSearch)

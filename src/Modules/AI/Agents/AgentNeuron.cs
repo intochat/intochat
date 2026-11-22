@@ -448,7 +448,10 @@ internal sealed class AgentNeuron(
                 State.Summary);
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
                 turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, effectiveContexts,
-                turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true);
+                turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true)
+            {
+                IncludeComponentOperations = definition.IncludeComponentOperations,
+            };
 
             await foreach (var rawEvent in Runner.Stream(plan, turnState, sink, lifetime.Token))
             {

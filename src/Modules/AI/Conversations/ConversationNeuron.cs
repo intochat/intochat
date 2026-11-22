@@ -704,6 +704,7 @@ internal sealed class ConversationNeuron(
                 Streaming: true)
             {
                 AgentName = seated.AgentId,
+                IncludeComponentOperations = definition.IncludeComponentOperations,
             };
 
             streamStart = Clock.GetTimestamp();

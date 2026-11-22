@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Surface;
 using Microsoft.Extensions.AI;
 
@@ -38,6 +40,30 @@ internal static class AgentTools
             foreach (var schema in ToolSchemas.Of(contract))
             {
                 tools.Add(new ContractTool(schema, edge, surface, conversation));
+            }
+        }
+        return tools;
+    }
+
+    public static IReadOnlyList<OperationTool> Operations(EdgeAuthority? edge, INeuronProxies proxies, string conversation)
+    {
+        ArgumentNullException.ThrowIfNull(proxies);
+        var tools = new List<OperationTool>();
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var manifest in ComponentManifests.All.OrderBy(static m => m.Id.Value, StringComparer.Ordinal))
+        {
+            if (!manifest.Id.Value.StartsWith("app.", StringComparison.Ordinal) || manifest.Operations.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (var op in manifest.Operations)
+            {
+                var tool = new OperationTool(manifest.Id, op, manifest.Face?.Title, edge, proxies, conversation);
+                if (seenNames.Add(tool.Name))
+                {
+                    tools.Add(tool);
+                }
             }
         }
         return tools;

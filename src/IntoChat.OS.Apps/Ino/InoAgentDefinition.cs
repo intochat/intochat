@@ -60,6 +60,7 @@ public static class InoAgentDefinition
                 .. new[] { "user.profile", "working.memory", "session.journal", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "ui.state", "memory.recall" }
                     .Select(name => "context/" + name),
             ],
+            IncludeComponentOperations = true,
         };
     }
 }

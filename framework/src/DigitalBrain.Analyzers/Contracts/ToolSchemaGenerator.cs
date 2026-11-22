@@ -485,6 +485,37 @@ public sealed class ToolSchemaGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
+    internal static string BuildInputParametersJson(ITypeSymbol rawType)
+    {
+        var type = UnwrapNullable(rawType);
+        var fields = new List<(string Key, string RawJson)>();
+        if (type is INamedTypeSymbol named && type.TypeKind is TypeKind.Class or TypeKind.Struct
+            && type.SpecialType != SpecialType.System_Object
+            && !IsOpaqueJsonType(type))
+        {
+            BuildObjectSchemaFields(named, depth: 0, new HashSet<string>(StringComparer.Ordinal), fields);
+        }
+        else
+        {
+            fields.Add(("type", "\"object\""));
+        }
+
+        if (!fields.Any(static f => f.Key == "properties"))
+        {
+            fields.Add(("properties", "{}"));
+        }
+
+        var sb = new StringBuilder();
+        sb.Append('{');
+        for (var i = 0; i < fields.Count; i++)
+        {
+            if (i > 0) { sb.Append(','); }
+            sb.Append(JsonString(fields[i].Key)).Append(':').Append(fields[i].RawJson);
+        }
+        sb.Append('}');
+        return sb.ToString();
+    }
+
     private static string BuildParametersJson(List<IMethodSymbol> overloads, string? defaultKey, string? keyPattern)
     {
         var properties = new List<(string Name, string SchemaJson)>();
