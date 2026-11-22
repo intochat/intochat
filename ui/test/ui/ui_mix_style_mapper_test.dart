@@ -246,4 +246,70 @@ void main() {
       expect(chipSelected, isTrue);
     },
   );
+
+  test('UiStyleData.fromJson parses hover/press/focus state overrides and resolve merges them in precedence order', () {
+    final style = UiStyleData.fromJson({
+      'tone': 'default',
+      'typography': 'body',
+      'elevation': 'flat',
+      'paddingX': 12,
+      'paddingY': 8,
+      'gap': 6,
+      'radius': 8,
+      'motion': 'standard',
+      'focus': {
+        'tone': 'subtle',
+        'elevation': 'raised',
+        'radius': 10,
+        'gap': 8,
+      },
+      'hover': {
+        'tone': 'accent',
+        'paddingX': 16,
+        'motion': 'snappy',
+        'scale': 1.02,
+      },
+      'press': {'tone': 'danger', 'paddingY': 6, 'scale': 0.96},
+    });
+
+    // Base state returns itself untouched.
+    final base = style.resolve();
+    expect(identical(base, style), isTrue);
+    expect(base.tone, 'default');
+    expect(base.paddingX, 12);
+    expect(base.paddingY, 8);
+    expect(base.radius, 8);
+    expect(base.scale, isNull);
+
+    // Focus only.
+    final focused = style.resolve(focused: true);
+    expect(focused.tone, 'subtle');
+    expect(focused.elevation, 'raised');
+    expect(focused.radius, 10);
+    expect(focused.gap, 8);
+    expect(focused.paddingX, 12);
+
+    // Hover overrides focus.
+    final hoveredAndFocused = style.resolve(hovered: true, focused: true);
+    expect(hoveredAndFocused.tone, 'accent');
+    expect(hoveredAndFocused.elevation, 'raised');
+    expect(hoveredAndFocused.paddingX, 16);
+    expect(hoveredAndFocused.motion, UiMotionPreset.snappy);
+    expect(hoveredAndFocused.scale, 1.02);
+
+    // Press overrides hover and focus.
+    final allActive = style.resolve(
+      hovered: true,
+      pressed: true,
+      focused: true,
+    );
+    expect(allActive.tone, 'danger');
+    expect(allActive.elevation, 'raised');
+    expect(allActive.paddingX, 16);
+    expect(allActive.paddingY, 6);
+    expect(allActive.gap, 8);
+    expect(allActive.radius, 10);
+    expect(allActive.motion, UiMotionPreset.snappy);
+    expect(allActive.scale, 0.96);
+  });
 }

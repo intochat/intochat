@@ -8,6 +8,55 @@ import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
 import '../widgets/neuron/ui_control_surface.dart';
 
+/// Optional state-specific style overrides mirroring C# `Mix.Style()`
+/// `hover`, `press`, and `focus` blocks.
+@immutable
+final class UiStyleStateOverride {
+  const UiStyleStateOverride({
+    this.tone,
+    this.typography,
+    this.elevation,
+    this.icon,
+    this.motion,
+    this.paddingX,
+    this.paddingY,
+    this.gap,
+    this.radius,
+    this.scale,
+  });
+
+  final String? tone;
+  final String? typography;
+  final String? elevation;
+  final String? icon;
+  final UiMotionPreset? motion;
+  final double? paddingX;
+  final double? paddingY;
+  final double? gap;
+  final double? radius;
+  final double? scale;
+
+  static UiStyleStateOverride? fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    return UiStyleStateOverride(
+      tone: raw['tone'] != null ? '${raw['tone']}'.toLowerCase() : null,
+      typography: raw['typography'] != null
+          ? '${raw['typography']}'.toLowerCase()
+          : null,
+      elevation: raw['elevation'] != null
+          ? '${raw['elevation']}'.toLowerCase()
+          : null,
+      icon: raw['icon'] as String?,
+      motion: UiStyleData._parseMotionNullable(raw['motion']),
+      paddingX: (raw['paddingX'] as num?)?.toDouble(),
+      paddingY: (raw['paddingY'] as num?)?.toDouble(),
+      gap: (raw['gap'] as num?)?.toDouble(),
+      radius: (raw['radius'] as num?)?.toDouble(),
+      scale: (raw['scale'] as num?)?.toDouble(),
+    );
+  }
+}
+
 /// Mirrors C# `IntoChat.OS.Modules.UI.Core.UiStyleRef` 1-to-1.
 @immutable
 final class UiStyleData {
@@ -21,6 +70,10 @@ final class UiStyleData {
     this.paddingY,
     this.gap,
     this.radius,
+    this.scale,
+    this.hover,
+    this.press,
+    this.focus,
   });
 
   final String tone;
@@ -32,6 +85,10 @@ final class UiStyleData {
   final double? paddingY;
   final double? gap;
   final double? radius;
+  final double? scale;
+  final UiStyleStateOverride? hover;
+  final UiStyleStateOverride? press;
+  final UiStyleStateOverride? focus;
 
   factory UiStyleData.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const UiStyleData();
@@ -45,15 +102,68 @@ final class UiStyleData {
       paddingY: (json['paddingY'] as num?)?.toDouble(),
       gap: (json['gap'] as num?)?.toDouble(),
       radius: (json['radius'] as num?)?.toDouble(),
+      scale: (json['scale'] as num?)?.toDouble(),
+      hover: UiStyleStateOverride.fromJson(json['hover']),
+      press: UiStyleStateOverride.fromJson(json['press']),
+      focus: UiStyleStateOverride.fromJson(json['focus']),
     );
   }
 
-  static UiMotionPreset _parseMotion(Object? raw) {
+  /// Merges active [focus], [hover], and [press] state overrides (in increasing
+  /// precedence) onto this base style.
+  UiStyleData resolve({
+    bool hovered = false,
+    bool pressed = false,
+    bool focused = false,
+  }) {
+    final focusOv = focused ? focus : null;
+    final hoverOv = hovered ? hover : null;
+    final pressOv = pressed ? press : null;
+    if (focusOv == null && hoverOv == null && pressOv == null) return this;
+
+    return UiStyleData(
+      tone: pressOv?.tone ?? hoverOv?.tone ?? focusOv?.tone ?? tone,
+      typography:
+          pressOv?.typography ??
+          hoverOv?.typography ??
+          focusOv?.typography ??
+          typography,
+      elevation:
+          pressOv?.elevation ??
+          hoverOv?.elevation ??
+          focusOv?.elevation ??
+          elevation,
+      icon: pressOv?.icon ?? hoverOv?.icon ?? focusOv?.icon ?? icon,
+      motion: pressOv?.motion ?? hoverOv?.motion ?? focusOv?.motion ?? motion,
+      paddingX:
+          pressOv?.paddingX ??
+          hoverOv?.paddingX ??
+          focusOv?.paddingX ??
+          paddingX,
+      paddingY:
+          pressOv?.paddingY ??
+          hoverOv?.paddingY ??
+          focusOv?.paddingY ??
+          paddingY,
+      gap: pressOv?.gap ?? hoverOv?.gap ?? focusOv?.gap ?? gap,
+      radius: pressOv?.radius ?? hoverOv?.radius ?? focusOv?.radius ?? radius,
+      scale: pressOv?.scale ?? hoverOv?.scale ?? focusOv?.scale ?? scale,
+      hover: hover,
+      press: press,
+      focus: focus,
+    );
+  }
+
+  static UiMotionPreset _parseMotion(Object? raw) =>
+      _parseMotionNullable(raw) ?? UiMotionPreset.standard;
+
+  static UiMotionPreset? _parseMotionNullable(Object? raw) {
+    if (raw == null) return null;
     final name = '$raw'.toLowerCase();
     for (final preset in UiMotionPreset.values) {
       if (preset.name == name) return preset;
     }
-    return UiMotionPreset.standard;
+    return null;
   }
 }
 
@@ -168,7 +278,12 @@ class _UiMixButtonState extends State<UiMixButton> {
   @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
-    final fg = UiStyleMapper.resolveToneForeground(colors, widget.style.tone);
+    final resolved = widget.style.resolve(
+      hovered: _hovered,
+      pressed: _pressed,
+      focused: _focused,
+    );
+    final fg = UiStyleMapper.resolveToneForeground(colors, resolved.tone);
 
     final button = NakedButton(
       enabled: widget.enabled,
@@ -197,13 +312,13 @@ class _UiMixButtonState extends State<UiMixButton> {
         _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       child: AnimatedScale(
-        scale: _pressed && widget.enabled ? 0.97 : 1.0,
-        duration: widget.style.motion.duration,
-        curve: widget.style.motion.curve,
+        scale: resolved.scale ?? (_pressed && widget.enabled ? 0.97 : 1.0),
+        duration: resolved.motion.duration,
+        curve: resolved.motion.curve,
         child: Box(
           style: UiStyleMapper.boxStyler(
             context,
-            widget.style,
+            resolved,
             isHovered: _hovered,
             isPressed: _pressed,
             isFocused: _focused,
