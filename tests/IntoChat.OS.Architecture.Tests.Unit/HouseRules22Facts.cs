@@ -1618,4 +1618,138 @@ public sealed class HouseRules22Facts
             .Count(m => m.IsDefined(typeof(FactAttribute), false) || m.IsDefined(typeof(TheoryAttribute), false));
         Assert.True(checks >= 3, $"Expected NoRetryFacts to enforce zero retries/skips; found {checks} test methods.");
     }
+
+    // Rule #23: Ambient-reach ratchet in Apps and Modules (use declared Slots.Get<T> instead of ambient Get<T>/TryGetOptional<T>/Implements<T>/SiloNeurons.Get<T>).
+    [Fact]
+    public void HouseRule23_AmbientReachRatchet()
+    {
+        var appsCount = 0;
+        var modulesCount = 0;
+        var appsByFolder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var modulesByProject = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var src in ProductionSources.Value)
+        {
+            if (src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
+                || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (src.ProjectName == "IntoChat.OS.Apps")
+            {
+                var hits = CountAmbientReach(src.Tree);
+                if (hits > 0)
+                {
+                    appsCount += hits;
+                    var appGroup = src.PathSegments.Length > 1 ? src.PathSegments[0] : src.FileName;
+                    appsByFolder[appGroup] = appsByFolder.GetValueOrDefault(appGroup) + hits;
+                }
+            }
+            else if (src.ProjectName.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+            {
+                var hits = CountAmbientReach(src.Tree);
+                if (hits > 0)
+                {
+                    modulesCount += hits;
+                    modulesByProject[src.ProjectName] = modulesByProject.GetValueOrDefault(src.ProjectName) + hits;
+                }
+            }
+        }
+
+        const int AppsAmbientReachCap = 220;
+        const int ModulesAmbientReachCap = 240;
+
+        Assert.True(
+            appsCount <= AppsAmbientReachCap,
+            $"Ambient reach calls in Apps regressed to {appsCount} (ratchet cap {AppsAmbientReachCap}); declare slots and use Slots.Get<T>(...):\n"
+                + string.Join('\n', appsByFolder.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"  {kv.Key}: {kv.Value}")));
+        Assert.True(
+            modulesCount <= ModulesAmbientReachCap,
+            $"Ambient reach calls in Modules regressed to {modulesCount} (ratchet cap {ModulesAmbientReachCap}); declare slots and use Slots.Get<T>(...):\n"
+                + string.Join('\n', modulesByProject.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"  {kv.Key}: {kv.Value}")));
+    }
+
+    [Fact]
+    public void HouseRule23_AmbientReachChallengerDetectsUndeclaredGetAndIgnoresSlotsGet()
+    {
+        var sample = CSharpSyntaxTree.ParseText("""
+            class SampleApp
+            {
+                void M(IServiceProvider services)
+                {
+                    _ = Get<ITable>("x");
+                    _ = TryGetOptional<IWebSearch>();
+                    _ = Implements<ITable>("x");
+                    _ = SiloNeurons.Get<ITable>(services, "x");
+                    _ = Slots.Get<ITable>("customers");
+                }
+            }
+            """, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(4, CountAmbientReach(sample));
+
+        var contextSample = CSharpSyntaxTree.ParseText("""
+            class ContextApp
+            {
+                void M()
+                {
+                    _ = Context.Get<ITable>("x");
+                    _ = GetOptional<IWebSearch>("w");
+                    _ = this.Slots.Get<ITable>("customers");
+                    _ = Context.Slots.Get<ITable>("customers");
+                }
+            }
+            """, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, CountAmbientReach(contextSample));
+    }
+
+    private static int CountAmbientReach(SyntaxTree tree)
+    {
+        var count = 0;
+        foreach (var inv in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (inv.Expression is GenericNameSyntax bare)
+            {
+                if (IsAmbientMethodName(bare.Identifier.Text))
+                {
+                    count++;
+                }
+                continue;
+            }
+
+            if (inv.Expression is MemberAccessExpressionSyntax { Name: GenericNameSyntax member } ma)
+            {
+                if (ma.Expression is ThisExpressionSyntax or BaseExpressionSyntax)
+                {
+                    if (IsAmbientMethodName(member.Identifier.Text))
+                    {
+                        count++;
+                    }
+                    continue;
+                }
+
+                var receiver = ma.Expression switch
+                {
+                    IdentifierNameSyntax id => id.Identifier.Text,
+                    MemberAccessExpressionSyntax inner => inner.Name.Identifier.Text,
+                    _ => null,
+                };
+
+                if (receiver == "Context" && IsAmbientMethodName(member.Identifier.Text))
+                {
+                    count++;
+                }
+                else if (receiver == "SiloNeurons" && member.Identifier.Text == "Get")
+                {
+                    count++;
+                }
+            }
+        }
+        return count;
+
+        static bool IsAmbientMethodName(string name) =>
+            name is "Get" or "GetOptional" or "TryGetOptional" or "Implements";
+    }
 }
