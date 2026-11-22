@@ -49,6 +49,9 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
     [Slot(Key = IGrantsNeuron.DefaultKey)] private partial IGrantsNeuron Grants { get; }
     [Slot(Key = ApprovalsKey)] private partial IApprovals Approvals { get; }
     [Slot(Key = "ino/profile-writer")] private partial IProfileContextWriter ProfileWriter { get; }
+    [Slot] private partial SlotCollection<IConversation> Conversations { get; }
+    [Slot(Required = false)] private partial SlotCollection<IApp> Apps { get; }
+    [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
 
     private ILogger<InoApp>? Logger { get; }
     private TimeProvider? Clock { get; }
@@ -278,7 +281,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         try
         {
             await TryOptionalAsync("conversation-synapses", () => Follow<IConversation, ConversationChanged>(conversationKey));
-            await Get<IConversation>(conversationKey).Regenerate(reply);
+            await Conversations[conversationKey].Regenerate(reply);
             await RefreshConversationAsync(full: false);
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(InoModel.BlockedPrefix, StringComparison.Ordinal))
@@ -375,7 +378,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         {
             await records.Write(kept with { Links = [.. kept.Links.TakeLast(InoLinkCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] });
         }
-        await Get<IConversation>(InoModel.ConversationKeyOf(State.ConversationId))
+        await Conversations[InoModel.ConversationKeyOf(State.ConversationId)]
             .Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, InoLinkCard.LinkPostId(request.Request));
     }
 
@@ -485,7 +488,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
     public async Task Stop(InoStop request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await TryOptionalAsync("conversation-stop", () => Get<IConversation>(InoModel.ConversationKeyOf(State.ConversationId)).Stop());
+        await TryOptionalAsync("conversation-stop", () => Conversations[InoModel.ConversationKeyOf(State.ConversationId)].Stop());
     }
 
     [On]
@@ -544,7 +547,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         ConversationView? incoming;
         try
         {
-            incoming = await Get<IConversation>(conversationKey).Read(full || ConversationView is null ? null : SeenRevision);
+            incoming = await Conversations[conversationKey].Read(full || ConversationView is null ? null : SeenRevision);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -617,7 +620,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
             await TryOptionalAsync("app-manifest", async () =>
             {
                 var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(CurrentBrain, appName).Key;
-                manifest = (await Get<IApp>(new NeuronId(CurrentBrain, AppGrainType.Name, appKey[(CurrentBrain.Value.Length + 1)..])).Read()).Manifest;
+                manifest = (await Apps[new NeuronId(CurrentBrain, AppGrainType.Name, appKey[(CurrentBrain.Value.Length + 1)..])].Read()).Manifest;
             });
             updated ??= new Dictionary<string, AppManifest?>(AppManifests, StringComparer.Ordinal);
             updated[appName] = manifest;
@@ -699,7 +702,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
 
     private IDevice? GetThisDevice()
         => ThisMachine is { Value.Length: > 0 } machine && CurrentBrain.Value is { Length: > 0 }
-            ? Get<IDevice>(new NeuronId(CurrentBrain, "devices.device", $"devices/{machine.Value}"))
+            ? Devices[new NeuronId(CurrentBrain, "devices.device", $"devices/{machine.Value}")]
             : null;
 
     private InoSetupHost Setup => SetupHost ??= new InoSetupHost(
@@ -709,7 +712,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         () => ModelCatalog,
         GetThisDevice,
         () => UserSettings,
-        Get<IConversation>,
+        key => Conversations[key],
         () => SessionList,
         () => Grants,
         () => Approvals,

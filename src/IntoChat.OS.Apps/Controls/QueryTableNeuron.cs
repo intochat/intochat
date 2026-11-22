@@ -13,6 +13,7 @@ as the table's error line; it never fails the command or the render. Named Query
 it draws as a queryTableView.
 */
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
@@ -25,6 +26,9 @@ namespace IntoChat.OS.Apps.Controls;
 [Neuron("control.queryTable"), Emits(typeof(TableChanged))]
 public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, QueryTableProps>
 {
+    [Slot(Required = false)]
+    private partial SlotCollection<ITableSource> TableSources { get; }
+
     // The page read for the current query: the only rows the table holds, in memory and never saved.
     private Shown? _shown;
 
@@ -74,14 +78,14 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
         }
         IReadOnlyList<string> columnIds = [.. props.Columns.Select(column => column.Id)];
         // Only a table source of this brain is called: an address naming anything else is drawn as the error line, never called.
-        if (!NeuronId.TryParse(props.SourceAddress, out var address) || !Implements<ITableSource>(address))
+        if (!NeuronId.TryParse(props.SourceAddress, out var address) || !TableSources.Exists(address))
         {
             Log.NotASource(GetLogger(), props.SourceAddress, Id.ToString());
             return new Shown(columnIds, [], 0, "The table's source is not a table source.");
         }
         try
         {
-            var page = await Get<ITableSource>(address).Query(new TableQuery(query.Filter, query.SortBy, query.Descending, query.Page, QueryTableState.PageSize)).ConfigureAwait(true);
+            var page = await TableSources[address].Query(new TableQuery(query.Filter, query.SortBy, query.Descending, query.Page, QueryTableState.PageSize)).ConfigureAwait(true);
             IReadOnlyList<IReadOnlyList<string>> rows = [.. page.Rows.Select(row => (IReadOnlyList<string>)[.. columnIds.Select(id => row.TryGetValue(id, out var value) ? value : "")])];
             return new Shown(columnIds, rows, page.Total, null);
         }

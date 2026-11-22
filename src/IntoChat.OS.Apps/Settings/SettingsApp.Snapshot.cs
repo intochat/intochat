@@ -178,7 +178,7 @@ public sealed partial class SettingsApp
 
         try
         {
-            var device = Get<IDevice>(new NeuronId(brain, "devices.device", $"devices/{machine.Value}"));
+            var device = Devices[new NeuronId(brain, "devices.device", $"devices/{machine.Value}")];
             await device.Install(modelId);
             var snapshot = await device.Read();
             var modelInfo = await TryReadModelCatalogAsync(State.DefaultModel);
@@ -225,7 +225,7 @@ public sealed partial class SettingsApp
         {
             try
             {
-                deviceView = await Get<IDevice>(new NeuronId(brain, "devices.device", $"devices/{machine.Value}")).Read();
+                deviceView = await Devices[new NeuronId(brain, "devices.device", $"devices/{machine.Value}")].Read();
             }
             catch (Exception deviceError) when (deviceError is not OperationCanceledException)
             {
@@ -739,7 +739,7 @@ public sealed partial class SettingsApp
             var serverId = new NeuronId(brain, "mcp.server", "mcp/" + name);
             try
             {
-                var connected = await Get<IMcpServer>(serverId).Connect(new McpServerSpec(title, url));
+                var connected = await McpServers[serverId].Connect(new McpServerSpec(title, url));
                 row = new McpServerRow(
                     Name: name,
                     Title: string.IsNullOrWhiteSpace(connected.Title) ? title : connected.Title,
@@ -787,7 +787,7 @@ public sealed partial class SettingsApp
             var serverId = new NeuronId(brain, "mcp.server", "mcp/" + name);
             try
             {
-                await Get<IMcpServer>(serverId).Disconnect();
+                await McpServers[serverId].Disconnect();
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -975,7 +975,7 @@ public sealed partial class SettingsApp
         {
             try
             {
-                var snapshot = await Get<IMcpServer>(neuronId).Read();
+                var snapshot = await McpServers[neuronId].Read();
                 var hasData = !string.IsNullOrWhiteSpace(snapshot.Url)
                     || !string.IsNullOrWhiteSpace(snapshot.Title)
                     || snapshot.Connected

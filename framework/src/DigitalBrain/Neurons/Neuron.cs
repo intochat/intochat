@@ -30,6 +30,8 @@ public abstract class Neuron
 
     private sealed class ContextSlotResolver(INeuronContext context) : ISlotTargetResolver
     {
+        public BrainId Brain => context.Id.Brain;
+
         public T Resolve<T>(BindingTarget target) where T : class => context.Get<T>(target);
 
         public T? TryResolve<T>(BindingTarget target) where T : class
@@ -40,6 +42,11 @@ public abstract class Neuron
             }
             return context.Get<T>(target);
         }
+
+        public bool Implements<T>(NeuronId id) where T : class
+            => id.Brain == context.Id.Brain
+                && context.ClassOf(id.Type) is { } type
+                && typeof(T).IsAssignableFrom(type);
     }
 
     // True once a runtime attached this neuron; a detached instance (a preview) has no id.

@@ -92,7 +92,7 @@ public sealed partial class SettingsApp
             var connId = new NeuronId(brain, "github", connectionKey);
             try
             {
-                var grantView = await Get<IConnectionInbound>(connId).AcceptGrant(new OAuthGrant(
+                var grantView = await ConnectionInbounds[connId].AcceptGrant(new OAuthGrant(
                     AuthMethodId: "pat",
                     AccessToken: grantToken,
                     RefreshToken: null,
@@ -107,7 +107,7 @@ public sealed partial class SettingsApp
                 Log.LogDebug(error, "IConnectionInbound.AcceptGrant failed on {ConnectionKey}; trying IConnection.Connect.", connectionKey);
                 try
                 {
-                    var connView = await Get<IConnection>(connId).Connect("pat", grantToken);
+                    var connView = await Connections[connId].Connect("pat", grantToken);
                     connected = connView.Status == ConnectionStatus.Connected;
                 }
                 catch (Exception inner) when (inner is not OperationCanceledException)
@@ -307,7 +307,7 @@ public sealed partial class SettingsApp
         ConnectionView? connView = null;
         try
         {
-            connView = await Get<IConnection>(connId).Read();
+            connView = await Connections[connId].Read();
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -316,7 +316,7 @@ public sealed partial class SettingsApp
 
         try
         {
-            var repo = Get<IRepository>(connId);
+            var repo = Repositories[connId];
             var repoView = await repo.Read();
             var isConnected = repoView.Connected || connView?.Status == ConnectionStatus.Connected;
             var repoName = !string.IsNullOrWhiteSpace(connView?.Account)

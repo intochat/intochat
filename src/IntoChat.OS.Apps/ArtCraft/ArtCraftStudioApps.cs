@@ -116,6 +116,7 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
     [Slot(Key = IArtCraftStudio.StudioKey, Required = false)] private partial IArtCraftStudio? Studio { get; }
     [Slot(Key = "apps/artcraft-engine", Required = false)] private partial IArtCraftEngine? Engine { get; }
     [Slot(Required = false)] private partial IUserSettings? UserSettings { get; }
+    [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IMcpServer> McpServers { get; }
 
     private ILogger AppLogger => _appLogger;
 
@@ -331,7 +332,7 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
 
     private IMcpServer? TryGetMcpServer(string mcpKey)
     {
-        try { return Get<IMcpServer>(mcpKey); }
+        try { return McpServers.TryGet(mcpKey); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             AppLogger.LogDebug(error, "McpServerNeuron is optional when running {App} in unit tests.", Descriptor.Title);

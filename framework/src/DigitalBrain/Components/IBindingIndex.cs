@@ -51,13 +51,17 @@ public interface IBindingIndex
 /// <summary>Thread-safe in-memory <see cref="IBindingIndex"/>.</summary>
 public sealed class InMemoryBindingIndex : IBindingIndex
 {
-    private readonly ConcurrentDictionary<(BrainId Brain, ComponentId Component), HashSet<NeuronId>> _bindings = new();
+    private readonly ConcurrentDictionary<(BrainId Brain, ComponentId Component), Entry> _bindings = new();
+
+    private sealed record Entry(HashSet<NeuronId> Neurons, HashSet<string>? Types, bool Wildcard);
 
     /// <inheritdoc />
     public void Record(BrainId brain, ComponentId component, IReadOnlyList<Binding> bindings)
     {
         ArgumentNullException.ThrowIfNull(bindings);
         var targets = new HashSet<NeuronId>();
+        HashSet<string>? types = null;
+        var wildcard = false;
         foreach (var binding in bindings)
         {
             switch (binding.Target)
@@ -68,9 +72,20 @@ public sealed class InMemoryBindingIndex : IBindingIndex
                 case BindingTarget.Offered offered:
                     targets.Add(offered.Neuron);
                     break;
+                case BindingTarget.NeuronType neuronType:
+                    if (string.IsNullOrEmpty(neuronType.TypeName))
+                    {
+                        wildcard = true;
+                    }
+                    else
+                    {
+                        types ??= new HashSet<string>(StringComparer.Ordinal);
+                        types.Add(neuronType.TypeName);
+                    }
+                    break;
             }
         }
-        _bindings[(brain, component)] = targets;
+        _bindings[(brain, component)] = new Entry(targets, types, wildcard);
     }
 
     /// <inheritdoc />
@@ -79,5 +94,13 @@ public sealed class InMemoryBindingIndex : IBindingIndex
 
     /// <inheritdoc />
     public bool IsBound(BrainId brain, ComponentId component, NeuronId target)
-        => _bindings.TryGetValue((brain, component), out var targets) && targets.Contains(target);
+    {
+        if (!_bindings.TryGetValue((brain, component), out var entry))
+        {
+            return false;
+        }
+        return entry.Neurons.Contains(target)
+            || (target.Brain == brain
+                && (entry.Wildcard || (entry.Types is not null && entry.Types.Contains(target.Type))));
+    }
 }

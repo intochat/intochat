@@ -135,6 +135,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     [Slot(Key = "apps/" + AppName + "/title", Required = false)] private partial IField? TitleField { get; }
     [Slot(Key = "apps/" + AppName + "/description", Required = false)] private partial IField? DescriptionField { get; }
     [Slot(Key = "apps/" + AppName + "/lag", Required = false)] private partial IField? LagField { get; }
+    [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<TasksApp>();
     private readonly ILogger _logger;
@@ -467,7 +468,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
         try
         {
-            var repo = Context.Get<IRepository>(new NeuronId(Id.Brain, "github", connKey));
+            var repo = Repositories[connKey];
             var result = await repo.CommentOnIssue(new CommentOnIssueRequest(
                 IssueNumber: issueNumber,
                 RequestId: string.Concat("tasks-approve:", previewId),
@@ -509,7 +510,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
         try
         {
-            var repo = Context.Get<IRepository>(new NeuronId(Id.Brain, "github", connKey));
+            var repo = Repositories[connKey];
             var dismissed = await repo.DismissIssueDraft(previewId);
             var statusMessage = dismissed
                 ? $"Dismissed issue triage draft '{previewId}'."
@@ -555,7 +556,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
         try
         {
-            var repo = Context.Get<IRepository>(new NeuronId(Id.Brain, "github", connKey));
+            var repo = Repositories[connKey];
             var issueRead = await repo.ReadIssue(new ReadIssue(issueNumber));
             if (!string.IsNullOrWhiteSpace(issueRead.Snapshot.Title))
             {

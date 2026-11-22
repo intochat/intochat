@@ -40,6 +40,37 @@ public sealed partial class BindingGateCallerNeuron : Neuron, IBindingGateCaller
         => Context.Get<IBindingGateTarget>(target).Ping();
 }
 
+[DefaultNeuronType("facts.bg.other")]
+public interface IBindingGateOtherTarget
+{
+    Task<string> Ping();
+}
+
+[Neuron("facts.bg.other")]
+public sealed class BindingGateOtherTargetNeuron : Neuron, IBindingGateOtherTarget
+{
+    public Task<string> Ping() => Task.FromResult(Id.ToString());
+}
+
+[DefaultNeuronType("facts.bg.collection-caller")]
+public interface IBindingGateCollectionCaller
+{
+    Task<string> CallDynamicKey(string key);
+    Task<string> CallUnboundOther(NeuronId target);
+}
+
+[Neuron("facts.bg.collection-caller")]
+public sealed partial class BindingGateCollectionCallerNeuron : Neuron, IBindingGateCollectionCaller
+{
+    [Slot]
+    private partial SlotCollection<IBindingGateTarget> Targets { get; }
+
+    public Task<string> CallDynamicKey(string key) => Targets[key].Ping();
+
+    public Task<string> CallUnboundOther(NeuronId target)
+        => Context.Get<IBindingGateOtherTarget>(target).Ping();
+}
+
 [Module("facts-binding-gate")]
 public sealed class BindingGateFactsModule : Module
 {
@@ -149,5 +180,38 @@ public sealed class BindingGateFacts
 
         Assert.Equal(declaredTarget.ToString(), reached);
         Assert.Empty(events);
+    }
+
+    [Theory]
+    [MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task EnforceMode_AdmitsDynamicKeyCallThroughBoundSlotCollectionAndRefusesUnboundType(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var events = new ConcurrentQueue<MissingBindingEvent>();
+        await using var os = await JourneyOS.Start(
+            kind,
+            [typeof(BindingGateFactsModule)],
+            fakes => fakes.Configure(services => services.AddSingleton(new BindingGateOptions
+            {
+                Mode = BindingEnforcementMode.Enforce,
+                OnMissingBinding = events.Enqueue,
+            })),
+            ct: ct);
+
+        var ada = os.Person("ada");
+        var caller = ada.Get<IBindingGateCollectionCaller>(new NeuronId(ada.Brain, "facts.bg.collection-caller", "cc1"));
+
+        var first = await caller.CallDynamicKey("alpha");
+        var second = await caller.CallDynamicKey("beta");
+        Assert.Equal(new NeuronId(ada.Brain, "facts.bg.target", "alpha").ToString(), first);
+        Assert.Equal(new NeuronId(ada.Brain, "facts.bg.target", "beta").ToString(), second);
+        Assert.Empty(events);
+
+        var unboundOther = new NeuronId(ada.Brain, "facts.bg.other", "gamma");
+        var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => caller.CallUnboundOther(unboundOther));
+        Assert.Contains("binding.missing", error.Message, StringComparison.Ordinal);
+        var ev = Assert.Single(events);
+        Assert.Equal(new ComponentId("facts.bg.collection-caller"), ev.Component);
+        Assert.Equal(unboundOther, ev.Target);
     }
 }

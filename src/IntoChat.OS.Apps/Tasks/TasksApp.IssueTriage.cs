@@ -91,7 +91,7 @@ public sealed partial class TasksApp
         {
             try
             {
-                var repo = Context.Get<IRepository>(new NeuronId(brain, "github", connKey));
+                var repo = Repositories[new NeuronId(brain, "github", connKey)];
                 var drafts = await repo.ReadPendingIssueDrafts();
                 foreach (var draft in drafts)
                 {

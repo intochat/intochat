@@ -135,6 +135,9 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
     [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads? DebuggerReads { get; }
     [Slot(Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
     [Slot(Key = "main", Required = false)] private partial IWorkspace? Workspace { get; }
+    [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IApp> Apps { get; }
+    [Slot] private partial DigitalBrain.Components.SlotCollection<IScreen> Screens { get; }
+    [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IViewport> Viewports { get; }
 
     public static readonly IReadOnlyList<string> DefaultDockApps =
         ["ino", "photocraft", "filmcraft", "markdraw", "creator", "files", "settings"];
@@ -422,11 +425,11 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         {
             try
             {
-                try { await Get<IApp>($"apps/{app}").Request("open", view.Trim()); }
+                try { await Apps[$"apps/{app}"].Request("open", view.Trim()); }
                 catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
                 {
                     Log.LogSwallowed(fallbackEx, $"Falling back to app.{app} screen for open view.");
-                    await Get<IScreen>("app." + app).Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()), typeof(DesktopOpenViewArgs)));
+                    await Screens["app." + app].Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()), typeof(DesktopOpenViewArgs)));
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
@@ -911,8 +914,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         if (string.IsNullOrWhiteSpace(winId)) { return; }
         try
         {
-            var viewport = Get<IViewport>(
-                IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}"));
+            var viewport = Viewports[
+                IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}")];
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 var currentVp = await viewport.Read();

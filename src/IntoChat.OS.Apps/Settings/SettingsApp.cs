@@ -27,6 +27,7 @@ using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
@@ -122,6 +123,11 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Key = FriendsDefaults.KeyPart, Required = false)] private partial IFriends? Friends { get; }
     [Slot(Key = "approvals/index", Required = false)] private partial IApprovals? Approvals { get; }
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
+    [Slot(Required = false)] private partial SlotCollection<IConnectionInbound> ConnectionInbounds { get; }
+    [Slot(Required = false)] private partial SlotCollection<IConnection> Connections { get; }
+    [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
+    [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
+    [Slot(Required = false)] private partial SlotCollection<IMcpServer> McpServers { get; }
 
     [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SynapseAliasPattern();

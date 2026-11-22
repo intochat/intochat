@@ -333,7 +333,7 @@ public sealed partial class CreatorApp
         {
             try
             {
-                var exported = await Get<IApp>(appRef.Key).Export();
+                var exported = await Apps[appRef.Key].Export();
                 if (exported?.Files is { Count: > 0 })
                 {
                     foreach (var (path, text) in exported.Files)

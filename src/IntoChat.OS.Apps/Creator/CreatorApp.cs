@@ -285,6 +285,8 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     [Slot(Key = CreatorView.InspectorStateKey, Required = false)] private partial IPropertyGrid? InspectorState { get; }
     [Slot(Key = CreatorView.InspectorSourceKey, Required = false)] private partial ICodeEditor? InspectorSource { get; }
     [Slot(Key = CreatorView.InspectorSignalsKey, Required = false)] private partial ITable? InspectorSignals { get; }
+    [Slot(Required = false)] private partial SlotCollection<IntoChat.OS.Modules.AI.Workflows.IWorkflowRun> WorkflowRuns { get; }
+    [Slot(Required = false)] private partial SlotCollection<IApp> Apps { get; }
     public const int EdgeSignals = 20;
     public const int MaxHops = 2000;
 
@@ -581,7 +583,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         var runKey = $"workflows/{Guid.NewGuid():N}";
         try
         {
-            var run = await Get<IntoChat.OS.Modules.AI.Workflows.IWorkflowRun>(runKey).Start(workflow, workflow);
+            var run = await WorkflowRuns[runKey].Start(workflow, workflow);
             await Show(State with
             {
                 Status = run.Status == IntoChat.OS.Modules.AI.Workflows.WorkflowRunStatus.Waiting

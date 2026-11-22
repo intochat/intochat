@@ -93,6 +93,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 
     [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
     [Slot(Key = "connection/github/main", Required = false)] private partial IRepository? MainRepository { get; }
+    [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
     [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
     [Slot(Key = StepperKey, Required = false)] private partial IStepper? Stepper { get; }
     [Slot(Key = WorkspaceTabsKey, Required = false)] private partial ITabs? WorkspaceTabs { get; }
@@ -671,7 +672,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         {
             var repo = string.Equals(key, "connection/github/main", StringComparison.Ordinal)
                 ? mainRepo
-                : GetOptional<IRepository>(key, _logger);
+                : Repositories.TryGet(key);
             if (repo is null)
             {
                 continue;

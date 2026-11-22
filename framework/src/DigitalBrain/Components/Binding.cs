@@ -7,6 +7,7 @@ namespace DigitalBrain.Components;
 [JsonDerivedType(typeof(Local), "local")]
 [JsonDerivedType(typeof(Connection), "connection")]
 [JsonDerivedType(typeof(Offered), "offered")]
+[JsonDerivedType(typeof(NeuronType), "type")]
 public abstract record BindingTarget
 {
     private BindingTarget() { }
@@ -23,6 +24,10 @@ public abstract record BindingTarget
     /// <param name="Owner">The brain that owns the offered neuron.</param>
     /// <param name="Neuron">The target neuron id.</param>
     public sealed record Offered(BrainId Owner, NeuronId Neuron) : BindingTarget;
+
+    /// <summary>A type-level collection binding: any key of <paramref name="TypeName"/> inside the installing brain (or empty for a polymorphic contract).</summary>
+    /// <param name="TypeName">The target neuron type alias, or empty string for a polymorphic contract.</param>
+    public sealed record NeuronType(string TypeName) : BindingTarget;
 }
 
 /// <summary>One typed slot binding in an install record.</summary>

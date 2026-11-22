@@ -70,7 +70,7 @@ public sealed class SlotGeneratorFacts
 
             public readonly record struct ComponentId(string Value);
 
-            public sealed record SlotNeed(string Name, Type Contract, bool Required = true, string? Key = null);
+            public sealed record SlotNeed(string Name, Type Contract, bool Required = true, string? Key = null, bool IsCollection = false);
 
             public sealed record ComponentFace(string Title, string Description = "", string? Icon = null, string? Category = null);
 
@@ -100,21 +100,33 @@ public sealed class SlotGeneratorFacts
                 public static void Register(Type neuronClass, ComponentManifest manifest) => All[manifest.Id] = manifest;
             }
 
+            public sealed class SlotCollection<T> where T : class { }
+
             public sealed class Slots
             {
                 public string? LastSlot { get; private set; }
                 public bool LastWasTryGet { get; private set; }
+                public bool LastWasGetCollection { get; private set; }
                 public T Get<T>(string slot) where T : class
                 {
                     LastSlot = slot;
                     LastWasTryGet = false;
+                    LastWasGetCollection = false;
                     return default!;
                 }
                 public T? TryGet<T>(string slot) where T : class
                 {
                     LastSlot = slot;
                     LastWasTryGet = true;
+                    LastWasGetCollection = false;
                     return default;
+                }
+                public SlotCollection<T> GetCollection<T>(string slot) where T : class
+                {
+                    LastSlot = slot;
+                    LastWasTryGet = false;
+                    LastWasGetCollection = true;
+                    return new SlotCollection<T>();
                 }
             }
         }
@@ -636,6 +648,62 @@ public sealed class SlotGeneratorFacts
         {
             alc.Unload();
         }
+    }
+
+    [Fact]
+    public void ASlotCollectionPropertyGeneratesGetCollectionAndIsCollectionNeed()
+    {
+        const string source = """
+            using DigitalBrain;
+            using DigitalBrain.Components;
+            using DigitalBrain.Neurons;
+
+            namespace Sample;
+
+            public interface IRepository { }
+            public interface ITableSource { }
+
+            [Neuron("app.workspace")]
+            public sealed partial class WorkspaceNeuron : Neuron
+            {
+                [Slot]
+                private partial SlotCollection<IRepository> Repos { get; }
+
+                [Slot(Required = false)]
+                private partial SlotCollection<ITableSource> Sources { get; }
+
+                public SlotCollection<IRepository> ReadRepos() => Repos;
+            }
+            """;
+
+        WithCompiledAssembly("SlotCollectionProbe", source, assembly =>
+        {
+            var workspaceType = assembly.GetType("Sample.WorkspaceNeuron", throwOnError: true)!;
+            var workspace = Activator.CreateInstance(workspaceType)!;
+            var repos = workspaceType.GetMethod("ReadRepos")!.Invoke(workspace, null);
+            Assert.NotNull(repos);
+
+            var slotsProp = workspaceType.GetProperty("Slots")!.GetValue(workspace)!;
+            Assert.Equal("repos", (string?)slotsProp.GetType().GetProperty("LastSlot")!.GetValue(slotsProp));
+            Assert.True((bool)slotsProp.GetType().GetProperty("LastWasGetCollection")!.GetValue(slotsProp)!);
+
+            var manifestsType = assembly.GetType("DigitalBrain.Components.ComponentManifests", throwOnError: true)!;
+            var manifests = (System.Collections.IDictionary)manifestsType.GetField("All")!.GetValue(null)!;
+            var manifest = Assert.Single(manifests.Values.Cast<object>());
+            var slots = ((Array)manifest.GetType().GetProperty("Slots")!.GetValue(manifest)!).Cast<object>().ToArray();
+            Assert.Equal(2, slots.Length);
+
+            var reposNeed = slots.Single(s => (string)s.GetType().GetProperty("Name")!.GetValue(s)! == "repos");
+            Assert.Equal(assembly.GetType("Sample.IRepository", throwOnError: true), reposNeed.GetType().GetProperty("Contract")!.GetValue(reposNeed));
+            Assert.True((bool)reposNeed.GetType().GetProperty("Required")!.GetValue(reposNeed)!);
+            Assert.Null(reposNeed.GetType().GetProperty("Key")!.GetValue(reposNeed));
+            Assert.True((bool)reposNeed.GetType().GetProperty("IsCollection")!.GetValue(reposNeed)!);
+
+            var sourcesNeed = slots.Single(s => (string)s.GetType().GetProperty("Name")!.GetValue(s)! == "sources");
+            Assert.Equal(assembly.GetType("Sample.ITableSource", throwOnError: true), sourcesNeed.GetType().GetProperty("Contract")!.GetValue(sourcesNeed));
+            Assert.False((bool)sourcesNeed.GetType().GetProperty("Required")!.GetValue(sourcesNeed)!);
+            Assert.True((bool)sourcesNeed.GetType().GetProperty("IsCollection")!.GetValue(sourcesNeed)!);
+        });
     }
 
     private static void WithCompiledAssembly(string assemblyName, string source, Action<Assembly> verify)

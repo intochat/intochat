@@ -158,7 +158,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
         chain.Reverse();
 
         var isNullable = property.Type.NullableAnnotation == NullableAnnotation.Annotated;
-        var contractType = property.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        var rawType = property.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        var isCollection = TryUnwrapSlotCollection(rawType, out var contractType);
         var isAccessible = IsAccessibleOwner(owner) && !owner.IsStatic && IsAccessibleForTypeOf(contractType);
 
         return new SlotPropertyModel(
@@ -176,7 +177,22 @@ public sealed class SlotGenerator : IIncrementalGenerator
             required,
             isNullable,
             isPartial,
-            isAccessible);
+            isAccessible,
+            isCollection);
+    }
+
+    private static bool TryUnwrapSlotCollection(ITypeSymbol type, out ITypeSymbol contractType)
+    {
+        if (type is INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 1 } named
+            && named.Name == "SlotCollection"
+            && named.ContainingNamespace is { IsGlobalNamespace: false } ns
+            && ns.ToDisplayString() == "DigitalBrain.Components")
+        {
+            contractType = named.TypeArguments[0].WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+            return true;
+        }
+        contractType = type;
+        return false;
     }
 
     private static ComponentEntryModel? ExtractModule(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
@@ -446,7 +462,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 }
 
                 var isNullable = property.Type.NullableAnnotation == NullableAnnotation.Annotated;
-                var contractType = property.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+                var rawType = property.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+                var isCollection = TryUnwrapSlotCollection(rawType, out var contractType);
                 if (!IsAccessibleForTypeOf(contractType))
                 {
                     continue;
@@ -467,7 +484,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                     required,
                     isNullable,
                     isPartial: false,
-                    isAccessible: true));
+                    isAccessible: true,
+                    isCollection: isCollection));
             }
         }
 
@@ -895,17 +913,34 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
                 foreach (var prop in partialProps)
                 {
-                    sb.Append(indent)
-                        .Append(prop.Accessibility)
-                        .Append(" partial ")
-                        .Append(prop.ContractFullName)
-                        .Append(prop.IsNullable ? "? " : " ")
-                        .Append(prop.PropertyName)
-                        .Append(prop.IsNullable ? " => Slots.TryGet<" : " => Slots.Get<")
-                        .Append(prop.ContractFullName)
-                        .Append(">(")
-                        .Append(CSharpLiteral(prop.SlotName))
-                        .AppendLine(");");
+                    if (prop.IsCollection)
+                    {
+                        sb.Append(indent)
+                            .Append(prop.Accessibility)
+                            .Append(" partial global::DigitalBrain.Components.SlotCollection<")
+                            .Append(prop.ContractFullName)
+                            .Append("> ")
+                            .Append(prop.PropertyName)
+                            .Append(" => Slots.GetCollection<")
+                            .Append(prop.ContractFullName)
+                            .Append(">(")
+                            .Append(CSharpLiteral(prop.SlotName))
+                            .AppendLine(");");
+                    }
+                    else
+                    {
+                        sb.Append(indent)
+                            .Append(prop.Accessibility)
+                            .Append(" partial ")
+                            .Append(prop.ContractFullName)
+                            .Append(prop.IsNullable ? "? " : " ")
+                            .Append(prop.PropertyName)
+                            .Append(prop.IsNullable ? " => Slots.TryGet<" : " => Slots.Get<")
+                            .Append(prop.ContractFullName)
+                            .Append(">(")
+                            .Append(CSharpLiteral(prop.SlotName))
+                            .AppendLine(");");
+                    }
                 }
 
                 for (var i = first.TypeChain.Length - 1; i >= 0; i--)
@@ -1081,8 +1116,12 @@ public sealed class SlotGenerator : IIncrementalGenerator
                         .Append("), ")
                         .Append(prop.Required ? "true" : "false")
                         .Append(", ")
-                        .Append(prop.Key is null ? "null" : CSharpLiteral(prop.Key))
-                        .AppendLine("),");
+                        .Append(prop.Key is null ? "null" : CSharpLiteral(prop.Key));
+                    if (prop.IsCollection)
+                    {
+                        initSb.Append(", true");
+                    }
+                    initSb.AppendLine("),");
                 }
                 initSb.Append("                }")
                     .AppendLine(hasExtras ? "," : "));");
@@ -1607,7 +1646,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             bool required,
             bool isNullable,
             bool isPartial,
-            bool isAccessible)
+            bool isAccessible,
+            bool isCollection)
         {
             Namespace = ns;
             TypeChain = typeChain;
@@ -1624,6 +1664,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             IsNullable = isNullable;
             IsPartial = isPartial;
             IsAccessible = isAccessible;
+            IsCollection = isCollection;
         }
 
         public string Namespace { get; }
@@ -1641,6 +1682,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public bool IsNullable { get; }
         public bool IsPartial { get; }
         public bool IsAccessible { get; }
+        public bool IsCollection { get; }
 
         public bool Equals(SlotPropertyModel? other)
         {
@@ -1659,6 +1701,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || IsNullable != other.IsNullable
                 || IsPartial != other.IsPartial
                 || IsAccessible != other.IsAccessible
+                || IsCollection != other.IsCollection
                 || TypeChain.Length != other.TypeChain.Length)
             {
                 return false;
@@ -1685,6 +1728,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(SlotName);
                 hash = (hash * 397) ^ (Face?.GetHashCode() ?? 0);
                 hash = (hash * 397) ^ Operations.Length;
+                hash = (hash * 397) ^ (IsCollection ? 1 : 0);
                 return hash;
             }
         }
