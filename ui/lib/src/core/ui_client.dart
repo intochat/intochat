@@ -30,6 +30,13 @@ final class IntoChatOSUiClient {
   /// Gated on the kernel; 404 when the kernel runs ungated.
   static const authCheckPath = '/auth/check';
   static const localPresencePath = '/auth/local-presence';
+  static const webViewTicketPath = '/auth/webview-ticket';
+
+  static IntoChatOSUiClient? _activeClient;
+
+  /// The most recently constructed live client, used by embedded WebViews to
+  /// exchange the shell's authenticated session for a one-time launch ticket.
+  static IntoChatOSUiClient? get activeClient => _activeClient;
 
   IntoChatOSUiClient({
     required this.baseUri,
@@ -46,7 +53,9 @@ final class IntoChatOSUiClient {
                presenceToken: presenceToken,
              ),
        _ownsClient = httpClient == null,
-       _credentials = credentials;
+       _credentials = credentials {
+    _activeClient = this;
+  }
 
   factory IntoChatOSUiClient.fromEnvironment({
     http.Client? httpClient,
@@ -1247,7 +1256,48 @@ final class IntoChatOSUiClient {
     );
   }
 
+  /// Mints a one-time SSO launch ticket for an internal WebView route on this
+  /// Kernel origin (e.g. `/orleans/`, `/devui/`, `/widgetbook/`).
+  ///
+  /// Returns the relative enter URL (e.g. `/auth/webview-enter?ticket=...`),
+  /// or `null` when the endpoint is unavailable or the request fails.
+  Future<String?> mintWebViewTicket(String targetPath) async {
+    final trimmed = targetPath.trim();
+    if (!trimmed.startsWith('/') ||
+        trimmed.startsWith('//') ||
+        trimmed.startsWith(r'/\')) {
+      return null;
+    }
+    try {
+      final response = await _http
+          .post(
+            baseUri.resolve(webViewTicketPath),
+            headers: const {'content-type': 'application/json'},
+            body: jsonEncode({'target': trimmed}),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) {
+        return null;
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final enterUrl = decoded['enterUrl'];
+        if (enterUrl is String &&
+            enterUrl.startsWith('/') &&
+            !enterUrl.startsWith('//')) {
+          return enterUrl;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void close() {
+    if (identical(_activeClient, this)) {
+      _activeClient = null;
+    }
     if (_ownsClient) {
       _http.close();
     }

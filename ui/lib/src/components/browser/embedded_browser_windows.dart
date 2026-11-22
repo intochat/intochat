@@ -56,26 +56,51 @@ Future<bool> _isLoopbackPortOpen(int port) async {
 /// Resolves any root-relative Kernel route (e.g. `/orleans`, `/aspire`,
 /// `/widgetbook`, `/devui/`, `/artcraft/{id}/index.html`) against the active
 /// Kernel origin without hardcoding app names or ports.
+///
+/// When the resolved URL shares the same origin as the active authenticated
+/// [IntoChatOSUiClient], exchanges the shell session for a one-time launch
+/// ticket via `POST /auth/webview-ticket` so the WebView receives a valid
+/// session cookie via `/auth/webview-enter?ticket=...`, falling back
+/// gracefully to the direct URL if the endpoint is unavailable.
 Future<String> _resolveDirectUrl(String rawUri) async {
   final trimmed = rawUri.trim();
   if (trimmed.isEmpty) return trimmed;
+
+  final client = IntoChatOSUiClient.activeClient;
+  String resolved = trimmed;
   final isRootRelative = trimmed.startsWith('/') && !trimmed.startsWith('//');
-  if (!isRootRelative) return trimmed;
-
-  final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
-  final parsedUiBase = uiBase.isNotEmpty ? Uri.tryParse(uiBase) : null;
-  if (parsedUiBase != null &&
-      parsedUiBase.hasAuthority &&
-      parsedUiBase.host.isNotEmpty &&
-      (parsedUiBase.scheme == 'http' || parsedUiBase.scheme == 'https')) {
-    return '${parsedUiBase.origin}$trimmed';
+  if (isRootRelative) {
+    final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
+    final parsedUiBase = uiBase.isNotEmpty
+        ? Uri.tryParse(uiBase)
+        : client?.baseUri;
+    if (parsedUiBase != null &&
+        parsedUiBase.hasAuthority &&
+        parsedUiBase.host.isNotEmpty &&
+        (parsedUiBase.scheme == 'http' || parsedUiBase.scheme == 'https')) {
+      resolved = '${parsedUiBase.origin}$trimmed';
+    } else if (await _isLoopbackPortOpen(5080)) {
+      resolved = 'http://localhost:5080$trimmed';
+    }
   }
 
-  if (await _isLoopbackPortOpen(5080)) {
-    return 'http://localhost:5080$trimmed';
+  if (client == null) return resolved;
+
+  final targetUri = Uri.tryParse(resolved);
+  if (targetUri == null ||
+      !targetUri.hasAuthority ||
+      (targetUri.scheme != 'http' && targetUri.scheme != 'https') ||
+      targetUri.origin != client.baseUri.origin) {
+    return resolved;
   }
 
-  return trimmed;
+  final path = targetUri.path.isEmpty ? '/' : targetUri.path;
+  final targetPath = targetUri.hasQuery ? '$path?${targetUri.query}' : path;
+  final enterUrl = await client.mintWebViewTicket(targetPath);
+  if (enterUrl == null) return resolved;
+
+  final fragmentSuffix = targetUri.hasFragment ? '#${targetUri.fragment}' : '';
+  return '${client.baseUri.origin}$enterUrl$fragmentSuffix';
 }
 
 class EmbeddedBrowser extends StatefulWidget {

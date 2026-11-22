@@ -48,7 +48,7 @@ public static class DevUIHosting
         if (!IsEnabled(app.Environment, app.Configuration)) { return; }
         app.MapOpenAIResponses();
         app.MapOpenAIConversations();
-        app.MapDevUI().AllowAnonymous();
+        app.MapDevUI();
         RunsPage.Map(app);
         BrainPage.Map(app);
     }

@@ -184,6 +184,7 @@ public static class ServerHostingExtensions
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();
         IntoChat.OS.Kernel.RuntimeShutdownEndpoints.Map(app);
+        IntoChat.OS.Kernel.Auth.WebViewTicketEndpoints.Map(app);
         IntoChat.OS.Kernel.Sandbox.SandboxEdgeEndpoints.Map(app);
         app.MapIntoChatOSModules();
         app.MapIntoChatOSPlatform();
