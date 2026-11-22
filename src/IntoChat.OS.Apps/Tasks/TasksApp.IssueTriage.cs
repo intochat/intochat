@@ -59,20 +59,23 @@ public sealed partial class TasksApp
             return [];
         }
 
-        try
+        if (ConnectionCatalog is { } connectionCatalog)
         {
-            var catalog = await Context.Get<IConnectionCatalog>(new NeuronId(brain, IConnectionCatalog.TypeName, "main")).Read();
-            foreach (var row in catalog.Rows.Where(static r => string.Equals(r.ConnectorId, "github", StringComparison.Ordinal)))
+            try
             {
-                if (!string.IsNullOrWhiteSpace(row.ConnectionId))
+                var catalog = await connectionCatalog.Read();
+                foreach (var row in catalog.Rows.Where(static r => string.Equals(r.ConnectorId, "github", StringComparison.Ordinal)))
                 {
-                    connectionKeys.Add(string.Concat("connection/github/", Uri.EscapeDataString(row.ConnectionId)));
+                    if (!string.IsNullOrWhiteSpace(row.ConnectionId))
+                    {
+                        connectionKeys.Add(string.Concat("connection/github/", Uri.EscapeDataString(row.ConnectionId)));
+                    }
                 }
             }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            _logger.LogDebug(error, "Connection catalog is optional when probing GitHub triage drafts.");
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogDebug(error, "Connection catalog is optional when probing GitHub triage drafts.");
+            }
         }
 
         if (!connectionKeys.Contains("connection/github/main", StringComparer.Ordinal))

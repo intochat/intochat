@@ -103,19 +103,25 @@ public sealed partial class CreatorApp
         string? state = null, view = null, notice = null;
         if (!id.StartsWith("draft:", StringComparison.Ordinal) && !isWorkflowOrFlowOnly)
         {
-            try
+            if (DebuggerReads is { } reads)
             {
-                var reads = Get<IDebuggerReads>(IDebuggerReads.DefaultKey);
-                state = await reads.State(alias);
-                view = await reads.View(alias);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Log.LogDebug(error, "State read is optional.");
-                if (!isSynapseSelection)
+                try
                 {
-                    notice = $"state unavailable: {error.Message}";
+                    state = await reads.State(alias);
+                    view = await reads.View(alias);
                 }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    Log.LogDebug(error, "State read is optional.");
+                    if (!isSynapseSelection)
+                    {
+                        notice = $"state unavailable: {error.Message}";
+                    }
+                }
+            }
+            else if (!isSynapseSelection)
+            {
+                notice = "state unavailable: debugger reads unavailable.";
             }
         }
 
@@ -129,7 +135,7 @@ public sealed partial class CreatorApp
         string? failureSummary = null;
         try
         {
-            if (TryGetOptional<ISynapseStudio>(SynapsesKey) is { } studio)
+            if (SynapseStudio is { } studio)
             {
                 var failures = await studio.Failures(alias);
                 failureSummary = failures.Text;
@@ -163,8 +169,7 @@ public sealed partial class CreatorApp
     {
         try
         {
-            if (TryGetOptional<IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector>(
-                IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector.DefaultKey) is { } introspector)
+            if (UiIntrospector is { } introspector)
             {
                 var snapshot = await introspector.ExploreStateGraph(targetName, maxStates: 24);
                 return snapshot is { States.Length: > 0 } ? snapshot : null;
@@ -251,9 +256,14 @@ public sealed partial class CreatorApp
         }
 
         var alias = edge.Alias.Split('#')[0];
+        if (DebuggerReads is not { } reads)
+        {
+            return new Inspection(Selection.Edge, key) { Alias = alias, Notice = "journal unavailable: debugger reads unavailable." };
+        }
+
         try
         {
-            var page = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Signals(alias, edge.From == "*" ? null : edge.From, EdgeSignals);
+            var page = await reads.Signals(alias, edge.From == "*" ? null : edge.From, EdgeSignals);
             var edgeHops = TraceFold.Fold(page.Entries);
             return new Inspection(Selection.Edge, key)
             {
@@ -272,13 +282,18 @@ public sealed partial class CreatorApp
 
     private async Task<Inspection> PulseAsync(string traceId)
     {
+        if (TraceReader is not { } traceReader)
+        {
+            return new Inspection(Selection.Pulse, traceId) { Notice = "trace reader unavailable." };
+        }
+
         var entries = new List<TraceEntry>();
         try
         {
             long since = 0;
             while (entries.Count < MaxHops)
             {
-                var page = await Get<ITraceReader>(ITraceReader.DefaultKey).ReadTrace(traceId, since, DigitalBrain.Kernel.SignalPage.MaxLimit);
+                var page = await traceReader.ReadTrace(traceId, since, DigitalBrain.Kernel.SignalPage.MaxLimit);
                 entries.AddRange(page.Entries);
                 if (page.Entries.Length < DigitalBrain.Kernel.SignalPage.MaxLimit) { break; }
                 since = page.Entries[^1].Sequence;
@@ -301,15 +316,17 @@ public sealed partial class CreatorApp
     private async Task<Dictionary<string, string>> FilesAsync(string alias)
     {
         var files = new Dictionary<string, string>(StringComparer.Ordinal);
-        try
+        if (SynapseStudio is { } studio)
         {
-            var studio = Get<ISynapseStudio>(SynapsesKey);
-            foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
-            foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Log.LogDebug(error, "Unit files are optional.");
+            try
+            {
+                foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
+                foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogDebug(error, "Unit files are optional.");
+            }
         }
 
         if (files.Count == 0 && !string.IsNullOrWhiteSpace(TryBrainIdValue()) && AppRef.TryOf(Id.Brain, alias, out var appRef))

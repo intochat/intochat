@@ -1657,7 +1657,7 @@ public sealed class HouseRules22Facts
             }
         }
 
-        const int AppsAmbientReachCap = 190;
+        const int AppsAmbientReachCap = 133;
         const int ModulesAmbientReachCap = 240;
 
         Assert.True(

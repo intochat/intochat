@@ -51,7 +51,7 @@ public sealed partial class CreatorApp
             var stepCount = steps.Length;
             var cursor = State.ReplayCursor is { } c && stepCount > 0 ? Math.Clamp(c, 0, stepCount - 1) : (long?)null;
 
-            if (!skipTabsConfigure && TryGetOptional<ITabs>(CreatorView.InspectorTabsKey) is { } tabs)
+            if (!skipTabsConfigure && InspectorTabs is { } tabs)
             {
                 var currentTabs = await tabs.Read();
                 if (currentTabs.Version == 0 || !string.Equals(currentTabs.SelectedId, State.InspectorTab, StringComparison.Ordinal))
@@ -68,7 +68,7 @@ public sealed partial class CreatorApp
                 }
             }
 
-            if (TryGetOptional<ISlider>(CreatorView.ReplaySliderKey) is { } slider)
+            if (ReplaySlider is { } slider)
             {
                 var min = stepCount >= 2 ? 1d : 0d;
                 var max = stepCount >= 2 ? stepCount : 1d;
@@ -83,7 +83,7 @@ public sealed partial class CreatorApp
                 _lastSyncedSliderVersion = sliderState.Version;
             }
 
-            if (TryGetOptional<ICommandBar>(CreatorView.ReplayCommandBarKey) is { } transport)
+            if (ReplayCommandBar is { } transport)
             {
                 var disabled = stepCount == 0;
                 await transport.Configure(
@@ -96,7 +96,7 @@ public sealed partial class CreatorApp
                 ]);
             }
 
-            if (TryGetOptional<IPropertyGrid>(CreatorView.InspectorStateKey) is { } propGrid)
+            if (InspectorState is { } propGrid)
             {
                 var stateJson = ReplayScript.StateJsonAt(steps, cursor, _inspection.State);
                 var title = cursor is { } idx && stepCount > 0
@@ -105,7 +105,7 @@ public sealed partial class CreatorApp
                 await propGrid.LoadJson(title, stateJson, readOnly: true);
             }
 
-            if (TryGetOptional<ICodeEditor>(CreatorView.InspectorSourceKey) is { } editor)
+            if (InspectorSource is { } editor)
             {
                 var ordered = CreatorInspector.OrderedFiles(_inspection.Files);
                 var activeFile = CreatorInspector.ResolveActiveFile(State.SelectedSourceFile, ordered);
@@ -119,7 +119,7 @@ public sealed partial class CreatorApp
                 }
             }
 
-            if (TryGetOptional<ITable>(CreatorView.InspectorSignalsKey) is { } signalsTable)
+            if (InspectorSignals is { } signalsTable)
             {
                 if (_inspection.Kind == Selection.Edge && _inspection.Signals.Count > 0)
                 {

@@ -10,6 +10,7 @@ Release build/test + live Playwright/MCP verification, parallel candidate tourna
 */
 using System.Globalization;
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
@@ -89,6 +90,17 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     public const string KanbanKey = "engineer/kanban/tasks";
 
     private const string FlowsKey = "flows/index";
+
+    [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = "connection/github/main", Required = false)] private partial IRepository? MainRepository { get; }
+    [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
+    [Slot(Key = StepperKey, Required = false)] private partial IStepper? Stepper { get; }
+    [Slot(Key = WorkspaceTabsKey, Required = false)] private partial ITabs? WorkspaceTabs { get; }
+    [Slot(Key = WorktreeTreeKey, Required = false)] private partial ITreeView? WorktreeTree { get; }
+    [Slot(Key = CodeEditorKey, Required = false)] private partial ICodeEditor? CodeEditor { get; }
+    [Slot(Key = KanbanKey, Required = false)] private partial IKanbanBoard? Kanban { get; }
+    [Slot(Key = TasksTableKey, Required = false)] private partial ITable? TasksTable { get; }
+    [Slot(Key = BrainstormChatKey, Required = false)] private partial IChatThread? BrainstormChat { get; }
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<EngineerApp>();
     private readonly ILogger _logger;
@@ -281,7 +293,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         ArgumentNullException.ThrowIfNull(request);
         if (State.AwaitingPlanRatification
             && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
-            && TryGetOptional<IFlows>(FlowsKey) is { } flows)
+            && Flows is { } flows)
         {
             try
             {
@@ -457,7 +469,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         await ApplyDecisionAsync(decision);
         if (decision.IsAccepted
             && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
-            && TryGetOptional<IFlows>(FlowsKey) is { } flows)
+            && Flows is { } flows)
         {
             try
             {
@@ -630,7 +642,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 
     private async Task FollowRepositoryNeuronsAsync(string? repositoryId)
     {
-        if (TryBrainOrNull() is not { } brain || !Implements<IRepository>(new NeuronId(brain, "github", "connection/github/main")))
+        if (TryBrainOrNull() is null || MainRepository is null)
         {
             return;
         }
@@ -645,19 +657,22 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 
     private async Task<(IRepository? Repository, RepositoryView? View)> TryResolveConnectedRepositoryAsync(string? repositoryId)
     {
-        if (TryBrainOrNull() is not { } brain || !Implements<IRepository>(new NeuronId(brain, "github", "connection/github/main")))
+        if (TryBrainOrNull() is null || MainRepository is not { } mainRepo)
         {
             return (null, null);
         }
 
         var slug = string.IsNullOrWhiteSpace(repositoryId) ? "main" : repositoryId.Trim();
         string[] candidateKeys = string.Equals(slug, "main", StringComparison.OrdinalIgnoreCase)
-            ? [$"connection/github/{slug}"]
+            ? ["connection/github/main"]
             : [$"connection/github/{slug}", "connection/github/main"];
 
         foreach (var key in candidateKeys)
         {
-            if (TryGetOptional<IRepository>(key) is not { } repo)
+            var repo = string.Equals(key, "connection/github/main", StringComparison.Ordinal)
+                ? mainRepo
+                : GetOptional<IRepository>(key, _logger);
+            if (repo is null)
             {
                 continue;
             }
@@ -856,9 +871,6 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 
         return null;
     }
-
-    private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, _logger);
 
     private static string Truncate(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength].TrimEnd() + "...";

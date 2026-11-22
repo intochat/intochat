@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Catalog;
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
@@ -119,6 +120,21 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";
+
+    [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = ApprovalsKey, Required = false)] private partial IApprovals? Approvals { get; }
+    [Slot(Key = SynapsesKey, Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
+    [Slot(Key = IFocus.DefaultKey, Required = false)] private partial IFocus? Focus { get; }
+    [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
+    [Slot(Key = "main", Required = false)] private partial IConnectionCatalog? ConnectionCatalog { get; }
+    [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
+    [Slot(Key = TabsKey, Required = false)] private partial ITabs? Tabs { get; }
+    [Slot(Key = StepperKey, Required = false)] private partial IStepper? Stepper { get; }
+    [Slot(Key = KanbanKey, Required = false)] private partial IKanbanBoard? Kanban { get; }
+    [Slot(Key = TableKey, Required = false)] private partial ITable? Table { get; }
+    [Slot(Key = "apps/" + AppName + "/title", Required = false)] private partial IField? TitleField { get; }
+    [Slot(Key = "apps/" + AppName + "/description", Required = false)] private partial IField? DescriptionField { get; }
+    [Slot(Key = "apps/" + AppName + "/lag", Required = false)] private partial IField? LagField { get; }
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<TasksApp>();
     private readonly ILogger _logger;
@@ -282,7 +298,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         var goal = string.IsNullOrWhiteSpace(description) ? title : description;
         var inner = JsonSerializer.Serialize(new PlanInner { Goal = goal }, TasksAppJsonContext.Default.PlanInner);
 
-        if (TryGetOptional<IFlows>(FlowsKey) is { } flows)
+        if (Flows is { } flows)
         {
             try
             {
@@ -312,7 +328,13 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
         try
         {
-            await Get<IFlows>(FlowsKey).Cancel(flowId, Blank(request.Reason) ?? "Cancelled from Tasks");
+            if (Flows is not { } flows)
+            {
+                await Show(State.WithStatus("Could not cancel: flows index unavailable."));
+                return;
+            }
+
+            await flows.Cancel(flowId, Blank(request.Reason) ?? "Cancelled from Tasks");
             await Show(State.WithStatus($"Cancelled {flowId}"));
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -351,7 +373,13 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
         try
         {
-            await Get<IFlows>(FlowsKey).Relate(flowId, new FlowRelation(target, kind, lag));
+            if (Flows is not { } flows)
+            {
+                await Show(State.WithStatus("Could not relate: flows index unavailable."));
+                return;
+            }
+
+            await flows.Relate(flowId, new FlowRelation(target, kind, lag));
             await Show(State.WithStatus($"Related {kind}"));
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -381,7 +409,10 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
         var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOrKey(flowId);
-        await Get<IFocus>(IFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
+        if (Focus is { } focus)
+        {
+            await focus.Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
+        }
         await Show(State.WithStatus($"Asked Ino to change {alias}"));
         await SyncUiNeuronsAsync();
     }
@@ -548,7 +579,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             : string.Create(CultureInfo.InvariantCulture, $"Fix GitHub issue #{issueNumber} in {repoLabel}: {issueTitle}\n\n{boundedEvidence}");
 
         string escalatedFlowId;
-        if (TryGetOptional<IFlows>(FlowsKey) is { } flows)
+        if (Flows is { } flows)
         {
             try
             {
@@ -631,7 +662,19 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     public async Task OnField(string field, FieldChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        var value = (await Get<IField>(FieldKey(field)).Read()).Value ?? "";
+        var slot = field switch
+        {
+            "title" => TitleField,
+            "description" => DescriptionField,
+            "lag" => LagField,
+            _ => null,
+        };
+        if (slot is null)
+        {
+            return;
+        }
+
+        var value = (await slot.Read()).Value ?? "";
         await Show(State.UpdateDraftField(field, value));
     }
 
@@ -670,7 +713,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         {
             var selectedId = changed.SelectedCardId.Trim();
             if (!State.Tasks.Any(t => string.Equals(t.Id, selectedId, StringComparison.Ordinal))
-                && TryGetOptional<IKanbanBoard>(KanbanKey) is { } kanban)
+                && Kanban is { } kanban)
             {
                 var boardState = await kanban.Read();
                 if (boardState.Cards.FirstOrDefault(c => string.Equals(c.Id, selectedId, StringComparison.Ordinal)) is { } newCard)
@@ -794,22 +837,28 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
     private async Task RefreshFlowsAndSyncAsync()
     {
-        try
+        if (Flows is { } flows)
         {
-            _flows = await Get<IFlows>(FlowsKey).List(State.Query);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            _logger.LogSwallowed(error, "The flows index is optional; the board shows workspace tasks and last read flows.");
+            try
+            {
+                _flows = await flows.List(State.Query);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "The flows index is optional; the board shows workspace tasks and last read flows.");
+            }
         }
 
-        try
+        if (Approvals is { } approvals)
         {
-            _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()];
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            _logger.LogSwallowed(error, "Approvals are optional when the inbox is not reachable.");
+            try
+            {
+                _approvals = [.. await approvals.Pending()];
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "Approvals are optional when the inbox is not reachable.");
+            }
         }
 
         _confirmations = await TryReadConfirmationsAsync();
@@ -822,10 +871,14 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
     private async Task<ConfirmationRequested[]> TryReadConfirmationsAsync()
     {
+        if (ConfirmationInbox is not { } confirmationInbox)
+        {
+            return [];
+        }
+
         try
         {
-            var inboxId = new NeuronId(Id.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey);
-            var inbox = await Context.Get<IConfirmationInbox>(inboxId).Read();
+            var inbox = await confirmationInbox.Read();
             var now = NowUtc();
             return [.. inbox.Pending.Where(p => p.ExpiresAt > now)];
         }
@@ -840,10 +893,15 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
     private async Task<DeployedSource?> UnitOfAsync(string flowId)
     {
+        if (SynapseStudio is not { } studio)
+        {
+            return null;
+        }
+
         var keys = new[] { AliasOf(flowId), FlowKey(flowId) }.OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
         try
         {
-            var units = await Get<ISynapseStudio>(SynapsesKey).List();
+            var units = await studio.List();
             return units.FirstOrDefault(u => keys.Any(key => u.SourceKey == key || u.Aliases.Contains(key, StringComparer.Ordinal)));
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -879,17 +937,23 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
     private async Task<string> FilesOfAsync(string alias)
     {
-        var studio = Get<ISynapseStudio>(SynapsesKey);
         Dictionary<string, string> files = new(StringComparer.Ordinal);
         var unavailable = false;
-        try
+        if (SynapseStudio is { } studio)
         {
-            foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
-            foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
+            try
+            {
+                foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
+                foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(error, "The unit's files are optional; the source shows what was read.");
+                unavailable = true;
+            }
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        else
         {
-            _logger.LogSwallowed(error, "The unit's files are optional; the source shows what was read.");
             unavailable = true;
         }
 
@@ -902,9 +966,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     }
 
     private DateTimeOffset NowUtc() => CurrentUtcNow(Time ?? _injectedTime);
-
-    private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, _logger);
 
     private Task TryFollowOptionalAsync<TNeuron, TSignal>(string key)
         where TNeuron : class

@@ -55,7 +55,7 @@ public sealed partial class TasksApp
             var state = State;
             var visible = state.FilteredTasks(_flows);
 
-            if (TryGetOptional<ICommandBar>(CommandBarKey) is { } cmdBar)
+            if (CommandBar is { } cmdBar)
             {
                 await cmdBar.Configure(
                 [
@@ -66,7 +66,7 @@ public sealed partial class TasksApp
                 ]);
             }
 
-            if (!skipTabsConfigure && TryGetOptional<ITabs>(TabsKey) is { } tabs)
+            if (!skipTabsConfigure && Tabs is { } tabs)
             {
                 var currentTabs = await tabs.Read();
                 var targetUiTab = TasksWorkspaceState.UiTabId(state.ActiveTab);
@@ -82,7 +82,7 @@ public sealed partial class TasksApp
                 }
             }
 
-            if (!skipStepperConfigure && TryGetOptional<IStepper>(StepperKey) is { } stepper)
+            if (!skipStepperConfigure && Stepper is { } stepper)
             {
                 var currentStepper = await stepper.Read();
                 var steps = BuildStepperSteps(state);
@@ -101,7 +101,7 @@ public sealed partial class TasksApp
                 }
             }
 
-            if (!skipKanbanConfigure && TryGetOptional<IKanbanBoard>(KanbanKey) is { } kanban)
+            if (!skipKanbanConfigure && Kanban is { } kanban)
             {
                 var currentKanban = await kanban.Read();
                 KanbanColumn[] cols =
@@ -123,7 +123,7 @@ public sealed partial class TasksApp
                 }
             }
 
-            if (TryGetOptional<ITable>(TableKey) is { } table)
+            if (Table is { } table)
             {
                 await table.Render(
                     "Workspace Tasks & Brain Flows",

@@ -199,7 +199,7 @@ public sealed partial class EngineerApp
             return basis;
         }
 
-        if (TryGetOptional<IFlows>(FlowsKey) is not { } flows)
+        if (Flows is not { } flows)
         {
             return basis;
         }
@@ -238,7 +238,7 @@ public sealed partial class EngineerApp
             return await SyncFromLiveFlowAsync(basis, basis.ActiveFlowId!);
         }
 
-        if (TryGetOptional<IFlows>(FlowsKey) is not { } flows)
+        if (Flows is not { } flows)
         {
             return basis;
         }
@@ -263,7 +263,7 @@ public sealed partial class EngineerApp
 
     private async Task<EngineerWorkspaceState> SyncFromLiveFlowAsync(EngineerWorkspaceState basis, string flowId)
     {
-        if (TryGetOptional<IFlows>(FlowsKey) is not { } flows)
+        if (Flows is not { } flows)
         {
             return basis;
         }

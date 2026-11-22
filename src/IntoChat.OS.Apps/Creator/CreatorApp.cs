@@ -12,6 +12,7 @@ Right: 5-tab Modules.UI Inspector (State via IPropertyGrid, Source via ICodeEdit
 */
 using System.Globalization;
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
@@ -268,6 +269,22 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";
+
+    [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = ApprovalsKey, Required = false)] private partial IApprovals? Approvals { get; }
+    [Slot(Key = SynapsesKey, Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
+    [Slot(Key = "synapses/definitions", Required = false)] private partial IntoChat.OS.Modules.Apps.Synapses.ISynapseDefinitions? SynapseDefinitions { get; }
+    [Slot(Key = IDebuggerReads.DefaultKey, Required = false)] private partial IDebuggerReads? DebuggerReads { get; }
+    [Slot(Key = ITraceReader.DefaultKey, Required = false)] private partial ITraceReader? TraceReader { get; }
+    [Slot(Key = IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector.DefaultKey, Required = false)] private partial IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector? UiIntrospector { get; }
+    [Slot(Key = "profile", Required = false)] private partial IProfile? Profile { get; }
+    [Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)] private partial IConfirmationInbox? ConfirmationInbox { get; }
+    [Slot(Key = CreatorView.InspectorTabsKey, Required = false)] private partial ITabs? InspectorTabs { get; }
+    [Slot(Key = CreatorView.ReplaySliderKey, Required = false)] private partial ISlider? ReplaySlider { get; }
+    [Slot(Key = CreatorView.ReplayCommandBarKey, Required = false)] private partial ICommandBar? ReplayCommandBar { get; }
+    [Slot(Key = CreatorView.InspectorStateKey, Required = false)] private partial IPropertyGrid? InspectorState { get; }
+    [Slot(Key = CreatorView.InspectorSourceKey, Required = false)] private partial ICodeEditor? InspectorSource { get; }
+    [Slot(Key = CreatorView.InspectorSignalsKey, Required = false)] private partial ITable? InspectorSignals { get; }
     public const int EdgeSignals = 20;
     public const int MaxHops = 2000;
 
@@ -448,7 +465,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         using var budget = new CancellationTokenSource(ScenarioBudget);
         try
         {
-            transcript = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Loaded(alias)
+            transcript = DebuggerReads is { } reads && await reads.Loaded(alias)
                 ? await RunScenarios(alias, await FilesAsync(alias), Blank(request.Name), budget.Token)
                 : $"{alias} is not a loaded unit.";
         }
@@ -521,7 +538,13 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
                 Audience = new Audience.Public(),
             };
 
-            await Get<IProfile>("profile").PublishAppPost(post);
+            if (Profile is not { } profile)
+            {
+                await Show(State with { Status = $"Could not share {alias}: profile neuron unavailable." });
+                return;
+            }
+
+            await profile.PublishAppPost(post);
             await Show(State with { Status = $"Shared {alias} as App-Post post-{alias}" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -583,7 +606,13 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         try
         {
-            await Get<IConfirmationInbox>(IConfirmationInbox.Key(Id.Brain.Value)).Resolve(approvalId, true);
+            if (ConfirmationInbox is not { } inbox)
+            {
+                await Show(State with { Status = $"Could not approve {approvalId}: confirmations inbox unavailable." });
+                return;
+            }
+
+            await inbox.Resolve(approvalId, true);
             await Show(State with { Status = $"Approved {approvalId}" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -604,7 +633,13 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         try
         {
-            await Get<IConfirmationInbox>(IConfirmationInbox.Key(Id.Brain.Value)).Resolve(approvalId, false);
+            if (ConfirmationInbox is not { } inbox)
+            {
+                await Show(State with { Status = $"Could not reject {approvalId}: confirmations inbox unavailable." });
+                return;
+            }
+
+            await inbox.Resolve(approvalId, false);
             await Show(State with { Status = $"Rejected {approvalId}" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -623,16 +658,31 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
     private async Task RefreshAsync()
     {
-        try { _flows = await Get<IFlows>(FlowsKey).List(new FlowQuery()); }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The flows index is optional."); }
-        try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Approvals are optional."); }
-        try { _synapses = await Get<IntoChat.OS.Modules.Apps.Synapses.ISynapseDefinitions>("synapses/definitions").List(); }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Synapse catalog is optional."); }
-        try { _deployedUnits = await Get<ISynapseStudio>(SynapsesKey).List(); }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Synapse studio list is optional."); }
-        try { _topology = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Topology(); }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Topology read is optional."); }
+        if (Flows is { } flows)
+        {
+            try { _flows = await flows.List(new FlowQuery()); }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The flows index is optional."); }
+        }
+        if (Approvals is { } approvals)
+        {
+            try { _approvals = [.. await approvals.Pending()]; }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Approvals are optional."); }
+        }
+        if (SynapseDefinitions is { } synapseDefs)
+        {
+            try { _synapses = await synapseDefs.List(); }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Synapse catalog is optional."); }
+        }
+        if (SynapseStudio is { } studio)
+        {
+            try { _deployedUnits = await studio.List(); }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Synapse studio list is optional."); }
+        }
+        if (DebuggerReads is { } reads)
+        {
+            try { _topology = await reads.Topology(); }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Topology read is optional."); }
+        }
         _topology = _topology with { Flows = _flows };
         await Show(State with { Status = State.Status });
     }
@@ -656,9 +706,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         var stepCount = ReplayScript.Steps(ActiveTimelineHops).Length;
         await Show(State with { ReplayStepCount = stepCount });
     }
-
-    private T? TryGetOptional<T>(string key) where T : class
-        => GetOptional<T>(key, Log);
 
     private Task TryFollowOptionalAsync<TNeuron, TSignal>(string key)
         where TNeuron : class

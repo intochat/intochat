@@ -46,7 +46,7 @@ public sealed partial class EngineerApp
     {
         try
         {
-            if (TryGetOptional<ICommandBar>(CommandBarKey) is { } cmdBar)
+            if (CommandBar is { } cmdBar)
             {
                 await cmdBar.Configure(
                 [
@@ -59,13 +59,13 @@ public sealed partial class EngineerApp
                 ]);
             }
 
-            if (TryGetOptional<IStepper>(StepperKey) is { } stepper)
+            if (Stepper is { } stepper)
             {
                 var stepState = await stepper.Configure(BuildStepperSteps(state), state.CurrentStage, "IntoChat-Engineer Pipeline");
                 _syncedStepperVersion = Math.Max(_syncedStepperVersion, stepState.Version);
             }
 
-            if (TryGetOptional<ITabs>(WorkspaceTabsKey) is { } tabs)
+            if (WorkspaceTabs is { } tabs)
             {
                 var tabState = await tabs.Configure(
                 [
@@ -77,7 +77,7 @@ public sealed partial class EngineerApp
                 _syncedTabsVersion = Math.Max(_syncedTabsVersion, tabState.Version);
             }
 
-            if (TryGetOptional<ITreeView>(WorktreeTreeKey) is { } tree)
+            if (WorktreeTree is { } tree)
             {
                 var nodes = new List<TreeNode>();
                 var expanded = new List<string>();
@@ -106,7 +106,7 @@ public sealed partial class EngineerApp
                 _syncedTreeVersion = Math.Max(_syncedTreeVersion, treeState.Version);
             }
 
-            if (TryGetOptional<ICodeEditor>(CodeEditorKey) is { } editor)
+            if (CodeEditor is { } editor)
             {
                 await editor.Configure(
                     state.SelectedFilePath,
@@ -115,7 +115,7 @@ public sealed partial class EngineerApp
                     readOnly: false);
             }
 
-            if (TryGetOptional<IKanbanBoard>(KanbanKey) is { } kanban)
+            if (Kanban is { } kanban)
             {
                 KanbanColumn[] cols =
                 [
@@ -134,7 +134,7 @@ public sealed partial class EngineerApp
                 await kanban.Configure("Engineer Task Graph", cols, cards, state.Tasks.FirstOrDefault()?.Id);
             }
 
-            if (TryGetOptional<ITable>(TasksTableKey) is { } table)
+            if (TasksTable is { } table)
             {
                 if (state.ActiveTab == "pr")
                 {
@@ -234,7 +234,7 @@ public sealed partial class EngineerApp
                 }
             }
 
-            if (TryGetOptional<IChatThread>(BrainstormChatKey) is { } chat)
+            if (BrainstormChat is { } chat)
             {
                 var chatSig = string.Create(CultureInfo.InvariantCulture, $"{state.ActiveRunId}:{state.BrainstormTurns.Length}:{state.Goal}");
                 if (_lastSyncedChatSignature != chatSig)
