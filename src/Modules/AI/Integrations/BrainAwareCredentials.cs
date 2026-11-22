@@ -10,12 +10,18 @@ namespace IntoChat.OS.Modules.AI;
 // Whether a brain holds its own key for a provider, cached per (brain, integration) and revalidated
 // against the brain's entry version, so a Put or Remove takes effect on the next check. Only the
 // boolean is cached; the key itself is released per client build and never kept.
-internal sealed class BrainKeyAvailability(IGrainFactory grains, IAiCredentials credentials)
+internal sealed class BrainKeyAvailability(IAiCredentials credentials, IGrainFactory? grains = null)
 {
     private readonly ConcurrentDictionary<(string Brain, string Integration), (bool HasKey, long Version)> _known = new();
 
     public async Task<(bool HasKey, long Version)> Read(string brainId, AiProvider provider, CancellationToken ct)
     {
+        if (grains is null)
+        {
+            var hasKey = await credentials.BrainKey(brainId, provider, ct).ConfigureAwait(false) is { Length: > 0 };
+            return (hasKey, 0);
+        }
+
         var version = await grains.GetGrain<IBrainEntries>(brainId).Version().WaitAsync(ct).ConfigureAwait(false);
         var slot = (brainId, AiIntegrations.IdOf(provider));
         if (_known.TryGetValue(slot, out var known) && known.Version == version) { return known; }

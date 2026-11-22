@@ -7,7 +7,7 @@ namespace DigitalBrain.Testing;
 /// </summary>
 public sealed class FakeSet
 {
-    private readonly List<(Type EdgeType, object Instance)> _registrations = [];
+    private readonly List<Action<IServiceCollection>> _actions = [];
     private readonly Dictionary<Type, object> _byFakeType = [];
 
     /// <summary>Registers <paramref name="fake"/> as the singleton implementation of <typeparamref name="TEdge"/>.</summary>
@@ -16,8 +16,26 @@ public sealed class FakeSet
         where TFake : class, TEdge
     {
         ArgumentNullException.ThrowIfNull(fake);
-        _registrations.Add((typeof(TEdge), fake));
+        _actions.Add(services =>
+        {
+            for (var index = services.Count - 1; index >= 0; index--)
+            {
+                if (services[index].ServiceType == typeof(TEdge))
+                {
+                    services.RemoveAt(index);
+                }
+            }
+            services.Add(ServiceDescriptor.Singleton<TEdge>(fake));
+        });
         _byFakeType[typeof(TFake)] = fake;
+        return this;
+    }
+
+    /// <summary>Adds a custom service configuration callback applied to both TestOS and Silo service collections.</summary>
+    public FakeSet Configure(Action<IServiceCollection> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _actions.Add(configure);
         return this;
     }
 
@@ -32,20 +50,13 @@ public sealed class FakeSet
         throw new InvalidOperationException($"No fake of type '{typeof(TFake).FullName ?? typeof(TFake).Name}' was added to this FakeSet.");
     }
 
-    /// <summary>Replaces any existing registrations for each added edge type with its fake singleton.</summary>
+    /// <summary>Applies all registered edge fakes and service configurations to <paramref name="services"/> in registration order.</summary>
     public void Apply(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        foreach (var (edgeType, instance) in _registrations)
+        foreach (var action in _actions)
         {
-            for (var index = services.Count - 1; index >= 0; index--)
-            {
-                if (services[index].ServiceType == edgeType)
-                {
-                    services.RemoveAt(index);
-                }
-            }
-            services.Add(ServiceDescriptor.Singleton(edgeType, instance));
+            action(services);
         }
     }
 }

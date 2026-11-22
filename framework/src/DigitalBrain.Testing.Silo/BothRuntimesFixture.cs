@@ -67,7 +67,7 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         }
         return kind switch
         {
-            NeuronRuntimeKind.TestOS => TestOSRuntime.Start(Brain, modules, TestOSServices()),
+            NeuronRuntimeKind.TestOS => TestOSRuntime.Start(Brain, modules, ConfigureTestOS),
             NeuronRuntimeKind.Silo => await SiloRuntime.Start(Brain, modules, services => { ConfigureSilo(services); siloServices?.Invoke(services); },
                 SiloConfiguration, home, ct).ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
@@ -83,23 +83,23 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         GC.SuppressFinalize(this);
     }
 
-    private ServiceProvider? TestOSServices()
-    {
-        var services = new ServiceCollection();
-        ConfigureTestOS(services);
-        return services.Count == 0 ? null : services.BuildServiceProvider();
-    }
-
     internal static string AliasOf(Type signal) => signal.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!;
 
-    private sealed class TestOSRuntime(TestOS os, BrainId brain) : INeuronRuntime
+    private sealed class TestOSRuntime(TestOS os, BrainId brain, ServiceProvider serviceRoot) : INeuronRuntime
     {
-        public static TestOSRuntime Start(BrainId brain, IReadOnlyList<Type> modules, IServiceProvider? services = null)
+        public static TestOSRuntime Start(BrainId brain, IReadOnlyList<Type> modules, Action<IServiceCollection> configure)
         {
-            var os = TestOS.Local(options => options.Services = services);
+            TestOS? os = null;
+            var services = new ServiceCollection();
+            services.AddSingleton(_ => os!.Edge);
+            services.AddSingleton(_ => os!.Callers);
+            services.AddSingleton(_ => os!.Proxies);
+            configure(services);
+            var serviceRoot = services.BuildServiceProvider();
+            os = TestOS.Local(options => options.Services = serviceRoot);
             os.Register(typeof(Signal).Assembly);
             foreach (var assembly in modules.Select(module => module.Assembly).Distinct()) { os.Register(assembly); }
-            return new TestOSRuntime(os, brain);
+            return new TestOSRuntime(os, brain, serviceRoot);
         }
 
         public NeuronRuntimeKind Kind => NeuronRuntimeKind.TestOS;
@@ -127,7 +127,11 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public Task Restart(CancellationToken ct) => os.Restart();
 
-        public ValueTask DisposeAsync() => os.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            await os.DisposeAsync().ConfigureAwait(false);
+            await serviceRoot.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     private sealed class SiloRuntime(IInProcessHost host, BrainId brain) : INeuronRuntime

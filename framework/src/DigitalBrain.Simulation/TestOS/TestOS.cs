@@ -129,9 +129,10 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         Access = new AccessGate(TestCallerAmbient.Instance);
         DigitalBrain.Brains.CallerAdmission.Register(TestCallerAmbient.Instance);
         Edge = new EdgeAuthority(TestCallerAmbient.Instance);
+        Proxies = new TestNeuronProxies(this);
         Confirmations = new TestConfirmations(this);
         AskProgress = new AskProgressHub(Clock);
-        Services = new TestOSServices(Capabilities, options.Services ?? EmptyServices.Instance, new TestInstallHooks(this), new TestSlotResolver(this), Source, () => [.. _actions.Values], () => Loader, () => Resolver, () => LiveBindings, () => _compiler.Value, () => Synapses, () => new DigitalBrain.Confirmation.ConfirmationPolicies { DefaultPolicy = Confirmations.Policy }, AskProgress);
+        Services = new TestOSServices(Capabilities, options.Services ?? EmptyServices.Instance, new TestInstallHooks(this), new TestSlotResolver(this), Source, () => [.. _actions.Values], () => Loader, () => Resolver, () => LiveBindings, () => _compiler.Value, () => Synapses, () => new DigitalBrain.Confirmation.ConfirmationPolicies { DefaultPolicy = Confirmations.Policy }, AskProgress, Edge, Callers, Proxies);
         Register<InstallsNeuron>();
         Register<SourcesNeuron>();
         Register<PoliciesNeuron>();
@@ -218,6 +219,9 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 
     /// <summary>The ambient the stamped caller of a call on this TestOS is read from (what ports and capabilities read).</summary>
     public ICallerAmbient Callers { get; } = TestCallerAmbient.Instance;
+
+    /// <summary>Typed proxies to neurons hosted on this TestOS.</summary>
+    public INeuronProxies Proxies { get; }
 
     /// <summary>The access admission gate of this TestOS.</summary>
     internal AccessGate Access { get; }
@@ -693,6 +697,11 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         }
 
         private RuntimeInvocation Stamp(RuntimeInvocation call) => call with { Behavior = caller?.ToString() ?? string.Empty };
+    }
+
+    private sealed class TestNeuronProxies(TestOS os) : INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
     }
 
     private sealed class EmptyServices : IServiceProvider

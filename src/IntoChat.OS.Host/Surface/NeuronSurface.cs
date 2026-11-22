@@ -221,14 +221,20 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
     // the brain's reason, not a reflection wrapper, so it can switch to the hit's own contract.
     private object Neuron(Type contract, string key)
     {
+        if (brain is not null)
+        {
+            try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [ResolveId(contract, key)])!; }
+            catch (ArgumentException error)
+            { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.Message}", error); }
+            catch (TargetInvocationException error) when (error.InnerException is not null)
+            { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
+        }
         if (DigitalBrain.Contracts.PlainNeuronContracts.Is(contract))
         {
             try { return SiloNeurons.Get(Plain(), contract, ResolveId(contract, key)); }
             catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.Message}", error); }
         }
-        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [ResolveId(contract, key)])!; }
-        catch (TargetInvocationException error) when (error.InnerException is not null)
-        { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
+        throw new NotSupportedException("This host cannot reach neurons: it registers no INeuronProxies.");
     }
 
     private static DigitalBrain.NeuronId ResolveId(Type contract, string fullKey)

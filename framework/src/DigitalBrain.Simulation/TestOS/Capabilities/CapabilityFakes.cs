@@ -161,7 +161,10 @@ internal sealed class TestOSServices(
     Func<DigitalBrain.Runtime.Synapses.SynapseCompiler>? compiler = null,
     Func<ISynapseHost>? host = null,
     Func<DigitalBrain.Confirmation.ConfirmationPolicies>? confirmationPolicies = null,
-    IAskProgress? askProgress = null)
+    IAskProgress? askProgress = null,
+    DigitalBrain.Access.EdgeAuthority? edge = null,
+    DigitalBrain.Access.ICallerAmbient? callers = null,
+    DigitalBrain.Neurons.INeuronProxies? proxies = null)
     : IServiceProvider, ICapabilityBroker
 {
     public object? GetService(Type serviceType)
@@ -170,6 +173,9 @@ internal sealed class TestOSServices(
         if (serviceType == typeof(ICapabilityBroker)) { return this; }
         if (serviceType == typeof(CapabilityFakes)) { return fakes; }
         if (serviceType == typeof(ISynapseCatalogSource)) { return catalog; }
+        if (serviceType == typeof(DigitalBrain.Access.EdgeAuthority)) { return inner.GetService(serviceType) ?? edge; }
+        if (serviceType == typeof(DigitalBrain.Access.ICallerAmbient)) { return inner.GetService(serviceType) ?? callers; }
+        if (serviceType == typeof(DigitalBrain.Neurons.INeuronProxies)) { return inner.GetService(serviceType) ?? proxies; }
         if (serviceType == typeof(IAskProgress) || serviceType == typeof(AskProgressHub)) { return inner.GetService(serviceType) ?? askProgress; }
         if (serviceType == typeof(IReadOnlyList<ActionDescriptor>)) { return inner.GetService(serviceType) ?? actions(); }
         if (serviceType == typeof(DigitalBrain.Units.ISlotResolver)) { return inner.GetService(serviceType) ?? slots; }

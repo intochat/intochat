@@ -1,5 +1,6 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Postgres;
@@ -16,6 +17,7 @@ public static class Journey
     /// <summary>The vertical-slice OS modules hosted by journey tests.</summary>
     public static readonly Type[] SliceModules =
     [
+        typeof(AIModule),
         typeof(AppsModule),
         typeof(PostgresModule),
         typeof(WebModule),
