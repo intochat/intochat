@@ -143,11 +143,16 @@ public sealed class SlotGenerator : IIncrementalGenerator
         for (var current = owner; current is not null; current = current.ContainingType)
         {
             var kind = current.IsRecord ? "record class" : "class";
-            chain.Add(new TypeDeclModel(kind, current.Name));
+            var declName = current.IsGenericType
+                ? current.Name + "<" + string.Join(", ", current.TypeParameters.Select(static tp => tp.Name)) + ">"
+                : current.Name;
+            chain.Add(new TypeDeclModel(kind, declName));
         }
         chain.Reverse();
 
-        var isAccessible = IsAccessibleOwner(owner) && !owner.IsStatic && IsAccessibleForTypeOf(property.Type);
+        var isNullable = property.Type.NullableAnnotation == NullableAnnotation.Annotated;
+        var contractType = property.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        var isAccessible = IsAccessibleOwner(owner) && !owner.IsStatic && IsAccessibleForTypeOf(contractType);
 
         return new SlotPropertyModel(
             ns,
@@ -158,10 +163,11 @@ public sealed class SlotGenerator : IIncrementalGenerator
             operations,
             property.Name,
             AccessibilityKeyword(property.DeclaredAccessibility),
-            property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            contractType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             slotName,
             key,
             required,
+            isNullable,
             isPartial,
             isAccessible);
     }
@@ -200,7 +206,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             isStatic: false,
             face: null,
             operations: ImmutableArray<OperationModel>.Empty,
-            provides: provides);
+            provides: provides,
+            inheritedSlots: ImmutableArray<SlotPropertyModel>.Empty);
     }
 
     private static ComponentEntryModel? ExtractScreen(GeneratorSyntaxContext context, CancellationToken cancellationToken)
@@ -220,7 +227,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
         }
 
         var face = ExtractFace(owner);
-        if (face is null)
+        var inheritedSlots = ExtractInheritedSlots(owner);
+        if (face is null && inheritedSlots.IsEmpty)
         {
             return null;
         }
@@ -235,7 +243,92 @@ public sealed class SlotGenerator : IIncrementalGenerator
             isStatic: false,
             face: face,
             operations: operations,
-            provides: ImmutableArray<string>.Empty);
+            provides: ImmutableArray<string>.Empty,
+            inheritedSlots: inheritedSlots);
+    }
+
+    private static ImmutableArray<SlotPropertyModel> ExtractInheritedSlots(INamedTypeSymbol owner)
+    {
+        var builder = ImmutableArray.CreateBuilder<SlotPropertyModel>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var baseType = owner.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            foreach (var member in baseType.GetMembers())
+            {
+                if (member is not IPropertySymbol property || property.IsStatic)
+                {
+                    continue;
+                }
+
+                AttributeData? slotAttr = null;
+                foreach (var attr in property.GetAttributes())
+                {
+                    if (Rules.FullName(attr.AttributeClass) == "DigitalBrain.SlotAttribute")
+                    {
+                        slotAttr = attr;
+                        break;
+                    }
+                }
+
+                if (slotAttr is null)
+                {
+                    continue;
+                }
+
+                string? explicitName = null;
+                string? key = null;
+                var required = true;
+
+                foreach (var named in slotAttr.NamedArguments)
+                {
+                    if (string.Equals(named.Key, "Name", StringComparison.Ordinal) && named.Value.Value is string rawName && !string.IsNullOrWhiteSpace(rawName))
+                    {
+                        explicitName = rawName;
+                    }
+                    else if (string.Equals(named.Key, "Key", StringComparison.Ordinal) && named.Value.Value is string rawKey && !string.IsNullOrWhiteSpace(rawKey))
+                    {
+                        key = rawKey;
+                    }
+                    else if (string.Equals(named.Key, "Required", StringComparison.Ordinal) && named.Value.Value is bool rawRequired)
+                    {
+                        required = rawRequired;
+                    }
+                }
+
+                var slotName = explicitName ?? ToCamelCase(property.Name);
+                if (!seen.Add(slotName))
+                {
+                    continue;
+                }
+
+                var isNullable = property.Type.NullableAnnotation == NullableAnnotation.Annotated;
+                var contractType = property.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+                if (!IsAccessibleForTypeOf(contractType))
+                {
+                    continue;
+                }
+
+                builder.Add(new SlotPropertyModel(
+                    string.Empty,
+                    ImmutableArray<TypeDeclModel>.Empty,
+                    owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    string.Empty,
+                    null,
+                    ImmutableArray<OperationModel>.Empty,
+                    property.Name,
+                    AccessibilityKeyword(property.DeclaredAccessibility),
+                    contractType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    slotName,
+                    key,
+                    required,
+                    isNullable,
+                    isPartial: false,
+                    isAccessible: true));
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private static SynapseEntryModel? ExtractSynapse(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
@@ -632,9 +725,9 @@ public sealed class SlotGenerator : IIncrementalGenerator
                         .Append(prop.Accessibility)
                         .Append(" partial ")
                         .Append(prop.ContractFullName)
-                        .Append(' ')
+                        .Append(prop.IsNullable ? "? " : " ")
                         .Append(prop.PropertyName)
-                        .Append(" => Slots.Get<")
+                        .Append(prop.IsNullable ? " => Slots.TryGet<" : " => Slots.Get<")
                         .Append(prop.ContractFullName)
                         .Append(">(")
                         .Append(CSharpLiteral(prop.SlotName))
@@ -708,6 +801,10 @@ public sealed class SlotGenerator : IIncrementalGenerator
             }
             entry.Face ??= screen.Face;
             entry.AddOperations(screen.Operations);
+            foreach (var slot in screen.InheritedSlots)
+            {
+                entry.AddSlot(slot);
+            }
         }
 
         if (!synapses.IsDefaultOrEmpty)
@@ -1080,7 +1177,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
             bool isStatic,
             ComponentFaceModel? face,
             ImmutableArray<OperationModel> operations,
-            ImmutableArray<string> provides)
+            ImmutableArray<string> provides,
+            ImmutableArray<SlotPropertyModel> inheritedSlots)
         {
             OwnerFullName = ownerFullName;
             ComponentId = componentId;
@@ -1089,6 +1187,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             Face = face;
             Operations = operations;
             Provides = provides;
+            InheritedSlots = inheritedSlots;
         }
 
         public string OwnerFullName { get; }
@@ -1098,6 +1197,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public ComponentFaceModel? Face { get; }
         public ImmutableArray<OperationModel> Operations { get; }
         public ImmutableArray<string> Provides { get; }
+        public ImmutableArray<SlotPropertyModel> InheritedSlots { get; }
 
         public bool Equals(ComponentEntryModel? other)
         {
@@ -1108,7 +1208,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || IsStatic != other.IsStatic
                 || !Equals(Face, other.Face)
                 || Operations.Length != other.Operations.Length
-                || Provides.Length != other.Provides.Length)
+                || Provides.Length != other.Provides.Length
+                || InheritedSlots.Length != other.InheritedSlots.Length)
             {
                 return false;
             }
@@ -1119,6 +1220,10 @@ public sealed class SlotGenerator : IIncrementalGenerator
             for (var i = 0; i < Provides.Length; i++)
             {
                 if (!string.Equals(Provides[i], other.Provides[i], StringComparison.Ordinal)) { return false; }
+            }
+            for (var i = 0; i < InheritedSlots.Length; i++)
+            {
+                if (!InheritedSlots[i].Equals(other.InheritedSlots[i])) { return false; }
             }
             return true;
         }
@@ -1135,6 +1240,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ (Face?.GetHashCode() ?? 0);
                 hash = (hash * 397) ^ Operations.Length;
                 hash = (hash * 397) ^ Provides.Length;
+                hash = (hash * 397) ^ InheritedSlots.Length;
                 return hash;
             }
         }
@@ -1199,6 +1305,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             string slotName,
             string? key,
             bool required,
+            bool isNullable,
             bool isPartial,
             bool isAccessible)
         {
@@ -1214,6 +1321,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
             SlotName = slotName;
             Key = key;
             Required = required;
+            IsNullable = isNullable;
             IsPartial = isPartial;
             IsAccessible = isAccessible;
         }
@@ -1230,6 +1338,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
         public string SlotName { get; }
         public string? Key { get; }
         public bool Required { get; }
+        public bool IsNullable { get; }
         public bool IsPartial { get; }
         public bool IsAccessible { get; }
 
@@ -1247,6 +1356,7 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 || !string.Equals(SlotName, other.SlotName, StringComparison.Ordinal)
                 || !string.Equals(Key, other.Key, StringComparison.Ordinal)
                 || Required != other.Required
+                || IsNullable != other.IsNullable
                 || IsPartial != other.IsPartial
                 || IsAccessible != other.IsAccessible
                 || TypeChain.Length != other.TypeChain.Length)

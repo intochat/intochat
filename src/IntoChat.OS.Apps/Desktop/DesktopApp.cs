@@ -75,7 +75,7 @@ public sealed record DesktopSettings : Signal;
 
 [Neuron("app.desktop")]
 [Screen("app.desktop", Title = "Desktop", Icon = Icons.LayoutGrid)]
-public sealed class DesktopApp : AggregateScreen<DesktopAppState>
+public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
 {
     private static readonly ILogger ConsoleLog = IntoChat.OS.Host.Logging.OsConsoleLog.For<DesktopApp>();
     private ILogger<DesktopApp>? InjectedLogger { get; }
@@ -128,7 +128,13 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
     };
 
-    private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
+    [Slot(Key = IDesktopRecords.Key, Required = false)] private partial IDesktopRecords? Records { get; }
+    [Slot(Key = "apps/ino", Required = false)] private partial IApp? InoApp { get; }
+    [Slot(Key = "app.ino", Required = false)] private partial IScreen? InoScreen { get; }
+    [Slot(Required = false)] private partial IUserSettings? UserSettings { get; }
+    [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads? DebuggerReads { get; }
+    [Slot(Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
+    [Slot(Key = "main", Required = false)] private partial IWorkspace? Workspace { get; }
 
     public static readonly IReadOnlyList<string> DefaultDockApps =
         ["ino", "photocraft", "filmcraft", "markdraw", "creator", "files", "settings"];
@@ -263,28 +269,42 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var layout = "smart-desktop";
-        try
+        if (Records is { } recordsSlot)
         {
-            var records = await Records.Read();
-            if (records.Layout is { Length: > 0 }) { layout = DesktopAppState.NormalizeLayoutMode(records.Layout); }
-            if (!records.Greeted)
+            try
             {
-                try
+                var records = await recordsSlot.Read();
+                if (records.Layout is { Length: > 0 }) { layout = DesktopAppState.NormalizeLayoutMode(records.Layout); }
+                if (!records.Greeted)
                 {
-                    try { await Get<IApp>("apps/ino").Request("open", "greet"); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                    try
                     {
-                        Log.LogSwallowed(fallbackEx, "Falling back to app.ino screen for desktop greet.");
-                        await Get<IScreen>("app.ino").Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement("greet", typeof(string)));
+                        var greeted = false;
+                        if (InoApp is { } inoApp)
+                        {
+                            try
+                            {
+                                await inoApp.Request("open", "greet");
+                                greeted = true;
+                            }
+                            catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                            {
+                                Log.LogSwallowed(fallbackEx, "Falling back to app.ino screen for desktop greet.");
+                            }
+                        }
+                        if (!greeted && InoScreen is { } inoScreen)
+                        {
+                            await inoScreen.Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement("greet", typeof(string)));
+                        }
                     }
+                    catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
+                    await recordsSlot.Write(records with { Greeted = true });
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
-                await Records.Write(records with { Greeted = true });
             }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            }
         }
         await SyncSmartDesktopAsync(layout, State.IsNarrow);
     }
@@ -300,17 +320,20 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         }
 
         var id = DesktopAppState.NormalizeWidgetId(request.Widget)!;
-        try
+        if (Records is { } recordsSlot)
         {
-            var records = await Records.Read();
-            if (!records.Widgets.Contains(id, StringComparer.Ordinal))
+            try
             {
-                await Records.Write(records with { Widgets = [.. records.Widgets, id] });
+                var records = await recordsSlot.Read();
+                if (!records.Widgets.Contains(id, StringComparer.Ordinal))
+                {
+                    await recordsSlot.Write(records with { Widgets = [.. records.Widgets, id] });
+                }
             }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            }
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -326,25 +349,33 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         }
 
         var id = DesktopAppState.NormalizeWidgetId(request.Widget)!;
-        try
+        if (Records is { } recordsSlot)
         {
-            var records = await Records.Read();
-            if (Decision.Check("widget-close", DesktopAppState.WidgetOpenInRule(records.Widgets, id)) is { } missing)
+            try
             {
-                await RecordRejectionAsync(missing.Rejection);
-                return;
-            }
+                var records = await recordsSlot.Read();
+                if (Decision.Check("widget-close", DesktopAppState.WidgetOpenInRule(records.Widgets, id)) is { } missing)
+                {
+                    await RecordRejectionAsync(missing.Rejection);
+                    return;
+                }
 
-            await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] });
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
-            if (Decision.Check("widget-close", State.WidgetOpenRule(id)) is { } fallbackMissing)
-            {
-                await RecordRejectionAsync(fallbackMissing.Rejection);
-                return;
+                await recordsSlot.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] });
             }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+                if (Decision.Check("widget-close", State.WidgetOpenRule(id)) is { } fallbackMissing)
+                {
+                    await RecordRejectionAsync(fallbackMissing.Rejection);
+                    return;
+                }
+            }
+        }
+        else if (Decision.Check("widget-close", State.WidgetOpenRule(id)) is { } fallbackMissing)
+        {
+            await RecordRejectionAsync(fallbackMissing.Rejection);
+            return;
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -354,13 +385,16 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var nextLayout = State.ToggleLayoutMode().LayoutMode;
-        try
+        if (Records is { } recordsSlot)
         {
-            await Records.Write(await Records.Read() with { Layout = nextLayout });
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            try
+            {
+                await recordsSlot.Write(await recordsSlot.Read() with { Layout = nextLayout });
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            }
         }
         await SyncSmartDesktopAsync(nextLayout, State.IsNarrow);
     }
@@ -688,7 +722,7 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         var normalizedLayout = DesktopAppState.NormalizeLayoutMode(layoutMode);
         var preset = State.StylePreset;
         var barLayout = State.BarLayout;
-        if (TryGetOptional<IUserSettings>("settings") is { } settings)
+        if (UserSettings is { } settings)
         {
             try
             {
@@ -700,57 +734,69 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         }
 
         var activeNeurons = 10;
-        try
+        if (DebuggerReads is { } debuggerReads)
         {
-            var topology = await Get<IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads>("creator/reads").Topology();
-            if (topology.Nodes.Count > 0) { activeNeurons = topology.Nodes.Count; }
+            try
+            {
+                var topology = await debuggerReads.Topology();
+                if (topology.Nodes.Count > 0) { activeNeurons = topology.Nodes.Count; }
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "DebuggerReads is optional."); }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "DebuggerReads is optional."); }
 
         string[] deployedUnits = State.DeployedUnits ?? [];
-        try
+        if (SynapseStudio is { } synapseStudio)
         {
-            var units = await Get<ISynapseStudio>("ino/synapses").List();
-            deployedUnits = units
-                .Select(u => u.Aliases.FirstOrDefault() ?? u.SourceKey)
-                .Where(alias => !string.IsNullOrWhiteSpace(alias))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (units.Length > 0 && activeNeurons == 10) { activeNeurons += units.Length; }
+            try
+            {
+                var units = await synapseStudio.List();
+                deployedUnits = units
+                    .Select(u => u.Aliases.FirstOrDefault() ?? u.SourceKey)
+                    .Where(alias => !string.IsNullOrWhiteSpace(alias))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                if (units.Length > 0 && activeNeurons == 10) { activeNeurons += units.Length; }
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "SynapseStudio is optional."); }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "SynapseStudio is optional."); }
 
         var windows = State.Windows ?? [];
         var pins = State.Pins ?? [];
         var favs = State.Favourites ?? [];
         var focusedViewId = State.FocusedViewId;
-        try
+        if (Workspace is { } workspace)
         {
-            var ws = await Get<IWorkspace>("main").Read();
-            windows = ws.Windows.Take(DesktopAppState.MaxWindows).ToArray();
-            pins = ws.Pins
-                .Where(static p => !string.Equals(p.Id, "desktop", StringComparison.OrdinalIgnoreCase))
-                .Take(DesktopAppState.MaxPins)
-                .ToArray();
-            favs = ws.Favourites.Take(DesktopAppState.MaxFavourites).ToArray();
-            focusedViewId = windows.Length == 0
-                ? null
-                : windows.Any(w => (w.Tabs ?? []).Any(t => string.Equals(t.Id, ws.FocusedViewId, StringComparison.Ordinal)))
-                    ? ws.FocusedViewId
-                    : windows[^1].ActiveTabId;
+            try
+            {
+                var ws = await workspace.Read();
+                windows = ws.Windows.Take(DesktopAppState.MaxWindows).ToArray();
+                pins = ws.Pins
+                    .Where(static p => !string.Equals(p.Id, "desktop", StringComparison.OrdinalIgnoreCase))
+                    .Take(DesktopAppState.MaxPins)
+                    .ToArray();
+                favs = ws.Favourites.Take(DesktopAppState.MaxFavourites).ToArray();
+                focusedViewId = windows.Length == 0
+                    ? null
+                    : windows.Any(w => (w.Tabs ?? []).Any(t => string.Equals(t.Id, ws.FocusedViewId, StringComparison.Ordinal)))
+                        ? ws.FocusedViewId
+                        : windows[^1].ActiveTabId;
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Workspace is optional."); }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Workspace is optional."); }
 
         await SyncWindowViewportsAsync(windows);
 
         var widgetsText = "";
-        try
+        if (Records is { } recordsSlot)
         {
-            var records = await Records.Read();
-            widgetsText = string.Join(" · ", records.Widgets);
+            try
+            {
+                var records = await recordsSlot.Read();
+                widgetsText = string.Join(" · ", records.Widgets);
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Records is optional."); }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Records is optional."); }
 
         var pinnedApps = pins.Length > 0
             ? pins.Select(p => p.Id)
@@ -787,40 +833,46 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         IReadOnlyList<string> closedWindowIds = [];
         Rejected? rejected = null;
         var workspaceAvailable = false;
-        try
+        if (Workspace is { } workspace)
         {
-            var workspace = Get<IWorkspace>("main");
-            for (var attempt = 0; attempt < 2; attempt++)
+            try
             {
-                var wsState = await workspace.Read();
-                workspaceAvailable = true;
-                if (validateWorkspace?.Invoke(wsState) is { } wsRejection)
+                for (var attempt = 0; attempt < 2; attempt++)
                 {
-                    rejected = wsRejection;
-                    break;
-                }
+                    var wsState = await workspace.Read();
+                    workspaceAvailable = true;
+                    if (validateWorkspace?.Invoke(wsState) is { } wsRejection)
+                    {
+                        rejected = wsRejection;
+                        break;
+                    }
 
-                var (update, closed) = change(wsState);
-                closedWindowIds = closed;
-                if (update is null) { break; }
-                try
-                {
-                    await workspace.Apply(update, $"desktop:{Guid.NewGuid():N}:{attempt}", wsState.Revision);
-                    break;
+                    var (update, closed) = change(wsState);
+                    closedWindowIds = closed;
+                    if (update is null) { break; }
+                    try
+                    {
+                        await workspace.Apply(update, $"desktop:{Guid.NewGuid():N}:{attempt}", wsState.Revision);
+                        break;
+                    }
+                    catch (RevisionConflictException ex) when (attempt == 0)
+                    {
+                        Log.LogSwallowed(ex, "Workspace revision conflict on initial attempt; retrying.");
+                    }
                 }
-                catch (RevisionConflictException ex) when (attempt == 0)
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "Workspace is optional.");
+                if (!workspaceAvailable && validateStandalone is not null)
                 {
-                    Log.LogSwallowed(ex, "Workspace revision conflict on initial attempt; retrying.");
+                    rejected = validateStandalone();
                 }
             }
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        else if (validateStandalone is not null)
         {
-            Log.LogSwallowed(error, "Workspace is optional.");
-            if (!workspaceAvailable && validateStandalone is not null)
-            {
-                rejected = validateStandalone();
-            }
+            rejected = validateStandalone();
         }
 
         if (rejected is not null)
@@ -879,16 +931,6 @@ public sealed class DesktopApp : AggregateScreen<DesktopAppState>
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.LogSwallowed(ex, failureContext);
-        }
-    }
-
-    private T? TryGetOptional<T>(string key) where T : class
-    {
-        try { return Get<T>(key); }
-        catch (InvalidOperationException error)
-        {
-            Log.LogSwallowed(error, $"{typeof(T).Name} is optional when DesktopApp runs in baseline tests.");
-            return null;
         }
     }
 }

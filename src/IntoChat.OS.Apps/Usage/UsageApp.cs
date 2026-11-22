@@ -76,8 +76,12 @@ public sealed record UsageAppState(
 }
 
 [Neuron("app.usage"), Screen("app.usage", Title = "Usage")]
-public sealed class UsageApp : AggregateScreen<UsageAppState>
+public sealed partial class UsageApp : AggregateScreen<UsageAppState>
 {
+    public const string UsageSpendChartKey = "usage/charts/spend";
+
+    [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
+    [Slot(Key = UsageSpendChartKey, Required = false)] private partial IntoChat.OS.Modules.UI.Chart.IChart? SpendChart { get; }
     public static AppBundle Bundle { get; } = new(
         "usage",
         "1.0.0",
@@ -139,9 +143,14 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
     public async Task UpdateBudgetCapAsync(long cap)
     {
         if (State.ValidBudgetCap(cap).Broken) { await ApplyDecisionAsync(State.ApplyBudgetCap(cap)); return; }
+        if (Compute is not { } computeSlot)
+        {
+            await ApplyDecisionAsync(State.ApplyBudgetCap(cap));
+            return;
+        }
         try
         {
-            var compute = await Get<ICompute>("compute").SetBudget(cap);
+            var compute = await computeSlot.SetBudget(cap);
             await Show(State.ApplySnapshot(compute, $"Updated monthly cap to {FormatUsd(compute.MonthlyBudgetMicros)}. Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)}."));
         }
         catch (Exception ex)
@@ -151,31 +160,38 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
         }
     }
 
-    public const string UsageSpendChartKey = "usage/charts/spend";
-
     private async Task ReadComputeAsync(string statusPrefix)
     {
+        if (Compute is not { } computeSlot)
+        {
+            var usd = FormatUsd(State.SpentMicros);
+            await Show(State with { FormattedUsd = usd, Status = $"{statusPrefix} Total: {usd}." });
+            return;
+        }
         try
         {
-            var compute = await Get<ICompute>("compute").Read();
+            var compute = await computeSlot.Read();
             var rows = compute.Rows ?? [];
-            try
+            if (SpendChart is { } chart)
             {
-                await Get<IntoChat.OS.Modules.UI.Chart.IChart>(UsageSpendChartKey).Render(new IntoChat.OS.Modules.UI.Chart.ChartSpec(
-                    Title: "Spend by Surface (USD)",
-                    Kind: IntoChat.OS.Modules.UI.Chart.ChartKinds.Columns,
-                    Series:
-                    [
-                        new IntoChat.OS.Modules.UI.Chart.ChartSeries("Spend",
+                try
+                {
+                    await chart.Render(new IntoChat.OS.Modules.UI.Chart.ChartSpec(
+                        Title: "Spend by Surface (USD)",
+                        Kind: IntoChat.OS.Modules.UI.Chart.ChartKinds.Columns,
+                        Series:
                         [
-                            .. rows.Select(r => new IntoChat.OS.Modules.UI.Chart.ChartPoint(r.Key, Math.Round(r.Micros / 1_000_000d, 2))),
-                        ]),
-                    ],
-                    Description: "Live metered compute spend per surface (last 30 days).",
-                    Prefix: "$",
-                    From: "Compute"));
+                            new IntoChat.OS.Modules.UI.Chart.ChartSeries("Spend",
+                            [
+                                .. rows.Select(r => new IntoChat.OS.Modules.UI.Chart.ChartPoint(r.Key, Math.Round(r.Micros / 1_000_000d, 2))),
+                            ]),
+                        ],
+                        Description: "Live metered compute spend per surface (last 30 days).",
+                        Prefix: "$",
+                        From: "Compute"));
+                }
+                catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Usage IChart sync skipped in minimal test host."); }
             }
-            catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Usage IChart sync skipped in minimal test host."); }
             await Show(State.ApplySnapshot(compute, $"{statusPrefix} Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)} across {rows.Length} surface(s)."));
         }
         catch (Exception ex)

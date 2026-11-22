@@ -9,6 +9,9 @@ public interface ISlotTargetResolver
 {
     /// <summary>Returns a typed interface to <paramref name="target"/>.</summary>
     T Resolve<T>(BindingTarget target) where T : class;
+
+    /// <summary>Returns a typed interface to <paramref name="target"/>, or <c>null</c> when the target neuron type is not registered in this runtime.</summary>
+    T? TryResolve<T>(BindingTarget target) where T : class => Resolve<T>(target);
 }
 
 /// <summary>
@@ -44,6 +47,20 @@ public sealed class Slots
             throw new SlotUnboundException(_component, slot);
         }
         return _resolver.Resolve<T>(binding.Target);
+    }
+
+    /// <summary>
+    /// Returns the resolved proxy or capability for <paramref name="slot"/>, or <c>null</c> when the slot is unbound
+    /// or its target neuron type is not registered in this runtime.
+    /// </summary>
+    public T? TryGet<T>(string slot) where T : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(slot);
+        if (!_bindings.TryGetValue(slot, out var binding))
+        {
+            return null;
+        }
+        return _resolver.TryResolve<T>(binding.Target);
     }
 
     /// <summary>Returns the active <see cref="Binding"/> for <paramref name="slot"/>, or <c>null</c> if unbound.</summary>

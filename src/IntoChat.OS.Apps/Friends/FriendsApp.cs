@@ -64,7 +64,7 @@ public sealed record FriendsForkPost(string PostId = "post-1", string? NewPostId
 public sealed record FriendsFilterScope(string Scope = "all") : Signal;
 
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
-public sealed class FriendsApp : AggregateScreen<FriendsAppState>
+public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 {
     protected override Task OnActivate(CancellationToken cancellationToken)
     {
@@ -126,7 +126,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     public async Task Open(FriendsOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var profile = await Get<IProfile>("profile").Read();
+        var profile = await Profile.Read();
         var roster = await TryReadRosterAsync();
         var scope = FriendsAppState.NormalizeScope(request.Scope, State.SelectedScope);
         var opened = State.ApplyProfile(profile, $"@{profile.Handle} · {roster.Length} friends · {profile.Posts.Length} app-posts", scope, roster);
@@ -151,7 +151,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         var embedded = ParseEmbeddedApps(request.EmbeddedAppIds, CurrentBrainId());
         var (unitSource, unitFiles) = await TryReadUnitTemplateAsync(templateAppId);
 
-        var updated = await Get<IProfile>("profile").PublishAppPost(new ProfilePostItem(
+        var updated = await Profile.PublishAppPost(new ProfilePostItem(
             Id: id,
             Content: content,
             CreatedAt: NowUtc(),
@@ -182,7 +182,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
 
         var handle = FriendsAppState.NormalizeHandleToken(rawHandle);
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? State.DisplayName : request.DisplayName.Trim();
-        var updated = await Get<IProfile>("profile").UpdateProfile(handle, displayName, request.Bio?.Trim() ?? string.Empty, request.PinnedApps ?? State.PinnedApps ?? []);
+        var updated = await Profile.UpdateProfile(handle, displayName, request.Bio?.Trim() ?? string.Empty, request.PinnedApps ?? State.PinnedApps ?? []);
         await Show(State.ApplyProfile(updated, $"Updated personal bio for @{handle}."));
     }
 
@@ -191,9 +191,14 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     public const string TextField = "shared-text";
     public static string FieldKey(string field) => $"apps/friends/{field}";
 
-    private IFriends Friends => Get<IFriends>(FriendsDefaults.KeyPart);
-    private IFileShares Door => Get<IFileShares>(FileSharesDefaults.KeyPart);
-    private ISharedWithMe Mine => Get<ISharedWithMe>(SharedWithMeDefaults.KeyPart);
+    [Slot(Key = "profile")] private partial IProfile Profile { get; }
+    [Slot(Key = FriendsDefaults.KeyPart)] private partial IFriends Friends { get; }
+    [Slot(Key = FileSharesDefaults.KeyPart)] private partial IFileShares Door { get; }
+    [Slot(Key = SharedWithMeDefaults.KeyPart)] private partial ISharedWithMe Mine { get; }
+    [Slot(Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
+    [Slot(Key = "apps/friends/" + CodeField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField CodeFieldSlot { get; }
+    [Slot(Key = "apps/friends/" + PathField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField PathFieldSlot { get; }
+    [Slot(Key = "apps/friends/" + TextField)] private partial IntoChat.OS.Modules.Flutter.Fields.IField TextFieldSlot { get; }
 
     [On]
     public Task MakeCode(FriendsMakeCode request)
@@ -212,7 +217,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("add that friend", async () =>
         {
-            var raw = await Typed(request.Code, CodeField);
+            var raw = await Typed(request.Code, CodeFieldSlot);
             if (!IntoChat.OS.Code.TryParse(raw, out var code))
             {
                 return State with
@@ -223,7 +228,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
                 };
             }
             var friend = await Friends.Redeem(code);
-            var profile = await Get<IProfile>("profile").Read();
+            var profile = await Profile.Read();
             var roster = await TryReadRosterAsync();
             return await WithShares(State.ApplyProfile(profile, $"{friend.Name} is now a friend.", roster: roster));
         });
@@ -236,7 +241,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         return Attempt("remove that friend", async () =>
         {
             await Friends.Unfriend(new IntoChat.OS.Modules.Identity.Contracts.AccountId(request.Account));
-            var profile = await Get<IProfile>("profile").Read();
+            var profile = await Profile.Read();
             var roster = await TryReadRosterAsync();
             return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.", roster: roster) with { Opened = null });
         });
@@ -248,7 +253,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("share that", async () =>
         {
-            var path = await Typed(request.Path, PathField);
+            var path = await Typed(request.Path, PathFieldSlot);
             var role = string.Equals(request.Role?.Trim(), "editor", StringComparison.OrdinalIgnoreCase) ? ShareRole.Editor : ShareRole.Viewer;
             var share = await Door.Share(request.Account, path, role);
             return await WithShares(State with { Status = $"Shared {share.Path} as {share.Role}." });
@@ -289,7 +294,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         return Attempt("save that", async () =>
         {
-            var text = await Typed(request.Text, TextField);
+            var text = await Typed(request.Text, TextFieldSlot);
             var saved = await Mine.Write(request.OwnerBrain, request.ShareId, request.Path, System.Text.Encoding.UTF8.GetBytes(text));
             var opened = State.Opened is { } open && open.ShareId == request.ShareId && open.Path == request.Path
                 ? open with { Text = text, SavedBy = saved.ModifiedBy, SavedAt = saved.Modified }
@@ -341,24 +346,30 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     }
 
     // The value a signal carried, or what the person typed into the field of that name.
-    private async Task<string> Typed(string? carried, string field)
-        => !string.IsNullOrWhiteSpace(carried) ? carried.Trim() : ((await Get<IntoChat.OS.Modules.Flutter.Fields.IField>(FieldKey(field)).Read()).Value ?? "").Trim();
+    private static async Task<string> Typed(string? carried, IntoChat.OS.Modules.Flutter.Fields.IField field)
+        => !string.IsNullOrWhiteSpace(carried) ? carried.Trim() : ((await field.Read()).Value ?? "").Trim();
 
     [On]
     public async Task ForkApp(FriendsForkApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
-        var post = (await Get<IProfile>("profile").Read()).Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase));
+        var post = (await Profile.Read()).Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase));
         if (post is null) { await Show(State with { Status = $"Post {postId} not found to fork." }); return; }
 
         var alias = post.TemplateAppId;
         var files = post.UnitFiles ?? ShippedUnits.Files(alias);
         if (files.Count == 0) { await Show(State with { Status = $"Post {postId} has no unit files to install into Creator." }); return; }
 
+        if (SynapseStudio is not { } studio)
+        {
+            await Show(State with { Status = $"Could not fork app {alias}: Synapse studio is unavailable." });
+            return;
+        }
+
         try
         {
-            await Get<ISynapseStudio>("ino/synapses").DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+            await studio.DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
             await Show(State with { Status = $"Forked app-post template {alias} into Creator; ready for consent." });
         }
         catch (Exception error)
@@ -374,7 +385,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
         var newId = string.IsNullOrWhiteSpace(request.NewPostId) ? $"post-fork-{Guid.NewGuid():N}" : request.NewPostId.Trim();
-        var updated = await Get<IProfile>("profile").ForkPost(postId, newId, request.RemixTitle);
+        var updated = await Profile.ForkPost(postId, newId, request.RemixTitle);
         await Show(State.ApplyProfile(updated, $"Forked and remixed app-post {postId} as {newId}."));
     }
 
@@ -402,10 +413,9 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
 
     private async Task<(string Source, IReadOnlyDictionary<string, string>? Files)> TryReadUnitTemplateAsync(string alias)
     {
-        if (string.IsNullOrWhiteSpace(alias)) { return ("", null); }
+        if (string.IsNullOrWhiteSpace(alias) || SynapseStudio is not { } studio) { return ("", null); }
         try
         {
-            var studio = Get<ISynapseStudio>("ino/synapses");
             var csFiles = await studio.SourceFiles(alias);
             if (csFiles.Count == 0)
             {

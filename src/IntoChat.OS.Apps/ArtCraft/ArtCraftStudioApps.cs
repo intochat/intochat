@@ -108,10 +108,14 @@ internal static class ArtCraftConsoleLog
     internal static readonly ILogger Instance = IntoChat.OS.Host.Logging.OsConsoleLog.For(typeof(ArtCraftStudioAppOpen));
 }
 
-public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logger = null) : AggregateScreen<TState>, IWithFilesVfs
+public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogger? logger = null) : AggregateScreen<TState>, IWithFilesVfs
     where TState : class, new()
 {
     private readonly ILogger _appLogger = logger ?? ArtCraftConsoleLog.Instance;
+
+    [Slot(Key = IArtCraftStudio.StudioKey, Required = false)] private partial IArtCraftStudio? Studio { get; }
+    [Slot(Key = "apps/artcraft-engine", Required = false)] private partial IArtCraftEngine? Engine { get; }
+    [Slot(Required = false)] private partial IUserSettings? UserSettings { get; }
 
     private ILogger AppLogger => _appLogger;
 
@@ -155,7 +159,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logge
         }
 
         var connected = false;
-        if (TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests.") is { } studio)
+        if (Studio is { } studio)
         {
             try
             {
@@ -180,7 +184,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logge
         string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode)
     {
         ArtCraftEngineResult? result = null;
-        if (FilesVfs is null && TryGetOptional<IArtCraftEngine>("apps/artcraft-engine", $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.") is { } engine)
+        if (FilesVfs is null && Engine is { } engine)
         {
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -191,8 +195,8 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logge
 
         return result ?? await ArtCraftEngineRunner.ExecuteAsync(
             Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode,
-            TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests."),
-            mcpKey => TryGetOptional<IMcpServer>(mcpKey, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests."),
+            Studio,
+            TryGetMcpServer,
             (err, reason) => AppLogger.LogDebug(err, "{Reason}", reason),
             FilesVfs);
     }
@@ -255,8 +259,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logge
     {
         try
         {
-            var settingsKey = IUserSettings.Key(Id.Brain);
-            if (TryGetOptional<IUserSettings>(settingsKey, $"IUserSettings is optional when resolving ArtCraft default mode for {Descriptor.Title}.") is { } settings)
+            if (UserSettings is { } settings)
             {
                 var state = await settings.Read();
                 if (!string.IsNullOrWhiteSpace(state.ArtCraftDefaultMode))
@@ -326,10 +329,14 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logge
     protected static string NormalizeTextOrCurrent(string? requested, string fallback) =>
         string.IsNullOrWhiteSpace(requested) ? fallback : requested.Trim();
 
-    private T? TryGetOptional<T>(string key, string reason) where T : class
+    private IMcpServer? TryGetMcpServer(string mcpKey)
     {
-        try { return Get<T>(key); }
-        catch (Exception error) when (error is not OperationCanceledException) { AppLogger.LogDebug(error, "{Reason}", reason); return null; }
+        try { return Get<IMcpServer>(mcpKey); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            AppLogger.LogDebug(error, "McpServerNeuron is optional when running {App} in unit tests.", Descriptor.Title);
+            return null;
+        }
     }
 }
 

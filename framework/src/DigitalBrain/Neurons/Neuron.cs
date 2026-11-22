@@ -31,6 +31,15 @@ public abstract class Neuron
     private sealed class ContextSlotResolver(INeuronContext context) : ISlotTargetResolver
     {
         public T Resolve<T>(BindingTarget target) where T : class => context.Get<T>(target);
+
+        public T? TryResolve<T>(BindingTarget target) where T : class
+        {
+            if (target is BindingTarget.Local local && context.ClassOf(local.Neuron.Type) is null)
+            {
+                return null;
+            }
+            return context.Get<T>(target);
+        }
     }
 
     // True once a runtime attached this neuron; a detached instance (a preview) has no id.

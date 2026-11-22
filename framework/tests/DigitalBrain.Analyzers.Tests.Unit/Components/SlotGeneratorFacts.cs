@@ -102,10 +102,18 @@ public sealed class SlotGeneratorFacts
             public sealed class Slots
             {
                 public string? LastSlot { get; private set; }
+                public bool LastWasTryGet { get; private set; }
                 public T Get<T>(string slot) where T : class
                 {
                     LastSlot = slot;
+                    LastWasTryGet = false;
                     return default!;
+                }
+                public T? TryGet<T>(string slot) where T : class
+                {
+                    LastSlot = slot;
+                    LastWasTryGet = true;
+                    return default;
                 }
             }
         }
@@ -380,6 +388,58 @@ public sealed class SlotGeneratorFacts
             var reacts = (Type[]?)manifest.GetType().GetProperty("Reacts")!.GetValue(manifest);
             Assert.NotNull(reacts);
             Assert.Equal([tickType], reacts);
+        });
+    }
+
+    [Fact]
+    public void NullableAndInheritedSlotsGenerateTryGetAndManifestEntries()
+    {
+        const string source = """
+            #nullable enable
+            using DigitalBrain;
+            using DigitalBrain.Neurons;
+
+            namespace Sample;
+
+            public interface IOptionalStudio { }
+
+            public abstract partial class StudioBase<TState> : Neuron where TState : class
+            {
+                [Slot(Key = "studio", Required = false)]
+                protected partial IOptionalStudio? Studio { get; }
+
+                public IOptionalStudio? ReadStudio() => Studio;
+            }
+
+            [Neuron("app.paint")]
+            public sealed class PaintApp : StudioBase<object>
+            {
+            }
+            """;
+
+        WithCompiledAssembly("NullableInheritedProbe", source, assembly =>
+        {
+            var paintType = assembly.GetType("Sample.PaintApp", throwOnError: true)!;
+            var studioIface = assembly.GetType("Sample.IOptionalStudio", throwOnError: true)!;
+            var paint = Activator.CreateInstance(paintType)!;
+            _ = paintType.GetMethod("ReadStudio")!.Invoke(paint, null);
+
+            var slotsProp = paintType.GetProperty("Slots")!.GetValue(paint)!;
+            Assert.Equal("studio", (string?)slotsProp.GetType().GetProperty("LastSlot")!.GetValue(slotsProp));
+            Assert.True((bool)slotsProp.GetType().GetProperty("LastWasTryGet")!.GetValue(slotsProp)!);
+
+            var manifestsType = assembly.GetType("DigitalBrain.Components.ComponentManifests", throwOnError: true)!;
+            var manifests = (System.Collections.IDictionary)manifestsType.GetField("All")!.GetValue(null)!;
+            var manifest = Assert.Single(manifests.Values.Cast<object>());
+            var id = manifest.GetType().GetProperty("Id")!.GetValue(manifest)!;
+            Assert.Equal("app.paint", (string)id.GetType().GetProperty("Value")!.GetValue(id)!);
+
+            var slots = (Array)manifest.GetType().GetProperty("Slots")!.GetValue(manifest)!;
+            var slot = Assert.Single(slots.Cast<object>());
+            Assert.Equal("studio", (string)slot.GetType().GetProperty("Name")!.GetValue(slot)!);
+            Assert.Equal(studioIface, (Type)slot.GetType().GetProperty("Contract")!.GetValue(slot)!);
+            Assert.False((bool)slot.GetType().GetProperty("Required")!.GetValue(slot)!);
+            Assert.Equal("studio", (string?)slot.GetType().GetProperty("Key")!.GetValue(slot));
         });
     }
 
