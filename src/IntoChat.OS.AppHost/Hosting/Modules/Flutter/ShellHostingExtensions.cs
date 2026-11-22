@@ -208,6 +208,15 @@ public static class ShellHostingExtensions
                 ArmHotReload(appHost, host, resourceName, launch.WorkingDirectory);
             }
 
+            if (appHost.ExecutionContext.IsRunMode)
+            {
+                FlutterClientTargets.AddExplicitClientTargets(
+                    appHost,
+                    packageRoot,
+                    host.Resource,
+                    () => _front?.GetEndpoint(ShellNames.HttpEndpointName) ?? _firstKernel);
+            }
+
             _flutterHost = host;
         }
 
