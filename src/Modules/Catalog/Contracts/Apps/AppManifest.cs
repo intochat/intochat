@@ -1,3 +1,8 @@
+using System.Reflection;
+using DigitalBrain;
+using DigitalBrain.Components;
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS.Modules.Apps;
 
 public sealed record AppOperation(string Name, string Description);
@@ -121,6 +126,57 @@ public sealed record AppManifest(
     // Optional catalog category for desktop and launcher grouping (e.g. "Workspace", "Studio").
     string? Category = null)
 {
+    /// <summary>Projects a <see cref="ComponentManifest"/> into an <see cref="AppManifest"/> view.</summary>
+    public static AppManifest From(ComponentManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var rawId = manifest.Id.Value ?? string.Empty;
+        var fallbackTitle = rawId.StartsWith("app.", StringComparison.Ordinal) ? rawId["app.".Length..] : rawId;
+        var title = !string.IsNullOrWhiteSpace(manifest.Face?.Title) ? manifest.Face!.Title : fallbackTitle;
+        var description = manifest.Face?.Description ?? string.Empty;
+        var operations = manifest.Operations
+            .Select(static op => new AppOperation(op.Name, op.Description))
+            .ToArray();
+        var capabilities = new List<string>();
+        var connectors = new List<string>();
+        var slots = new AppSlot[manifest.Slots.Length];
+        for (var i = 0; i < manifest.Slots.Length; i++)
+        {
+            var slot = manifest.Slots[i];
+            if (slot.Contract.GetCustomAttribute<CapabilityAttribute>(inherit: false) is { } capability)
+            {
+                var capabilityId = capability.Id.ToString();
+                slots[i] = new AppSlot(slot.Name, Connector: "", Capability: capabilityId);
+                if (!capabilities.Contains(capabilityId, StringComparer.Ordinal)) { capabilities.Add(capabilityId); }
+            }
+            else
+            {
+                var connector = ContractIdOf(slot.Contract);
+                slots[i] = new AppSlot(slot.Name, Connector: connector);
+                if (!connectors.Contains(connector, StringComparer.Ordinal)) { connectors.Add(connector); }
+            }
+        }
+        var requires = capabilities.Count > 0
+            ? new AppRequirements(
+                Connectors: connectors.Count > 0 ? [.. connectors] : null,
+                Capabilities: [.. capabilities])
+            : null;
+        return new AppManifest(
+            Title: title,
+            Description: description,
+            Operations: operations,
+            Settings: [],
+            Slots: slots,
+            Icon: manifest.Face?.Icon,
+            Requires: requires,
+            Category: manifest.Face?.Category);
+    }
+
+    private static string ContractIdOf(Type contract)
+        => contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
+            ?? contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
+            ?? contract.Name;
+
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()
     {

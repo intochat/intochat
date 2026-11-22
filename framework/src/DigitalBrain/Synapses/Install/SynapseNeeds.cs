@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Globalization;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Capabilities;
@@ -25,6 +27,56 @@ public sealed record SynapseNeeds(
     IReadOnlyList<string> Reactions,
     bool HasView)
 {
+    /// <summary>Projects a <see cref="DigitalBrain.Components.ComponentManifest"/> into a <see cref="SynapseNeeds"/> view.</summary>
+    public static SynapseNeeds From(DigitalBrain.Components.ComponentManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var rawId = manifest.Id.Value ?? string.Empty;
+        var alias = rawId.StartsWith("unit.", StringComparison.Ordinal) ? rawId["unit.".Length..] : rawId;
+        var slots = manifest.Slots
+            .Where(static s => s.Contract.GetCustomAttribute<CapabilityAttribute>(inherit: false) is not null)
+            .DistinctBy(static s => s.Name, StringComparer.Ordinal)
+            .Select(static s => new SlotNeed(
+                s.Name,
+                s.Contract.GetCustomAttribute<CapabilityAttribute>(inherit: false)!.Id,
+                DisplayName(s.Contract)))
+            .ToArray();
+        var reactions = manifest.Reacts
+            .Select(static type => type.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias is { Length: > 0 } signalAlias
+                ? signalAlias
+                : type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return new SynapseNeeds(alias, slots, [], reactions, manifest.Face is not null);
+    }
+
+    internal static string DisplayName(Type contract)
+    {
+        if (contract.GetCustomAttribute<DescriptionAttribute>() is { } description)
+        {
+            return description.Description;
+        }
+
+        var name = contract.Name;
+        if (name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1]))
+        {
+            name = name[1..];
+        }
+
+        var words = new StringBuilder();
+        foreach (var c in name)
+        {
+            if (char.IsUpper(c) && words.Length > 0)
+            {
+                words.Append(' ');
+            }
+
+            words.Append(char.ToLowerInvariant(c));
+        }
+
+        return words.ToString();
+    }
+
     /// <summary>The one sentence a person approves, for example <c>stats wants to: read-only SQL through Db; show a view.</c></summary>
     public string Sentence()
     {

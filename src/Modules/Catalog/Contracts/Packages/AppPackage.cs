@@ -1,6 +1,9 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Components;
 using IntoChat.Sdk;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -30,6 +33,29 @@ public sealed record AppPackageNeeds(
     [property: Id(3)] AppCommandSpec[] Commands)
 {
     public static AppPackageNeeds Empty { get; } = new([], [], [], []);
+
+    /// <summary>Projects a <see cref="ComponentManifest"/> into an <see cref="AppPackageNeeds"/> view.</summary>
+    public static AppPackageNeeds From(ComponentManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var slots = manifest.Slots
+            .Select(static slot => new AppSlotSpec(
+                slot.Name,
+                slot.Contract.FullName ?? slot.Contract.Name,
+                slot.Required))
+            .ToArray();
+        var signals = manifest.Emits
+            .Concat(manifest.Reacts)
+            .Select(static type => type.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias is { Length: > 0 } alias
+                ? alias
+                : type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var commands = manifest.Operations
+            .Select(static op => new AppCommandSpec(op.Name, op.Description))
+            .ToArray();
+        return new AppPackageNeeds(slots, signals, [], commands);
+    }
 }
 
 /// <summary>Single C# source file belonging to an <see cref="AppPackage"/>.</summary>

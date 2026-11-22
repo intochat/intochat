@@ -1,6 +1,5 @@
 using System.Reflection;
 using DigitalBrain.Components;
-using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -52,22 +51,11 @@ internal static class CompiledApps
 
     private static AppBundle BundleFromManifest(string name, Type appType, ComponentManifest manifest)
     {
-        var title = !string.IsNullOrWhiteSpace(manifest.Face?.Title) ? manifest.Face!.Title : name;
-        var description = manifest.Face?.Description ?? string.Empty;
-        var operations = manifest.Operations
-            .Select(static op => new AppOperation(op.Name, op.Description))
-            .ToArray();
-        var slots = manifest.Slots
-            .Select(static slot => new AppSlot(slot.Name, ContractIdOf(slot.Contract)))
-            .ToArray();
-        var appManifest = new AppManifest(
-            Title: title,
-            Description: description,
-            Operations: operations,
-            Settings: [],
-            Slots: slots,
-            Icon: manifest.Face?.Icon,
-            Category: manifest.Face?.Category);
+        var appManifest = AppManifest.From(manifest);
+        if (string.IsNullOrWhiteSpace(appManifest.Title))
+        {
+            appManifest = appManifest with { Title = name };
+        }
         return new AppBundle(
             Name: name,
             Version: "1.0.0",
@@ -76,9 +64,4 @@ internal static class CompiledApps
             Files: new Dictionary<string, string>(StringComparer.Ordinal),
             CompiledType: appType.AssemblyQualifiedName);
     }
-
-    private static string ContractIdOf(Type contract)
-        => contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
-            ?? contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
-            ?? contract.Name;
 }

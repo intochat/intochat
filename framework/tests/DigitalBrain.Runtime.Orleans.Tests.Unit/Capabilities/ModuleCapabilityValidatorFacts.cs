@@ -66,7 +66,50 @@ public sealed class ModuleCapabilityValidatorFacts
         ModuleCapabilityValidator.Validate(Registry, [typeof(PlainModule)]);
     }
 
+    [Fact]
+    public void Module_requiring_unregistered_capability_from_component_slot_is_refused()
+    {
+        var componentId = new DigitalBrain.Components.ComponentId("module.test.slot-requires-missing");
+        DigitalBrain.Components.ComponentRegistry.Register(typeof(SlotRequiresMissingModule), componentId);
+        DigitalBrain.Components.ComponentManifests.Register(
+            typeof(SlotRequiresMissingModule),
+            new DigitalBrain.Components.ComponentManifest(
+                Id: componentId,
+                Slots: [new DigitalBrain.Components.SlotNeed("missing", typeof(IMissingCapability))],
+                Kind: DigitalBrain.Components.ComponentKind.Module));
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => ModuleCapabilityValidator.Validate(Registry, [typeof(SlotRequiresMissingModule)]));
+
+        Assert.Contains("test.slot-requires-missing", error.Message, StringComparison.Ordinal);
+        Assert.Contains("missing-cap@1", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Module_requiring_registered_capability_from_component_slot_passes()
+    {
+        var registry = new CapabilityRegistry();
+        registry.Register(new CapabilityId("provided-cap", 1), typeof(IProvidedCapability), CapabilityConnectionMode.ManyConnections);
+
+        var componentId = new DigitalBrain.Components.ComponentId("module.test.slot-requires-present");
+        DigitalBrain.Components.ComponentRegistry.Register(typeof(SlotRequiresPresentModule), componentId);
+        DigitalBrain.Components.ComponentManifests.Register(
+            typeof(SlotRequiresPresentModule),
+            new DigitalBrain.Components.ComponentManifest(
+                Id: componentId,
+                Slots: [new DigitalBrain.Components.SlotNeed("provided", typeof(IProvidedCapability))],
+                Kind: DigitalBrain.Components.ComponentKind.Module));
+
+        ModuleCapabilityValidator.Validate(registry, [typeof(SlotRequiresPresentModule)]);
+    }
+
     public interface ILegacy;
+
+    [Capability("missing-cap", 1)]
+    public interface IMissingCapability;
+
+    [Capability("provided-cap", 1)]
+    public interface IProvidedCapability;
 
     private sealed class LegacyNeuron : ILegacy;
 }
@@ -79,6 +122,18 @@ public sealed class StorageTwoModule : Module
 
 [Module("test.plain")]
 public sealed class PlainModule : Module
+{
+    public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
+}
+
+[Module("test.slot-requires-missing")]
+public sealed class SlotRequiresMissingModule : Module
+{
+    public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
+}
+
+[Module("test.slot-requires-present")]
+public sealed class SlotRequiresPresentModule : Module
 {
     public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
 }

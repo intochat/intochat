@@ -8,7 +8,8 @@ namespace DigitalBrain.Runtime.Orleans.Capabilities;
 /// <summary>
 /// Refuses a module set at load (R4-02, D-05, D-09): a <c>Provides</c> entry naming an unknown capability id or major, a
 /// <c>Provides</c> entry with no <c>[Neuron]</c> type in the module assembly assignable to the contract or an accepted binding,
-/// and two modules providing the same single-connection capability. <c>Requires</c> is never checked here: a need is not a grant.
+/// two modules providing the same single-connection capability, and a <c>Requires</c> entry naming an unknown capability.
+/// Declaring <c>Requires</c> still never grants access: a need is not a grant.
 /// </summary>
 public static class ModuleCapabilityValidator
 {
@@ -20,7 +21,7 @@ public static class ModuleCapabilityValidator
         Validate(registry, moduleTypes.Select(type =>
         {
             var manifest = ModuleManifest.Of(type);
-            return new ModuleCandidate(manifest.Id ?? type.FullName ?? type.Name, manifest.Provides, NeuronTypes(type.Assembly));
+            return new ModuleCandidate(manifest.Id ?? type.FullName ?? type.Name, manifest.Provides, NeuronTypes(type.Assembly), manifest.Requires);
         }));
     }
 
@@ -56,6 +57,13 @@ public static class ModuleCapabilityValidator
                     }
                 }
             }
+            foreach (var required in module.Requires ?? [])
+            {
+                if (!registry.Known(required))
+                {
+                    issues.Add($"Module '{module.Id}' requires unknown capability {required}.");
+                }
+            }
         }
         if (issues.Count > 0) { throw new InvalidOperationException(string.Join(Environment.NewLine, issues)); }
     }
@@ -69,5 +77,9 @@ public static class ModuleCapabilityValidator
     }
 }
 
-/// <summary>A module as the validator sees it: its id, its Provides and the neuron types of its assembly.</summary>
-internal sealed record ModuleCandidate(string Id, IReadOnlyList<CapabilityId> Provides, IReadOnlyList<Type> NeuronTypes);
+/// <summary>A module as the validator sees it: its id, its Provides, the neuron types of its assembly, and its Requires.</summary>
+internal sealed record ModuleCandidate(
+    string Id,
+    IReadOnlyList<CapabilityId> Provides,
+    IReadOnlyList<Type> NeuronTypes,
+    IReadOnlyList<CapabilityId>? Requires = null);

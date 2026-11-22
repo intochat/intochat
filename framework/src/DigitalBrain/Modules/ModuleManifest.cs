@@ -1,5 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Components;
 using DigitalBrain.Limits;
 
 namespace DigitalBrain.Modules;
@@ -37,6 +38,25 @@ public sealed record ModuleManifest(
     /// <summary>The promise-able actions the module declares for the brain's policies neuron. Empty by default.</summary>
     public IReadOnlyList<ActionDescriptor> Actions { get; init; } = [];
 
+    /// <summary>Projects a <see cref="ComponentManifest"/> into a <see cref="ModuleManifest"/> view.</summary>
+    public static ModuleManifest From(ComponentManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var rawId = manifest.Id.Value;
+        var id = string.IsNullOrWhiteSpace(rawId)
+            ? null
+            : rawId.StartsWith("module.", StringComparison.Ordinal)
+                ? rawId["module.".Length..]
+                : rawId;
+        var provides = manifest.Provides
+            .Select(static type => type.GetCustomAttribute<CapabilityAttribute>(inherit: false)?.Id)
+            .OfType<CapabilityId>()
+            .Distinct()
+            .ToArray();
+        var requires = CapabilityRequiresOf(manifest.Slots);
+        return new ModuleManifest(provides, requires, [], [], []) { Id = id };
+    }
+
     /// <summary>Reads the <c>[Module]</c> id and the public static <c>Manifest</c> property of a module class.</summary>
     /// <exception cref="InvalidDataException">Provides or Requires lists a capability twice.</exception>
     /// <exception cref="InvalidOperationException">The type is not a module, has no <c>[Module]</c> or no static <c>Manifest</c>.</exception>
@@ -57,8 +77,30 @@ public sealed record ModuleManifest(
         }
         RejectDuplicates(manifest.Provides, $"Module '{attribute.Id}' ({moduleType.FullName}) Provides");
         RejectDuplicates(manifest.Requires, $"Module '{attribute.Id}' ({moduleType.FullName}) Requires");
-        return manifest with { Id = attribute.Id };
+        var component = ComponentManifests.Of(moduleType) ?? ComponentManifests.Of(new ComponentId("module." + attribute.Id));
+        var requires = manifest.Requires;
+        if (component is { Slots.Length: > 0 })
+        {
+            var slotRequires = CapabilityRequiresOf(component.Slots);
+            if (slotRequires.Length > 0)
+            {
+                var merged = new List<CapabilityId>(requires);
+                var seen = new HashSet<CapabilityId>(requires);
+                foreach (var capability in slotRequires)
+                {
+                    if (seen.Add(capability)) { merged.Add(capability); }
+                }
+                requires = merged;
+            }
+        }
+        return manifest with { Id = attribute.Id, Requires = requires };
     }
+
+    private static CapabilityId[] CapabilityRequiresOf(IReadOnlyList<SlotNeed> slots)
+        => [.. slots
+            .Select(static slot => slot.Contract.GetCustomAttribute<CapabilityAttribute>(inherit: false)?.Id)
+            .OfType<CapabilityId>()
+            .Distinct()];
 
     // A requirement is a need, not a grant: nothing grants access from Requires (T-05-01-02).
     internal static IReadOnlyList<CapabilityId> RejectDuplicates(IReadOnlyList<CapabilityId> ids, string where)
