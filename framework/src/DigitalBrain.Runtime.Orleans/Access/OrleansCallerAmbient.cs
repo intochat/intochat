@@ -1,5 +1,6 @@
 using DigitalBrain.Modules;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans.Access;
@@ -55,7 +56,8 @@ internal sealed class OrleansCallerAmbient : ICallerCarrier
         };
 
         NeuronId? via = string.IsNullOrEmpty(wire.Via) ? null : NeuronId.Parse(wire.Via);
-        return new Caller(actor, brain, wire.Conversation, via, wire.Inside);
+        ComponentId? component = string.IsNullOrEmpty(wire.Component) ? null : new ComponentId(wire.Component);
+        return new Caller(actor, brain, wire.Conversation, via, wire.Inside, component);
     }
 
     internal static CallerWire Write(Caller caller)
@@ -66,7 +68,8 @@ internal sealed class OrleansCallerAmbient : ICallerCarrier
             Brain = caller.Brain.Value,
             Conversation = caller.Conversation,
             Via = caller.Via?.ToString(),
-            Inside = caller.Inside
+            Inside = caller.Inside,
+            Component = caller.Component?.Value
         };
 
         switch (caller.Actor)

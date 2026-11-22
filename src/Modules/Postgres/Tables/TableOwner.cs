@@ -25,10 +25,14 @@ internal readonly record struct TableOwner(string BrainId, string AppId)
         return owner;
     }
 
-    // The owner the stamped caller may act as: only an app caller, in the brain it was stamped in.
+    // The owner the stamped caller may act as: the calling neuron's component when present, otherwise an app caller, in the brain it was stamped in.
     public static TableOwner Current(Caller? caller)
     {
-        if (caller is null || !CallerRules.IsApp(caller, out var app) || string.IsNullOrWhiteSpace(app))
+        if (caller is null)
+        { throw new UnauthorizedAccessException("A brain and app caller is required."); }
+        if (caller.Component is { } component && !string.IsNullOrWhiteSpace(component.Value))
+        { return new(caller.Brain.Value, component.Value); }
+        if (!CallerRules.IsApp(caller, out var app) || string.IsNullOrWhiteSpace(app))
         { throw new UnauthorizedAccessException("A brain and app caller is required."); }
         return new(caller.Brain.Value, app);
     }

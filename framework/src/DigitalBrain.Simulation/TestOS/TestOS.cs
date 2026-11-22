@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
@@ -686,7 +687,9 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         {
             var current = TestCallerAmbient.Instance.Current;
             var inside = caller is not null || (current?.Inside ?? false) || (current?.Actor is Actor.Kernel or Actor.Scheduler or Actor.Module);
-            return TestCallerAmbient.Instance.Enter(current?.Hop(via: caller ?? current.Via, inside: inside));
+            var callerClass = caller is { } id ? os.ClassOf(id.Type) : null;
+            var component = callerClass is not null ? ComponentRegistry.Of(callerClass) : null;
+            return TestCallerAmbient.Instance.Enter(current?.Hop(via: caller ?? current.Via, inside: inside, component: component));
         }
 
         private RuntimeInvocation Stamp(RuntimeInvocation call) => call with { Behavior = caller?.ToString() ?? string.Empty };

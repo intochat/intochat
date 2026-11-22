@@ -103,7 +103,7 @@ internal sealed class HostNeuronContext : INeuronContext, INeuronSeat, IHostNeur
     public T Get<T>(NeuronId target) where T : class
     {
         if (target.Brain != Id.Brain) { throw new ArgumentException($"Neuron {target} belongs to another brain than {Id}.", nameof(target)); }
-        return NeuronProxy.Create<T>(target, new OrleansInvocationSink(_grains, _types, Id, Access.OrleansCallerAmbient.Instance));
+        return NeuronProxy.Create<T>(target, new OrleansInvocationSink(_grains, _types, Id, Access.OrleansCallerAmbient.Instance, callerClass: _registration.Class));
     }
 
     public void Defer(Func<Task> work)

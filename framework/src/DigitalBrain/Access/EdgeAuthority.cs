@@ -94,7 +94,7 @@ public sealed class EdgeAuthority
     public IDisposable Enter(Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return _carrier.Enter(caller);
+        return _carrier.Enter(caller.WithoutComponent());
     }
 
     /// <summary>Enters a kernel execution frame for the given <paramref name="brain"/>.</summary>

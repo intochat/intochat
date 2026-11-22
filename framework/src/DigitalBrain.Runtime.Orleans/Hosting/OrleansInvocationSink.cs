@@ -2,6 +2,7 @@ using DigitalBrain.Modules;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Access;
@@ -20,7 +21,8 @@ internal sealed class OrleansInvocationSink(
     NeuronId? caller,
     ICallerCarrier? callers = null,
     bool asKernel = false,
-    Func<NeuronId, RuntimeInvocation, Task>? beforeStream = null) : IInvocationSink
+    Func<NeuronId, RuntimeInvocation, Task>? beforeStream = null,
+    Type? callerClass = null) : IInvocationSink
 {
     private readonly ICallerCarrier _callers = callers ?? OrleansCallerAmbient.Instance;
 
@@ -96,6 +98,8 @@ internal sealed class OrleansInvocationSink(
     {
         var current = asKernel ? Caller.OfKernel(target.Brain) : _callers.Current;
         var inside = caller is not null || (current?.Inside ?? false) || (current?.Actor is Actor.Kernel or Actor.Scheduler or Actor.Module);
-        _ = _callers.Enter(current?.Hop(via: caller ?? current.Via, inside: inside));
+        var resolvedClass = callerClass ?? (caller is { } id && types is not null && types.TryGet(id.Type, out var c) ? c : null);
+        var component = resolvedClass is not null ? ComponentRegistry.Of(resolvedClass) : null;
+        _ = _callers.Enter(current?.Hop(via: caller ?? current.Via, inside: inside, component: component));
     }
 }

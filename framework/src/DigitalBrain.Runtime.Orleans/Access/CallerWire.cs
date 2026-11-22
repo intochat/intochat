@@ -21,4 +21,5 @@ internal sealed class CallerWire
     [Id(5)] public string? Conversation;
     [Id(6)] public string? Via;
     [Id(7)] public bool Inside;
+    [Id(8)] public string? Component;
 }

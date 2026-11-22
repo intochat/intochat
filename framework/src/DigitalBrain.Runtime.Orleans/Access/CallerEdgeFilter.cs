@@ -24,9 +24,10 @@ internal sealed class CallerEdgeFilter : IIncomingGrainCallFilter
 
             if (!isEdgeVerified)
             {
-                // External client: cannot forge Inside or Via
+                // External client: cannot forge Inside, Via, or Component
                 wire.Inside = false;
                 wire.Via = null;
+                wire.Component = null;
 
                 // External client: cannot claim internal or invalid actor kinds
                 if (wire.Actor is not (CallerWire.ActorPerson or CallerWire.ActorAgent or CallerWire.ActorApp))
@@ -37,7 +38,8 @@ internal sealed class CallerEdgeFilter : IIncomingGrainCallFilter
             }
             else if (!isInternal)
             {
-                // Verified edge caller (e.g. RelayedPerson): preserves edge-minted Via/Inside, still cannot claim Kernel/Scheduler/Module.
+                // Verified edge caller (e.g. RelayedPerson): preserves edge-minted Via/Inside, still cannot claim Component or Kernel/Scheduler/Module.
+                wire.Component = null;
                 if (wire.Actor is not (CallerWire.ActorPerson or CallerWire.ActorAgent or CallerWire.ActorApp))
                 {
                     throw new UnauthorizedAccessException(

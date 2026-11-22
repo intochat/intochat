@@ -1,4 +1,6 @@
 
+using DigitalBrain.Components;
+
 namespace DigitalBrain.Access;
 
 /// <summary>
@@ -6,7 +8,7 @@ namespace DigitalBrain.Access;
 /// </summary>
 public sealed record Caller
 {
-    internal Caller(Actor actor, BrainId brain, string? conversation = null, NeuronId? via = null, bool inside = false)
+    internal Caller(Actor actor, BrainId brain, string? conversation = null, NeuronId? via = null, bool inside = false, ComponentId? component = null)
     {
         ArgumentNullException.ThrowIfNull(actor);
         Actor = actor;
@@ -14,6 +16,7 @@ public sealed record Caller
         Conversation = conversation;
         Via = via;
         Inside = inside;
+        Component = component;
     }
 
     /// <summary>Who is behind this call.</summary>
@@ -31,6 +34,9 @@ public sealed record Caller
     /// <summary>Whether the sender is a grain of this cluster.</summary>
     public bool Inside { get; }
 
+    /// <summary>The component that owns the neuron making this call, if any.</summary>
+    public ComponentId? Component { get; }
+
     /// <summary>A human directly: not routed through an intermediary neuron and not sent by a cluster grain.</summary>
     public bool Direct => Via is null && !Inside;
 
@@ -47,10 +53,14 @@ public sealed record Caller
 
     internal static Caller OfScheduler(BrainId brain) => new(new Actor.Scheduler(), brain, inside: true);
 
-    internal Caller ActingIn(BrainId brain) => new(Actor, brain, Conversation, Via, Inside);
+    internal Caller ActingIn(BrainId brain) => new(Actor, brain, Conversation, Via, Inside, Component);
 
     internal Caller Through(string appKey)
-        => Actor is Actor.Person or Actor.App ? new(new Actor.App(appKey, For!), Brain, Conversation, Via, Inside) : this;
+        => Actor is Actor.Person or Actor.App ? new(new Actor.App(appKey, For!), Brain, Conversation, Via, Inside, Component) : this;
 
-    internal Caller Hop(NeuronId? via, bool inside) => new(Actor, Brain, Conversation, via, inside);
+    internal Caller Hop(NeuronId? via, bool inside, ComponentId? component = null)
+        => new(Actor, Brain, Conversation, via, inside, component ?? Component);
+
+    internal Caller WithoutComponent()
+        => Component is null ? this : new(Actor, Brain, Conversation, Via, Inside, component: null);
 }

@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Tests.Integration.Journeys;
@@ -72,5 +73,42 @@ public sealed class TableNeuronFacts
 
         var table = ada.Get<ITable>(id);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => table.Define(BookmarksSchema));
+    }
+
+    [Theory]
+    [MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task ATableDefinedByAComponentNeuronIsOwnedByThatComponentAndSurvivesReactivation(NeuronRuntimeKind kind)
+    {
+        ComponentRegistry.Register(typeof(ComponentTableCallerNeuron), new ComponentId("app.customer-researcher"));
+
+        await using var os = await JourneyOS.Start(
+            kind,
+            [.. Journey.SliceModules, typeof(ComponentTableCallerModule)],
+            f => f.Postgres(),
+            TestContext.Current.CancellationToken);
+
+        var ada = os.Person("ada");
+        var researcherId = new NeuronId(ada.Brain, "test.component-table-caller", "main");
+        var tableKey = "research/notes";
+        var tableId = new NeuronId(ada.Brain, TableNeuron.GrainType, tableKey);
+
+        var physicalTable = await ada.Get<IComponentTableCaller>(researcherId)
+            .DefineAndUpsert(tableKey, "\"1\"", "\"Customer insight\"");
+
+        var expectedOwner = new TableOwner(ada.Brain.Value, "app.customer-researcher");
+        var expectedPhysical = TablePolicy.PhysicalName(expectedOwner.Key, $"{ada.Brain.Value}/{tableKey}");
+        Assert.Equal(expectedPhysical, physicalTable);
+
+        // Another app cannot read the component-owned table.
+        using (ada.EnterAsApp("other-app"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => ada.Get<ITable>(tableId).Read([new("id", "\"1\"")]));
+        }
+
+        // Reactivate every neuron over the same state and read back through the same component neuron.
+        await os.Runtime.Restart(TestContext.Current.CancellationToken);
+
+        var title = await ada.Get<IComponentTableCaller>(researcherId).ReadTitle(tableKey, "\"1\"");
+        Assert.Equal("\"Customer insight\"", title);
     }
 }

@@ -14,7 +14,7 @@ public sealed class ContextMapFacts
 
     private static readonly Context[] Map =
     [
-        new("Authoring", ["DigitalBrain", "DigitalBrain.Rules", "DigitalBrain.Time", "DigitalBrain.Capabilities", "DigitalBrain.Contracts", "DigitalBrain.Access"], []),
+        new("Authoring", ["DigitalBrain", "DigitalBrain.Rules", "DigitalBrain.Time", "DigitalBrain.Capabilities", "DigitalBrain.Contracts", "DigitalBrain.Access", "DigitalBrain.Components"], []),
         new("Kernel", ["DigitalBrain.Kernel", "DigitalBrain.Invocation", "DigitalBrain.Signals", "DigitalBrain.Brains", "DigitalBrain.Identity", "DigitalBrain.Caching"], ["Authoring"]),
         new("Neurons", ["DigitalBrain.Neurons", "DigitalBrain.State", "DigitalBrain.Errors", "DigitalBrain.Log"], ["Authoring", "Kernel"]),
         new("Connections", ["DigitalBrain.Connections"], ["Authoring"]),
