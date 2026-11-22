@@ -19,7 +19,11 @@ public static class DevUIHosting
     public const string InoAgent = "ino";
 
     public static bool IsEnabled(IHostApplicationBuilder builder)
-        => builder.Environment.IsDevelopment() && builder.Configuration.GetValue(EnabledKey, true);
+        => IsEnabled(builder.Environment, builder.Configuration);
+
+    private static bool IsEnabled(IHostEnvironment environment, IConfiguration configuration)
+        => (environment.IsDevelopment() || string.Equals(configuration["IntoChatOS:Topology"], "local", StringComparison.OrdinalIgnoreCase))
+            && configuration.GetValue(EnabledKey, true);
 
     public const string AguiPath = "/agui/ino";
 
@@ -41,7 +45,7 @@ public static class DevUIHosting
     public static void MapDevUIForIno(this WebApplication app)
     {
         app.MapAGUIServer(InoAgent, AguiPath);
-        if (!app.Environment.IsDevelopment() || !app.Configuration.GetValue(EnabledKey, true)) { return; }
+        if (!IsEnabled(app.Environment, app.Configuration)) { return; }
         app.MapOpenAIResponses();
         app.MapOpenAIConversations();
         app.MapDevUI();

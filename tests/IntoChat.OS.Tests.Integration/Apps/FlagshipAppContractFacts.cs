@@ -97,4 +97,46 @@ public sealed class GalleryAppContractFacts : AppConcurrencyAndIsolationContract
         await session.Click("nav:colors", ct);
         session.ShouldDisplayText("Colors & surfaces");
     }
+
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task Gallery_NavigatesMultipleSections_ViaAppSession(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await _fixture.Runtime(kind);
+        await using var session = await AppSession.OpenAsync<GalleryApp>(runtime, ct: ct);
+
+        session.ShouldDisplayText("IntoChat UI Gallery")
+               .ShouldDisplayText("Welcome to IntoChat UI Gallery");
+        var gen0 = session.CurrentView.Generation;
+
+        await session.Click("nav:colors", ct);
+        session.ShouldDisplayText("Colors & Surfaces")
+               .ShouldDisplayText("Semantic Status Palette");
+        var gen1 = session.CurrentView.Generation;
+        Assert.True(gen1 > gen0, $"Expected generation to increment after nav:colors ({gen0} -> {gen1}).");
+
+        await session.Click("nav:typography", ct);
+        session.ShouldDisplayText("Type Scale")
+               .ShouldDisplayText("Tabular numerals (tnum)");
+        var gen2 = session.CurrentView.Generation;
+        Assert.True(gen2 > gen1, $"Expected generation to increment after nav:typography ({gen1} -> {gen2}).");
+
+        await session.Click("nav:spacing", ct);
+        session.ShouldDisplayText("Spacing, Padding & Layout")
+               .ShouldDisplayText("Space.Xs (4px)");
+        var gen3 = session.CurrentView.Generation;
+        Assert.True(gen3 > gen2, $"Expected generation to increment after nav:spacing ({gen2} -> {gen3}).");
+
+        await session.Click("nav:buttons", ct);
+        session.ShouldDisplayText("Buttons & Actions")
+               .ShouldDisplayText("Guarded Disabled Button");
+        var gen4 = session.CurrentView.Generation;
+        Assert.True(gen4 > gen3, $"Expected generation to increment after nav:buttons ({gen3} -> {gen4}).");
+
+        await session.Click("btn:primary", ct);
+        session.ShouldDisplayText("Buttons & Actions")
+               .ShouldDisplayText("Primary");
+        var gen5 = session.CurrentView.Generation;
+        Assert.True(gen5 > gen4, $"Expected generation to increment after btn:primary ({gen4} -> {gen5}).");
+    }
 }

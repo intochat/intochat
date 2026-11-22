@@ -22,6 +22,39 @@ import 'workspace_preferences_io.dart'
     if (dart.library.js_interop) 'workspace_preferences_web.dart'
     as preferences;
 
+/// Inherited controller allowing any desktop button, settings panel, or
+/// studio widget to inspect and live-morph the active [UiThemeSeeds] across
+/// the entire Desktop OS shell in real time.
+class UiThemeSeedsController extends InheritedWidget {
+  const UiThemeSeedsController({
+    super.key,
+    required this.seeds,
+    required this.setSeeds,
+    required this.resetSeeds,
+    required super.child,
+  });
+
+  final UiThemeSeeds seeds;
+  final ValueChanged<UiThemeSeeds> setSeeds;
+  final VoidCallback resetSeeds;
+
+  static UiThemeSeedsController? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<UiThemeSeedsController>();
+
+  static UiThemeSeedsController of(BuildContext context) {
+    final controller = maybeOf(context);
+    assert(
+      controller != null,
+      'No UiThemeSeedsController found in widget tree.',
+    );
+    return controller!;
+  }
+
+  @override
+  bool updateShouldNotify(UiThemeSeedsController oldWidget) =>
+      seeds != oldWidget.seeds;
+}
+
 class WorkspaceApp extends StatefulWidget {
   const WorkspaceApp({
     super.key,
@@ -121,6 +154,25 @@ class WorkspaceAppState extends State<WorkspaceApp>
   Uri? _pendingLocation;
   String? _departureRefusal;
   int _surfaceReloadEpoch = 0;
+  UiThemeSeeds _themeSeeds = UiThemeSeeds.warmPaper;
+  bool _hasCustomThemeSeeds = false;
+
+  UiThemeSeeds get themeSeeds => _themeSeeds;
+
+  void setThemeSeeds(UiThemeSeeds seeds) {
+    if (!mounted) return;
+    setState(() {
+      _themeSeeds = seeds;
+      _hasCustomThemeSeeds = true;
+    });
+  }
+
+  void resetThemeSeeds() {
+    if (!mounted) return;
+    setState(() {
+      _hasCustomThemeSeeds = false;
+    });
+  }
 
   String? get currentBrain => _brain;
   WorkspaceSnapshot? get workspaceSnapshot => _workspaceSnapshot;
@@ -834,22 +886,30 @@ class WorkspaceAppState extends State<WorkspaceApp>
       themeMode: UiTheme.modeFor(effectiveTheme),
       builder: (context, child) {
         final brightness = Theme.of(context).brightness;
-        return UiSeedThemeScope(
-          seeds: brightness == Brightness.dark
-              ? UiThemeSeeds.warmDark
-              : UiThemeSeeds.warmPaper,
-          child: IcTheme(
-            colors: IcColors.forPreset(
-              preset,
-              dark: brightness == Brightness.dark,
-            ),
-            child: MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                disableAnimations:
-                    store.settings.reducedMotion ||
-                    MediaQuery.disableAnimationsOf(context),
+        final activeSeeds = _hasCustomThemeSeeds
+            ? _themeSeeds
+            : (brightness == Brightness.dark
+                  ? UiThemeSeeds.warmDark
+                  : UiThemeSeeds.warmPaper);
+        return UiThemeSeedsController(
+          seeds: activeSeeds,
+          setSeeds: setThemeSeeds,
+          resetSeeds: resetThemeSeeds,
+          child: UiSeedThemeScope(
+            seeds: activeSeeds,
+            child: IcTheme(
+              colors: IcColors.forPreset(
+                preset,
+                dark: brightness == Brightness.dark,
               ),
-              child: child!,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  disableAnimations:
+                      store.settings.reducedMotion ||
+                      MediaQuery.disableAnimationsOf(context),
+                ),
+                child: child!,
+              ),
             ),
           ),
         );
