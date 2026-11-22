@@ -41,9 +41,10 @@ Tests are organized by scope and feedback speed across both `framework/tests/` a
 
 | Layer | Projects | Responsibilities | Constraints |
 |---|---|---|---|
-| **Framework (Orleans-free)** | `framework/src/DigitalBrain.Testing` | `TestOS`, `INeuronRuntime`, `NeuronRuntimeKind`, `AppSession<TScreen>`, `IAppSessionDriver`, `DirectNeuronSessionDriver`, `ScreenBaseline`, capability conformance suites. | Must **never** reference Orleans or `IntoChat.OS.*`. |
-| **Framework (Silo)** | `framework/src/DigitalBrain.Testing.Silo` | `BothRuntimesFixture`, `AppConcurrencyAndIsolationContract<TScreen, TFixture>`, host conformance facts. | References `DigitalBrain.Testing` and `DigitalBrain.Runtime.Orleans`; must **never** reference `IntoChat.OS.*`. |
-| **Product Support** | `tests/IntoChat.OS.Tests.Support` | `AspireHttpSessionDriver`, `VisualDebugWindow`, Aspire host fixtures, OS-specific test helpers. | Product-only; wires `IntoChat.OS` hosts into `DigitalBrain.Testing` abstractions. |
+| **Framework (Simulation)** | `framework/src/DigitalBrain.Simulation` | `TestOS`, `FakeSet`, in-memory host, clock, and journal simulation. | Must **never** reference Orleans or `IntoChat.OS.*`. |
+| **Framework (Orleans-free)** | `framework/src/DigitalBrain.Testing` | `INeuronRuntime`, `NeuronRuntimeKind` (`TestOS`, `Silo`), `Person`, `AppSession<TScreen>`, `IAppSessionDriver`, `DirectNeuronSessionDriver`, `ScreenBaseline`, capability conformance suites. | Must **never** reference Orleans or `IntoChat.OS.*`. |
+| **Framework (Silo)** | `framework/src/DigitalBrain.Testing.Silo` | `JourneyOS`, `BothRuntimesFixture`, `AppConcurrencyAndIsolationContract<TScreen, TFixture>`, host conformance facts. | References `DigitalBrain.Testing` and `DigitalBrain.Runtime.Orleans`; must **never** reference `IntoChat.OS.*`. |
+| **Product Support** | `tests/IntoChat.OS.Tests.Support` | `OsFakes`, `PersonJourneyExtensions`, `AspireHttpSessionDriver`, `VisualDebugWindow`, Aspire host fixtures, OS-specific test helpers. | Product-only; wires `IntoChat.OS` hosts and edge fakes into `DigitalBrain.Testing` abstractions. |
 
 ---
 

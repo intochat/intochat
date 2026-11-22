@@ -257,7 +257,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     }
 
     /// <inheritdoc />
-    public Task<PublishedView?> Read(string? alias = null)
+    public virtual Task<PublishedView?> Read(string? alias = null)
         => Task.FromResult(_view is { } view && (alias is null || string.Equals(view.Alias, alias, StringComparison.Ordinal)) ? view : null);
 
     /// <inheritdoc />

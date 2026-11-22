@@ -100,6 +100,8 @@ public sealed class AppSessionFacts
         public Task<IReadOnlyList<T>> Signals<T>(NeuronId publisher, CancellationToken ct) where T : Signal => throw new NotSupportedException();
         public Task ApproveAsPerson(string planId, CancellationToken ct) => Task.CompletedTask;
         public Task Restart(CancellationToken ct) => Task.CompletedTask;
+        public Task Deactivate(NeuronId id) => os.Deactivate(id);
+        public Task SeedState(NeuronId id, string json, CancellationToken ct) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

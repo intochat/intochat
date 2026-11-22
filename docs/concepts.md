@@ -45,12 +45,16 @@ Limits today: both brains must run on the same kernel; a share names a path, so 
 
 A group is an `IConversation` in its creator's brain with friends invited as participants. Friends reach it only through the `[Shareable]` door via `IFriends`, admitted only while they remain both a participant and a friend, and see only `Visibility.Everyone` entries. Older circle brains in `src/Modules/Circles` remain read-only legacy data so existing records stay readable without wiping state.
 
+Neurons whose contracts carry `[Offered]` (such as `ITable`) can also be shared with a confirmed friend through `IOffers` at a `Role` (`Role.Viewer` or `Role.Editor`). Access is checked on every call; revoking the offer or unfriending takes effect immediately.
+
 ## App
 
 An app is a DigitalBrain app that runs in a brain. There are two kinds:
 
-- **System apps** are compiled into the product. Each has a folder in `src/IntoChat.OS.Apps`, for example `Desktop`, `Settings`, `Tasks` and `Creator`.
+- **System apps** are compiled into the product. Each has a folder in `src/IntoChat.OS.Apps`, for example `Desktop`, `Settings`, `Tasks`, `Creator` and `CustomerResearcher`.
 - **Apps made at runtime** are synapse units. They are not source in this repository. A unit is loaded inside the kernel process behind an allow-list; an app package runs in the sandbox worker, outside the kernel. See [sandbox and live behaviors](sandbox-and-live-behaviors.md).
+
+Components can declare their neuron dependencies as `[Slot]` partial properties (for example `CustomerResearcherApp` in `src/IntoChat.OS.Apps/CustomerResearcher/CustomerResearcherApp.cs`). Each installation binds its slots through `IInstalls` using typed `Binding` targets (`BindingTarget.Local` for a neuron in the same brain, or `BindingTarget.Offered` for a neuron offered by a friend via `IOffers`).
 
 ## Ino
 

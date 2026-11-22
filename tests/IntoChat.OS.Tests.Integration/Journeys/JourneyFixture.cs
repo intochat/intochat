@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Web;
+using IntoChat.OS.Tests.Support.Fakes;
 
 namespace IntoChat.OS.Tests.Integration.Journeys;
 
@@ -27,5 +28,5 @@ public static class Journey
 
     /// <summary>Starts a <see cref="JourneyOS"/> with <see cref="SliceModules"/> and the configured edge fakes.</summary>
     public static Task<JourneyOS> Start(NeuronRuntimeKind kind, Action<FakeSet> fakes, CancellationToken ct = default)
-        => JourneyOS.Start(kind, SliceModules, fakes, ct);
+        => JourneyOS.Start(kind, SliceModules, f => { f.Friends(); fakes(f); }, ct);
 }

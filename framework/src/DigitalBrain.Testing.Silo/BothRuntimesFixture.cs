@@ -127,6 +127,8 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public Task Restart(CancellationToken ct) => os.Restart();
 
+        public Task Deactivate(NeuronId id) => os.Deactivate(id);
+
         public Task SeedState(NeuronId id, string json, CancellationToken ct)
         {
             using var doc = JsonDocument.Parse(json);
@@ -186,6 +188,8 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         }
 
         public Task Restart(CancellationToken ct) => host.Restart(ct);
+
+        public Task Deactivate(NeuronId id) => RuntimeTestHooks.Deactivate(host.Services, id);
 
         public async Task SeedState(NeuronId id, string json, CancellationToken ct)
         {

@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Components;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
@@ -14,6 +16,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
+using IntoChat.OS.Modules.Identity.Contracts.Codes;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.Modules.Web.Search;
@@ -40,6 +43,19 @@ public static class OsFakes
         return fakes
             .Add<ITableStore, FakeTableStore>(new())
             .Add<ITablePlacements, SharedTablePlacements>(new());
+    }
+
+    /// <summary>Registers in-memory friend codes, same-name brain ownership, and <see cref="IFriendCheck"/> for cross-brain sharing.</summary>
+    public static FakeSet Friends(this FakeSet fakes)
+    {
+        ArgumentNullException.ThrowIfNull(fakes);
+        return fakes
+            .Add<IBrainOwners, SameNameBrainOwners>(new())
+            .Add<ICodeBook, InMemoryCodeBook>(new())
+            .Configure(services =>
+            {
+                services.TryAddSingleton<IFriendCheck>(sp => new FriendsFriendCheck(sp.GetRequiredService<INeuronProxies>()));
+            });
     }
 
     /// <summary>Registers <see cref="FakeSearchAdapter"/> and configures web search to use it.</summary>
@@ -110,6 +126,40 @@ public static class OsFakes
             .Add<IChatClient, ScriptedChatClient>(client)
             .Add<IAiCredentials, NoConfiguredProviders>(new())
             .Add<ISecretRedactor, NoOpSecretRedactor>(new());
+    }
+
+    private sealed class SameNameBrainOwners : IBrainOwners
+    {
+        public Task<string?> OwnerAccount(BrainId brain, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>(brain.Value);
+    }
+
+    private sealed class InMemoryCodeBook : ICodeBook
+    {
+        private readonly ConcurrentDictionary<(CodePurpose Purpose, string Hash), CodeTarget> _codes = new();
+
+        public Task<string> Bind(Code code, CodePurpose purpose, BrainId brain, string reference, DateTimeOffset expiresAt)
+        {
+            var hash = code.Value;
+            _codes[(purpose, hash)] = new CodeTarget(brain, reference, expiresAt);
+            return Task.FromResult(hash);
+        }
+
+        public Task<string> HashOf(Code code) => Task.FromResult(code.Value);
+
+        public Task<CodeTarget?> Find(CodePurpose purpose, string hash)
+            => Task.FromResult(_codes.TryGetValue((purpose, hash), out var target) ? target : null);
+
+        public Task<CodeTarget?> Lookup(CodePurpose purpose, string hash) => Find(purpose, hash);
+
+        public Task Spend(string hash)
+        {
+            foreach (var key in _codes.Keys.Where(k => k.Hash == hash).ToList())
+            {
+                _codes.TryRemove(key, out _);
+            }
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class NoOpSecretRedactor : ISecretRedactor

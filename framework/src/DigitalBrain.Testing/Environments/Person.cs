@@ -1,8 +1,11 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using DigitalBrain.Access;
 using DigitalBrain.Components;
+using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
 
 namespace DigitalBrain.Testing;
 
@@ -14,6 +17,7 @@ public sealed class Person
     private readonly INeuronRuntime _runtime;
     private readonly Actor.Person _actor;
     private readonly Caller _caller;
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<NeuronId, byte>> _openedScreens = new(StringComparer.Ordinal);
 
     /// <summary>Creates a person with <paramref name="name"/> as both account and brain id.</summary>
     public Person(INeuronRuntime runtime, string name)
@@ -67,7 +71,35 @@ public sealed class Person
     /// <summary>Opens a typed screen session in this person's brain as this person.</summary>
     public Task<AppSession<TScreen>> Open<TScreen>(string? key = null, CancellationToken ct = default)
         where TScreen : class
-        => AppSession.OpenAsync<TScreen>(_runtime, Brain, _caller, key, ct);
+    {
+        var alias = ResolveScreenAlias(typeof(TScreen));
+        var screenKey = string.IsNullOrWhiteSpace(key) ? $"session-{Guid.NewGuid():N}" : key;
+        var screenId = new NeuronId(Brain, alias, screenKey);
+        _openedScreens.GetOrAdd(alias, static _ => new ConcurrentDictionary<NeuronId, byte>()).TryAdd(screenId, 0);
+        return AppSession.OpenAsync<TScreen>(_runtime, Brain, _caller, screenKey, ct);
+    }
+
+    /// <summary>Deactivates any tracked screen activations of <typeparamref name="TScreen"/> in this person's brain.</summary>
+    public async Task DeactivateScreens<TScreen>() where TScreen : class
+    {
+        var alias = ResolveScreenAlias(typeof(TScreen));
+        if (_openedScreens.TryGetValue(alias, out var ids))
+        {
+            foreach (var id in ids.Keys)
+            {
+                await _runtime.Deactivate(id).ConfigureAwait(false);
+            }
+            await _runtime.Idle().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Deactivates the neuron <paramref name="id"/> in the underlying runtime.</summary>
+    public Task Deactivate(NeuronId id) => _runtime.Deactivate(id);
+
+    private static string ResolveScreenAlias(Type screenType)
+        => PlainNeuronContracts.TypeOf(screenType)
+            ?? screenType.GetCustomAttribute<NeuronAttribute>()?.Type
+            ?? screenType.Name;
 }
 
 /// <summary>

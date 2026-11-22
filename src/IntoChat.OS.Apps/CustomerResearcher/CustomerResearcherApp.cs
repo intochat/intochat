@@ -93,10 +93,37 @@ public sealed partial class CustomerResearcherApp(ILogger<CustomerResearcherApp>
 
     private bool IsOfferedTable => Slots.BindingOf("customers")?.Target is BindingTarget.Offered;
 
+    private bool _loaded;
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken).ConfigureAwait(true);
         var readOnly = IsOfferedTable;
+        if (readOnly)
+        {
+            // Offered tables require the opening person's caller (OnActivate runs as Actor.Scheduler);
+            // OnOpen loads them on the first Read/Open under that person's caller.
+            await Show(State with { ReadOnly = true }).ConfigureAwait(true);
+            return;
+        }
+
+        await LoadInitialProfilesAsync(readOnly: false).ConfigureAwait(true);
+        _loaded = true;
+    }
+
+    public override async Task<DigitalBrain.Units.PublishedView?> Read(string? alias = null)
+    {
+        if (!_loaded)
+        {
+            _loaded = true;
+            await LoadInitialProfilesAsync(readOnly: IsOfferedTable).ConfigureAwait(true);
+        }
+
+        return await base.Read(alias).ConfigureAwait(true);
+    }
+
+    private async Task LoadInitialProfilesAsync(bool readOnly)
+    {
         try
         {
             if (!readOnly)
@@ -363,7 +390,7 @@ public sealed partial class CustomerResearcherApp(ILogger<CustomerResearcherApp>
                 StatCard("kpi-cr-high-fit", "High Fit", highFitCount, "Score >= 85", BadgeTone.Neutral, Icons.Check)
             ],
             HStack(Space.Sm)[
-                TextField("Company Name", "e.g. Acme Corp")
+                TextField("Company Name", "Enter a company name")
                     .Key("input:company")
                     .Value(state.Draft)
                     .OnChange<CustomerResearcherState>(s => s.SetDraft(Arg.Text)),

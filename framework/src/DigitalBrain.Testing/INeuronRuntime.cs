@@ -49,6 +49,9 @@ public interface INeuronRuntime : IAsyncDisposable
     // Stops every activation and starts again over the same state (TestOS keeps its journal; the silo keeps its home).
     Task Restart(CancellationToken ct);
 
+    // Deactivates the activation of id once it is idle; state, synapses and reminders survive.
+    Task Deactivate(NeuronId id);
+
     // Seeds raw persisted JSON state for a neuron before activation (used for state backward-compatibility tests).
     Task SeedState(NeuronId id, string json, CancellationToken ct);
 }
