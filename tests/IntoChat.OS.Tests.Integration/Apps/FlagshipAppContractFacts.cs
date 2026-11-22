@@ -1,6 +1,7 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Calculator;
+using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Settings;
 using Xunit;
 
@@ -70,5 +71,30 @@ public sealed class SettingsAppContractFacts : AppConcurrencyAndIsolationContrac
 
         await session.Click("nav-desktop", ct);
         session.ShouldDisplayText("Desktop & Dock").ShouldDisplayText("OS bar indicators");
+    }
+}
+
+public sealed class GalleryAppContractFacts : AppConcurrencyAndIsolationContract<GalleryApp, FlagshipAppsRuntimeFixture>
+{
+    private readonly FlagshipAppsRuntimeFixture _fixture;
+
+    public GalleryAppContractFacts(FlagshipAppsRuntimeFixture fixture) : base(fixture)
+    {
+        _fixture = fixture;
+    }
+
+    protected override string? ConcurrentActivationKey => "nav:colors";
+
+    [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
+    public async Task Navigation_SwitchesToColorsSection_ViaAppSession(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await _fixture.Runtime(kind);
+        await using var session = await AppSession.OpenAsync<GalleryApp>(runtime, ct: ct);
+
+        session.ShouldDisplayText("IntoChat UI Gallery");
+
+        await session.Click("nav:colors", ct);
+        session.ShouldDisplayText("Colors & surfaces");
     }
 }

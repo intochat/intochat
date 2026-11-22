@@ -162,37 +162,11 @@ public sealed class WidgetbookApp : EmbeddedWebApp<WidgetbookAppState>
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        var isDev = state.SourceMode == WidgetbookSourceMode.DevHotReload;
-        var toolbar = HStack(
-            Space.Xs,
-            (isDev ? GhostButton("Bundled") : PrimaryButton("Bundled"))
-                .Key("widgetbook:source:bundled")
-                .Small()
-                .OnClick<WidgetbookAppState>(s => s.WithSource(WidgetbookSourceMode.BundledStatic)),
-            (isDev ? PrimaryButton("Dev Hot-Reload") : GhostButton("Dev Hot-Reload"))
-                .Key("widgetbook:source:dev")
-                .Small()
-                .OnClick<WidgetbookAppState>(s => s.WithSource(WidgetbookSourceMode.DevHotReload)),
-            FlexSpacer(),
-            (state.ThemeMode == "light" ? PrimaryButton("Light") : GhostButton("Light"))
-                .Key("widgetbook:theme:light")
-                .Small()
-                .OnClick<WidgetbookAppState>(s => s.WithTheme("light")),
-            (state.ThemeMode == "dark" ? PrimaryButton("Dark") : GhostButton("Dark"))
-                .Key("widgetbook:theme:dark")
-                .Small()
-                .OnClick<WidgetbookAppState>(s => s.WithTheme("dark")),
-            StatusPill(StatusKind.Done, isDev ? "localhost:8090" : "/widgetbook"),
-            Button("Reload", Icons.RefreshCw)
-                .Key("widgetbook:reload")
-                .Small()
-                .OnClick<WidgetbookAppState>(s => s.Reload()));
-
         return RenderEmbeddedSurface(
             shellKey: "widgetbook-shell",
             browserKey: "widgetbook-browser",
             title: "IntoChat.OS Widgetbook",
             url: state.CurrentUrl,
-            toolbar: toolbar);
+            toolbar: null);
     }
 }
