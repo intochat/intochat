@@ -160,7 +160,10 @@ Widget renderRow(RowNode node, NodeContext ctx) {
           } else if (boundedWidth && flexWeight(i) != null) {
             rowChildren.add(Expanded(flex: flexWeight(i)!, child: w));
           } else if (boundedWidth &&
-              (childNode is HeadingNode || childNode is TextNode)) {
+              (childNode is HeadingNode ||
+                  childNode is TextNode ||
+                  childNode is TabsNode ||
+                  childNode is TabStripViewNode)) {
             rowChildren.add(Flexible(fit: FlexFit.loose, child: w));
           } else if (boundedWidth &&
               childNode is FieldNode &&
