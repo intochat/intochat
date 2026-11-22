@@ -38,3 +38,13 @@ internal sealed class BraveSearch(HttpClient client, Func<CancellationToken, Tas
         return SearchResults.Normalize(items.Select(static r => (r.Title, r.Url, r.Description)), count);
     }
 }
+
+internal sealed class BraveSearchRegistration(IHttpClientFactory? clients = null)
+    : SearchAdapterRegistration(SearchProvider.Brave)
+{
+    public override ISearchAdapter Create(SearchAdapterContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new BraveSearch(WebSearchNeuron.CreateClient(clients), ct => context.ResolveKey(WebIntegrations.BraveId, ct));
+    }
+}

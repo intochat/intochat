@@ -3,8 +3,10 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Http;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Modules.Web.Search;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Web;
 
@@ -42,5 +44,8 @@ public sealed class WebModule : DigitalBrain.Modules.Module
             client.Timeout = TimeSpan.FromSeconds(15);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("IntoChatOS-WebSearch/1.0");
         });
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<SearchAdapterRegistration, SearxngSearchRegistration>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<SearchAdapterRegistration, BraveSearchRegistration>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<SearchAdapterRegistration, TavilySearchRegistration>());
     }
 }

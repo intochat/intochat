@@ -267,7 +267,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 #pragma warning restore CA1031
     }
 
-    private SettingsSlots Slots => new(
+    private new SettingsSlots Slots => new(
         Slot<ToggleSwitchNeuron, ToggleSwitchProps>,
         Slot<ComboBoxNeuron, ComboBoxProps>,
         Slot<IntoChat.OS.Apps.Controls.FormNeuron, FormProps>);

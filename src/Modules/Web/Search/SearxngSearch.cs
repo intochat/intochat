@@ -26,3 +26,18 @@ internal sealed class SearxngSearch(HttpClient client, Uri baseUrl) : ISearchAda
         return SearchResults.Normalize(items.Select(static r => (r.Title, r.Url, r.Content)), count);
     }
 }
+
+internal sealed class SearxngSearchRegistration(IHttpClientFactory? clients = null)
+    : SearchAdapterRegistration(SearchProvider.Searxng)
+{
+    public override ISearchAdapter Create(SearchAdapterContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.SearxngUrl is null || !context.SearxngUrl.IsAbsoluteUri || context.SearxngUrl.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException("SearXNG needs a URL. Configure it in Settings → AI → Web & tools.");
+        }
+
+        return new SearxngSearch(WebSearchNeuron.CreateClient(clients), context.SearxngUrl);
+    }
+}

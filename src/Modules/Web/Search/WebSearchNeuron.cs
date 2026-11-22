@@ -14,12 +14,17 @@ internal sealed class WebSearchNeuron(
     IHttpClientFactory? clients = null,
     IOptions<WebModuleOptions>? options = null,
     IBrainProviderKeys? brainKeys = null,
-    IModuleIntegrations<WebModule>? integrations = null) : Neuron, IWebSearch
+    IModuleIntegrations<WebModule>? integrations = null,
+    IEnumerable<ISearchAdapter>? adapters = null,
+    IEnumerable<SearchAdapterRegistration>? adapterRegistrations = null) : Neuron, IWebSearch
 {
     internal const string ProviderVariable = "web.search.provider";
     internal const string SearxngUrlVariable = "web.search.searxng-url";
 
     private static readonly HttpClient FallbackClient = new() { Timeout = TimeSpan.FromSeconds(15) };
+
+    internal static HttpClient CreateClient(IHttpClientFactory? clients)
+        => clients?.CreateClient(WebModule.SearchHttpClientName) ?? FallbackClient;
 
     public async Task<SearchProvider> Provider()
     {
@@ -41,28 +46,38 @@ internal sealed class WebSearchNeuron(
             case SearchProvider.Native:
                 throw new InvalidOperationException("Web search is off for tool calls because the chat model searches by itself. Choose a provider in Settings → AI → Web & tools.");
 
-            case SearchProvider.Searxng:
-                if (searxngUrl is null || !searxngUrl.IsAbsoluteUri || searxngUrl.Scheme is not ("http" or "https"))
-                {
-                    throw new InvalidOperationException("SearXNG needs a URL. Configure it in Settings → AI → Web & tools.");
-                }
-
-                return await new SearxngSearch(Client(), searxngUrl).Search(query, clamped, CancellationToken.None).ConfigureAwait(false);
-
-            case SearchProvider.Brave:
-                return await new BraveSearch(Client(), ct => ResolveKeyAsync(WebIntegrations.BraveId, ct))
-                    .Search(query, clamped, CancellationToken.None).ConfigureAwait(false);
-
-            case SearchProvider.Tavily:
-                return await new TavilySearch(Client(), ct => ResolveKeyAsync(WebIntegrations.TavilyId, ct))
-                    .Search(query, clamped, CancellationToken.None).ConfigureAwait(false);
-
             default:
-                throw new InvalidOperationException("Web search is off. Choose a provider in Settings → AI → Web & tools.");
+                var adapter = ResolveAdapter(provider, searxngUrl);
+                return await adapter.Search(query, clamped, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
-    private HttpClient Client() => clients?.CreateClient(WebModule.SearchHttpClientName) ?? FallbackClient;
+    private ISearchAdapter ResolveAdapter(SearchProvider provider, Uri? searxngUrl)
+    {
+        var direct = adapters?.FirstOrDefault(a => a.Provider == provider);
+        if (direct is not null)
+        {
+            return direct;
+        }
+
+        var context = new SearchAdapterContext(searxngUrl, ResolveKeyAsync);
+        var registration = adapterRegistrations?.FirstOrDefault(r => r.Provider == provider)
+            ?? DefaultRegistration(provider);
+        if (registration is not null)
+        {
+            return registration.Create(context);
+        }
+
+        throw new InvalidOperationException("Web search is off. Choose a provider in Settings → AI → Web & tools.");
+    }
+
+    private SearchAdapterRegistration? DefaultRegistration(SearchProvider provider) => provider switch
+    {
+        SearchProvider.Searxng => new SearxngSearchRegistration(clients),
+        SearchProvider.Brave => new BraveSearchRegistration(clients),
+        SearchProvider.Tavily => new TavilySearchRegistration(clients),
+        _ => null,
+    };
 
     private async Task<(SearchProvider Provider, Uri? SearxngUrl)> ResolveConfigurationAsync()
     {

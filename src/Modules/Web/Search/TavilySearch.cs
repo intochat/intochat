@@ -44,3 +44,13 @@ internal sealed class TavilySearch(HttpClient client, Func<CancellationToken, Ta
         return SearchResults.Normalize(items.Select(static r => (r.Title, r.Url, r.Content)), count);
     }
 }
+
+internal sealed class TavilySearchRegistration(IHttpClientFactory? clients = null)
+    : SearchAdapterRegistration(SearchProvider.Tavily)
+{
+    public override ISearchAdapter Create(SearchAdapterContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new TavilySearch(WebSearchNeuron.CreateClient(clients), ct => context.ResolveKey(WebIntegrations.TavilyId, ct));
+    }
+}
