@@ -1,11 +1,16 @@
+export 'badge.dart';
 export 'button.dart';
 export 'checkbox.dart';
 export 'chip.dart';
 export 'expander.dart';
 export 'field.dart';
 export 'icon_button.dart';
+export 'nav_bar.dart';
 export 'radio.dart';
+export 'segmented.dart';
 export 'select.dart';
+export 'sheet.dart';
+export 'skeleton.dart';
 export 'slider.dart';
 export 'style.dart';
 export 'surface.dart';

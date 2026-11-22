@@ -67,7 +67,9 @@ public static class IntoChatOSHostingExtensions
             {
                 var code = await LocalReset.RunFromAppHostAsync(builder, ["--yes"]);
                 return code == 0 ? CommandResults.Success() : CommandResults.Failure("Local reset failed.");
-            });
+            })
+            .WithCommand("launch-linux-wsl", "Launch Linux (WSL)", _ => LaunchLinuxWslAsync(), new CommandOptions { IsHighlighted = true })
+            .WithCommand("launch-android", "Launch Android (Phone)", _ => LaunchAndroidAsync(builder.AppHostDirectory), new CommandOptions { IsHighlighted = true });
         // Cluster membership may change between runs; persistence identity must not.
         var clusterId = options.ClusterId ?? builder.Configuration[IntoChatOSHostingOptions.ClusterIdKey]
             ?? (builder.Environment.IsDevelopment() ? $"os-{Guid.NewGuid():N}" : resolvedServiceId);
@@ -243,6 +245,79 @@ public static class IntoChatOSHostingExtensions
         foreach (var dependency in dependencies)
         {
             builder.WithAnnotation(new WaitAnnotation(dependency, WaitType.WaitUntilHealthy, exitCode: 0));
+        }
+    }
+
+    private static Task<ExecuteCommandResult> LaunchLinuxWslAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.FromResult(CommandResults.Failure("WSL launch is only supported on Windows hosts."));
+        }
+
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("wsl")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add("-d");
+            psi.ArgumentList.Add("Ubuntu-24.04");
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add("env");
+            psi.ArgumentList.Add("INTOCHATOS_DESKTOP_PORT=5081");
+            psi.ArgumentList.Add("/home/vlad/.intochat/bin/intochat");
+            System.Diagnostics.Process.Start(psi);
+            return Task.FromResult(CommandResults.Success());
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(CommandResults.Failure($"Failed to launch Linux (WSL): {ex.Message}"));
+        }
+    }
+
+    private static Task<ExecuteCommandResult> LaunchAndroidAsync(string appHostDirectory)
+    {
+        var uiDir = Path.GetFullPath(Path.Combine(appHostDirectory, "..", "..", "ui"));
+        if (!Directory.Exists(uiDir))
+        {
+            return Task.FromResult(CommandResults.Failure($"Flutter UI directory not found at '{uiDir}'."));
+        }
+
+        try
+        {
+            // Best-effort USB port forwarding so the connected Android phone can reach the local Kernel.
+            var adbPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Android", "Sdk", "platform-tools", OperatingSystem.IsWindows() ? "adb.exe" : "adb");
+            if (File.Exists(adbPath))
+            {
+                var adbPsi = new System.Diagnostics.ProcessStartInfo(adbPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                adbPsi.ArgumentList.Add("reverse");
+                adbPsi.ArgumentList.Add("tcp:5080");
+                adbPsi.ArgumentList.Add("tcp:5080");
+                System.Diagnostics.Process.Start(adbPsi)?.WaitForExit(3000);
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo("flutter")
+            {
+                WorkingDirectory = uiDir,
+                UseShellExecute = false,
+            };
+            psi.ArgumentList.Add("run");
+            psi.ArgumentList.Add("-d");
+            psi.ArgumentList.Add("android");
+            System.Diagnostics.Process.Start(psi);
+            return Task.FromResult(CommandResults.Success());
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(CommandResults.Failure($"Failed to launch Android build: {ex.Message}"));
         }
     }
 }

@@ -1464,6 +1464,524 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     };
   }
 
+  static const double _kCompactBreakpoint = 600.0;
+  static const double _kExpandedBreakpoint = 1024.0;
+
+  List<UiNavBarItem> _buildAdaptiveNavItems(int activeCount) => [
+    const UiNavBarItem(id: 'ino', label: 'Ino', icon: LucideIcons.sparkles),
+    UiNavBarItem(
+      id: 'active',
+      label: 'Active',
+      icon: LucideIcons.layers,
+      badgeCount: activeCount > 0 ? activeCount : null,
+    ),
+    const UiNavBarItem(
+      id: 'apps',
+      label: 'All Apps',
+      icon: LucideIcons.layoutGrid,
+    ),
+    const UiNavBarItem(
+      id: 'theme',
+      label: 'Theme',
+      icon: LucideIcons.slidersHorizontal,
+    ),
+  ];
+
+  int _adaptiveSelectedIndex(_ParsedDesktopWindow? topWindow) {
+    if (_themeStudioOpen) return 3;
+    if (_allAppsOpen) return 2;
+    if (topWindow != null && topWindow.appId != 'ino') return 1;
+    return 0;
+  }
+
+  Widget _buildSinglePaneContent({
+    required _ParsedDesktopWindow? topWindow,
+    required List<_ParsedDesktopWindow> windows,
+    required Map<String, Map<String, dynamic>> dockButtons,
+    required List<SmartAppTileSpec> dockApps,
+    required List<String> openWidgets,
+    required Size desk,
+    required bool isCompact,
+  }) {
+    if (topWindow == null) {
+      return SmartDesktop(
+        hasOpenWindows: false,
+        stylePreset: widget.stylePreset,
+        barLayout: widget.barLayout,
+        apps: dockApps,
+        openCardIds: openWidgets,
+        onOpenCard: (cardId) {
+          setState(() {
+            _clientClosedWidgets.remove(cardId);
+            _clientOpenedWidgets.add(cardId);
+          });
+          _shellGesture('desktop', 'widget-open', cardId);
+        },
+        onCloseCard: (cardId) {
+          setState(() {
+            _clientOpenedWidgets.remove(cardId);
+            _clientClosedWidgets.add(cardId);
+          });
+          _shellGesture('desktop', 'widget-close', cardId);
+        },
+        onLaunchApp: (appId) => _launchOrFocusApp(appId, windows, dockButtons),
+        onOpenPalette: widget.onTogglePalette,
+        onOpenAllApps: () => setState(() {
+          _popover = DesktopPopoverKind.none;
+          _allAppsOpen = true;
+        }),
+        onSelectPreset: widget.onSelectPreset,
+        onCycleBarLayout: widget.onCycleBarLayout,
+        onAutoArrange: () => _autoArrangeWindows(desk),
+      );
+    }
+
+    return ViewHost(
+      key: ValueKey(
+        'adaptive-viewport:${topWindow.viewportRef['name']}:${_windowStates[topWindow.windowId]?.reloadEpoch ?? 0}',
+      ),
+      kind: topWindow.viewportRef['kind'] as String,
+      name: topWindow.viewportRef['name'] as String,
+      load: widget.load,
+      watch: widget.watch,
+      watchSignal: _watchSignal,
+      callNeuron: widget.callNeuron,
+      onAction: (event) => _intentTracker.wrapAction(
+        event,
+        widget.onAction,
+        fallbackFromNeuron: '${widget.brain}/apps/${topWindow.appId}',
+      ),
+      knowsApp: _knowsDesktopApp,
+      transcribe: widget.transcribe,
+      talk: widget.talk,
+      speak: widget.speak,
+      signals: _journalFor(topWindow.viewportRef['name'] as String),
+      onActivate: (activation) => _handleChildActivation(
+        activation,
+        windows,
+        dockButtons,
+        sourceAppId: topWindow.appId,
+      ),
+    );
+  }
+
+  Future<void> _showActiveAppsSheet(
+    BuildContext context,
+    List<_ParsedDesktopWindow> orderedWindows,
+    Map<String, _ParsedDesktopWindow> byId,
+  ) {
+    final activeList = orderedWindows.reversed.toList(growable: false);
+    return showUiSheet<void>(
+      context: context,
+      compactBreakpoint: _kCompactBreakpoint,
+      builder: (sheetCtx) {
+        final uiColors = UiColors.of(sheetCtx);
+        return UiSheet(
+          title: 'Active Apps',
+          subtitle: activeList.isEmpty
+              ? 'No open apps'
+              : '${activeList.length} running',
+          showDragHandle: true,
+          semanticsId: 'adaptive-sheet:active-apps',
+          child: activeList.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'Launch an app from Ino or All Apps to get started.',
+                    style: TextStyle(color: uiColors.muted, fontSize: 13),
+                  ),
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: activeList.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
+                    itemBuilder: (_, idx) {
+                      final w = activeList[idx];
+                      return ListTile(
+                        dense: true,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        tileColor: uiColors.surface,
+                        leading: IcAppIcon(appId: w.appId, size: 22),
+                        title: Text(
+                          w.title,
+                          style: TextStyle(
+                            color: uiColors.strong,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(
+                            LucideIcons.x,
+                            size: 16,
+                            color: uiColors.muted,
+                          ),
+                          tooltip: 'Close ${w.title}',
+                          onPressed: () {
+                            Navigator.of(sheetCtx).pop();
+                            _closeWindow(w);
+                          },
+                        ),
+                        onTap: () {
+                          Navigator.of(sheetCtx).pop();
+                          final target = byId[w.windowId];
+                          if (target != null) _focusWindow(target);
+                        },
+                      );
+                    },
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showAllAppsSheet(
+    BuildContext context,
+    List<SmartAppTileSpec> launcherApps,
+    List<_ParsedDesktopWindow> windows,
+    Map<String, Map<String, dynamic>> dockButtons,
+  ) {
+    return showUiSheet<void>(
+      context: context,
+      compactBreakpoint: _kCompactBreakpoint,
+      builder: (sheetCtx) {
+        final uiColors = UiColors.of(sheetCtx);
+        return UiSheet(
+          title: 'All Apps',
+          subtitle: '${launcherApps.length} available',
+          showDragHandle: true,
+          semanticsId: 'adaptive-sheet:all-apps',
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: GridView.builder(
+              shrinkWrap: true,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.95,
+              ),
+              itemCount: launcherApps.length,
+              itemBuilder: (_, idx) {
+                final spec = launcherApps[idx];
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    _launchOrFocusApp(spec.id, windows, dockButtons);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: uiColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: uiColors.hairline),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IcAppIcon(
+                          appId: spec.id,
+                          icon: spec.icon,
+                          accentHex: spec.accentHex,
+                          size: 26,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          spec.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: uiColors.strong,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showThemeStudioSheet(BuildContext context) {
+    final controller = UiThemeSeedsController.maybeOf(context);
+    var localSeeds = controller?.seeds ?? UiThemeSeeds.warmPaper;
+    return showUiSheet<void>(
+      context: context,
+      compactBreakpoint: _kCompactBreakpoint,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final currentSeeds =
+              UiThemeSeedsController.maybeOf(ctx)?.seeds ?? localSeeds;
+          return UiSheet(
+            showDragHandle: true,
+            semanticsId: 'adaptive-sheet:theme-studio',
+            padding: const EdgeInsets.all(12),
+            child: SingleChildScrollView(
+              child: ThemeStudioPanel(
+                seeds: currentSeeds,
+                onChanged: (next) {
+                  if (controller != null) {
+                    controller.setSeeds(next);
+                  } else {
+                    setSheetState(() => localSeeds = next);
+                  }
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCompactShell({
+    required BuildContext context,
+    required IcColors c,
+    required Size size,
+    required Size desk,
+    required List<_ParsedDesktopWindow> windows,
+    required Map<String, _ParsedDesktopWindow> byId,
+    required List<_ParsedDesktopWindow> orderedWindows,
+    required List<_ParsedDesktopWindow> visibleWindows,
+    required _ParsedDesktopWindow? topWindow,
+    required Map<String, Map<String, dynamic>> dockButtons,
+    required List<SmartAppTileSpec> dockApps,
+    required List<SmartAppTileSpec> launcherApps,
+    required List<String> openWidgets,
+  }) {
+    final controller = UiThemeSeedsController.maybeOf(context);
+    final compactSeeds = (controller?.seeds ?? UiThemeSeeds.warmPaper).copyWith(
+      density: UiDensity.spacious,
+    );
+
+    return UiSeedThemeScope(
+      key: const ValueKey('adaptive-compact-theme-scope'),
+      seeds: compactSeeds,
+      child: Builder(
+        builder: (compactCtx) => DecoratedBox(
+          key: const ValueKey('adaptive-shell-compact'),
+          decoration: BoxDecoration(color: c.surfacePage),
+          child: Column(
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _buildSinglePaneContent(
+                        topWindow: topWindow,
+                        windows: windows,
+                        dockButtons: dockButtons,
+                        dockApps: dockApps,
+                        openWidgets: openWidgets,
+                        desk: desk,
+                        isCompact: true,
+                      ),
+                    ),
+                    if (_systemSheet != DesktopSystemSheetKind.none)
+                      Positioned.fill(
+                        child: DesktopSystemModalSheet(
+                          kind: _systemSheet,
+                          onClose: () => setState(
+                            () => _systemSheet = DesktopSystemSheetKind.none,
+                          ),
+                          onOpenSheet: (next) =>
+                              setState(() => _systemSheet = next),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              UiAdaptiveNavBar(
+                compactBreakpoint: _kCompactBreakpoint,
+                semanticsId: 'desktop-adaptive-nav',
+                items: _buildAdaptiveNavItems(visibleWindows.length),
+                selectedIndex: _adaptiveSelectedIndex(topWindow),
+                onSelected: (index) {
+                  switch (index) {
+                    case 0:
+                      setState(() {
+                        _allAppsOpen = false;
+                        _themeStudioOpen = false;
+                      });
+                      _launchOrFocusApp('ino', windows, dockButtons);
+                    case 1:
+                      unawaited(
+                        _showActiveAppsSheet(compactCtx, orderedWindows, byId),
+                      );
+                    case 2:
+                      unawaited(
+                        _showAllAppsSheet(
+                          compactCtx,
+                          launcherApps,
+                          windows,
+                          dockButtons,
+                        ),
+                      );
+                    case 3:
+                      unawaited(_showThemeStudioSheet(compactCtx));
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediumShell({
+    required BuildContext context,
+    required IcColors c,
+    required Size size,
+    required Size desk,
+    required List<_ParsedDesktopWindow> windows,
+    required Map<String, _ParsedDesktopWindow> byId,
+    required List<_ParsedDesktopWindow> orderedWindows,
+    required List<_ParsedDesktopWindow> visibleWindows,
+    required _ParsedDesktopWindow? topWindow,
+    required Map<String, Map<String, dynamic>> dockButtons,
+    required List<SmartAppTileSpec> dockApps,
+    required List<SmartAppTileSpec> launcherApps,
+    required List<String> openWidgets,
+  }) {
+    return DecoratedBox(
+      key: const ValueKey('adaptive-shell-medium'),
+      decoration: BoxDecoration(color: c.surfacePage),
+      child: Row(
+        children: [
+          UiAdaptiveNavBar(
+            compactBreakpoint: _kCompactBreakpoint,
+            semanticsId: 'desktop-adaptive-nav',
+            items: _buildAdaptiveNavItems(visibleWindows.length),
+            selectedIndex: _adaptiveSelectedIndex(topWindow),
+            onSelected: (index) {
+              switch (index) {
+                case 0:
+                  setState(() {
+                    _allAppsOpen = false;
+                    _themeStudioOpen = false;
+                  });
+                  _launchOrFocusApp('ino', windows, dockButtons);
+                case 1:
+                  setState(() {
+                    _allAppsOpen = false;
+                    _themeStudioOpen = false;
+                  });
+                  unawaited(_showActiveAppsSheet(context, orderedWindows, byId));
+                case 2:
+                  setState(() {
+                    _themeStudioOpen = false;
+                    _allAppsOpen = !_allAppsOpen;
+                  });
+                case 3:
+                  setState(() {
+                    _allAppsOpen = false;
+                    _themeStudioOpen = !_themeStudioOpen;
+                  });
+              }
+            },
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: _buildSinglePaneContent(
+                    topWindow: topWindow,
+                    windows: windows,
+                    dockButtons: dockButtons,
+                    dockApps: dockApps,
+                    openWidgets: openWidgets,
+                    desk: desk,
+                    isCompact: false,
+                  ),
+                ),
+                if (_smart)
+                  Positioned.fill(
+                    child: PresenceLayer(
+                      presence: _presence.stream,
+                      enabled: _smart,
+                      onOpenIno: () =>
+                          _launchOrFocusApp('ino', windows, dockButtons),
+                      onAction: (action) {
+                        if (action.kind == 'open' ||
+                            action.kind == 'navigate') {
+                          _launchOrFocusApp(
+                            action.argument,
+                            windows,
+                            dockButtons,
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                if (_systemSheet != DesktopSystemSheetKind.none)
+                  Positioned.fill(
+                    child: DesktopSystemModalSheet(
+                      kind: _systemSheet,
+                      onClose: () => setState(
+                        () => _systemSheet = DesktopSystemSheetKind.none,
+                      ),
+                      onOpenSheet: (next) =>
+                          setState(() => _systemSheet = next),
+                    ),
+                  ),
+                if (_allAppsOpen)
+                  Positioned.fill(
+                    child: AllAppsLauncherOverlay(
+                      apps: launcherApps,
+                      onClose: () => setState(() => _allAppsOpen = false),
+                      onLaunchApp: (appId) {
+                        setState(() => _allAppsOpen = false);
+                        _launchOrFocusApp(appId, windows, dockButtons);
+                      },
+                    ),
+                  ),
+                if (_themeStudioOpen) ...[
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _themeStudioOpen = false),
+                    ),
+                  ),
+                  Positioned(
+                    right: 16,
+                    top: 16,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 340),
+                      child: Builder(
+                        builder: (ctx) {
+                          final controller = UiThemeSeedsController.maybeOf(
+                            ctx,
+                          );
+                          return ThemeStudioPanel(
+                            seeds: controller?.seeds ?? UiThemeSeeds.warmPaper,
+                            onChanged: controller?.setSeeds ?? (_) {},
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _data;
@@ -1544,7 +2062,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
-        final focusMode = size.width < 1024 || size.height < 640;
+        final isCompact = size.width < _kCompactBreakpoint;
+        final isMedium =
+            size.width >= _kCompactBreakpoint &&
+            size.width < _kExpandedBreakpoint;
+        final focusMode = size.width < _kExpandedBreakpoint || size.height < 640;
         final desk = Size(
           size.width,
           max(320.0, size.height - kOsBarHeight - 8),
@@ -1564,6 +2086,42 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
               ];
         final topWindow = visibleWindows.isEmpty ? null : visibleWindows.last;
         final openAppIds = {for (final w in windows) w.appId};
+
+        if (isCompact) {
+          return _buildCompactShell(
+            context: context,
+            c: c,
+            size: size,
+            desk: desk,
+            windows: windows,
+            byId: byId,
+            orderedWindows: orderedWindows,
+            visibleWindows: visibleWindows,
+            topWindow: topWindow,
+            dockButtons: dockButtons,
+            dockApps: dockApps,
+            launcherApps: launcherApps,
+            openWidgets: openWidgets,
+          );
+        }
+
+        if (isMedium) {
+          return _buildMediumShell(
+            context: context,
+            c: c,
+            size: size,
+            desk: desk,
+            windows: windows,
+            byId: byId,
+            orderedWindows: orderedWindows,
+            visibleWindows: visibleWindows,
+            topWindow: topWindow,
+            dockButtons: dockButtons,
+            dockApps: dockApps,
+            launcherApps: launcherApps,
+            openWidgets: openWidgets,
+          );
+        }
 
         return DecoratedBox(
           decoration: BoxDecoration(color: c.surfacePage),

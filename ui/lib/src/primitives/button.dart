@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mix/mix.dart';
+import 'package:naked_ui/naked_ui.dart';
 
 import '../design/keys.dart';
 import '../theme/ui_colors.dart';
@@ -62,7 +64,7 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
     final hover = _hover && _enabled;
-    final (Color? fill, Color ink, Border? border) = switch (widget.style) {
+    final (Color? fill, Color ink, Color? borderColor) = switch (widget.style) {
       UiMixButtonStyle.primary => (
         hover ? c.accentHover : c.accent,
         c.onAccent,
@@ -71,7 +73,7 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
       UiMixButtonStyle.secondary => (
         hover ? c.surfaceSunk : c.surfaceCard,
         c.textStrong,
-        Border.all(color: c.borderInput),
+        c.borderInput,
       ),
       UiMixButtonStyle.ghost => (
         hover ? c.surfaceSunk : Colors.transparent,
@@ -81,7 +83,7 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
       UiMixButtonStyle.danger => (
         hover ? c.errorBg : Colors.transparent,
         c.textStrong,
-        Border.all(color: c.error),
+        c.error,
       ),
       UiMixButtonStyle.link => (
         null,
@@ -117,16 +119,30 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
 
     if (widget.style != UiMixButtonStyle.link) {
       final ringActive = _focused;
-      final decorated = DecoratedBox(
-        decoration: BoxDecoration(
-          color: fill,
-          borderRadius: BorderRadius.circular(tokens.button),
-          border: ringActive ? Border.all(color: c.accent, width: 1.5) : border,
-        ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: hPad),
-          child: Center(widthFactor: 1, heightFactor: 1, child: body),
-        ),
+      var boxStyle = BoxStyler()
+          .padding(EdgeInsetsGeometryMix.symmetric(horizontal: hPad))
+          .borderRadius(BorderRadiusGeometryMix.circular(tokens.button))
+          .animate(
+            AnimationConfig.curve(
+              duration: tokens.fast,
+              curve: tokens.ease,
+            ),
+          );
+      if (fill != null) {
+        boxStyle = boxStyle.color(fill);
+      }
+      if (ringActive) {
+        boxStyle = boxStyle.border(
+          BoxBorderMix.all(BorderSideMix.color(c.accent).width(1.5)),
+        );
+      } else if (borderColor != null) {
+        boxStyle = boxStyle.border(
+          BoxBorderMix.all(BorderSideMix.color(borderColor).width(1.0)),
+        );
+      }
+      final decorated = Box(
+        style: boxStyle,
+        child: Center(widthFactor: 1, heightFactor: 1, child: body),
       );
       body = LayoutBuilder(
         builder: (context, constraints) {
@@ -149,32 +165,23 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
           button: true,
           enabled: _enabled,
           tooltip: (tip != null && tip.isNotEmpty) ? tip : null,
-          child: FocusableActionDetector(
+          child: NakedButton(
             focusNode: widget.focusNode,
             enabled: _enabled,
-            mouseCursor: _enabled
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
-            onShowHoverHighlight: (v) => setState(() => _hover = v),
-            onShowFocusHighlight: (v) => setState(() => _focused = v),
-            actions: {
-              ActivateIntent: CallbackAction<ActivateIntent>(
-                onInvoke: (_) => widget.onPressed?.call(),
-              ),
+            onPressed: widget.onPressed,
+            onHoverChange: (v) {
+              if (_hover != v) setState(() => _hover = v);
             },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: _enabled ? (_) => _setPressed(true) : null,
-              onTapUp: _enabled ? (_) => _setPressed(false) : null,
-              onTapCancel: _enabled ? () => _setPressed(false) : null,
-              onTap: widget.onPressed,
-              child: SelectionRing(
-                on: _focused || stopView.selected,
-                radius: tokens.button,
-                child: Transform.translate(
-                  offset: Offset(0, _pressed ? 1 : 0),
-                  child: body,
-                ),
+            onFocusChange: (v) {
+              if (_focused != v) setState(() => _focused = v);
+            },
+            onPressChange: _setPressed,
+            child: SelectionRing(
+              on: _focused || stopView.selected,
+              radius: tokens.button,
+              child: Transform.translate(
+                offset: Offset(0, _pressed ? 1 : 0),
+                child: body,
               ),
             ),
           ),

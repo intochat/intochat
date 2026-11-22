@@ -53,40 +53,48 @@ final class ThemeStudioPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
             children: [
-              Text(
-                'Theme Studio',
-                style: TextStyle(
-                  color: colors.strong,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Semantics(
-                identifier: 'theme-studio:wcag-badge',
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: seeds.accent,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${ratio.toStringAsFixed(1)}:1 · $grade',
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Theme Studio',
                     style: TextStyle(
-                      color: seeds.onAccent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'JetBrains Mono',
+                      color: colors.strong,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    identifier: 'theme-studio:wcag-badge',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: seeds.accent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${ratio.toStringAsFixed(1)}:1 · $grade',
+                        style: TextStyle(
+                          color: seeds.onAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'JetBrains Mono',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const Spacer(),
               UiMixToggle(
                 label: isDark ? 'Dark' : 'Light',
                 value: isDark,

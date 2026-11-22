@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mix/mix.dart';
+import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
@@ -199,22 +201,13 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
           button: true,
           enabled: enabled,
           label: name,
-          child: FocusableActionDetector(
+          child: NakedButton(
             enabled: enabled,
-            onFocusChange: (v) => setState(() => _focused = v),
-            mouseCursor: enabled
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
-            actions: {
-              ActivateIntent: CallbackAction<ActivateIntent>(
-                onInvoke: (_) => _toggle(),
-              ),
+            onFocusChange: (v) {
+              if (_focused != v) setState(() => _focused = v);
             },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: enabled ? _toggle : null,
-              child: Opacity(opacity: enabled ? 1 : 0.45, child: anchor),
-            ),
+            onPressed: enabled ? _toggle : null,
+            child: Opacity(opacity: enabled ? 1 : 0.45, child: anchor),
           ),
         );
         return Column(
@@ -239,37 +232,55 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
   Widget _box(BuildContext context, UiMixSelectItem<T>? selected, bool full) {
     final c = UiColors.of(context);
     final type = UiType.of(context);
-    final radius = UiTokens.of(context).fieldRadius;
-    final box = DecoratedBox(
-      key: const ValueKey('ui_kit_select_box'),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _focused ? c.accent : c.inputBorder),
-        boxShadow: UiShadows.xs(uiKitShadowBase(context)),
-      ),
-      child: SizedBox(
-        height: 48,
-        width: full ? double.infinity : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  selected?.label ?? widget.hint ?? '',
-                  overflow: TextOverflow.ellipsis,
-                  style: type.body.copyWith(
-                    color: selected == null ? c.subtle : c.strong,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.keyboard_arrow_down, size: 18, color: c.muted),
-            ],
+    final tokens = UiTokens.of(context);
+    final radius = tokens.fieldRadius;
+    final shadows = UiShadows.xs(uiKitShadowBase(context));
+
+    var boxStyle = BoxStyler()
+        .color(c.surface)
+        .height(48)
+        .padding(EdgeInsetsGeometryMix.symmetric(horizontal: 14))
+        .borderRadius(BorderRadiusGeometryMix.circular(radius))
+        .border(
+          BoxBorderMix.all(
+            BorderSideMix.color(_focused ? c.accent : c.inputBorder).width(1.0),
           ),
+        )
+        .animate(
+          AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
+        );
+    if (full) {
+      boxStyle = boxStyle.width(double.infinity);
+    }
+    for (final s in shadows) {
+      boxStyle = boxStyle.shadow(
+        BoxShadowMix(
+          color: s.color,
+          blurRadius: s.blurRadius,
+          spreadRadius: s.spreadRadius,
+          offset: s.offset,
         ),
+      );
+    }
+
+    final box = Box(
+      key: const ValueKey('ui_kit_select_box'),
+      style: boxStyle,
+      child: Row(
+        mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              selected?.label ?? widget.hint ?? '',
+              overflow: TextOverflow.ellipsis,
+              style: type.body.copyWith(
+                color: selected == null ? c.subtle : c.strong,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(Icons.keyboard_arrow_down, size: 18, color: c.muted),
+        ],
       ),
     );
     return Stack(
@@ -282,12 +293,15 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
             right: -3,
             bottom: -3,
             child: IgnorePointer(
-              child: DecoratedBox(
+              child: Box(
                 key: const ValueKey('ui_kit_select_ring'),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(radius + 3),
-                  border: Border.all(color: c.focus, width: 3),
-                ),
+                style: BoxStyler()
+                    .borderRadius(BorderRadiusGeometryMix.circular(radius + 3))
+                    .border(
+                      BoxBorderMix.all(
+                        BorderSideMix.color(c.focus).width(3.0),
+                      ),
+                    ),
               ),
             ),
           ),

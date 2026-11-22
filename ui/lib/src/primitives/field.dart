@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:mix/mix.dart';
+import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/ui_colors.dart';
 import '../theme/ui_icon.dart';
@@ -246,42 +248,56 @@ class _UiMixFieldState extends State<UiMixField> {
     final input = MergeSemantics(
       child: Semantics(label: name, child: textField),
     );
-    final box = DecoratedBox(
-      key: const ValueKey('ui_kit_field_box'),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor),
-        boxShadow: UiShadows.xs(uiKitShadowBase(context)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          leadingGlyph == null ? 12 : 10,
-          widget.multiline ? 6 : 0,
-          resolvedSuffix == null ? 12 : 4,
-          widget.multiline ? 6 : 0,
+    final shadows = UiShadows.xs(uiKitShadowBase(context));
+    var boxStyle = BoxStyler()
+        .color(c.surface)
+        .borderRadius(BorderRadiusGeometryMix.circular(radius))
+        .border(BoxBorderMix.all(BorderSideMix.color(borderColor).width(1.0)))
+        .padding(
+          EdgeInsetsGeometryMix.fromLTRB(
+            leadingGlyph == null ? 12 : 10,
+            widget.multiline ? 6 : 0,
+            resolvedSuffix == null ? 12 : 4,
+            widget.multiline ? 6 : 0,
+          ),
+        )
+        .animate(
+          AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
+        );
+    for (final s in shadows) {
+      boxStyle = boxStyle.shadow(
+        BoxShadowMix(
+          color: s.color,
+          blurRadius: s.blurRadius,
+          spreadRadius: s.spreadRadius,
+          offset: s.offset,
         ),
-        child: widget.multiline
-            ? ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Align(alignment: Alignment.centerLeft, child: input),
-              )
-            : SizedBox(
-                height: tokens.inputHeight,
-                child: leadingGlyph == null && resolvedSuffix == null
-                    ? Align(alignment: Alignment.centerLeft, child: input)
-                    : Row(
-                        children: [
-                          if (leadingGlyph != null) ...[
-                            Icon(leadingGlyph, size: 15, color: c.muted),
-                            const SizedBox(width: 8),
-                          ],
-                          Expanded(child: input),
-                          ?resolvedSuffix,
+      );
+    }
+
+    final box = Box(
+      key: const ValueKey('ui_kit_field_box'),
+      style: boxStyle,
+      child: widget.multiline
+          ? ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Align(alignment: Alignment.centerLeft, child: input),
+            )
+          : SizedBox(
+              height: tokens.inputHeight,
+              child: leadingGlyph == null && resolvedSuffix == null
+                  ? Align(alignment: Alignment.centerLeft, child: input)
+                  : Row(
+                      children: [
+                        if (leadingGlyph != null) ...[
+                          Icon(leadingGlyph, size: 15, color: c.muted),
+                          const SizedBox(width: 8),
                         ],
-                      ),
-              ),
-      ),
+                        Expanded(child: input),
+                        ?resolvedSuffix,
+                      ],
+                    ),
+            ),
     );
     final helper = widget.helper;
     return Column(
@@ -305,12 +321,17 @@ class _UiMixFieldState extends State<UiMixField> {
                   right: -3,
                   bottom: -3,
                   child: IgnorePointer(
-                    child: DecoratedBox(
+                    child: Box(
                       key: const ValueKey('ui_kit_field_ring'),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(radius + 3),
-                        border: Border.all(color: c.focus, width: 3),
-                      ),
+                      style: BoxStyler()
+                          .borderRadius(
+                            BorderRadiusGeometryMix.circular(radius + 3),
+                          )
+                          .border(
+                            BoxBorderMix.all(
+                              BorderSideMix.color(c.focus).width(3.0),
+                            ),
+                          ),
                     ),
                   ),
                 ),
@@ -348,23 +369,15 @@ class _FieldIconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      label: tooltip,
-      child: Tooltip(
-        message: tooltip,
-        child: MouseRegion(
-          cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: enabled ? onTap : null,
-            child: SizedBox(
-              width: 28,
-              height: 28,
-              child: Center(child: Icon(icon, size: 15, color: color)),
-            ),
-          ),
+    return Tooltip(
+      message: tooltip,
+      child: NakedButton(
+        enabled: enabled,
+        semanticLabel: tooltip,
+        onPressed: enabled ? onTap : null,
+        child: Box(
+          style: BoxStyler().width(28).height(28),
+          child: Center(child: Icon(icon, size: 15, color: color)),
         ),
       ),
     );
