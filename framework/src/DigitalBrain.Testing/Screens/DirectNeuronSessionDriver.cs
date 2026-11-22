@@ -24,18 +24,35 @@ public sealed class DirectNeuronSessionDriver : IAppSessionDriver
     /// <param name="screenType">The concrete screen type.</param>
     /// <param name="key">Optional screen neuron key; when omitted, an isolated unique key is generated.</param>
     public DirectNeuronSessionDriver(INeuronRuntime runtime, Type screenType, string? key = null)
+        : this(
+            runtime ?? throw new ArgumentNullException(nameof(runtime)),
+            screenType,
+            key,
+            runtime.Brain,
+            runtime.Edge.Person("app-session", "app-session-account", runtime.Brain))
+    {
+    }
+
+    /// <summary>Creates a driver targeting <paramref name="screenType"/> on <paramref name="runtime"/> for a specific <paramref name="brain"/> and <paramref name="caller"/>.</summary>
+    /// <param name="runtime">The neuron runtime.</param>
+    /// <param name="screenType">The concrete screen type.</param>
+    /// <param name="key">Optional screen neuron key; when omitted, an isolated unique key is generated.</param>
+    /// <param name="brain">The brain hosting the screen.</param>
+    /// <param name="caller">The caller stamped on screen operations.</param>
+    public DirectNeuronSessionDriver(INeuronRuntime runtime, Type screenType, string? key, BrainId brain, Caller caller)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(screenType);
+        ArgumentNullException.ThrowIfNull(caller);
 
         var alias = ResolveScreenAlias(screenType);
         var screenKey = string.IsNullOrWhiteSpace(key) ? $"session-{Guid.NewGuid():N}" : key;
-        var screenId = runtime.Id(alias, screenKey);
+        var screenId = new NeuronId(brain, alias, screenKey);
 
         _screen = runtime.Get<IScreen>(screenId);
         _idle = runtime.Idle;
         _edge = runtime.Edge;
-        _person = _edge.Person("app-session", "app-session-account", runtime.Brain);
+        _person = caller;
     }
 
     /// <summary>Creates a driver targeting <paramref name="screenType"/> on <paramref name="os"/>.</summary>

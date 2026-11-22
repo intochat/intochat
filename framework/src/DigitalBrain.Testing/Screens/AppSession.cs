@@ -176,6 +176,35 @@ public static class AppSession
         }
     }
 
+    /// <summary>Opens a new <see cref="AppSession{TScreen}"/> against any <see cref="INeuronRuntime"/> for a specific <paramref name="brain"/> and <paramref name="caller"/>.</summary>
+    /// <typeparam name="TScreen">The concrete screen type to open.</typeparam>
+    /// <param name="runtime">The neuron runtime (in-memory <see cref="TestOS"/> or Orleans silo).</param>
+    /// <param name="brain">The brain hosting the screen.</param>
+    /// <param name="caller">The caller stamped on screen operations.</param>
+    /// <param name="key">Optional screen neuron key; when omitted, an isolated unique key is generated.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public static async Task<AppSession<TScreen>> OpenAsync<TScreen>(
+        INeuronRuntime runtime,
+        BrainId brain,
+        DigitalBrain.Access.Caller caller,
+        string? key = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(caller);
+        var driver = new DirectNeuronSessionDriver(runtime, typeof(TScreen), key, brain, caller);
+        try
+        {
+            var initialView = await driver.ReadViewAsync(ct).ConfigureAwait(false);
+            return new AppSession<TScreen>(driver, initialView);
+        }
+        catch
+        {
+            await driver.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
     /// <summary>Opens a new <see cref="AppSession{TScreen}"/> directly against a <see cref="TestOS"/> instance.</summary>
     /// <typeparam name="TScreen">The concrete screen type to open.</typeparam>
     /// <param name="os">The in-memory <see cref="TestOS"/>.</param>
