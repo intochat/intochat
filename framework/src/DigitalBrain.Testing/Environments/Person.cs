@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 
 namespace DigitalBrain.Testing;
 
@@ -35,6 +36,9 @@ public sealed class Person
 
     /// <summary>The person's account identifier.</summary>
     public string Account { get; }
+
+    /// <summary>This person's brain offers registry (<see cref="IOffers"/>).</summary>
+    public IOffers Offers => Get<IOffers>(new NeuronId(Brain, "component.offers", IOffers.DefaultKey));
 
     /// <summary>Enters an ambient execution frame stamped as this person.</summary>
     public IDisposable Enter() => _runtime.Edge.Enter(_caller);

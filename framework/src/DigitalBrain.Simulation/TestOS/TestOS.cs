@@ -126,7 +126,18 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             id => Get<IUnitDeployment>(id));
         Delivery = new SynapseRegistry(this);
         Listeners = new TestClusterListeners(this);
-        Access = new AccessGate(TestCallerAmbient.Instance);
+        Access = new AccessGate(
+            TestCallerAmbient.Instance,
+            async (target, account, ct) =>
+            {
+                if (string.Equals(target.Type, AccessGate.OffersType, StringComparison.Ordinal)) { return null; }
+                using (TestCallerAmbient.Instance.Enter(Caller.OfScheduler(target.Brain)))
+                {
+                    return await Get<IOffers>(new NeuronId(target.Brain, AccessGate.OffersType, IOffers.DefaultKey))
+                        .RoleOf(target, account, ct)
+                        .ConfigureAwait(false);
+                }
+            });
         DigitalBrain.Brains.CallerAdmission.Register(TestCallerAmbient.Instance);
         Edge = new EdgeAuthority(TestCallerAmbient.Instance);
         Proxies = new TestNeuronProxies(this);
@@ -134,6 +145,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         AskProgress = new AskProgressHub(Clock);
         Services = new TestOSServices(Capabilities, options.Services ?? EmptyServices.Instance, new TestInstallHooks(this), new TestSlotResolver(this), Source, () => [.. _actions.Values], () => Loader, () => Resolver, () => LiveBindings, () => _compiler.Value, () => Synapses, () => new DigitalBrain.Confirmation.ConfirmationPolicies { DefaultPolicy = Confirmations.Policy }, AskProgress, Edge, Callers, Proxies);
         Register<InstallsNeuron>();
+        Register<OffersNeuron>();
         Register<SourcesNeuron>();
         Register<PoliciesNeuron>();
         Register<TimeNeuron>();

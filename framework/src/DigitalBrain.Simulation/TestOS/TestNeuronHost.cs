@@ -59,7 +59,7 @@ internal sealed class TestNeuronHost : IDisposable
         var (bound, interleave, _) = Bind(call);
         var work = _os.Track(Turn(interleave, async neuron =>
         {
-            using var running = TestCallerAmbient.Instance.Enter(_os.Access.Admit(Id, bound));
+            using var running = TestCallerAmbient.Instance.Enter(await _os.Access.Admit(Id, bound, cancellationToken).ConfigureAwait(false));
             return await bound.InvokeAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(false);
         }));
         return work.WaitAsync(_os.Options.CallTimeout, _os.Clock, cancellationToken);
@@ -70,7 +70,7 @@ internal sealed class TestNeuronHost : IDisposable
         var (bound, interleave, _) = Bind(call);
         _ = _os.Track(Observe(Turn(interleave, async neuron =>
         {
-            using var running = TestCallerAmbient.Instance.Enter(_os.Access.Admit(Id, bound));
+            using var running = TestCallerAmbient.Instance.Enter(await _os.Access.Admit(Id, bound).ConfigureAwait(false));
             return await bound.InvokeAsync(neuron, call.Arguments, CancellationToken.None).ConfigureAwait(false);
         })));
         return Task.CompletedTask;
@@ -80,7 +80,7 @@ internal sealed class TestNeuronHost : IDisposable
     public async IAsyncEnumerable<JsonElement> Stream(RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var (bound, _, _) = Bind(call);
-        using var running = TestCallerAmbient.Instance.Enter(_os.Access.Admit(Id, bound));
+        using var running = TestCallerAmbient.Instance.Enter(await _os.Access.Admit(Id, bound, cancellationToken).ConfigureAwait(false));
         var neuron = await Activated().ConfigureAwait(false);
         await foreach (var item in bound.StreamAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(false))
         {
@@ -220,19 +220,9 @@ internal sealed class TestNeuronHost : IDisposable
         try { bound = CallPolicy.Bind(_os.Binder, Class, call); }
         catch (BindingException) when (foreign)
         {
-            throw new UnauthorizedAccessException($"Cross-brain security violation: Caller in brain '{caller!.Brain.Value}' cannot invoke grain in brain '{Id.Brain.Value}'.");
+            throw AccessGate.CrossBrainViolation(caller!.Brain, Id.Brain);
         }
-        if (foreign)
-        {
-            var shareable = typeof(ShareableAttribute);
-            var crosses = bound.Access is OperationAccess.Public or OperationAccess.Shared
-                && bound.Contract.IsDefined(shareable, inherit: false)
-                && (bound.Method.DeclaringType == bound.Contract || bound.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true);
-            if (!crosses)
-            {
-                throw new UnauthorizedAccessException($"Cross-brain security violation: Caller in brain '{caller!.Brain.Value}' cannot invoke grain in brain '{Id.Brain.Value}'.");
-            }
-        }
+        _os.Access.EnsureCrossBrainWall(Id, bound);
         var interleave = CallPolicy.MayInterleave(Class, bound, call);
         var oneWay = bound.Method.IsDefined(typeof(OneWayCallAttribute), false);
         return (bound, interleave, oneWay);

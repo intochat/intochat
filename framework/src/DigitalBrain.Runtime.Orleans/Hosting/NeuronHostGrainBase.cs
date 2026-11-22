@@ -223,28 +223,12 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         return Task.FromResult(CallPolicy.MayInterleave(neuron.GetType(), bound, call));
     }
 
-    // The cross-brain wall for a call (DigitalBrainCallFilter leaves the call-carrying methods to this grain): a caller
-    // stamped in another brain reaches only an operation whose access is Shared or Public on a contract that opted in
-    // with [Shareable]. Shared or Public alone opens nothing between brains: contracts written before this rule carry
-    // those marks without checking who calls. It holds whether or not the access gate is auditing internal contracts.
-    private void RefuseAnotherBrain(CallDescriptor bound)
-    {
-        if (ForeignCaller() is not { } caller) { return; }
-
-        var shareable = typeof(ShareableAttribute);
-        var crosses = bound.Access is OperationAccess.Public or OperationAccess.Shared
-            && bound.Contract.IsDefined(shareable, inherit: false)
-            // A method the contract inherits crosses only when the interface that declares it opted in as well: Shared on
-            // a derived contract must not open the methods of a base contract written for its own brain.
-            && (bound.Method.DeclaringType == bound.Contract || bound.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true);
-        if (!crosses) { throw DigitalBrainCallFilter.Violation(caller.Brain.Value, _id.Brain.Value); }
-    }
-
     // The stamped caller when it acts in another brain and is not the kernel; null for this brain's own callers and
     // for an unstamped call, which the access gate refuses.
     private Caller? ForeignCaller()
         => _callers.Current is { } caller
             && !string.Equals(caller.Brain.Value, _id.Brain.Value, StringComparison.Ordinal)
+            && !_id.Brain.IsSystem
             && caller.Actor is not Actor.Kernel
                 ? caller
                 : null;
@@ -261,20 +245,21 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             throw DigitalBrainCallFilter.Violation(foreign.Brain.Value, _id.Brain.Value);
         }
 
-        RefuseAnotherBrain(bound);
+        _access.EnsureCrossBrainWall(_id, bound);
         return (neuron, bound);
     }
 
-    private (Neuron Neuron, CallDescriptor Call, Caller As) Admitted(RuntimeInvocation call)
+    private async ValueTask<(Neuron Neuron, CallDescriptor Call, Caller As)> Admitted(RuntimeInvocation call, CancellationToken cancellationToken = default)
     {
         var (neuron, bound) = PrepareFor(call);
-        return (neuron, bound, _access.Admit(_id, bound));
+        var caller = await _access.Admit(_id, bound, cancellationToken).ConfigureAwait(true);
+        return (neuron, bound, caller);
     }
 
     /// <inheritdoc />
     public async Task<JsonElement?> Invoke(RuntimeInvocation call, CancellationToken cancellationToken = default)
     {
-        var (neuron, bound, caller) = Admitted(call);
+        var (neuron, bound, caller) = await Admitted(call, cancellationToken).ConfigureAwait(true);
         using var running = _callers.Enter(caller);
         try { return await bound.InvokeAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(true); }
         catch (InconsistentStateException error)
@@ -295,7 +280,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     /// <inheritdoc />
     public async Task Post(RuntimeInvocation call)
     {
-        var (neuron, bound, caller) = Admitted(call);
+        var (neuron, bound, caller) = await Admitted(call).ConfigureAwait(true);
         using var running = _callers.Enter(caller);
         try { _ = await bound.InvokeAsync(neuron, call.Arguments, CancellationToken.None).ConfigureAwait(true); }
         finally { await Drain().ConfigureAwait(true); }
@@ -311,7 +296,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     public async IAsyncEnumerable<JsonElement> Stream(RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // Orleans enumerates streams through its extension outside ordinary request admission, as before.
-        var (neuron, bound, caller) = Admitted(call);
+        var (neuron, bound, caller) = await Admitted(call, cancellationToken).ConfigureAwait(true);
         using var running = _callers.Enter(caller);
         await foreach (var item in bound.StreamAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(true)) { yield return item; }
     }

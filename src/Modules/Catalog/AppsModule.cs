@@ -2,6 +2,7 @@ global using DigitalBrain.Brains;
 global using DigitalBrain.Neurons;
 global using DigitalBrain.Signals;
 using System.Reflection;
+using DigitalBrain.Components;
 using DigitalBrain.Contracts;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
@@ -59,6 +60,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<IBrainOwners, IdentityBrainOwners>();
+        services.TryAddSingleton<IFriendCheck, FriendsFriendCheck>();
 
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
         services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();

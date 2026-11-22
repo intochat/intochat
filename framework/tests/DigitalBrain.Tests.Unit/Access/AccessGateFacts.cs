@@ -22,20 +22,21 @@ public sealed class AccessGateFacts
     [Theory]
     [InlineData(typeof(IPublicContract))]
     [InlineData(typeof(IInternalContract))]
-    public void AdmitRefusesACallWithNoCaller(Type contract)
+    public async Task AdmitRefusesACallWithNoCaller(Type contract)
     {
         var gate = new AccessGate(new FixedAmbient(null));
 
-        Assert.Throws<UnauthorizedAccessException>(() => gate.Admit(Target, Describe(contract)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            async () => await gate.Admit(Target, Describe(contract), TestContext.Current.CancellationToken));
     }
 
     [Fact]
-    public void AdmitReturnsTheStampedCaller()
+    public async Task AdmitReturnsTheStampedCaller()
     {
         var caller = EdgeAuthority.CreateInternal().Person("alice-user", "acct_1", Alice);
         var gate = new AccessGate(new FixedAmbient(caller));
 
-        Assert.Same(caller, gate.Admit(Target, Describe(typeof(IPublicContract))));
+        Assert.Same(caller, await gate.Admit(Target, Describe(typeof(IPublicContract)), TestContext.Current.CancellationToken));
     }
 
     private static CallDescriptor Describe(Type contract)

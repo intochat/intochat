@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
@@ -36,6 +37,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
     private IFileShares Door => Get<IFileShares>(FileSharesDefaults.Id(Id.Brain.Value));
+    private IOffers Offers => Get<IOffers>(new NeuronId(Id.Brain, "component.offers", IOffers.DefaultKey));
 
     public async Task<Code> Mint()
     {
@@ -80,7 +82,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         Friend theirs;
         try
         {
-            theirs = await SiloNeurons.Get<IFriends>(services, FriendsDefaults.Id(target.Brain.Value)).Accepted(hash, myName);
+            theirs = await Context.Get<IFriends>(new BindingTarget.Offered(target.Brain, FriendsDefaults.Id(target.Brain.Value))).Accepted(hash, myName);
         }
         catch (UnauthorizedAccessException)
         {
@@ -107,8 +109,9 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         // IFriends.IsFriend is [Interleaves] and reads the already-stored roster, breaking the Door.Share <-> DropAccount cycle.
 #pragma warning disable DB0033
         await Door.DropAccount(friend.Value);
+        await Offers.RevokeAll(friend.Value);
 #pragma warning restore DB0033
-        try { await SiloNeurons.Get<IFriends>(services, FriendsDefaults.Id(existing.Brain.Value)).Unfriended(); }
+        try { await Context.Get<IFriends>(new BindingTarget.Offered(existing.Brain, FriendsDefaults.Id(existing.Brain.Value))).Unfriended(); }
         catch (UnauthorizedAccessException refused)
         {
             OsConsoleLog.For<FriendsNeuron>().LogSwallowed(refused, "the other side refused the unfriend notice");
@@ -175,6 +178,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         // IFriends.IsFriend is [Interleaves] and reads the already-stored roster, breaking the Door.Share <-> DropAccount cycle.
 #pragma warning disable DB0033
         await Door.DropAccount(account);
+        await Offers.RevokeAll(account);
 #pragma warning restore DB0033
     }
 
@@ -292,4 +296,10 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             MissesSince = missesSince ?? State.MissesSince,
             Groups = groups ?? State.Groups,
         };
+}
+
+internal sealed class FriendsFriendCheck(INeuronProxies proxies) : IFriendCheck
+{
+    public Task<bool> IsFriend(BrainId owner, string account, CancellationToken ct = default)
+        => proxies.Get<IFriends>(FriendsDefaults.Id(owner.Value)).IsFriend(new AccountId(account));
 }

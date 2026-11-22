@@ -1,19 +1,25 @@
+using DigitalBrain.Components;
 using DigitalBrain.Kernel;
-using DigitalBrain.Invocation;
 
 namespace DigitalBrain.Access;
 
 /// <summary>
-/// Synchronous admission gate for neuron operations. Evaluated after binding and before neuron code executes.
+/// Admission gate for neuron operations. Evaluated after binding and before neuron code executes.
+/// Enforces the cross-brain wall, <see cref="AccessPolicy"/>, and <see cref="OfferedAttribute"/> per-resource offers.
 /// </summary>
-internal sealed class AccessGate(ICallerAmbient callers)
+internal sealed class AccessGate(
+    ICallerAmbient callers,
+    Func<NeuronId, string, CancellationToken, ValueTask<Role?>>? roleLookup = null)
 {
+    internal const string OffersType = "component.offers";
+
     /// <summary>
     /// Evaluates access permissions for the target neuron and bound call.
+    /// Same-brain and kernel calls complete synchronously without allocating a state machine.
     /// </summary>
     /// <returns>The caller under which the operation runs.</returns>
     /// <exception cref="UnauthorizedAccessException">Access is denied or the call carries no caller.</exception>
-    public Caller Admit(NeuronId target, CallDescriptor call)
+    public ValueTask<Caller> Admit(NeuronId target, CallDescriptor call, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(call);
         if (callers.Current is not { } caller)
@@ -21,9 +27,92 @@ internal sealed class AccessGate(ICallerAmbient callers)
             throw new UnauthorizedAccessException($"{call.Contract.Name}.{call.Method.Name} on {target}: the call carries no caller.");
         }
 
-        var decision = AccessPolicy.Decide(caller, target, call.Access);
-        if (decision.Allowed) { return caller; }
+        // Fast path: same-brain or kernel calls skip wall and offer checks synchronously.
+        if (caller.Actor is Actor.Kernel || caller.Brain == target.Brain)
+        {
+            var sameBrain = AccessPolicy.Decide(caller, target, call.Access);
+            if (sameBrain.Allowed) { return ValueTask.FromResult(caller); }
+            throw new UnauthorizedAccessException($"{sameBrain.Explanation} ({call.Contract.Name}.{call.Method.Name} on {target.Type})");
+        }
 
-        throw new UnauthorizedAccessException($"{decision.Explanation} ({call.Contract.Name}.{call.Method.Name} on {target.Type})");
+        // Cross-brain wall for non-system targets.
+        if (!target.Brain.IsSystem)
+        {
+            EnsureCrossBrainWall(target, call);
+        }
+
+        var decision = AccessPolicy.Decide(caller, target, call.Access);
+        if (!decision.Allowed)
+        {
+            throw new UnauthorizedAccessException($"{decision.Explanation} ({call.Contract.Name}.{call.Method.Name} on {target.Type})");
+        }
+
+        // [Offered] check for foreign callers on non-system targets (skip self-lookup on component.offers).
+        if (!target.Brain.IsSystem && IsOffered(call) && !string.Equals(target.Type, OffersType, StringComparison.Ordinal))
+        {
+            return AdmitOfferedAsync(caller, target, call.ReadOnly, call.Contract.Name, call.Method.Name, cancellationToken);
+        }
+
+        return ValueTask.FromResult(caller);
+    }
+
+    /// <summary>
+    /// Enforces the cross-brain wall: a caller of another brain reaches only a <see cref="OperationAccess.Shared"/> or
+    /// <see cref="OperationAccess.Public"/> operation on a contract marked <see cref="ShareableAttribute"/> (and whose
+    /// declaring interface opted in as well).
+    /// </summary>
+    public void EnsureCrossBrainWall(NeuronId target, CallDescriptor call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        if (callers.Current is not { } caller || !IsForeign(caller, target)) { return; }
+
+        var shareable = typeof(ShareableAttribute);
+        var crosses = call.Access is OperationAccess.Public or OperationAccess.Shared
+            && call.Contract.IsDefined(shareable, inherit: false)
+            // A method the contract inherits crosses only when the interface that declares it opted in as well: Shared on
+            // a derived contract must not open the methods of a base contract written for its own brain.
+            && (call.Method.DeclaringType == call.Contract || call.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true);
+        if (!crosses)
+        {
+            throw CrossBrainViolation(caller.Brain, target.Brain);
+        }
+    }
+
+    internal static UnauthorizedAccessException CrossBrainViolation(BrainId callerBrain, BrainId targetBrain)
+        => new($"Cross-brain security violation: Caller in brain '{callerBrain.Value}' cannot invoke grain in brain '{targetBrain.Value}'.");
+
+    private static bool IsForeign(Caller caller, NeuronId target)
+        => caller.Brain != target.Brain && !target.Brain.IsSystem && caller.Actor is not Actor.Kernel;
+
+    private static bool IsOffered(CallDescriptor call)
+        => call.Contract.IsDefined(typeof(OfferedAttribute), inherit: false)
+            || (call.Method.DeclaringType is { } declaring && declaring.IsDefined(typeof(OfferedAttribute), inherit: false));
+
+    private async ValueTask<Caller> AdmitOfferedAsync(
+        Caller caller,
+        NeuronId target,
+        bool readOnly,
+        string contractName,
+        string methodName,
+        CancellationToken cancellationToken)
+    {
+        var account = caller.For?.Account;
+        if (string.IsNullOrWhiteSpace(account) || roleLookup is null)
+        {
+            throw new UnauthorizedAccessException($"offer.none: {contractName}.{methodName} on {target} has no offer for this caller.");
+        }
+
+        var role = await roleLookup(target, account, cancellationToken).ConfigureAwait(true);
+        if (role is null)
+        {
+            throw new UnauthorizedAccessException($"offer.none: {contractName}.{methodName} on {target} has no offer for '{account}'.");
+        }
+
+        if (role == Role.Viewer && !readOnly)
+        {
+            throw new UnauthorizedAccessException($"offer.read-only: {contractName}.{methodName} on {target} requires Editor role (caller '{account}' has Viewer).");
+        }
+
+        return caller;
     }
 }

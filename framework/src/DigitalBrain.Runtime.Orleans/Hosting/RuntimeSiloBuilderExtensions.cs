@@ -5,6 +5,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Units;
 using System.Reflection;
 using DigitalBrain.Access;
+using DigitalBrain.Components;
 using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Compute;
@@ -126,7 +127,17 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.TryAddSingleton<ICallerAmbient>(OrleansCallerAmbient.Instance);
         silo.Services.TryAddSingleton<ICallerCarrier>(OrleansCallerAmbient.Instance);
         silo.Services.TryAddSingleton(new EdgeAuthority(OrleansCallerAmbient.Instance));
-        silo.Services.TryAddSingleton(sp => new AccessGate(sp.GetRequiredService<ICallerAmbient>()));
+        silo.Services.TryAddSingleton(sp => new AccessGate(
+            sp.GetRequiredService<ICallerAmbient>(),
+            async (target, account, ct) =>
+            {
+                if (string.Equals(target.Type, AccessGate.OffersType, StringComparison.Ordinal)) { return null; }
+                var offers = NeuronHosting.Get<IOffers>(sp, new NeuronId(target.Brain, AccessGate.OffersType, IOffers.DefaultKey));
+                using (KernelHop.Enter(target.Brain))
+                {
+                    return await offers.RoleOf(target, account, ct).ConfigureAwait(true);
+                }
+            }));
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, CallerEdgeFilter>());
         DigitalBrain.Brains.CallerAdmission.Register(OrleansCallerAmbient.Instance);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrainCallFilter>());
