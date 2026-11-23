@@ -90,7 +90,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             using var startTimeout = new CancellationTokenSource(_startTimeout);
             await App.StartAsync(startTimeout.Token);
             PresenceToken = await TestHome.ReadPresenceTokenAsync(_home.PresenceFilePath, startTimeout.Token, _startTimeout);
-            Os = App.CreateHttpClient("OperatingSystem-a", "http");
+            Os = App.CreateHttpClient("os", "http");
             Os.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProof.HeaderName, PresenceToken);
             await Healthy(startTimeout.Token);
             StartupDuration = DateTimeOffset.UtcNow - started;
@@ -107,7 +107,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     public async Task Healthy(string scope, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
-        await App.ResourceNotifications.WaitForResourceHealthyAsync("OperatingSystem-a", ct);
+        await App.ResourceNotifications.WaitForResourceHealthyAsync("os", ct);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(120));
         var expectedRoots = ShippedApps.Roots.Where(root => !string.Equals(root, "circleroom", StringComparison.OrdinalIgnoreCase)).ToArray();

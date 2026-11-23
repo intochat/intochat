@@ -6,9 +6,9 @@ namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ResourceNameFacts
 {
-    // Names owned by the naming rule so far. The kernel (os, os-gateway) and the shell (shell-*) keep their old
-    // names until tasks A3 and A4, which extend OwnedNames and drop their prefixes from NotYetRenamed.
-    private static readonly string[] NotYetRenamed = ["OperatingSystem-", "__", "FlutterShell", "flutter-", "shell-"];
+    // Names owned by the naming rule so far. The shell (shell-*) keeps its old names until task A4, which
+    // extends OwnedNames and drops its prefixes from NotYetRenamed.
+    private static readonly string[] NotYetRenamed = ["__", "FlutterShell", "flutter-", "shell-"];
 
     private static string[] OwnedNames(IntoChatOSBuilder os)
         => [.. os.ApplicationBuilder.Resources
@@ -24,12 +24,23 @@ public sealed class ResourceNameFacts
             "intochat",
             "ai", "aspire", "devices", "github", "mcp", "orleans", "sandbox", "web",
             "ai-ollama", "ai-ollama-openwebui", "web-searxng", "sandbox-worker",
+            "os", "os-gateway", "os-rebuilder",
             "Modules-intochat-os-master-key", "Modules-searxng-secret",
         ];
 
         Assert.Equal(
             string.Join(", ", expected.Order(StringComparer.Ordinal)),
             string.Join(", ", OwnedNames(AppHostChainFacts.Compose("local"))));
+    }
+
+    [Fact]
+    public void TheKernelAndItsFrontAreOsAndOsGateway()
+    {
+        var names = AppHostChainFacts.Compose("local").ApplicationBuilder.Resources.Select(static r => r.Name).ToArray();
+        Assert.Contains("os", names);
+        Assert.Contains("os-gateway", names);
+        Assert.DoesNotContain("OperatingSystem-a", names);
+        Assert.DoesNotContain("OperatingSystem-front", names);
     }
 
     [Theory]
@@ -86,6 +97,16 @@ public sealed class ResourceNameFacts
 
     // Publish names deployed resources after the resource, so publish mode keeps every name master had.
     [Fact]
+    public void PublishModeKeepsTheDeployedKernelNames()
+    {
+        var names = ComposeForPublish().ApplicationBuilder.Resources.Select(static r => r.Name).ToArray();
+        Assert.Contains("OperatingSystem-a", names);
+        Assert.Contains("OperatingSystem-front", names);
+        Assert.DoesNotContain("os", names);
+        Assert.DoesNotContain("os-gateway", names);
+    }
+
+    [Fact]
     public void PublishModeKeepsEveryNameItHadBefore()
     {
         var os = ComposeForPublish();
@@ -96,6 +117,7 @@ public sealed class ResourceNameFacts
         [
             "Modules", "Modules-ai", "Modules-aspire", "Modules-github", "Modules-intochat-os-master-key",
             "Modules-mcp", "Modules-orleans", "Modules-sandbox", "Modules-searxng", "Modules-searxng-secret", "Modules-webtools", "sandbox",
+            "OperatingSystem-a", "OperatingSystem-front",
         ];
         Assert.Equal(string.Join(", ", expected.Order(StringComparer.Ordinal)), string.Join(", ", names));
     }
@@ -107,9 +129,11 @@ public sealed class ResourceNameFacts
             Args = ["--operation", "publish", "--output-path", Path.Combine(Path.GetTempPath(), "intochat-names-publish"), "--IntoChatOS:Topology=local", "--IntoChatOS:Shell:Enabled=false"],
             DisableDashboard = true,
         });
-        return builder.AddIntoChatOS("Modules")
+        var os = builder.AddIntoChatOS("Modules")
             .WithAI(ai => ai.Web(w => w.SearXng()))
             .WithGitHub()
             .WithSandbox();
+        os.AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
+        return os;
     }
 }

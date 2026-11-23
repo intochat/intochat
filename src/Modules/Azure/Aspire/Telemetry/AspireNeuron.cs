@@ -46,7 +46,7 @@ internal static partial class AspireLiveTelemetry
                 var error = activity.Status == ActivityStatusCode.Error
                     ? Sanitize(activity.StatusDescription ?? activity.GetTagItem("error.type")?.ToString())
                     : null;
-                var resource = string.IsNullOrWhiteSpace(activity.Source.Name) ? "OperatingSystem" : activity.Source.Name;
+                var resource = string.IsNullOrWhiteSpace(activity.Source.Name) ? KernelNames.Os : activity.Source.Name;
                 LiveSpans.Enqueue(new AspireTraceSpan(
                     activity.TraceId.ToString(),
                     activity.SpanId.ToString(),
@@ -74,16 +74,16 @@ internal static partial class AspireLiveTelemetry
             configuration?["INTOCHAT_OS_URL"],
             Environment.GetEnvironmentVariable("ASPNETCORE_URLS"),
             Environment.GetEnvironmentVariable("INTOCHAT_OS_URL"))
-            ?? baseline.FirstOrDefault(r => string.Equals(r.Name, "OperatingSystem", StringComparison.OrdinalIgnoreCase))?.Endpoint;
+            ?? baseline.FirstOrDefault(r => KernelNames.IsKernel(r.Name))?.Endpoint;
 
         if (!string.IsNullOrWhiteSpace(osUrl))
         {
-            list.Add(new AspireResourceView("OperatingSystem", "Running", StripUrlCredentials(osUrl)));
+            list.Add(new AspireResourceView(KernelNames.Os, "Running", StripUrlCredentials(osUrl)));
         }
 
         foreach (var item in baseline)
         {
-            if (string.Equals(item.Name, "OperatingSystem", StringComparison.OrdinalIgnoreCase))
+            if (KernelNames.IsKernel(item.Name))
             {
                 continue;
             }
@@ -196,7 +196,7 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
         var lines = State.StructuredLogs
-            .Where(log => string.Equals(log.Resource, resourceName, StringComparison.OrdinalIgnoreCase))
+            .Where(log => KernelNames.Same(log.Resource, resourceName))
             .TakeLast(Math.Clamp(tailLines, 1, 500))
             .Select(log => $"[{log.Severity}] {log.Resource}: {AspireLiveTelemetry.Sanitize(log.Message)}"
                 + (log.Exception is null ? "" : $" ({AspireLiveTelemetry.Sanitize(log.Exception)})"))
@@ -214,7 +214,7 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
 
         if (!string.IsNullOrWhiteSpace(resourceName))
         {
-            query = query.Where(log => string.Equals(log.Resource, resourceName, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(log => KernelNames.Same(log.Resource, resourceName));
         }
 
         if (!string.IsNullOrWhiteSpace(minSeverity))
@@ -236,8 +236,8 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
 
         if (!string.IsNullOrWhiteSpace(resourceName))
         {
-            merged = merged.Where(span => string.Equals(span.Resource, resourceName, StringComparison.OrdinalIgnoreCase)
-                || (string.Equals(resourceName, "OperatingSystem", StringComparison.OrdinalIgnoreCase)
+            merged = merged.Where(span => KernelNames.Same(span.Resource, resourceName)
+                || (KernelNames.IsKernel(resourceName)
                     && !span.Resource.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
                     && (span.Resource.StartsWith("IntoChat", StringComparison.OrdinalIgnoreCase)
                         || span.Resource.StartsWith("DigitalBrain", StringComparison.OrdinalIgnoreCase)

@@ -21,7 +21,50 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task RestartingRestartsTheMcpServersBeforeTheSilosAndTheSiloThatAskedLast()
+    public async Task RestartingRestartsTheMcpServersBeforeTheKernelThatAskedLast()
+    {
+        var runner = new RecordingRunner("""
+            {"resources":[
+              {"name":"os-x1","displayName":"os"},{"name":"os-gateway-x3","displayName":"os-gateway"},
+              {"name":"intochat-os-mcp-b-y1","displayName":"intochat-os-mcp-b"},{"name":"intochat-os-mcp-a-y2","displayName":"intochat-os-mcp-a"}]}
+            """);
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "os");
+
+        await host.RestartSilos(TestContext.Current.CancellationToken);
+
+        Assert.Equal([["describe", "--format", "Json"], ["resource", "intochat-os-mcp-a", "restart"], ["resource", "intochat-os-mcp-b", "restart"]],
+            runner.Calls.Select(call => call.Take(3).ToArray()));
+        Assert.Equal([["resource", "os", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
+    }
+
+    [Fact]
+    public async Task InstancesRollMcpServersFirstAndTheKernelRestartsDetached()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runner = new RecordingRunner("""
+            {"resources":[{"displayName":"os"},{"displayName":"os-gateway"},{"displayName":"intochat-os-mcp-b"},{"displayName":"intochat-os-mcp-a"}]}
+            """);
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "os");
+
+        var instances = await host.Instances(ct);
+        await host.RestartInstance("os", ct);
+
+        Assert.Equal(["intochat-os-mcp-a", "intochat-os-mcp-b", "os"], instances);
+        Assert.Equal([["resource", "os", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
+    }
+
+    // Both names in one AppHost (a stale deployment beside a new one): the new name wins.
+    [Fact]
+    public async Task WhenBothKernelNamesExistTheNewOneIsTheOnlyInstance()
+    {
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-a"},{"displayName":"os"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "os");
+
+        Assert.Equal(["os"], await host.Instances(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RestartingOnTheLegacyRoleRestartsTheMcpServersBeforeTheSilosAndTheSiloThatAskedLast()
     {
         var runner = new RecordingRunner("""
             {"resources":[
@@ -39,7 +82,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task InstancesRollMcpServersFirstAndTheCallingSiloRestartsDetached()
+    public async Task InstancesOnTheLegacyRoleRollMcpServersFirstAndTheCallingSiloRestartsDetached()
     {
         var ct = TestContext.Current.CancellationToken;
         var runner = new RecordingRunner("""
@@ -61,14 +104,21 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     [Fact]
     public async Task AnInstanceThatExitsWhileStartingNeverBecomesReady()
     {
-        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Exited"}]}""");
-        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"os","state":"Exited"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "os");
 
-        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("os", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
     }
 
     private static readonly Func<CancellationToken, Task<IReadOnlyDictionary<string, Uri>>> Fronts =
         _ => Task.FromResult<IReadOnlyDictionary<string, Uri>>(new Dictionary<string, Uri> { ["OperatingSystem"] = new("http://localhost:5080") });
+
+    private static readonly Func<CancellationToken, Task<IReadOnlyDictionary<string, Uri>>> OsFronts =
+        _ => Task.FromResult<IReadOnlyDictionary<string, Uri>>(new Dictionary<string, Uri> { ["os"] = new("http://localhost:5080") });
+
+    private const string OneRunningKernel = """
+        {"resources":[{"displayName":"os","state":"Running","urls":[{"name":"http","url":"http://localhost:5001"}]}]}
+        """;
 
     private const string TwoRunningSilos = """
         {"resources":[
@@ -76,10 +126,73 @@ public sealed class AspireCliClusterHostFacts : IDisposable
           {"displayName":"OperatingSystem-b","state":"Running","urls":[{"name":"http","url":"http://localhost:5002"}]}]}
         """;
 
-    // Seen live: the instance's own port answered /ready while the front's tunnel to it was dead. Ready means the
-    // front reaches it.
     [Fact]
     public async Task AnInstanceTheFrontCannotReachIsNotReadyThoughItsOwnPortAnswers()
+    {
+        var http = new Answers(uri => uri.Port == 5001 ? HttpStatusCode.OK : HttpStatusCode.BadGateway);
+        var host = new AspireCliClusterHost(new RecordingRunner(OneRunningKernel), _ => Task.FromResult(workdir), "os", OsFronts, http);
+
+        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("os", DateTimeOffset.MinValue, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+        Assert.Contains(new Uri("http://localhost:5080/_instances/os/ready"), http.Asked);
+        Assert.DoesNotContain(http.Asked, uri => uri.Port == 5001);
+    }
+
+    [Fact]
+    public async Task AnInstanceIsReadyOnceTheFrontRoutesIt()
+    {
+        var http = new Answers(uri => uri.AbsolutePath == "/_instances/os/ready" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
+        var host = new AspireCliClusterHost(new RecordingRunner(OneRunningKernel), _ => Task.FromResult(workdir), "os", OsFronts, http);
+
+        await host.WaitInstance("os", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task DrainingPostsToTheInstancesOwnEndpoint()
+    {
+        var http = new Answers(_ => HttpStatusCode.Accepted);
+        var host = new AspireCliClusterHost(new RecordingRunner(OneRunningKernel), _ => Task.FromResult(workdir), "os", OsFronts, http);
+
+        await host.DrainInstance("os", TestContext.Current.CancellationToken);
+
+        Assert.Equal([(HttpMethod.Post, new Uri("http://localhost:5001/drain"))], http.Requests);
+    }
+
+    [Fact]
+    public async Task ALoneInstanceMustNotLeaveTheFront()
+    {
+        var http = new Answers(_ => HttpStatusCode.ServiceUnavailable);
+        var host = new AspireCliClusterHost(new RecordingRunner(OneRunningKernel), _ => Task.FromResult(workdir), "os", OsFronts, http);
+
+        var refused = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitOutOfFront("os", TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+
+        Assert.Contains("no other os instance", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AStoredFrontsSettingKeyedByTheOldRoleStillResolves()
+    {
+        string[] urls = [];
+        async Task<string[]> Asked(string fronts)
+        {
+            var http = new Answers(_ => HttpStatusCode.OK);
+            var host = new AspireCliClusterHost(new RecordingRunner(OneRunningKernel), _ => Task.FromResult(workdir), "os",
+                _ => Task.FromResult(AspireCliClusterHost.ParseFronts(fronts)), http);
+            await host.WaitInstance("os", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
+            return [.. http.Asked.Select(uri => uri.ToString())];
+        }
+
+        urls = await Asked("""{"OperatingSystem":"http://localhost:5080"}""");
+        Assert.Equal(["http://localhost:5080/_instances/os/ready"], urls);
+        urls = await Asked("""{"os":"http://localhost:5090"}""");
+        Assert.Equal(["http://localhost:5090/_instances/os/ready"], urls);
+        urls = await Asked("""{"OperatingSystem":"http://localhost:5080","os":"http://localhost:5090"}""");
+        Assert.Equal(["http://localhost:5090/_instances/os/ready"], urls);
+    }
+
+    // Legacy role, seen live: the instance's own port answered /ready while the front's tunnel to it was dead. Ready means the
+    // front reaches it.
+    [Fact]
+    public async Task AnInstanceOnTheLegacyRoleTheFrontCannotReachIsNotReadyThoughItsOwnPortAnswers()
     {
         var http = new Answers(uri => uri.Port == 5002 ? HttpStatusCode.OK : HttpStatusCode.BadGateway);
         var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
@@ -90,7 +203,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task AnInstanceIsReadyOnceTheFrontRoutesIt()
+    public async Task AnInstanceOnTheLegacyRoleIsReadyOnceTheFrontRoutesIt()
     {
         var http = new Answers(uri => uri.AbsolutePath == "/_instances/OperatingSystem-b/ready" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
         var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
@@ -99,7 +212,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task DrainingPostsToTheInstancesOwnEndpoint()
+    public async Task DrainingOnTheLegacyRolePostsToTheInstancesOwnEndpoint()
     {
         var http = new Answers(_ => HttpStatusCode.Accepted);
         var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
@@ -110,7 +223,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task AnInstanceLeavesTheFrontOnlyWhileAnotherInstanceStillServes()
+    public async Task OnTheLegacyRoleAnInstanceLeavesTheFrontOnlyWhileAnotherInstanceStillServes()
     {
         var ct = TestContext.Current.CancellationToken;
         var bothOut = new Answers(_ => HttpStatusCode.ServiceUnavailable);
@@ -144,10 +257,10 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     public async Task TheOldProcessStoppingIsNotAFailedStart()
     {
         var restarted = DateTimeOffset.Parse("2026-10-10T12:54:43Z", System.Globalization.CultureInfo.InvariantCulture);
-        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Finished","startTimestamp":"2026-10-10T12:40:00Z"}]}""");
-        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, new Answers(_ => HttpStatusCode.OK));
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"os","state":"Finished","startTimestamp":"2026-10-10T12:40:00Z"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "os", OsFronts, new Answers(_ => HttpStatusCode.OK));
 
-        var waited = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", restarted, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+        var waited = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("os", restarted, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
 
         Assert.Contains("not ready within", waited.Message, StringComparison.Ordinal);
     }
@@ -156,10 +269,10 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     public async Task AProcessThatStartedAfterTheRestartAndStoppedNeverBecomesReady()
     {
         var restarted = DateTimeOffset.Parse("2026-10-10T12:54:43Z", System.Globalization.CultureInfo.InvariantCulture);
-        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Finished","startTimestamp":"2026-10-10T12:54:50Z"}]}""");
-        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, new Answers(_ => HttpStatusCode.OK));
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"os","state":"Finished","startTimestamp":"2026-10-10T12:54:50Z"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "os", OsFronts, new Answers(_ => HttpStatusCode.OK));
 
-        var waited = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", restarted, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+        var waited = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("os", restarted, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
 
         Assert.Contains("stopped (Finished)", waited.Message, StringComparison.Ordinal);
     }

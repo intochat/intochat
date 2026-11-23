@@ -39,8 +39,6 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public static readonly string[] Instances = ["a"];
     public const string HealthPath = HealthProbes.ReadyPath;
 
-    public static string[] InstanceNames(string role) => [.. Instances.Select(instance => $"{role}-{instance}")];
-
     // An instance listens on dynamic ports only: a project's launch profile pins its applicationUrl ports, which
     // two instances of the same project would share.
     public static IResourceBuilder<T> OnDynamicPorts<T>(IResourceBuilder<T> instance, string? env = null) where T : IResourceWithEndpoints
@@ -60,21 +58,21 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
         return instance;
     }
 
-    public static string FrontName(string role) => $"{role}-front";
-
     // Three routes: everything to the role's instances; the front's own /ready, answered by whichever instance the
     // front routes to (its /alive, so a draining instance's 503 does not leak through); and one route per instance,
     // /_instances/{instance}/ready, through a cluster of that instance alone with the same health check. A roll
     // reads that route to see the instance the way the front does: in (200) or out.
-    public static IResourceBuilder<YarpResource> AddFront(IDistributedApplicationBuilder builder, string role, int port, IEnumerable<EndpointReference> instances)
+    public static IResourceBuilder<YarpResource> AddFront(IDistributedApplicationBuilder builder, string frontName, string role, int port, IEnumerable<EndpointReference> instances)
     {
         ArgumentNullException.ThrowIfNull(builder);
         EndpointReference[] endpoints = [.. instances];
-        var front = builder.AddYarp(FrontName(role))
+        // A lone instance is named after the role; the role's cluster of all instances then needs a name of its own.
+        var allInstances = endpoints.Any(endpoint => endpoint.Resource.Name == role) ? $"{role}-all" : role;
+        var front = builder.AddYarp(frontName)
             .WithHostPort(port)
             .WithConfiguration(yarp =>
             {
-                var all = Probed(yarp.AddCluster(role, [.. endpoints.Cast<object>()]));
+                var all = Probed(yarp.AddCluster(allInstances, [.. endpoints.Cast<object>()]));
                 yarp.AddRoute("/{**catch-all}", all);
                 yarp.AddRoute(HealthProbes.ReadyPath, all).WithTransformPathSet(HealthProbes.AlivePath);
                 foreach (var endpoint in endpoints)
@@ -99,7 +97,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
         }
         // Aspire 13.6 writes a TimeSpan of the cluster config as its fields (INTERVAL__TICKS, ...), which YARP's
         // binder does not read; the probe cadence is set as the section's own value instead.
-        foreach (var cluster in endpoints.Select(endpoint => endpoint.Resource.Name).Prepend(role))
+        foreach (var cluster in endpoints.Select(endpoint => endpoint.Resource.Name).Prepend(allInstances))
         {
             var health = $"REVERSEPROXY__CLUSTERS__cluster_{cluster}__HEALTHCHECK__";
             front.WithEnvironment(health + "ACTIVE__INTERVAL", ProbeInterval.ToString("c"))
@@ -161,13 +159,15 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             => ResourceBuilderExtensions.WithEnvironment(builder, context =>
             {
                 var fronts = app.Resources.OfType<YarpResource>()
-                    .Where(front => front.Name.EndsWith(FrontSuffix, StringComparison.Ordinal))
-                    .ToDictionary(front => front.Name[..^FrontSuffix.Length], front => $"http://localhost:{front.Annotations.OfType<EndpointAnnotation>().Single(endpoint => endpoint.Name == "http").Port}", StringComparer.Ordinal);
+                    .Select(front => (Front: front, Suffix: FrontSuffixes.FirstOrDefault(suffix => front.Name.EndsWith(suffix, StringComparison.Ordinal))))
+                    .Where(pair => pair.Suffix is not null)
+                    .ToDictionary(pair => pair.Front.Name[..^pair.Suffix!.Length], pair => $"http://localhost:{pair.Front.Annotations.OfType<EndpointAnnotation>().Single(endpoint => endpoint.Name == "http").Port}", StringComparer.Ordinal);
                 if (fronts.Count > 0) { context.EnvironmentVariables[FrontsVariable] = JsonSerializer.Serialize(fronts); }
             });
     }
 
-    private const string FrontSuffix = "-front";
+    // "-gateway" in a local run, "-front" in publish mode and older deployments (ResourceNames).
+    private static readonly string[] FrontSuffixes = ["-gateway", "-front"];
     public static string FrontsVariable => ModuleConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.FrontsField));
 
     // The callback only gathers references: the values (parameters, connection strings of resources not yet

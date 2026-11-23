@@ -53,18 +53,66 @@ public sealed class AspireFacts
         var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));
 
         var resources = await aspire.GetResourcesAsync();
-        Assert.DoesNotContain(resources, r => r.Name == "OperatingSystem" || r.Name == "intochat-os-mcp");
+        Assert.DoesNotContain(resources, r => r.Name == "os" || r.Name == "intochat-os-mcp");
         Assert.Empty(resources);
 
-        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "OperatingSystem", "Error", "NullReferenceException in CalculatorApp", "System.NullReferenceException"));
-        await aspire.RecordTraceAsync(new AspireTraceSpan("trace-1", "span-1", "OperatingSystem", "calculator.add", "Error", 1250, "DivideByZeroException"));
+        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "os", "Error", "NullReferenceException in CalculatorApp", "System.NullReferenceException"));
+        await aspire.RecordTraceAsync(new AspireTraceSpan("trace-1", "span-1", "os", "calculator.add", "Error", 1250, "DivideByZeroException"));
 
-        var errorLogs = await aspire.GetStructuredLogsAsync("OperatingSystem", "Error");
+        var errorLogs = await aspire.GetStructuredLogsAsync("os", "Error");
         Assert.Single(errorLogs);
-        var consoleLines = await aspire.GetConsoleLogsAsync("OperatingSystem", 10);
+        var consoleLines = await aspire.GetConsoleLogsAsync("os", 10);
         Assert.Single(consoleLines);
-        var errorTraces = await aspire.GetTracesAsync("OperatingSystem", errorsOnly: true);
+        var errorTraces = await aspire.GetTracesAsync("os", errorsOnly: true);
         Assert.Contains(errorTraces, t => t.TraceId == "trace-1" && t.Name == "calculator.add" && t.Error == "DivideByZeroException");
+    }
+
+    // Stored telemetry and older deployments name the kernel OperatingSystem; either name finds both.
+    [Fact]
+    public async Task TelemetryStoredUnderTheOldKernelNameIsFoundByTheNewOneAndBack()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = TestOS.Local();
+        os.Register<AspireNeuron>();
+        var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));
+
+        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "OperatingSystem", "Error", "old log", null));
+        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "os", "Error", "new log", null));
+        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "ai", "Error", "other log", null));
+        await aspire.RecordTraceAsync(new AspireTraceSpan("t-old", "s-old", "OperatingSystem", "old.span", "Error", 1, "x"));
+        await aspire.RecordTraceAsync(new AspireTraceSpan("t-new", "s-new", "os", "new.span", "Error", 1, "x"));
+
+        foreach (var name in new[] { "os", "OperatingSystem" })
+        {
+            Assert.Equal(["new log", "old log"], (await aspire.GetStructuredLogsAsync(name)).Select(log => log.Message).Order());
+            Assert.Equal(2, (await aspire.GetConsoleLogsAsync(name, 10)).Length);
+            Assert.Equal(["new.span", "old.span"], (await aspire.GetTracesAsync(name)).Where(span => span.Name.EndsWith(".span", StringComparison.Ordinal)).Select(span => span.Name).Order());
+        }
+        Assert.Equal(["other log"], (await aspire.GetStructuredLogsAsync("ai")).Select(log => log.Message));
+    }
+
+    [Fact]
+    public void AnOldDeploymentsKernelResourceIsReportedAsOs()
+    {
+        var baseline = new[] { new AspireResourceView("OperatingSystem", "Running", "http://127.0.0.1:6200"), new AspireResourceView("ai", "Running", "") };
+
+        var resources = AspireLiveTelemetry.DiscoverResources(baseline, new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+
+        Assert.Equal(["os", "ai"], resources.Select(resource => resource.Name));
+        Assert.Equal("http://127.0.0.1:6200", resources[0].Endpoint);
+    }
+
+    [Fact]
+    public void TheKernelRuleNamesTheSameStringsAsTheAppHost()
+    {
+        // Mirrors IntoChat.OS.Aspire.Hosting.ResourceNames (OsInstances): two assemblies, one rule.
+        Assert.True(KernelNames.IsInstance("os", "os"));
+        Assert.False(KernelNames.IsInstance("os-a", "os"));
+        Assert.False(KernelNames.IsInstance("os-gateway", "os"));
+        Assert.True(KernelNames.IsInstance("OperatingSystem-a", "OperatingSystem"));
+        Assert.False(KernelNames.IsInstance("OperatingSystem-front", "OperatingSystem"));
+        Assert.Equal("os", KernelNames.RoleOf("os"));
+        Assert.Equal("OperatingSystem", KernelNames.RoleOf("OperatingSystem-a"));
     }
 
     [Fact]
@@ -80,7 +128,7 @@ public sealed class AspireFacts
 
         var resources = AspireLiveTelemetry.DiscoverResources([], cfg);
         var osResource = Assert.Single(resources);
-        Assert.Equal("OperatingSystem", osResource.Name);
+        Assert.Equal("os", osResource.Name);
         Assert.Equal("http://127.0.0.1:6100", osResource.Endpoint);
     }
 

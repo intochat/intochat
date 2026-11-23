@@ -29,6 +29,26 @@ public static class ResourceNames
         return $"{Shown(moduleId)}-{child}";
     }
 
+    // The kernel's instances and front. One instance is named after the role; the front is "-gateway". Publish
+    // keeps OperatingSystem-{instance} and OperatingSystem-front, which name the deployed compute. The aspire
+    // module cannot reference this assembly: its KernelNames states the same rule, and a test on each side pins
+    // the same strings.
+    public const string LegacyOs = "OperatingSystem";
+    public const string LegacyOsGateway = "OperatingSystem-front";
+
+    public static string[] OsInstances(IDistributedApplicationBuilder builder, IReadOnlyList<string> instances)
+    {
+        ArgumentNullException.ThrowIfNull(instances);
+        return PickOf<string[]>(builder,
+            instances.Count == 1 ? [Os] : [.. instances.Select(instance => $"{Os}-{instance}")],
+            [.. instances.Select(instance => $"{LegacyOs}-{instance}")]);
+    }
+
+    public static string OsFrontFor(IDistributedApplicationBuilder builder) => Pick(builder, OsGateway, LegacyOsGateway);
+
+    // The front's cluster and the key the aspire Integration's Fronts carries.
+    public static string OsRoleFor(IDistributedApplicationBuilder builder) => Pick(builder, Os, LegacyOs);
+
     public static string RootFor(IDistributedApplicationBuilder builder, string legacyName)
         => Pick(builder, Root, legacyName);
 
@@ -40,8 +60,13 @@ public static class ResourceNames
 
     private static string Pick(IDistributedApplicationBuilder builder, string runName, string legacyName)
     {
-        ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(legacyName);
-        return builder.ExecutionContext.IsPublishMode ? legacyName : runName;
+        return PickOf(builder, runName, legacyName);
+    }
+
+    private static T PickOf<T>(IDistributedApplicationBuilder builder, T run, T legacy)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.ExecutionContext.IsPublishMode ? legacy : run;
     }
 }

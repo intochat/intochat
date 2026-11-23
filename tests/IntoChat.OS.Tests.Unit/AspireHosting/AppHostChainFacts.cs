@@ -42,7 +42,7 @@ public sealed class AppHostChainFacts
     }
 
     private static IResource Kernel(IntoChatOSBuilder os)
-        => Assert.Single(os.ApplicationBuilder.Resources, static r => r.Name == "OperatingSystem-a");
+        => Assert.Single(os.ApplicationBuilder.Resources, static r => r.Name == "os");
 
     private static async Task<Dictionary<string, object>> KernelEnvironment(IntoChatOSBuilder os)
     {

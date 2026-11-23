@@ -10,7 +10,11 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 // The AppHost project is found from the repository, Workdir's parent.
 internal sealed class AspireCliClusterHost : IClusterHost
 {
-    public const string SiloResource = "OperatingSystem";
+    // The kernel is "os" in a local run and "OperatingSystem-{x}" in a published or older deployment (KernelNames).
+    public const string SiloResource = KernelNames.Os;
+    internal const string LegacySiloResource = KernelNames.Legacy;
+    // The order a lookup tries them: the new name wins when both exist.
+    private static readonly string[] SiloRoles = [SiloResource, LegacySiloResource];
     public const string McpResource = "intochat-os-mcp";
     // `otel spans` caps its result; a verification run's spans must not fall off that window.
     private const string SpanLimit = "10000";
@@ -48,10 +52,17 @@ internal sealed class AspireCliClusterHost : IClusterHost
         try { fronts = await read.WaitAsync(ct); }
         catch when (read.IsFaulted || read.IsCanceled) { frontsRead = null; throw; }
         var role = RoleOf(instance);
-        return fronts.TryGetValue(role, out var front) ? front : throw new InvalidOperationException($"the aspire Integration names no front for {role}");
+        // A Fronts setting stored before the rename is keyed by the old role: the kernel's front is found under
+        // either, the new one winning when both are there.
+        string[] keys = KernelNames.IsKernel(role) ? SiloRoles : [role];
+        foreach (var key in keys)
+        {
+            if (fronts.TryGetValue(key, out var front)) { return front; }
+        }
+        throw new InvalidOperationException($"the aspire Integration names no front for {role}");
     }
 
-    internal static string RoleOf(string instance) => instance[..^2];
+    internal static string RoleOf(string instance) => KernelNames.RoleOf(instance);
 
     // The front's own route to one instance (AspireModuleHosting.InstancePath): 200 only while the front's health
     // check counts the instance in and reaches it over the same tunnel it routes requests through.
@@ -85,7 +96,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
         {
             await Aspire(["resource", mcp, "restart"], ct);
         }
-        var silos = names.Where(name => Instance(name, SiloResource)).ToArray();
+        var silos = Silos(names);
         var own = self is not null && silos.Contains(self) ? self : null;
         foreach (var silo in silos.Where(name => name != own))
         {
@@ -103,7 +114,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
     public async Task<string[]> Instances(CancellationToken ct)
     {
         var names = (await Describe(ct)).Select(resource => Text(resource, "displayName", "name")).OfType<string>().Distinct().Order(StringComparer.Ordinal).ToArray();
-        return [.. names.Where(name => Instance(name, McpResource)), .. names.Where(name => Instance(name, SiloResource))];
+        return [.. names.Where(name => Instance(name, McpResource)), .. Silos(names)];
     }
 
     public DateTimeOffset SelfStarted { get; } = new(System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime());
@@ -231,10 +242,13 @@ internal sealed class AspireCliClusterHost : IClusterHost
             .FirstOrDefault(uri => uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
-    // The AppHost runs each role as named instances {role}-{x}, x a single letter (AspireModuleHosting.Instances);
-    // {role}-front and the rebuilders are not instances.
-    internal static bool Instance(string? name, string role)
-        => name is not null && name.Length == role.Length + 2 && name.StartsWith(role + "-", StringComparison.Ordinal) && char.IsAsciiLetterLower(name[^1]);
+    // The kernel's instances: "os" when the AppHost has it, else the OperatingSystem-{x} of an older deployment.
+    private static string[] Silos(string[] names)
+        => [.. SiloRoles.Select(role => names.Where(name => Instance(name, role)).ToArray()).FirstOrDefault(found => found.Length > 0) ?? []];
+
+    // The AppHost runs a role as one instance named after it ("os") or as instances {role}-{x}, x a single letter
+    // (AspireModuleHosting.Instances); the front and the rebuilders are not instances.
+    internal static bool Instance(string? name, string role) => KernelNames.IsInstance(name, role);
 
     private async Task<JsonElement[]> Describe(CancellationToken ct)
     {
@@ -302,7 +316,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
             : throw new InvalidOperationException("the aspire Integration has no Fronts");
     }
 
-    // {"OperatingSystem":"http://localhost:5080", ...}: each role's front, as the AppHost published it.
+    // {"os":"http://localhost:5080", ...} ({"OperatingSystem":...} before the rename): each role's front, as the AppHost published it.
     internal static IReadOnlyDictionary<string, Uri> ParseFronts(string json)
         => JsonSerializer.Deserialize<Dictionary<string, string>>(json)!.ToDictionary(pair => pair.Key, pair => new Uri(pair.Value), StringComparer.Ordinal);
 
