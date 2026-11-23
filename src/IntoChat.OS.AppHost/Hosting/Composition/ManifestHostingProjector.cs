@@ -65,7 +65,7 @@ public static class ManifestHostingProjector
 
             if (options.Hosting.PersistentStorage)
             {
-                server.WithDataVolume().WithLifetime(ContainerLifetime.Persistent);
+                server.WithDataVolume(LegacyNames.DataVolume(brain.ApplicationBuilder, LegacyNames.Resource("postgres-server"))).WithLifetime(ContainerLifetime.Persistent);
             }
 
             var database = server.AddDatabase(brain.ResourceName("postgres-database"), options.Hosting.DatabaseName);
@@ -104,7 +104,7 @@ public static class ManifestHostingProjector
 
         if (options.Hosting.PersistentStorage)
         {
-            server.WithDataVolume().WithLifetime(ContainerLifetime.Persistent);
+            server.WithDataVolume(LegacyNames.DataVolume(brain.ApplicationBuilder, LegacyNames.Resource("clickhouse-server"))).WithLifetime(ContainerLifetime.Persistent);
         }
 
         var database = server.AddDatabase(brain.ResourceName("clickhouse-database"), databaseName);

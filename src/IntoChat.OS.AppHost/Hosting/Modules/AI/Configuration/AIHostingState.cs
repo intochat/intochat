@@ -126,7 +126,7 @@ public static partial class AIHostingExtensions
             }
             return ollama
                 .WithEndpoint("http", static e => e.Port = 11434)
-                .WithDataVolume()
+                .WithDataVolume(LegacyNames.DataVolume(brain.ApplicationBuilder, LegacyNames.Resource("ollama")))
                 .WithLifetime(ContainerLifetime.Persistent)
                 .WithOpenWebUI(openwebui => openwebui.WithLifetime(ContainerLifetime.Persistent))
                 .WithParentRelationship(module);
