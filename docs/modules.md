@@ -10,7 +10,7 @@ Modules and components coexist. A component (see [concepts](concepts.md)) is the
 - It owns its app screens in `Screens/` and registers them from its module class, so no project in `src/IntoChat.OS.Apps` carries them.
 - Any AppHost code is in `Hosting/`, which the component's own project does not compile; the AppHost includes it through a linked item.
 - Its unit tests are in `tests/IntoChat.OS.Tests.Unit/Components/<Name>`.
-- Other modules and components may reference it only through its `Contracts` project.
+- A component's implementation project references other modules and components only through their `Contracts` projects (`ComponentFacts`); exceptions are listed there with a cap and in `OWED.md`. The reverse direction, a module referencing a component's implementation project, is intended to go through `Contracts` too but is not yet checked.
 
 The module class is the same: it derives from `DigitalBrain.Modules.Module`, carries `[Module]` and keeps its id (`aspire` for `AspireModule`). The first component is `src/Components/Aspire`; copy its shape, and read `ComponentFacts` for the rules that are checked.
 

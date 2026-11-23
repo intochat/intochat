@@ -51,7 +51,7 @@ Neurons whose contracts carry `[Offered]` (such as `ITable`) can also be shared 
 
 A component is the one packaging unit that replaces the module and the system app, one at a time. It lives in `src/Components/<Name>` and owns everything about one capability:
 
-- **Contracts**: the neuron interfaces, signals and records other code may use, in `Contracts/IntoChat.<Name>.Contracts.csproj`. Other modules and components reach a component only through this assembly.
+- **Contracts**: the neuron interfaces, signals and records other code may use, in `Contracts/IntoChat.<Name>.Contracts.csproj`. Other modules and components are meant to reference a component only through this assembly; `ComponentFacts` checks that direction for a component's own references, not yet for a module's.
 - **Neurons**: the implementation, in `Neurons/` inside `IntoChat.<Name>.csproj`.
 - **Signals**: the facts its neurons publish, declared beside the contracts.
 - **Screens**: the apps a person opens, in `Screens/`. A screen is a neuron whose name starts `app.`; C# decides what is on screen and Flutter draws it.
@@ -64,7 +64,7 @@ Only Aspire has moved so far. Every other module is still in `src/Modules` and e
 
 An app is a DigitalBrain app that runs in a brain. There are two kinds:
 
-- **System apps** are compiled into the product and ship with it. Most still have a folder in `src/IntoChat.OS.Apps`, for example `Desktop`, `Settings`, `Tasks`, `Creator` and `CustomerResearcher`. A moved app is a screen of its component, for example `AspireApp` in `src/Components/Aspire/Screens`; the module that owns it registers it, so it ships whenever that module is loaded. A brain that already stored the app keeps working after the move.
+- **System apps** are compiled into the product and ship with it. Most still have a folder in `src/IntoChat.OS.Apps`, for example `Desktop`, `Settings`, `Tasks`, `Creator` and `CustomerResearcher`. A moved app is a screen of its component, for example `AspireApp` in `src/Components/Aspire/Screens`; the module that owns it registers it, so it ships whenever that module is loaded. A brain that stored the shipped, unedited app before the move keeps working, because the check on a host-loaded shipped app does not resolve its stored type name and does not rewrite it; an edited copy of a moved app does not, because its stored type name no longer resolves and the app shows as failed.
 - **Apps made at runtime** are synapse units. They are not source in this repository. A unit is loaded inside the kernel process behind an allow-list; an app package runs in the sandbox worker, outside the kernel. See [sandbox and live behaviors](sandbox-and-live-behaviors.md).
 
 Apps can declare their neuron dependencies as `[Slot]` partial properties (for example `CustomerResearcherApp` in `src/IntoChat.OS.Apps/CustomerResearcher/CustomerResearcherApp.cs`). Each installation binds its slots through `IInstalls` using typed `Binding` targets (`BindingTarget.Local` for a neuron in the same brain, or `BindingTarget.Offered` for a neuron offered by a friend via `IOffers`).
