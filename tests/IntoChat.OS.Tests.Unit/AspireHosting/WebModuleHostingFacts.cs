@@ -33,7 +33,7 @@ public sealed class WebModuleHostingFacts
         Assert.Equal(ContainerLifetime.Persistent, lifetime.Lifetime);
 
         var parent = Assert.Single(searxng.Annotations.OfType<ResourceRelationshipAnnotation>(), static r => r.Type == "Parent");
-        Assert.Contains("webtools", parent.Resource.Name, StringComparison.Ordinal);
+        Assert.Equal("web", parent.Resource.Name);
 
         var searxngEnv = new Dictionary<string, object>();
         var searxngCtx = new EnvironmentCallbackContext(builder.ExecutionContext, searxng, searxngEnv, Ct);

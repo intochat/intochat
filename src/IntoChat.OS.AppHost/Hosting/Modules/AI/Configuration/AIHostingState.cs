@@ -118,7 +118,7 @@ public static partial class AIHostingExtensions
         private IResourceBuilder<OllamaResource> AddOllama()
         {
             var ollama = brain.ApplicationBuilder
-                .AddOllama(brain.ResourceName("ollama"))
+                .AddOllama(brain.ChildName("ai", "ollama"))
                 .WithImageTag(OllamaImageTag);
             if (NvidiaGpuAvailable.Value)
             {

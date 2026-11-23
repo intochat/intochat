@@ -8,21 +8,21 @@
     "webtools"
   ],
   "Resources": [
-    "Modules",
-    "Modules-ai",
-    "Modules-aspire",
-    "Modules-github",
     "Modules-intochat-os-master-key",
-    "Modules-orleans",
-    "Modules-sandbox",
-    "Modules-searxng",
     "Modules-searxng-secret",
-    "Modules-webtools",
     "OperatingSystem-a",
     "OperatingSystem-a-rebuilder",
     "OperatingSystem-front",
     "__dotnet-project-build",
-    "sandbox"
+    "ai",
+    "aspire",
+    "github",
+    "intochat",
+    "orleans",
+    "sandbox",
+    "sandbox-worker",
+    "web",
+    "web-searxng"
   ],
   "Settings": {
     "IntoChatOS:Modules:ai:Options:ollama:endpoint": "http://localhost:11434",

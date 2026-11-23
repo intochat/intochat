@@ -137,7 +137,10 @@ public sealed class IntoChatOSBuilder
     public string? ClusteringResourceName { get; set; }
     public DeploymentProfile? Profile { get; internal set; }
 
+    // Only for resources whose name is frozen (parameters, storage, servers, containers that own data).
     public string ResourceName(string name) => $"{Name}-{name}";
+
+    public string ChildName(string moduleId, string child) => ResourceNames.Child(moduleId, child);
 
     public IDistributedApplicationBuilder ApplicationBuilder { get; }
 
@@ -216,25 +219,25 @@ public sealed class IntoChatOSBuilder
         => ApplicationBuilder.Resources.Any(resource =>
             string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    public IResourceBuilder<IntoChatOSModuleResource> GetOrAddModuleNode(string displayName)
+    public IResourceBuilder<IntoChatOSModuleResource> GetOrAddModuleNode(string moduleId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        if (_moduleNodes.TryGetValue(displayName, out var existing))
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        if (_moduleNodes.TryGetValue(moduleId, out var existing))
         {
             return existing;
         }
 
-        var node = ApplicationBuilder.AddResource(new IntoChatOSModuleResource(ResourceName(displayName)))
+        var node = ApplicationBuilder.AddResource(new IntoChatOSModuleResource(ResourceNames.Shown(moduleId)))
             .ExcludeFromManifest();
         node.WithParentRelationship(Resource);
         node.WithInitialState(new CustomResourceSnapshot
         {
-            ResourceType = "Module",
+            ResourceType = "Component",
             CreationTimeStamp = DateTime.UtcNow,
             State = KnownResourceStates.Running,
-            Properties = [new(CustomResourceKnownProperties.Source, displayName)],
+            Properties = [new(CustomResourceKnownProperties.Source, moduleId)],
         });
-        _moduleNodes.Add(displayName, node);
+        _moduleNodes.Add(moduleId, node);
         return node;
     }
 }

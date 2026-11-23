@@ -91,7 +91,8 @@ public sealed class LocalReset(
         if (Sha8.Length == 8)
         {
             var containers = await docker.ContainerNamesAsync(cancellationToken);
-            var exact = new[] { $"Modules-storage-{Sha8}", $"Modules-ollama-{Sha8}" };
+            // Modules-ollama is the name before the rename; its container may still exist.
+            var exact = new[] { $"Modules-storage-{Sha8}", $"ai-ollama-{Sha8}", $"Modules-ollama-{Sha8}" };
             foreach (var name in containers.Where(c => exact.Contains(c, StringComparer.Ordinal))) { plan.Add(new ResetTarget("container", name, name)); }
             var prefix = $"intochat.os.apphost-{Sha10}-";
             foreach (var name in volumes.Where(v => v.StartsWith(prefix, StringComparison.Ordinal))) { plan.Add(new ResetTarget("volume", name, name)); }

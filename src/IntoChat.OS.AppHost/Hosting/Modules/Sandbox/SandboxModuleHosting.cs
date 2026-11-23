@@ -17,8 +17,8 @@ namespace IntoChat.OS.Aspire.Hosting;
 /// </summary>
 public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
 {
-    public const string ResourceName = "sandbox";
     public const string ModuleName = "sandbox";
+    public static readonly string ResourceName = ResourceNames.Child(ModuleName, "worker");
     internal const string ImageName = "intochat-os-sandbox";
     internal const string ImageTag = "local";
     private const string SandboxProject = "src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj";
