@@ -1796,7 +1796,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         right: 12,
                         bottom: 12,
                         child: InoOrbV2(
-                          state: _presenceState,
+                          state: _presenceState ?? PresenceState.idle,
                           size: 48,
                           semanticsId: 'compact:ino-orb',
                           onTap: () {
