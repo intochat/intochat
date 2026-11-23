@@ -414,6 +414,189 @@ public sealed class AspireRestartFacts
         Assert.DoesNotContain(AspireMcp.CommandTool, AspireMcp.ReadTools);
     }
 
+    // The live list exactly as Aspire's MCP list_resources returned it (CLI 17.0.0, hosting 17.1.0-preview): replicas and persistent
+    // containers carry an instance suffix the dashboard does not show.
+    private static readonly string[] LiveNames =
+    [
+        "Modules-intochat-os-master-key", "Modules-searxng-secret", "ai", "ai-ollama-a265990c", "ai-ollama-openwebui-a265990c", "aspire",
+        "devices", "github", "intochat", "intochat-os-bootstrap-password", "mcp", "orleans", "os-gateway-bcrfeyre", "os-gdnnbbha", "web",
+        "web-searxng-a265990c",
+    ];
+
+    [Theory]
+    [InlineData("os-gdnnbbha", "person")]
+    [InlineData("os-gateway-bcrfeyre", "person")]
+    [InlineData("os", "person")]
+    [InlineData("os-gateway", "person")]
+    [InlineData("os-gdnnbbha", "agent")]
+    [InlineData("os-gateway-bcrfeyre", "agent")]
+    [InlineData("os", "agent")]
+    [InlineData("os-gateway", "agent")]
+    public async Task TheKernelUnderItsLiveNameIsRefused(string name, string caller)
+    {
+        var tools = new FakeTools(LiveNames);
+        await using var os = Host(tools, self: "os");
+
+        var result = await Call(os, caller == "person" ? Person() : NotAPerson("agent"), aspire => aspire.Restart(name));
+
+        Assert.Equal("self", result.Reason);
+        Assert.Empty(tools.Commands);
+        Assert.Empty(os.Confirmations.Requested);
+        Assert.Empty(Signals<AspireResourceRestartRequested>(os));
+    }
+
+    [Theory]
+    [InlineData("OperatingSystem-a-abcdefgh")]
+    [InlineData("OperatingSystem-front-abcdefgh")]
+    [InlineData("OperatingSystem-a")]
+    public async Task APublishedKernelUnderItsLiveNameIsRefused(string name)
+    {
+        var tools = new FakeTools("web-searxng-a265990c", "OperatingSystem-a-abcdefgh", "OperatingSystem-front-abcdefgh");
+        await using var os = Host(tools, self: "OperatingSystem-a");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart(name));
+
+        Assert.Equal("self", result.Reason);
+        Assert.Empty(os.Confirmations.Requested);
+    }
+
+    // Assumed shapes: the rebuilder replica carries its own suffix, or sits beside a suffixed kernel.
+    [Theory]
+    [InlineData("os-rebuilder-abcdefgh")]
+    [InlineData("os-gdnnbbha-rebuilder")]
+    [InlineData("os-rebuilder")]
+    public async Task TheRebuilderOfASuffixedKernelIsRefused(string name)
+    {
+        var tools = new FakeTools([.. LiveNames, "os-rebuilder-abcdefgh", "os-gdnnbbha-rebuilder"]);
+        await using var os = Host(tools, self: "os");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart(name));
+
+        Assert.Equal("self", result.Reason);
+        Assert.Empty(os.Confirmations.Requested);
+    }
+
+    // A display name given by list_resources itself counts for the self rule too.
+    [Fact]
+    public async Task AKernelNamedOnlyByItsDisplayNameFieldIsRefused()
+    {
+        var tools = new FakeTools("web-searxng-a265990c", "kernel-x1") { Display = { ["kernel-x1"] = "os" } };
+        await using var os = Host(tools, self: "os");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("kernel-x1"));
+
+        Assert.Equal("self", result.Reason);
+        Assert.Empty(os.Confirmations.Requested);
+    }
+
+    [Fact]
+    public async Task ADashboardNameResolvesToTheOneLiveResource()
+    {
+        var tools = new FakeTools(LiveNames);
+        await using var os = Host(tools, self: "os");
+
+        var result = await Call(os, Person(), aspire => aspire.Restart("web-searxng"));
+
+        Assert.True(result.Accepted);
+        Assert.Equal("web-searxng-a265990c", result.Resource);
+        Assert.Equal([("web-searxng-a265990c", AspireMcp.RestartCommand)], tools.Commands);
+        Assert.Equal("web-searxng-a265990c", Assert.Single(Signals<AspireResourceRestarted>(os)).Resource);
+    }
+
+    [Fact]
+    public async Task ADisplayNameFieldResolvesToItsLiveResource()
+    {
+        var tools = new FakeTools("search-x1", "os") { Display = { ["search-x1"] = "search" } };
+        await using var os = Host(tools);
+
+        var result = await Call(os, Person(), aspire => aspire.Restart("search"));
+
+        Assert.Equal([("search-x1", AspireMcp.RestartCommand)], tools.Commands);
+        Assert.Equal("search-x1", result.Resource);
+    }
+
+    [Fact]
+    public async Task TheExactLiveNameStillWorks()
+    {
+        var tools = new FakeTools(LiveNames);
+        await using var os = Host(tools, self: "os");
+
+        var result = await Call(os, Person(), aspire => aspire.Restart("web-searxng-a265990c"));
+
+        Assert.True(result.Accepted);
+        Assert.Equal([("web-searxng-a265990c", AspireMcp.RestartCommand)], tools.Commands);
+    }
+
+    [Fact]
+    public async Task ADisplayNameSharedByTwoReplicasIsUnknown()
+    {
+        var tools = new FakeTools("os", "web", "worker-aaaaaaaa", "worker-bbbbbbbb");
+        await using var os = Host(tools);
+
+        var result = await Call(os, Person(), aspire => aspire.Restart("worker"));
+
+        Assert.Equal("unknown", result.Reason);
+        Assert.Equal(["worker-aaaaaaaa", "worker-bbbbbbbb"], result.Known![..2]);
+        Assert.Empty(tools.Commands);
+    }
+
+    [Fact]
+    public async Task ARequestByDisplayNameAndThenByExactNameIsOneRequest()
+    {
+        var tools = new FakeTools(LiveNames);
+        await using var os = Host(tools, self: "os");
+
+        var first = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+        var second = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng-a265990c"));
+        var third = await Call(os, NotAPerson("app"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal("pending", first.Reason);
+        Assert.Equal("web-searxng-a265990c", first.Resource);
+        Assert.Equal(first.Confirmation, second.Confirmation);
+        Assert.Equal(first.Confirmation, third.Confirmation);
+        Assert.Single(os.Confirmations.Requested);
+        Assert.Equal("web-searxng-a265990c", Assert.Single(Signals<AspireResourceRestartRequested>(os)).Resource);
+    }
+
+    // An entry for the kernel stored before this fix (the old rule let os-gdnnbbha through to a card) never runs when approved.
+    [Fact]
+    public async Task SelfIsRecheckedWhenTheAnswerArrives()
+    {
+        var tools = new FakeTools(LiveNames);
+        await using var os = Host(tools, self: "os");
+        var now = os.Clock.GetUtcNow().ToString("O");
+        var planId = "aspire.resource.restart:os-gdnnbbha:old";
+        os.SeedStoredState(Aspire, "{\"resources\":[],\"structuredLogs\":[],\"traces\":[],\"pendingRestarts\":[{\"planId\":\"" + planId + "\",\"resource\":\"os-gdnnbbha\",\"requestedAt\":\"" + now + "\"}]}");
+        using (TestEdge.Authority.Enter(TestEdge.Authority.OnBehalfOf(new Actor.Person("local", "local"), Brain, via: Aspire)))
+        {
+            Assert.Null(await os.Get<IConfirmationRequests>(IConfirmationRequests.Of(Brain)).Request(
+                new ConfirmationPlan(planId, ConfirmationAction.Other, false, "Restart os-gdnnbbha?", "Restart", "Restart", "Keep running", "os-gdnnbbha")
+                    { RequiresPerson = true, Kind = AspireNeuron.RestartKind, Subject = "os-gdnnbbha" }));
+        }
+        await Call(os, Person(), async aspire => (await aspire.GetResourcesAsync()).Length);
+
+        await Answer(os, Person(), planId, approve: true);
+
+        await Until(() => Signals<AspireResourceRestartRefused>(os).Length == 1);
+        Assert.Equal([new AspireResourceRestartRefused("os-gdnnbbha", "self")], Signals<AspireResourceRestartRefused>(os));
+        Assert.Empty(tools.Commands);
+    }
+
+    [Theory]
+    [InlineData("os-gdnnbbha", "os")]
+    [InlineData("os-gateway-bcrfeyre", "os-gateway")]
+    [InlineData("web-searxng-a265990c", "web-searxng")]
+    [InlineData("ai-ollama-openwebui-a265990c", "ai-ollama-openwebui")]
+    [InlineData("intochat", "intochat")]
+    [InlineData("Modules-intochat-os-master-key", "Modules-intochat-os-master-key")]
+    [InlineData("Modules-searxng-secret", "Modules-searxng-secret")]
+    [InlineData("worker-ABCDEFGH", "worker-ABCDEFGH")]
+    [InlineData("abcdefgh", "abcdefgh")]
+    [InlineData("-abcdefgh", "-abcdefgh")]
+    [InlineData("my-database", "my")]
+    public void TheDisplayNameDropsAnEightCharacterInstanceSuffix(string live, string display)
+        => Assert.Equal(display, AspireMcp.DisplayNameOf(live));
+
     private static TestOS Host(FakeTools tools, ConfirmationPolicy policy = ConfirmationPolicy.DestructiveOnly, string? self = null)
     {
         var services = new ServiceCollection();
@@ -482,6 +665,7 @@ public sealed class AspireRestartFacts
         public bool Available { get; set; } = true;
         public bool Fails { get; init; }
         public string[] Names { get; set; } = names;
+        public Dictionary<string, string> Display { get; } = [];
         public int Calls { get; private set; }
         public List<(string, string)> Commands { get; } = [];
 
@@ -494,7 +678,7 @@ public sealed class AspireRestartFacts
         public Task<AspireResourceView[]> AllResources(CancellationToken ct)
         {
             Calls++;
-            return Task.FromResult(Names.Select(name => new AspireResourceView(name, "Running", "")).ToArray());
+            return Task.FromResult(Names.Select(name => new AspireResourceView(name, "Running", "", Display.GetValueOrDefault(name))).ToArray());
         }
 
         public Task Command(string resourceName, string commandName, CancellationToken ct)

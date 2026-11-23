@@ -20,6 +20,22 @@ public sealed class AspireMcpFacts
         Assert.Equal("", views[1].Endpoint);
     }
 
+    // The sample above has no display name: the view carries none and the rule in DisplayNameOf decides.
+    [Fact]
+    public void WithoutADisplayNameFieldTheViewHasNone()
+        => Assert.All(AspireMcp.Resources(ListResources), view => Assert.Null(view.DisplayName));
+
+    [Theory]
+    [InlineData("displayName")]
+    [InlineData("display_name")]
+    [InlineData("DisplayName")]
+    public void ADisplayNameFieldIsRead(string field)
+    {
+        var text = "# RESOURCE DATA\r\n\r\n[ { \"name\": \"os-gdnnbbha\", \"" + field + "\": \"os\", \"state\": \"Running\", \"urls\": [] } ]";
+        var view = Assert.Single(AspireMcp.Resources(text));
+        Assert.Equal(("os-gdnnbbha", "os"), (view.Name, view.DisplayName));
+    }
+
     [Fact]
     public async Task ChangingToolsAreRefused()
     {

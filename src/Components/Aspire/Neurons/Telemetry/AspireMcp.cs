@@ -19,8 +19,8 @@ internal sealed class AspireMcp(IConfiguration? configuration) : IAspireTools, I
     };
 
     // CONFIRMED: the tool name and argument names, from tools/list of `aspire agent mcp` (Aspire CLI 17.0.0; destructiveHint true).
-    // UNCONFIRMED: the command name "resource-restart", read from KnownResourceCommands in Aspire.Hosting 17.1.0-preview.1.26569.1
-    // (a DLL string table), not yet observed through the tool. The CLI and hosting versions differ.
+    // CONFIRMED: the command name "resource-restart" (KnownResourceCommands), observed restarting a container through the tool against
+    // a running AppHost on 2026-11-23 (CLI 17.0.0, hosting 17.1.0-preview.1.26569.1).
     internal const string CommandTool = "execute_resource_command";
     internal const string ResourceNameArgument = "resourceName";
     internal const string CommandNameArgument = "commandName";
@@ -72,7 +72,30 @@ internal sealed class AspireMcp(IConfiguration? configuration) : IAspireTools, I
             item.GetProperty("name").GetString() ?? "",
             item.TryGetProperty("state", out var state) ? state.GetString() ?? "" : "",
             item.TryGetProperty("urls", out var urls) && urls.ValueKind == JsonValueKind.Array && urls.GetArrayLength() > 0
-                ? Url(urls[0]) : ""))];
+                ? Url(urls[0]) : "",
+            Text(item, "displayName", "display_name", "DisplayName")))];
+    }
+
+    // The display name, when the item carries one under any of the spellings Aspire uses (describe JSON uses displayName).
+    private static string? Text(JsonElement item, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } text) { return text; }
+        }
+        return null;
+    }
+
+    // The name the dashboard shows, by Aspire's naming: replicas (projects, executables, proxies) and persistent containers get
+    // "-" + 8 characters of [a-z0-9] after it (DCP's random suffix, or the AppHost path hash). Other names are their own display name.
+    // A name whose last segment is 8 such characters by coincidence ("my-database") also loses it: harmless, as an exact match
+    // always wins, a shared display name is refused as ambiguous, and for the self rule matching too much fails closed.
+    internal static string DisplayNameOf(string name)
+    {
+        const int Suffix = 8;
+        if (name.Length < Suffix + 2 || name[^(Suffix + 1)] != '-') { return name; }
+        foreach (var c in name[^Suffix..]) { if (!char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c)) { return name; } }
+        return name[..^(Suffix + 1)];
     }
 
     private static string Url(JsonElement url) => url.ValueKind == JsonValueKind.String ? url.GetString() ?? ""

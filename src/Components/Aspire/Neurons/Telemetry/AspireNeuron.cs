@@ -277,15 +277,36 @@ internal sealed partial class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireT
     protected override Task OnActivate(CancellationToken cancellationToken)
         => Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
 
-    // Availability first, then the exact live name, then the kernel itself. The name returned is the live list's.
+    // Availability first, then the name, then the kernel itself. The name is the exact live name, or the display name of exactly one
+    // live resource (the dashboard drops the instance suffix list_resources keeps); several sharing it are refused as unknown, unless
+    // one of them is the kernel. The name returned is always the live list's exact name.
     private async Task<(string Name, AspireRestartResult? Refused)> Check(string? resourceName)
     {
         if (_mcp is not { Available: true }) { return ("", new(resourceName ?? "", false, "unavailable")); }
         var live = await _mcp.AllResources(CancellationToken.None);
-        var match = string.IsNullOrWhiteSpace(resourceName) ? null : live.FirstOrDefault(view => string.Equals(view.Name, resourceName, StringComparison.Ordinal));
-        if (match is null) { return ("", new(resourceName ?? "", false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)])); }
-        return KernelNames.IsSelf(match.Name, _self) ? ("", new(match.Name, false, "self")) : (match.Name, null);
+        if (string.IsNullOrWhiteSpace(resourceName)) { return ("", new(resourceName ?? "", false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)])); }
+        AspireResourceView[] matches = live.FirstOrDefault(view => string.Equals(view.Name, resourceName, StringComparison.Ordinal)) is { } exact
+            ? [exact]
+            : [.. live.Where(view => DisplayNames(view).Contains(resourceName, StringComparer.Ordinal))];
+        if (matches.FirstOrDefault(IsSelf) is { } self) { return ("", new(self.Name, false, "self")); }
+        return matches switch
+        {
+            [var match] => (match.Name, null),
+            [] => ("", new(resourceName, false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)])),
+            _ => ("", new(resourceName, false, "unknown", [.. matches.Select(view => view.Name).Concat(live.Select(view => view.Name).Except(matches.Select(view => view.Name))).Take(MaxKnown)])),
+        };
     }
+
+    private static string[] DisplayNames(AspireResourceView view)
+        => [.. new[] { view.DisplayName, AspireMcp.DisplayNameOf(view.Name), view.DisplayName is null ? null : AspireMcp.DisplayNameOf(view.DisplayName) }.OfType<string>().Distinct()];
+
+    // Fails closed: the kernel, its front, this process or a rebuilder of any of them under its exact name or any display name.
+    private bool IsSelf(AspireResourceView view)
+        => DisplayNames(view).Append(view.Name).Any(name => KernelNames.IsSelf(name, _self)
+            || (name.EndsWith(Rebuilder, StringComparison.Ordinal) && name.Length > Rebuilder.Length
+                && KernelNames.IsSelf(AspireMcp.DisplayNameOf(name[..^Rebuilder.Length]), _self)));
+
+    private const string Rebuilder = "-rebuilder";
 
     // Runs the command and saves the state (any answered request removed) with the outcome signal.
     private async Task<AspireRestartResult> Run(string name, AspirePendingRestart[] pending, string? planId)

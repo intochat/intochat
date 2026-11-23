@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 using DigitalBrain.Contracts;
 
 namespace IntoChat.Aspire;
@@ -6,7 +7,9 @@ namespace IntoChat.Aspire;
 public sealed record AspireResourceView(
     string Name,
     string State,
-    string Endpoint);
+    string Endpoint,
+    // The name the dashboard shows when list_resources gives one; Name is the exact live name, which may carry an instance suffix.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DisplayName = null);
 
 public sealed record AspireLogEntry(
     DateTimeOffset Timestamp,
@@ -65,7 +68,7 @@ public interface IAspire
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string> Ask(string tool, string argumentsJson = "{}");
 
-    [Description("Restart one resource of the running app by its exact name; the kernel itself is refused and a refused result says why. A caller that is not a person gets \"pending\", and the restart runs once the person approves.")]
+    [Description("Restart one resource of the running app by the name the dashboard shows or the exact name GetResourcesAsync lists; the kernel itself is refused and a refused result says why. A caller that is not a person gets \"pending\", and the restart runs once the person approves.")]
     Task<AspireRestartResult> Restart(string resourceName);
 
     Task RecordLogAsync(AspireLogEntry entry);
