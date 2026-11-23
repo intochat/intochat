@@ -30,6 +30,9 @@ public sealed class FlutterModuleHosting : ModuleHosting<IntoChat.OS.Modules.Flu
             target.WebContainer = options.WebContainer;
             target.AndroidTransport = options.AndroidTransport;
             target.AndroidDevice = options.AndroidDevice;
+            target.IosTransport = options.IosTransport;
+            target.IosDevice = options.IosDevice;
+            target.IosUiBase = options.IosUiBase;
         }
     }
 }

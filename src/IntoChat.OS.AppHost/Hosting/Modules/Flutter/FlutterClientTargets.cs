@@ -1,5 +1,8 @@
 using IntoChat.OS.Aspire.Hosting;
 using System.Diagnostics;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Host.Execution;
@@ -9,13 +12,19 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 /// <summary>
-/// Registers explicit-start Flutter client targets (<c>shell-linux</c>, <c>shell-android</c>)
+/// Registers explicit-start Flutter client targets (<c>shell-linux</c>, <c>shell-android</c>, <c>shell-ios</c>)
 /// for local development so they appear in the Aspire Dashboard with native Start, Stop, and Console Logs.
 /// </summary>
 internal static class FlutterClientTargets
 {
     public static string LinuxResourceName => ResourceNames.Child(ShellNames.ModuleId, "linux");
     public static string AndroidResourceName => ResourceNames.Child(ShellNames.ModuleId, "android");
+    public static string IosResourceName => ResourceNames.Child(ShellNames.ModuleId, "ios");
+
+    internal sealed record IosDeviceCandidate(
+        string Id,
+        string Name,
+        IosDebugTransport Transport);
 
     private const int DefaultKernelPort = 5080;
 
@@ -129,6 +138,107 @@ internal static class FlutterClientTargets
         if (getKernelEndpoint is not null)
         {
             android.WithEnvironment(context =>
+            {
+                if (getKernelEndpoint() is { } kernel)
+                {
+                    context.EnvironmentVariables[ShellNames.UIBaseEnvironmentVariable] = kernel;
+                }
+            });
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            AddIosClientTarget(appHost, uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
+        }
+    }
+
+    private static void AddIosClientTarget(
+        IDistributedApplicationBuilder appHost,
+        string uiDir,
+        IResource parentResource,
+        string flutterCommand,
+        FlutterHostOptions options,
+        string? presenceToken,
+        Func<EndpointReference?>? getKernelEndpoint)
+    {
+        IosDeviceCandidate? resolvedIosDevice = null;
+
+        var ios = appHost
+            .AddExecutable(IosResourceName, flutterCommand, uiDir)
+            .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
+            .WithExplicitStart()
+            .ExcludeFromManifest()
+            .WithParentRelationship(parentResource)
+            .OnBeforeResourceStarted(async (_, _, ct) =>
+            {
+                resolvedIosDevice = await ResolveIosTargetDeviceAsync(
+                    options.IosTransport,
+                    options.IosDevice,
+                    ct).ConfigureAwait(false);
+            })
+            .WithArgs(context =>
+            {
+                context.Args.Add("run");
+                context.Args.Add("-d");
+                var deviceId = resolvedIosDevice?.Id
+                    ?? (!string.IsNullOrWhiteSpace(options.IosDevice) ? options.IosDevice.Trim() : "ios");
+                context.Args.Add(deviceId);
+
+                if (options.ReleaseBuild)
+                {
+                    context.Args.Add("--release");
+                }
+
+                var kernelPort = ResolveKernelPort(getKernelEndpoint);
+                var isSimulator = resolvedIosDevice?.Transport == IosDebugTransport.Simulator;
+                var uiBase = ResolveIosUiBase(options.IosUiBase, kernelPort, isSimulator);
+                context.Args.Add($"--dart-define={ShellNames.UIBaseEnvironmentVariable}={uiBase}");
+
+                var shell = string.IsNullOrWhiteSpace(options.ShellName)
+                    ? ShellNames.DefaultShellName
+                    : options.ShellName;
+                var chat = string.IsNullOrWhiteSpace(options.ChatName)
+                    ? ShellNames.DefaultChatName
+                    : options.ChatName;
+                context.Args.Add($"--dart-define={ShellNames.ShellEnvironmentVariable}={shell}");
+                context.Args.Add($"--dart-define={ShellNames.ChatEnvironmentVariable}={chat}");
+
+                if (!string.IsNullOrWhiteSpace(presenceToken))
+                {
+                    context.Args.Add($"{ShellHostingExtensions.PresenceDartDefinePrefix}{presenceToken}");
+                }
+            })
+            .WithCommand(
+                "ios-wireless-discover",
+                "Discover Wireless iOS",
+                async context =>
+                {
+                    var selected = await ResolveIosTargetDeviceAsync(
+                        IosDebugTransport.Wireless,
+                        options.IosDevice,
+                        context.CancellationToken).ConfigureAwait(false);
+                    if (selected is not null)
+                    {
+                        resolvedIosDevice = selected;
+                        OsConsoleLog.For(typeof(FlutterClientTargets)).LogInformation(
+                            "Discovered wireless iOS device '{Name}' ({Id}).",
+                            selected.Name,
+                            selected.Id);
+                        return CommandResults.Success();
+                    }
+
+                    return CommandResults.Failure(
+                        "No paired wireless iOS devices found via xcrun devicectl. Pair once over USB in Xcode (Devices and Simulators -> Connect via network).");
+                },
+                new CommandOptions
+                {
+                    IconName = "Wifi1",
+                    Description = "Discover paired iOS devices available over Wi-Fi via Xcode CoreDevice (xcrun devicectl).",
+                });
+
+        if (getKernelEndpoint is not null)
+        {
+            ios.WithEnvironment(context =>
             {
                 if (getKernelEndpoint() is { } kernel)
                 {
@@ -441,4 +551,284 @@ internal static class FlutterClientTargets
             return (-1, string.Empty, ex.Message);
         }
     }
+
+    private static async Task<IosDeviceCandidate?> ResolveIosTargetDeviceAsync(
+        IosDebugTransport transport,
+        string? explicitDevice,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitDevice))
+        {
+            return new IosDeviceCandidate(explicitDevice.Trim(), explicitDevice.Trim(), transport);
+        }
+
+        var candidates = new List<IosDeviceCandidate>();
+
+        if (transport is IosDebugTransport.Auto or IosDebugTransport.Wireless or IosDebugTransport.Usb)
+        {
+            var devicectlJson = await TryRunDevicectlListAsync(cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(devicectlJson))
+            {
+                candidates.AddRange(ParseDevicectlDevices(devicectlJson));
+            }
+        }
+
+        if (transport is IosDebugTransport.Auto or IosDebugTransport.Simulator)
+        {
+            var simctl = await RunProcessAsync(
+                "xcrun",
+                ["simctl", "list", "devices", "booted", "--json"],
+                TimeSpan.FromSeconds(5),
+                cancellationToken).ConfigureAwait(false);
+            if (simctl.ExitCode == 0 && !string.IsNullOrWhiteSpace(simctl.StdOut))
+            {
+                candidates.AddRange(ParseSimctlBootedDevices(simctl.StdOut));
+            }
+        }
+
+        var selected = SelectIosDevice(candidates, transport);
+        if (selected is not null)
+        {
+            OsConsoleLog.For(typeof(FlutterClientTargets)).LogInformation(
+                "Selected iOS target '{Name}' ({Id}, transport: {Transport}).",
+                selected.Name,
+                selected.Id,
+                selected.Transport);
+        }
+
+        return selected;
+    }
+
+    private static async Task<string?> TryRunDevicectlListAsync(CancellationToken cancellationToken)
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"intochat-devicectl-{Guid.NewGuid():N}.json");
+        try
+        {
+            var result = await RunProcessAsync(
+                "xcrun",
+                ["devicectl", "list", "devices", "--json-output", tempFile],
+                TimeSpan.FromSeconds(8),
+                cancellationToken).ConfigureAwait(false);
+            if (result.ExitCode == 0 && File.Exists(tempFile))
+            {
+                return await File.ReadAllTextAsync(tempFile, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            OsConsoleLog.For(typeof(FlutterClientTargets))
+                .LogDebug(ex, "Skipped xcrun devicectl iOS device discovery.");
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
+            }
+            catch (Exception ex)
+            {
+                OsConsoleLog.For(typeof(FlutterClientTargets))
+                    .LogDebug(ex, "Failed to delete temporary devicectl output '{Path}'.", tempFile);
+            }
+        }
+
+        return null;
+    }
+
+    internal static IReadOnlyList<IosDeviceCandidate> ParseDevicectlDevices(string json)
+    {
+        var devices = new List<IosDeviceCandidate>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("result", out var result)
+                || !result.TryGetProperty("devices", out var list)
+                || list.ValueKind != JsonValueKind.Array)
+            {
+                return devices;
+            }
+
+            foreach (var item in list.EnumerateArray())
+            {
+                if (!item.TryGetProperty("hardwareProperties", out var hw)
+                    || !hw.TryGetProperty("udid", out var udidEl))
+                {
+                    continue;
+                }
+
+                var udid = udidEl.GetString();
+                if (string.IsNullOrWhiteSpace(udid))
+                {
+                    continue;
+                }
+
+                var platform = hw.TryGetProperty("platform", out var platEl) ? platEl.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(platform)
+                    && !platform.Contains("iOS", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var name = item.TryGetProperty("deviceProperties", out var dp)
+                    && dp.TryGetProperty("name", out var nameEl)
+                    ? nameEl.GetString() ?? udid
+                    : udid;
+
+                var transportType = item.TryGetProperty("connectionProperties", out var cp)
+                    && cp.TryGetProperty("transportType", out var ttEl)
+                    ? ttEl.GetString()
+                    : null;
+
+                var pairingState = item.TryGetProperty("connectionProperties", out var cp2)
+                    && cp2.TryGetProperty("pairingState", out var psEl)
+                    ? psEl.GetString()
+                    : null;
+                if (!string.IsNullOrWhiteSpace(pairingState)
+                    && !string.Equals(pairingState, "paired", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var transport = string.Equals(transportType, "localNetwork", StringComparison.OrdinalIgnoreCase)
+                    ? IosDebugTransport.Wireless
+                    : IosDebugTransport.Usb;
+
+                devices.Add(new IosDeviceCandidate(udid, name, transport));
+            }
+        }
+        catch (JsonException ex)
+        {
+            OsConsoleLog.For(typeof(FlutterClientTargets))
+                .LogDebug(ex, "Failed to parse xcrun devicectl JSON output.");
+        }
+
+        return devices;
+    }
+
+    internal static IReadOnlyList<IosDeviceCandidate> ParseSimctlBootedDevices(string json)
+    {
+        var devices = new List<IosDeviceCandidate>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("devices", out var runtimeMap)
+                || runtimeMap.ValueKind != JsonValueKind.Object)
+            {
+                return devices;
+            }
+
+            foreach (var runtime in runtimeMap.EnumerateObject())
+            {
+                if (!runtime.Name.Contains("iOS", StringComparison.OrdinalIgnoreCase)
+                    || runtime.Value.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var sim in runtime.Value.EnumerateArray())
+                {
+                    var state = sim.TryGetProperty("state", out var stateEl) ? stateEl.GetString() : null;
+                    if (!string.Equals(state, "Booted", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var udid = sim.TryGetProperty("udid", out var udidEl) ? udidEl.GetString() : null;
+                    var name = sim.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : udid;
+                    if (!string.IsNullOrWhiteSpace(udid))
+                    {
+                        devices.Add(new IosDeviceCandidate(udid, name ?? udid, IosDebugTransport.Simulator));
+                    }
+                }
+            }
+        }
+        catch (JsonException ex)
+        {
+            OsConsoleLog.For(typeof(FlutterClientTargets))
+                .LogDebug(ex, "Failed to parse xcrun simctl JSON output.");
+        }
+
+        return devices;
+    }
+
+    internal static IosDeviceCandidate? SelectIosDevice(
+        IReadOnlyList<IosDeviceCandidate> candidates,
+        IosDebugTransport transport)
+    {
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        return transport switch
+        {
+            IosDebugTransport.Wireless => candidates.FirstOrDefault(static d => d.Transport == IosDebugTransport.Wireless),
+            IosDebugTransport.Usb => candidates.FirstOrDefault(static d => d.Transport == IosDebugTransport.Usb),
+            IosDebugTransport.Simulator => candidates.FirstOrDefault(static d => d.Transport == IosDebugTransport.Simulator),
+            IosDebugTransport.Auto =>
+                candidates.FirstOrDefault(static d => d.Transport == IosDebugTransport.Wireless)
+                ?? candidates.FirstOrDefault(static d => d.Transport == IosDebugTransport.Usb)
+                ?? candidates.FirstOrDefault(static d => d.Transport == IosDebugTransport.Simulator),
+            _ => candidates[0],
+        };
+    }
+
+    internal static string ResolveIosUiBase(string? configuredUiBase, int kernelPort, bool isSimulator)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredUiBase))
+        {
+            return configuredUiBase.Trim();
+        }
+
+        if (isSimulator)
+        {
+            return $"http://127.0.0.1:{kernelPort}";
+        }
+
+        var lanIp = TryGetHostLanIpv4();
+        return lanIp is not null
+            ? $"http://{lanIp}:{kernelPort}"
+            : $"http://127.0.0.1:{kernelPort}";
+    }
+
+    private static string? TryGetHostLanIpv4()
+    {
+        try
+        {
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up
+                    || nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
+                {
+                    continue;
+                }
+
+                foreach (var addr in nic.GetIPProperties().UnicastAddresses)
+                {
+                    if (addr.Address.AddressFamily == AddressFamily.InterNetwork
+                        && !System.Net.IPAddress.IsLoopback(addr.Address))
+                    {
+                        return addr.Address.ToString();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            OsConsoleLog.For(typeof(FlutterClientTargets))
+                .LogDebug(ex, "Could not determine host LAN IPv4 address for iOS client.");
+        }
+
+        return null;
+    }
+
+    private static Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(
+        string command,
+        IReadOnlyList<string> args,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => RunAdbAsync(command, args, timeout, cancellationToken);
 }

@@ -26,6 +26,9 @@ public sealed class FlutterHostOptions
         options.WebContainer = hosting.WebContainer;
         options.AndroidTransport = hosting.AndroidTransport;
         options.AndroidDevice = hosting.AndroidDevice ?? options.AndroidDevice;
+        options.IosTransport = hosting.IosTransport;
+        options.IosDevice = hosting.IosDevice ?? options.IosDevice;
+        options.IosUiBase = hosting.IosUiBase ?? options.IosUiBase;
         // The record's default device target is the desktop one; keep the web default unless configured away from it.
         if (hosting.DeviceTarget != ShellNames.DefaultDeviceTarget) { options.DeviceTarget = hosting.DeviceTarget; }
         return options;
@@ -57,4 +60,10 @@ public sealed class FlutterHostOptions
     public AndroidDebugTransport AndroidTransport { get; set; } = AndroidDebugTransport.Wireless;
 
     public string? AndroidDevice { get; set; }
+
+    public IosDebugTransport IosTransport { get; set; } = IosDebugTransport.Auto;
+
+    public string? IosDevice { get; set; }
+
+    public string? IosUiBase { get; set; }
 }

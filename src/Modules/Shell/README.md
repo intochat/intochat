@@ -15,7 +15,7 @@ Options:
 
 | Option | Type | Default | Required |
 | --- | --- | --- | --- |
-| `Hosting` | `FlutterHostingOptions` | `FlutterHostingOptions { Kind = Window, ResourceName = , DeviceTarget = windows, ShellName = desk, ChatName = main, FlutterCommand = , WorkingDirectory = , ReleaseBuild = False, WebContainer = False, AndroidTransport = Wireless, AndroidDevice =  }` | no |
+| `Hosting` | `FlutterHostingOptions` | `FlutterHostingOptions { Kind = Window, ResourceName = , DeviceTarget = windows, ShellName = desk, ChatName = main, FlutterCommand = , WorkingDirectory = , ReleaseBuild = False, WebContainer = False, AndroidTransport = Wireless, AndroidDevice = , IosTransport = Auto, IosDevice = , IosUiBase =  }` | no |
 
 Secrets (names only; values are sealed per brain, never configuration):
 

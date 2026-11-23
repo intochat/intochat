@@ -7,6 +7,7 @@ namespace IntoChat.OS.Modules.Flutter;
 // Preserve serialized values; 1 belonged to the removed Dart console host.
 public enum FlutterHostKind { Window = 0, Web = 2, None = 3 }
 public enum AndroidDebugTransport { Wireless = 0, Usb = 1, Auto = 2 }
+public enum IosDebugTransport { Auto = 0, Wireless = 1, Usb = 2, Simulator = 3 }
 public sealed record FlutterHostingOptions
 {
     public FlutterHostKind Kind { get; init; } = FlutterHostKind.Window;
@@ -24,6 +25,12 @@ public sealed record FlutterHostingOptions
     public AndroidDebugTransport AndroidTransport { get; init; } = AndroidDebugTransport.Wireless;
     // Optional explicit ADB serial or host:port override for the Android client target.
     public string? AndroidDevice { get; init; }
+    // iOS client target (macOS + Xcode): selects wireless (CoreDevice localNetwork), USB, simulator, or auto-detect.
+    public IosDebugTransport IosTransport { get; init; } = IosDebugTransport.Auto;
+    // Optional explicit iOS device UDID or name override.
+    public string? IosDevice { get; init; }
+    // Optional kernel base URL for physical iOS devices (e.g. http://<mac-lan-ip>:5080).
+    public string? IosUiBase { get; init; }
 }
 public sealed record FlutterModuleOptions : IModuleOptions
 {
@@ -37,6 +44,7 @@ public sealed record FlutterModuleOptions : IModuleOptions
     {
         if (!Enum.IsDefined(Hosting.Kind)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Flutter host kind."); }
         if (!Enum.IsDefined(Hosting.AndroidTransport)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Android debug transport."); }
+        if (!Enum.IsDefined(Hosting.IosTransport)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown iOS debug transport."); }
         if ((Hosting.ResourceName is not null && string.IsNullOrWhiteSpace(Hosting.ResourceName)) || string.IsNullOrWhiteSpace(Hosting.ShellName)
             || string.IsNullOrWhiteSpace(Hosting.ChatName))
         { throw new ArgumentException("Flutter resource, shell and chat names must be specified."); }
