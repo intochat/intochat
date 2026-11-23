@@ -24,7 +24,7 @@ using static IntoChat.OS.UI.Kit;
 namespace IntoChat.Muncly.Screens;
 
 [Neuron("app.muncly")]
-[Screen("app.muncly", Title = "Muncly CRM", Icon = "muncly")]
+[Screen("app.muncly", Title = "Muncly CRM", Icon = "muncly", Category = "Business")]
 public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<BrowserNavArgs>, INavigatedFrom
 {
     public const string AppName = "muncly";

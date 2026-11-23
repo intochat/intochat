@@ -154,6 +154,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu", "Studio", "orleans-grain"),
         ("engineer", "IntoChat Engineer", "neuron://local/apps/engineer", "workflow", "Studio", "orleans-grain"),
         ("aspire", ".NET Aspire", "neuron://local/apps/aspire", "activity", "Developer", "orleans-grain"),
+        ("muncly", "Muncly CRM", "neuron://local/apps/muncly", "muncly", "Business", "orleans-grain"),
         ("orleans", "Orleans Dashboard", "neuron://local/apps/orleans", "cpu", "Developer", "orleans-grain"),
         ("devui", "DevUI", "neuron://local/apps/devui", "terminal", "Developer", "orleans-grain"),
         ("widgetbook", "Widgetbook", "neuron://local/apps/widgetbook", "layout-grid", "Developer", "orleans-grain"),

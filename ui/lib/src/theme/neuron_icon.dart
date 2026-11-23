@@ -11,6 +11,7 @@ enum NeuronIconKind {
   gmail,
   salesforce,
   aspire,
+  muncly,
   github,
   intochat,
   docker,
@@ -72,6 +73,7 @@ enum NeuronIconKind {
 
   static const Map<String, NeuronIconKind> _namespacedKeys = {
     'brand:aspire': aspire,
+    'brand:muncly': muncly,
     'brand:github': github,
     'brand:gmail': gmail,
     'brand:salesforce': salesforce,
@@ -235,6 +237,7 @@ final class NeuronIcon extends StatelessWidget {
     NeuronIconKind.gmail: 'assets/brands/gmail.svg',
     NeuronIconKind.salesforce: 'assets/brands/salesforce.svg',
     NeuronIconKind.aspire: 'assets/brands/aspire-icon-32.svg',
+    NeuronIconKind.muncly: 'assets/brands/muncly.svg',
     NeuronIconKind.github: 'assets/brands/github.svg',
     NeuronIconKind.intochat: 'assets/brands/ic-mark.svg',
     NeuronIconKind.docker: 'assets/brands/docker.svg',
