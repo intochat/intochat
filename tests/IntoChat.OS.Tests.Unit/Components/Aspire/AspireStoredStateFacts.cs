@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using DigitalBrain.Flows;
 using DigitalBrain.Invocation;
 using IntoChat.OS.Host.Kernel;
 using IntoChat.Aspire.Candidates;
@@ -24,6 +25,27 @@ public sealed class AspireStoredStateFacts
         [new AspireResourceView("api", "Running", "http://localhost:5000")],
         [new AspireLogEntry(At, "api", "Information", "started", null), new AspireLogEntry(At.AddSeconds(1), "api", "Error", "failed", "System.InvalidOperationException: boom")],
         [new AspireTraceSpan("t1", "s1", "api", "GET /", "Ok", 1500, null), new AspireTraceSpan("t1", "s2", "api", "POST /x", "Error", 2500, "timeout")]);
+
+    private static AspireTelemetryState TelemetryWithPendingRestart() => Telemetry() with
+    {
+        PendingRestarts = [new AspirePendingRestart("aspire.resource.restart:web-searxng:0123456789abcdef0123456789abcdef", "web-searxng", At)],
+    };
+
+    // DeployFlow is a Flow<DeployInner>: what it stores is the framework's FlowState with the roll's own state as Inner.
+    private static FlowState<DeployInner> DeployFlowState() => new(
+        "flow-1", "Deploy 4567def", "local", "trace-1", FlowStatus.Waiting,
+        ["order", "roll:os-a:mark", "roll:os-a:restart", "roll:os-a:ready", "roll:os-b:mark"], "roll:os-b:restart",
+        new Waiting("roll:os-b:restart", WaitReason.Schedule, At.AddMinutes(1), null), [], null, At, null,
+        new DeployInner
+        {
+            TargetSha = "4567def",
+            Remaining = ["os-a", "os-b"],
+            Order = ["os-b", "os-a"],
+            Rolled = ["os-a"],
+            PreviousSha = "0123abc",
+            RestartIssued = new RestartIssued("os-b", At),
+        })
+    { Interruptions = 1 };
 
     private static CandidateState Candidate() => new()
     {
@@ -92,6 +114,26 @@ public sealed class AspireStoredStateFacts
     }
 
     [Fact]
+    public void TheTelemetryStateWithAPendingRestartIsStoredAsFrozenJson()
+    {
+        Pin("AspireTelemetryState.pending.json", Journal(TelemetryWithPendingRestart()));
+        var read = ReadJournal<AspireTelemetryState>("AspireTelemetryState.pending.json");
+        Assert.Equivalent(TelemetryWithPendingRestart(), read, strict: true);
+        Assert.Equal(TelemetryWithPendingRestart().PendingRestarts, read.PendingRestarts);
+    }
+
+    [Fact]
+    public void TheDeployFlowStateIsStoredAsFrozenJson()
+    {
+        Pin("DeployFlowState.json", Journal(DeployFlowState()));
+        var read = ReadJournal<FlowState<DeployInner>>("DeployFlowState.json");
+        Assert.Equivalent(DeployFlowState().Inner, read.Inner, strict: true);
+        Assert.Equal(DeployFlowState().Done, read.Done);
+        Assert.Equal(DeployFlowState().Waiting, read.Waiting);
+        Assert.Equal(1, read.Interruptions);
+    }
+
+    [Fact]
     public void TheCandidateStateIsStoredAsFrozenJson()
     {
         Pin("CandidateState.json", Journal(Candidate()));
@@ -132,7 +174,7 @@ public sealed class AspireStoredStateFacts
     [Fact]
     public void NoStoredFormNamesAClrTypeOrAssembly()
     {
-        foreach (var name in new[] { "AspireTelemetryState.json", "CandidateState.json", "CandidateQueueState.json", "DeploymentState.json", "DeploymentState.orleans.bin", "DeploymentState.orleans-object.bin" })
+        foreach (var name in new[] { "AspireTelemetryState.json", "AspireTelemetryState.pending.json", "DeployFlowState.json", "CandidateState.json", "CandidateQueueState.json", "DeploymentState.json", "DeploymentState.orleans.bin", "DeploymentState.orleans-object.bin" })
         {
             Assert.True(File.Exists(Golden(name)), $"Golden file {name} is missing; run with UPDATE_GOLDEN=1 once.");
             var text = Encoding.UTF8.GetString(File.ReadAllBytes(Golden(name)));

@@ -103,6 +103,27 @@ public sealed class CompiledProgramCheckFacts
     }
 
     [Fact]
+    public async Task ARecordWithAnotherPublisherStillFollowsTheOldRule()
+    {
+        using var person = Person();
+        await using var os = Os(hosted: true);
+        var origin = new AppOrigin("someone-else", new AppSource.Shipped(), "ino", "1.0.0");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => os.Get<IApp>(IdOf("ino")).Import(InoWith(Stale), origin));
+        Assert.Equal($"Compiled app type '{Stale}' could not be resolved.", error.Message);
+    }
+
+    [Fact]
+    public async Task AnOriginNamedDifferentlyFromTheKeyStillFollowsTheOldRule()
+    {
+        using var person = Person();
+        await using var os = Os(hosted: true);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => os.Get<IApp>(IdOf("ino")).Import(InoWith(Stale), Shipped("settings", "1.0.0")));
+        Assert.Equal($"Compiled app type '{Stale}' could not be resolved.", error.Message);
+    }
+
+    [Fact]
     public async Task AResolvableNameStillPassesWithoutProvenance()
     {
         using var person = Person();
