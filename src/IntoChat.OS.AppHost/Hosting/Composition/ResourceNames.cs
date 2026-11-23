@@ -18,7 +18,6 @@ public static class ResourceNames
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         return moduleId switch
         {
-            "flutter" => "shell",
             "webtools" => "web",
             _ => moduleId,
         };

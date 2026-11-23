@@ -6,10 +6,16 @@ namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 public static class ShellNames
 {
-    // The module id is frozen in configuration; the dashboard shows it as "shell" (ResourceNames.Shown).
+    // The module id is frozen in configuration; the dashboard shows it as "flutter".
     public const string ModuleId = "flutter";
-    // Run mode names the app after the component node. Publish keeps the name the deployed resource had.
-    public static string DesktopResourceName => ResourceNames.Child(ModuleId, "desktop");
+    // Run mode names each platform target directly under "flutter" (flutter-windows, flutter-linux, flutter-macos,
+    // flutter-android, flutter-ios, flutter-web). Publish keeps the legacy deployed name.
+    public static string DesktopResourceName => ResourceNames.Child(ModuleId, CurrentHostDeviceTarget);
+    public static string WindowsResourceName => ResourceNames.Child(ModuleId, "windows");
+    public static string LinuxResourceName => ResourceNames.Child(ModuleId, "linux");
+    public static string MacOsResourceName => ResourceNames.Child(ModuleId, "macos");
+    public static string AndroidResourceName => ResourceNames.Child(ModuleId, "android");
+    public static string IosResourceName => ResourceNames.Child(ModuleId, "ios");
     public static string WebResourceName => ResourceNames.Child(ModuleId, "web");
     public const string LegacyResourceName = "FlutterShell";
     public const string UIBaseEnvironmentVariable = "INTOCHATOS_UI_BASE";

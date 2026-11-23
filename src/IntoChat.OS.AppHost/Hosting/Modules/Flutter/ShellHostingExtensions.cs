@@ -156,12 +156,13 @@ public static class ShellHostingExtensions
 
             var launch = FlutterHostLaunch.Resolve(kind, packageRoot, options, appHost.Configuration);
 
+            var flutterNode = brain.GetOrAddModuleNode(ShellNames.ModuleId);
             var host = appHost
                 .AddExecutable(resourceName, launch.Command, launch.WorkingDirectory, launch.Args)
                 .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
                 .WithEnvironment(ShellNames.ShellEnvironmentVariable, shell)
                 .WithEnvironment(ShellNames.ChatEnvironmentVariable, chat)
-                .WithParentRelationship(brain.GetOrAddModuleNode(ShellNames.ModuleId));
+                .WithParentRelationship(flutterNode);
 
             if (kind == FlutterHostKind.Window)
             {
@@ -216,7 +217,8 @@ public static class ShellHostingExtensions
                 FlutterClientTargets.AddExplicitClientTargets(
                     appHost,
                     packageRoot,
-                    host.Resource,
+                    flutterNode.Resource,
+                    resourceName,
                     options,
                     _presenceToken,
                     () => _front?.GetEndpoint(ShellNames.HttpEndpointName) ?? _firstKernel);

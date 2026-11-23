@@ -80,39 +80,44 @@ public sealed class ResourceNameFacts
     }
 
     [Fact]
-    public void TheShellAppHangsUnderShell()
+    public void TheFlutterTargetsHangDirectlyUnderFlutter()
     {
         var resources = ComposeWithShell().ApplicationBuilder.Resources;
-        Assert.Equal("shell", ParentOf(Named(resources, "shell-desktop"))?.Name);
-        Assert.Equal("shell-desktop", ParentOf(Named(resources, "shell-android"))?.Name);
-        if (OperatingSystem.IsWindows())
+        foreach (var child in new[] { "flutter-windows", "flutter-linux", "flutter-macos", "flutter-android", "flutter-ios", "flutter-web" })
         {
-            Assert.Equal("shell-desktop", ParentOf(Named(resources, "shell-linux"))?.Name);
+            Assert.Equal("flutter", ParentOf(Named(resources, child))?.Name);
         }
     }
 
     [Fact]
-    public void TheShellHasTheAgreedNames()
+    public void FlutterHasAllSixPlatformTargets()
     {
-        string[] expected = OperatingSystem.IsWindows()
-            ? ["shell", "shell-desktop", "shell-android", "shell-linux"]
-            : ["shell", "shell-desktop", "shell-android"];
+        string[] expected =
+        [
+            "flutter",
+            "flutter-android",
+            "flutter-ios",
+            "flutter-linux",
+            "flutter-macos",
+            "flutter-web",
+            "flutter-windows",
+        ];
 
         var names = ComposeWithShell().ApplicationBuilder.Resources.Select(static r => r.Name)
-            .Where(static name => name == "shell" || name.StartsWith("shell-", StringComparison.Ordinal) || name.Contains("lutter", StringComparison.Ordinal));
+            .Where(static name => name == "flutter" || name.StartsWith("flutter-", StringComparison.Ordinal) || name.StartsWith("shell", StringComparison.Ordinal));
         Assert.Equal(string.Join(", ", expected.Order(StringComparer.Ordinal)), string.Join(", ", names.Order(StringComparer.Ordinal)));
     }
 
     [Fact]
-    public void TheWebTargetIsShellWeb()
+    public void TheWebTargetIsFlutterWeb()
     {
         var resources = ComposeWithShell(("IntoChatOS:Modules:flutter:Options:Hosting:Kind", "Web")).ApplicationBuilder.Resources;
-        Assert.Equal("shell", ParentOf(Named(resources, "shell-web"))?.Name);
+        Assert.Equal("flutter", ParentOf(Named(resources, "flutter-web"))?.Name);
         Assert.DoesNotContain(resources, static r => r.Name == "shell-desktop" || r.Name == "FlutterShell");
     }
 
     [Theory]
-    [InlineData("flutter", "shell", "shell-desktop", "IntoChatOS:Shell:Enabled")]
+    [InlineData("flutter", "flutter", "flutter-windows", "IntoChatOS:Shell:Enabled")]
     [InlineData("webtools", "web", "web-searxng", "IntoChatOS:Modules:webtools:Enabled")]
     public void AFrozenModuleIdStillSwitchesItsComponentOff(string moduleId, string shown, string child, string switchKey)
     {

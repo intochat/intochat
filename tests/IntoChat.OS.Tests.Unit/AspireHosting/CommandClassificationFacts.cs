@@ -18,6 +18,7 @@ public sealed class CommandClassificationFacts
         "hot-reload",
         "install-model",
         "adb-wireless-connect",
+        "ios-wireless-discover",
         "ListAllModels",
         "ListRunningModels",
     };

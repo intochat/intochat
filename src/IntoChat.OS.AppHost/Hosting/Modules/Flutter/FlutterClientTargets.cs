@@ -12,14 +12,18 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 /// <summary>
-/// Registers explicit-start Flutter client targets (<c>shell-linux</c>, <c>shell-android</c>, <c>shell-ios</c>)
-/// for local development so they appear in the Aspire Dashboard with native Start, Stop, and Console Logs.
+/// Registers explicit-start Flutter client targets under <c>flutter</c>
+/// (<c>flutter-windows</c>, <c>flutter-linux</c>, <c>flutter-macos</c>, <c>flutter-android</c>, <c>flutter-ios</c>, <c>flutter-web</c>)
+/// for local development so every platform appears in the Aspire Dashboard with native Start, Stop, and Console Logs.
 /// </summary>
 internal static class FlutterClientTargets
 {
-    public static string LinuxResourceName => ResourceNames.Child(ShellNames.ModuleId, "linux");
-    public static string AndroidResourceName => ResourceNames.Child(ShellNames.ModuleId, "android");
-    public static string IosResourceName => ResourceNames.Child(ShellNames.ModuleId, "ios");
+    public static string WindowsResourceName => ShellNames.WindowsResourceName;
+    public static string LinuxResourceName => ShellNames.LinuxResourceName;
+    public static string MacOsResourceName => ShellNames.MacOsResourceName;
+    public static string AndroidResourceName => ShellNames.AndroidResourceName;
+    public static string IosResourceName => ShellNames.IosResourceName;
+    public static string WebResourceName => ShellNames.WebResourceName;
 
     internal sealed record IosDeviceCandidate(
         string Id,
@@ -32,6 +36,7 @@ internal static class FlutterClientTargets
         IDistributedApplicationBuilder appHost,
         string uiDir,
         IResource parentResource,
+        string? primaryResourceName = null,
         FlutterHostOptions? options = null,
         string? presenceToken = null,
         Func<EndpointReference?>? getKernelEndpoint = null)
@@ -48,107 +53,181 @@ internal static class FlutterClientTargets
         var effectiveOptions = options ?? new FlutterHostOptions();
         var flutterCommand = FlutterHostLaunch.ResolveFlutterCommand(effectiveOptions, appHost.Configuration);
 
-        if (OperatingSystem.IsWindows())
+        bool HasTarget(string name)
+            => string.Equals(primaryResourceName, name, StringComparison.OrdinalIgnoreCase)
+                || appHost.Resources.Any(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (!HasTarget(WindowsResourceName))
         {
-            appHost
-                .AddExecutable(
-                    LinuxResourceName,
-                    "wsl",
-                    uiDir,
-                    "-d",
-                    "Ubuntu-24.04",
-                    "--",
-                    "env",
-                    "INTOCHATOS_DESKTOP_PORT=5081",
-                    "/home/vlad/.intochat/bin/intochat")
-                .WithExplicitStart()
-                .ExcludeFromManifest()
-                .WithParentRelationship(parentResource);
+            AddSimpleFlutterTarget(appHost, WindowsResourceName, "windows", uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
+        }
+
+        if (!HasTarget(LinuxResourceName))
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                appHost
+                    .AddExecutable(
+                        LinuxResourceName,
+                        "wsl",
+                        uiDir,
+                        "-d",
+                        "Ubuntu-24.04",
+                        "--",
+                        "env",
+                        "INTOCHATOS_DESKTOP_PORT=5081",
+                        "/home/vlad/.intochat/bin/intochat")
+                    .WithExplicitStart()
+                    .ExcludeFromManifest()
+                    .WithParentRelationship(parentResource);
+            }
+            else
+            {
+                AddSimpleFlutterTarget(appHost, LinuxResourceName, "linux", uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
+            }
+        }
+
+        if (!HasTarget(MacOsResourceName))
+        {
+            AddSimpleFlutterTarget(appHost, MacOsResourceName, "macos", uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
+        }
+
+        if (!HasTarget(WebResourceName))
+        {
+            AddSimpleFlutterTarget(appHost, WebResourceName, "chrome", uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
         }
 
         string? resolvedDevice = null;
 
-        var android = appHost
-            .AddExecutable(AndroidResourceName, flutterCommand, uiDir)
+        if (!HasTarget(AndroidResourceName))
+        {
+            var android = appHost
+                .AddExecutable(AndroidResourceName, flutterCommand, uiDir)
+                .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
+                .WithExplicitStart()
+                .ExcludeFromManifest()
+                .WithParentRelationship(parentResource)
+                .OnBeforeResourceStarted(async (_, _, ct) =>
+                {
+                    var kernelPort = ResolveKernelPort(getKernelEndpoint);
+                    resolvedDevice = await PrepareAndroidDeviceAsync(
+                        effectiveOptions.AndroidTransport,
+                        effectiveOptions.AndroidDevice,
+                        kernelPort,
+                        ct).ConfigureAwait(false);
+                })
+                .WithArgs(context =>
+                {
+                    context.Args.Add("run");
+                    context.Args.Add("-d");
+                    context.Args.Add(string.IsNullOrWhiteSpace(resolvedDevice) ? "android" : resolvedDevice);
+
+                    if (effectiveOptions.ReleaseBuild)
+                    {
+                        context.Args.Add("--release");
+                    }
+
+                    var kernelPort = ResolveKernelPort(getKernelEndpoint);
+                    context.Args.Add($"--dart-define={ShellNames.UIBaseEnvironmentVariable}=http://127.0.0.1:{kernelPort}");
+
+                    var shell = string.IsNullOrWhiteSpace(effectiveOptions.ShellName)
+                        ? ShellNames.DefaultShellName
+                        : effectiveOptions.ShellName;
+                    var chat = string.IsNullOrWhiteSpace(effectiveOptions.ChatName)
+                        ? ShellNames.DefaultChatName
+                        : effectiveOptions.ChatName;
+                    context.Args.Add($"--dart-define={ShellNames.ShellEnvironmentVariable}={shell}");
+                    context.Args.Add($"--dart-define={ShellNames.ChatEnvironmentVariable}={chat}");
+
+                    if (!string.IsNullOrWhiteSpace(presenceToken))
+                    {
+                        context.Args.Add($"{ShellHostingExtensions.PresenceDartDefinePrefix}{presenceToken}");
+                    }
+                })
+                .WithCommand(
+                    "adb-wireless-connect",
+                    "Connect Wireless ADB",
+                    async context =>
+                    {
+                        var kernelPort = ResolveKernelPort(getKernelEndpoint);
+                        var (connected, message) = await ConnectWirelessAndReverseAsync(
+                            effectiveOptions.AndroidDevice,
+                            kernelPort,
+                            context.CancellationToken).ConfigureAwait(false);
+                        if (connected is not null)
+                        {
+                            resolvedDevice = connected;
+                            return CommandResults.Success();
+                        }
+
+                        return CommandResults.Failure(message);
+                    },
+                    new CommandOptions
+                    {
+                        IconName = "Wifi1",
+                        Description = "Discover paired Android devices via ADB mDNS, connect wirelessly, and configure adb reverse.",
+                    });
+
+            if (getKernelEndpoint is not null)
+            {
+                android.WithEnvironment(context =>
+                {
+                    if (getKernelEndpoint() is { } kernel)
+                    {
+                        context.EnvironmentVariables[ShellNames.UIBaseEnvironmentVariable] = kernel;
+                    }
+                });
+            }
+        }
+
+        if (!HasTarget(IosResourceName))
+        {
+            AddIosClientTarget(appHost, uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
+        }
+    }
+
+    private static void AddSimpleFlutterTarget(
+        IDistributedApplicationBuilder appHost,
+        string resourceName,
+        string deviceTarget,
+        string uiDir,
+        IResource parentResource,
+        string flutterCommand,
+        FlutterHostOptions options,
+        string? presenceToken,
+        Func<EndpointReference?>? getKernelEndpoint)
+    {
+        var target = appHost
+            .AddExecutable(resourceName, flutterCommand, uiDir)
             .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
             .WithExplicitStart()
             .ExcludeFromManifest()
             .WithParentRelationship(parentResource)
-            .OnBeforeResourceStarted(async (_, _, ct) =>
-            {
-                var kernelPort = ResolveKernelPort(getKernelEndpoint);
-                resolvedDevice = await PrepareAndroidDeviceAsync(
-                    effectiveOptions.AndroidTransport,
-                    effectiveOptions.AndroidDevice,
-                    kernelPort,
-                    ct).ConfigureAwait(false);
-            })
             .WithArgs(context =>
             {
                 context.Args.Add("run");
                 context.Args.Add("-d");
-                context.Args.Add(string.IsNullOrWhiteSpace(resolvedDevice) ? "android" : resolvedDevice);
-
-                if (effectiveOptions.ReleaseBuild)
+                context.Args.Add(deviceTarget);
+                if (options.ReleaseBuild)
                 {
                     context.Args.Add("--release");
                 }
-
-                var kernelPort = ResolveKernelPort(getKernelEndpoint);
-                context.Args.Add($"--dart-define={ShellNames.UIBaseEnvironmentVariable}=http://127.0.0.1:{kernelPort}");
-
-                var shell = string.IsNullOrWhiteSpace(effectiveOptions.ShellName)
-                    ? ShellNames.DefaultShellName
-                    : effectiveOptions.ShellName;
-                var chat = string.IsNullOrWhiteSpace(effectiveOptions.ChatName)
-                    ? ShellNames.DefaultChatName
-                    : effectiveOptions.ChatName;
-                context.Args.Add($"--dart-define={ShellNames.ShellEnvironmentVariable}={shell}");
-                context.Args.Add($"--dart-define={ShellNames.ChatEnvironmentVariable}={chat}");
 
                 if (!string.IsNullOrWhiteSpace(presenceToken))
                 {
                     context.Args.Add($"{ShellHostingExtensions.PresenceDartDefinePrefix}{presenceToken}");
                 }
-            })
-            .WithCommand(
-                "adb-wireless-connect",
-                "Connect Wireless ADB",
-                async context =>
-                {
-                    var kernelPort = ResolveKernelPort(getKernelEndpoint);
-                    var (connected, message) = await ConnectWirelessAndReverseAsync(
-                        effectiveOptions.AndroidDevice,
-                        kernelPort,
-                        context.CancellationToken).ConfigureAwait(false);
-                    if (connected is not null)
-                    {
-                        resolvedDevice = connected;
-                        return CommandResults.Success();
-                    }
-
-                    return CommandResults.Failure(message);
-                },
-                new CommandOptions
-                {
-                    IconName = "Wifi1",
-                    Description = "Discover paired Android devices via ADB mDNS, connect wirelessly, and configure adb reverse.",
-                });
+            });
 
         if (getKernelEndpoint is not null)
         {
-            android.WithEnvironment(context =>
+            target.WithEnvironment(context =>
             {
                 if (getKernelEndpoint() is { } kernel)
                 {
                     context.EnvironmentVariables[ShellNames.UIBaseEnvironmentVariable] = kernel;
                 }
             });
-        }
-
-        if (OperatingSystem.IsMacOS())
-        {
-            AddIosClientTarget(appHost, uiDir, parentResource, flutterCommand, effectiveOptions, presenceToken, getKernelEndpoint);
         }
     }
 
