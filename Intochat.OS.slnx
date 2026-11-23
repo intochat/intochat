@@ -55,6 +55,8 @@
   </Folder>
   <Project Path="src/Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" />
   <Project Path="src/Components/Aspire/IntoChat.Aspire.csproj" />
+  <Project Path="src/Components/Muncly/Contracts/IntoChat.Muncly.Contracts.csproj" />
+  <Project Path="src/Components/Muncly/IntoChat.Muncly.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.csproj" />

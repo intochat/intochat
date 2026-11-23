@@ -71,6 +71,7 @@ abstract final class BrandVisuals {
     'provider:openaicompatible': 'assets/brands/providers/openai.svg',
     'provider:sherpaonnx': 'assets/brands/providers/openai.svg',
     'brand:aspire': 'assets/brands/aspire-icon-32.svg',
+    'brand:muncly': 'assets/brands/muncly.svg',
     'brand:github': 'assets/brands/github.svg',
     'brand:gmail': 'assets/brands/gmail.svg',
     'brand:salesforce': 'assets/brands/salesforce.svg',

@@ -24,6 +24,7 @@ public static class OperatingSystemModules
         typeof(IntoChat.OS.Modules.ArtCraft.ArtCraftModule).Assembly,
         typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
         typeof(IntoChat.Aspire.AspireModule).Assembly,
+        typeof(IntoChat.Muncly.MunclyModule).Assembly,
         typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly,
         typeof(IntoChat.OS.Modules.Circles.CirclesModule).Assembly,
         typeof(IntoChat.OS.Modules.ClickHouse.ClickHouseModule).Assembly,

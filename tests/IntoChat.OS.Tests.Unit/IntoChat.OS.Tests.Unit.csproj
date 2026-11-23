@@ -30,6 +30,7 @@
     <ProjectReference Include="../../src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../../src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
     <ProjectReference Include="../../src/Components/Aspire/IntoChat.Aspire.csproj" />
+    <ProjectReference Include="../../src/Components/Muncly/IntoChat.Muncly.csproj" />
     <ProjectReference Include="../../src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
     <ProjectReference Include="../../src/Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
     <ProjectReference Include="../../src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
