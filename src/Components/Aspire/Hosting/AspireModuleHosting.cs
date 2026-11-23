@@ -37,7 +37,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireMo
             var endpoint = new AspireBridgeEndpoint(socketPath);
             brain.ApplicationBuilder.Services.TryAddSingleton(endpoint);
             brain.ApplicationBuilder.Services.AddHostedService<AspireBridgeServer>();
-            brain.AddProjection(new Variable(AspireBridgeProtocol.SocketPathVariable, socketPath));
+            brain.AddProjection(new BridgeSocket(socketPath));
         }
     }
 
@@ -225,5 +225,11 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireMo
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => ResourceBuilderExtensions.WithEnvironment(builder, name, value);
+    }
+
+    private sealed class BridgeSocket(string path) : IntoChatOSModuleProjection
+    {
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+            => ResourceBuilderExtensions.WithEnvironment(builder, AspireBridgeProtocol.SocketPathVariable, path);
     }
 }

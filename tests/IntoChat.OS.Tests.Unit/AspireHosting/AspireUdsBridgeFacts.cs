@@ -113,4 +113,11 @@ public sealed class AspireUdsBridgeFacts
         Assert.DoesNotContain(builder.Services, s => s.ServiceType == typeof(AspireBridgeEndpoint));
         Assert.DoesNotContain(builder.Services, s => s.ImplementationType == typeof(AspireBridgeServer));
     }
+
+    [Fact]
+    public void BridgeSocketProjectionCoexistsWithOtlpEndpointProjection()
+    {
+        var os = AppHostChainFacts.Compose("local", (AspireModuleHosting.OtlpHttpEndpoint, "http://localhost:19189"));
+        Assert.NotNull(os);
+    }
 }
