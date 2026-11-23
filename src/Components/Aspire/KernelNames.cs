@@ -21,8 +21,17 @@ internal static class KernelNames
             || (name.Length == role.Length + 2 && name.StartsWith(role + "-", StringComparison.Ordinal) && char.IsAsciiLetterLower(name[^1])));
 
     // The kernel or its front, exactly as the live list names them: restarting either cuts the caller's own connection.
-    public static bool IsSelf(string name)
-        => name is Os or Legacy or Front or LegacyFront || IsInstance(name, Os) || IsInstance(name, Legacy);
+    // Also this process's own instance name whatever its shape, and the rebuilder Aspire adds beside either.
+    public static bool IsSelf(string name, string? self = null)
+        => IsKernelOrSelf(name, self)
+            || (name.Length > RebuilderSuffix.Length && name.EndsWith(RebuilderSuffix, StringComparison.Ordinal)
+                && IsKernelOrSelf(name[..^RebuilderSuffix.Length], self));
+
+    private static bool IsKernelOrSelf(string name, string? self)
+        => name is Os or Legacy or Front or LegacyFront || IsInstance(name, Os) || IsInstance(name, Legacy)
+            || (!string.IsNullOrEmpty(self) && string.Equals(name, self, StringComparison.Ordinal));
+
+    private const string RebuilderSuffix = "-rebuilder";
 
     public const string Front = "os-gateway";
     public const string LegacyFront = "OperatingSystem-front";

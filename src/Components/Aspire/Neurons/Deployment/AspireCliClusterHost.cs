@@ -30,7 +30,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
 
     // Aspire names each instance's telemetry after its resource: OTEL_SERVICE_NAME is this silo's instance name.
     public AspireCliClusterHost(IModuleIntegrations<AspireModule> integrations, IProcessRunner processes)
-        : this(processes, ct => Workdir(integrations, ct), Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME"), ct => Fronts(integrations, ct))
+        : this(processes, ct => Workdir(integrations, ct), AspireInstance.FromEnvironment().Name, ct => Fronts(integrations, ct))
     {
     }
 

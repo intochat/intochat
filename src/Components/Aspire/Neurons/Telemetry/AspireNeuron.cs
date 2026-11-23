@@ -10,7 +10,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.Aspire;
 
-internal sealed record AspirePendingRestart(string PlanId, string Resource);
+// RequestedAt is absent from entries stored before it existed: it reads as default (DateTimeOffset.MinValue), which is stale.
+internal sealed record AspirePendingRestart(string PlanId, string Resource, DateTimeOffset RequestedAt = default);
 
 [ExportableState]
 internal sealed record AspireTelemetryState(
@@ -180,12 +181,14 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
 {
     private readonly IConfiguration? _configuration;
     private readonly IAspireTools? _mcp;
+    private readonly string? _self;
 
 
-    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null)
+    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null, AspireInstance? self = null)
     {
         _configuration = configuration;
         _mcp = mcp;
+        _self = self?.Name;
         AspireLiveTelemetry.EnsureListener();
     }
 
@@ -209,6 +212,7 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
     {
         var (name, refused) = await Check(resourceName);
         if (refused is not null) { return refused; }
+        await DropStale();
         if (IsDirectPerson(Context.Caller)) { return await Run(name, Pending(), null); }
 
         if (Pending().FirstOrDefault(item => item.Resource == name) is { } waiting) { return new(name, false, "pending", Confirmation: waiting.PlanId); }
@@ -216,12 +220,28 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
         var plan = new ConfirmationPlan($"{RestartKind}:{name}:{Guid.NewGuid():N}", ConfirmationAction.Other, false,
             $"Restart {name}?", $"Restart the resource {name} of the running app.", "Restart", "Keep running", name)
         { RequiresPerson = true, Kind = RestartKind, Subject = name };
-        await Save(State with { PendingRestarts = [.. Pending(), new AspirePendingRestart(plan.Id, name)] }, new AspireResourceRestartRequested(name, plan.Id));
-        var immediate = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Request(plan);
-        if (immediate is null) { return new(name, false, "pending", Confirmation: plan.Id); }
-        // Answered without asking (policy Never, or already known): only a person's own yes runs a restart, so this is a no.
-        await Save(State with { PendingRestarts = Without(plan.Id) }, new AspireResourceRestartRefused(name, "declined"));
-        return new(name, false, "declined", Confirmation: plan.Id);
+        // The id is ours, so the question is asked first and the entry stored only once it exists: no entry ever waits on a
+        // question that was never placed. Its answer cannot overtake the save, because it arrives as a signal this neuron handles
+        // in a later turn. A failed save after a placed question leaves a question whose answer finds no entry and runs nothing.
+        ConfirmationResult? immediate;
+#pragma warning disable CA1031 // a refused question is a returned value and a signal, never a throw
+        try { immediate = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Request(plan); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            var message = AspireLiveTelemetry.Sanitize(error.Message);
+            await Save(State, new AspireResourceRestartRefused(name, "declined", message));
+            return new(name, false, "declined", Message: message);
+        }
+#pragma warning restore CA1031
+        if (immediate is not null)
+        {
+            // Answered without asking (policy Never, or already known): only a person's own yes runs a restart, so this is a no.
+            await Save(State, new AspireResourceRestartRefused(name, "declined"));
+            return new(name, false, "declined", Confirmation: plan.Id);
+        }
+        await Save(State with { PendingRestarts = [.. Pending(), new AspirePendingRestart(plan.Id, name, Context.Time.GetUtcNow())] },
+            new AspireResourceRestartRequested(name, plan.Id));
+        return new(name, false, "pending", Confirmation: plan.Id);
     }
 
     // The person's answer to a pending restart. Reads the authoritative outcome; only a person's own approval runs it, after the name
@@ -231,10 +251,11 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
     {
         ArgumentNullException.ThrowIfNull(resolved);
         ct.ThrowIfCancellationRequested();
+        await DropStale();
         if (Pending().FirstOrDefault(item => item.PlanId == resolved.PlanId) is not { } pending) { return; }
         var outcome = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Outcome(resolved.PlanId);
-        if (outcome is null) { return; }
         var rest = Without(pending.PlanId);
+        // A null outcome means no record behind a resolved plan: nothing can ever answer it, so it ends as declined like any other no.
         if (outcome is not { Approved: true, Skipped: false, Approver.IsHuman: true })
         {
             await Save(State with { PendingRestarts = rest }, new AspireResourceRestartRefused(pending.Resource, "declined"));
@@ -259,7 +280,7 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
         var live = await _mcp.AllResources(CancellationToken.None);
         var match = string.IsNullOrWhiteSpace(resourceName) ? null : live.FirstOrDefault(view => string.Equals(view.Name, resourceName, StringComparison.Ordinal));
         if (match is null) { return ("", new(resourceName ?? "", false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)])); }
-        return KernelNames.IsSelf(match.Name) ? ("", new(match.Name, false, "self")) : (match.Name, null);
+        return KernelNames.IsSelf(match.Name, _self) ? ("", new(match.Name, false, "self")) : (match.Name, null);
     }
 
     // Runs the command and saves the state (any answered request removed) with the outcome signal.
@@ -281,6 +302,20 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
     }
 
     private AspirePendingRestart[] Pending() => State.PendingRestarts ?? [];
+
+    // Entries whose answer was lost: a question expires after ConfirmationRules.DefaultExpiry and then publishes its answer, so an
+    // entry three times older has missed it. Each is dropped as declined/"expired" and its resource may be asked again.
+    private static readonly TimeSpan StaleAfter = 3 * ConfirmationRules.DefaultExpiry;
+
+    private async Task DropStale()
+    {
+        var cutoff = Context.Time.GetUtcNow() - StaleAfter;
+        var stale = Pending().Where(item => item.RequestedAt < cutoff).ToArray();
+        if (stale.Length == 0) { return; }
+        var kept = Pending().Except(stale).ToArray();
+        await Save(State with { PendingRestarts = kept.Length == 0 ? null : kept },
+            [.. stale.Select(item => (DigitalBrain.Signal)new AspireResourceRestartRefused(item.Resource, "declined", "expired"))]);
+    }
 
     private AspirePendingRestart[]? Without(string planId)
         => Pending().Where(item => item.PlanId != planId).ToArray() is { Length: > 0 } rest ? rest : null;

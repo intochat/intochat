@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.Aspire;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,6 +67,8 @@ public sealed class AspireRestartFacts
     [InlineData("OperatingSystem-a")]
     [InlineData("os-gateway")]
     [InlineData("OperatingSystem-front")]
+    [InlineData("os-rebuilder")]
+    [InlineData("OperatingSystem-a-rebuilder")]
     public async Task TheKernelItselfIsRefused(string kernel)
     {
         var tools = new FakeTools("web-searxng", kernel);
@@ -76,6 +79,92 @@ public sealed class AspireRestartFacts
         Assert.False(result.Accepted);
         Assert.Equal("self", result.Reason);
         Assert.Empty(tools.Commands);
+    }
+
+    // The live list may name this process in a shape the name rules do not know: its own instance name is refused too, with its rebuilder.
+    [Theory]
+    [InlineData("kernel-7")]
+    [InlineData("kernel-7-rebuilder")]
+    public async Task ThisProcessesOwnInstanceIsRefusedWhateverItsName(string name)
+    {
+        var tools = new FakeTools("web-searxng", "kernel-7", "kernel-7-rebuilder");
+        await using var os = Host(tools, self: "kernel-7");
+
+        var result = await Call(os, Person(), aspire => aspire.Restart(name));
+
+        Assert.Equal("self", result.Reason);
+        Assert.Empty(tools.Commands);
+    }
+
+    // The reviewer's orphan: the confirmations neuron refuses the question (TooManyWaiting, AlreadyRequested). Nothing is stored or
+    // announced, the caller hears "declined" with the refusal, and the next request asks again instead of answering a dead plan.
+    [Fact]
+    public async Task ARequestTheConfirmationsRefuseLeavesNothingPending()
+    {
+        var confirmations = new FakeConfirmations { Refuse = "This raiser already has 20 confirmations waiting." };
+        var (neuron, context) = await Attached(new FakeTools("web-searxng", "os"), confirmations);
+
+        var refused = await neuron.Restart("web-searxng");
+
+        Assert.False(refused.Accepted);
+        Assert.Equal("declined", refused.Reason);
+        Assert.Equal(confirmations.Refuse, refused.Message);
+        Assert.Empty(context.Published.OfType<AspireResourceRestartRequested>());
+
+        confirmations.Refuse = null;
+        var again = await neuron.Restart("web-searxng");
+
+        Assert.Equal("pending", again.Reason);
+        Assert.Equal(confirmations.Requested[^1], again.Confirmation);
+        Assert.NotEqual(confirmations.Requested[0], again.Confirmation);
+        Assert.Equal(again.Confirmation, Assert.Single(context.Published.OfType<AspireResourceRestartRequested>()).Confirmation);
+    }
+
+    // The confirmations neuron has no record of a resolved plan: that request can never resolve, so it is dropped as declined.
+    [Fact]
+    public async Task AnAnswerWithNoRecordBehindItDropsThePendingRestart()
+    {
+        var confirmations = new FakeConfirmations();
+        var (neuron, context) = await Attached(new FakeTools("web-searxng", "os"), confirmations);
+        var pending = await neuron.Restart("web-searxng");
+
+        await neuron.OnRestartAnswered(Resolved(pending.Confirmation!, context.Clock.GetUtcNow()), TestContext.Current.CancellationToken);
+
+        Assert.Equal([new AspireResourceRestartRefused("web-searxng", "declined")], context.Published.OfType<AspireResourceRestartRefused>());
+        var again = await neuron.Restart("web-searxng");
+        Assert.Equal("pending", again.Reason);
+        Assert.NotEqual(pending.Confirmation, again.Confirmation);
+    }
+
+    // A pending entry older than three confirmation expiries has lost its answer: it is dropped as expired and the resource asks again.
+    [Fact]
+    public async Task AStalePendingRestartIsDroppedAndTheResourceCanBeAskedAgain()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var stale = (os.Clock.GetUtcNow() - TimeSpan.FromMinutes(16)).ToString("O");
+        os.SeedStoredState(Aspire, "{\"resources\":[],\"structuredLogs\":[],\"traces\":[],\"pendingRestarts\":[{\"planId\":\"aspire.resource.restart:web-searxng:dead\",\"resource\":\"web-searxng\",\"requestedAt\":\"" + stale + "\"}]}");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal("pending", result.Reason);
+        Assert.NotEqual("aspire.resource.restart:web-searxng:dead", result.Confirmation);
+        Assert.Equal([new AspireResourceRestartRefused("web-searxng", "declined", "expired")], Signals<AspireResourceRestartRefused>(os));
+    }
+
+    // Stored by the previous head, an entry has no requestedAt: it loads, reads as stale and is dropped the same way.
+    [Fact]
+    public async Task AnEntryStoredWithoutRequestedAtLoadsAndIsDroppedAsStale()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        os.SeedStoredState(Aspire, "{\"resources\":[],\"structuredLogs\":[],\"traces\":[],\"pendingRestarts\":[{\"planId\":\"aspire.resource.restart:web-searxng:old\",\"resource\":\"web-searxng\"}]}");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal("pending", result.Reason);
+        Assert.NotEqual("aspire.resource.restart:web-searxng:old", result.Confirmation);
+        Assert.Equal("expired", Assert.Single(Signals<AspireResourceRestartRefused>(os)).Message);
     }
 
     [Fact]
@@ -293,10 +382,11 @@ public sealed class AspireRestartFacts
         Assert.DoesNotContain(AspireMcp.CommandTool, AspireMcp.ReadTools);
     }
 
-    private static TestOS Host(FakeTools tools, ConfirmationPolicy policy = ConfirmationPolicy.DestructiveOnly)
+    private static TestOS Host(FakeTools tools, ConfirmationPolicy policy = ConfirmationPolicy.DestructiveOnly, string? self = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IAspireTools>(tools);
+        services.AddSingleton(new AspireInstance(self));
         services.AddSingleton(new ConfirmationPolicies { DefaultPolicy = policy });
         var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
         os.Register<AspireNeuron>();
@@ -336,6 +426,37 @@ public sealed class AspireRestartFacts
 
     private static T[] Signals<T>(TestOS os)
         => [.. os.Journal(Brain).Signals(Aspire).Select(entry => entry.Signal).OfType<T>()];
+
+    private static async Task<(AspireNeuron Neuron, FakeNeuronContext Context)> Attached(FakeTools tools, FakeConfirmations confirmations)
+    {
+        var context = new FakeNeuronContext(Aspire) { Caller = NotAPerson("agent") };
+        context.Proxies.Register<IConfirmationRequests>(IConfirmationRequests.Of(Brain), confirmations);
+        var neuron = new AspireNeuron(mcp: tools);
+        NeuronAttachment.Attach(neuron, context);
+        await NeuronAttachment.Activate(neuron, TestContext.Current.CancellationToken);
+        return (neuron, context);
+    }
+
+    private static ConfirmationResolved Resolved(string planId, DateTimeOffset at)
+        => new(planId, ConfirmationAction.Other, "web-searxng", new ConfirmationPrincipal("agent", PrincipalKind.App), null,
+            ConfirmationPolicy.DestructiveOnly, ConfirmationOutcome.Denied, ConfirmationDenyReason.None, false, at);
+
+    // Request throws as ConfirmationsNeuron does for a refusal; Outcome knows nothing.
+    private sealed class FakeConfirmations : IConfirmationRequests
+    {
+        public string? Refuse { get; set; }
+        public List<string> Requested { get; } = [];
+
+        public Task<ConfirmationResult?> Request(ConfirmationPlan plan)
+        {
+            Requested.Add(plan.Id);
+            return Refuse is null ? Task.FromResult<ConfirmationResult?>(null) : throw new InvalidOperationException(Refuse);
+        }
+
+        public Task<ConfirmationResult?> Outcome(string planId) => Task.FromResult<ConfirmationResult?>(null);
+
+        public Task Withdraw(string planId) => Task.CompletedTask;
+    }
 
     private sealed class FakeTools(params string[] names) : IAspireTools
     {
