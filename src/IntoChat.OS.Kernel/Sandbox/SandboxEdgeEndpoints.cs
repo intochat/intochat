@@ -257,8 +257,7 @@ internal static class SandboxEdgeEndpoints
     {
         if (!appKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return null; }
         // The sandbox names a contract by its neuron alias or its type; needs are type names, so compare the resolved type.
-        // A component's assemblies are IntoChat.<Name>, outside the IntoChat.OS prefix (Aspire is the first).
-        string[] prefixes = ["IntoChat.OS", "IntoChat.Aspire", "DigitalBrain"];
+        var prefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
         var contract = KernelInvocationSink.ContractOf(requestedContract)?.FullName
             ?? DigitalBrain.Runtime.Http.Surface.LoadedContracts.CurrentName(requestedContract, prefixes);
         var allowed = (await grants.Allowed(appKey).ConfigureAwait(false))

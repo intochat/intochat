@@ -7,7 +7,7 @@ namespace IntoChat.OS.Tests.Unit.Apps.Ino;
 
 public sealed class InoToolBudgetFacts(ITestOutputHelper output)
 {
-    private static readonly string[] ContractPrefixes = ["IntoChat.OS", "IntoChat.Aspire", "DigitalBrain"];
+    private static readonly string[] ContractPrefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
 
     internal static ToolSchema[] InoTools() =>
     [

@@ -27,13 +27,6 @@ public sealed class RepositoryLayoutFacts
         ["IntoChat.Aspire.Contracts"] = "IntoChat.Aspire",
     };
 
-    // A component's package id keeps the IntoChat.OS prefix the package allow-list requires (PackageRootAllowlistFacts; OWED.md).
-    private static readonly Dictionary<string, string> PackageIds = new(StringComparer.Ordinal)
-    {
-        ["IntoChat.Aspire"] = "IntoChat.OS.Aspire",
-        ["IntoChat.Aspire.Contracts"] = "IntoChat.OS.Aspire.Contracts",
-    };
-
     [Fact]
     public void NoScriptFilesExistInRepository()
     {
@@ -98,6 +91,7 @@ public sealed class RepositoryLayoutFacts
             + string.Join(", ", disk.Except(paths, comparer)) + "\nIn the solution only: " + string.Join(", ", paths.Except(disk, comparer)));
         var sourceRoot = Repository.Relative(Repository.SourceRoot);
         var modulesRoot = Repository.Relative(Repository.ModulesRoot);
+        var componentsRoot = Repository.Relative(Repository.ComponentsRoot);
         foreach (var entry in entries)
         {
             var path = entry.Attribute("Path")!.Value.Replace('\\', '/');
@@ -110,8 +104,9 @@ public sealed class RepositoryLayoutFacts
                     || (folderName == "Contracts" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts")
                     || (folderName == "Generators" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Generators")
                     // A component: src/Components/<Name>/IntoChat.<Name>.csproj and <Name>/Contracts/IntoChat.<Name>.Contracts.csproj.
-                    || name == "IntoChat." + folderName
-                    || (folderName == "Contracts" && name == "IntoChat." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts"),
+                    || (Path.GetDirectoryName(directory)!.Replace('\\', '/') == componentsRoot && name == "IntoChat." + folderName)
+                    || (folderName == "Contracts" && Path.GetDirectoryName(Path.GetDirectoryName(directory))!.Replace('\\', '/') == componentsRoot
+                        && name == "IntoChat." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts"),
                 $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;
@@ -140,12 +135,12 @@ public sealed class RepositoryLayoutFacts
             }
             foreach (var property in project.Descendants().Where(element => element.Name.LocalName is "RootNamespace" or "AssemblyName" or "PackageId"))
             {
-                var expectedValue = property.Name.LocalName switch
+                // A component's package ids follow their own rule (ComponentFacts.AComponentsPackageIdsAreIntoChatOSComponentsNames).
+                if (property.Name.LocalName == "PackageId" && directory.StartsWith(componentsRoot + "/", StringComparison.Ordinal))
                 {
-                    "RootNamespace" => RootNamespaces.GetValueOrDefault(name, name),
-                    "PackageId" => PackageIds.GetValueOrDefault(name, name),
-                    _ => name,
-                };
+                    continue;
+                }
+                var expectedValue = property.Name.LocalName == "RootNamespace" ? RootNamespaces.GetValueOrDefault(name, name) : name;
                 Assert.Equal(expectedValue, property.Value);
             }
         }

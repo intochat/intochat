@@ -36,8 +36,7 @@ public static class NeuronSurfaceTools
 public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
     IServiceProvider? plain = null)
 {
-    // A component's assemblies are IntoChat.<Name>, outside the IntoChat.OS prefix (Aspire is the first).
-    private static readonly string[] ContractAssemblyPrefixes = ["IntoChat.OS", "IntoChat.Aspire", "DigitalBrain"];
+    private static readonly string[] ContractAssemblyPrefixes = ContractAssemblies.PrefixArray();
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private static readonly MethodInfo GetNeuron = typeof(INeuronProxies).GetMethod(nameof(INeuronProxies.Get))!;
 

@@ -4,7 +4,7 @@
     <IsIntoChatOSModule>false</IsIntoChatOSModule>
     <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
     <RootNamespace>IntoChat.Aspire</RootNamespace>
-    <PackageId>IntoChat.OS.Aspire.Contracts</PackageId>
+    <PackageId>IntoChat.OS.Components.Aspire.Contracts</PackageId>
     <Description>Wire contracts, signals and records of the Aspire component: telemetry, candidates, deployment and verification plans.</Description>
   </PropertyGroup>
   <ItemGroup>

@@ -71,6 +71,16 @@ public sealed partial class ComponentFacts
             + string.Join('\n', findings));
     }
 
+    // The package allow-list packs IntoChat.OS* only (PackageRootAllowlistFacts), so a component's packages are
+    // IntoChat.OS.Components.<Name> and IntoChat.OS.Components.<Name>.Contracts while its assemblies are IntoChat.<Name>.
+    [Fact]
+    public void AComponentsPackageIdsAreIntoChatOSComponentsNames()
+    {
+        var findings = PackageIdFindings(Repository.ComponentsRoot);
+        Assert.True(findings.Count == 0,
+            "A component's PackageId is IntoChat.OS.Components.<Name> (implementation) or IntoChat.OS.Components.<Name>.Contracts:\n" + string.Join('\n', findings));
+    }
+
     [Fact]
     public void AComponentScreenNamesNoOtherComponentsContract()
     {
@@ -122,6 +132,26 @@ public sealed partial class ComponentFacts
         Assert.Contains(findings, finding => finding.Contains("Misnamed/IntoChat.Misnamed.csproj", StringComparison.Ordinal));
         Assert.Contains(findings, finding => finding.Contains("Misnamed/IntoChat.Other.csproj", StringComparison.Ordinal));
         Assert.Empty(LayoutFindings(Path.Combine(sample.Root, "does-not-exist")));
+    }
+
+    [Fact]
+    public void PackageIdChallengerFlagsAMissingOrWrongIdAndAcceptsTheRuleOnes()
+    {
+        using var sample = new Sample();
+        static string Package(string id) => $"<Project><PropertyGroup><PackageId>{id}</PackageId></PropertyGroup></Project>";
+        sample.Write("Good/IntoChat.Good.csproj", Package("IntoChat.OS.Components.Good"));
+        sample.Write("Good/Contracts/IntoChat.Good.Contracts.csproj", Package("IntoChat.OS.Components.Good.Contracts"));
+        sample.Write("Bare/IntoChat.Bare.csproj", "<Project />");
+        sample.Write("Wrong/IntoChat.Wrong.csproj", Package("IntoChat.OS.Wrong"));
+        sample.Write("Wrong/Contracts/IntoChat.Wrong.Contracts.csproj", Package("IntoChat.OS.Components.Wrong"));
+
+        var findings = PackageIdFindings(sample.Root);
+
+        Assert.DoesNotContain(findings, finding => finding.StartsWith("Good", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.StartsWith("Bare/IntoChat.Bare.csproj", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.StartsWith("Wrong/IntoChat.Wrong.csproj", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.StartsWith("Wrong/Contracts/IntoChat.Wrong.Contracts.csproj", StringComparison.Ordinal));
+        Assert.Equal(3, findings.Count);
     }
 
     [Fact]
@@ -231,6 +261,34 @@ public sealed partial class ComponentFacts
                 .ToArray();
             findings.AddRange(expected.Except(present, StringComparer.Ordinal).Select(missing => $"{name}: missing {missing}"));
             findings.AddRange(present.Except(expected, StringComparer.Ordinal).Select(extra => $"{name}: unexpected project {extra}"));
+        }
+        return findings;
+    }
+
+    // Each project directly in <Name>/ or <Name>/Contracts/ carries the PackageId the rule names.
+    private static List<string> PackageIdFindings(string root)
+    {
+        var findings = new List<string>();
+        if (!Directory.Exists(root))
+        {
+            return findings;
+        }
+        foreach (var directory in Directory.EnumerateDirectories(root).Order(StringComparer.Ordinal))
+        {
+            var name = Path.GetFileName(directory);
+            foreach (var (relative, expected) in new[] { ($"IntoChat.{name}.csproj", $"IntoChat.OS.Components.{name}"), ($"Contracts/IntoChat.{name}.Contracts.csproj", $"IntoChat.OS.Components.{name}.Contracts") })
+            {
+                var path = Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar));
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+                var actual = XDocument.Load(path).Descendants().FirstOrDefault(element => element.Name.LocalName == "PackageId")?.Value.Trim();
+                if (actual != expected)
+                {
+                    findings.Add($"{name}/{relative}: PackageId is {actual ?? "unset"}, expected {expected}");
+                }
+            }
         }
         return findings;
     }

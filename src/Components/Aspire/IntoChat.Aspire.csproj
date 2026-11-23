@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageId>IntoChat.OS.Aspire</PackageId>
+    <PackageId>IntoChat.OS.Components.Aspire</PackageId>
     <Description>Aspire telemetry, candidate builds, deployment rolls and candidate verification.</Description>
     <NoWarn>$(NoWarn);DB0033;CA1812</NoWarn>
   </PropertyGroup>
