@@ -57,10 +57,11 @@ public static class OperatingSystemHosting
         // Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
         var silos = ResourceNames.OsInstances(builder, AspireModuleHosting.Instances).Select(name =>
-            Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
+            Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)).WithIconName(ResourceNames.OsIcon))).ToArray();
         if (profile.FrontEnabled)
         {
             var front = AspireModuleHosting.AddFront(builder, ResourceNames.OsFrontFor(builder), ResourceNames.OsRoleFor(builder), profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
+            front.WithIconName(ResourceNames.OsGatewayIcon);
             os.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(front.Resource));
         }
         return silos;

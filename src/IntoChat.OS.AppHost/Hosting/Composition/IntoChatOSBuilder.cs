@@ -230,7 +230,8 @@ public sealed class IntoChatOSBuilder
         }
 
         var node = ApplicationBuilder.AddResource(new IntoChatOSModuleResource(ResourceNames.NodeFor(ApplicationBuilder, moduleId, ResourceName(moduleId))))
-            .ExcludeFromManifest();
+            .ExcludeFromManifest()
+            .WithIconName(ResourceNames.Icon(moduleId));
         node.WithParentRelationship(Resource);
         node.WithInitialState(new CustomResourceSnapshot
         {

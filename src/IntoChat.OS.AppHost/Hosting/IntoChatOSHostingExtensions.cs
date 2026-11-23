@@ -56,6 +56,7 @@ public static class IntoChatOSHostingExtensions
 
         var resource = builder.AddResource(new IntoChatOSResource(ResourceNames.RootFor(builder, name)))
             .ExcludeFromManifest()
+            .WithIconName(ResourceNames.RootIcon)
             .WithInitialState(new CustomResourceSnapshot
             {
                 ResourceType = "IntoChat",

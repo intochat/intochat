@@ -23,6 +23,32 @@ public static class ResourceNames
         };
     }
 
+    // Fluent UI System Icons names for the dashboard, by module id. Icons are display-only and apply in publish mode too.
+    public const string RootIcon = "Home";
+    public const string OsIcon = "Server";
+    public const string OsGatewayIcon = "ArrowRouting";
+
+    public static string Icon(string moduleId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        return moduleId switch
+        {
+            "ai" => "BrainCircuit",
+            "aspire" => "Pulse",
+            "devices" => "Phone",
+            "github" => "BranchFork",
+            "mcp" => "PlugConnected",
+            "orleans" => "Organization",
+            "sandbox" => "Box",
+            "flutter" => "Desktop",
+            "webtools" => "Globe",
+            "postgres" or "clickhouse" => "Database",
+            "playwright" => "WindowDevTools",
+            "artcraft" => "Color",
+            _ => "Apps",
+        };
+    }
+
     public static string Child(string moduleId, string child)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(child);
