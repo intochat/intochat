@@ -12,7 +12,7 @@ public sealed record FlutterHostingOptions
 {
     public FlutterHostKind Kind { get; init; } = FlutterHostKind.Window;
     public string? ResourceName { get; init; }
-    public string DeviceTarget { get; init; } = "windows";
+    public string DeviceTarget { get; init; } = "auto";
     public string ShellName { get; init; } = "desk";
     public string ChatName { get; init; } = "main";
     public string? FlutterCommand { get; init; }

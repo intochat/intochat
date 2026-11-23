@@ -18,7 +18,11 @@ public static class ShellNames
     public const string FlutterCommandEnvironmentVariable = "FLUTTER_COMMAND";
     public const string DefaultShellName = "desk";
     public const string DefaultChatName = "main";
-    public const string DefaultDeviceTarget = "windows";
+    public const string DefaultDeviceTarget = "auto";
+    public static string CurrentHostDeviceTarget =>
+        OperatingSystem.IsMacOS() ? "macos"
+        : OperatingSystem.IsLinux() ? "linux"
+        : "windows";
     // web-server is Flutter's headless web device: it serves the app over HTTP without driving
     // a browser of its own, so the fixed FlutterWebPort below is a real, addressable endpoint.
     // The "chrome" device never prints or exposes a served URL, which made RunWebApp

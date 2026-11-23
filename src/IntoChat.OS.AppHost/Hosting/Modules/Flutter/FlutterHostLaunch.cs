@@ -58,14 +58,18 @@ internal static class FlutterHostLaunch
         IConfiguration? configuration)
     {
         var deviceTarget = string.IsNullOrWhiteSpace(options.DeviceTarget)
-            ? ShellNames.DefaultDeviceTarget
+            || string.Equals(options.DeviceTarget, ShellNames.DefaultDeviceTarget, StringComparison.OrdinalIgnoreCase)
+            ? ShellNames.CurrentHostDeviceTarget
             : options.DeviceTarget;
         var workDir = ResolveWindowPackageDirectory(packageRoot, deviceTarget)
             ?? throw new InvalidOperationException(
                 $"Window Flutter host needs lib/main.dart and a '{deviceTarget}/' folder " +
                 $"under '{packageRoot}'.");
 
-        HealWindowsEphemeral(workDir, deviceTarget);
+        if (string.Equals(deviceTarget, "windows", StringComparison.OrdinalIgnoreCase))
+        {
+            HealWindowsEphemeral(workDir, deviceTarget);
+        }
 
         var args = new List<string> { "run", "-d", deviceTarget };
         if (options.ReleaseBuild)
@@ -108,10 +112,10 @@ internal static class FlutterHostLaunch
         IConfiguration? configuration)
     {
         var deviceTarget = string.IsNullOrWhiteSpace(options.DeviceTarget)
-            || string.Equals(
-                options.DeviceTarget,
-                ShellNames.DefaultDeviceTarget,
-                StringComparison.OrdinalIgnoreCase)
+            || string.Equals(options.DeviceTarget, ShellNames.DefaultDeviceTarget, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(options.DeviceTarget, "windows", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(options.DeviceTarget, "macos", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(options.DeviceTarget, "linux", StringComparison.OrdinalIgnoreCase)
             ? ShellNames.DefaultWebDeviceTarget
             : options.DeviceTarget;
         var workDir = ResolveWebPackageDirectory(packageRoot)
