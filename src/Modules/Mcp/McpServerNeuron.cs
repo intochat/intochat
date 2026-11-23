@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
@@ -35,19 +36,24 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
 
     private readonly IOptions<McpModuleOptions>? _options;
     private readonly HttpMessageHandler? _httpHandler;
+    private readonly IModuleIntegrations<McpModule>? _integrations;
 
     private McpClient? _client;
     private Uri? _endpoint;
     [DigitalBrain.Slot(Key = "default")]
     private partial DigitalBrain.Limits.IPolicies Policies { get; }
 
-    public McpServerNeuron() : this(null, null) { }
+    public McpServerNeuron() : this(null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public McpServerNeuron(IOptions<McpModuleOptions>? options = null, HttpMessageHandler? httpHandler = null)
+    public McpServerNeuron(
+        IOptions<McpModuleOptions>? options = null,
+        HttpMessageHandler? httpHandler = null,
+        IModuleIntegrations<McpModule>? integrations = null)
     {
         _options = options;
         _httpHandler = httpHandler;
+        _integrations = integrations;
     }
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
@@ -133,15 +139,7 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
         if (_client is not null && _endpoint == endpoint) { return _client; }
         await Drop();
         var serverOptions = ServerOptions();
-        Dictionary<string, string>? headers = null;
-        if (serverOptions is { HeaderName: { Length: > 0 } headerName, HeaderValue: { Length: > 0 } headerValue }
-            && !string.IsNullOrWhiteSpace(headerName) && !string.IsNullOrWhiteSpace(headerValue))
-        {
-            headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [headerName.Trim()] = headerValue,
-            };
-        }
+        var headers = await ResolveHeadersAsync(serverOptions, ct);
         var transportOptions = new HttpClientTransportOptions
         {
             Endpoint = endpoint,
@@ -155,18 +153,88 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
         return _client;
     }
 
-    private McpServerOptions? ServerOptions()
+    private async Task<Dictionary<string, string>?> ResolveHeadersAsync(McpServerOptions? serverOptions, CancellationToken ct)
     {
-        var servers = _options?.Value.Servers;
-        if (servers is null || servers.Count == 0 || Context is null)
+        if (serverOptions is { HeaderName: { Length: > 0 } headerName, HeaderValue: { Length: > 0 } headerValue }
+            && !string.IsNullOrWhiteSpace(headerName) && !string.IsNullOrWhiteSpace(headerValue))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [headerName.Trim()] = headerValue,
+            };
+        }
+
+        if (_integrations is null)
+        {
+            return null;
+        }
+
+        string? integrationId = serverOptions?.IntegrationId;
+        string? secretField = serverOptions?.SecretField;
+        string? targetHeader = serverOptions?.HeaderName;
+        string? prefix = serverOptions?.HeaderPrefix;
+
+        // Default runtime Vault binding for muncly-crm even if not statically configured in appsettings.
+        if (string.IsNullOrWhiteSpace(integrationId) && string.Equals(ServerName(), "muncly-crm", StringComparison.OrdinalIgnoreCase))
+        {
+            integrationId = "muncly";
+            secretField = "McpToken";
+            targetHeader = "Authorization";
+            prefix = "Bearer ";
+        }
+
+        if (string.IsNullOrWhiteSpace(integrationId) || string.IsNullOrWhiteSpace(secretField) || string.IsNullOrWhiteSpace(targetHeader))
+        {
+            return null;
+        }
+
+        try
+        {
+            var secret = await _integrations.Get(integrationId).ReadSecretAsync(secretField, ct);
+            if (string.IsNullOrWhiteSpace(secret))
+            {
+                return null;
+            }
+
+            var value = !string.IsNullOrEmpty(prefix) && !secret.Trim().StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? prefix + secret.Trim()
+                : secret.Trim();
+
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [targetHeader.Trim()] = value,
+            };
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // Missing or unsealed Vault integration falls back cleanly without crashing MCP client creation
+        catch (Exception error)
+#pragma warning restore CA1031
+        {
+            OsConsoleLog.For<McpServerNeuron>().LogSwallowed(error, $"reading runtime Vault secret '{integrationId}.{secretField}'");
+            return null;
+        }
+    }
+
+    private string? ServerName()
+    {
+        if (Context is null)
         {
             return null;
         }
 
         var key = Id.Key;
         const string prefix = "mcp/";
-        var name = key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? key[prefix.Length..] : key;
-        return servers.TryGetValue(name, out var configured) ? configured : null;
+        return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? key[prefix.Length..] : key;
+    }
+
+    private McpServerOptions? ServerOptions()
+    {
+        var servers = _options?.Value.Servers;
+        var name = ServerName();
+        return servers is not null && name is not null && servers.TryGetValue(name, out var configured) ? configured : null;
     }
 
     private ToolDescriptor[] FilterAllowedTools(ToolDescriptor[] tools)

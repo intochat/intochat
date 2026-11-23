@@ -12,6 +12,9 @@ public sealed class McpServerOptions
     public string? HeaderName { get; set; }
     [JsonIgnore]
     public string? HeaderValue { get; set; }
+    public string? IntegrationId { get; set; }
+    public string? SecretField { get; set; }
+    public string? HeaderPrefix { get; set; }
     public string[]? AllowedTools { get; set; }
 }
 
@@ -63,7 +66,20 @@ public sealed partial class McpModuleOptions : IModuleOptions
 
             var hasHeaderName = !string.IsNullOrWhiteSpace(server.HeaderName);
             var hasHeaderValue = !string.IsNullOrWhiteSpace(server.HeaderValue);
-            if (hasHeaderName != hasHeaderValue)
+            var hasIntegration = !string.IsNullOrWhiteSpace(server.IntegrationId);
+            var hasSecretField = !string.IsNullOrWhiteSpace(server.SecretField);
+
+            if (hasIntegration != hasSecretField)
+            {
+                throw new ArgumentException($"MCP server '{name}' IntegrationId and SecretField must be set together or not at all.");
+            }
+
+            if (hasIntegration && !hasHeaderName)
+            {
+                throw new ArgumentException($"MCP server '{name}' HeaderName is required when IntegrationId and SecretField are set.");
+            }
+
+            if (!hasIntegration && hasHeaderName != hasHeaderValue)
             {
                 throw new ArgumentException($"MCP server '{name}' HeaderName and HeaderValue must be set together or not at all.");
             }

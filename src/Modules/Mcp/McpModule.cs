@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -11,6 +12,12 @@ namespace IntoChat.OS.Modules.Mcp;
 public sealed class McpModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "mcp";
+
+    public static ConnectorDefinition Connector => new(ManifestName, "MCP Servers", ["bearer-token"], [])
+    {
+        OptionalIntegrations = ["muncly"],
+        Neurons = [typeof(IMcpServer)],
+    };
 
     public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],

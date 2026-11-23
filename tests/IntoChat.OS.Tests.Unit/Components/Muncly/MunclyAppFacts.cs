@@ -104,4 +104,19 @@ public sealed class MunclyAppFacts
         Assert.NotNull(opened);
         Assert.Contains("https://acme.munc.ly", opened!.View.GetRawText(), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task UnconfiguredMunclyAppShowsInlineSetupCard()
+    {
+        await using var os = TestOS.Local();
+        os.Register<MunclyApp>();
+
+        var brain = new BrainId("facts");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", brain));
+        var screen = os.Get<IScreen>(new NeuronId(brain, "app.muncly", "default"));
+        var opened = await screen.Open();
+
+        Assert.NotNull(opened);
+        Assert.Contains("Connect Muncly CRM", opened!.View.GetRawText(), StringComparison.Ordinal);
+    }
 }

@@ -8,6 +8,7 @@ Built-in full-bleed WebBrowser app (`app.muncly`) targeting Muncly CRM with stor
 and paired MCP server access (`muncly-crm`) for AI agents.
 */
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
@@ -18,6 +19,7 @@ using IntoChat.OS.UI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.Muncly.Screens;
 
@@ -30,15 +32,20 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
     private static readonly ILogger ConsoleLog = OsConsoleLog.For<MunclyApp>();
 
     private IConfiguration? Configuration { get; }
+    private IModuleIntegrations<MunclyModule>? Integrations { get; }
     private ILogger<MunclyApp>? InjectedLogger { get; }
     private ILogger Log => InjectedLogger ?? ConsoleLog;
 
-    public MunclyApp() : this(null, null) { }
+    public MunclyApp() : this(null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public MunclyApp(IConfiguration? configuration = null, ILogger<MunclyApp>? logger = null)
+    public MunclyApp(
+        IConfiguration? configuration = null,
+        IModuleIntegrations<MunclyModule>? integrations = null,
+        ILogger<MunclyApp>? logger = null)
     {
         Configuration = configuration;
+        Integrations = integrations;
         InjectedLogger = logger;
     }
 
@@ -75,7 +82,7 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         Log.LogDebug("Activated MunclyApp screen.");
-        var hydrated = HydrateEndpointFromConfiguration(State);
+        var hydrated = await HydrateEndpointAsync(State, cancellationToken);
         if (hydrated != State)
         {
             await Show(hydrated);
@@ -85,7 +92,7 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
     public async Task OnNavigatedTo(NavigationArrival<BrowserNavArgs> arrival, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(arrival);
-        var basis = HydrateEndpointFromConfiguration(State);
+        var basis = await HydrateEndpointAsync(State, cancellationToken);
         var decision = basis.ApplyNavigation(arrival.Args, arrival.Transition);
         if (decision.IsAccepted && basis != State && decision.Next == basis)
         {
@@ -133,6 +140,29 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
     protected override Node Render(MunclyAppState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (!state.IsConfiguredEndpoint)
+        {
+            var setupCard = Card(
+                "Connect Muncly CRM",
+                "Enter your Muncly CRM URL below, or save BaseUrl, McpToken, and web credentials at runtime in Settings -> Integrations -> Muncly CRM.",
+                new Field(
+                    "muncly-url-input",
+                    "CRM URL",
+                    FieldKind.Text,
+                    "https://your-org.munc.ly",
+                    new Command(".", "connect"),
+                    AutomationName: "Muncly CRM URL"));
+
+            return AppShell(
+                "muncly-shell",
+                sidebar: null,
+                body: setupCard,
+                toolbar: null,
+                inspector: null,
+                automationName: "Muncly CRM",
+                transition: state.LastTransition);
+        }
+
         return RenderEmbeddedSurface(
             shellKey: "muncly-shell",
             browserKey: "muncly-browser",
@@ -140,6 +170,43 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
             url: state.CurrentUrl,
             toolbar: null,
             transition: state.LastTransition);
+    }
+
+    private async Task<MunclyAppState> HydrateEndpointAsync(MunclyAppState state, CancellationToken ct)
+    {
+        var fromConfig = HydrateEndpointFromConfiguration(state);
+        if (fromConfig.IsConfiguredEndpoint || Integrations is null)
+        {
+            return fromConfig;
+        }
+
+        try
+        {
+            var snapshot = await Integrations.Get(MunclyModule.ManifestName).ReadAsync(ct);
+            if (snapshot.Settings.TryGetValue(MunclyModule.BaseUrlField, out var savedUrl)
+                && MunclyAppState.IsValidEndpoint(savedUrl))
+            {
+                var normalized = MunclyAppState.NormalizeBaseUrlOrFallback(savedUrl);
+                return fromConfig with
+                {
+                    BaseUrl = normalized,
+                    IsConfiguredEndpoint = true,
+                    Status = $"Muncly CRM · {new Uri(normalized).Host}",
+                };
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // Vault lookup failure falls back cleanly to the inline setup card
+        catch (Exception error)
+#pragma warning restore CA1031
+        {
+            Log.LogDebug(error, "Could not read Muncly BaseUrl from Integration storage.");
+        }
+
+        return fromConfig;
     }
 
     private MunclyAppState HydrateEndpointFromConfiguration(MunclyAppState state)

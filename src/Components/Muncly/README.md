@@ -12,4 +12,4 @@ Module id: `muncly`.
 - `IntoChatOS:Integrations:muncly:McpToken` — Muncly MCP Bearer token (secret; stored in user-secrets / Vault, never committed).
 - `IntoChatOS:Integrations:muncly:WebEmail` / `WebPassword` — optional web credentials for the embedded browser session.
 
-When both `BaseUrl` and `McpToken` are configured, the kernel automatically registers the `muncly-crm` server in `McpModule` pointing at `{BaseUrl}/api/mcp` with `Authorization: Bearer <token>`.
+When both `BaseUrl` and `McpToken` are configured (either in startup configuration or at runtime via **Settings -> Integrations -> Muncly CRM** in the OS Vault), `MunclyApp` opens the full-bleed CRM browser and `McpServerNeuron` resolves `McpToken` live from Vault for `muncly-crm` (`{BaseUrl}/api/mcp` with `Authorization: Bearer <token>`). When `BaseUrl` is not yet configured, `MunclyApp` renders an inline setup card.

@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Invocation;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Tools;
@@ -284,6 +285,47 @@ public sealed class McpServerNeuronFacts
             },
         };
         valid.Validate();
+    }
+
+    [Fact]
+    public async Task RuntimeVaultSecretSuppliesBearerHeaderForMunclyCrmWithoutStaticConfig()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
+        var handler = new FakeMcpHttpHandler(["list_records"]);
+        var integrations = new FakeMcpIntegrations("muncly", "McpToken", "tok_runtime_vault");
+        var services = new ServiceCollection()
+            .AddSingleton<HttpMessageHandler>(handler)
+            .AddSingleton<IModuleIntegrations<McpModule>>(integrations)
+            .BuildServiceProvider();
+
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(McpModule).Assembly);
+        var crm = os.Get<IMcpServer>(NeuronId.Parse("facts/mcp.server/mcp/muncly-crm"));
+
+        var state = await crm.Connect(new McpServerSpec("Muncly CRM", "https://acme.munc.ly/api/mcp"), TestContext.Current.CancellationToken);
+
+        Assert.True(state.Connected);
+        Assert.NotEmpty(handler.Requests);
+        Assert.All(handler.Requests, r => Assert.Equal("Bearer tok_runtime_vault", r.AuthHeader));
+        Assert.DoesNotContain("tok_runtime_vault", JsonSerializer.Serialize(await crm.Read()), StringComparison.Ordinal);
+    }
+
+    private sealed class FakeMcpIntegrations(string expectedId, string expectedField, string secretValue) : IModuleIntegrations<McpModule>
+    {
+        public IIntegrationHandle Get(string integrationId)
+            => string.Equals(integrationId, expectedId, StringComparison.Ordinal)
+                ? new Handle(integrationId, expectedField, secretValue)
+                : throw new KeyNotFoundException(integrationId);
+
+        private sealed class Handle(string id, string expectedField, string secretValue) : IIntegrationHandle
+        {
+            public string IntegrationId => id;
+            public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+                => throw new NotImplementedException();
+            public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default)
+                => Task.FromResult(string.Equals(field, expectedField, StringComparison.Ordinal) ? secretValue : "");
+            public Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default)
+                => throw new NotImplementedException();
+        }
     }
 
     private sealed class FakeMcpHttpHandler(string[] remoteTools) : HttpMessageHandler
