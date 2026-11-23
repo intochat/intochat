@@ -17,6 +17,7 @@ public sealed class CommandClassificationFacts
         KnownResourceCommands.RestartCommand,
         "hot-reload",
         "install-model",
+        "adb-wireless-connect",
         "ListAllModels",
         "ListRunningModels",
     };
