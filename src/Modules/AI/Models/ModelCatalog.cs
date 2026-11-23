@@ -767,6 +767,10 @@ public sealed class ModelCatalog
                 {
                     return (true, null);
                 }
+                if (local.ProviderProbes.TryGetValue(AiProvider.OpenAICompatible, out var compatProbe) && !compatProbe.AnyReachable)
+                {
+                    return (false, "Local server is not running");
+                }
                 return local.ProviderProbes.ContainsKey(AiProvider.OpenAICompatible)
                     ? (false, NotInstalledReason)
                     : (false, NotConfiguredReason);

@@ -174,7 +174,9 @@ public static partial class InoView
         var result = new List<ModelChoice>(cards.Count);
         foreach (var card in cards)
         {
-            if (!card.Can.HasFlag(Abilities.Text))
+            if (!card.Can.HasFlag(Abilities.Text)
+                || card.Provider == AiProvider.TypeSafe
+                || card.Id == KnownModels.LocalJev.Id)
             {
                 continue;
             }
