@@ -125,6 +125,7 @@ public static partial class AIHostingExtensions
                 ollama = ollama.WithGPUSupport();
             }
             return ollama
+                .WithEndpoint("http", static e => e.Port = 11434)
                 .WithDataVolume()
                 .WithLifetime(ContainerLifetime.Persistent)
                 .WithOpenWebUI(openwebui => openwebui.WithLifetime(ContainerLifetime.Persistent))
