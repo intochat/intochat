@@ -7,6 +7,7 @@ namespace IntoChat.OS.Aspire.Hosting;
 
 // Persistent containers are looked up by name, so a renamed resource starts a second container and the old one
 // keeps its host port. The renamed resources remove the old container (never its volume or image) before they start.
+// Open WebUI is not removed: its chats live in the container layer, and its random host port cannot collide (OWED.md).
 internal static class LegacyContainers
 {
     public static IReadOnlyList<string> Names(string sha8)
@@ -15,7 +16,6 @@ internal static class LegacyContainers
         return
         [
             $"{LegacyNames.Resource("ollama")}-{sha8}",
-            $"{LegacyNames.Resource("ollama-openwebui")}-{sha8}",
             $"{LegacyNames.Resource("searxng")}-{sha8}",
         ];
     }

@@ -167,7 +167,8 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     }
 
     // "-gateway" in a local run, "-front" in publish mode and older deployments (ResourceNames).
-    private static readonly string[] FrontSuffixes = ["-gateway", "-front"];
+    private static readonly string[] FrontSuffixes =
+        [ResourceNames.OsGateway[ResourceNames.Os.Length..], ResourceNames.LegacyOsGateway[ResourceNames.LegacyOs.Length..]];
     public static string FrontsVariable => ModuleConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.FrontsField));
 
     // The callback only gathers references: the values (parameters, connection strings of resources not yet

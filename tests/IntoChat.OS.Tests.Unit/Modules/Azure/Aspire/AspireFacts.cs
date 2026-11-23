@@ -107,12 +107,17 @@ public sealed class AspireFacts
     {
         // Mirrors IntoChat.OS.Aspire.Hosting.ResourceNames (OsInstances): two assemblies, one rule.
         Assert.True(KernelNames.IsInstance("os", "os"));
-        Assert.False(KernelNames.IsInstance("os-a", "os"));
+        Assert.True(KernelNames.IsInstance("os-a", "os"));
+        Assert.True(KernelNames.IsInstance("os-b", "os"));
         Assert.False(KernelNames.IsInstance("os-gateway", "os"));
+        Assert.False(KernelNames.IsInstance("OperatingSystem-a", "os"));
+        Assert.False(KernelNames.IsInstance("os-a", "OperatingSystem"));
         Assert.True(KernelNames.IsInstance("OperatingSystem-a", "OperatingSystem"));
         Assert.False(KernelNames.IsInstance("OperatingSystem-front", "OperatingSystem"));
         Assert.Equal("os", KernelNames.RoleOf("os"));
+        Assert.Equal("os", KernelNames.RoleOf("os-a"));
         Assert.Equal("OperatingSystem", KernelNames.RoleOf("OperatingSystem-a"));
+        Assert.Equal(["os-a", "os-b"], IntoChat.OS.Modules.Microsoft.Aspire.Deployment.AspireCliClusterHost.Silos(["os-a", "os-gateway", "os-b", "ai"]));
     }
 
     [Fact]

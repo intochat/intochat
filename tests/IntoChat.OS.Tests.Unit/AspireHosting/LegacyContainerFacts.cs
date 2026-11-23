@@ -18,11 +18,12 @@ public sealed class LegacyContainerFacts
     [Fact]
     public void TheOldNamesAreTheOnesTheContainersHadBeforeTheRename()
         => Assert.Equal(
-            ["Modules-ollama-5ef44d53", "Modules-ollama-openwebui-5ef44d53", "Modules-searxng-5ef44d53"],
+            ["Modules-ollama-5ef44d53", "Modules-searxng-5ef44d53"],
             LegacyContainers.Names("5ef44d53"));
 
     [Fact]
-    public async Task OldNamedContainersAreRemovedAndVolumesAreNot()
+    // Open WebUI keeps its chats in the container layer, so its old container is never removed here (OWED.md).
+    public async Task OldNamedContainersAreRemovedAndVolumesAndOpenWebUIAreNot()
     {
         var docker = new FakeDocker(
             "Modules-ollama-5ef44d53", "Modules-ollama-openwebui-5ef44d53", "Modules-searxng-5ef44d53", "unrelated",
@@ -31,8 +32,9 @@ public sealed class LegacyContainerFacts
         await LegacyContainers.RemoveAsync(docker, "5ef44d53", TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            ["container:Modules-ollama-5ef44d53", "container:Modules-ollama-openwebui-5ef44d53", "container:Modules-searxng-5ef44d53"],
+            ["container:Modules-ollama-5ef44d53", "container:Modules-searxng-5ef44d53"],
             docker.Removed);
+        Assert.Contains("Modules-ollama-openwebui-5ef44d53", docker.Containers);
     }
 
     [Fact]

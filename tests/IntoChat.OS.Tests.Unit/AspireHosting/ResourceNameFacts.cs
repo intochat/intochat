@@ -179,4 +179,13 @@ public sealed class ResourceNameFacts
         os.AddKernel(DeploymentSnapshot.ProjectPath("IntoChat.OS.Kernel"));
         return os;
     }
+
+    // The aspire module's KernelNames accepts exactly these strings (AspireFacts.TheKernelRuleNamesTheSameStringsAsTheAppHost).
+    [Fact]
+    public void OneKernelInstanceIsOsAndSeveralAreOsDashLetter()
+    {
+        var builder = DistributedApplication.CreateBuilder([]);
+        Assert.Equal(["os"], ResourceNames.OsInstances(builder, ["a"]));
+        Assert.Equal(["os-a", "os-b"], ResourceNames.OsInstances(builder, ["a", "b"]));
+    }
 }

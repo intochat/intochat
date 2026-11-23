@@ -242,8 +242,8 @@ internal sealed class AspireCliClusterHost : IClusterHost
             .FirstOrDefault(uri => uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
-    // The kernel's instances: "os" when the AppHost has it, else the OperatingSystem-{x} of an older deployment.
-    private static string[] Silos(string[] names)
+    // The kernel's instances: "os" or "os-{x}" when the AppHost has them, else the OperatingSystem-{x} of an older deployment.
+    internal static string[] Silos(string[] names)
         => [.. SiloRoles.Select(role => names.Where(name => Instance(name, role)).ToArray()).FirstOrDefault(found => found.Length > 0) ?? []];
 
     // The AppHost runs a role as one instance named after it ("os") or as instances {role}-{x}, x a single letter

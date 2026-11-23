@@ -4,7 +4,8 @@ namespace IntoChat.OS.Aspire.Hosting;
 
 // The names the dashboard shows. Module ids in configuration never change; only the shown name differs
 // for the ids in Shown. The new names apply in run mode only: a publish names deployed resources after
-// the resource, so in publish mode every *For method returns the name the resource had before the rename. Resources that persist data or parameters under their name keep the frozen
+// the resource, so in publish mode every *For method returns the name the resource had before the rename.
+// Resources that persist data or parameters under their name keep the frozen
 // "Modules-" form (IntoChatOSBuilder.ResourceName) and do not come through here.
 public static class ResourceNames
 {

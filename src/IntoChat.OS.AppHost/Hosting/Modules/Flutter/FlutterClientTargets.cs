@@ -1,3 +1,4 @@
+using IntoChat.OS.Aspire.Hosting;
 using System.Diagnostics;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -13,8 +14,8 @@ namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 /// </summary>
 internal static class FlutterClientTargets
 {
-    public const string LinuxResourceName = "shell-linux";
-    public const string AndroidResourceName = "shell-android";
+    public static string LinuxResourceName => ResourceNames.Child(ShellNames.ModuleId, "linux");
+    public static string AndroidResourceName => ResourceNames.Child(ShellNames.ModuleId, "android");
 
     internal static void AddExplicitClientTargets(
         IDistributedApplicationBuilder appHost,
