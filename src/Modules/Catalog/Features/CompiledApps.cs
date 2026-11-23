@@ -3,10 +3,6 @@ using DigitalBrain.Components;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Registers an assembly whose compiled [App] types ship in FeatureCatalog. Boot names the app types the host assigns to every brain
-// at start (ino and settings are the shell's); the host finds their bundles here, so it names no app.
-public sealed record CompiledAppsRegistration(Assembly Assembly, Type[]? Boot = null);
-
 // Compiled apps in a module assembly: each public static AppBundle Bundle shipped by the module (winning where present),
 // plus any [Neuron("app.<name>")] screen class with a generated ComponentManifest, paired with its screen class.
 internal static class CompiledApps

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 using DigitalBrain.Rules;
 using IntoChat.OS.UI;
 
-namespace IntoChat.OS.Apps.Aspire;
+namespace IntoChat.Aspire.Screens;
 
 /// <summary>
 /// Pure DDD Aggregate state and route/endpoint transition guards for <see cref="AspireApp"/> (<c>app.aspire</c>).

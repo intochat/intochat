@@ -20,7 +20,7 @@ public sealed partial class ComponentFacts
     internal const int AllowedImplementationReferencesCap = 1;
 
     // [Neuron("app.<key>")] declarations still in the IntoChat.OS.Apps assembly; each one moves into a component's Screens.
-    internal const int AppsLeftCap = 35;
+    internal const int AppsLeftCap = 34;
 
     private const string OwedFile = "OWED.md";
 

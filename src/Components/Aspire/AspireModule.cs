@@ -1,6 +1,7 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -57,5 +58,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
         }
         services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
+        // The Aspire app (Screens/AspireApp) ships with this component.
+        services.AddSingleton(new CompiledAppsRegistration(typeof(AspireModule).Assembly));
     }
 }

@@ -4,6 +4,8 @@ The Aspire component: telemetry of the running app (`IAspire`), candidate builds
 
 `IAspire` reads; its one writing verb is Restart (exact live name). A direct person restarts at once. Any other caller gets `pending` and a plan id, and the restart runs once the person approves the confirmation (`aspire.resource.restart`); the outcome arrives as `aspire.resource.restarted` or `aspire.resource.restart-refused`. The kernel and its front are refused.
 
+The component's screen is the .NET Aspire app (`app.aspire`, `Screens/AspireApp.cs`, namespace `IntoChat.Aspire.Screens`): a full-bleed browser onto the Aspire dashboard. `AspireModule` registers it (`CompiledAppsRegistration`), so it ships whenever the `aspire` module is loaded.
+
 Module id: `aspire`.
 
 How to test: unit facts in `tests/IntoChat.OS.Tests.Unit/Components/Aspire`, integration facts in `tests/IntoChat.OS.Tests.Integration/Components/Aspire`.

@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Logging;
 using static IntoChat.OS.UI.Kit;
 
-namespace IntoChat.OS.Apps.Aspire;
+namespace IntoChat.Aspire.Screens;
 
 [Signal("aspire.open")]
 public sealed record AspireOpen(

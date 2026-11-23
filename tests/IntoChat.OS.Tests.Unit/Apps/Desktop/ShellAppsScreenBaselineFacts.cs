@@ -34,7 +34,7 @@ public sealed class ShellAppsScreenBaselineFacts
 {
     public static readonly IReadOnlyList<Type> Standalone14Apps =
     [
-        typeof(IntoChat.OS.Apps.Aspire.AspireApp),
+        typeof(IntoChat.Aspire.Screens.AspireApp),
         typeof(CalculatorApp),
         typeof(CreatorApp),
         typeof(DataStudioApp),
@@ -97,8 +97,9 @@ public sealed class ShellAppsScreenBaselineFacts
     [Fact]
     public void All29ShellApps_DiscoveredAndMatchExpectedInventory()
     {
-        var appAssembly = typeof(CalculatorApp).Assembly;
-        var concreteScreens = appAssembly.GetTypes()
+        // The shell apps assembly plus the components whose Screens left it (the Aspire app).
+        var concreteScreens = typeof(CalculatorApp).Assembly.GetTypes()
+            .Concat(typeof(IntoChat.Aspire.Screens.AspireApp).Assembly.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false } && IsScreenType(t))
             // Control neurons (IntoChat.OS.Apps.Controls) are screens too, but they are slotted into apps, not shell apps.
             .Where(t => t.Namespace != typeof(IntoChat.OS.Apps.Controls.CheckBoxNeuron).Namespace)

@@ -5,8 +5,8 @@
     <NoWarn>$(NoWarn);DB0033;CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The contracts compile in their own assembly; Screens/ and Hosting/ are compiled elsewhere (the shell apps, the AppHost). -->
-    <Compile Remove="Contracts/**;Screens/**;Hosting/**" />
+    <!-- The contracts compile in their own assembly; Hosting/ is compiled into the AppHost. -->
+    <Compile Remove="Contracts/**;Hosting/**" />
     <None Remove="Contracts/**" />
   </ItemGroup>
   <ItemGroup>
@@ -20,6 +20,7 @@
     <ProjectReference Include="Contracts/IntoChat.Aspire.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../../Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="../../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />

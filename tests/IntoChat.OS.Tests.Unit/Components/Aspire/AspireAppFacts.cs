@@ -7,22 +7,36 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.Aspire;
+using IntoChat.Aspire.Screens;
 using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Aspire;
 using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Apps.Orleans;
+using IntoChat.OS.Apps.Tests.Unit;
+using IntoChat.OS.Host.Kernel;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
-namespace IntoChat.OS.Apps.Tests.Unit.Infra;
+namespace IntoChat.OS.Tests.Unit.Components.Aspire;
 
-public sealed class AspireAndOrleansAppsFacts
+// The Aspire app (app.aspire), a screen of the Aspire component since it left the shared IntoChat.OS.Apps assembly.
+public sealed class AspireAppFacts
 {
+    // typeof(AspireApp).AssemblyQualifiedName before the move, as every brain created before it stores in __CompiledType.
+    private const string PreMoveCompiledType = "IntoChat.OS.Apps.Aspire.AspireApp, IntoChat.OS.Apps, Version=0.23.3.0, Culture=neutral, PublicKeyToken=null";
+
+    // The shipped app names a brain got in the default composition before the move (Catalog, the shell apps and, in it then, aspire).
+    private static readonly string[] PreMoveShippedApps =
+    [
+        "artcraft", "aspire", "cadcraft", "calculator", "creator", "customer-researcher", "data", "deckcraft", "designcraft", "desktop", "devui",
+        "effectcraft", "engineer", "figcraft", "files", "filmcraft", "friends", "gallery", "gridcraft", "ino", "lightcraft", "markdraw",
+        "materialcraft", "orleans", "pdfcraft", "photocraft", "settings", "solidcraft", "soundcraft", "tasks", "texturecraft", "uikit", "usage",
+        "vectorcraft", "widgetbook", "wordcraft",
+    ];
+
     private static readonly BrainId TestBrain = new("infra-test");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -31,23 +45,120 @@ public sealed class AspireAndOrleansAppsFacts
         => IntoChat.OS.Tests.TestEdge.Authority.Enter(
             IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", TestBrain));
 
+    private static IEnumerable<Assembly> RegisteredBy(params Action<IServiceCollection, IConfiguration>[] modules)
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+        foreach (var configure in modules) { configure(services, configuration); }
+        return services.BuildServiceProvider().GetServices<CompiledAppsRegistration>().Select(registration => registration.Assembly).ToArray();
+    }
+
+    private static FeatureCatalog DefaultCatalog()
+        => new(RegisteredBy(AppsModule.ConfigureServices, ShippedShellAppsModule.ConfigureServices, AspireModule.ConfigureServices));
+
     [Fact]
-    public void AspireApp_And_OrleansApp_HaveZeroMutableInstanceFields_And_RegisteredInNativeCatalog()
+    public async Task TheAspireAppIsShippedByTheAspireComponent()
+    {
+        var byComponent = await new FeatureCatalog(RegisteredBy(AspireModule.ConfigureServices)).Bundles();
+        var byShellApps = await new FeatureCatalog(RegisteredBy(ShippedShellAppsModule.ConfigureServices)).Bundles();
+
+        Assert.Contains(("os", "aspire"), byComponent.Keys);
+        Assert.DoesNotContain(("os", "aspire"), byShellApps.Keys);
+        Assert.Equal(typeof(AspireApp).AssemblyQualifiedName, byComponent[("os", "aspire")].CompiledType);
+    }
+
+    [Fact]
+    public async Task TheDefaultCompositionShipsTheSameAppsAsBeforeTheMoveWithAspireOnce()
+    {
+        var catalog = DefaultCatalog();
+
+        var names = (await catalog.Bundles()).Keys.Where(key => key.Owner == "os").Select(key => key.Name).ToArray();
+
+        Assert.Empty(await catalog.Failures());
+        Assert.Single(names, name => name == "aspire");
+        Assert.Equal(PreMoveShippedApps, names);
+        Assert.Contains(("os", "aspire"), await catalog.BootSet());
+        var origin = Assert.IsType<FeatureOrigin.ModuleSource>(await catalog.Origin("os", "aspire"));
+        Assert.Same(typeof(AspireModule).Assembly, origin.Assembly);
+    }
+
+    private static TestOS RecordOs()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions<AppsOptions>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IHostedAppTypes>(new CatalogHostedAppTypes(DefaultCatalog()));
+        return TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<AppNeuron>();
+    }
+
+    private static NeuronId AppRecord(BrainId brain)
+        => new(brain, IntoChat.OS.Host.Primitives.AppGrainType.Name, IntoChat.OS.Host.Primitives.AppRef.Of(brain, "aspire").Key);
+
+    private static AppOrigin ShippedOrigin(string version) => new(ShippedApps.Publisher, new AppSource.Shipped(), "aspire", version);
+
+    private static async Task<AppSnapshot> Restored(TestOS os, NeuronId id)
+    {
+        await os.Deactivate(id);
+        var app = os.Get<IApp>(id);
+        _ = await app.Read();
+        await os.Idle();
+        await Task.Delay(100, Ct);
+        await os.Idle();
+        return await app.Read();
+    }
+
+    // An existing brain's shipped, unedited record keeps the pre-move type name (nothing rewrites it) and still restores and deploys.
+    [Fact]
+    public async Task AnExistingShippedRecordWithThePreMoveTypeNameStaysLive()
+    {
+        using var person = EnterPerson();
+        await using var os = RecordOs();
+        var id = AppRecord(TestBrain);
+        var app = os.Get<IApp>(id);
+        var preMove = AspireApp.Bundle with { CompiledType = PreMoveCompiledType };
+
+        var imported = await app.Import(preMove, ShippedOrigin(preMove.Version));
+        Assert.Equal(AppStatus.Live, imported.Status);
+
+        // What the host does at every boot: load the shipped bundle again (same version, spec and files).
+        var reloaded = await app.Replace(AspireApp.Bundle, ShippedOrigin(AspireApp.Bundle.Version));
+        var restored = await Restored(os, id);
+
+        Assert.Equal(AppStatus.Live, reloaded.Status);
+        Assert.Equal(AppStatus.Live, restored.Status);
+        Assert.Equal(PreMoveCompiledType, restored.Settings[AppTrust.CompiledTypeSetting]);
+        Assert.DoesNotContain(restored.Activity, line => line.StartsWith("restore failed:", StringComparison.Ordinal));
+    }
+
+    // An edited copy is the person's own program: its stored type name must resolve, so a pre-move name fails as it always would have.
+    [Fact]
+    public async Task AnEditedCopyWithThePreMoveTypeNameFailsAsBefore()
+    {
+        using var person = EnterPerson();
+        await using var os = RecordOs();
+        var id = AppRecord(TestBrain);
+        var app = os.Get<IApp>(id);
+        await app.Import(AspireApp.Bundle, ShippedOrigin(AspireApp.Bundle.Version));
+        await app.SaveSpec("my own aspire", Guid.NewGuid());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => app.Replace(AspireApp.Bundle with { CompiledType = PreMoveCompiledType, Version = "1.2.0", Spec = "my own aspire" }));
+
+        Assert.Equal($"Compiled app type '{PreMoveCompiledType}' could not be resolved.", error.Message);
+        var seen = await app.Read();
+        Assert.Equal(AppStatus.Failed, seen.Status);
+        Assert.Contains(seen.Activity, line => line.Contains("could not be resolved", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AspireApp_HasZeroMutableInstanceFields_And_RegisteredInNativeCatalog()
     {
         var aspireFields = typeof(AspireApp)
             .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
             .Where(static f => !f.IsDefined(typeof(CompilerGeneratedAttribute), false))
             .ToArray();
         Assert.Empty(aspireFields);
-
-        var orleansFields = typeof(OrleansApp)
-            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
-            .Where(static f => !f.IsDefined(typeof(CompilerGeneratedAttribute), false))
-            .ToArray();
-        Assert.Empty(orleansFields);
-
         Assert.Contains(DesktopApp.NativeCatalog, c => c.Id == "aspire" && c.Category == "Developer" && c.RuntimeMode == "orleans-grain");
-        Assert.Contains(DesktopApp.NativeCatalog, c => c.Id == "orleans" && c.Category == "Developer" && c.RuntimeMode == "orleans-grain");
     }
 
     [Fact]
@@ -135,40 +246,6 @@ public sealed class AspireAndOrleansAppsFacts
     }
 
     [Fact]
-    public void OrleansAppState_AggregateExplorer_UnfoldsZeroViolations_FullBleedWebBrowser_AndRuleGuards()
-    {
-        var graph = AggregateExplorer<OrleansAppState>.ExploreScreen<OrleansApp>(maxStates: 64).EnsureHealthy();
-
-        Assert.True(graph.IsHealthy, string.Join("\n", graph.Violations));
-        Assert.Empty(graph.Violations);
-
-        foreach (var section in OrleansAppState.SupportedSections)
-        {
-            Assert.Contains(graph.States, s => s.State.Section == section);
-        }
-
-        Assert.Contains(graph.States, s => s.State.Section == "grains" && s.State.GrainFilter == "AgentNeuron");
-        Assert.Contains(graph.States, s => s.State.ReloadRevision == 1);
-        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_section", StringComparer.Ordinal));
-        Assert.Contains(graph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_grain_filter", StringComparer.Ordinal));
-
-        var preview = AggregateExplorer<OrleansAppState>.PreviewNode<OrleansApp>(new OrleansAppState());
-        var shell = Assert.IsType<AppShellNode>(preview);
-        Assert.Equal("orleans-shell", shell.Key);
-        Assert.Null(shell.Sidebar);
-        Assert.Null(shell.Inspector);
-
-        var browser = Assert.IsType<WebBrowser>(shell.Body);
-        Assert.Equal("orleans-browser", browser.Key);
-        Assert.Equal(920, browser.Height);
-        Assert.Equal("Orleans Grain Dashboard", browser.AutomationName);
-        Assert.Equal("/orleans#/overview", browser.Url);
-
-        var wire = JsonSerializer.Serialize(preview, RuntimeProtocol.OptionsFor(typeof(Node)));
-        Assert.DoesNotContain("\"mono\":true", wire, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public async Task AspireApp_SupportsINavigatedToTraceDeepLinks_DIHydration_AndINavigatedFromGuards()
     {
         using var person = EnterPerson();
@@ -184,7 +261,7 @@ public sealed class AspireAndOrleansAppsFacts
 
         await using var os = TestOS.Local(o => o.Services = services);
         os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(AspireApp).Assembly);
+        os.Register<AspireApp>();
 
         var screen = os.Get<IScreen>(new NeuronId(TestBrain, "app.aspire", "default"));
         var opened = await screen.Open();
@@ -192,7 +269,6 @@ public sealed class AspireAndOrleansAppsFacts
         Assert.Contains("http://localhost:19888/resources", opened!.View.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("Live \\u00B7 localhost:19888", opened.View.GetRawText(), StringComparison.OrdinalIgnoreCase);
 
-        // Deep-link via UiNavigateTo with TraceId + SharedAxisZ transition
         var traceArgsJson = JsonSerializer.Serialize(
             new BrowserNavArgs(TraceId: "4bf92f3577b34da6a3ce929d0e0e4736"),
             RuntimeProtocol.OptionsFor(typeof(BrowserNavArgs)));
@@ -202,31 +278,26 @@ public sealed class AspireAndOrleansAppsFacts
             Transition: ViewTransition.SharedAxisZ));
         await os.Idle();
 
-        var traceView = await screen.Open();
-        var traceWire = traceView!.View.GetRawText();
+        var traceWire = (await screen.Open())!.View.GetRawText();
         Assert.Contains("http://localhost:19888/traces/detail/4bf92f3577b34da6a3ce929d0e0e4736", traceWire, StringComparison.Ordinal);
         Assert.Contains("\"transition\":\"shared-axis-z\"", traceWire, StringComparison.Ordinal);
 
-        // Malformed URL via UiNavigateTo is refused by Rule without mutating the valid URL
         var badUrlJson = JsonSerializer.Serialize(
             new BrowserNavArgs(BaseUrl: "javascript:alert(1)"),
             RuntimeProtocol.OptionsFor(typeof(BrowserNavArgs)));
         await screen.Request(new UiNavigateTo(ArgsJson: badUrlJson, FromNeuron: "app.engineer"));
         await os.Idle();
 
-        var afterBadUrl = await screen.Open();
-        var badUrlWire = afterBadUrl!.View.GetRawText();
+        var badUrlWire = (await screen.Open())!.View.GetRawText();
         Assert.Contains("http://localhost:19888/traces/detail/4bf92f3577b34da6a3ce929d0e0e4736", badUrlWire, StringComparison.Ordinal);
         Assert.Contains("invalid_dashboard_url", badUrlWire, StringComparison.Ordinal);
 
-        // Verify typed NavigateToAsync & TryNavigateFromAsync on attached TestOS app instance
         var installed = await os.Install<AspireApp>();
         Assert.True(await installed.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer"), Ct));
         await installed.App.NavigateToAsync(new BrowserNavArgs(Route: "/traces/detail/00f067aa0ba902b7"), "app.engineer", ViewTransition.CameraFlyTo, cancellationToken: Ct);
         Assert.Equal("traces", installed.App.State.Section);
         Assert.Equal("00f067aa0ba902b7", installed.App.State.TraceId);
 
-        // Lock navigation on live grain -> UiNavigateFrom refuses without Force, accepts with Force
         var lockCmd = RuntimeProtocol.SerializeToElement(
             new UiCommand("state", nameof(AspireAppState.SetNavigationLock), [JsonSerializer.SerializeToElement(true)]),
             typeof(UiCommand));
@@ -242,8 +313,7 @@ public sealed class AspireAndOrleansAppsFacts
                     typeof(UiNavigateFrom)))));
         Assert.Contains("Rule:navigation_locked:", refused.Reason, StringComparison.Ordinal);
         await os.Idle();
-        var lockedWire = (await screen.Open())!.View.GetRawText();
-        Assert.Contains("navigation_locked", lockedWire, StringComparison.Ordinal);
+        Assert.Contains("navigation_locked", (await screen.Open())!.View.GetRawText(), StringComparison.Ordinal);
 
         await screen.Dispatch(new Command(
             ".",
@@ -252,73 +322,11 @@ public sealed class AspireAndOrleansAppsFacts
                 new UiNavigateFrom(ToNeuron: "app.engineer", Force: true),
                 typeof(UiNavigateFrom))));
         await os.Idle();
-        var forcedWire = (await screen.Open())!.View.GetRawText();
-        Assert.DoesNotContain("navigation_locked", forcedWire, StringComparison.Ordinal);
+        Assert.DoesNotContain("navigation_locked", (await screen.Open())!.View.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task OrleansApp_SupportsINavigatedToGrainDeepLinks_SectionSwitching_AndINavigatedFromGuards()
-    {
-        using var person = EnterPerson();
-        await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(OrleansApp).Assembly);
-
-        var screen = os.Get<IScreen>(new NeuronId(TestBrain, "app.orleans", "default"));
-        var opened = await screen.Open();
-        Assert.NotNull(opened);
-        Assert.Contains("/orleans#/overview", opened!.View.GetRawText(), StringComparison.Ordinal);
-
-        // Switch section via pill button activation ("orleans:section:silos")
-        await screen.Activate("app.orleans", opened.Generation, "orleans:section:silos");
-        await os.Idle();
-        var silosView = await screen.Open();
-        Assert.Contains("/orleans#/silos", silosView!.View.GetRawText(), StringComparison.Ordinal);
-
-        // Deep-link via UiNavigateTo to a specific grain type
-        var grainArgsJson = JsonSerializer.Serialize(
-            new BrowserNavArgs(GrainFilter: "DigitalBrain.Neurons.AgentNeuron"),
-            RuntimeProtocol.OptionsFor(typeof(BrowserNavArgs)));
-        await screen.Request(new UiNavigateTo(
-            ArgsJson: grainArgsJson,
-            FromNeuron: "app.creator",
-            Transition: ViewTransition.FadeThrough));
-        await os.Idle();
-
-        var grainView = await screen.Open();
-        var grainWire = grainView!.View.GetRawText();
-        Assert.Contains("/orleans#/grains/DigitalBrain.Neurons.AgentNeuron", grainWire, StringComparison.Ordinal);
-        Assert.Contains("Grain: DigitalBrain.Neurons.AgentNeuron", grainWire, StringComparison.Ordinal);
-        Assert.Contains("\"transition\":\"fade-through\"", grainWire, StringComparison.Ordinal);
-
-        // Unsafe grain filter is refused by Rule
-        var badGrainJson = JsonSerializer.Serialize(
-            new BrowserNavArgs(GrainFilter: "../bad?inject=1"),
-            RuntimeProtocol.OptionsFor(typeof(BrowserNavArgs)));
-        await screen.Request(new UiNavigateTo(ArgsJson: badGrainJson, FromNeuron: "app.creator"));
-        await os.Idle();
-        var badGrainWire = (await screen.Open())!.View.GetRawText();
-        Assert.Contains("invalid_grain_filter", badGrainWire, StringComparison.Ordinal);
-        Assert.Contains("/orleans#/grains/DigitalBrain.Neurons.AgentNeuron", badGrainWire, StringComparison.Ordinal);
-
-        // Clear grain filter via toolbar button
-        var beforeClear = await screen.Open();
-        await screen.Activate("app.orleans", beforeClear!.Generation, "orleans:clear-filter");
-        await os.Idle();
-        var clearedWire = (await screen.Open())!.View.GetRawText();
-        Assert.Contains("/orleans#/grains", clearedWire, StringComparison.Ordinal);
-        Assert.DoesNotContain("/orleans#/grains/DigitalBrain.Neurons.AgentNeuron", clearedWire, StringComparison.Ordinal);
-
-        // Verify typed NavigateToAsync & TryNavigateFromAsync + lock guard on attached TestOS app instance
-        var installed = await os.Install<OrleansApp>();
-        Assert.True(await installed.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer"), Ct));
-        await installed.App.NavigateToAsync(new BrowserNavArgs(Route: "/orleans#/reminders"), "app.engineer", ViewTransition.SharedAxisX, cancellationToken: Ct);
-        Assert.Equal("reminders", installed.App.State.Section);
-        Assert.Equal("/orleans#/reminders", installed.App.State.CurrentUrl);
-    }
-
-    [Fact]
-    public async Task UiIntrospector_ExploresAspireAndOrleansStateGraphs_WithValidGraphvizDot()
+    public async Task UiIntrospector_ExploresAspireStateGraph_WithValidGraphvizDot()
     {
         using var person = EnterPerson();
         await using var os = TestOS.Local();
@@ -334,39 +342,26 @@ public sealed class AspireAndOrleansAppsFacts
         Assert.Contains(aspireGraph.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_section"));
         Assert.Contains(aspireGraph.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_dashboard_url"));
         Assert.Contains("digraph AspireAppState", aspireGraph.Dot, StringComparison.Ordinal);
-
-        var orleansGraph = await introspector.ExploreStateGraph(typeof(OrleansAppState).FullName!, maxStates: 64);
-        Assert.True(orleansGraph.IsHealthy);
-        Assert.True(orleansGraph.States.Length >= 4);
-        Assert.Contains(orleansGraph.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_section"));
-        Assert.Contains(orleansGraph.Transitions, t => !t.Accepted && t.BrokenRules.Contains("invalid_grain_filter"));
-        Assert.Contains("digraph OrleansAppState", orleansGraph.Dot, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CrossWindowOpenAppIntents_PlainInputsAndTypedQueryParameters_DeepLinkAspireAndOrleans_AndEnforceDepartureRules()
+    public async Task CrossWindowOpenAppIntents_PlainInputs_DeepLinkAspire()
     {
         using var person = EnterPerson();
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(AspireApp).Assembly);
+        os.Register<AspireApp>();
 
         var aspire = os.Get<IScreen>(new NeuronId(TestBrain, "app.aspire", "default"));
-        var orleans = os.Get<IScreen>(new NeuronId(TestBrain, "app.orleans", "default"));
         _ = await aspire.Open();
-        _ = await orleans.Open();
 
         // 1. Plain hex trace input via os://window/open?app=aspire&input=<hexTraceId> -> traces/detail/{traceId}
-        var aspireHexIntent = AppSignals.OpenApp("aspire", "4bf92f3577b34da6a3ce929d0e0e4736");
-        var aspireHexQuery = ParseQuery(new Uri(aspireHexIntent.Arg!).Query);
+        var aspireHexQuery = ParseQuery(new Uri(AppSignals.OpenApp("aspire", "4bf92f3577b34da6a3ce929d0e0e4736").Arg!).Query);
         await aspire.Dispatch(new Command(
             ".",
             UiNavigateTo.SignalAlias,
             RuntimeProtocol.SerializeToElement(
-                new UiNavigateTo(
-                    FromNeuron: "infra-test/apps/engineer",
-                    Transition: ViewTransition.FadeThrough,
-                    Input: aspireHexQuery["input"]),
+                new UiNavigateTo(FromNeuron: "infra-test/apps/engineer", Transition: ViewTransition.FadeThrough, Input: aspireHexQuery["input"]),
                 typeof(UiNavigateTo))));
         await os.Idle();
         var aspireHexWire = (await aspire.Open())!.View.GetRawText();
@@ -374,16 +369,12 @@ public sealed class AspireAndOrleansAppsFacts
         Assert.Contains("\"transition\":\"fade-through\"", aspireHexWire, StringComparison.Ordinal);
 
         // 2. General flow id via os://window/open?app=aspire&input=flow-mission-7 -> traces section overview
-        var aspireFlowIntent = AppSignals.OpenApp("aspire", "flow-mission-7");
-        var aspireFlowQuery = ParseQuery(new Uri(aspireFlowIntent.Arg!).Query);
+        var aspireFlowQuery = ParseQuery(new Uri(AppSignals.OpenApp("aspire", "flow-mission-7").Arg!).Query);
         await aspire.Dispatch(new Command(
             ".",
             UiNavigateTo.SignalAlias,
             RuntimeProtocol.SerializeToElement(
-                new UiNavigateTo(
-                    FromNeuron: "infra-test/apps/engineer",
-                    Transition: ViewTransition.SharedAxisX,
-                    Input: aspireFlowQuery["input"]),
+                new UiNavigateTo(FromNeuron: "infra-test/apps/engineer", Transition: ViewTransition.SharedAxisX, Input: aspireFlowQuery["input"]),
                 typeof(UiNavigateTo))));
         await os.Idle();
         var aspireFlowWire = (await aspire.Open())!.View.GetRawText();
@@ -391,76 +382,10 @@ public sealed class AspireAndOrleansAppsFacts
         Assert.DoesNotContain("traces/detail/", aspireFlowWire, StringComparison.Ordinal);
         Assert.Contains("\"transition\":\"shared-axis-x\"", aspireFlowWire, StringComparison.Ordinal);
 
-        // Also verify AspireOpen(Input: ...) from /apps/aspire/request forwarding
+        // AspireOpen(Input: ...) from /apps/aspire/request forwarding
         await aspire.Request(new AspireOpen(Input: "00f067aa0ba902b7"));
         await os.Idle();
         Assert.Contains("http://localhost:18888/traces/detail/00f067aa0ba902b7", (await aspire.Open())!.View.GetRawText(), StringComparison.Ordinal);
-
-        // 3. Plain input via os://window/open?app=orleans&input=EngineerFlow -> /orleans#/grains/EngineerFlow
-        var orleansPlainIntent = AppSignals.OpenApp("orleans", "EngineerFlow");
-        var orleansPlainQuery = ParseQuery(new Uri(orleansPlainIntent.Arg!).Query);
-        await orleans.Dispatch(new Command(
-            ".",
-            UiNavigateTo.SignalAlias,
-            RuntimeProtocol.SerializeToElement(
-                new UiNavigateTo(
-                    FromNeuron: "infra-test/apps/engineer",
-                    Transition: ViewTransition.FadeThrough,
-                    Input: orleansPlainQuery["input"]),
-                typeof(UiNavigateTo))));
-        await os.Idle();
-        var orleansWire = (await orleans.Open())!.View.GetRawText();
-        Assert.Contains("/orleans#/grains/EngineerFlow", orleansWire, StringComparison.Ordinal);
-        Assert.Contains("Grain: EngineerFlow", orleansWire, StringComparison.Ordinal);
-
-        // Also verify typed OpenApp<BrowserNavArgs> & OrleansOpen(Input: ...) + Orleans departure lock guard
-        var orleansTypedIntent = AppSignals.OpenApp(
-            "orleans",
-            new BrowserNavArgs(GrainFilter: "AgentNeuron"),
-            transition: ViewTransition.SharedAxisZ,
-            fromNeuron: "app.creator");
-        var orleansTypedQuery = ParseQuery(new Uri(orleansTypedIntent.Arg!).Query);
-        await orleans.Dispatch(new Command(
-            ".",
-            UiNavigateTo.SignalAlias,
-            RuntimeProtocol.SerializeToElement(
-                new UiNavigateTo(
-                    ArgsJson: orleansTypedQuery["args"],
-                    FromNeuron: orleansTypedQuery["from"],
-                    Transition: orleansTypedQuery["transition"]),
-                typeof(UiNavigateTo))));
-        await os.Idle();
-        var orleansTypedWire = (await orleans.Open())!.View.GetRawText();
-        Assert.Contains("/orleans#/grains/AgentNeuron", orleansTypedWire, StringComparison.Ordinal);
-        Assert.Contains("\"transition\":\"shared-axis-z\"", orleansTypedWire, StringComparison.Ordinal);
-
-        await orleans.Request(new OrleansOpen(Input: "EngineerFlow"));
-        await os.Idle();
-        Assert.Contains("/orleans#/grains/EngineerFlow", (await orleans.Open())!.View.GetRawText(), StringComparison.Ordinal);
-
-        var lockOrleans = RuntimeProtocol.SerializeToElement(
-            new UiCommand("state", nameof(OrleansAppState.SetNavigationLock), [JsonSerializer.SerializeToElement(true)]),
-            typeof(UiCommand));
-        await orleans.Request(UiCommand.SignalAlias, lockOrleans);
-        await os.Idle();
-
-        var orleansRefused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            orleans.Dispatch(new Command(
-                ".",
-                UiNavigateFrom.SignalAlias,
-                RuntimeProtocol.SerializeToElement(
-                    new UiNavigateFrom(ToNeuron: "infra-test/apps/engineer", Force: false),
-                    typeof(UiNavigateFrom)))));
-        Assert.Contains("Rule:navigation_locked:", orleansRefused.Reason, StringComparison.Ordinal);
-
-        await orleans.Dispatch(new Command(
-            ".",
-            UiNavigateFrom.SignalAlias,
-            RuntimeProtocol.SerializeToElement(
-                new UiNavigateFrom(ToNeuron: "infra-test/apps/engineer", Force: true),
-                typeof(UiNavigateFrom))));
-        await os.Idle();
-        Assert.DoesNotContain("navigation_locked", (await orleans.Open())!.View.GetRawText(), StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> ParseQuery(string rawQuery)

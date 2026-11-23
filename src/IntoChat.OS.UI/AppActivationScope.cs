@@ -1,8 +1,9 @@
 using DigitalBrain.Neurons;
 
-namespace IntoChat.OS.Apps;
+namespace IntoChat.OS.UI;
 
-internal static class AppActivationScope
+// Test hook: a screen reports its activation so a test can hold the live instance (TestOsAppExtensions.Install).
+public static class AppActivationScope
 {
     private static readonly AsyncLocal<Action<Neuron>?> Observer = new();
 
@@ -13,7 +14,7 @@ internal static class AppActivationScope
         return new Reset(previous);
     }
 
-    internal static void Notify(Neuron neuron) => Observer.Value?.Invoke(neuron);
+    public static void Notify(Neuron neuron) => Observer.Value?.Invoke(neuron);
 
     private sealed class Reset(Action<Neuron>? previous) : IDisposable
     {
