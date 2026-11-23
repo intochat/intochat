@@ -6,6 +6,7 @@ namespace IntoChat.OS.Modules.Flutter;
 
 // Preserve serialized values; 1 belonged to the removed Dart console host.
 public enum FlutterHostKind { Window = 0, Web = 2, None = 3 }
+public enum AndroidDebugTransport { Wireless = 0, Usb = 1, Auto = 2 }
 public sealed record FlutterHostingOptions
 {
     public FlutterHostKind Kind { get; init; } = FlutterHostKind.Window;
@@ -19,6 +20,10 @@ public sealed record FlutterHostingOptions
     // Web only: serve the prebuilt release bundle from a docker image instead of compiling per AppHost.
     // Describes the machine running the AppHost, so CI flips it for every host via configuration.
     public bool WebContainer { get; init; }
+    // Android client target: selects wireless (ADB Wi-Fi / mDNS), USB, or auto-detect.
+    public AndroidDebugTransport AndroidTransport { get; init; } = AndroidDebugTransport.Wireless;
+    // Optional explicit ADB serial or host:port override for the Android client target.
+    public string? AndroidDevice { get; init; }
 }
 public sealed record FlutterModuleOptions : IModuleOptions
 {
@@ -31,6 +36,7 @@ public sealed record FlutterModuleOptions : IModuleOptions
     public void Validate()
     {
         if (!Enum.IsDefined(Hosting.Kind)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Flutter host kind."); }
+        if (!Enum.IsDefined(Hosting.AndroidTransport)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Android debug transport."); }
         if ((Hosting.ResourceName is not null && string.IsNullOrWhiteSpace(Hosting.ResourceName)) || string.IsNullOrWhiteSpace(Hosting.ShellName)
             || string.IsNullOrWhiteSpace(Hosting.ChatName))
         { throw new ArgumentException("Flutter resource, shell and chat names must be specified."); }

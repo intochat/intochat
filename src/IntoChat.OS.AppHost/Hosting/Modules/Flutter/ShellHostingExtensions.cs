@@ -217,6 +217,8 @@ public static class ShellHostingExtensions
                     appHost,
                     packageRoot,
                     host.Resource,
+                    options,
+                    _presenceToken,
                     () => _front?.GetEndpoint(ShellNames.HttpEndpointName) ?? _firstKernel);
             }
 

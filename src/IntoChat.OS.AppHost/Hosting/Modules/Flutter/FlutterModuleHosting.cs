@@ -28,6 +28,8 @@ public sealed class FlutterModuleHosting : ModuleHosting<IntoChat.OS.Modules.Flu
             target.WorkingDirectory = options.WorkingDirectory;
             target.ReleaseBuild = options.ReleaseBuild;
             target.WebContainer = options.WebContainer;
+            target.AndroidTransport = options.AndroidTransport;
+            target.AndroidDevice = options.AndroidDevice;
         }
     }
 }

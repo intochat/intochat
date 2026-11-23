@@ -24,6 +24,8 @@ public sealed class FlutterHostOptions
         options.WorkingDirectory = hosting.WorkingDirectory ?? options.WorkingDirectory;
         options.ReleaseBuild = hosting.ReleaseBuild;
         options.WebContainer = hosting.WebContainer;
+        options.AndroidTransport = hosting.AndroidTransport;
+        options.AndroidDevice = hosting.AndroidDevice ?? options.AndroidDevice;
         // The record's default device target is the desktop one; keep the web default unless configured away from it.
         if (hosting.DeviceTarget != ShellNames.DefaultDeviceTarget) { options.DeviceTarget = hosting.DeviceTarget; }
         return options;
@@ -51,4 +53,8 @@ public sealed class FlutterHostOptions
     // absent from FlutterHostingOptions: it describes the machine running the AppHost, not
     // the product composition, so CI flips it for every host via configuration.
     public bool WebContainer { get; set; }
+
+    public AndroidDebugTransport AndroidTransport { get; set; } = AndroidDebugTransport.Wireless;
+
+    public string? AndroidDevice { get; set; }
 }
