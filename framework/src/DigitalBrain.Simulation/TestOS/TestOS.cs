@@ -472,6 +472,8 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     /// <summary>The journal of <paramref name="brain"/>.</summary>
     internal Type? ClassOf(string neuronType) => _types.TryGetValue(neuronType, out var type) ? type : null;
 
+    internal bool IsContractHosted(Type contract) => contract is not null && _types.Values.Any(contract.IsAssignableFrom);
+
     public TestJournal Journal(BrainId brain) => _journals.GetOrAdd(brain, key => new TestJournal(key, Clock));
 
     /// <summary>

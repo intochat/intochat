@@ -14,15 +14,20 @@ public sealed class FeatureCatalog
 
     private readonly Assembly[] _modules;
     private readonly Func<string, bool>? _isNeuronTypeHosted;
+    private readonly Func<Type, bool>? _isContractHosted;
     private readonly Lazy<Loaded> _loaded;
 
     internal FeatureCatalog(Assembly? modules)
         : this(modules is null ? [] : [modules]) { }
 
-    public FeatureCatalog(IEnumerable<Assembly> modules, Func<string, bool>? isNeuronTypeHosted = null)
+    public FeatureCatalog(
+        IEnumerable<Assembly> modules,
+        Func<string, bool>? isNeuronTypeHosted = null,
+        Func<Type, bool>? isContractHosted = null)
     {
         _modules = [.. (modules ?? []).Where(a => a is not null).Distinct()];
         _isNeuronTypeHosted = isNeuronTypeHosted;
+        _isContractHosted = isContractHosted;
         _loaded = new(Load);
     }
 
@@ -35,7 +40,8 @@ public sealed class FeatureCatalog
         }
         var hosted = services.GetService<IHostedNeuronTypes>();
         Func<string, bool>? isHosted = hosted is not null ? hosted.IsHosted : null;
-        return new(registered, isHosted);
+        Func<Type, bool>? isContractHosted = hosted is not null ? hosted.IsContractHosted : null;
+        return new(registered, isHosted, isContractHosted);
     }
 
     internal Task<IReadOnlyList<FeatureFailure>> Failures() => Task.FromResult<IReadOnlyList<FeatureFailure>>(_loaded.Value.Failures);
@@ -112,7 +118,7 @@ public sealed class FeatureCatalog
                 }
                 bundles[key] = compiled.Bundle;
                 origins[key] = compiled.Origin;
-                availabilities[key] = AppAvailability.Evaluate(compiled.AppType, _isNeuronTypeHosted);
+                availabilities[key] = AppAvailability.Evaluate(compiled.AppType, _isNeuronTypeHosted, _isContractHosted);
             }
         }
         load?.SetTag("features.count", bundles.Count);

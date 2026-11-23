@@ -278,7 +278,8 @@ internal sealed class TestNeuronHost : IDisposable
             component,
             needs,
             record?.EffectiveBindings(),
-            neuronType => _os.ClassOf(neuronType) is not null);
+            neuronType => _os.ClassOf(neuronType) is not null,
+            _os.IsContractHosted);
         _os.BindingIndex.Record(Id.Brain, component, resolved);
         return resolved;
     }

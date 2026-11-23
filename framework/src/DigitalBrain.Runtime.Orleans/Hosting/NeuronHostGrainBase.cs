@@ -151,7 +151,8 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             component,
             needs,
             record?.EffectiveBindings(),
-            neuronType => types.TryGetRegistration(neuronType, out _));
+            types.IsHosted,
+            types.IsContractHosted);
         ServiceProvider.GetService<IBindingIndex>()?.Record(id.Brain, component, resolved);
         return resolved;
     }

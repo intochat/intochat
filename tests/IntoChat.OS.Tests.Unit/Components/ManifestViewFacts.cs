@@ -140,7 +140,21 @@ public sealed class ManifestViewFacts
         var hostedResolved = Slots.Resolve(brain, component, [requiredNeed], installed: null, isNeuronTypeHosted: t => t == "notes.store");
         var binding = Assert.Single(hostedResolved);
         Assert.Equal("customers", binding.Slot);
+
+        var polymorphicCollection = new SlotNeed("screens", typeof(ITestPolymorphicScreen), Required: true, IsCollection: true);
+        var polymorphicResolved = Slots.Resolve(
+            brain,
+            component,
+            [polymorphicCollection],
+            installed: null,
+            isNeuronTypeHosted: _ => false,
+            isContractHosted: c => c == typeof(ITestPolymorphicScreen));
+        var polyBinding = Assert.Single(polymorphicResolved);
+        Assert.Equal("screens", polyBinding.Slot);
     }
+
+    [NeuronAlias("screen")]
+    private interface ITestPolymorphicScreen;
 
     [Capability("storage", 1)]
     private interface ITestStorageCap;

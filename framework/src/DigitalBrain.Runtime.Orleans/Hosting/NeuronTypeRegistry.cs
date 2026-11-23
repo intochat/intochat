@@ -40,6 +40,9 @@ internal sealed record NeuronRegistration(string Type, Type Class, string StateN
 internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuronTypes
 {
     public bool IsHosted(string neuronType) => !string.IsNullOrWhiteSpace(neuronType) && _types.ContainsKey(neuronType);
+
+    public bool IsContractHosted(Type contract)
+        => contract is not null && _types.Values.Any(r => r.Contracts.Contains(contract) || contract.IsAssignableFrom(r.Class));
     internal const string AffineGrainType = "neuron.host";
     internal const string ReentrantGrainType = "neuron.host.reentrant";
     internal const string StatelessGrainType = "neuron.host.stateless";
