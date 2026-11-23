@@ -33,9 +33,29 @@ public sealed partial class ComponentFacts
     public void AComponentHasUnitTestsUnderTestsComponents()
     {
         var unit = Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Components");
-        var untested = Repository.ComponentNames().Where(name => !Directory.Exists(Path.Combine(unit, name))).ToArray();
-        Assert.True(untested.Length == 0, "Components without unit tests under tests/IntoChat.OS.Tests.Unit/Components/<Name>: " + string.Join(", ", untested));
+        var untested = UntestedComponents(Repository.ComponentsRoot, unit);
+        Assert.True(untested.Count == 0, "Components without unit tests under tests/IntoChat.OS.Tests.Unit/Components/<Name>: " + string.Join(", ", untested));
     }
+
+    [Fact]
+    public void UnitTestsChallengerFlagsAComponentWithoutATestFolder()
+    {
+        using var sample = new Sample();
+        sample.Write("components/Tested/IntoChat.Tested.csproj", "<Project />");
+        sample.Write("components/Untested/IntoChat.Untested.csproj", "<Project />");
+        sample.Write("unit/Tested/SomeFacts.cs", "class SomeFacts;");
+
+        var untested = UntestedComponents(Path.Combine(sample.Root, "components"), Path.Combine(sample.Root, "unit"));
+
+        Assert.Equal(["Untested"], untested);
+        Assert.Empty(UntestedComponents(Path.Combine(sample.Root, "none"), Path.Combine(sample.Root, "unit")));
+    }
+
+    private static List<string> UntestedComponents(string componentsRoot, string unitTestsRoot)
+        => !Directory.Exists(componentsRoot) ? []
+            : [.. Directory.EnumerateDirectories(componentsRoot).Select(Path.GetFileName).OfType<string>()
+                .Where(name => name is not ("bin" or "obj") && !Directory.Exists(Path.Combine(unitTestsRoot, name)))
+                .Order(StringComparer.Ordinal)];
 
     [Fact]
     public void AComponentReferencesOtherComponentsOnlyThroughContracts()

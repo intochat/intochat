@@ -1105,6 +1105,7 @@ public sealed class HouseRules22Facts
             .SelectMany(dir => Directory.GetFiles(dir, "*.csproj", SearchOption.AllDirectories)
                 .Concat(Directory.GetFiles(dir, "Directory.Build.props", SearchOption.AllDirectories)))
             .Concat(Repository.ModuleRoots.Select(root => Path.Combine(root, "Directory.Build.props")))
+            .Append(Path.Combine(Repository.Root, "Directory.Build.props"))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         var offenders = new List<string>();
         foreach (var file in csprojs)
