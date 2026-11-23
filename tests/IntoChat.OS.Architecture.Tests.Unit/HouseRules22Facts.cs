@@ -67,6 +67,12 @@ public sealed class HouseRules22Facts
         return list;
     }
 
+    // Module code lives under src/Modules (IntoChat.OS.Modules.<Name>) or src/Components (IntoChat.<Name>): the move to
+    // components must not take code out of a ratchet.
+    private static bool IsModuleCode(ParsedSource source)
+        => source.ProjectName.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+            || Repository.IsUnder(source.FullPath, Repository.ComponentsRoot);
+
     private static CompilationUnitSyntax ParseSample(string code, CancellationToken ct)
         => CSharpSyntaxTree.ParseText(code, cancellationToken: ct).GetCompilationUnitRoot(ct);
 
@@ -1098,7 +1104,7 @@ public sealed class HouseRules22Facts
             .Select(p => p.Value)
             .SelectMany(dir => Directory.GetFiles(dir, "*.csproj", SearchOption.AllDirectories)
                 .Concat(Directory.GetFiles(dir, "Directory.Build.props", SearchOption.AllDirectories)))
-            .Append(Path.Combine(Repository.ModulesRoot, "Directory.Build.props"))
+            .Concat(Repository.ModuleRoots.Select(root => Path.Combine(root, "Directory.Build.props")))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         var offenders = new List<string>();
         foreach (var file in csprojs)
@@ -1646,7 +1652,7 @@ public sealed class HouseRules22Facts
                     appsByFolder[appGroup] = appsByFolder.GetValueOrDefault(appGroup) + hits;
                 }
             }
-            else if (src.ProjectName.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+            else if (IsModuleCode(src))
             {
                 var hits = CountAmbientReach(src.Tree);
                 if (hits > 0)
@@ -1729,7 +1735,7 @@ public sealed class HouseRules22Facts
 
         foreach (var src in ProductionSources.Value)
         {
-            if (!src.ProjectName.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+            if (!IsModuleCode(src))
             {
                 continue;
             }

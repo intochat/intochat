@@ -29,6 +29,11 @@ public sealed partial class ModuleTestTierFacts
             .Where(project => Repository.SourceFiles(project.Directory, "*.cs").Any(path => NeuronClass().IsMatch(File.ReadAllText(path))))
             .Select(project => project.Name).Order(StringComparer.Ordinal)];
 
+    // Component main projects (IntoChat.<Name> in src/Components/<Name>) whose sources declare a [Neuron] class, by component name.
+    internal static string[] NeuronComponents()
+        => [.. Repository.ComponentNames()
+            .Where(name => Repository.SourceFiles(Path.Combine(Repository.ComponentsRoot, name), "*.cs").Any(path => NeuronClass().IsMatch(File.ReadAllText(path))))];
+
     [Fact]
     public void EveryNeuronModuleHasAUnitTierOnTestOS()
     {
@@ -66,10 +71,12 @@ public sealed partial class ModuleTestTierFacts
         var offenders = new List<string>();
         foreach (var (module, provides) in Providers())
         {
-            var shortName = module["IntoChat.OS.Modules.".Length..];
+            var isComponent = !module.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal);
+            var shortName = isComponent ? module["IntoChat.".Length..] : module["IntoChat.OS.Modules.".Length..];
+            var segment = isComponent ? "Components" : "Modules";
             var kit = Repository.TestProjects()
                 .SelectMany(project => Repository.SourceFiles(project.Directory, "*.cs"))
-                .Where(path => Repository.Relative(path).Contains($"/Modules/{shortName}/", StringComparison.OrdinalIgnoreCase))
+                .Where(path => Repository.Relative(path).Contains($"/{segment}/{shortName}/", StringComparison.OrdinalIgnoreCase))
                 .Any(path => KitSubclass().IsMatch(File.ReadAllText(path)));
             // Drive's storage@1 is the remote Drive neuron. A conformance kit needs a Google account, so it is not an in-process subclass.
             if (!kit && module != "IntoChat.OS.Modules.Google") { offenders.Add($"{module} provides {provides} but no test file of it subclasses a capability kit"); }
@@ -84,12 +91,13 @@ public sealed partial class ModuleTestTierFacts
         Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Storage");
     }
 
-    // Module assemblies in this repository whose static ModuleManifest provides at least one capability.
+    // Module and component assemblies in this repository whose static ModuleManifest provides at least one capability.
     private static (string Module, string Provides)[] Providers()
         => [.. ProductionArchitecture.Types
             .Where(type => type is { IsClass: true, IsAbstract: false }
-                && type.Assembly.GetName().Name!.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
-                && Repository.Projects.ContainsKey(type.Assembly.GetName().Name!))
+                && Repository.Projects.TryGetValue(type.Assembly.GetName().Name!, out var project)
+                && (type.Assembly.GetName().Name!.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+                    || Repository.IsUnder(project.Directory, Repository.ComponentsRoot)))
             .Select(type => (type, manifest: type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)))
             .Where(pair => pair.manifest?.PropertyType.FullName == "DigitalBrain.Modules.ModuleManifest")
             .Select(pair => (Module: pair.type.Assembly.GetName().Name!, Provides: Provided(pair.manifest!.GetValue(null))))

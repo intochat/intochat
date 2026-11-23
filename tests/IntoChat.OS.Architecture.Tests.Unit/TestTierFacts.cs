@@ -425,7 +425,7 @@ public sealed partial class TestTierFacts
     private static IEnumerable<string> TestProjects() => Repository.TestProjects().Select(project => project.Path);
 
     private static IEnumerable<string> ModuleTestProjects()
-        => TestProjects().Where(path => path.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal));
+        => TestProjects().Where(path => Repository.ModuleRoots.Any(root => Repository.IsUnder(path, root)));
 
     private static IEnumerable<string> References(string project) => Repository.References(project);
 }

@@ -23,7 +23,7 @@ public sealed partial class PackageRootAllowlistFacts
                 {
                     return explicitSetting == "true";
                 }
-                return entry.project.Directory.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                return Repository.ModuleRoots.Any(root => Repository.IsUnder(entry.project.Directory, root));
             })
             .Select(entry => (entry.project.Name, entry.document.Descendants("PackageId").LastOrDefault()?.Value.Trim() ?? entry.project.Name))
             .ToArray();

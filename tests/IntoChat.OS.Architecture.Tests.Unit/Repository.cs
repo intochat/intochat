@@ -49,9 +49,33 @@ internal static class Repository
     // solution rather than named.
     internal static readonly string SourceRoot = CommonDirectory(Projects.Values.Select(project => project.Directory));
 
+    // The test projects named IntoChat.OS.Modules.<Name>.Tests.Unit sit under tests/, so they must not
+    // pull the common directory up to the repository root.
     internal static readonly string ModulesRoot = CommonDirectory(Projects.Values
-        .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+        .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+            && !project.Name.Contains(".Tests", StringComparison.Ordinal))
         .Select(project => project.Directory));
+
+    // Components replace modules and apps one at a time, so both roots coexist while the move runs.
+    // The components root may hold no component folder yet; every fact must tolerate that.
+    internal static readonly string ComponentsRoot = System.IO.Path.Combine(Root, ModuleFolderFacts.SourceFolder, "Components");
+
+    // Every root whose children are packaged as a module-shaped unit.
+    internal static readonly IReadOnlyList<string> ModuleRoots = [ModulesRoot, ComponentsRoot];
+
+    internal static IEnumerable<string> ModuleRootSourceFiles(string pattern, Func<string, bool>? predicate = null)
+        => ModuleRoots.SelectMany(root => SourceFiles(root, pattern, predicate));
+
+    internal static bool IsUnder(string path, string root)
+        => System.IO.Path.GetFullPath(path).StartsWith(System.IO.Path.GetFullPath(root).TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar,
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    // Component main projects: IntoChat.<Name> directly inside <root>/<Name>/.
+    internal static IEnumerable<string> ComponentNames()
+        => Directory.Exists(ComponentsRoot)
+            ? Directory.EnumerateDirectories(ComponentsRoot).Select(System.IO.Path.GetFileName).OfType<string>()
+                .Where(name => name is not ("bin" or "obj")).Order(StringComparer.Ordinal)
+            : [];
 
     internal static Project ProjectNamed(string name)
         => Projects.TryGetValue(name, out var project) ? project
