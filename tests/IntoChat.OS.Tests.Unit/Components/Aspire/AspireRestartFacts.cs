@@ -183,6 +183,22 @@ public sealed class AspireRestartFacts
         Assert.Equal("expired", Assert.Single(Signals<AspireResourceRestartRefused>(os)).Message);
     }
 
+    // The confirmation gate is an optional slot: the activation check a runtime runs (Slots.Resolve, as TestNeuronHost and the Orleans
+    // host call it) passes when no confirmations neuron is hosted, and the neuron itself still reads and answers.
+    [Fact]
+    public async Task TheAspireNeuronStillWorksWhereConfirmationsAreNotHosted()
+    {
+        var needs = DigitalBrain.Components.ComponentManifests.SlotsOf(typeof(AspireNeuron));
+        var need = Assert.Single(needs, need => need.Contract == typeof(IConfirmationRequests));
+        Assert.False(need.Required);
+        var resolved = DigitalBrain.Components.Slots.Resolve(Brain, new DigitalBrain.Components.ComponentId("aspire"), needs, null, _ => false);
+        Assert.DoesNotContain(resolved, binding => binding.Slot == need.Name);
+
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        Assert.NotEmpty(await Call(os, Person(), aspire => aspire.GetResourcesAsync()));
+    }
+
     [Fact]
     public async Task WithoutAnAppHostItIsRefused()
     {

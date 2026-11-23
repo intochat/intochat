@@ -177,8 +177,12 @@ internal static partial class AspireLiveTelemetry
 }
 
 [DigitalBrain.Neurons.Neuron("aspire", State = "aspire")]
-internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
+internal sealed partial class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
 {
+    // Optional: a runtime that hosts no confirmations still activates this neuron; Restart then declines every non-person caller.
+    [DigitalBrain.Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)]
+    private partial IConfirmationRequests? Confirmations { get; }
+
     private readonly IConfiguration? _configuration;
     private readonly IAspireTools? _mcp;
     private readonly string? _self;
@@ -225,7 +229,7 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
         // in a later turn. A failed save after a placed question leaves a question whose answer finds no entry and runs nothing.
         ConfirmationResult? immediate;
 #pragma warning disable CA1031 // a refused question is a returned value and a signal, never a throw
-        try { immediate = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Request(plan); }
+        try { immediate = await (Confirmations ?? throw new InvalidOperationException("No confirmations are hosted in this runtime.")).Request(plan); }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             var message = AspireLiveTelemetry.Sanitize(error.Message);
@@ -253,7 +257,7 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
         ct.ThrowIfCancellationRequested();
         await DropStale();
         if (Pending().FirstOrDefault(item => item.PlanId == resolved.PlanId) is not { } pending) { return; }
-        var outcome = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Outcome(resolved.PlanId);
+        var outcome = Confirmations is { } confirmations ? await confirmations.Outcome(resolved.PlanId) : null;
         var rest = Without(pending.PlanId);
         // A null outcome means no record behind a resolved plan: nothing can ever answer it, so it ends as declined like any other no.
         if (outcome is not { Approved: true, Skipped: false, Approver.IsHuman: true })
