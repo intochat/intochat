@@ -90,6 +90,18 @@ public sealed partial class ComponentFacts
             + string.Join('\n', findings));
     }
 
+    // A component's Hosting folder is AppHost code (it references Aspire.Hosting): the component's runtime assembly must
+    // not compile it, and the AppHost compiles it through a linked item.
+    [Fact]
+    public void AComponentsHostingIsCompiledOnlyIntoTheAppHost()
+    {
+        var findings = HostingFindings(Repository.ComponentsRoot, Repository.ProjectNamed("IntoChat.OS.AppHost").Path);
+        Assert.True(findings.Count == 0, "A component's Hosting folder is removed from its own compile items and included by the AppHost:\n" + string.Join('\n', findings));
+        Assert.False(
+            Directory.Exists(Path.Combine(Repository.ProjectNamed("IntoChat.OS.AppHost").Directory, "Hosting", "Modules", "Microsoft.Aspire")),
+            "The Aspire hosting code lives in src/Components/Aspire/Hosting; the old AppHost folder Hosting/Modules/Microsoft.Aspire must not return");
+    }
+
     [Fact]
     public void AppsLeftInTheAppsAssembly()
     {
@@ -227,6 +239,27 @@ public sealed partial class ComponentFacts
     }
 
     [Fact]
+    public void HostingChallengerFlagsAComponentThatCompilesItsHostingOrIsNotIncludedByTheAppHost()
+    {
+        using var sample = new Sample();
+        sample.Write("Alpha/Hosting/AlphaHosting.cs", "class AlphaHosting;");
+        sample.Write("Alpha/IntoChat.Alpha.csproj", "<Project />");
+        sample.Write("Beta/Hosting/BetaHosting.cs", "class BetaHosting;");
+        sample.Write("Beta/IntoChat.Beta.csproj", "<Project><ItemGroup><Compile Remove=\"Contracts/**;Hosting/**\" /></ItemGroup></Project>");
+        sample.Write("Gamma/IntoChat.Gamma.csproj", "<Project />");
+        sample.Write("AppHost.csproj", "<Project><ItemGroup><Compile Include=\"../Components/Beta/Hosting/**/*.cs\" /></ItemGroup></Project>");
+        var appHost = Path.Combine(sample.Root, "AppHost.csproj");
+
+        var findings = HostingFindings(sample.Root, appHost);
+
+        Assert.Equal(2, findings.Count);
+        Assert.Contains(findings, finding => finding.Contains("Alpha", StringComparison.Ordinal) && finding.Contains("Remove", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.Contains("Alpha", StringComparison.Ordinal) && finding.Contains("AppHost", StringComparison.Ordinal));
+        Assert.DoesNotContain(findings, finding => finding.Contains("Beta", StringComparison.Ordinal) || finding.Contains("Gamma", StringComparison.Ordinal));
+        Assert.Empty(HostingFindings(Path.Combine(sample.Root, "does-not-exist"), appHost));
+    }
+
+    [Fact]
     public void AppsChallengerCountsNeuronsAndTheRatchetFailsBothWays()
     {
         using var sample = new Sample();
@@ -332,6 +365,38 @@ public sealed partial class ComponentFacts
             else if (!owed.Split('\n').Any(line => line.Contains(project, StringComparison.Ordinal) && line.Contains(referenced, StringComparison.Ordinal)))
             {
                 findings.Add($"{project} -> {referenced}: allowed but no OWED.md line names both projects");
+            }
+        }
+        return findings;
+    }
+
+    private static List<string> HostingFindings(string root, string appHostProject)
+    {
+        var findings = new List<string>();
+        if (!Directory.Exists(root))
+        {
+            return findings;
+        }
+        var appHost = File.ReadAllText(appHostProject).Replace('\\', '/');
+        foreach (var directory in Directory.EnumerateDirectories(root).Order(StringComparer.Ordinal))
+        {
+            var name = Path.GetFileName(directory);
+            if (!Directory.Exists(Path.Combine(directory, "Hosting")))
+            {
+                continue;
+            }
+            var project = Path.Combine(directory, $"IntoChat.{name}.csproj");
+            var removed = File.Exists(project)
+                && XDocument.Load(project).Descendants("Compile")
+                    .Select(item => (string?)item.Attribute("Remove") ?? "")
+                    .Any(remove => remove.Split(';').Select(part => part.Trim().Replace('\\', '/')).Contains("Hosting/**", StringComparer.Ordinal));
+            if (!removed)
+            {
+                findings.Add($"{name}: IntoChat.{name}.csproj must have <Compile Remove=\"Hosting/**\" />");
+            }
+            if (!appHost.Contains($"Include=\"../Components/{name}/Hosting/**/*.cs\"", StringComparison.Ordinal))
+            {
+                findings.Add($"{name}: the AppHost project must have <Compile Include=\"../Components/{name}/Hosting/**/*.cs\" ... />");
             }
         }
         return findings;

@@ -10,7 +10,7 @@ using IntoChat.OS.Aspire.Hosting;
 using IntoChat.Aspire;
 using AspireSdk = Aspire;
 using IntoChat.OS.Host.ServiceDefaults;
-namespace IntoChat.Aspire;
+namespace IntoChat.Aspire.Hosting;
 
 // Candidates work in {repository}/.intochat-os (gitignored): worktrees, builds and the candidate Dockerfile.
 public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireModule>

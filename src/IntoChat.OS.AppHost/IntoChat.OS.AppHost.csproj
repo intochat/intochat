@@ -37,6 +37,7 @@
     <ProjectReference Include="../Modules/Web/IntoChat.OS.Modules.Web.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Components/Aspire/Hosting/**/*.cs" LinkBase="Hosting/Components/Aspire" />
     <None Include="Hosting/Modules/Web/searxng/settings.yml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

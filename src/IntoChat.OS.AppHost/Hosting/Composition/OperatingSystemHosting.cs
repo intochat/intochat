@@ -8,6 +8,7 @@ using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.Aspire;
+using IntoChat.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 
 namespace IntoChat.OS.Aspire.Hosting;
