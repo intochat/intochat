@@ -9,6 +9,7 @@ Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, 
 `PersonPage`, `LocalServerPage`), modal sheets, search index, navigation backstack, and pure immutable
 `SettingsAppState` DDD Aggregate projections (zero transient mutable grain fields!).
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using DigitalBrain;

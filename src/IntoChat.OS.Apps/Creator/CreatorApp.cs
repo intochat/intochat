@@ -10,6 +10,7 @@ Center: live BrainScene topology (with causal replay pulses and Flame camera HUD
 Accordant StateGraphView, and the ISlider + ICommandBar time-travel transport bar.
 Right: 5-tab Modules.UI Inspector (State via IPropertyGrid, Source via ICodeEditor, Signals via ITable, State Graph, Scenarios).
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Components;

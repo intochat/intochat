@@ -41,7 +41,7 @@ using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
 using IntoChat.OS.Modules.Identity.Grants;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.AI;

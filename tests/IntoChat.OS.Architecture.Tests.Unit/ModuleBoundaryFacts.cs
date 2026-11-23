@@ -14,12 +14,7 @@ public sealed class ModuleBoundaryFacts
     [Fact]
     public void PlatformModulesUnderSrcModulesNeverReferenceOsKernelOrAspireHost()
     {
-        var moduleCsprojFiles = Directory.EnumerateFiles(Repository.ModulesRoot, "*.csproj", SearchOption.AllDirectories)
-            .Where(path =>
-            {
-                var relative = Repository.Relative(path);
-                return !relative.Split('/').Any(part => part is "obj" or "bin");
-            })
+        var moduleCsprojFiles = Repository.ModuleRootSourceFiles("*.csproj")
             .ToList();
 
         Assert.NotEmpty(moduleCsprojFiles);
@@ -55,12 +50,7 @@ public sealed class ModuleBoundaryFacts
     [Fact]
     public void NoModuleClosureReachesAnOsKernelAssembly()
     {
-        var projects = Directory.EnumerateFiles(Repository.ModulesRoot, "*.csproj", SearchOption.AllDirectories)
-            .Where(path =>
-            {
-                var relative = Repository.Relative(path);
-                return !relative.Split('/').Any(part => part is "obj" or "bin");
-            })
+        var projects = Repository.ModuleRootSourceFiles("*.csproj")
             .Order(StringComparer.Ordinal)
             .ToArray();
 

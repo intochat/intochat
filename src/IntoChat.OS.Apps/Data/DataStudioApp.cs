@@ -8,6 +8,7 @@ Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization stu
 Powered by DataAnalyticsEngine and IFilesVfsService (/work/*.csv, /work/*.tsv, /work/*.json, and relational tables),
 and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
+using IntoChat.OS.Host.Apps;
 using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Log;

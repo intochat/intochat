@@ -57,8 +57,8 @@ public static class ResourceNames
     }
 
     // The kernel's instances and front. One instance is named after the role; the front is "-gateway". Publish
-    // keeps OperatingSystem-{instance} and OperatingSystem-front, which name the deployed compute. The aspire
-    // module cannot reference this assembly: its KernelNames states the same rule, and a test on each side pins
+    // keeps OperatingSystem-{instance} and OperatingSystem-front, which name the deployed compute. The Aspire
+    // component cannot reference this assembly: its KernelNames (src/Components/Aspire) states the same rule, and a test on each side pins
     // the same strings.
     public const string LegacyOs = "OperatingSystem";
     public const string LegacyOsGateway = "OperatingSystem-front";

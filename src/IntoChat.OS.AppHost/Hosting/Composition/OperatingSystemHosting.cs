@@ -7,7 +7,8 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
+using IntoChat.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -79,10 +80,9 @@ public static class OperatingSystemHosting
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/devui/", DisplayText = "DevUI" });
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/widgetbook/", DisplayText = "Widgetbook" });
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/orleans/", DisplayText = "Orleans Dashboard" });
-            // A local kernel may read this AppHost through Aspire's own MCP server (Ino's IAspire) and inspect this checkout as the "os" repository; a cloud one never learns where it is.
+            // A local kernel may inspect this checkout as the "os" repository; a cloud one never learns where it is.
             if (!profile.Cloud)
             {
-                silo.WithEnvironment("IntoChatOS__Aspire__AppHostPath", Path.Combine(builder.AppHostDirectory, "IntoChat.OS.AppHost.csproj"));
                 ProjectLocalCheckout(silo, builder);
             }
             // One encrypted local brain store for this deployment.

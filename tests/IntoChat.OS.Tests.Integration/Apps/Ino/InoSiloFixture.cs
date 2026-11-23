@@ -42,7 +42,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using IntoChat.OS.Tests;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;

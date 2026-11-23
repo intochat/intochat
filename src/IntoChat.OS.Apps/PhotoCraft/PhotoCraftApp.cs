@@ -9,6 +9,7 @@ Open-source Photoshop-compatible layered image editor (PSD, layers, alpha masks,
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/photocraft) for multi-step agentic tool workflows.
 3. Interactive WASM Web UI + instant local Windows raster preview mode for full-card canvas editing.
 */
+using IntoChat.OS.Host.Apps;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalBrain;

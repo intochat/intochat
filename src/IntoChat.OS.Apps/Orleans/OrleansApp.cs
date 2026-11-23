@@ -7,6 +7,7 @@ Operations: open, select-section, filter-grain, reload, ui.command, ui.navigate-
 Built-in full-bleed WebBrowser operator surface (`app.orleans`) targeting IntoChat OS's co-hosted `/orleans`
 Grain Dashboard (`Overview`, `Grains`, `Silos`, `Reminders`, and grain-type deep-links).
 */
+using IntoChat.OS.Host.Apps;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;

@@ -26,7 +26,7 @@ public sealed class VisualCatalogNodeEmissionFacts
         Assert.StartsWith("#", genericApproval.AccentHex, StringComparison.Ordinal);
 
         var (activityBrand, detail) = InoView.ResolveActivityPresentation(
-            new InoActivity("act-1", "IAspire.GetResourcesAsync", "3 healthy"));
+            new InoActivity("act-1", "IAspire.Resources", "3 healthy"));
         Assert.Equal("Aspire", activityBrand.Label);
         Assert.Equal("brand:aspire", activityBrand.IconKey);
         Assert.Equal("#512BD4", activityBrand.AccentHex);

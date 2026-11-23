@@ -110,6 +110,15 @@ class IcAppIcon extends StatelessWidget {
       pngAsset: 'assets/brands/aspire.png',
       svgAsset: 'assets/brands/aspire-icon-32.svg',
     ),
+    'muncly': IcAppIconSpec(
+      appId: 'muncly',
+      title: 'Muncly CRM',
+      category: 'Business',
+      gradientTop: Color(0xFF272A32),
+      gradientBottom: Color(0xFF0C0D10),
+      icon: LucideIcons.briefcase,
+      svgAsset: 'assets/brands/muncly.svg',
+    ),
     'brain': IcAppIconSpec(
       appId: 'brain',
       title: 'Brain',

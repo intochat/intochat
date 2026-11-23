@@ -125,6 +125,8 @@ public static class OsFakes
         {
             services.AddLogging();
             services.AddSingleton(new CompiledAppsRegistration(typeof(IntoChat.OS.Apps.ShippedShellAppsModule).Assembly));
+            // The Aspire app ships with the Aspire component (AspireModule registers it in the product).
+            services.AddSingleton(new CompiledAppsRegistration(typeof(IntoChat.Aspire.AspireModule).Assembly));
             services.TryAddSingleton(FeatureCatalog.From);
             services.TryAddSingleton<FeatureLoader>();
             services.TryAddSingleton<MarketplaceView>();

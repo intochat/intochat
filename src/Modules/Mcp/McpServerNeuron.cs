@@ -4,10 +4,13 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using IntoChat.OS.Host.Logging;
@@ -31,10 +34,27 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
     private const int MaxText = 128 * 1024;
     private static readonly TimeSpan CallBudget = TimeSpan.FromMinutes(5);
 
+    private readonly IOptions<McpModuleOptions>? _options;
+    private readonly HttpMessageHandler? _httpHandler;
+    private readonly IModuleIntegrations<McpModule>? _integrations;
+
     private McpClient? _client;
     private Uri? _endpoint;
     [DigitalBrain.Slot(Key = "default")]
     private partial DigitalBrain.Limits.IPolicies Policies { get; }
+
+    public McpServerNeuron() : this(null, null, null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public McpServerNeuron(
+        IOptions<McpModuleOptions>? options = null,
+        HttpMessageHandler? httpHandler = null,
+        IModuleIntegrations<McpModule>? integrations = null)
+    {
+        _options = options;
+        _httpHandler = httpHandler;
+        _integrations = integrations;
+    }
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
     {
@@ -43,7 +63,7 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
         if (!Uri.TryCreate(spec.Url, UriKind.Absolute, out var endpoint) || !IsAllowedEndpoint(endpoint))
         { throw new ArgumentException("An MCP server URL is an absolute http(s) URL without credentials.", nameof(spec)); }
         ToolDescriptor[] tools;
-        try { tools = await Session(endpoint, async (client, token) => Describe(await client.ListToolsAsync(cancellationToken: token)), ct); }
+        try { tools = FilterAllowedTools(await Session(endpoint, async (client, token) => Describe(await client.ListToolsAsync(cancellationToken: token)), ct)); }
         catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             await Save(new McpServerState(spec.Title, spec.Url, false, [], error.Message, Context.Time.GetUtcNow()));
@@ -65,13 +85,17 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
 
     // A disconnected server offers no tools.
     public Task<ToolSet> Tools(CancellationToken ct = default)
-        => Task.FromResult(State.State is { Connected: true } state ? new ToolSet(state.Title, [.. state.Tools]) : new ToolSet("", []));
+        => Task.FromResult(State.State is { Connected: true } state ? new ToolSet(state.Title, FilterAllowedTools(state.Tools)) : new ToolSet("", []));
 
     public async Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tool);
         var state = State.State is { Connected: true } connected ? connected
             : throw new InvalidOperationException("The MCP server is not connected; call Connect first.");
+        if (!IsToolAllowed(tool))
+        {
+            throw new ToolExecutionException(tool, $"Tool '{tool}' was not found in MCP server '{state.Title}'.", isNotFound: true);
+        }
         var input = Arguments(arguments);
         var clock = Stopwatch.StartNew();
         // The tool's own errors come back as a result, so Guard's "a throw is not dispatched" reading holds.
@@ -114,10 +138,127 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
         { throw new ArgumentException("An MCP server URL is an absolute http(s) URL without credentials.", nameof(endpoint)); }
         if (_client is not null && _endpoint == endpoint) { return _client; }
         await Drop();
-        var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = endpoint });
+        var serverOptions = ServerOptions();
+        var headers = await ResolveHeadersAsync(serverOptions, ct);
+        var transportOptions = new HttpClientTransportOptions
+        {
+            Endpoint = endpoint,
+            AdditionalHeaders = headers,
+        };
+        var transport = _httpHandler is not null
+            ? new HttpClientTransport(transportOptions, new HttpClient(_httpHandler, disposeHandler: false), ownsHttpClient: true)
+            : new HttpClientTransport(transportOptions);
         _client = await McpClient.CreateAsync(transport, cancellationToken: ct);
         _endpoint = endpoint;
         return _client;
+    }
+
+    private async Task<Dictionary<string, string>?> ResolveHeadersAsync(McpServerOptions? serverOptions, CancellationToken ct)
+    {
+        if (serverOptions is { HeaderName: { Length: > 0 } headerName, HeaderValue: { Length: > 0 } headerValue }
+            && !string.IsNullOrWhiteSpace(headerName) && !string.IsNullOrWhiteSpace(headerValue))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [headerName.Trim()] = headerValue,
+            };
+        }
+
+        if (_integrations is null)
+        {
+            return null;
+        }
+
+        string? integrationId = serverOptions?.IntegrationId;
+        string? secretField = serverOptions?.SecretField;
+        string? targetHeader = serverOptions?.HeaderName;
+        string? prefix = serverOptions?.HeaderPrefix;
+
+        // Default runtime Vault binding for muncly-crm even if not statically configured in appsettings.
+        if (string.IsNullOrWhiteSpace(integrationId) && string.Equals(ServerName(), "muncly-crm", StringComparison.OrdinalIgnoreCase))
+        {
+            integrationId = "muncly";
+            secretField = "McpToken";
+            targetHeader = "Authorization";
+            prefix = "Bearer ";
+        }
+
+        if (string.IsNullOrWhiteSpace(integrationId) || string.IsNullOrWhiteSpace(secretField) || string.IsNullOrWhiteSpace(targetHeader))
+        {
+            return null;
+        }
+
+        try
+        {
+            var secret = await _integrations.Get(integrationId).ReadSecretAsync(secretField, ct);
+            if (string.IsNullOrWhiteSpace(secret))
+            {
+                return null;
+            }
+
+            var value = !string.IsNullOrEmpty(prefix) && !secret.Trim().StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? prefix + secret.Trim()
+                : secret.Trim();
+
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [targetHeader.Trim()] = value,
+            };
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // Missing or unsealed Vault integration falls back cleanly without crashing MCP client creation
+        catch (Exception error)
+#pragma warning restore CA1031
+        {
+            OsConsoleLog.For<McpServerNeuron>().LogSwallowed(error, $"reading runtime Vault secret '{integrationId}.{secretField}'");
+            return null;
+        }
+    }
+
+    private string? ServerName()
+    {
+        if (Context is null)
+        {
+            return null;
+        }
+
+        var key = Id.Key;
+        const string prefix = "mcp/";
+        return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? key[prefix.Length..] : key;
+    }
+
+    private McpServerOptions? ServerOptions()
+    {
+        var servers = _options?.Value.Servers;
+        var name = ServerName();
+        return servers is not null && name is not null && servers.TryGetValue(name, out var configured) ? configured : null;
+    }
+
+    private ToolDescriptor[] FilterAllowedTools(ToolDescriptor[] tools)
+    {
+        var allowed = ServerOptions()?.AllowedTools;
+        if (allowed is null)
+        {
+            return [.. tools];
+        }
+
+        var set = new HashSet<string>(allowed, StringComparer.Ordinal);
+        return [.. tools.Where(t => set.Contains(t.Name))];
+    }
+
+    private bool IsToolAllowed(string tool)
+    {
+        var allowed = ServerOptions()?.AllowedTools;
+        if (allowed is null)
+        {
+            return true;
+        }
+
+        var trimmed = tool.Trim();
+        return allowed.Any(a => string.Equals(a, trimmed, StringComparison.Ordinal));
     }
 
     private static bool IsAllowedEndpoint(Uri endpoint)

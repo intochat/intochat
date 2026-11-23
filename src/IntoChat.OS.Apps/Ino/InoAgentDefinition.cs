@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Mcp;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using IntoChat.OS.Modules.Web;
 
 namespace IntoChat.OS.Apps.Ino;

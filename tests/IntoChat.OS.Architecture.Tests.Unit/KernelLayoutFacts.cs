@@ -132,9 +132,9 @@ public sealed class KernelLayoutFacts
     public void F11_02_IntoChatOSClientOrleansCsproj_GrantsFollowOwnTestsRule()
     {
         var xml = XDocument.Load(ClientOrleansCsprojPath());
-        var propsXml = XDocument.Load(Path.Combine(Repository.ModulesRoot, "Directory.Build.props"));
+        var propsXml = Repository.ModuleRoots.Select(root => XDocument.Load(Path.Combine(root, "Directory.Build.props"))).ToList();
         var ivtElements = xml.Descendants("InternalsVisibleTo")
-            .Concat(propsXml.Descendants("InternalsVisibleTo"))
+            .Concat(propsXml.SelectMany(props => props.Descendants("InternalsVisibleTo")))
             .Select(x => x.Attribute("Include")?.Value)
             .Where(x => x != null)
             .ToList();

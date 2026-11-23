@@ -105,7 +105,7 @@ public static class TestOsAppExtensions
             ?? typeof(TApp).Name;
         var id = new NeuronId(new BrainId("local"), alias, "default");
         TApp? app = null;
-        using (IntoChat.OS.Apps.AppActivationScope.Capture(neuron =>
+        using (IntoChat.OS.Host.Apps.AppActivationScope.Capture(neuron =>
         {
             if (neuron is TApp typed)
             {

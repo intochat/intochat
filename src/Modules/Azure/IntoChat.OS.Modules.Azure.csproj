@@ -1,12 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>IntoChat.OS.Modules.Microsoft.Azure</RootNamespace>
-    <Description>Azure provisioning and Aspire deployment/verification capabilities.</Description>
+    <Description>Azure provisioning: ARM resources and Pulumi stacks.</Description>
     <NoWarn>$(NoWarn);DB0033;CA1812</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Identity" />
-    <PackageReference Include="ModelContextProtocol.Core" />
     <PackageReference Include="Azure.ResourceManager" />
     <PackageReference Include="Azure.ResourceManager.AppContainers" />
     <PackageReference Include="Azure.ResourceManager.Authorization" />
@@ -28,8 +27,5 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
-    <ProjectReference Include="../Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
-    <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
-    <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
   </ItemGroup>
 </Project>

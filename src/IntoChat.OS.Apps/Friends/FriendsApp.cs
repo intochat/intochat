@@ -9,6 +9,7 @@ A friend is confirmed with a code: one person makes it, the other redeems it. A 
 with a confirmed friend as Viewer or Editor; what friends shared appears under Shared with me.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
+using IntoChat.OS.Host.Apps;
 using System.ComponentModel;
 using DigitalBrain;
 using DigitalBrain.Components;

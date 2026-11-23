@@ -246,6 +246,17 @@ internal sealed partial class EngineerBuildVerifier(
     private static bool IsLiveCliVerificationEnabled(IConfiguration? cfg)
         => !string.Equals(cfg?["IntoChatOS:Engineer:RunTestSuites"], "false", StringComparison.OrdinalIgnoreCase);
 
+    private const string AppHostProject = "src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj";
+
+    internal static bool IsComponentHosting(string path)
+    {
+        var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 5
+            && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[1], "Components", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[3], "Hosting", StringComparison.OrdinalIgnoreCase);
+    }
+
     internal static string[] DiscoverAffectedProjects(string root, IReadOnlyList<string> changedFiles)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
@@ -257,6 +268,18 @@ internal sealed partial class EngineerBuildVerifier(
 
         foreach (var rel in changedFiles.Where(IsProjectAffectingFile))
         {
+            if (IsComponentHosting(rel))
+            {
+                // A component's Hosting/** is removed from its own csproj and compiled into the AppHost by a linked item.
+                var appHost = Path.GetFullPath(Path.Combine(fullRoot, AppHostProject.Replace('/', Path.DirectorySeparatorChar)));
+                if (File.Exists(appHost))
+                {
+                    projects.Add(appHost);
+                }
+
+                continue;
+            }
+
             var full = Path.GetFullPath(Path.Combine(fullRoot, rel.Replace('/', Path.DirectorySeparatorChar)));
             if (rel.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && File.Exists(full))
             {

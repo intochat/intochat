@@ -24,6 +24,6 @@
     <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
     <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
     <ProjectReference Include="../Playwright/IntoChat.OS.Modules.Playwright.csproj" />
-    <ProjectReference Include="../Azure/IntoChat.OS.Modules.Azure.csproj" />
+    <ProjectReference Include="../../Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -9,7 +9,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Apps.Aspire;
+using IntoChat.Aspire.Screens;
 using IntoChat.OS.Tests.Support;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

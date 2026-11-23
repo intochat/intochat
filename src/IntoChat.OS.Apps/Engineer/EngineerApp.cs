@@ -8,6 +8,7 @@ Autonomous multi-worktree engineering workbench (`app.engineer`) orchestrating `
 local git worktrees or cloud sandbox volumes with User + Architect + Critic brainstorming, Roslyn C# + Dart code edits,
 Release build/test + live Playwright/MCP verification, parallel candidate tournament scoring, and SHA-bound human PR approval.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Components;

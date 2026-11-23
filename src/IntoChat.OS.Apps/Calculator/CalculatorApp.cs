@@ -6,6 +6,7 @@ Operations: open, clear, add, press
 
 A keypad that evaluates arithmetic expressions, sums, and inline button presses in a single declarative View.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using DigitalBrain;

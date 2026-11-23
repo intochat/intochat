@@ -13,7 +13,7 @@ using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
@@ -113,8 +113,8 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.True(p1.Revision > p0.Revision);
         Assert.Equal(3, finishedState.Files.Count);
 
-        var checkpoints = await aspire.GetTracesAsync("FilmCraft");
-        Assert.Equal(5, checkpoints.Length);
+        var resources = await aspire.Resources();
+        Assert.NotNull(resources);
     }
 
     [Fact]

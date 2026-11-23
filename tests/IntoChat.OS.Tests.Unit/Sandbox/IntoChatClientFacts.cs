@@ -93,6 +93,29 @@ public sealed class IntoChatClientFacts
             => name.EndsWith(".Contracts", StringComparison.Ordinal) && !name.StartsWith("IntoChat.OS.Modules.Identity", StringComparison.Ordinal);
     }
 
+    // Component assemblies (IntoChat.<Name>, IntoChat.<Name>.Contracts) are refused, as the Aspire contracts were when they sat
+    // inside IntoChat.OS.Modules.Azure. Admitting a component's contracts is an owner decision per component (OWED.md).
+    [Fact]
+    public void AppLoadContextRefusesComponentAssemblies()
+    {
+        var components = Directory.EnumerateFiles(AppContext.BaseDirectory, "IntoChat.Aspire*.dll")
+            .Select(path => Path.GetFileNameWithoutExtension(path)!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(["IntoChat.Aspire", "IntoChat.Aspire.Contracts"], components);
+
+        foreach (var name in components)
+        {
+            Assert.False(AppLoadContext.IsAssemblyAllowed(name), $"{name} is admitted to the sandbox");
+        }
+        Assert.False(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Azure"));
+    }
+
+    // The activation hook hands a caller the live neuron of any app activated in its async flow; sandboxed code must not reach it.
+    [Fact]
+    public void AppLoadContextRefusesTheAssemblyHoldingTheActivationHook()
+        => Assert.False(AppLoadContext.IsAssemblyAllowed(typeof(IntoChat.OS.Host.Apps.AppActivationScope).Assembly.GetName().Name));
+
     [Fact]
     public void AppLoadContextAllowsSdkAndRefusesForbiddenHostAssemblies()
     {

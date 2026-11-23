@@ -424,8 +424,14 @@ public sealed partial class TestTierFacts
 
     private static IEnumerable<string> TestProjects() => Repository.TestProjects().Select(project => project.Path);
 
-    private static IEnumerable<string> ModuleTestProjects()
-        => TestProjects().Where(path => path.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal));
+    // Every test project in the solution (on the base commit the modules root was the repository root, so the old filter matched all of them).
+    // Selected explicitly and guarded: an enumeration that goes empty must fail, not pass vacuously.
+    private static IReadOnlyList<string> ModuleTestProjects()
+    {
+        var projects = TestProjects().ToList();
+        Assert.NotEmpty(projects);
+        return projects;
+    }
 
     private static IEnumerable<string> References(string project) => Repository.References(project);
 }

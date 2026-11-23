@@ -10,7 +10,9 @@ public sealed class ModuleUnitTierFacts
     [Fact]
     public void EveryModuleHasAUnitTierOrIsExempt()
     {
-        var missing = Modules().Where(module => !Exempt.ContainsKey(module) && !HasUnitTier(module)).Order(StringComparer.Ordinal).ToArray();
+        var missing = Modules().Where(module => !Exempt.ContainsKey(module) && !HasUnitTier(module))
+            .Concat(Repository.ComponentNames().Where(name => !Exempt.ContainsKey(ComponentKey(name)) && !HasComponentUnitTier(name)).Select(ComponentKey))
+            .Order(StringComparer.Ordinal).ToArray();
         Assert.True(missing.Length == 0, "modules without a *.Tests.Unit project (add one, or exempt with a reason):\n" + string.Join('\n', missing));
     }
 
@@ -18,9 +20,21 @@ public sealed class ModuleUnitTierFacts
     public void ExemptionsNameModulesThatStillLackAUnitTier()
     {
         var modules = Modules().ToHashSet(StringComparer.Ordinal);
-        var stale = Exempt.Keys.Where(name => !modules.Contains(name) || HasUnitTier(name)).Order(StringComparer.Ordinal).ToArray();
+        var components = Repository.ComponentNames().ToHashSet(StringComparer.Ordinal);
+        var stale = Exempt.Keys.Where(name => name.StartsWith(ComponentPrefix, StringComparison.Ordinal)
+                ? !components.Contains(name[ComponentPrefix.Length..]) || HasComponentUnitTier(name[ComponentPrefix.Length..])
+                : !modules.Contains(name) || HasUnitTier(name))
+            .Order(StringComparer.Ordinal).ToArray();
         Assert.True(stale.Length == 0, "stale unit-tier exemptions (module gone or now has a unit tier):\n" + string.Join('\n', stale));
     }
+
+    // A component's exemption key is "Components/<Name>", so it cannot collide with a module name.
+    private const string ComponentPrefix = "Components/";
+
+    private static string ComponentKey(string name) => ComponentPrefix + name;
+
+    private static bool HasComponentUnitTier(string name)
+        => Directory.Exists(Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Components", name));
 
     private static bool HasUnitTier(string module)
         => Directory.Exists(Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Modules", module))

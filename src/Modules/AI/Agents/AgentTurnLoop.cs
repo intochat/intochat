@@ -34,7 +34,7 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
 // before the agent has written what came before it. A failure becomes the last event; Run never throws.
 internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null)
 {
-    private static readonly string[] ContractAssemblyPrefixes = ["IntoChat.OS", "DigitalBrain"];
+    private static readonly string[] ContractAssemblyPrefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
         var telemetryConversation = plan.Conversation.StartsWith(plan.ScopeId + "/conversations/", StringComparison.Ordinal)

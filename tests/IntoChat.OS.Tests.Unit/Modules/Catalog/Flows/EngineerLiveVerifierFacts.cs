@@ -30,6 +30,63 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     }
 
     [Fact]
+    public void AChangeToAComponentScreenPlansAReadOfItsApp()
+    {
+        string[] changed = ["src/Components/Aspire/Screens/AspireApp.cs"];
+
+        Assert.True(EngineerLiveVerifier.TouchesUiSurface(changed));
+        Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan(changed).McpCalls, call => call.Target == "app.aspire" && call.Method == "Read");
+    }
+
+    [Fact]
+    public void AChangeToComponentCodeOutsideScreensIsNotAUiChange()
+    {
+        string[] changed = ["src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs"];
+
+        Assert.False(EngineerLiveVerifier.TouchesUiSurface(changed));
+        Assert.DoesNotContain(EngineerLiveVerifier.DeriveVerificationPlan(changed).McpCalls, call => call.Target.StartsWith("app.", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("src/IntoChat.OS.Apps/Settings/SettingsApp.cs", "app.settings")]
+    [InlineData("IntoChat.OS.Apps/Orleans/OrleansApp.cs", "app.orleans")]
+    public void AChangeToAShellAppStillPlansAReadOfItsApp(string path, string target)
+    {
+        Assert.True(EngineerLiveVerifier.TouchesUiSurface([path]));
+        Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan([path]).McpCalls, call => call.Target == target && call.Method == "Read");
+    }
+
+    [Theory]
+    [InlineData("src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs")]
+    [InlineData("src/Components/Aspire/Contracts/IAspire.cs")]
+    [InlineData("src/Components/Aspire/AspireModule.cs")]
+    public void AChangeToComponentCodePlansAListOfItsModule(string path)
+    {
+        var calls = EngineerLiveVerifier.DeriveVerificationPlan([path]).McpCalls;
+
+        Assert.Equal([new EngineerVerificationCall("module.aspire", "neurons_list", "ok")], calls);
+    }
+
+    [Fact]
+    public void AChangeToComponentHostingPlansWhatAnAppHostChangePlans()
+    {
+        var hosting = EngineerLiveVerifier.DeriveVerificationPlan(["src/Components/Aspire/Hosting/AspireModuleHosting.cs"]).McpCalls;
+        var appHost = EngineerLiveVerifier.DeriveVerificationPlan(["src/IntoChat.OS.AppHost/Program.cs"]).McpCalls;
+
+        Assert.Equal(appHost, hosting);
+    }
+
+    [Fact]
+    public void AChangeToAModuleStillPlansAListOfItsModule()
+        => Assert.Equal(
+            [new EngineerVerificationCall("module.web", "neurons_list", "ok")],
+            EngineerLiveVerifier.DeriveVerificationPlan(["src/Modules/Web/WebModule.cs"]).McpCalls);
+
+    [Fact]
+    public void AChangeToTheUiKitIsAUiChange()
+        => Assert.True(EngineerLiveVerifier.TouchesUiSurface(["src/IntoChat.OS.UI/Kit.cs"]));
+
+    [Fact]
     public async Task VerifyLiveAsync_WithNoConfiguredEndpointOrCandidate_RefusesPlaceboPass()
     {
         using var verifier = new EngineerLiveVerifier();
