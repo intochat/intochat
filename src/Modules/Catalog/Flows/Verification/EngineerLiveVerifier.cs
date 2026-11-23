@@ -185,6 +185,19 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
                     calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
                 }
             }
+            else if (segments.Length >= 4
+                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(segments[1], "Components", StringComparison.OrdinalIgnoreCase)
+                && !EngineerBuildVerifier.IsComponentHosting(norm))
+            {
+                // Same rule as src/Modules/<Name>: the module id is the folder lowercased (Aspire -> "aspire").
+                // Hosting/** is AppHost code and plans what an AppHost change plans: no call of its own.
+                var target = $"module.{segments[2].ToLowerInvariant()}";
+                if (seenTargets.Add(target))
+                {
+                    calls.Add(new EngineerVerificationCall(target, "neurons_list", "ok"));
+                }
+            }
             else if (segments.Length >= 3
                 && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(segments[1], "Modules", StringComparison.OrdinalIgnoreCase))
