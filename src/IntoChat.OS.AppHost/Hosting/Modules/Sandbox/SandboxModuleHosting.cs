@@ -19,6 +19,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
 {
     public const string ModuleName = "sandbox";
     public static readonly string ResourceName = ResourceNames.Child(ModuleName, "worker");
+    private const string LegacyResourceName = "sandbox";
     internal const string ImageName = "intochat-os-sandbox";
     internal const string ImageTag = "local";
     private const string SandboxProject = "src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj";
@@ -52,7 +53,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
 
 #pragma warning disable ASPIRECERTIFICATES001
         var sandbox = brain.ApplicationBuilder
-            .AddContainer(ResourceName, ImageName, ImageTag)
+            .AddContainer(brain.ChildName(ModuleName, "worker", LegacyResourceName), ImageName, ImageTag)
             .WithImagePullPolicy(ImagePullPolicy.Never)
             .WithDeveloperCertificateTrust(false)
             .WithCertificateTrustScope(CertificateTrustScope.None)

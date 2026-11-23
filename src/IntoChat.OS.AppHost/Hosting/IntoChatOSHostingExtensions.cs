@@ -54,7 +54,7 @@ public static class IntoChatOSHostingExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedServiceId);
         var environment = builder.Configuration[IntoChatOSHostingOptions.EnvironmentKey] is { Length: > 0 } configured ? configured : options.Environment;
 
-        var resource = builder.AddResource(new IntoChatOSResource(ResourceNames.Root))
+        var resource = builder.AddResource(new IntoChatOSResource(ResourceNames.RootFor(builder, name)))
             .ExcludeFromManifest()
             .WithInitialState(new CustomResourceSnapshot
             {

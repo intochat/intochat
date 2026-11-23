@@ -140,7 +140,9 @@ public sealed class IntoChatOSBuilder
     // Only for resources whose name is frozen (parameters, storage, servers, containers that own data).
     public string ResourceName(string name) => $"{Name}-{name}";
 
-    public string ChildName(string moduleId, string child) => ResourceNames.Child(moduleId, child);
+    // The name of a child resource of a component: <shown>-<child> in run mode, legacyName in publish mode.
+    public string ChildName(string moduleId, string child, string legacyName)
+        => ResourceNames.ChildFor(ApplicationBuilder, moduleId, child, legacyName);
 
     public IDistributedApplicationBuilder ApplicationBuilder { get; }
 
@@ -227,7 +229,7 @@ public sealed class IntoChatOSBuilder
             return existing;
         }
 
-        var node = ApplicationBuilder.AddResource(new IntoChatOSModuleResource(ResourceNames.Shown(moduleId)))
+        var node = ApplicationBuilder.AddResource(new IntoChatOSModuleResource(ResourceNames.NodeFor(ApplicationBuilder, moduleId, ResourceName(moduleId))))
             .ExcludeFromManifest();
         node.WithParentRelationship(Resource);
         node.WithInitialState(new CustomResourceSnapshot

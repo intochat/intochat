@@ -1,5 +1,6 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using IntoChat.OS.Modules.AI.Models;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
@@ -82,4 +83,33 @@ public sealed class ResourceNameFacts
 
     private static IResource? ParentOf(IResource resource)
         => resource.Annotations.OfType<ResourceRelationshipAnnotation>().SingleOrDefault(static a => a.Type == "Parent")?.Resource;
+
+    // Publish names deployed resources after the resource, so publish mode keeps every name master had.
+    [Fact]
+    public void PublishModeKeepsEveryNameItHadBefore()
+    {
+        var os = ComposeForPublish();
+        Assert.True(os.ApplicationBuilder.ExecutionContext.IsPublishMode);
+
+        var names = OwnedNames(os);
+        string[] expected =
+        [
+            "Modules", "Modules-ai", "Modules-aspire", "Modules-github", "Modules-intochat-os-master-key",
+            "Modules-mcp", "Modules-orleans", "Modules-sandbox", "Modules-searxng", "Modules-searxng-secret", "Modules-webtools", "sandbox",
+        ];
+        Assert.Equal(string.Join(", ", expected.Order(StringComparer.Ordinal)), string.Join(", ", names));
+    }
+
+    private static IntoChatOSBuilder ComposeForPublish()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
+        {
+            Args = ["--operation", "publish", "--output-path", Path.Combine(Path.GetTempPath(), "intochat-names-publish"), "--IntoChatOS:Topology=local", "--IntoChatOS:Shell:Enabled=false"],
+            DisableDashboard = true,
+        });
+        return builder.AddIntoChatOS("Modules")
+            .WithAI(ai => ai.Web(w => w.SearXng()))
+            .WithGitHub()
+            .WithSandbox();
+    }
 }
