@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace IntoChat.OS.Modules.ArtCraft;
 
 [Neuron("artcraft.studio")]
-internal sealed partial class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> options) : DigitalBrain.Neurons.Neuron, IArtCraftStudio
+internal sealed partial class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> options) : Neuron, IArtCraftStudio
 {
     [Slot(Required = false)]
     private partial SlotCollection<IMcpServer> McpServers { get; }

@@ -18,7 +18,10 @@ public abstract record AppAvailability
     public sealed record NeedsProvisioning(IReadOnlyList<string> MissingNeuronTypes) : AppAvailability;
 
     /// <summary>Evaluates whether <paramref name="appType"/> can activate on a host described by <paramref name="isNeuronTypeHosted"/>.</summary>
-    public static AppAvailability Evaluate(Type appType, Func<string, bool>? isNeuronTypeHosted)
+    public static AppAvailability Evaluate(
+        Type appType,
+        Func<string, bool>? isNeuronTypeHosted,
+        Func<Type, bool>? isContractHosted = null)
     {
         ArgumentNullException.ThrowIfNull(appType);
         if (isNeuronTypeHosted is null || !ComponentManifests.HasSlots(appType))
@@ -32,7 +35,11 @@ public abstract record AppAvailability
             if (!need.Required) { continue; }
             if (need.Contract.IsDefined(typeof(CapabilityAttribute), inherit: false)) { continue; }
             var neuronType = Slots.NeuronTypeOf(need.Contract);
-            if (string.IsNullOrWhiteSpace(neuronType) || isNeuronTypeHosted(neuronType)) { continue; }
+            if (string.IsNullOrWhiteSpace(neuronType)
+                || Slots.IsTargetHosted(need.Contract, neuronType, isNeuronTypeHosted, isContractHosted))
+            {
+                continue;
+            }
             missing ??= [];
             if (!missing.Contains(neuronType, StringComparer.Ordinal))
             {
