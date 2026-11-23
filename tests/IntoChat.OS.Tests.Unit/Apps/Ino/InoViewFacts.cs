@@ -194,24 +194,20 @@ public sealed class InoViewFacts
             activity?.SetStatus(ActivityStatusCode.Error, "Failed with Bearer secretTokenValue12345");
         }
 
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["IntoChatOS:Modules:ai:Ollama:Endpoint"] = "http://user:pw123@127.0.0.1:11434",
-            })
-            .Build();
-
+        var store = new IntoChat.Aspire.Bridge.AspireHostStore();
+        store.SetConnected(true);
+        store.Apply(new BridgeSnapshot("ollama", "ollama", "Container", null, "Running", "Healthy", ["http://127.0.0.1:11434"], null, null, []));
         var services = new ServiceCollection()
-            .AddSingleton<IConfiguration>(config)
+            .AddSingleton(store)
             .BuildServiceProvider();
         await using var os = TestOS.Local(o => o.Services = services)
             .Register(typeof(AspireModule).Assembly);
         var neuron = os.Get<IAspire>(new NeuronId(new BrainId("owner"), "aspire", "default"));
-        var resources = await neuron.GetResourcesAsync();
-        Assert.Contains(resources, r => r.Name == "ollama" && r.Endpoint == "http://127.0.0.1:11434" && !r.Endpoint.Contains("pw123", StringComparison.Ordinal));
+        var resources = await neuron.Resources();
+        Assert.True(resources.Connected);
+        Assert.Contains(resources.Items, r => r.Name == "ollama" && r.Instances.Any(i => i.Urls.Contains("http://127.0.0.1:11434")));
 
-        var traces = await neuron.GetTracesAsync("IntoChat.OS.InoIntrospectionTest", errorsOnly: true);
-        var captured = Assert.Single(traces, t => t.Name == "InoTurnProbe");
+        var captured = Assert.Single(AspireLiveTelemetry.SnapshotSpans(), t => t.Name == "InoTurnProbe");
         Assert.Equal("Error", captured.Status);
         Assert.DoesNotContain("secretTokenValue12345", captured.Error ?? string.Empty, StringComparison.Ordinal);
     }
@@ -306,7 +302,7 @@ public sealed class InoViewFacts
         var view = ViewOf(entries:
         [
             new Said(EntryIds.Said("r1"), Owner, At, "Inspect cluster and symbols"),
-            new Returned(EntryIds.Result("r1", "a1"), Ino, At, "IAspire.GetResourcesAsync", "3 healthy", true, null),
+            new Returned(EntryIds.Result("r1", "a1"), Ino, At, "IAspire.Resources", "3 healthy", true, null),
             new Returned(EntryIds.Result("r1", "a2"), Ino, At, "aspire", "", true, null),
             new Returned(EntryIds.Result("r1", "a3"), Ino, At, "ino.studio", "", true, null),
             new Returned(EntryIds.Result("r1", "a4"), Ino, At, "IWorkTree", "", true, null),
@@ -361,7 +357,7 @@ public sealed class InoViewFacts
             ],
             assistant.Activities!.Select(static a => a.Category).ToArray());
 
-        var aspireVisual = InoView.ResolveActivityVisual(new InoActivity("a1", "IAspire.GetResourcesAsync"));
+        var aspireVisual = InoView.ResolveActivityVisual(new InoActivity("a1", "IAspire.Resources"));
         Assert.Equal(("Aspire", "brand:aspire", "#512BD4"), (aspireVisual.Label, aspireVisual.IconKey, aspireVisual.AccentHex));
 
         var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
@@ -465,7 +461,7 @@ public sealed class InoViewFacts
             ToolCalls =
             [
                 new AgentToolCall("call-1", "neurons_call",
-                    """{"contract":"IntoChat.OS.Modules.Microsoft.Aspire.IAspire","key":"local/aspire","method":"GetResourcesAsync"}""",
+                    """{"contract":"IntoChat.OS.Modules.Microsoft.Aspire.IAspire","key":"local/aspire","method":"Resources"}""",
                     "ok"),
                 new AgentToolCall("call-2", "neurons_call",
                     """{"contract":"IntoChat.OS.Modules.ArtCraft.IArtCraftStudio","key":"local/artcraft/photocraft","method":"ExecuteCommand"}""",

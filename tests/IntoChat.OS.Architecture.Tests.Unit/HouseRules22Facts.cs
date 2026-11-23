@@ -1525,7 +1525,7 @@ public sealed class HouseRules22Facts
             "IClusterHost",
             "IProcessRunner",
             "ICandidateHost",
-            "IAspireTools",
+            "IAspireRuntimeBridge",
             "IGrantPolicySource",
             "IOsVault",
             "IDirectoryStore",

@@ -113,8 +113,8 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.True(p1.Revision > p0.Revision);
         Assert.Equal(3, finishedState.Files.Count);
 
-        var checkpoints = await aspire.GetTracesAsync("FilmCraft");
-        Assert.Equal(5, checkpoints.Length);
+        var resources = await aspire.Resources();
+        Assert.NotNull(resources);
     }
 
     [Fact]

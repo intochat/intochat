@@ -37,7 +37,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
     public static ConnectorDefinition Connector => new("aspire", "Aspire", ["deployment"], ["aspire"])
     {
         Neurons = [typeof(IAspire), typeof(ICandidate), typeof(IDeployment)],
-        Signals = [typeof(AspireTelemetryChanged), typeof(AspireResourceRestarted), typeof(AspireResourceRestartRequested), typeof(AspireResourceRestartRefused), typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
+        Signals = [typeof(AspireTelemetryChanged), typeof(AspireResourceChanged), typeof(AspireCommandRequested), typeof(AspireCommandExecuted), typeof(AspireCommandRefused), typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
@@ -45,8 +45,10 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
-        services.TryAddSingleton(provider => new AspireMcp(provider.GetService<global::Microsoft.Extensions.Configuration.IConfiguration>()));
-        services.TryAddSingleton<IAspireTools>(provider => provider.GetRequiredService<AspireMcp>());
+        services.TryAddSingleton<Bridge.AspireHostStore>();
+        services.TryAddSingleton<Bridge.AspireBridgeClient>();
+        services.TryAddSingleton<Bridge.IAspireRuntimeBridge>(provider => provider.GetRequiredService<Bridge.AspireBridgeClient>());
+        services.AddHostedService(provider => provider.GetRequiredService<Bridge.AspireBridgeClient>());
         services.TryAddSingleton(AspireInstance.FromEnvironment());
         var modeValue = configuration.GetSection(ModuleConfiguration.ModuleOptionsSection(ManifestName))[nameof(AspireOptions.CandidateHostMode)];
         if (Enum.TryParse<CandidateHostMode>(modeValue, ignoreCase: true, out var hostMode) && hostMode == CandidateHostMode.Process)

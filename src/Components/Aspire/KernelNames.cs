@@ -20,13 +20,10 @@ internal static class KernelNames
         => name is not null && ((role == Os && name == Os)
             || (name.Length == role.Length + 2 && name.StartsWith(role + "-", StringComparison.Ordinal) && char.IsAsciiLetterLower(name[^1])));
 
-    // Is this live resource the kernel or part of it (its front, a replica, its rebuilder)? A refusal rule, so it fails closed and
-    // depends on no suffix format: the exact name, the display name list_resources gives, or the display name AspireMcp.DisplayNameOf
-    // derives is, or begins with followed by '-', '_' or '.', a kernel base ("os", "OperatingSystem", or this process's own instance
-    // name when it has one), ignoring case. So os-gateway, os-rebuilder or a hypothetical os-db cannot be restarted through IAspire;
-    // a name that only begins with the letters ("oscar", "OperatingSystems") can. Every rebuilder shape begins with a base, so it needs no rule of its own.
-    public static bool IsSelfLive(string liveName, string? displayField, string? self)
-        => new[] { liveName, displayField, AspireMcp.DisplayNameOf(liveName), displayField is null ? null : AspireMcp.DisplayNameOf(displayField) }
+    // Is this live resource the kernel or part of it (its front, a replica, its rebuilder)?
+    // Receives the typed model name and instance id directly from the bridge snapshot; fails closed.
+    public static bool IsSelfLive(string modelName, string? instanceId, string? self)
+        => new[] { modelName, instanceId }
             .OfType<string>()
             .Any(name => BeginsWith(name, Os) || BeginsWith(name, Legacy) || (!string.IsNullOrEmpty(self) && BeginsWith(name, self)));
 

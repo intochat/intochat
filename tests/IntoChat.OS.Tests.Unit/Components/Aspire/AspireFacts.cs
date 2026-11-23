@@ -19,21 +19,28 @@ public sealed class AspireFacts
     }
 
     [Fact]
-    public void TheRestartConfirmationExpiryDefaultsToTheFrameworksDefaultExpiry()
-        => Assert.Equal(DigitalBrain.Confirmation.ConfirmationRules.DefaultExpiry, new AspireOptions().RestartConfirmationExpiry);
+    public void TheCommandConfirmationExpiryDefaultsToTheFrameworksDefaultExpiry()
+        => Assert.Equal(DigitalBrain.Confirmation.ConfirmationRules.DefaultExpiry, new AspireOptions().CommandConfirmationExpiry);
 
     [Theory]
     [InlineData("00:00:00")]
     [InlineData("-00:00:01")]
     [InlineData("7.00:00:01")]
-    public void ARestartConfirmationExpiryOfZeroNegativeOrMoreThanSevenDaysIsRefused(string value)
-        => Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { RestartConfirmationExpiry = TimeSpan.Parse(value, System.Globalization.CultureInfo.InvariantCulture) }.Validate());
+    public void ACommandConfirmationExpiryOfZeroNegativeOrMoreThanSevenDaysIsRefused(string value)
+        => Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CommandConfirmationExpiry = TimeSpan.Parse(value, System.Globalization.CultureInfo.InvariantCulture) }.Validate());
 
     [Theory]
     [InlineData("00:00:30")]
     [InlineData("7.00:00:00")]
-    public void ARestartConfirmationExpiryFromThirtySecondsToSevenDaysValidates(string value)
-        => new AspireOptions { RestartConfirmationExpiry = TimeSpan.Parse(value, System.Globalization.CultureInfo.InvariantCulture) }.Validate();
+    public void ACommandConfirmationExpiryFromThirtySecondsToSevenDaysValidates(string value)
+        => new AspireOptions { CommandConfirmationExpiry = TimeSpan.Parse(value, System.Globalization.CultureInfo.InvariantCulture) }.Validate();
+
+    [Fact]
+    public void ACommandTimeoutOfZeroOrLessIsRefused()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CommandTimeout = TimeSpan.Zero }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { CommandTimeout = TimeSpan.FromSeconds(-1) }.Validate());
+    }
 
     [Fact]
     public void AClusterSamplingIntervalOfZeroOrLessIsRefused()
@@ -63,61 +70,19 @@ public sealed class AspireFacts
     }
 
     [Fact]
-    public async Task AspireNeuronRecordsAndQueriesLogsAndTracesOnTestOS()
+    public async Task AspireNeuronRecordsLogsAndTracesAndReportsDisconnectedWithoutABridge()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local();
         os.Register<AspireNeuron>();
         var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));
 
-        var resources = await aspire.GetResourcesAsync();
-        Assert.DoesNotContain(resources, r => r.Name == "os" || r.Name == "intochat-os-mcp");
-        Assert.Empty(resources);
+        var resources = await aspire.Resources();
+        Assert.False(resources.Connected);
+        Assert.Empty(resources.Items);
 
         await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "os", "Error", "NullReferenceException in CalculatorApp", "System.NullReferenceException"));
         await aspire.RecordTraceAsync(new AspireTraceSpan("trace-1", "span-1", "os", "calculator.add", "Error", 1250, "DivideByZeroException"));
-
-        var errorLogs = await aspire.GetStructuredLogsAsync("os", "Error");
-        Assert.Single(errorLogs);
-        var consoleLines = await aspire.GetConsoleLogsAsync("os", 10);
-        Assert.Single(consoleLines);
-        var errorTraces = await aspire.GetTracesAsync("os", errorsOnly: true);
-        Assert.Contains(errorTraces, t => t.TraceId == "trace-1" && t.Name == "calculator.add" && t.Error == "DivideByZeroException");
-    }
-
-    // Stored telemetry and older deployments name the kernel OperatingSystem; either name finds both.
-    [Fact]
-    public async Task TelemetryStoredUnderTheOldKernelNameIsFoundByTheNewOneAndBack()
-    {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var os = TestOS.Local();
-        os.Register<AspireNeuron>();
-        var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));
-
-        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "OperatingSystem", "Error", "old log", null));
-        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "os", "Error", "new log", null));
-        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "ai", "Error", "other log", null));
-        await aspire.RecordTraceAsync(new AspireTraceSpan("t-old", "s-old", "OperatingSystem", "old.span", "Error", 1, "x"));
-        await aspire.RecordTraceAsync(new AspireTraceSpan("t-new", "s-new", "os", "new.span", "Error", 1, "x"));
-
-        foreach (var name in new[] { "os", "OperatingSystem" })
-        {
-            Assert.Equal(["new log", "old log"], (await aspire.GetStructuredLogsAsync(name)).Select(log => log.Message).Order());
-            Assert.Equal(2, (await aspire.GetConsoleLogsAsync(name, 10)).Length);
-            Assert.Equal(["new.span", "old.span"], (await aspire.GetTracesAsync(name)).Where(span => span.Name.EndsWith(".span", StringComparison.Ordinal)).Select(span => span.Name).Order());
-        }
-        Assert.Equal(["other log"], (await aspire.GetStructuredLogsAsync("ai")).Select(log => log.Message));
-    }
-
-    [Fact]
-    public void AnOldDeploymentsKernelResourceIsReportedAsOs()
-    {
-        var baseline = new[] { new AspireResourceView("OperatingSystem", "Running", "http://127.0.0.1:6200"), new AspireResourceView("ai", "Running", "") };
-
-        var resources = AspireLiveTelemetry.DiscoverResources(baseline, new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
-
-        Assert.Equal(["os", "ai"], resources.Select(resource => resource.Name));
-        Assert.Equal("http://127.0.0.1:6200", resources[0].Endpoint);
     }
 
     [Fact]
@@ -136,23 +101,6 @@ public sealed class AspireFacts
         Assert.Equal("os", KernelNames.RoleOf("os-a"));
         Assert.Equal("OperatingSystem", KernelNames.RoleOf("OperatingSystem-a"));
         Assert.Equal(["os-a", "os-b"], IntoChat.Aspire.Deployment.AspireCliClusterHost.Silos(["os-a", "os-gateway", "os-b", "ai"]));
-    }
-
-    [Fact]
-    public void AspireDiscoverResourcesReportsOnlyConfiguredEndpoints()
-    {
-        var cfg = global::Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(
-            new global::Microsoft.Extensions.Configuration.ConfigurationBuilder(),
-            new Dictionary<string, string?>
-            {
-                ["INTOCHAT_OS_URL"] = "http://127.0.0.1:6100"
-            })
-            .Build();
-
-        var resources = AspireLiveTelemetry.DiscoverResources([], cfg);
-        var osResource = Assert.Single(resources);
-        Assert.Equal("os", osResource.Name);
-        Assert.Equal("http://127.0.0.1:6100", osResource.Endpoint);
     }
 
     [Fact]

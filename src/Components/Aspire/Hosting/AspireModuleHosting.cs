@@ -10,6 +10,8 @@ using IntoChat.OS.Aspire.Hosting;
 using IntoChat.Aspire;
 using AspireSdk = Aspire;
 using IntoChat.OS.Host.ServiceDefaults;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.Aspire.Hosting;
 
 // Candidates work in {repository}/.intochat-os (gitignored): worktrees, builds and the candidate Dockerfile.
@@ -26,6 +28,16 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireMo
         if (HostConfiguration.Variable(brain.ApplicationBuilder.Configuration, OtlpHttpEndpoint) is { Length: > 0 } otlp)
         {
             brain.AddProjection(new Variable(OtlpHttpEndpoint, otlp));
+        }
+
+        // Run mode only: host the local Unix Domain Socket bridge inside the AppHost and pass its path to every kernel instance.
+        if (brain.ApplicationBuilder.ExecutionContext.IsRunMode)
+        {
+            var socketPath = Path.Combine(Path.GetTempPath(), $"intochat-aspire-{Guid.NewGuid():N}.sock");
+            var endpoint = new AspireBridgeEndpoint(socketPath);
+            brain.ApplicationBuilder.Services.TryAddSingleton(endpoint);
+            brain.ApplicationBuilder.Services.AddHostedService<AspireBridgeServer>();
+            brain.AddProjection(new Variable(AspireBridgeProtocol.SocketPathVariable, socketPath));
         }
     }
 

@@ -189,7 +189,7 @@ public static class VisualCatalog
         }
 
         // Normalize namespace-qualified CLR contract or contract+method strings:
-        // e.g. "IntoChat.Aspire.IAspire", its stored former name "IntoChat.OS.Modules.Microsoft.Aspire.IAspire", or "...IAspire.GetResourcesAsync".
+        // e.g. "IntoChat.Aspire.IAspire", its stored former name "IntoChat.OS.Modules.Microsoft.Aspire.IAspire", or "...IAspire.Resources".
         if (trimmed.Contains('.', StringComparison.Ordinal))
         {
             var segments = trimmed.Split('.', StringSplitOptions.RemoveEmptyEntries);

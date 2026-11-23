@@ -22,13 +22,12 @@ public sealed class AspireStoredStateFacts
     private static readonly DateTimeOffset At = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
 
     private static AspireTelemetryState Telemetry() => new(
-        [new AspireResourceView("api", "Running", "http://localhost:5000")],
         [new AspireLogEntry(At, "api", "Information", "started", null), new AspireLogEntry(At.AddSeconds(1), "api", "Error", "failed", "System.InvalidOperationException: boom")],
         [new AspireTraceSpan("t1", "s1", "api", "GET /", "Ok", 1500, null), new AspireTraceSpan("t1", "s2", "api", "POST /x", "Error", 2500, "timeout")]);
 
-    private static AspireTelemetryState TelemetryWithPendingRestart() => Telemetry() with
+    private static AspireTelemetryState TelemetryWithPendingCommand() => Telemetry() with
     {
-        PendingRestarts = [new AspirePendingRestart("aspire.resource.restart:web-searxng:0123456789abcdef0123456789abcdef", "web-searxng", At)],
+        PendingCommands = [new AspirePendingCommand("aspire.command:web-searxng:resource-restart:0123456789abcdef0123456789abcdef", "web-searxng", "web-searxng", "resource-restart", At)],
     };
 
     // DeployFlow is a Flow<DeployInner>: what it stores is the framework's FlowState with the roll's own state as Inner.
@@ -114,12 +113,12 @@ public sealed class AspireStoredStateFacts
     }
 
     [Fact]
-    public void TheTelemetryStateWithAPendingRestartIsStoredAsFrozenJson()
+    public void TheTelemetryStateWithAPendingCommandIsStoredAsFrozenJson()
     {
-        Pin("AspireTelemetryState.pending.json", Journal(TelemetryWithPendingRestart()));
+        Pin("AspireTelemetryState.pending.json", Journal(TelemetryWithPendingCommand()));
         var read = ReadJournal<AspireTelemetryState>("AspireTelemetryState.pending.json");
-        Assert.Equivalent(TelemetryWithPendingRestart(), read, strict: true);
-        Assert.Equal(TelemetryWithPendingRestart().PendingRestarts, read.PendingRestarts);
+        Assert.Equivalent(TelemetryWithPendingCommand(), read, strict: true);
+        Assert.Equal(TelemetryWithPendingCommand().PendingCommands, read.PendingCommands);
     }
 
     [Fact]
