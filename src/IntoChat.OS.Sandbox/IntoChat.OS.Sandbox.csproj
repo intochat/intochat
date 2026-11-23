@@ -2,7 +2,19 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <Description>Isolated container worker executing compiled user apps via IntoChatClient.</Description>
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <ContainerRepository>intochat-os-sandbox</ContainerRepository>
+    <ContainerImageTag>local</ContainerImageTag>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:11.0.0</ContainerBaseImage>
+    <ContainerUser>app</ContainerUser>
+    <LocalRegistry>Docker</LocalRegistry>
   </PropertyGroup>
+  <ItemGroup>
+    <ContainerPort Include="8080" Type="tcp" />
+    <ContainerEnvironmentVariable Include="ASPNETCORE_ENVIRONMENT" Value="Production" />
+    <ContainerEnvironmentVariable Include="ASPNETCORE_URLS" Value="http://+:8080" />
+    <ContainerEnvironmentVariable Include="DOTNET_EnableDiagnostics" Value="0" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <ProjectReference Include="..\..\framework\src\DigitalBrain.Runtime.Synapses\DigitalBrain.Runtime.Synapses.csproj" />
