@@ -31,7 +31,8 @@ public sealed class FlutterHostOptions
 
     public FlutterHostKind Kind { get; set; } = FlutterHostKind.Window;
 
-    public string ResourceName { get; set; } = ShellNames.DefaultFlutterResourceName;
+    // Null: the host names the app (shell-desktop or shell-web in run mode, FlutterShell in publish).
+    public string? ResourceName { get; set; }
 
     public string DeviceTarget { get; set; } = ShellNames.DefaultDeviceTarget;
 

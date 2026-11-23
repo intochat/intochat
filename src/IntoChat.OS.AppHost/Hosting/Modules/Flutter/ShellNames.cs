@@ -5,7 +5,12 @@ namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 public static class ShellNames
 {
-    public const string DefaultFlutterResourceName = "FlutterShell";
+    // The module id is frozen in configuration; the dashboard shows it as "shell" (ResourceNames.Shown).
+    public const string ModuleId = "flutter";
+    // Run mode names the app after the component node. Publish keeps the name the deployed resource had.
+    public const string DesktopResourceName = "shell-desktop";
+    public const string WebResourceName = "shell-web";
+    public const string LegacyResourceName = "FlutterShell";
     public const string UIBaseEnvironmentVariable = "INTOCHATOS_UI_BASE";
     public const string ShellEnvironmentVariable = "INTOCHATOS_SHELL";
     public const string ChatEnvironmentVariable = "INTOCHATOS_CHAT";

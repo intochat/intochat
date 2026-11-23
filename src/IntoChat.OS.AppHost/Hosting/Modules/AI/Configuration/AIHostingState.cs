@@ -128,6 +128,7 @@ public static partial class AIHostingExtensions
                 .WithEndpoint("http", static e => e.Port = 11434)
                 .WithDataVolume(LegacyNames.DataVolume(brain.ApplicationBuilder, LegacyNames.Resource("ollama")))
                 .WithLifetime(ContainerLifetime.Persistent)
+                .WithLegacyContainerCleanup(brain.ApplicationBuilder)
                 .WithOpenWebUI(openwebui => openwebui.WithLifetime(ContainerLifetime.Persistent))
                 .WithParentRelationship(module);
         }

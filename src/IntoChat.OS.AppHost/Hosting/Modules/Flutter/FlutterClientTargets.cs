@@ -8,13 +8,13 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 /// <summary>
-/// Registers explicit-start Flutter client targets (<c>flutter-linux-wsl</c>, <c>flutter-android</c>)
+/// Registers explicit-start Flutter client targets (<c>shell-linux</c>, <c>shell-android</c>)
 /// for local development so they appear in the Aspire Dashboard with native Start, Stop, and Console Logs.
 /// </summary>
 internal static class FlutterClientTargets
 {
-    public const string LinuxWslResourceName = "flutter-linux-wsl";
-    public const string AndroidResourceName = "flutter-android";
+    public const string LinuxResourceName = "shell-linux";
+    public const string AndroidResourceName = "shell-android";
 
     internal static void AddExplicitClientTargets(
         IDistributedApplicationBuilder appHost,
@@ -35,7 +35,7 @@ internal static class FlutterClientTargets
         {
             appHost
                 .AddExecutable(
-                    LinuxWslResourceName,
+                    LinuxResourceName,
                     "wsl",
                     uiDir,
                     "-d",

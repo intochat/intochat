@@ -58,7 +58,7 @@ public static class ResourceNames
     public static string ChildFor(IDistributedApplicationBuilder builder, string moduleId, string child, string legacyName)
         => Pick(builder, Child(moduleId, child), legacyName);
 
-    private static string Pick(IDistributedApplicationBuilder builder, string runName, string legacyName)
+    internal static string Pick(IDistributedApplicationBuilder builder, string runName, string legacyName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(legacyName);
         return PickOf(builder, runName, legacyName);

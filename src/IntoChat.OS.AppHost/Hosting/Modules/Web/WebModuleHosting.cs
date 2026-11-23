@@ -78,6 +78,7 @@ public sealed class WebModuleHosting : ModuleHosting<WebModule>
                     .WithBindMount(ResolveSearxngConfigDirectory(), "/etc/searxng", isReadOnly: true)
                     .WithEnvironment("SEARXNG_SECRET", secret)
                     .WithLifetime(ContainerLifetime.Persistent)
+                    .WithLegacyContainerCleanup(brain.ApplicationBuilder)
                     .WithParentRelationship(module);
             }
         }

@@ -71,7 +71,7 @@ public sealed class LocalReset(
     private string StateDirectory => Path.GetFullPath(Path.Combine(home, "state"));
     private string MachineIdFile => Path.Combine(ProductDirectory, "machine-id");
     private string Sha10 => appHostPathSha256.Length >= 10 ? appHostPathSha256[..10].ToLowerInvariant() : "";
-    private string Sha8 => Sha10.Length >= 8 ? Sha10[..8] : "";
+    private string Sha8 => LegacyContainers.Sha8(appHostPathSha256);
 
     public async Task<IReadOnlyList<ResetTarget>> BuildPlanAsync(bool includeSecrets, bool includeMachineId, CancellationToken cancellationToken)
     {
@@ -91,8 +91,8 @@ public sealed class LocalReset(
         if (Sha8.Length == 8)
         {
             var containers = await docker.ContainerNamesAsync(cancellationToken);
-            // Modules-ollama is the name before the rename; its container may still exist.
-            var exact = new[] { $"Modules-storage-{Sha8}", $"{ResourceNames.Child("ai", "ollama")}-{Sha8}", $"Modules-ollama-{Sha8}" };
+            // The containers renamed in run mode may still exist under their old names.
+            string[] exact = [$"Modules-storage-{Sha8}", $"{ResourceNames.Child("ai", "ollama")}-{Sha8}", .. LegacyContainers.Names(Sha8)];
             foreach (var name in containers.Where(c => exact.Contains(c, StringComparer.Ordinal))) { plan.Add(new ResetTarget("container", name, name)); }
             var prefix = $"intochat.os.apphost-{Sha10}-";
             foreach (var name in volumes.Where(v => v.StartsWith(prefix, StringComparison.Ordinal))) { plan.Add(new ResetTarget("volume", name, name)); }

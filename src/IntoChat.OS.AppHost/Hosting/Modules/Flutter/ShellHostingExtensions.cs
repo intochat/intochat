@@ -129,7 +129,10 @@ public static class ShellHostingExtensions
             }
 
             var resourceName = string.IsNullOrWhiteSpace(options.ResourceName)
-                ? brain.ResourceName(ShellNames.DefaultFlutterResourceName)
+                ? ResourceNames.Pick(
+                    appHost,
+                    kind == FlutterHostKind.Web ? ShellNames.WebResourceName : ShellNames.DesktopResourceName,
+                    ShellNames.LegacyResourceName)
                 : options.ResourceName;
             var shell = string.IsNullOrWhiteSpace(options.ShellName)
                 ? ShellNames.DefaultShellName
@@ -158,7 +161,7 @@ public static class ShellHostingExtensions
                 .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
                 .WithEnvironment(ShellNames.ShellEnvironmentVariable, shell)
                 .WithEnvironment(ShellNames.ChatEnvironmentVariable, chat)
-                .WithParentRelationship(brain.Resource);
+                .WithParentRelationship(brain.GetOrAddModuleNode(ShellNames.ModuleId));
 
             if (kind == FlutterHostKind.Window)
             {
@@ -255,7 +258,7 @@ public static class ShellHostingExtensions
                 .WithHttpEndpoint(targetPort: 80, name: ShellNames.HttpEndpointName)
                 .WithHttpHealthCheck("/")
                 .WithBindMount(_servedConfigPath, ShellServedConfig.ContainerPath, isReadOnly: true)
-                .WithParentRelationship(brain.Resource)
+                .WithParentRelationship(brain.GetOrAddModuleNode(ShellNames.ModuleId))
                 .AsBrainBrowser(path: $"/?semantics=true#presence={_presenceToken}", readySelector: "flt-semantics");
         }
 

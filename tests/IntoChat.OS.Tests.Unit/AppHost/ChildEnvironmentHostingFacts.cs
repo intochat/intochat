@@ -127,7 +127,7 @@ public sealed class ChildEnvironmentHostingFacts
                 Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
-                var shellResource = Assert.Single(builder.Resources.OfType<ExecutableResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
+                var shellResource = Assert.Single(builder.Resources.OfType<ExecutableResource>(), r => r.Name == ShellNames.DesktopResourceName);
                 var shellArgs = new List<object>();
                 var argsCtx = new CommandLineArgsCallbackContext(shellArgs, shellResource, TestContext.Current.CancellationToken);
                 foreach (var cb in shellResource.Annotations.OfType<CommandLineArgsCallbackAnnotation>()) { await cb.Callback(argsCtx); }
@@ -165,7 +165,7 @@ public sealed class ChildEnvironmentHostingFacts
                 Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
-                var shellResource = Assert.Single(builder.Resources, r => r.Name == ShellNames.DefaultFlutterResourceName);
+                var shellResource = Assert.Single(builder.Resources, r => r.Name == ShellNames.WebResourceName);
                 var browser = Assert.Single(shellResource.Annotations.OfType<BrainBrowserAnnotation>());
                 var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
                 Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in browser path '{browser.Path}'.");
@@ -194,7 +194,7 @@ public sealed class ChildEnvironmentHostingFacts
                 Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
-                var shellContainer = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
+                var shellContainer = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == ShellNames.WebResourceName);
                 var browser = Assert.Single(shellContainer.Annotations.OfType<BrainBrowserAnnotation>());
                 var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
                 Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in container browser path '{browser.Path}'.");

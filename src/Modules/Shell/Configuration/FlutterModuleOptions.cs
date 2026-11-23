@@ -9,7 +9,7 @@ public enum FlutterHostKind { Window = 0, Web = 2, None = 3 }
 public sealed record FlutterHostingOptions
 {
     public FlutterHostKind Kind { get; init; } = FlutterHostKind.Window;
-    public string ResourceName { get; init; } = "FlutterShell";
+    public string? ResourceName { get; init; }
     public string DeviceTarget { get; init; } = "windows";
     public string ShellName { get; init; } = "desk";
     public string ChatName { get; init; } = "main";
@@ -31,7 +31,7 @@ public sealed record FlutterModuleOptions : IModuleOptions
     public void Validate()
     {
         if (!Enum.IsDefined(Hosting.Kind)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Flutter host kind."); }
-        if (string.IsNullOrWhiteSpace(Hosting.ResourceName) || string.IsNullOrWhiteSpace(Hosting.ShellName)
+        if ((Hosting.ResourceName is not null && string.IsNullOrWhiteSpace(Hosting.ResourceName)) || string.IsNullOrWhiteSpace(Hosting.ShellName)
             || string.IsNullOrWhiteSpace(Hosting.ChatName))
         { throw new ArgumentException("Flutter resource, shell and chat names must be specified."); }
     }

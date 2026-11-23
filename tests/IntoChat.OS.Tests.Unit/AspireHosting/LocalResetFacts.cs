@@ -83,6 +83,18 @@ public sealed class LocalResetFacts
     }
 
     [Fact]
+    public async Task ThePlanListsTheOllamaContainerUnderItsOldAndNewNames()
+    {
+        var (reset, _, docker, _) = Make();
+        docker.Containers.AddRange(["Modules-ollama-5ef44d53", "ai-ollama-5ef44d53", "ai-ollama-aaaaaaaa"]);
+        var plan = await reset.BuildPlanAsync(false, false, TestContext.Current.CancellationToken);
+        var containers = plan.Where(t => t.Kind == "container").Select(t => t.Reference).ToArray();
+        Assert.Contains("Modules-ollama-5ef44d53", containers);
+        Assert.Contains("ai-ollama-5ef44d53", containers);
+        Assert.DoesNotContain("ai-ollama-aaaaaaaa", containers);
+    }
+
+    [Fact]
     public async Task ListIsADryRunWithoutPrompt()
     {
         var (reset, fs, docker, output) = Make(answer: "yes");

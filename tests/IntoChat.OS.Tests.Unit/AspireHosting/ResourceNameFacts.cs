@@ -6,9 +6,8 @@ namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ResourceNameFacts
 {
-    // Names owned by the naming rule so far. The shell (shell-*) keeps its old names until task A4, which
-    // extends OwnedNames and drops its prefixes from NotYetRenamed.
-    private static readonly string[] NotYetRenamed = ["__", "FlutterShell", "flutter-", "shell-"];
+    // "__" names are Aspire's own internals; every other resource is covered by the naming rule.
+    private static readonly string[] NotYetRenamed = ["__"];
 
     private static string[] OwnedNames(IntoChatOSBuilder os)
         => [.. os.ApplicationBuilder.Resources
@@ -80,15 +79,57 @@ public sealed class ResourceNameFacts
         Assert.Contains("Modules-intochat-os-master-key", names);
     }
 
-    [Theory]
-    [InlineData("flutter", "shell")]
-    [InlineData("webtools", "web")]
-    public void AFrozenModuleIdStillSwitchesItsComponentOff(string moduleId, string shown)
+    [Fact]
+    public void TheShellAppHangsUnderShell()
     {
-        var os = AppHostChainFacts.Compose("local", ($"IntoChatOS:Modules:{moduleId}:Enabled", "false"));
-        Assert.DoesNotContain(moduleId, os.Modules);
-        Assert.DoesNotContain(os.ApplicationBuilder.Resources, r => r.Name == shown || r.Name.StartsWith(shown + "-", StringComparison.Ordinal));
+        var resources = ComposeWithShell().ApplicationBuilder.Resources;
+        Assert.Equal("shell", ParentOf(Named(resources, "shell-desktop"))?.Name);
+        Assert.Equal("shell-desktop", ParentOf(Named(resources, "shell-android"))?.Name);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal("shell-desktop", ParentOf(Named(resources, "shell-linux"))?.Name);
+        }
     }
+
+    [Fact]
+    public void TheShellHasTheAgreedNames()
+    {
+        string[] expected = OperatingSystem.IsWindows()
+            ? ["shell", "shell-desktop", "shell-android", "shell-linux"]
+            : ["shell", "shell-desktop", "shell-android"];
+
+        var names = ComposeWithShell().ApplicationBuilder.Resources.Select(static r => r.Name)
+            .Where(static name => name == "shell" || name.StartsWith("shell-", StringComparison.Ordinal) || name.Contains("lutter", StringComparison.Ordinal));
+        Assert.Equal(string.Join(", ", expected.Order(StringComparer.Ordinal)), string.Join(", ", names.Order(StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void TheWebTargetIsShellWeb()
+    {
+        var resources = ComposeWithShell(("IntoChatOS:Modules:flutter:Options:Hosting:Kind", "Web")).ApplicationBuilder.Resources;
+        Assert.Equal("shell", ParentOf(Named(resources, "shell-web"))?.Name);
+        Assert.DoesNotContain(resources, static r => r.Name == "shell-desktop" || r.Name == "FlutterShell");
+    }
+
+    [Theory]
+    [InlineData("flutter", "shell", "shell-desktop", "IntoChatOS:Shell:Enabled")]
+    [InlineData("webtools", "web", "web-searxng", "IntoChatOS:Modules:webtools:Enabled")]
+    public void AFrozenModuleIdStillSwitchesItsComponentOff(string moduleId, string shown, string child, string switchKey)
+    {
+        // The shell is switched by its own deployment key; configuration under the frozen module id does not remove it.
+        var on = ComposeWithShell((switchKey, "true"));
+        Assert.Contains(moduleId, on.Modules);
+        var onNames = on.ApplicationBuilder.Resources.Select(static r => r.Name).ToArray();
+        Assert.Contains(shown, onNames);
+        Assert.Contains(child, onNames);
+
+        var off = ComposeWithShell((switchKey, "false"));
+        Assert.DoesNotContain(moduleId, off.Modules);
+        Assert.DoesNotContain(off.ApplicationBuilder.Resources, r => r.Name == shown || r.Name.StartsWith(shown + "-", StringComparison.Ordinal));
+    }
+
+    private static IntoChatOSBuilder ComposeWithShell(params (string Key, string Value)[] settings)
+        => AppHostChainFacts.Compose("local", [("IntoChatOS:Shell:Enabled", "true"), .. settings]);
 
     private static IResource Named(IEnumerable<IResource> resources, string name) => Assert.Single(resources, r => r.Name == name);
 
@@ -113,9 +154,11 @@ public sealed class ResourceNameFacts
         Assert.True(os.ApplicationBuilder.ExecutionContext.IsPublishMode);
 
         var names = OwnedNames(os);
+        // The shell keeps FlutterShell in publish; shell-* and the client targets are run-mode only.
         string[] expected =
         [
             "Modules", "Modules-ai", "Modules-aspire", "Modules-github", "Modules-intochat-os-master-key",
+            "Modules-flutter", "FlutterShell",
             "Modules-mcp", "Modules-orleans", "Modules-sandbox", "Modules-searxng", "Modules-searxng-secret", "Modules-webtools", "sandbox",
             "OperatingSystem-a", "OperatingSystem-front",
         ];
@@ -126,7 +169,7 @@ public sealed class ResourceNameFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
         {
-            Args = ["--operation", "publish", "--output-path", Path.Combine(Path.GetTempPath(), "intochat-names-publish"), "--IntoChatOS:Topology=local", "--IntoChatOS:Shell:Enabled=false"],
+            Args = ["--operation", "publish", "--output-path", Path.Combine(Path.GetTempPath(), "intochat-names-publish"), "--IntoChatOS:Topology=local", "--IntoChatOS:Shell:Enabled=true"],
             DisableDashboard = true,
         });
         var os = builder.AddIntoChatOS("Modules")
