@@ -20,5 +20,12 @@ internal static class KernelNames
         => name is not null && ((role == Os && name == Os)
             || (name.Length == role.Length + 2 && name.StartsWith(role + "-", StringComparison.Ordinal) && char.IsAsciiLetterLower(name[^1])));
 
+    // The kernel or its front, exactly as the live list names them: restarting either cuts the caller's own connection.
+    public static bool IsSelf(string name)
+        => name is Os or Legacy or Front or LegacyFront || IsInstance(name, Os) || IsInstance(name, Legacy);
+
+    public const string Front = "os-gateway";
+    public const string LegacyFront = "OperatingSystem-front";
+
     public static string RoleOf(string instance) => instance == Os ? Os : instance[..^2];
 }

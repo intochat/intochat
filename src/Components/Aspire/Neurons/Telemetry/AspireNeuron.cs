@@ -1,3 +1,4 @@
+using DigitalBrain.Log;
 using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -170,10 +171,13 @@ internal static partial class AspireLiveTelemetry
 internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
 {
     private readonly IConfiguration? _configuration;
-    private readonly AspireMcp? _mcp;
+    private readonly IAspireTools? _mcp;
 
-    public AspireNeuron(IConfiguration? configuration = null, AspireMcp? mcp = null)
+    private readonly DigitalBrain.Confirmation.IConfirmations? _confirmations;
+
+    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null, DigitalBrain.Confirmation.IConfirmations? confirmations = null)
     {
+        _confirmations = confirmations;
         _configuration = configuration;
         _mcp = mcp;
         AspireLiveTelemetry.EnsureListener();
@@ -188,9 +192,51 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
     public async Task<string> Ask(string tool, string argumentsJson = "{}")
     {
         if (_mcp is not { Available: true }) { return "Aspire's MCP server is not available here; it is reachable only when the kernel runs under a local AppHost."; }
+        if (!AspireMcp.ReadTools.Contains(tool)) { throw new ArgumentException($"'{tool}' is not one of the Aspire tools Ino may use: {string.Join(", ", AspireMcp.ReadTools)}."); }
         var arguments = JsonSerializer.Deserialize<Dictionary<string, object?>>(string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson) ?? [];
         return await _mcp.Call(tool, arguments, CancellationToken.None);
     }
+
+    // A direct person restarts at once; every other stamped caller waits for a person's yes. A refusal is always a returned value.
+    public async Task<AspireRestartResult> Restart(string resourceName)
+    {
+        if (_mcp is not { Available: true }) { return new(resourceName ?? "", false, "unavailable"); }
+        var live = await _mcp.AllResources(CancellationToken.None);
+        var match = string.IsNullOrWhiteSpace(resourceName) ? null : live.FirstOrDefault(view => string.Equals(view.Name, resourceName, StringComparison.Ordinal));
+        if (match is null) { return new(resourceName ?? "", false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)]); }
+        var name = match.Name;
+        if (KernelNames.IsSelf(name)) { return new(name, false, "self"); }
+        if (!IsDirectPerson(Context.Caller) && !await PersonSaysYes(name)) { return new(name, false, "declined"); }
+#pragma warning disable CA1031 // a failed command is a returned value, never a throw
+        try { await _mcp.Command(name, AspireMcp.RestartCommand, CancellationToken.None); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            IntoChat.OS.Host.Logging.OsConsoleLog.For<AspireNeuron>().LogSwallowed(error, $"restarting the Aspire resource {name}");
+            return new(name, false, "failed", Message: AspireLiveTelemetry.Sanitize(error.Message));
+        }
+#pragma warning restore CA1031
+        await Publish(new AspireResourceRestarted(name, Context.Time.GetUtcNow()));
+        return new(name, true);
+    }
+
+    private const int MaxKnown = 64;
+
+    // The same rule Answerer.Of uses for person authority: a stamped person, direct, outside any conversation.
+    private static bool IsDirectPerson(DigitalBrain.Access.Caller? caller)
+        => caller is { Direct: true, Conversation: null, Actor: DigitalBrain.Access.Actor.Person };
+
+    // Only an answer a person gave counts: a skipped plan (policy Never), a denial, a self-approval or an expiry is a no.
+    private async Task<bool> PersonSaysYes(string name)
+    {
+        if (_confirmations is null) { return false; }
+        var answer = await _confirmations.Confirm(new DigitalBrain.Confirmation.ConfirmationPlan(
+            $"{RestartKind}:{name}:{Guid.NewGuid():N}", DigitalBrain.Confirmation.ConfirmationAction.Other, false,
+            $"Restart {name}?", $"Restart the resource {name} of the running app.", "Restart", "Keep running", name)
+        { RequiresPerson = true, Kind = RestartKind, Subject = name });
+        return answer is { Approved: true, Skipped: false };
+    }
+
+    internal const string RestartKind = "aspire.resource.restart";
 
     public Task<string[]> GetConsoleLogsAsync(string resourceName, int tailLines = 50)
     {

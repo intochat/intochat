@@ -27,6 +27,12 @@ public sealed record AspireTraceSpan(
 [DigitalBrain.Signal("aspire.telemetry.changed")]
 public sealed record AspireTelemetryChanged(int LogCount, int TraceCount) : DigitalBrain.Signal;
 
+// Refused: Reason is "unavailable", "unknown" (Known lists the current names), "self", "declined" or "failed" (Message says why).
+public sealed record AspireRestartResult(string Resource, bool Accepted, string? Reason = null, string[]? Known = null, string? Message = null);
+
+[DigitalBrain.Signal("aspire.resource.restarted")]
+public sealed record AspireResourceRestarted(string Resource, DateTimeOffset At) : DigitalBrain.Signal;
+
 [NeuronAlias("aspire", Formerly = ["IntoChat.OS.Modules.Microsoft.Aspire.IAspire"]), DefaultNeuronType("aspire")]
 [Description("Local and cloud telemetry inspector for resources, console logs, structured logs, and distributed traces.")]
 public interface IAspire
@@ -50,6 +56,9 @@ public interface IAspire
     [Description("Read the running app through Aspire's MCP server. tool: list_resources, list_console_logs, list_structured_logs, list_traces or list_trace_structured_logs. argumentsJson: a JSON object, e.g. {\"resourceName\":\"os\",\"search\":\"error\"}.")]
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string> Ask(string tool, string argumentsJson = "{}");
+
+    [Description("Restart one resource of the running app by its exact name; a caller that is not a person needs the person's confirmation first. The kernel itself is refused, and a refused result says why.")]
+    Task<AspireRestartResult> Restart(string resourceName);
 
     Task RecordLogAsync(AspireLogEntry entry);
 
