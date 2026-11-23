@@ -70,6 +70,7 @@ public sealed class VisualCatalogFacts
     [InlineData("aspire", "Aspire", "brand:aspire", "#512BD4", "Developer")]
     [InlineData("diagnostics.aspire", "Aspire", "brand:aspire", "#512BD4", "Developer")]
     [InlineData("IntoChat.OS.Modules.Microsoft.Aspire.IAspire", "Aspire", "brand:aspire", "#512BD4", "Developer")]
+    [InlineData("IntoChat.Aspire.IAspire", "Aspire", "brand:aspire", "#512BD4", "Developer")]
     [InlineData("IGitHub", "GitHub", "brand:github", "#24292F", "Developer")]
     [InlineData("IWorkTree", "GitHub", "brand:github", "#24292F", "Developer")]
     [InlineData("github", "GitHub", "brand:github", "#24292F", "Developer")]

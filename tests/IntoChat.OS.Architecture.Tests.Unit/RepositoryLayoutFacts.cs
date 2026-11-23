@@ -24,6 +24,14 @@ public sealed class RepositoryLayoutFacts
         ["IntoChat.OS.Modules.Shell.Contracts"] = "IntoChat.OS.Modules.Flutter",
         ["IntoChat.OS.Modules.Storage"] = "IntoChat.OS.Modules.LocalDisk",
         ["IntoChat.OS.Modules.Windows"] = "IntoChat.OS.Modules.Microsoft.Windows",
+        ["IntoChat.Aspire.Contracts"] = "IntoChat.Aspire",
+    };
+
+    // A component's package id keeps the IntoChat.OS prefix the package allow-list requires (PackageRootAllowlistFacts; OWED.md).
+    private static readonly Dictionary<string, string> PackageIds = new(StringComparer.Ordinal)
+    {
+        ["IntoChat.Aspire"] = "IntoChat.OS.Aspire",
+        ["IntoChat.Aspire.Contracts"] = "IntoChat.OS.Aspire.Contracts",
     };
 
     [Fact]
@@ -100,7 +108,10 @@ public sealed class RepositoryLayoutFacts
                     || name == Prefix + folderName
                     || name == "IntoChat.OS.Modules." + folderName
                     || (folderName == "Contracts" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts")
-                    || (folderName == "Generators" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Generators"),
+                    || (folderName == "Generators" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Generators")
+                    // A component: src/Components/<Name>/IntoChat.<Name>.csproj and <Name>/Contracts/IntoChat.<Name>.Contracts.csproj.
+                    || name == "IntoChat." + folderName
+                    || (folderName == "Contracts" && name == "IntoChat." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts"),
                 $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;
@@ -129,7 +140,12 @@ public sealed class RepositoryLayoutFacts
             }
             foreach (var property in project.Descendants().Where(element => element.Name.LocalName is "RootNamespace" or "AssemblyName" or "PackageId"))
             {
-                var expectedValue = property.Name.LocalName == "RootNamespace" ? RootNamespaces.GetValueOrDefault(name, name) : name;
+                var expectedValue = property.Name.LocalName switch
+                {
+                    "RootNamespace" => RootNamespaces.GetValueOrDefault(name, name),
+                    "PackageId" => PackageIds.GetValueOrDefault(name, name),
+                    _ => name,
+                };
                 Assert.Equal(expectedValue, property.Value);
             }
         }

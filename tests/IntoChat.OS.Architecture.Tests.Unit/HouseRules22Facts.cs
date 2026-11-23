@@ -1146,7 +1146,7 @@ public sealed class HouseRules22Facts
             // A host registers the workflows it offers; it carries an Agent Framework factory, so it is not a contract.
             "IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition",
             "IntoChat.OS.Modules.Microsoft.Azure.ArmAzure",
-            "IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment",
+            "IntoChat.Aspire.CandidateEnvironment",
             "IntoChat.OS.Modules.Apps.OperationReceipt",
             "IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron",
             "IntoChat.OS.Modules.Apps.AppState",

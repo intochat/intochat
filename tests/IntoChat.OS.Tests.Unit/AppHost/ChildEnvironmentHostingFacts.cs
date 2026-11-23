@@ -5,8 +5,8 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
-using IntoChat.OS.Modules.Microsoft.Aspire;
-using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.Aspire;
+using IntoChat.Aspire.Candidates;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.AppHost.Tests.Unit;

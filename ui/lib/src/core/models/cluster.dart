@@ -1,4 +1,4 @@
-// Mirrors IntoChat.OS.Modules.Microsoft.Aspire.SiloState: one silo of the cluster and the build it runs.
+// Mirrors IntoChat.Aspire.SiloState: one silo of the cluster and the build it runs.
 final class SiloState {
   const SiloState({
     required this.id,

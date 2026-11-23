@@ -11,6 +11,14 @@ public sealed class ModuleBoundaryFacts
         "IntoChat.OS.Aspire",
     ];
 
+    // The Aspire component's packages carry IntoChat.OS ids (PackageRootAllowlistFacts) though they are not the Aspire host;
+    // they are the component's own projects (IntoChat.Aspire, IntoChat.Aspire.Contracts), so a closure may hold them.
+    private static readonly string[] ComponentPackages =
+    [
+        "IntoChat.OS.Aspire",
+        "IntoChat.OS.Aspire.Contracts",
+    ];
+
     [Fact]
     public void PlatformModulesUnderSrcModulesNeverReferenceOsKernelOrAspireHost()
     {
@@ -77,7 +85,8 @@ public sealed class ModuleBoundaryFacts
                 var slash = library.Name.IndexOf('/', StringComparison.Ordinal);
                 var name = slash < 0 ? library.Name : library.Name[..slash];
 
-                if (ForbiddenProjectPrefixes.Any(prefix => name.Equals(prefix, StringComparison.OrdinalIgnoreCase) || name.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase)))
+                if (!ComponentPackages.Contains(name, StringComparer.OrdinalIgnoreCase)
+                    && ForbiddenProjectPrefixes.Any(prefix => name.Equals(prefix, StringComparison.OrdinalIgnoreCase) || name.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase)))
                 {
                     osPackages.Add(name);
                 }

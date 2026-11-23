@@ -4,13 +4,15 @@ A module is a DigitalBrain module: a class that derives from `DigitalBrain.Modul
 
 Each module lives in a folder under `src/Modules` and has its own `README.md`. That README lists the module's options and secrets.
 
+A component is a module in the newer layout: `src/Components/<Name>` with `IntoChat.<Name>.csproj` and its contracts in `Contracts/IntoChat.<Name>.Contracts.csproj`. The first is `Aspire` (module id `aspire`): `AspireModule` reads runtime resources, logs and traces, builds and verifies candidates and rolls deployments; see `src/Components/Aspire/README.md`.
+
 ## The modules
 
 | Folder | Module id | What it does |
 | --- | --- | --- |
 | `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients). Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
-| `Azure` | `azure`, `aspire` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager. `AspireModule` reads runtime resources, logs and traces. |
+| `Azure` | `azure` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager, and Pulumi stacks. |
 | `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |
 | `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) and the one-release device-enrollment shim (`ICircleInviteRedeemer`). |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |

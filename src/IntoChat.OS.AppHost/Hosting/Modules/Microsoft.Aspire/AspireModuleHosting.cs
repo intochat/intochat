@@ -7,13 +7,13 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using AspireSdk = Aspire;
 using IntoChat.OS.Host.ServiceDefaults;
-namespace IntoChat.OS.Modules.Microsoft.Aspire;
+namespace IntoChat.Aspire;
 
 // Candidates work in {repository}/.intochat-os (gitignored): worktrees, builds and the candidate Dockerfile.
-public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Microsoft.Aspire.AspireModule>
+public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireModule>
 {
     public override void Configure(IntoChatOSBuilder brain)
     {
@@ -129,7 +129,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public static readonly TimeSpan DrainDelay = (ProbeInterval + ProbeTimeout) * ConsecutiveFailures;
     public static string DrainDelayVariable => ModuleConfiguration.EnvironmentName(HealthProbes.DrainDelayKey);
 
-    public const string OtlpHttpEndpoint = IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
+    public const string OtlpHttpEndpoint = IntoChat.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
 

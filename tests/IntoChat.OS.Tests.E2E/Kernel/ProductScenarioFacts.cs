@@ -13,7 +13,7 @@ using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;

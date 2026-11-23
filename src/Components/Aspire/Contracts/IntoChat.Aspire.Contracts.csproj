@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IsIntoChatOSModule>false</IsIntoChatOSModule>
+    <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
+    <RootNamespace>IntoChat.Aspire</RootNamespace>
+    <PackageId>IntoChat.OS.Aspire.Contracts</PackageId>
+    <Description>Wire contracts, signals and records of the Aspire component: telemetry, candidates, deployment and verification plans.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/IntoChat.OS.csproj" />
+  </ItemGroup>
+</Project>
