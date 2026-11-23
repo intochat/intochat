@@ -27,8 +27,16 @@ public sealed record AspireTraceSpan(
 [DigitalBrain.Signal("aspire.telemetry.changed")]
 public sealed record AspireTelemetryChanged(int LogCount, int TraceCount) : DigitalBrain.Signal;
 
-// Refused: Reason is "unavailable", "unknown" (Known lists the current names), "self", "declined" or "failed" (Message says why).
-public sealed record AspireRestartResult(string Resource, bool Accepted, string? Reason = null, string[]? Known = null, string? Message = null);
+// Not accepted: Reason is "pending" (Confirmation is the plan id; the outcome arrives as a signal), "unavailable", "unknown"
+// (Known lists the current names), "self", "declined" or "failed" (Message says why).
+public sealed record AspireRestartResult(string Resource, bool Accepted, string? Reason = null, string[]? Known = null, string? Message = null, string? Confirmation = null);
+
+[DigitalBrain.Signal("aspire.resource.restart-requested")]
+public sealed record AspireResourceRestartRequested(string Resource, string Confirmation) : DigitalBrain.Signal;
+
+// A restart that waited for the person and did not run: "declined", "failed", "unknown", "self" or "unavailable".
+[DigitalBrain.Signal("aspire.resource.restart-refused")]
+public sealed record AspireResourceRestartRefused(string Resource, string Reason, string? Message = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("aspire.resource.restarted")]
 public sealed record AspireResourceRestarted(string Resource, DateTimeOffset At) : DigitalBrain.Signal;
@@ -57,7 +65,7 @@ public interface IAspire
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string> Ask(string tool, string argumentsJson = "{}");
 
-    [Description("Restart one resource of the running app by its exact name; a caller that is not a person needs the person's confirmation first. The kernel itself is refused, and a refused result says why.")]
+    [Description("Restart one resource of the running app by its exact name; the kernel itself is refused and a refused result says why. A caller that is not a person gets \"pending\", and the restart runs once the person approves.")]
     Task<AspireRestartResult> Restart(string resourceName);
 
     Task RecordLogAsync(AspireLogEntry entry);

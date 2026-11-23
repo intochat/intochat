@@ -8,7 +8,8 @@ using TestEdge = IntoChat.OS.Tests.TestEdge;
 
 namespace IntoChat.OS.Tests.Unit.Components.Aspire;
 
-// IAspire.Restart: a person restarts at once; anyone else waits for the person's yes. The kernel, unknown names and a missing AppHost are refused.
+// IAspire.Restart: a direct person restarts at once; anyone else gets "pending" and the restart runs when a person approves through
+// the real confirmations neuron. The kernel, unknown names and a missing AppHost are refused. Asking never holds the neuron's turn.
 public sealed class AspireRestartFacts
 {
     private static readonly BrainId Brain = new("local");
@@ -24,7 +25,7 @@ public sealed class AspireRestartFacts
 
         Assert.True(result.Accepted);
         Assert.Equal([("web-searxng", AspireMcp.RestartCommand)], tools.Commands);
-        Assert.Equal([new AspireResourceRestarted("web-searxng", os.Clock.GetUtcNow())], Restarted(os));
+        Assert.Equal([new AspireResourceRestarted("web-searxng", os.Clock.GetUtcNow())], Signals<AspireResourceRestarted>(os));
     }
 
     [Fact]
@@ -94,45 +95,177 @@ public sealed class AspireRestartFacts
     [InlineData("agent")]
     [InlineData("app")]
     [InlineData("person-in-a-conversation")]
-    public async Task ACallerThatIsNotAPersonNeedsThePersonsConfirmation(string kind)
+    public async Task ACallerThatIsNotAPersonGetsPendingAndNothingRuns(string kind)
     {
         var tools = new FakeTools("web-searxng", "os");
         await using var os = Host(tools);
 
-        var approved = Call(os, NotAPerson(kind), aspire => aspire.Restart("web-searxng"));
-        var plan = await Asked(os);
-        Assert.Empty(tools.Commands);
-        await os.Confirmations.Approve(plan.PlanId);
-        Assert.True((await approved).Accepted);
-        Assert.Single(tools.Commands);
-        Assert.Single(Restarted(os));
+        var result = await Call(os, NotAPerson(kind), aspire => aspire.Restart("web-searxng"));
 
-        var declined = Call(os, NotAPerson(kind), aspire => aspire.Restart("web-searxng"));
-        await os.Confirmations.Deny((await Asked(os)).PlanId);
-        Assert.Equal("declined", (await declined).Reason);
-        Assert.Single(tools.Commands);
-        Assert.Single(Restarted(os));
+        Assert.False(result.Accepted);
+        Assert.Equal("pending", result.Reason);
+        Assert.Equal(result.Confirmation, Assert.Single(os.Confirmations.Waiting).PlanId);
+        Assert.Empty(tools.Commands);
+        Assert.Empty(Signals<AspireResourceRestarted>(os));
     }
 
+    [Fact]
+    public async Task ThePersonsApprovalRunsThePendingRestart()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var pending = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        await Answer(os, Person(), pending.Confirmation!, approve: true);
+
+        await Until(() => tools.Commands.Count == 1);
+        Assert.Equal([("web-searxng", AspireMcp.RestartCommand)], tools.Commands);
+        Assert.Single(Signals<AspireResourceRestarted>(os));
+    }
+
+    [Fact]
+    public async Task ThePersonsDenialPublishesDeclinedAndNothingRuns()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var pending = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        await Answer(os, Person(), pending.Confirmation!, approve: false);
+
+        await Until(() => Signals<AspireResourceRestartRefused>(os).Length == 1);
+        Assert.Equal([new AspireResourceRestartRefused("web-searxng", "declined")], Signals<AspireResourceRestartRefused>(os));
+        Assert.Empty(tools.Commands);
+    }
+
+    [Fact]
+    public async Task AnExpiredQuestionPublishesDeclinedAndNothingRuns()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        os.Clock.Advance(TimeSpan.FromMinutes(6));
+
+        await Until(() => Signals<AspireResourceRestartRefused>(os).Length == 1);
+        Assert.Equal("declined", Signals<AspireResourceRestartRefused>(os)[0].Reason);
+        Assert.Empty(tools.Commands);
+    }
+
+    [Fact]
+    public async Task AQuestionThePolicySkipsIsDeclinedAndNothingRuns()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools, ConfirmationPolicy.Never);
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal("declined", result.Reason);
+        Assert.Equal("declined", Assert.Single(Signals<AspireResourceRestartRefused>(os)).Reason);
+        Assert.Empty(tools.Commands);
+    }
+
+    // The approval goes to the real confirmations neuron as the agent itself: the Answerer rule refuses it and the question stays open.
     [Fact]
     public async Task AnAgentCannotApproveItsOwnRestart()
     {
         var tools = new FakeTools("web-searxng", "os");
         await using var os = Host(tools);
+        var agent = NotAPerson("agent");
+        var pending = await Call(os, agent, aspire => aspire.Restart("web-searxng"));
 
-        var restart = Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
-        var plan = await Asked(os);
-        os.Confirmations.Current = ConfirmationPrincipal.Agent("ino");
-        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => os.Confirmations.Approve(plan.PlanId));
-        Assert.False(restart.IsCompleted);
-        Assert.Contains(os.Confirmations.Waiting, waiting => waiting.PlanId == plan.PlanId);
-        Assert.Empty(tools.Commands);
+        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Answer(os, agent, pending.Confirmation!, approve: true));
+        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Answer(os, NotAPerson("app"), pending.Confirmation!, approve: true));
+        await os.Idle();
 
-        os.Confirmations.Current = ConfirmationPrincipal.Person("local");
-        await os.Confirmations.Deny(plan.PlanId);
-        Assert.Equal("declined", (await restart).Reason);
+        Assert.Contains(os.Confirmations.Waiting, waiting => waiting.PlanId == pending.Confirmation);
         Assert.Empty(tools.Commands);
-        Assert.Empty(Restarted(os));
+        Assert.Empty(Signals<AspireResourceRestarted>(os));
+    }
+
+    [Theory]
+    [InlineData("gone", "unknown")]
+    [InlineData("unavailable", "unavailable")]
+    public async Task AResourceThatChangedBeforeTheApprovalIsRefused(string change, string reason)
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var pending = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+        switch (change)
+        {
+            case "gone": tools.Names = ["os"]; break;
+            default: tools.Available = false; break;
+        }
+
+        await Answer(os, Person(), pending.Confirmation!, approve: true);
+
+        await Until(() => Signals<AspireResourceRestartRefused>(os).Length == 1);
+        Assert.Equal(reason, Signals<AspireResourceRestartRefused>(os)[0].Reason);
+        Assert.Empty(tools.Commands);
+    }
+
+    [Fact]
+    public async Task ASecondRequestForAPendingResourceReturnsTheSamePlan()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+
+        var first = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+        var second = await Call(os, NotAPerson("app"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal("pending", second.Reason);
+        Assert.Equal(first.Confirmation, second.Confirmation);
+        Assert.Single(os.Confirmations.Requested);
+    }
+
+    [Fact]
+    public async Task TheSeventeenthPendingRestartIsDeclined()
+    {
+        var names = Enumerable.Range(1, 17).Select(index => $"svc-{index}").ToArray();
+        var tools = new FakeTools([.. names, "os"]);
+        await using var os = Host(tools);
+
+        foreach (var name in names[..16])
+        {
+            Assert.Equal("pending", (await Call(os, NotAPerson("agent"), aspire => aspire.Restart(name))).Reason);
+        }
+        var seventeenth = await Call(os, NotAPerson("agent"), aspire => aspire.Restart(names[16]));
+
+        Assert.Equal("declined", seventeenth.Reason);
+        Assert.NotNull(seventeenth.Message);
+        Assert.Equal(16, os.Confirmations.Requested.Count);
+    }
+
+    [Fact]
+    public async Task APendingRestartSurvivesARestartOfTheHostAndCompletesOnApproval()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var pending = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        await os.Restart();
+        await Answer(os, Person(), pending.Confirmation!, approve: true);
+
+        await Until(() => tools.Commands.Count == 1);
+        Assert.Single(Signals<AspireResourceRestarted>(os));
+    }
+
+    // The regression for the blocking ask: while a restart waits for the person, the neuron keeps answering.
+    [Fact]
+    public async Task WhileARestartWaitsTheNeuronKeepsAnswering()
+    {
+        var tools = new FakeTools("web-searxng", "web-other", "os");
+        await using var os = Host(tools);
+
+        var waiting = Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+        var others = Task.WhenAll(
+            waiting,
+            Call(os, Person(), async aspire => { await aspire.RecordLogAsync(new AspireLogEntry(os.Clock.GetUtcNow(), "web", "Error", "x")); return true; }),
+            Call(os, Person(), async aspire => (await aspire.GetResourcesAsync()).Length > 0),
+            Call(os, NotAPerson("app"), async aspire => (await aspire.Restart("web-other")).Reason == "pending"));
+
+        Assert.Same(others, await Task.WhenAny(others, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken)));
+        Assert.Equal("pending", (await waiting).Reason);
+        Assert.Empty(tools.Commands);
     }
 
     [Fact]
@@ -146,7 +279,7 @@ public sealed class AspireRestartFacts
         Assert.False(result.Accepted);
         Assert.Equal("failed", result.Reason);
         Assert.Contains("boom", result.Message, StringComparison.Ordinal);
-        Assert.Empty(Restarted(os));
+        Assert.Empty(Signals<AspireResourceRestarted>(os));
     }
 
     [Fact]
@@ -160,10 +293,11 @@ public sealed class AspireRestartFacts
         Assert.DoesNotContain(AspireMcp.CommandTool, AspireMcp.ReadTools);
     }
 
-    private static TestOS Host(FakeTools tools)
+    private static TestOS Host(FakeTools tools, ConfirmationPolicy policy = ConfirmationPolicy.DestructiveOnly)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IAspireTools>(tools);
+        services.AddSingleton(new ConfirmationPolicies { DefaultPolicy = policy });
         var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
         os.Register<AspireNeuron>();
         return os;
@@ -175,6 +309,16 @@ public sealed class AspireRestartFacts
         return await call(os.Get<IAspire>(Aspire));
     }
 
+    // Answers on the real confirmations neuron as the given stamped caller; the Answerer rule decides who may approve.
+    private static async Task Answer(TestOS os, Caller caller, string planId, bool approve)
+    {
+        using (TestEdge.Authority.Enter(caller))
+        {
+            await os.Get<IConfirmationInbox>(IConfirmationRequests.Of(Brain)).Resolve(planId, approve);
+        }
+        await os.Idle();
+    }
+
     private static Caller Person() => TestEdge.Authority.Person("local", "local", Brain);
 
     private static Caller NotAPerson(string kind) => kind switch
@@ -184,23 +328,20 @@ public sealed class AspireRestartFacts
         _ => TestEdge.Authority.Person("local", "local", Brain, conversation: "chat-1"),
     };
 
-    private static async Task<ConfirmationRequested> Asked(TestOS os)
+    private static async Task Until(Func<bool> done)
     {
-        for (var i = 0; i < 400; i++)
-        {
-            if (os.Confirmations.Waiting.FirstOrDefault() is { } plan) { return plan; }
-            await Task.Delay(10);
-        }
-        throw new TimeoutException("No confirmation was asked.");
+        for (var i = 0; i < 500 && !done(); i++) { await Task.Delay(10, TestContext.Current.CancellationToken); }
+        Assert.True(done(), "The expected outcome never arrived.");
     }
 
-    private static AspireResourceRestarted[] Restarted(TestOS os)
-        => [.. os.Journal(Brain).Signals(Aspire).Select(entry => entry.Signal).OfType<AspireResourceRestarted>()];
+    private static T[] Signals<T>(TestOS os)
+        => [.. os.Journal(Brain).Signals(Aspire).Select(entry => entry.Signal).OfType<T>()];
 
     private sealed class FakeTools(params string[] names) : IAspireTools
     {
-        public bool Available { get; init; } = true;
+        public bool Available { get; set; } = true;
         public bool Fails { get; init; }
+        public string[] Names { get; set; } = names;
         public int Calls { get; private set; }
         public List<(string, string)> Commands { get; } = [];
 
@@ -213,7 +354,7 @@ public sealed class AspireRestartFacts
         public Task<AspireResourceView[]> AllResources(CancellationToken ct)
         {
             Calls++;
-            return Task.FromResult(names.Select(name => new AspireResourceView(name, "Running", "")).ToArray());
+            return Task.FromResult(Names.Select(name => new AspireResourceView(name, "Running", "")).ToArray());
         }
 
         public Task Command(string resourceName, string commandName, CancellationToken ct)

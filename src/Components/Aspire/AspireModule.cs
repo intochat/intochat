@@ -36,7 +36,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
     public static ConnectorDefinition Connector => new("aspire", "Aspire", ["deployment"], ["aspire"])
     {
         Neurons = [typeof(IAspire), typeof(ICandidate), typeof(IDeployment)],
-        Signals = [typeof(AspireTelemetryChanged), typeof(AspireResourceRestarted), typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
+        Signals = [typeof(AspireTelemetryChanged), typeof(AspireResourceRestarted), typeof(AspireResourceRestartRequested), typeof(AspireResourceRestartRefused), typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)

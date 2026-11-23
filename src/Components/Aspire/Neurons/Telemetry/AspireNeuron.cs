@@ -1,12 +1,16 @@
-using DigitalBrain.Log;
-using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using DigitalBrain.Confirmation;
+using DigitalBrain.Log;
 using DigitalBrain.State;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.Aspire;
+
+internal sealed record AspirePendingRestart(string PlanId, string Resource);
 
 [ExportableState]
 internal sealed record AspireTelemetryState(
@@ -17,6 +21,10 @@ internal sealed record AspireTelemetryState(
     public AspireTelemetryState() : this([], [], [])
     {
     }
+
+    // Restarts waiting for a person's answer. Null (not written) when none wait, so stored state without it reads and writes the same.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AspirePendingRestart[]? PendingRestarts { get; init; }
 }
 
 internal static partial class AspireLiveTelemetry
@@ -173,11 +181,9 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
     private readonly IConfiguration? _configuration;
     private readonly IAspireTools? _mcp;
 
-    private readonly DigitalBrain.Confirmation.IConfirmations? _confirmations;
 
-    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null, DigitalBrain.Confirmation.IConfirmations? confirmations = null)
+    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null)
     {
-        _confirmations = confirmations;
         _configuration = configuration;
         _mcp = mcp;
         AspireLiveTelemetry.EnsureListener();
@@ -197,44 +203,94 @@ internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetry
         return await _mcp.Call(tool, arguments, CancellationToken.None);
     }
 
-    // A direct person restarts at once; every other stamped caller waits for a person's yes. A refusal is always a returned value.
+    // A direct person restarts at once. Anyone else gets "pending" and a plan id: the request is stored, the person is asked without
+    // holding this neuron's turn, and OnRestartAnswered runs it once a person approves. Refusals are returned values or signals.
     public async Task<AspireRestartResult> Restart(string resourceName)
     {
-        if (_mcp is not { Available: true }) { return new(resourceName ?? "", false, "unavailable"); }
+        var (name, refused) = await Check(resourceName);
+        if (refused is not null) { return refused; }
+        if (IsDirectPerson(Context.Caller)) { return await Run(name, Pending(), null); }
+
+        if (Pending().FirstOrDefault(item => item.Resource == name) is { } waiting) { return new(name, false, "pending", Confirmation: waiting.PlanId); }
+        if (Pending().Length >= MaxPending) { return new(name, false, "declined", Message: $"{MaxPending} restarts already wait for the person's answer."); }
+        var plan = new ConfirmationPlan($"{RestartKind}:{name}:{Guid.NewGuid():N}", ConfirmationAction.Other, false,
+            $"Restart {name}?", $"Restart the resource {name} of the running app.", "Restart", "Keep running", name)
+        { RequiresPerson = true, Kind = RestartKind, Subject = name };
+        await Save(State with { PendingRestarts = [.. Pending(), new AspirePendingRestart(plan.Id, name)] }, new AspireResourceRestartRequested(name, plan.Id));
+        var immediate = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Request(plan);
+        if (immediate is null) { return new(name, false, "pending", Confirmation: plan.Id); }
+        // Answered without asking (policy Never, or already known): only a person's own yes runs a restart, so this is a no.
+        await Save(State with { PendingRestarts = Without(plan.Id) }, new AspireResourceRestartRefused(name, "declined"));
+        return new(name, false, "declined", Confirmation: plan.Id);
+    }
+
+    // The person's answer to a pending restart. Reads the authoritative outcome; only a person's own approval runs it, after the name
+    // is checked again against the live list. Every answer removes the request. Never calls back into this neuron's contract.
+    [DigitalBrain.Neurons.On]
+    public async Task OnRestartAnswered(ConfirmationResolved resolved, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+        ct.ThrowIfCancellationRequested();
+        if (Pending().FirstOrDefault(item => item.PlanId == resolved.PlanId) is not { } pending) { return; }
+        var outcome = await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Outcome(resolved.PlanId);
+        if (outcome is null) { return; }
+        var rest = Without(pending.PlanId);
+        if (outcome is not { Approved: true, Skipped: false, Approver.IsHuman: true })
+        {
+            await Save(State with { PendingRestarts = rest }, new AspireResourceRestartRefused(pending.Resource, "declined"));
+            return;
+        }
+        var (name, refused) = await Check(pending.Resource);
+        if (refused is not null)
+        {
+            await Save(State with { PendingRestarts = rest }, new AspireResourceRestartRefused(pending.Resource, refused.Reason!, refused.Message));
+            return;
+        }
+        await Run(name, rest ?? [], pending.PlanId);
+    }
+
+    protected override Task OnActivate(CancellationToken cancellationToken)
+        => Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+
+    // Availability first, then the exact live name, then the kernel itself. The name returned is the live list's.
+    private async Task<(string Name, AspireRestartResult? Refused)> Check(string? resourceName)
+    {
+        if (_mcp is not { Available: true }) { return ("", new(resourceName ?? "", false, "unavailable")); }
         var live = await _mcp.AllResources(CancellationToken.None);
         var match = string.IsNullOrWhiteSpace(resourceName) ? null : live.FirstOrDefault(view => string.Equals(view.Name, resourceName, StringComparison.Ordinal));
-        if (match is null) { return new(resourceName ?? "", false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)]); }
-        var name = match.Name;
-        if (KernelNames.IsSelf(name)) { return new(name, false, "self"); }
-        if (!IsDirectPerson(Context.Caller) && !await PersonSaysYes(name)) { return new(name, false, "declined"); }
-#pragma warning disable CA1031 // a failed command is a returned value, never a throw
-        try { await _mcp.Command(name, AspireMcp.RestartCommand, CancellationToken.None); }
+        if (match is null) { return ("", new(resourceName ?? "", false, "unknown", [.. live.Select(view => view.Name).Take(MaxKnown)])); }
+        return KernelNames.IsSelf(match.Name) ? ("", new(match.Name, false, "self")) : (match.Name, null);
+    }
+
+    // Runs the command and saves the state (any answered request removed) with the outcome signal.
+    private async Task<AspireRestartResult> Run(string name, AspirePendingRestart[] pending, string? planId)
+    {
+        var next = State with { PendingRestarts = pending.Length == 0 ? null : pending };
+#pragma warning disable CA1031 // a failed command is a returned value and a signal, never a throw
+        try { await _mcp!.Command(name, AspireMcp.RestartCommand, CancellationToken.None); }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             IntoChat.OS.Host.Logging.OsConsoleLog.For<AspireNeuron>().LogSwallowed(error, $"restarting the Aspire resource {name}");
-            return new(name, false, "failed", Message: AspireLiveTelemetry.Sanitize(error.Message));
+            var message = AspireLiveTelemetry.Sanitize(error.Message);
+            await Save(next, new AspireResourceRestartRefused(name, "failed", message));
+            return new(name, false, "failed", Message: message, Confirmation: planId);
         }
 #pragma warning restore CA1031
-        await Publish(new AspireResourceRestarted(name, Context.Time.GetUtcNow()));
-        return new(name, true);
+        await Save(next, new AspireResourceRestarted(name, Context.Time.GetUtcNow()));
+        return new(name, true, Confirmation: planId);
     }
 
+    private AspirePendingRestart[] Pending() => State.PendingRestarts ?? [];
+
+    private AspirePendingRestart[]? Without(string planId)
+        => Pending().Where(item => item.PlanId != planId).ToArray() is { Length: > 0 } rest ? rest : null;
+
     private const int MaxKnown = 64;
+    private const int MaxPending = 16;
 
     // The same rule Answerer.Of uses for person authority: a stamped person, direct, outside any conversation.
     private static bool IsDirectPerson(DigitalBrain.Access.Caller? caller)
         => caller is { Direct: true, Conversation: null, Actor: DigitalBrain.Access.Actor.Person };
-
-    // Only an answer a person gave counts: a skipped plan (policy Never), a denial, a self-approval or an expiry is a no.
-    private async Task<bool> PersonSaysYes(string name)
-    {
-        if (_confirmations is null) { return false; }
-        var answer = await _confirmations.Confirm(new DigitalBrain.Confirmation.ConfirmationPlan(
-            $"{RestartKind}:{name}:{Guid.NewGuid():N}", DigitalBrain.Confirmation.ConfirmationAction.Other, false,
-            $"Restart {name}?", $"Restart the resource {name} of the running app.", "Restart", "Keep running", name)
-        { RequiresPerson = true, Kind = RestartKind, Subject = name });
-        return answer is { Approved: true, Skipped: false };
-    }
 
     internal const string RestartKind = "aspire.resource.restart";
 

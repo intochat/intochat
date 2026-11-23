@@ -18,8 +18,9 @@ internal sealed class AspireMcp(IConfiguration? configuration) : IAspireTools, I
         "list_resources", "list_console_logs", "list_structured_logs", "list_traces", "list_trace_structured_logs",
     };
 
-    // Read from Aspire CLI 17.0.0 (`aspire agent mcp` tools/list: execute_resource_command {resourceName, commandName, arguments?},
-    // destructiveHint true) and Aspire.Hosting 17.1.0-preview.1.26569.1 (KnownResourceCommands restart = "resource-restart").
+    // CONFIRMED: the tool name and argument names, from tools/list of `aspire agent mcp` (Aspire CLI 17.0.0; destructiveHint true).
+    // UNCONFIRMED: the command name "resource-restart", read from KnownResourceCommands in Aspire.Hosting 17.1.0-preview.1.26569.1
+    // (a DLL string table), not yet observed through the tool. The CLI and hosting versions differ.
     internal const string CommandTool = "execute_resource_command";
     internal const string ResourceNameArgument = "resourceName";
     internal const string CommandNameArgument = "commandName";

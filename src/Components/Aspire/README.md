@@ -2,7 +2,7 @@
 
 The Aspire component: telemetry of the running app (`IAspire`), candidate builds (`ICandidate`, `ICandidates`), deployment rolls (`IDeployment`) and candidate verification. Contracts are in `Contracts/` (assembly `IntoChat.Aspire.Contracts`), neurons in `Neurons/`. Packages: `IntoChat.OS.Aspire`, `IntoChat.OS.Aspire.Contracts`.
 
-`IAspire` reads; its one writing verb is Restart (exact live name, signal `aspire.resource.restarted`): a direct person runs it at once, every other caller waits for the person's confirmation (`aspire.resource.restart`), and the kernel and its front are refused.
+`IAspire` reads; its one writing verb is Restart (exact live name). A direct person restarts at once. Any other caller gets `pending` and a plan id, and the restart runs once the person approves the confirmation (`aspire.resource.restart`); the outcome arrives as `aspire.resource.restarted` or `aspire.resource.restart-refused`. The kernel and its front are refused.
 
 Module id: `aspire`.
 
