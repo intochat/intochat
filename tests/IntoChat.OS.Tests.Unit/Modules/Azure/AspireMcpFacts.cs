@@ -8,14 +8,14 @@ namespace IntoChat.OS.Modules.Azure.Tests.Unit;
 public sealed class AspireMcpFacts
 {
     private const string ListResources = "resource_name is the identifier of resources.\r\n\r\n# PAGINATION\r\n\r\n{ \"offset\": 0 }\r\n\r\n# RESOURCE DATA\r\n\r\n"
-        + "[ { \"name\": \"OperatingSystem-a\", \"state\": \"Running\", \"urls\": [ { \"name\": \"http\", \"url\": \"http://localhost:14963\" } ] },"
-        + " { \"name\": \"Modules\", \"state\": \"Running\", \"urls\": [] } ]";
+        + "[ { \"name\": \"os\", \"state\": \"Running\", \"urls\": [ { \"name\": \"http\", \"url\": \"http://localhost:14963\" } ] },"
+        + " { \"name\": \"intochat\", \"state\": \"Running\", \"urls\": [] } ]";
 
     [Fact]
     public void ListResourcesBecomesResourceViews()
     {
         var views = AspireMcp.Resources(ListResources);
-        Assert.Equal(["OperatingSystem-a", "Modules"], views.Select(view => view.Name));
+        Assert.Equal(["os", "intochat"], views.Select(view => view.Name));
         Assert.Equal("http://localhost:14963", views[0].Endpoint);
         Assert.Equal("", views[1].Endpoint);
     }
