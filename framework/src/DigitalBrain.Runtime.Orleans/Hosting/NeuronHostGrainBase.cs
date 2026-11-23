@@ -146,7 +146,12 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             }
         }
 
-        var resolved = Slots.Resolve(id.Brain, component, needs, record?.EffectiveBindings());
+        var resolved = Slots.Resolve(
+            id.Brain,
+            component,
+            needs,
+            record?.EffectiveBindings(),
+            neuronType => types.TryGetRegistration(neuronType, out _));
         ServiceProvider.GetService<IBindingIndex>()?.Record(id.Brain, component, resolved);
         return resolved;
     }

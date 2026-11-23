@@ -12,7 +12,7 @@ public sealed record AppSetting(string Name, string Description, string Default)
 // A named connection slot; the bound connection id is per-brain state, never shared. A slot binds either a capability
 // ("storage@1", any connection whose module provides it) or, for a module with no capability yet, one module id
 // ("google-sheets"). Exactly one of the two is set.
-public sealed record AppSlot(string Name, string Connector = "", string? Capability = null)
+public sealed record AppSlot(string Name, string Connector = "", string? Capability = null, bool Required = true)
 {
     // What the slot binds, for display: its capability id, else its module id.
     public string Binds => Capability ?? Connector;
@@ -146,20 +146,20 @@ public sealed record AppManifest(
             if (slot.Contract.GetCustomAttribute<CapabilityAttribute>(inherit: false) is { } capability)
             {
                 var capabilityId = capability.Id.ToString();
-                slots[i] = new AppSlot(slot.Name, Connector: "", Capability: capabilityId);
-                if (!capabilities.Contains(capabilityId, StringComparer.Ordinal)) { capabilities.Add(capabilityId); }
+                slots[i] = new AppSlot(slot.Name, Connector: "", Capability: capabilityId, Required: slot.Required);
+                if (slot.Required && !capabilities.Contains(capabilityId, StringComparer.Ordinal)) { capabilities.Add(capabilityId); }
             }
             else
             {
                 var connector = ContractIdOf(slot.Contract);
-                slots[i] = new AppSlot(slot.Name, Connector: connector);
-                if (!connectors.Contains(connector, StringComparer.Ordinal)) { connectors.Add(connector); }
+                slots[i] = new AppSlot(slot.Name, Connector: connector, Required: slot.Required);
+                if (slot.Required && !connectors.Contains(connector, StringComparer.Ordinal)) { connectors.Add(connector); }
             }
         }
-        var requires = capabilities.Count > 0
+        var requires = capabilities.Count > 0 || connectors.Count > 0
             ? new AppRequirements(
                 Connectors: connectors.Count > 0 ? [.. connectors] : null,
-                Capabilities: [.. capabilities])
+                Capabilities: capabilities.Count > 0 ? [.. capabilities] : null)
             : null;
         return new AppManifest(
             Title: title,
@@ -220,12 +220,12 @@ public sealed record AppManifest(
             {
                 if (connector.Length > 0)
                 { throw new InvalidDataException($"Slot '{slot.Name}' binds both capability '{capability}' and module '{connector}'; bind one."); }
-                if (!(Requires?.Capabilities ?? []).Contains(capability, StringComparer.Ordinal))
+                if (slot.Required && !(Requires?.Capabilities ?? []).Contains(capability, StringComparer.Ordinal))
                 { throw new InvalidDataException($"Slot '{slot.Name}' binds capability '{capability}', which Requires.Capabilities does not list."); }
             }
             else if (connector.Length == 0)
             { throw new InvalidDataException($"Slot '{slot.Name}' binds nothing; give it a capability such as storage@1."); }
-            else if (Requires is { } requires && !(requires.Connectors ?? []).Contains(connector, StringComparer.Ordinal))
+            else if (slot.Required && Requires is { } requires && !(requires.Connectors ?? []).Contains(connector, StringComparer.Ordinal))
             { throw new InvalidDataException($"Slot '{slot.Name}' binds module '{connector}', which Requires does not list."); }
         }
         return ReferenceEquals(title, Title)

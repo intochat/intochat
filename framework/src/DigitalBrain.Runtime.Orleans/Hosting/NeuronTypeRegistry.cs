@@ -37,8 +37,9 @@ internal sealed record NeuronRegistration(string Type, Type Class, string StateN
 /// <see cref="App"/> classes fail startup. The maps are thread-safe: <see cref="RegisterState"/> and <see cref="UnregisterState"/>
 /// change them while the silo runs, and every lookup reads the live map.
 /// </summary>
-internal sealed class NeuronTypeRegistry
+internal sealed class NeuronTypeRegistry : DigitalBrain.Components.IHostedNeuronTypes
 {
+    public bool IsHosted(string neuronType) => !string.IsNullOrWhiteSpace(neuronType) && _types.ContainsKey(neuronType);
     internal const string AffineGrainType = "neuron.host";
     internal const string ReentrantGrainType = "neuron.host.reentrant";
     internal const string StatelessGrainType = "neuron.host.stateless";
