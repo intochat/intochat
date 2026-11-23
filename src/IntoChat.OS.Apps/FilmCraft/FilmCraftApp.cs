@@ -10,6 +10,7 @@ with dual execution:
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/filmcraft) for agentic timeline tool calls.
 3. Interactive WASM Web UI mode for full-card browser timeline editing.
 */
+using IntoChat.OS.Host.Apps;
 using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Neurons;

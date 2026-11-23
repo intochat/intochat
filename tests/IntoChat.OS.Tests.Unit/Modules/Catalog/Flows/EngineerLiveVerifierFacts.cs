@@ -30,6 +30,37 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     }
 
     [Fact]
+    public void AChangeToAComponentScreenPlansAReadOfItsApp()
+    {
+        string[] changed = ["src/Components/Aspire/Screens/AspireApp.cs"];
+
+        Assert.True(EngineerLiveVerifier.TouchesUiSurface(changed));
+        Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan(changed).McpCalls, call => call.Target == "app.aspire" && call.Method == "Read");
+    }
+
+    [Fact]
+    public void AChangeToComponentCodeOutsideScreensIsNotAUiChange()
+    {
+        string[] changed = ["src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs"];
+
+        Assert.False(EngineerLiveVerifier.TouchesUiSurface(changed));
+        Assert.DoesNotContain(EngineerLiveVerifier.DeriveVerificationPlan(changed).McpCalls, call => call.Target.StartsWith("app.", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("src/IntoChat.OS.Apps/Settings/SettingsApp.cs", "app.settings")]
+    [InlineData("IntoChat.OS.Apps/Orleans/OrleansApp.cs", "app.orleans")]
+    public void AChangeToAShellAppStillPlansAReadOfItsApp(string path, string target)
+    {
+        Assert.True(EngineerLiveVerifier.TouchesUiSurface([path]));
+        Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan([path]).McpCalls, call => call.Target == target && call.Method == "Read");
+    }
+
+    [Fact]
+    public void AChangeToTheUiKitIsAUiChange()
+        => Assert.True(EngineerLiveVerifier.TouchesUiSurface(["src/IntoChat.OS.UI/Kit.cs"]));
+
+    [Fact]
     public async Task VerifyLiveAsync_WithNoConfiguredEndpointOrCandidate_RefusesPlaceboPass()
     {
         using var verifier = new EngineerLiveVerifier();

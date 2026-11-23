@@ -6,6 +6,7 @@ Operations: open, reload, ui.command
 
 Built-in full-bleed WebBrowser operator surface (`app.devui`) targeting IntoChat OS's co-hosted `/devui/` developer console.
 */
+using IntoChat.OS.Host.Apps;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;

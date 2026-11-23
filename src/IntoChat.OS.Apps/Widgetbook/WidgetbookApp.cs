@@ -7,6 +7,7 @@ Operations: open, switch-source, set-theme, reload, ui.command
 Built-in full-bleed WebBrowser UI Kit workbench (`app.widgetbook`) hosting IntoChat OS's
 open-source Flutter Widgetbook catalog at `/widgetbook` (or live hot-reload on localhost:8090).
 */
+using IntoChat.OS.Host.Apps;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;

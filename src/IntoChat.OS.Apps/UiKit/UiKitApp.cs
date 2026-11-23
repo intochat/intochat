@@ -9,6 +9,7 @@ slotted children (slot key = the kind); data node kinds are drawn inline from th
 domain signals and keeps the last 50 in an event log shown on every page: the visible proof each control signals. Controls are
 uncontrolled (they keep their own state) except the switch labelled as controlled, whose value the app owns.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;

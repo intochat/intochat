@@ -7,6 +7,7 @@ Operations: open, select-section, focus-trace, connect, reload, ui.command, ui.n
 Built-in full-bleed WebBrowser operator surface (`app.aspire`) targeting the live .NET Aspire Dashboard
 for resources, distributed traces (`traces/detail/{traceId}`), structured logs, console logs, and metrics.
 */
+using IntoChat.OS.Host.Apps;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;

@@ -7,6 +7,7 @@ Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-s
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
 and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, `ITable`, `ICommandBar`).
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;

@@ -1,6 +1,6 @@
 using DigitalBrain.Neurons;
 
-namespace IntoChat.OS.UI;
+namespace IntoChat.OS.Host.Apps;
 
 // Test hook: a screen reports its activation so a test can hold the live instance (TestOsAppExtensions.Install).
 public static class AppActivationScope

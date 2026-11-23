@@ -9,6 +9,7 @@ Persists .markdraw Markdown sketch files, .excalidraw JSON scenes, and .svg expo
 and exposes co-drawing operations (read-canvas, patch-elements, from-data, sync-scene) so both the user and Ino can inspect
 and mutate the exact same live canvas without overwriting hand-drawn strokes.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Log;

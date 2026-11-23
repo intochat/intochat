@@ -7,6 +7,7 @@ Operations: open, refresh, set-budget
 Shows this brain's recorded compute spending over the last 30 days in USD, converted from micro-credits.
 Reads through the scope-checked compute neuron when available and falls back to default telemetry in standalone mode.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using DigitalBrain;

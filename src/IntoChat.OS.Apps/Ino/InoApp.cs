@@ -4,6 +4,7 @@ Role: Shell
 Shipped: true
 Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, ui.command
 */
+using IntoChat.OS.Host.Apps;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Components;

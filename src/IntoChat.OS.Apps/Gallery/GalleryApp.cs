@@ -7,6 +7,7 @@ Operations: open, filter, select, switch-identity, ui.command
 WinUI 3-style IntoChat UI Kit Gallery powered by live `IntoChat.OS.Modules.UI` neurons
 (`IChart`, `IToggle`, `ICheckBox`, `ISelect`, `ITabs`, `IExpander`, `IListBox`, `ITable`).
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Components;

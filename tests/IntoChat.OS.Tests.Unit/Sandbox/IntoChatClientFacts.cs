@@ -111,6 +111,11 @@ public sealed class IntoChatClientFacts
         Assert.False(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Azure"));
     }
 
+    // The activation hook hands a caller the live neuron of any app activated in its async flow; sandboxed code must not reach it.
+    [Fact]
+    public void AppLoadContextRefusesTheAssemblyHoldingTheActivationHook()
+        => Assert.False(AppLoadContext.IsAssemblyAllowed(typeof(IntoChat.OS.Host.Apps.AppActivationScope).Assembly.GetName().Name));
+
     [Fact]
     public void AppLoadContextAllowsSdkAndRefusesForbiddenHostAssemblies()
     {

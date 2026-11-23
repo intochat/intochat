@@ -6,6 +6,7 @@ Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, fo
 
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
+using IntoChat.OS.Host.Apps;
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Kernel;
