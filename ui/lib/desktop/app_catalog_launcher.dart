@@ -48,6 +48,7 @@ class SmartAppTileSpec {
 
 const _defaultSmartAppIds = <String>[
   'ino',
+  'muncly',
   'files',
   'photocraft',
   'filmcraft',
@@ -92,6 +93,7 @@ const _coreSmartAppIds = <String>[
   'gallery',
   'markdraw',
   'aspire',
+  'muncly',
   'orleans',
   'devui',
   'widgetbook',
@@ -117,6 +119,11 @@ final List<SmartAppTileSpec> allSmartAppSpecs = List.unmodifiable([
         id,
         titleOverride: 'Orleans Dashboard',
         categoryOverride: 'Developer',
+      ),
+      'muncly' => SmartAppTileSpec.fromIconSpec(
+        id,
+        titleOverride: 'Muncly CRM',
+        categoryOverride: 'Business',
       ),
       'devui' => SmartAppTileSpec.fromIconSpec(
         id,

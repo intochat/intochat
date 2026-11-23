@@ -1091,6 +1091,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final normalized = appId.trim().toLowerCase();
     return normalized == 'orleans' ||
         normalized == 'aspire' ||
+        normalized == 'muncly' ||
         normalized == 'widgetbook' ||
         normalized == 'devui' ||
         IcAppIcon.findArtCraftByUrlOrName(normalized) != null;
