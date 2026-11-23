@@ -20,18 +20,19 @@ internal static class KernelNames
         => name is not null && ((role == Os && name == Os)
             || (name.Length == role.Length + 2 && name.StartsWith(role + "-", StringComparison.Ordinal) && char.IsAsciiLetterLower(name[^1])));
 
-    // The kernel or its front, exactly as the live list names them: restarting either cuts the caller's own connection.
-    // Also this process's own instance name whatever its shape, and the rebuilder Aspire adds beside either.
-    public static bool IsSelf(string name, string? self = null)
-        => IsKernelOrSelf(name, self)
-            || (name.Length > RebuilderSuffix.Length && name.EndsWith(RebuilderSuffix, StringComparison.Ordinal)
-                && IsKernelOrSelf(name[..^RebuilderSuffix.Length], self));
+    // Is this live resource the kernel or part of it (its front, a replica, its rebuilder)? A refusal rule, so it fails closed and
+    // depends on no suffix format: the exact name, the display name list_resources gives, or the display name AspireMcp.DisplayNameOf
+    // derives is, or begins with followed by '-', '_' or '.', a kernel base ("os", "OperatingSystem", or this process's own instance
+    // name when it has one), ignoring case. So os-gateway, os-rebuilder or a hypothetical os-db cannot be restarted through IAspire;
+    // a name that only begins with the letters ("oscar", "OperatingSystems") can. Every rebuilder shape begins with a base, so it needs no rule of its own.
+    public static bool IsSelfLive(string liveName, string? displayField, string? self)
+        => new[] { liveName, displayField, AspireMcp.DisplayNameOf(liveName), displayField is null ? null : AspireMcp.DisplayNameOf(displayField) }
+            .OfType<string>()
+            .Any(name => BeginsWith(name, Os) || BeginsWith(name, Legacy) || (!string.IsNullOrEmpty(self) && BeginsWith(name, self)));
 
-    private static bool IsKernelOrSelf(string name, string? self)
-        => name is Os or Legacy or Front or LegacyFront || IsInstance(name, Os) || IsInstance(name, Legacy)
-            || (!string.IsNullOrEmpty(self) && string.Equals(name, self, StringComparison.Ordinal));
-
-    private const string RebuilderSuffix = "-rebuilder";
+    private static bool BeginsWith(string name, string kernelBase)
+        => name.StartsWith(kernelBase, StringComparison.OrdinalIgnoreCase)
+            && (name.Length == kernelBase.Length || name[kernelBase.Length] is '-' or '_' or '.');
 
     public const string Front = "os-gateway";
     public const string LegacyFront = "OperatingSystem-front";

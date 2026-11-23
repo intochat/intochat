@@ -300,13 +300,7 @@ internal sealed partial class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireT
     private static string[] DisplayNames(AspireResourceView view)
         => [.. new[] { view.DisplayName, AspireMcp.DisplayNameOf(view.Name), view.DisplayName is null ? null : AspireMcp.DisplayNameOf(view.DisplayName) }.OfType<string>().Distinct()];
 
-    // Fails closed: the kernel, its front, this process or a rebuilder of any of them under its exact name or any display name.
-    private bool IsSelf(AspireResourceView view)
-        => DisplayNames(view).Append(view.Name).Any(name => KernelNames.IsSelf(name, _self)
-            || (name.EndsWith(Rebuilder, StringComparison.Ordinal) && name.Length > Rebuilder.Length
-                && KernelNames.IsSelf(AspireMcp.DisplayNameOf(name[..^Rebuilder.Length]), _self)));
-
-    private const string Rebuilder = "-rebuilder";
+    private bool IsSelf(AspireResourceView view) => KernelNames.IsSelfLive(view.Name, view.DisplayName, _self);
 
     // Runs the command and saves the state (any answered request removed) with the outcome signal.
     private async Task<AspireRestartResult> Run(string name, AspirePendingRestart[] pending, string? planId)

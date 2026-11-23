@@ -582,6 +582,98 @@ public sealed class AspireRestartFacts
         Assert.Empty(tools.Commands);
     }
 
+    // Fail closed whatever suffix format Aspire uses: a name that is, or begins with, a kernel base and a separator is the kernel.
+    [Theory]
+    [InlineData("os_gdnnbbha", "person")]
+    [InlineData("os-Gdnnbbh1x", "person")]
+    [InlineData("os-gdnnbbh", "person")]
+    [InlineData("os.gdnnbbha", "person")]
+    [InlineData("os-gdnn-bbha", "person")]
+    [InlineData("OS-gdnnbbha", "person")]
+    [InlineData("os-gateway_x1", "person")]
+    [InlineData("OperatingSystem_a", "person")]
+    [InlineData("OperatingSystem-a.b", "person")]
+    [InlineData("os_gdnnbbha", "agent")]
+    [InlineData("os-Gdnnbbh1x", "agent")]
+    [InlineData("os-gdnnbbh", "agent")]
+    [InlineData("os.gdnnbbha", "agent")]
+    [InlineData("os-gdnn-bbha", "agent")]
+    [InlineData("OS-gdnnbbha", "agent")]
+    [InlineData("os-gateway_x1", "agent")]
+    [InlineData("OperatingSystem_a", "agent")]
+    [InlineData("OperatingSystem-a.b", "agent")]
+    public async Task TheKernelIsRefusedWhateverSuffixAspireUses(string name, string caller)
+    {
+        var tools = new FakeTools("web-searxng-a265990c", name);
+        await using var os = Host(tools, self: "os");
+        await Call(os, Person(), async aspire => (await aspire.GetResourcesAsync()).Length);
+        var saves = os.Journal(Brain).Saves;
+
+        var result = await Call(os, caller == "person" ? Person() : NotAPerson("agent"), aspire => aspire.Restart(name));
+
+        Assert.Equal("self", result.Reason);
+        Assert.Empty(tools.Commands);
+        Assert.Empty(os.Confirmations.Requested);
+        Assert.Equal(saves, os.Journal(Brain).Saves); // nothing stored: no pending entry, no signal
+    }
+
+    [Theory]
+    [InlineData("kernel-7", true)]
+    [InlineData("kernel-7-abcdefgh", true)]
+    [InlineData("kernel-7_x", true)]
+    [InlineData("kernel-70", false)]
+    [InlineData("kernel", false)]
+    public async Task AnInstanceNameThatIsNotAKnownShapeStillProtectsItsOwnResources(string name, bool self)
+    {
+        var tools = new FakeTools("os", name);
+        await using var os = Host(tools, self: "kernel-7");
+
+        var result = await Call(os, Person(), aspire => aspire.Restart(name));
+
+        Assert.Equal(self ? "self" : null, result.Reason);
+        Assert.Equal(self ? 0 : 1, tools.Commands.Count);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task AnEmptyInstanceNameRefusesNothingExtra(string? self)
+    {
+        var tools = new FakeTools("web-searxng-a265990c", "ai", "intochat", "os-gdnnbbha");
+        await using var os = Host(tools, self: self);
+
+        foreach (var name in (string[])["web-searxng-a265990c", "ai", "intochat"])
+        {
+            Assert.True((await Call(os, Person(), aspire => aspire.Restart(name))).Accepted);
+        }
+        Assert.Equal("self", (await Call(os, Person(), aspire => aspire.Restart("os-gdnnbbha"))).Reason);
+        Assert.Equal(3, tools.Commands.Count);
+    }
+
+    [Theory]
+    [InlineData("oscar")]
+    [InlineData("osmosis-cache")]
+    [InlineData("OperatingSystems")]
+    public async Task NamesThatOnlyBeginWithTheLettersAreNotRefused(string name)
+    {
+        var tools = new FakeTools("os", name);
+        await using var os = Host(tools, self: "os");
+
+        Assert.True((await Call(os, Person(), aspire => aspire.Restart(name))).Accepted);
+    }
+
+    [Fact]
+    // "password" is 8 lowercase letters, so the parameter intochat-os-bootstrap-password derives intochat-os-bootstrap: the coincidence
+    // case DisplayNameOf accepts. It is not self (it does not begin with a kernel base).
+    public void TheLiveNameShapeAspireUsedOn20261123IsRecognised()
+    {
+        Assert.Equal(["os-gateway-bcrfeyre", "os-gdnnbbha"], LiveNames.Where(name => KernelNames.IsSelfLive(name, null, "os")));
+        Assert.Equal(
+            ["Modules-intochat-os-master-key", "Modules-searxng-secret", "ai", "ai-ollama", "ai-ollama-openwebui", "aspire", "devices", "github",
+             "intochat", "intochat-os-bootstrap", "mcp", "orleans", "os-gateway", "os", "web", "web-searxng"],
+            LiveNames.Select(AspireMcp.DisplayNameOf));
+    }
+
     [Theory]
     [InlineData("os-gdnnbbha", "os")]
     [InlineData("os-gateway-bcrfeyre", "os-gateway")]
