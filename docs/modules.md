@@ -4,7 +4,15 @@ A module is a DigitalBrain module: a class that derives from `DigitalBrain.Modul
 
 Each module lives in a folder under `src/Modules` and has its own `README.md`. That README lists the module's options and secrets.
 
-A component is a module in the newer layout: `src/Components/<Name>` with `IntoChat.<Name>.csproj` and its contracts in `Contracts/IntoChat.<Name>.Contracts.csproj`. The first is `Aspire` (module id `aspire`): `AspireModule` reads runtime resources, logs and traces, builds and verifies candidates and rolls deployments; see `src/Components/Aspire/README.md`.
+Modules and components coexist. A component (see [concepts](concepts.md)) is the newer layout and replaces a module and its system app together, one at a time; only `Aspire` has moved, and every module in the table below is still in `src/Modules`. A component differs from a module in layout:
+
+- It lives in `src/Components/<Name>`: `IntoChat.<Name>.csproj` and its contracts in `Contracts/IntoChat.<Name>.Contracts.csproj`. Assemblies are `IntoChat.<Name>` and `IntoChat.<Name>.Contracts`; the package ids are `IntoChat.OS.Components.<Name>` and `IntoChat.OS.Components.<Name>.Contracts`.
+- It owns its app screens in `Screens/` and registers them from its module class, so no project in `src/IntoChat.OS.Apps` carries them.
+- Any AppHost code is in `Hosting/`, which the component's own project does not compile; the AppHost includes it through a linked item.
+- Its unit tests are in `tests/IntoChat.OS.Tests.Unit/Components/<Name>`.
+- Other modules and components may reference it only through its `Contracts` project.
+
+The module class is the same: it derives from `DigitalBrain.Modules.Module`, carries `[Module]` and keeps its id (`aspire` for `AspireModule`). The first component is `src/Components/Aspire`; copy its shape, and read `ComponentFacts` for the rules that are checked.
 
 ## The modules
 
@@ -34,6 +42,8 @@ A component is a module in the newer layout: `src/Components/<Name>` with `IntoC
 The kernel also carries modules of its own: `OrleansModule` and `HttpModule` (id `web`) in `src/IntoChat.OS.Kernel`, and `IdentityModule` in `src/Modules/Identity`, whose contracts (`IntoChat.OS.Modules.Identity.Contracts`) are in `src/Modules/Identity/Contracts`.
 
 ## How a module is added
+
+To add a component instead, create `src/Components/<Name>` in the shape of `src/Components/Aspire`; `ComponentFacts` checks the layout. The rest of this section is for a module under `src/Modules`.
 
 1. Create a folder under `src/Modules` with a project whose assembly name starts with `IntoChat.OS.Modules.`. The framework has a template; see [module template](../framework/docs/modules.md).
 2. Add a public module class with a parameterless constructor, the `[Module]` attribute and a static `Manifest` of type `ModuleManifest`. The manifest names what the module provides, requires and needs, and its settings and secrets.

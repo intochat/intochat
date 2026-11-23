@@ -65,9 +65,11 @@ A screen can slot control neurons (`src/IntoChat.OS.Apps/Controls`) into its vie
 - `CreatorSelect`, `CreatorTrace` and `CreatorReplay` drive the inspector and step through a trace.
 - `CreatorShare` publishes the selected unit to your profile.
 
-## Modules
+## Modules and components
 
-A module adds neurons, contracts and settings to the kernel. Each lives in a folder under `src/Modules`. See [modules](modules.md).
+A module adds neurons, contracts and settings to the kernel. Each lives in a folder under `src/Modules`. A component, in `src/Components/<Name>`, is the same plus the app screens of that capability. Their layers, from the bottom: the contracts assembly (`IntoChat.<Name>.Contracts`), which others reference; the implementation (`IntoChat.<Name>`), which only the Kernel references to compose it; the host layer `src/IntoChat.OS.Host`, which a component uses and which never references a component; and, for hosting code, the AppHost, which compiles the component's `Hosting` folder. See [modules](modules.md).
+
+Direction: modules and system apps are being merged into components one at a time, and the two roots, `src/Modules` and `src/Components`, coexist until the last one has moved.
 
 ## Shell
 
