@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
-using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.Aspire;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,45 +95,62 @@ public sealed class AspireRestartFacts
         Assert.Empty(tools.Commands);
     }
 
-    // The reviewer's orphan: the confirmations neuron refuses the question (TooManyWaiting, AlreadyRequested). Nothing is stored or
-    // announced, the caller hears "declined" with the refusal, and the next request asks again instead of answering a dead plan.
+    // The reviewer's orphan: the confirmations neuron refuses the question (here TooManyWaiting for the Aspire neuron as raiser).
+    // Nothing is stored or announced, the caller hears "declined" with the refusal, and once the quota frees the next request asks
+    // again instead of answering a dead plan.
     [Fact]
     public async Task ARequestTheConfirmationsRefuseLeavesNothingPending()
     {
-        var confirmations = new FakeConfirmations { Refuse = "This raiser already has 20 confirmations waiting." };
-        var (neuron, context) = await Attached(new FakeTools("web-searxng", "os"), confirmations);
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var others = await FillTheQuotaOfAspire(os);
 
-        var refused = await neuron.Restart("web-searxng");
+        var refused = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
 
-        Assert.False(refused.Accepted);
         Assert.Equal("declined", refused.Reason);
-        Assert.Equal(confirmations.Refuse, refused.Message);
-        Assert.Empty(context.Published.OfType<AspireResourceRestartRequested>());
+        Assert.Null(refused.Confirmation);
+        Assert.Contains("confirmations waiting", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(Signals<AspireResourceRestartRequested>(os));
+        Assert.DoesNotContain(os.Confirmations.Waiting, waiting => waiting.PlanId.StartsWith(AspireNeuron.RestartKind, StringComparison.Ordinal));
 
-        confirmations.Refuse = null;
-        var again = await neuron.Restart("web-searxng");
+        await Answer(os, Person(), others[0].Id, approve: false);
+        var again = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
 
         Assert.Equal("pending", again.Reason);
-        Assert.Equal(confirmations.Requested[^1], again.Confirmation);
-        Assert.NotEqual(confirmations.Requested[0], again.Confirmation);
-        Assert.Equal(again.Confirmation, Assert.Single(context.Published.OfType<AspireResourceRestartRequested>()).Confirmation);
+        Assert.Contains(os.Confirmations.Waiting, waiting => waiting.PlanId == again.Confirmation);
+        Assert.Equal(again.Confirmation, Assert.Single(Signals<AspireResourceRestartRequested>(os)).Confirmation);
     }
 
-    // The confirmations neuron has no record of a resolved plan: that request can never resolve, so it is dropped as declined.
+    // The confirmations neuron keeps the last ConfirmationState.MaxEntries answers: a resolved plan it no longer has a record of can
+    // never be read, so the waiting restart ends as declined. The neuron first activates after the record is gone.
     [Fact]
     public async Task AnAnswerWithNoRecordBehindItDropsThePendingRestart()
     {
-        var confirmations = new FakeConfirmations();
-        var (neuron, context) = await Attached(new FakeTools("web-searxng", "os"), confirmations);
-        var pending = await neuron.Restart("web-searxng");
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+        var now = os.Clock.GetUtcNow().ToString("O");
+        os.SeedStoredState(Aspire, "{\"resources\":[],\"structuredLogs\":[],\"traces\":[],\"pendingRestarts\":[{\"planId\":\"ghost\",\"resource\":\"web-searxng\",\"requestedAt\":\"" + now + "\"}]}");
+        await Call(os, Person(), async aspire => (await aspire.GetResourcesAsync()).Length);
+        await os.Deactivate(Aspire);
+        var confirmations = os.Get<IConfirmationRequests>(IConfirmationRequests.Of(Brain));
+        using (TestEdge.Authority.Enter(Person()))
+        {
+            foreach (var id in (string[])["ghost", .. Enumerable.Range(0, ConfirmationState.MaxEntries).Select(index => $"later:{index}")])
+            {
+                await confirmations.Request(Plan(id));
+                await Answer(os, Person(), id, approve: false);
+            }
+            Assert.Null(await confirmations.Outcome("ghost"));
+        }
+        Assert.False(os.IsActive(Aspire));
 
-        await neuron.OnRestartAnswered(Resolved(pending.Confirmation!, context.Clock.GetUtcNow()), TestContext.Current.CancellationToken);
+        await Call(os, Person(), async aspire => (await aspire.GetResourcesAsync()).Length);
 
-        Assert.Equal([new AspireResourceRestartRefused("web-searxng", "declined")], context.Published.OfType<AspireResourceRestartRefused>());
-        var again = await neuron.Restart("web-searxng");
-        Assert.Equal("pending", again.Reason);
-        Assert.NotEqual(pending.Confirmation, again.Confirmation);
+        await Until(() => Signals<AspireResourceRestartRefused>(os).Length == 1);
+        Assert.Equal([new AspireResourceRestartRefused("web-searxng", "declined")], Signals<AspireResourceRestartRefused>(os));
+        Assert.Empty(tools.Commands);
     }
+
 
     // A pending entry older than three confirmation expiries has lost its answer: it is dropped as expired and the resource asks again.
     [Fact]
@@ -427,36 +443,23 @@ public sealed class AspireRestartFacts
     private static T[] Signals<T>(TestOS os)
         => [.. os.Journal(Brain).Signals(Aspire).Select(entry => entry.Signal).OfType<T>()];
 
-    private static async Task<(AspireNeuron Neuron, FakeNeuronContext Context)> Attached(FakeTools tools, FakeConfirmations confirmations)
+    // Fills the confirmation quota (ConfirmationState.PendingLimit) of the Aspire neuron as raiser, so its next Request is refused.
+    private static async Task<ConfirmationPlan[]> FillTheQuotaOfAspire(TestOS os)
     {
-        var context = new FakeNeuronContext(Aspire) { Caller = NotAPerson("agent") };
-        context.Proxies.Register<IConfirmationRequests>(IConfirmationRequests.Of(Brain), confirmations);
-        var neuron = new AspireNeuron(mcp: tools);
-        NeuronAttachment.Attach(neuron, context);
-        await NeuronAttachment.Activate(neuron, TestContext.Current.CancellationToken);
-        return (neuron, context);
-    }
-
-    private static ConfirmationResolved Resolved(string planId, DateTimeOffset at)
-        => new(planId, ConfirmationAction.Other, "web-searxng", new ConfirmationPrincipal("agent", PrincipalKind.App), null,
-            ConfirmationPolicy.DestructiveOnly, ConfirmationOutcome.Denied, ConfirmationDenyReason.None, false, at);
-
-    // Request throws as ConfirmationsNeuron does for a refusal; Outcome knows nothing.
-    private sealed class FakeConfirmations : IConfirmationRequests
-    {
-        public string? Refuse { get; set; }
-        public List<string> Requested { get; } = [];
-
-        public Task<ConfirmationResult?> Request(ConfirmationPlan plan)
+        var plans = Enumerable.Range(0, ConfirmationState.PendingLimit)
+            .Select(index => new ConfirmationPlan($"other:{index}", ConfirmationAction.Other, false, "Other?", "Other", "Yes", "No", "other")
+                { RequiresPerson = true, Kind = "other", Subject = "other" })
+            .ToArray();
+        using (TestEdge.Authority.Enter(TestEdge.Authority.OnBehalfOf(new Actor.Person("local", "local"), Brain, via: Aspire)))
         {
-            Requested.Add(plan.Id);
-            return Refuse is null ? Task.FromResult<ConfirmationResult?>(null) : throw new InvalidOperationException(Refuse);
+            foreach (var plan in plans) { Assert.Null(await os.Get<IConfirmationRequests>(IConfirmationRequests.Of(Brain)).Request(plan)); }
         }
-
-        public Task<ConfirmationResult?> Outcome(string planId) => Task.FromResult<ConfirmationResult?>(null);
-
-        public Task Withdraw(string planId) => Task.CompletedTask;
+        return plans;
     }
+
+    private static ConfirmationPlan Plan(string id)
+        => new(id, ConfirmationAction.Other, false, "Restart?", "Restart", "Restart", "Keep running", "web-searxng")
+            { RequiresPerson = true, Kind = AspireNeuron.RestartKind, Subject = "web-searxng" };
 
     private sealed class FakeTools(params string[] names) : IAspireTools
     {
