@@ -186,10 +186,11 @@ internal sealed partial class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireT
     private readonly IConfiguration? _configuration;
     private readonly IAspireTools? _mcp;
     private readonly string? _self;
+    private readonly AspireOptions _options;
 
-
-    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null, AspireInstance? self = null)
+    public AspireNeuron(IConfiguration? configuration = null, IAspireTools? mcp = null, AspireInstance? self = null, Microsoft.Extensions.Options.IOptions<AspireOptions>? options = null)
     {
+        _options = options?.Value ?? new AspireOptions();
         _configuration = configuration;
         _mcp = mcp;
         _self = self?.Name;
@@ -223,7 +224,7 @@ internal sealed partial class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireT
         if (Pending().Length >= MaxPending) { return new(name, false, "declined", Message: $"{MaxPending} restarts already wait for the person's answer."); }
         var plan = new ConfirmationPlan($"{RestartKind}:{name}:{Guid.NewGuid():N}", ConfirmationAction.Other, false,
             $"Restart {name}?", $"Restart the resource {name} of the running app.", "Restart", "Keep running", name)
-        { RequiresPerson = true, Kind = RestartKind, Subject = name };
+        { RequiresPerson = true, Kind = RestartKind, Subject = name, Expiry = _options.RestartConfirmationExpiry };
         // The id is ours, so the question is asked first and the entry stored only once it exists: no entry ever waits on a
         // question that was never placed. Its answer cannot overtake the save, because it arrives as a signal this neuron handles
         // in a later turn. A failed save after a placed question leaves a question whose answer finds no entry and runs nothing.
@@ -322,9 +323,9 @@ internal sealed partial class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireT
 
     private AspirePendingRestart[] Pending() => State.PendingRestarts ?? [];
 
-    // Entries whose answer was lost: a question expires after ConfirmationRules.DefaultExpiry and then publishes its answer, so an
-    // entry three times older has missed it. Each is dropped as declined/"expired" and its resource may be asked again.
-    private static readonly TimeSpan StaleAfter = 3 * ConfirmationRules.DefaultExpiry;
+    // Entries whose answer was lost: a question expires after AspireOptions.RestartConfirmationExpiry and then publishes its answer,
+    // so an entry three times older has missed it. Each is dropped as declined/"expired" and its resource may be asked again.
+    private TimeSpan StaleAfter => 3 * _options.RestartConfirmationExpiry;
 
     private async Task DropStale()
     {

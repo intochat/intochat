@@ -19,6 +19,23 @@ public sealed class AspireFacts
     }
 
     [Fact]
+    public void TheRestartConfirmationExpiryDefaultsToTheFrameworksDefaultExpiry()
+        => Assert.Equal(DigitalBrain.Confirmation.ConfirmationRules.DefaultExpiry, new AspireOptions().RestartConfirmationExpiry);
+
+    [Theory]
+    [InlineData("00:00:00")]
+    [InlineData("-00:00:01")]
+    [InlineData("7.00:00:01")]
+    public void ARestartConfirmationExpiryOfZeroNegativeOrMoreThanSevenDaysIsRefused(string value)
+        => Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { RestartConfirmationExpiry = TimeSpan.Parse(value, System.Globalization.CultureInfo.InvariantCulture) }.Validate());
+
+    [Theory]
+    [InlineData("00:00:30")]
+    [InlineData("7.00:00:00")]
+    public void ARestartConfirmationExpiryFromThirtySecondsToSevenDaysValidates(string value)
+        => new AspireOptions { RestartConfirmationExpiry = TimeSpan.Parse(value, System.Globalization.CultureInfo.InvariantCulture) }.Validate();
+
+    [Fact]
     public void AClusterSamplingIntervalOfZeroOrLessIsRefused()
         => Assert.Throws<ArgumentOutOfRangeException>(() => new AspireOptions { ClusterSampling = TimeSpan.Zero }.Validate());
 

@@ -183,6 +183,78 @@ public sealed class AspireRestartFacts
         Assert.Equal("expired", Assert.Single(Signals<AspireResourceRestartRefused>(os)).Message);
     }
 
+    private static TimeSpan[] ExpiriesAsked(TestOS os)
+        => [.. os.Journal(Brain).Signals(IConfirmationRequests.Of(Brain)).Select(entry => entry.Signal).OfType<ConfirmationRequested>()
+            .Select(requested => requested.ExpiresAt - os.Clock.GetUtcNow())];
+
+    [Fact]
+    public async Task ARestartAskedByANonPersonCarriesTheConfiguredExpiry()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools, restartExpiry: TimeSpan.FromSeconds(30));
+
+        await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal([TimeSpan.FromSeconds(30)], ExpiriesAsked(os));
+    }
+
+    [Fact]
+    public async Task WithNoOptionsTheRestartQuestionExpiresAfterFiveMinutes()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools);
+
+        await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal([TimeSpan.FromMinutes(5)], ExpiriesAsked(os));
+    }
+
+    [Fact]
+    public async Task AQuestionUnansweredPastTheConfiguredExpiryIsDeclinedAndTheResourceAsksAgain()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools, restartExpiry: TimeSpan.FromSeconds(30));
+        var first = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        os.Clock.Advance(TimeSpan.FromSeconds(31));
+
+        await Until(() => Signals<AspireResourceRestartRefused>(os).Length == 1);
+        Assert.Equal("declined", Signals<AspireResourceRestartRefused>(os)[0].Reason);
+        Assert.Empty(tools.Commands);
+        Assert.DoesNotContain(os.Confirmations.Waiting, waiting => waiting.PlanId == first.Confirmation);
+        var again = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+        Assert.Equal("pending", again.Reason);
+        Assert.NotEqual(first.Confirmation, again.Confirmation);
+    }
+
+    [Fact]
+    public async Task TheStaleBoundIsThreeTimesTheConfiguredExpiry()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools, restartExpiry: TimeSpan.FromSeconds(30));
+        var stale = (os.Clock.GetUtcNow() - TimeSpan.FromSeconds(91)).ToString("O");
+        os.SeedStoredState(Aspire, "{\"resources\":[],\"structuredLogs\":[],\"traces\":[],\"pendingRestarts\":[{\"planId\":\"aspire.resource.restart:web-searxng:dead\",\"resource\":\"web-searxng\",\"requestedAt\":\"" + stale + "\"}]}");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.NotEqual("aspire.resource.restart:web-searxng:dead", result.Confirmation);
+        Assert.Equal("expired", Assert.Single(Signals<AspireResourceRestartRefused>(os)).Message);
+    }
+
+    [Fact]
+    public async Task AnEntryYoungerThanThreeConfiguredExpiriesIsKept()
+    {
+        var tools = new FakeTools("web-searxng", "os");
+        await using var os = Host(tools, restartExpiry: TimeSpan.FromSeconds(30));
+        var young = (os.Clock.GetUtcNow() - TimeSpan.FromSeconds(80)).ToString("O");
+        os.SeedStoredState(Aspire, "{\"resources\":[],\"structuredLogs\":[],\"traces\":[],\"pendingRestarts\":[{\"planId\":\"aspire.resource.restart:web-searxng:live\",\"resource\":\"web-searxng\",\"requestedAt\":\"" + young + "\"}]}");
+
+        var result = await Call(os, NotAPerson("agent"), aspire => aspire.Restart("web-searxng"));
+
+        Assert.Equal("aspire.resource.restart:web-searxng:live", result.Confirmation);
+        Assert.Empty(Signals<AspireResourceRestartRefused>(os));
+    }
+
     // The confirmation gate is an optional slot: the activation check a runtime runs (Slots.Resolve, as TestNeuronHost and the Orleans
     // host call it) passes when no confirmations neuron is hosted, and the neuron itself still reads and answers.
     [Fact]
@@ -689,9 +761,13 @@ public sealed class AspireRestartFacts
     public void TheDisplayNameDropsAnEightCharacterInstanceSuffix(string live, string display)
         => Assert.Equal(display, AspireMcp.DisplayNameOf(live));
 
-    private static TestOS Host(FakeTools tools, ConfirmationPolicy policy = ConfirmationPolicy.DestructiveOnly, string? self = null)
+    private static TestOS Host(FakeTools tools, ConfirmationPolicy policy = ConfirmationPolicy.DestructiveOnly, string? self = null, TimeSpan? restartExpiry = null)
     {
         var services = new ServiceCollection();
+        if (restartExpiry is { } expiry)
+        {
+            services.AddSingleton<Microsoft.Extensions.Options.IOptions<AspireOptions>>(Microsoft.Extensions.Options.Options.Create(new AspireOptions { RestartConfirmationExpiry = expiry }));
+        }
         services.AddSingleton<IAspireTools>(tools);
         services.AddSingleton(new AspireInstance(self));
         services.AddSingleton(new ConfirmationPolicies { DefaultPolicy = policy });
