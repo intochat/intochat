@@ -127,6 +127,13 @@ internal sealed class RoslynNeuron(
     public Task<SymbolSearchResult> Derived(DerivedQuery query, CancellationToken cancellationToken = default)
         => workspace.DerivedAsync(query, cancellationToken);
 
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    public Task<SyntaxReviewResult> ReviewSyntax(SyntaxReview request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SyntaxReviewer.Review(request, cancellationToken));
+    }
+
     public async Task<EditCheck> CheckEdits(IReadOnlyList<EditRequest> edits, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edits);

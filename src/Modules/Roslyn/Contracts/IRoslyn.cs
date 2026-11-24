@@ -39,6 +39,9 @@ public interface IRoslyn
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<SymbolSearchResult> Derived(DerivedQuery query, CancellationToken cancellationToken = default);
 
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    Task<SyntaxReviewResult> ReviewSyntax(SyntaxReview request, CancellationToken cancellationToken = default);
+
     Task<EditCheck> CheckEdits(IReadOnlyList<EditRequest> edits, CancellationToken cancellationToken = default);
 
     Task<EditCommit> CommitEdits(IReadOnlyList<EditRequest> edits, CancellationToken cancellationToken = default);

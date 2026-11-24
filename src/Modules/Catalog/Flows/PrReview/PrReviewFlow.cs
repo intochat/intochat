@@ -14,8 +14,14 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 /// gates submission behind human approval, and posts a <see cref="ReviewVerdict.Comment"/> review on the exact head SHA.
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
-internal sealed class PrReviewFlow : Flow<PrReviewState>, IFlowStarter
+internal sealed partial class PrReviewFlow : Flow<PrReviewState>, IFlowStarter
 {
+    // The syntax review is stateless, so the flow reaches a per-brain Roslyn neuron that never opens a workspace.
+    [DigitalBrain.Slot(Key = SyntaxReviewKey)]
+    private partial IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn Roslyn { get; }
+
+    internal const string SyntaxReviewKey = "syntax-review";
+
     public const string Alias = IFlows.PrReviewFlow;
     public const string ConfirmationKind = "review.pr.submit";
     private const string PlanPrefix = "app:pr-review";
@@ -156,7 +162,7 @@ internal sealed class PrReviewFlow : Flow<PrReviewState>, IFlowStarter
             ? evidenceRead.Evidence.HeadSha
             : inner.HeadSha;
 
-        var machineReport = LocalSelfReview.ReviewUnifiedDiff(evidenceRead.Evidence.Text);
+        var machineReport = await LocalSelfReview.ReviewUnifiedDiff(Roslyn, evidenceRead.Evidence.Text, ct).ConfigureAwait(true);
         var citedModelFindings = FilterModelFindings(inner.ModelFindings);
         ReviewFinding[] combined = [.. machineReport.Findings, .. citedModelFindings];
 

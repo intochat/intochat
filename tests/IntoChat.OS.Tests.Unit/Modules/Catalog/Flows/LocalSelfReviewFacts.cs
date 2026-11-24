@@ -1,16 +1,23 @@
 using IntoChat.OS.Modules.Apps.Flows;
+using DigitalBrain;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Modules.Microsoft.Roslyn;
+using IntoChat.OS.Modules.Microsoft.Roslyn.Tests;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Flows;
 
+// The syntax rules run in the Roslyn module; each fact reaches them through IRoslyn on the shared TestOS.
 public sealed class LocalSelfReviewFacts : IDisposable
 {
     private const string Commit = "0123456789abcdef0123456789abcdef01234567";
     private const string BaseCommit = "89abcdef0123456789abcdef0123456789abcdef";
     private readonly string _worktreeRoot;
 
-    public LocalSelfReviewFacts()
+    private readonly RoslynFixture _fixture;
+
+    public LocalSelfReviewFacts(RoslynFixture fixture)
     {
+        _fixture = fixture;
         _worktreeRoot = Path.Combine(Path.GetTempPath(), "intochat-self-review-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_worktreeRoot);
     }
@@ -24,10 +31,10 @@ public sealed class LocalSelfReviewFacts : IDisposable
     }
 
     [Fact]
-    public void SwallowedExceptionInChangedFileProducesFindingOnApprovalCard()
+    public async Task SwallowedExceptionInChangedFileProducesFindingOnApprovalCard()
     {
-        var relativePath = "src/Sample/Worker.cs";
-        var fullPath = Path.Combine(_worktreeRoot, "src", "Sample", "Worker.cs");
+        var relativePath = "Sample/Worker.cs";
+        var fullPath = Path.Combine(_worktreeRoot, "Sample", "Worker.cs");
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         File.WriteAllText(fullPath, """
             using System;
@@ -49,7 +56,7 @@ public sealed class LocalSelfReviewFacts : IDisposable
             }
             """);
 
-        var report = LocalSelfReview.ReviewWorktree(_worktreeRoot, [relativePath]);
+        var report = await Review(relativePath);
 
         Assert.True(report.HasBlocking);
         var finding = Assert.Single(report.Findings);
@@ -67,10 +74,10 @@ public sealed class LocalSelfReviewFacts : IDisposable
     }
 
     [Fact]
-    public void WallClockAndAmbientLookupProduceFindingsWhileCleanCodeIsEmpty()
+    public async Task WallClockAndAmbientLookupProduceFindingsWhileCleanCodeIsEmpty()
     {
-        var badRelative = "src/Sample/Bad.cs";
-        var badFull = Path.Combine(_worktreeRoot, "src", "Sample", "Bad.cs");
+        var badRelative = "Sample/Bad.cs";
+        var badFull = Path.Combine(_worktreeRoot, "Sample", "Bad.cs");
         Directory.CreateDirectory(Path.GetDirectoryName(badFull)!);
         File.WriteAllText(badFull, """
             using System;
@@ -84,13 +91,13 @@ public sealed class LocalSelfReviewFacts : IDisposable
             }
             """);
 
-        var report = LocalSelfReview.ReviewWorktree(_worktreeRoot, [badRelative]);
+        var report = await Review(badRelative);
 
         Assert.Contains(report.Findings, f => f.RuleId == "HR-12");
         Assert.Contains(report.Findings, f => f.RuleId == "HR-23");
 
-        var cleanRelative = "src/Sample/Clean.cs";
-        var cleanFull = Path.Combine(_worktreeRoot, "src", "Sample", "Clean.cs");
+        var cleanRelative = "Sample/Clean.cs";
+        var cleanFull = Path.Combine(_worktreeRoot, "Sample", "Clean.cs");
         File.WriteAllText(cleanFull, """
             namespace Sample;
 
@@ -100,10 +107,18 @@ public sealed class LocalSelfReviewFacts : IDisposable
             }
             """);
 
-        var cleanReport = LocalSelfReview.ReviewWorktree(_worktreeRoot, [cleanRelative]);
+        var cleanReport = await Review(cleanRelative);
         Assert.Empty(cleanReport.Findings);
         Assert.False(cleanReport.HasBlocking);
         Assert.DoesNotContain("### Self-Review", ChangeCard.Body(CreateChange(cleanRelative), cleanReport), StringComparison.Ordinal);
+    }
+
+    private async Task<SelfReviewReport> Review(params string[] changedFiles)
+    {
+        var brain = new BrainId("facts");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", brain));
+        var roslyn = _fixture.Runtime.Get<IRoslyn>(new NeuronId(brain, "microsoft.roslyn", "self-review"));
+        return await LocalSelfReview.ReviewWorktree(roslyn, _worktreeRoot, changedFiles);
     }
 
     private static Change CreateChange(string filePath)
@@ -114,9 +129,9 @@ public sealed class LocalSelfReviewFacts : IDisposable
                 new WorkTreeLease(
                     "run-review",
                     "os",
-                    "/src/os",
+                    "/repo/os",
                     "/home/worktrees/os/run-review",
-                    "/src/os/.git/worktrees/run-review",
+                    "/repo/os/.git/worktrees/run-review",
                     new string('a', 64),
                     "main",
                     BaseCommit,
