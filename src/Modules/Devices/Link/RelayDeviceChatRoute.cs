@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Identity.Local.Machine;
+using DigitalBrain.Log;
+using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 
@@ -69,6 +71,7 @@ internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials 
             || (error is OperationCanceledException && !ct.IsCancellationRequested))
         {
             // Revoked, refused (another brain), unreachable, malformed or too slow: no device is offered.
+            OsConsoleLog.For<RelayDeviceChatRoute>().LogSwallowed(error, $"listing the relay's devices for brain '{owner.Value}'");
             devices = [];
         }
         _cache[owner.Value] = (now, devices);

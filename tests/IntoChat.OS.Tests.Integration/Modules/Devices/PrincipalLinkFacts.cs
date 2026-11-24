@@ -107,7 +107,7 @@ public sealed class PrincipalLinkStartupFacts
                 [AuthKeys.TrustedIssuers + ":0:Name"] = "cloud",
                 [AuthKeys.TrustedIssuers + ":0:PublicKey"] = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo()),
                 [AuthKeys.TrustedIssuers + ":0:Audience"] = CloudEdgeHost.Audience,
-                [AuthKeys.SectionName + ":PrincipalLinks"] = file,
+                [AuthKeys.PrincipalLinks] = file,
             })))
         {
             Assert.NotNull(host);

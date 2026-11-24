@@ -10,5 +10,6 @@ public static class AuthKeys
     public const string Password = SectionName + ":Password";
     public const string AllowOpenOnNetwork = SectionName + ":AllowOpenOnNetwork";
     public const string TrustedIssuers = SectionName + ":TrustedIssuers";
+    public const string PrincipalLinks = SectionName + ":PrincipalLinks";
     public const string ExternalReturnOrigins = SectionName + ":ExternalReturnOrigins";
 }
