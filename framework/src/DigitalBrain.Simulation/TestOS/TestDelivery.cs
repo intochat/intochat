@@ -262,6 +262,8 @@ internal sealed class SynapseRegistry : INudge
             var host = os.Host(subscriber);
             await os.Track(host.Turn(interleave: false, async neuron =>
             {
+                // As on the silo (NeuronHostGrainBase.EnterReactionCaller): a reaction never runs without a caller.
+                using var reacting = TestCallerAmbient.Instance.Enter(DeliveryCaller.Of(TestCallerAmbient.Instance.Current, subscriber.Brain));
                 using var scope = openScope();
                 TestCause.Enter(signal.Publisher, signal.Sequence, signal.TraceId);
                 await Reactions.Dispatch(neuron, signal, ct).ConfigureAwait(false);

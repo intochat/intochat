@@ -92,6 +92,28 @@ public abstract class Neuron
         throw new RuleViolationException(rejected);
     }
 
+    /// <summary>The caller stamped on this turn. A neuron never decides on a missing caller: none is refused.</summary>
+    /// <exception cref="UnauthorizedAccessException">The turn carries no caller.</exception>
+    protected Access.Caller RequireCaller()
+        => Context.Caller ?? throw new UnauthorizedAccessException($"{Id}: the call carries no caller.");
+
+    /// <summary>The caller stamped on this turn when it acts in this neuron's brain; refuses no caller and a caller of another brain.</summary>
+    /// <param name="refused">The refusal to throw instead of the default one, for a neuron whose refusals say one thing whatever the reason.</param>
+    /// <exception cref="UnauthorizedAccessException">The turn carries no caller, or one of another brain.</exception>
+    protected Access.Caller RequireSameBrain(Func<UnauthorizedAccessException>? refused = null)
+    {
+        if (Context.Caller is not { } caller)
+        {
+            throw refused?.Invoke() ?? new UnauthorizedAccessException($"{Id}: the call carries no caller.");
+        }
+        return caller.Brain == Id.Brain
+            ? caller
+            : throw refused?.Invoke() ?? new UnauthorizedAccessException($"{Id}: a caller of brain {caller.Brain} may not call this.");
+    }
+
+    /// <summary>Whether the caller stamped on this turn acts in this neuron's brain; false when the turn carries no caller.</summary>
+    protected bool IsSameBrainCaller() => Context.Caller is { } caller && caller.Brain == Id.Brain;
+
     /// <summary>Whether <paramref name="id"/> names a neuron of this brain whose registered class implements <typeparamref name="TContract"/>; it calls nothing.</summary>
     protected bool Implements<TContract>(NeuronId id) where TContract : class
         => id.Brain == Id.Brain && Context.ClassOf(id.Type) is { } type && typeof(TContract).IsAssignableFrom(type);

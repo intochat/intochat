@@ -59,7 +59,7 @@ internal sealed class NotificationsNeuron(IOptions<NotificationsOptions>? option
 
         await Save(
             new NotificationsState { Items = nextItems },
-            new NotificationSent(id, sourceApp, title, request.Priority, now)).ConfigureAwait(false);
+            new NotificationSent(id, sourceApp, title, request.Priority, now)).ConfigureAwait(true);
 
         return new NotificationReceipt(id, Deduplicated: false, now);
     }
@@ -110,7 +110,7 @@ internal sealed class NotificationsNeuron(IOptions<NotificationsOptions>? option
             Item = current.Item with { Read = true, ReadUtc = now },
         };
 
-        await Store(new NotificationsState { Items = nextItems }).ConfigureAwait(false);
+        await Store(new NotificationsState { Items = nextItems }).ConfigureAwait(true);
     }
 
     public async Task MarkAllReadAsync(CancellationToken cancellationToken = default)
@@ -131,7 +131,7 @@ internal sealed class NotificationsNeuron(IOptions<NotificationsOptions>? option
                 : entry with { Item = entry.Item with { Read = true, ReadUtc = now } };
         }
 
-        await Store(new NotificationsState { Items = nextItems }).ConfigureAwait(false);
+        await Store(new NotificationsState { Items = nextItems }).ConfigureAwait(true);
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken = default)
@@ -142,7 +142,7 @@ internal sealed class NotificationsNeuron(IOptions<NotificationsOptions>? option
             return;
         }
 
-        await Store(new NotificationsState { Items = [] }).ConfigureAwait(false);
+        await Store(new NotificationsState { Items = [] }).ConfigureAwait(true);
     }
 
     public Task<int> UnreadCountAsync(CancellationToken cancellationToken = default)

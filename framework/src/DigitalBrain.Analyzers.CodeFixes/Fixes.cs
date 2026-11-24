@@ -182,3 +182,44 @@ public sealed class SpecCommentFix : CodeFixProvider
         return document.WithSyntaxRoot(root.ReplaceToken(first, first.WithLeadingTrivia(leading)));
     }
 }
+
+/// <summary>
+/// DB0050 fix: stay on the turn. <c>ConfigureAwait(false)</c> becomes <c>ConfigureAwait(true)</c>, and a
+/// <c>ConfigureAwaitOptions</c> argument gains <c>ContinueOnCapturedContext</c>; the awaited type is unchanged.
+/// </summary>
+[ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(TurnContinuationFix)), Shared]
+public sealed class TurnContinuationFix : CodeFixProvider
+{
+    /// <summary>The equivalence key of the stay-on-the-turn action.</summary>
+    public const string Key = "DB0050.StayOnTheTurn";
+
+    /// <inheritdoc />
+    public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(Rules.TurnContinuation.Id);
+
+    /// <inheritdoc />
+    public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
+
+    /// <inheritdoc />
+    public override async Task RegisterCodeFixesAsync(CodeFixContext context)
+    {
+        var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
+        foreach (var diagnostic in context.Diagnostics)
+        {
+            if (root?.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<InvocationExpressionSyntax>() is not { ArgumentList.Arguments.Count: > 0 } invocation) { continue; }
+            context.RegisterCodeFix(CodeAction.Create("Stay on the neuron's turn", ct => Fix(context.Document, invocation, ct), Key), diagnostic);
+        }
+    }
+
+    private static async Task<Document> Fix(Document document, InvocationExpressionSyntax invocation, CancellationToken cancellation)
+    {
+        var argument = invocation.ArgumentList.Arguments[invocation.ArgumentList.Arguments.Count - 1];
+        var model = await document.GetSemanticModelAsync(cancellation).ConfigureAwait(false);
+        ExpressionSyntax replacement = model?.GetTypeInfo(argument.Expression, cancellation).ConvertedType?.SpecialType == SpecialType.System_Boolean
+            ? LiteralExpression(SyntaxKind.TrueLiteralExpression)
+            : BinaryExpression(SyntaxKind.BitwiseOrExpression, ParseExpression("System.Threading.Tasks.ConfigureAwaitOptions.ContinueOnCapturedContext"), argument.Expression.WithoutTrivia())
+                .WithAdditionalAnnotations(Simplifier.Annotation);
+        var root = await document.GetSyntaxRootAsync(cancellation).ConfigureAwait(false);
+        var changed = document.WithSyntaxRoot(root!.ReplaceNode(argument.Expression, replacement.WithTriviaFrom(argument.Expression)));
+        return await Simplifier.ReduceAsync(changed, Simplifier.Annotation, cancellationToken: cancellation).ConfigureAwait(false);
+    }
+}

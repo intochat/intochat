@@ -54,7 +54,7 @@ internal sealed class PostsNeuron : Neuron<PostsState>, IPosts
 
     public Task<PostPage> Since(long cursor = 0, CancellationToken ct = default)
     {
-        var isOwner = IsOwner();
+        var isOwner = IsSameBrainCaller();
         var callerAccount = ResolveCallerAccount();
 
         var visible = State.Posts
@@ -105,18 +105,11 @@ internal sealed class PostsNeuron : Neuron<PostsState>, IPosts
         return commentId;
     }
 
-    private bool IsOwner() => Context.Caller is null || Context.Caller.Brain == Id.Brain;
-
     private void RequireOwner()
-    {
-        if (!IsOwner())
-        {
-            throw new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may publish posts.");
-        }
-    }
+        => RequireSameBrain(() => new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may publish posts."));
 
     private string ResolveCallerAccount()
-        => Context.Caller?.For?.Account ?? Id.Brain.Value;
+        => RequireCaller().For?.Account ?? Id.Brain.Value;
 
     private static bool IsInAudience(SocialPost post, string account)
         => post.AudienceAccounts.Any(a => string.Equals(a, account, StringComparison.Ordinal));
@@ -124,7 +117,7 @@ internal sealed class PostsNeuron : Neuron<PostsState>, IPosts
     private string RequirePostAudience(SocialPost post)
     {
         var account = ResolveCallerAccount();
-        if (!IsOwner() && !IsInAudience(post, account))
+        if (!IsSameBrainCaller() && !IsInAudience(post, account))
         {
             throw new UnauthorizedAccessException($"offer.none: '{account}' is not in the audience of post '{post.Id}'.");
         }

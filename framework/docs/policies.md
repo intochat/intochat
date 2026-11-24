@@ -42,4 +42,4 @@ Source: `src/DigitalBrain/Policies/`.
 
 ## The caller
 
-Every call carries one `Caller`: an `Actor` plus brain, conversation, via and inside. Code reads it from `Context.Caller` or `ICallerAmbient`. Only `EdgeAuthority` factories build one, and the kernel is entered only through `EdgeAuthority.EnterKernel`. A call with no caller is refused on every host. Reminders, timers and activations, and their deferred work, run as `Actor.Scheduler` of the brain.
+Every call carries one `Caller`: an `Actor` plus brain, conversation, via and inside. Code reads it from `Context.Caller` or `ICallerAmbient`. Only `EdgeAuthority` factories build one, and the kernel is entered only through `EdgeAuthority.EnterKernel`. A call with no caller is refused on every host. Reminders, timers and activations, and their deferred work, run as `Actor.Scheduler` of the brain. A reaction runs as the caller that carried the delivery when it is of the brain, and as `Actor.Scheduler` otherwise, so `Context.Caller` is set in all neuron code a runtime runs. Inside a neuron the rule is one helper on `Neuron`: `RequireCaller()` and `RequireSameBrain()` refuse a missing caller.

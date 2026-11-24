@@ -63,7 +63,7 @@ internal sealed class NotificationsSlotConnection : ConnectionNeuron<Notificatio
             new NeuronId(Id.Brain, "notifications.inbox", "inbox"));
         var receipt = await inbox.SendAsync(
             new NotificationRequest(title.Trim(), body ?? string.Empty, parsedPriority),
-            ct).ConfigureAwait(false);
+            ct).ConfigureAwait(true);
         return JsonSerializer.SerializeToElement(new
         {
             id = receipt.Id,

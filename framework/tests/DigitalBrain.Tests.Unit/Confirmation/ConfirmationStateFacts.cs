@@ -321,6 +321,6 @@ public sealed class ConfirmationStateFacts
         Assert.False(Answerer.Of(new DigitalBrain.Access.Caller(alice, brain, via: neuron), brain).IsPerson);
         Assert.False(Answerer.Of(new DigitalBrain.Access.Caller(alice, brain, conversation: "conv-1"), brain).IsPerson);
         Assert.False(Answerer.Of(new DigitalBrain.Access.Caller(new DigitalBrain.Access.Actor.Agent(alice), brain), brain).IsPerson);
-        Assert.False(Answerer.Of(null, brain).IsPerson);
+        Assert.Throws<UnauthorizedAccessException>(() => Answerer.Of(null, brain));
     }
 }

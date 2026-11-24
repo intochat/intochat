@@ -48,7 +48,7 @@ internal sealed partial class DeviceNeuron(
             }
 
             var runtime = _runtimes.FirstOrDefault(r => r.Id == entry.Runtime)
-                ?? (await ResolveRuntimeAsync(entry.Model, cancellationToken).ConfigureAwait(false))?.Runtime;
+                ?? (await ResolveRuntimeAsync(entry.Model, cancellationToken).ConfigureAwait(true))?.Runtime;
             if (runtime is not null)
             {
                 installer.Enqueue(Id, entry.Model, runtime, InstallReports[Id]);
@@ -71,7 +71,7 @@ internal sealed partial class DeviceNeuron(
 
         var results = _runtimes.Length == 0
             ? []
-            : await Task.WhenAll(_runtimes.Select(ReadRuntimeAsync)).ConfigureAwait(false);
+            : await Task.WhenAll(_runtimes.Select(ReadRuntimeAsync)).ConfigureAwait(true);
         var probes = results.Select(static r => r.Probe).ToArray();
         var installedByRuntime = results
             .Select(static r => (r.Runtime, r.Installed, r.Loaded, r.Catalog))
@@ -134,7 +134,7 @@ internal sealed partial class DeviceNeuron(
         EnsureThisMachine();
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
 
-        var resolved = await ResolveRuntimeAsync(model, CancellationToken.None).ConfigureAwait(false)
+        var resolved = await ResolveRuntimeAsync(model, CancellationToken.None).ConfigureAwait(true)
             ?? throw new ArgumentException($"No runtime on this device offers '{model.Value}'.", nameof(model));
 
         var need = RoleNeeds.Of(role);
@@ -145,11 +145,11 @@ internal sealed partial class DeviceNeuron(
 
         if (resolved.IsInstalled)
         {
-            await SetRoleAsync(role, model).ConfigureAwait(false);
+            await SetRoleAsync(role, model).ConfigureAwait(true);
             return;
         }
 
-        await EnqueueInstallAsync(model, switchWhenReady: role, resolved).ConfigureAwait(false);
+        await EnqueueInstallAsync(model, switchWhenReady: role, resolved).ConfigureAwait(true);
     }
 
     public async Task Cancel(ModelId model)
@@ -172,7 +172,7 @@ internal sealed partial class DeviceNeuron(
             var nextRecent = PrependRecent(cancelled);
             await Save(
                 State with { Queue = nextQueue, Recent = nextRecent },
-                new InstallChanged(model, InstallState.Cancelled, existing.Percent)).ConfigureAwait(false);
+                new InstallChanged(model, InstallState.Cancelled, existing.Percent)).ConfigureAwait(true);
         }
     }
 
@@ -181,17 +181,17 @@ internal sealed partial class DeviceNeuron(
         EnsureThisMachine();
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
 
-        var roles = await ReadCatalogRolesAsync().ConfigureAwait(false);
+        var roles = await ReadCatalogRolesAsync().ConfigureAwait(true);
         if (FindAssignedRole(roles, model) is { } assignedRole)
         {
             var displayName = KnownModels.Find(model.Value)?.Name ?? model.Value;
             throw new InvalidOperationException($"'{displayName}' is the {assignedRole} model; pick another first.");
         }
 
-        var resolved = await ResolveRuntimeAsync(model, CancellationToken.None).ConfigureAwait(false)
+        var resolved = await ResolveRuntimeAsync(model, CancellationToken.None).ConfigureAwait(true)
             ?? throw new ArgumentException($"No runtime on this device offers '{model.Value}'.", nameof(model));
 
-        await resolved.Runtime.Remove(model, CancellationToken.None).ConfigureAwait(false);
+        await resolved.Runtime.Remove(model, CancellationToken.None).ConfigureAwait(true);
         worker?.NotifyModelsChanged();
     }
 
@@ -237,7 +237,7 @@ internal sealed partial class DeviceNeuron(
             nextQueue[index] = updated;
             await Save(
                 State with { Queue = nextQueue },
-                new InstallChanged(updated.Model, updated.State, updated.Percent)).ConfigureAwait(false);
+                new InstallChanged(updated.Model, updated.State, updated.Percent)).ConfigureAwait(true);
             return;
         }
 
@@ -246,12 +246,12 @@ internal sealed partial class DeviceNeuron(
         var completedSignal = new InstallChanged(updated.Model, updated.State, updated.Percent);
         await Save(
             State with { Queue = remaining, Recent = recent },
-            completedSignal).ConfigureAwait(false);
+            completedSignal).ConfigureAwait(true);
         worker?.NotifyInstallChanged(completedSignal);
 
         if (progress.State == InstallState.Ready && existing.SwitchWhenReady is { } targetRole)
         {
-            await SetRoleAsync(targetRole, existing.Model).ConfigureAwait(false);
+            await SetRoleAsync(targetRole, existing.Model).ConfigureAwait(true);
         }
     }
 
@@ -260,14 +260,14 @@ internal sealed partial class DeviceNeuron(
         EnsureThisMachine();
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
 
-        var resolved = preResolved ?? await ResolveRuntimeAsync(model, CancellationToken.None).ConfigureAwait(false)
+        var resolved = preResolved ?? await ResolveRuntimeAsync(model, CancellationToken.None).ConfigureAwait(true)
             ?? throw new ArgumentException($"No runtime on this device offers '{model.Value}'.", nameof(model));
 
         if (resolved.IsInstalled)
         {
             if (switchWhenReady is { } role)
             {
-                await SetRoleAsync(role, model).ConfigureAwait(false);
+                await SetRoleAsync(role, model).ConfigureAwait(true);
             }
             return;
         }
@@ -281,7 +281,7 @@ internal sealed partial class DeviceNeuron(
                 updated[existingIndex] = updated[existingIndex] with { SwitchWhenReady = role };
                 await Save(
                     State with { Queue = updated },
-                    new InstallChanged(model, updated[existingIndex].State, updated[existingIndex].Percent)).ConfigureAwait(false);
+                    new InstallChanged(model, updated[existingIndex].State, updated[existingIndex].Percent)).ConfigureAwait(true);
             }
             installer.Enqueue(Id, model, resolved.Runtime, InstallReports[Id]);
             return;
@@ -301,13 +301,13 @@ internal sealed partial class DeviceNeuron(
 
         await Save(
             State with { Queue = [.. State.Queue, entry] },
-            new InstallChanged(model, initialState, 0)).ConfigureAwait(false);
+            new InstallChanged(model, initialState, 0)).ConfigureAwait(true);
     }
 
     private async Task SetRoleAsync(ModelRole role, ModelId model)
     {
         using var scope = edge?.Enter(edge.Module(DevicesModule.ManifestName, Id.Brain));
-        await ModelCatalog.SetRole(role, model).ConfigureAwait(false);
+        await ModelCatalog.SetRole(role, model).ConfigureAwait(true);
     }
 
     private Task<RoleMap> ReadCatalogRolesAsync()
@@ -338,14 +338,14 @@ internal sealed partial class DeviceNeuron(
     {
         foreach (var runtime in _runtimes)
         {
-            var installed = await CollectSafeAsync(runtime.Installed(ct), runtime.Id, "installed").ConfigureAwait(false);
+            var installed = await CollectSafeAsync(runtime.Installed(ct), runtime.Id, "installed").ConfigureAwait(true);
             var hit = installed.FirstOrDefault(c => string.Equals(c.Id.Value, model.Value, StringComparison.OrdinalIgnoreCase));
             if (hit is not null)
             {
                 return new ResolvedModel(runtime, hit, IsInstalled: true);
             }
 
-            var catalog = await CollectSafeAsync(runtime.Catalog(ct), runtime.Id, "catalog").ConfigureAwait(false);
+            var catalog = await CollectSafeAsync(runtime.Catalog(ct), runtime.Id, "catalog").ConfigureAwait(true);
             var catalogHit = catalog.FirstOrDefault(c => string.Equals(c.Id.Value, model.Value, StringComparison.OrdinalIgnoreCase));
             if (catalogHit is not null)
             {
@@ -387,10 +387,10 @@ internal sealed partial class DeviceNeuron(
 
     private static async Task<(ILocalRuntime Runtime, RuntimeStatus Probe, List<ModelCard> Installed, HashSet<ModelId> Loaded, List<ModelCard> Catalog)> ReadRuntimeAsync(ILocalRuntime runtime)
     {
-        var probe = await SafeProbeAsync(runtime).ConfigureAwait(false);
-        var installed = await CollectSafeAsync(runtime.Installed(CancellationToken.None), runtime.Id, "installed").ConfigureAwait(false);
-        var loaded = await SafeLoadedAsync(runtime).ConfigureAwait(false);
-        var catalog = await CollectSafeAsync(runtime.Catalog(CancellationToken.None), runtime.Id, "catalog").ConfigureAwait(false);
+        var probe = await SafeProbeAsync(runtime).ConfigureAwait(true);
+        var installed = await CollectSafeAsync(runtime.Installed(CancellationToken.None), runtime.Id, "installed").ConfigureAwait(true);
+        var loaded = await SafeLoadedAsync(runtime).ConfigureAwait(true);
+        var catalog = await CollectSafeAsync(runtime.Catalog(CancellationToken.None), runtime.Id, "catalog").ConfigureAwait(true);
         return (runtime, probe, installed, loaded, catalog);
     }
 
@@ -398,7 +398,7 @@ internal sealed partial class DeviceNeuron(
     {
         try
         {
-            return await runtime.Probe(CancellationToken.None).ConfigureAwait(false);
+            return await runtime.Probe(CancellationToken.None).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -411,7 +411,7 @@ internal sealed partial class DeviceNeuron(
     {
         try
         {
-            var loaded = await runtime.Loaded(CancellationToken.None).ConfigureAwait(false);
+            var loaded = await runtime.Loaded(CancellationToken.None).ConfigureAwait(true);
             return [.. loaded];
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -426,7 +426,7 @@ internal sealed partial class DeviceNeuron(
         var list = new List<ModelCard>();
         try
         {
-            await foreach (var card in source.ConfigureAwait(false))
+            await foreach (var card in source.ConfigureAwait(true))
             {
                 list.Add(card);
             }

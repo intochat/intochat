@@ -154,15 +154,10 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
             && string.Equals(p.ScreenKey, screenKey, StringComparison.Ordinal));
 
     private void RequireOwner()
-    {
-        if (Context.Caller is { } caller && caller.Brain != Id.Brain)
-        {
-            throw new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may administer room '{Id.Key}'.");
-        }
-    }
+        => RequireSameBrain(() => new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may administer room '{Id.Key}'."));
 
     private string ResolveCallerAccount()
-        => Context.Caller?.For?.Account ?? Id.Brain.Value;
+        => RequireCaller().For?.Account ?? Id.Brain.Value;
 
     private IRooms RoomsOf(BrainId brain)
         => Context.Get<IRooms>(new BindingTarget.Offered(brain, new NeuronId(brain, "social.rooms", IRooms.DefaultKey)));

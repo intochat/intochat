@@ -144,17 +144,11 @@ internal sealed partial class GmailNeuron()
         PublishToolAvailability();
     }
 
-    private Caller RequireCaller()
-    {
-        var caller = Context.Caller ?? throw new UnauthorizedAccessException("The Gmail connection is called only with a stamped caller.");
-        if (caller.Brain.Value != Key.Brain)
-        { throw new UnauthorizedAccessException("The selected Gmail connection belongs to another brain."); }
-        return caller;
-    }
+    private static UnauthorizedAccessException MailboxRefused() => new("The selected Gmail connection is called only by a caller of its own brain.");
 
     private string CallerScope()
     {
-        var caller = RequireCaller();
+        var caller = RequireSameBrain(MailboxRefused);
         return JsonSerializer.Serialize(new[] { CallerRules.ActsFor(caller), CallerRules.IsApp(caller, out var app) ? app : null, caller.For?.Principal });
     }
 
@@ -162,7 +156,7 @@ internal sealed partial class GmailNeuron()
     // push webhook and the lifecycle reminder), the brain's owner as the directory records it. A trace is never a source of the
     // payer; it is only checked against the payer found here.
     private Task<string> PayerAccountAsync()
-        => PayerOf(RequireCaller(), Key.Brain, VerifiedOwnerAccount);
+        => PayerOf(RequireSameBrain(MailboxRefused), Key.Brain, VerifiedOwnerAccount);
 
     private async Task<string?> VerifiedOwnerAccount(string brain)
         => ServiceProvider.GetService<IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient>() is { } identity

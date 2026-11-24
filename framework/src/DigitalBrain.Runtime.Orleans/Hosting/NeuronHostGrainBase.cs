@@ -42,6 +42,11 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
 
     internal Neuron? ActiveNeuron => _neuron;
 
+    // A reaction is the brain's own work: it runs as the caller that carried the delivery when that caller is of this brain, and
+    // as the brain's scheduler otherwise (DeliveryCaller), so neuron code never sees a missing caller. A catch-up on activation
+    // runs under whatever message woke the grain, and a reminder tick carries none.
+    internal IDisposable EnterReactionCaller() => _callers.Enter(DeliveryCaller.Of(_callers.Current, _id.Brain));
+
     /// <summary>The host grain type this class implements.</summary>
     protected abstract string GrainTypeName { get; }
 

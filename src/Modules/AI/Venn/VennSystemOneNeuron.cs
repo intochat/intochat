@@ -16,7 +16,7 @@ internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null, Time
         }
 
         return embedder is not null
-            ? await embedder.EmbedAsync(contextText).ConfigureAwait(false)
+            ? await embedder.EmbedAsync(contextText).ConfigureAwait(true)
             : HybridMemoryEmbedder.LocalDeterministicEmbed(contextText);
     }
 
@@ -28,9 +28,9 @@ internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null, Time
         bool autoCompile = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contextText);
-        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
-        var state = await RecordOutcome(domain, contextText, vector, action, outcomeScore).ConfigureAwait(false);
-        return autoCompile ? await CompileHead().ConfigureAwait(false) : state;
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(true);
+        var state = await RecordOutcome(domain, contextText, vector, action, outcomeScore).ConfigureAwait(true);
+        return autoCompile ? await CompileHead().ConfigureAwait(true) : state;
     }
 
     public async Task<VennSystemOneState> RecordOutcome(
@@ -166,20 +166,20 @@ internal sealed class VennSystemOneNeuron(IMemoryEmbedder? embedder = null, Time
 
     public async Task<VennChoiceResult> ChooseForText(string contextText, string[]? candidateActions = null)
     {
-        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
-        return await Choose(vector, candidateActions).ConfigureAwait(false);
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(true);
+        return await Choose(vector, candidateActions).ConfigureAwait(true);
     }
 
     public async Task<VennScoreResult> ScoreForText(string contextText)
     {
-        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
-        return await Score(vector).ConfigureAwait(false);
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(true);
+        return await Score(vector).ConfigureAwait(true);
     }
 
     public async Task<VennNoulResult> NoulForText(string contextText, string positiveAction)
     {
-        var vector = await EmbedTextAsync(contextText).ConfigureAwait(false);
-        return await Noul(vector, positiveAction).ConfigureAwait(false);
+        var vector = await EmbedTextAsync(contextText).ConfigureAwait(true);
+        return await Noul(vector, positiveAction).ConfigureAwait(true);
     }
 
     public Task<VennScoreResult> Score(float[] queryEmbedding)

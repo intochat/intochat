@@ -8,6 +8,7 @@ internal interface IAdmission
     Task Admit(NeuronId subscriber, NeuronId publisher, string[] signalAliases, CancellationToken ct = default);
 }
 
+[TurnBound]
 internal sealed class Subscribing(
     NeuronId subscriber,
     bool stateless,
@@ -24,8 +25,8 @@ internal sealed class Subscribing(
         if (signals.Length == 0) { throw new ArgumentException("At least one signal type is required.", nameof(signals)); }
         ValidateSignals(signals);
         var aliases = signals.Select(SignalAliases.Of).ToArray();
-        await admission.Admit(subscriber, from, aliases, CancellationToken.None).ConfigureAwait(false);
-        await delivery.Ensure(from, aliases, time.GetUtcNow()).ConfigureAwait(false);
+        await admission.Admit(subscriber, from, aliases, CancellationToken.None).ConfigureAwait(true);
+        await delivery.Ensure(from, aliases, time.GetUtcNow()).ConfigureAwait(true);
     }
 
     public Task Remove(NeuronId from) => delivery.Remove(from);
@@ -59,6 +60,7 @@ internal sealed class Subscribing(
     }
 }
 
+[TurnBound]
 internal static class Reactions
 {
     public static async Task Dispatch(Neuron neuron, JournaledSignal signal, CancellationToken ct)
@@ -67,15 +69,15 @@ internal static class Reactions
         using var scope = DeliveryScope.Enter(neuron, signal.Publisher);
         if (neuron is ISynapseReceiver receiver)
         {
-            await receiver.Receive(signal, ct).ConfigureAwait(false);
+            await receiver.Receive(signal, ct).ConfigureAwait(true);
         }
         else if (neuron is ISignalSink sink)
         {
-            await sink.Deliver(signal).ConfigureAwait(false);
+            await sink.Deliver(signal).ConfigureAwait(true);
         }
         else
         {
-            await ReactionTable.React(neuron, signal.Signal, ct).ConfigureAwait(false);
+            await ReactionTable.React(neuron, signal.Signal, ct).ConfigureAwait(true);
         }
     }
 }

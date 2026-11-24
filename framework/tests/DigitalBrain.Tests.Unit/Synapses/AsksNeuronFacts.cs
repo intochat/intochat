@@ -59,6 +59,13 @@ public sealed class AsksNeuronFacts
 
     private void Seed(AsksState state) => Context.Store(state);
 
+    // A settlement comes from the batch neuron of its ask, which the asks neuron checks as the caller's Via.
+    private Task SettledByBatch(AsksNeuron asks, AskSettlement settlement)
+    {
+        Context.Caller = DigitalBrain.Access.Caller.OfKernel(Id.Brain, AskRules.BatchOf(Id, settlement.Batch));
+        return asks.Settled(settlement);
+    }
+
     private Task Fire(string name) => _asks!.Remind(name, Ct);
 
     private List<Answer> Sent() =>
@@ -157,13 +164,13 @@ public sealed class AsksNeuronFacts
         var asks = await Activated();
         await asks.OnAsked(Batch("b1", 1), Ct);
         var writes = Context.Writes.Count;
-        await asks.Settled(Settle("b1", 0, attempt: 2));
-        await asks.Settled(Settle("b9", 0, attempt: 1));
-        await asks.Settled(Settle("b1", 5, attempt: 1));
+        await SettledByBatch(asks, Settle("b1", 0, attempt: 2));
+        await SettledByBatch(asks, Settle("b9", 0, attempt: 1));
+        await SettledByBatch(asks, Settle("b1", 5, attempt: 1));
         Assert.Equal(writes, Context.Writes.Count);
 
-        await asks.Settled(Settle("b1", 0, attempt: 1));
-        await asks.Settled(Settle("b1", 0, attempt: 1));                          // a second copy
+        await SettledByBatch(asks, Settle("b1", 0, attempt: 1));
+        await SettledByBatch(asks, Settle("b1", 0, attempt: 1));                          // a second copy
         var answer = Assert.Single(Sent());
         Assert.Equal(("feed", "Get", "k0", AnswerStatus.Ok, 0), (answer.Slot, answer.Operation, answer.Key, answer.Status, answer.Remaining));
         Assert.True(B1.Dropped);
@@ -175,7 +182,7 @@ public sealed class AsksNeuronFacts
     {
         var asks = await Activated();
         await asks.OnAsked(Batch("b1", 30), Ct);
-        for (var i = 0; i < 30; i++) { await asks.Settled(Settle("b1", i, 1)); }
+        for (var i = 0; i < 30; i++) { await SettledByBatch(asks, Settle("b1", i, 1)); }
 
         Assert.Equal([25, 5], Context.Writes.SelectMany(w => w.Signals.OfType<Answered>()).Select(a => a.Answers.Count));
         Assert.Equal(Enumerable.Range(0, 30).Select(i => $"k{i}"), Sent().Select(a => a.Key));
@@ -189,9 +196,9 @@ public sealed class AsksNeuronFacts
         await asks.OnAsked(Batch("b1", 3), Ct);
         var half = JsonElement.Parse("\"" + new string('a', (AskLimits.MaxResultBytes / 2) - 2) + "\"");
         var extra = JsonElement.Parse("""{"id":"2"}""");
-        await asks.Settled(Settle("b1", 0, 1, result: half));
-        await asks.Settled(Settle("b1", 1, 1, result: half));
-        await asks.Settled(Settle("b1", 2, 1, result: extra));
+        await SettledByBatch(asks, Settle("b1", 0, 1, result: half));
+        await SettledByBatch(asks, Settle("b1", 1, 1, result: half));
+        await SettledByBatch(asks, Settle("b1", 2, 1, result: extra));
 
         Assert.Equal([2, 1], Context.Writes.SelectMany(w => w.Signals.OfType<Answered>()).Select(a => a.Answers.Count));
     }
@@ -201,7 +208,7 @@ public sealed class AsksNeuronFacts
     {
         var asks = await Activated();
         await asks.OnAsked(Batch("b1", 6), Ct);
-        await asks.Settled(Settle("b1", 0, 1));
+        await SettledByBatch(asks, Settle("b1", 0, 1));
         Assert.Empty(Sent());                                                     // four are still flying
         Clock.Now += AskLimits.AnswerFlush;
         await Fire("asks-due");
@@ -213,17 +220,17 @@ public sealed class AsksNeuronFacts
     {
         var asks = await Activated();
         await asks.OnAsked(Batch("b1", 1), Ct);
-        await asks.Settled(Settle("b1", 0, 1, AnswerStatus.Failed, transient: true, repeatable: true, error: "down"));
+        await SettledByBatch(asks, Settle("b1", 0, 1, AnswerStatus.Failed, transient: true, repeatable: true, error: "down"));
         Assert.Equal([(0, 1)], B1.Runs);
         Clock.Now += TimeSpan.FromSeconds(2);
         await Fire("asks-due");
         Assert.Equal([(0, 1), (0, 2)], B1.Runs);
-        await asks.Settled(Settle("b1", 0, 2, AnswerStatus.Failed, transient: true, repeatable: true, error: "down"));
+        await SettledByBatch(asks, Settle("b1", 0, 2, AnswerStatus.Failed, transient: true, repeatable: true, error: "down"));
         Clock.Now += TimeSpan.FromSeconds(10);
         await Fire("asks-due");
         Assert.Equal([(0, 1), (0, 2), (0, 3)], B1.Runs);
         Assert.Empty(Sent());
-        await asks.Settled(Settle("b1", 0, 3, AnswerStatus.Failed, transient: true, repeatable: true, error: "down"));
+        await SettledByBatch(asks, Settle("b1", 0, 3, AnswerStatus.Failed, transient: true, repeatable: true, error: "down"));
 
         Assert.Equal((AnswerStatus.Failed, "down"), (Assert.Single(Sent()).Status, Sent()[0].Error));
         Assert.Equal(AskLimits.MaxAttempts, B1.Runs.Count);
@@ -234,8 +241,8 @@ public sealed class AsksNeuronFacts
     {
         var asks = await Activated();
         await asks.OnAsked(Batch("b1", 2), Ct);
-        await asks.Settled(Settle("b1", 0, 1, AnswerStatus.Failed, transient: true, repeatable: false, error: "down"));
-        await asks.Settled(Settle("b1", 1, 1, AnswerStatus.Failed, transient: false, repeatable: true, error: "unbound"));
+        await SettledByBatch(asks, Settle("b1", 0, 1, AnswerStatus.Failed, transient: true, repeatable: false, error: "down"));
+        await SettledByBatch(asks, Settle("b1", 1, 1, AnswerStatus.Failed, transient: false, repeatable: true, error: "unbound"));
 
         Assert.Equal(["down", "unbound"], Sent().Select(a => a.Error));
         Assert.Equal(2, B1.Runs.Count);
@@ -255,7 +262,7 @@ public sealed class AsksNeuronFacts
         Assert.Contains((1, 2), B1.Runs);
         var unknown = Assert.Single(Sent());
         Assert.Equal(("cmd", AnswerStatus.Unknown, "timeout", JsonValueKind.Null), (unknown.Key, unknown.Status, unknown.Error, unknown.Result.ValueKind));
-        await asks.Settled(Settle("b1", 0, 1));                                   // the lost attempt reports after all: ignored
+        await SettledByBatch(asks, Settle("b1", 0, 1));                                   // the lost attempt reports after all: ignored
         Assert.Single(Sent());
     }
 
@@ -289,7 +296,7 @@ public sealed class AsksNeuronFacts
         var asks = await Activated();
         await asks.OnAsked(Batch("b1", 3), Ct);
         await asks.Detach(Ct);
-        await asks.Settled(Settle("b1", 0, 1));
+        await SettledByBatch(asks, Settle("b1", 0, 1));
 
         Assert.Empty(Sent());
         Assert.True(B1.Dropped);

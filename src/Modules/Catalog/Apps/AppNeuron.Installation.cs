@@ -183,7 +183,7 @@ internal sealed partial class AppNeuron
         if (State.Manifest is null) { return; }
         if (TryExtractSandboxPackage(State) is { } package)
         {
-            await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
+            await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(true);
             return;
         }
         VerifyCompiledProgramType();
@@ -199,7 +199,7 @@ internal sealed partial class AppNeuron
         await RecordFeature();
         if (TryExtractSandboxPackage(State) is { } package)
         {
-            await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
+            await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(true);
             return;
         }
         VerifyCompiledProgramType();
@@ -261,7 +261,7 @@ internal sealed partial class AppNeuron
             compiled.AssemblyBytes,
             stateJson: null,
             settingsJson: settingsJson,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            cancellationToken: cancellationToken).ConfigureAwait(true);
         if (!deployment.Succeeded)
         {
             throw new InvalidOperationException(deployment.Error ?? $"Sandbox failed to deploy '{Name()}'.");
@@ -277,7 +277,7 @@ internal sealed partial class AppNeuron
                 {
                     await SiloNeurons.Get<ISandboxSignalRouter>(ServiceProvider, ISandboxSignalRouter.Key(BrainId()))
                         .BindSignalsAsync(compiledPackage.Needs.Signals, cancellationToken)
-                        .ConfigureAwait(false);
+                        .ConfigureAwait(true);
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -300,7 +300,7 @@ internal sealed partial class AppNeuron
             using (Edge?.Enter(Edge.Module("apps.catalog", Id.Brain)))
             {
                 var deployed = SiloNeurons.Get<IntoChat.OS.Modules.Apps.AppRuns.IDeployedApp>(ServiceProvider, IntoChat.OS.Modules.Apps.AppRuns.IDeployedApp.KeyOf(BrainId(), Name()));
-                await (commands is null || schedules is null ? deployed.Clear() : deployed.Set(Name(), commands, schedules)).ConfigureAwait(false);
+                await (commands is null || schedules is null ? deployed.Clear() : deployed.Set(Name(), commands, schedules)).ConfigureAwait(true);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)

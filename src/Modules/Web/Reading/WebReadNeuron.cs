@@ -25,7 +25,7 @@ internal sealed partial class WebReadNeuron(
         EnsureNotGoogleSearch(url);
 
         var http = new HostBoundHttp(clients?.CreateClient(WebModule.PublicHttpClientName) ?? FallbackClient);
-        var fetched = await http.GetPublic(url, CancellationToken.None).ConfigureAwait(false);
+        var fetched = await http.GetPublic(url, CancellationToken.None).ConfigureAwait(true);
         EnsureNotGoogleSearch(fetched.FinalUrl);
 
         var finalUrl = fetched.FinalUrl;
@@ -40,7 +40,7 @@ internal sealed partial class WebReadNeuron(
                 if (CountLetters(markdown) < MinLettersBeforeBrowserFallback
                     && fetched.Text.Contains("<script", StringComparison.OrdinalIgnoreCase))
                 {
-                    (finalUrl, title, markdown) = await TryPlaywrightFallback(finalUrl, title, markdown).ConfigureAwait(false);
+                    (finalUrl, title, markdown) = await TryPlaywrightFallback(finalUrl, title, markdown).ConfigureAwait(true);
                 }
 
                 break;
@@ -73,8 +73,8 @@ internal sealed partial class WebReadNeuron(
             {
                 return (url, title, markdown);
             }
-            await browser.Start().ConfigureAwait(false);
-            var observed = await browser.Navigate(url.AbsoluteUri).ConfigureAwait(false);
+            await browser.Start().ConfigureAwait(true);
+            var observed = await browser.Navigate(url.AbsoluteUri).ConfigureAwait(true);
             var resolvedUrl = Uri.TryCreate(observed.Url, UriKind.Absolute, out var parsed) ? parsed : url;
             EnsureNotGoogleSearch(resolvedUrl);
             var resolvedTitle = !string.IsNullOrWhiteSpace(observed.Title) ? observed.Title : title;

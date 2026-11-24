@@ -34,8 +34,8 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
     public async Task<ConfirmationResult?> Request(ConfirmationPlan plan)
     {
         await Expire().ConfigureAwait(true);
-        var caller = Context.Caller;
-        var raisedBy = caller?.Via?.ToString() ?? caller?.Actor.ToString() ?? "edge";
+        var caller = RequireCaller();
+        var raisedBy = caller.Via?.ToString() ?? caller.Actor.ToString();
         var requester = Answerer.PrincipalOf(caller);
 
         switch (State.Request(plan, requester, raisedBy, Policy, Clock.GetUtcNow()))
@@ -60,9 +60,9 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
 
     public async Task Withdraw(string planId)
     {
-        var caller = RequireCaller(required: false);
+        var caller = RequireOwnBrainCaller();
         var answerer = Answerer.Of(caller, Id.Brain);
-        var raisedBy = caller?.Via?.ToString() ?? caller?.Actor.ToString() ?? "edge";
+        var raisedBy = caller.Via?.ToString() ?? caller.Actor.ToString();
         await Expire().ConfigureAwait(true);
         if (State.Entries.FirstOrDefault(e => e.Request.PlanId == planId && e.Result is null) is { } open
             && !answerer.IsPerson
@@ -78,14 +78,14 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
 
     public async Task<ConfirmationInbox> Read()
     {
-        RequireCaller(required: false);
+        RequireOwnBrainCaller();
         await Expire().ConfigureAwait(true);
         return new(State.Revision, [.. State.Entries.Where(e => e.Result is null).Select(e => e.Request)]);
     }
 
     public async Task Resolve(string planId, bool approve)
     {
-        var answerer = Answerer.Of(Context.Caller, Id.Brain);
+        var answerer = Answerer.Of(RequireOwnBrainCaller(), Id.Brain);
         await Expire().ConfigureAwait(true);
         switch (State.Answer(planId, approve, answerer, Clock.GetUtcNow()))
         {
@@ -140,18 +140,6 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
             ExpiryPeriod).ConfigureAwait(true);
     }
 
-    private Caller? RequireCaller(bool required)
-    {
-        var caller = Context.Caller;
-        if (caller is null)
-        {
-            if (required) { throw new UnauthorizedAccessException("A trusted caller is required."); }
-            return null;
-        }
-        if (caller.Brain != Id.Brain)
-        {
-            throw new UnauthorizedAccessException("This confirmation belongs to another brain.");
-        }
-        return caller;
-    }
+    private Caller RequireOwnBrainCaller()
+        => RequireSameBrain(() => new UnauthorizedAccessException("This confirmation belongs to another brain; a call with no caller is refused."));
 }

@@ -35,7 +35,7 @@ internal sealed partial class SystemOneNeuron(
         {
             foreach (var (key, question) in request.Questions)
             {
-                var answer = await TryAnswerWithVennAsync(venn, key, request.State, question).ConfigureAwait(false);
+                var answer = await TryAnswerWithVennAsync(venn, key, request.State, question).ConfigureAwait(true);
                 if (answer is not null)
                 {
                     answers[key] = answer;
@@ -62,9 +62,9 @@ internal sealed partial class SystemOneNeuron(
         if (abstained.Count > 0)
         {
             var escalatedRequest = request with { Questions = abstained };
-            var escalated = client is not null && await client.IsReadyAsync(ct).ConfigureAwait(false)
-                ? await client.Ask(escalatedRequest, ct).ConfigureAwait(false)
-                : await LocalSystemOneEscalator.TryAskAsync(catalog, Id.Brain.Value, escalatedRequest, ct).ConfigureAwait(false);
+            var escalated = client is not null && await client.IsReadyAsync(ct).ConfigureAwait(true)
+                ? await client.Ask(escalatedRequest, ct).ConfigureAwait(true)
+                : await LocalSystemOneEscalator.TryAskAsync(catalog, Id.Brain.Value, escalatedRequest, ct).ConfigureAwait(true);
 
             if (escalated is not null)
             {
@@ -75,7 +75,7 @@ internal sealed partial class SystemOneNeuron(
                 foreach (var (key, answer) in escalated.Answers)
                 {
                     answers[key] = answer;
-                    await LearnFromEscalationAsync(venn, key, request.State, answer).ConfigureAwait(false);
+                    await LearnFromEscalationAsync(venn, key, request.State, answer).ConfigureAwait(true);
                 }
             }
         }
@@ -97,7 +97,7 @@ internal sealed partial class SystemOneNeuron(
             case SystemOneQuestion.Choice choice when choice.Criteria.Count > 0:
                 {
                     var candidates = choice.Criteria.Keys.ToArray();
-                    var res = await venn.ChooseForText(state, candidates).ConfigureAwait(false);
+                    var res = await venn.ChooseForText(state, candidates).ConfigureAwait(true);
                     if (res.Abstained || string.IsNullOrEmpty(res.ChosenAction))
                     {
                         return null;
@@ -106,7 +106,7 @@ internal sealed partial class SystemOneNeuron(
                 }
             case SystemOneQuestion.Score:
                 {
-                    var res = await venn.ScoreForText(state).ConfigureAwait(false);
+                    var res = await venn.ScoreForText(state).ConfigureAwait(true);
                     if (res.Abstained)
                     {
                         return null;
@@ -115,7 +115,7 @@ internal sealed partial class SystemOneNeuron(
                 }
             case SystemOneQuestion.Noul:
                 {
-                    var res = await venn.NoulForText(state, key).ConfigureAwait(false);
+                    var res = await venn.NoulForText(state, key).ConfigureAwait(true);
                     if (res.Abstained)
                     {
                         return null;
@@ -142,7 +142,7 @@ internal sealed partial class SystemOneNeuron(
             && choice.Confidence >= LearnConfidenceThreshold
             && !string.IsNullOrWhiteSpace(choice.Value))
         {
-            await venn.LearnFromText(domain, state, choice.Value, choice.Confidence, autoCompile: true).ConfigureAwait(false);
+            await venn.LearnFromText(domain, state, choice.Value, choice.Confidence, autoCompile: true).ConfigureAwait(true);
         }
     }
 

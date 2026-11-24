@@ -127,7 +127,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
     public async Task<Friend[]> List()
     {
-        RequireSameBrain();
+        RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
         return State.Friends ?? [];
     }
@@ -192,7 +192,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
 
     public async Task<GroupInvite[]> Groups()
     {
-        RequireSameBrain();
+        RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
         return State.Groups;
     }
@@ -246,7 +246,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     public async Task<BrainPublicKeys> PublicKeys(CancellationToken ct = default)
     {
         _ = ct;
-        RequireSameBrain();
+        RequireSameBrain(PersonActs.Refused);
         return await EnsurePublicKeys();
     }
 
@@ -297,17 +297,9 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         return brain == Id.Brain ? account : throw PersonActs.Refused();
     }
 
-    private void RequireSameBrain()
-    {
-        if (Context.Caller is { } caller && caller.Brain != Id.Brain)
-        {
-            throw PersonActs.Refused();
-        }
-    }
-
     private void RequireIsFriendCaller(AccountId account)
     {
-        if (Context.Caller is not { } caller) { return; }
+        var caller = RequireCaller();
         if (caller.Brain == Id.Brain || caller.Via?.Brain == Id.Brain) { return; }
         if (caller.Actor is Actor.Person person && string.Equals(person.Account, account.Value, StringComparison.Ordinal)) { return; }
         throw PersonActs.Refused();

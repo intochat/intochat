@@ -121,12 +121,12 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
         var normalized = NormalizeConfig(config, endpoint);
         ValidateHeaderName(normalized.HeaderName);
 
-        await _session.DropAsync().ConfigureAwait(false);
+        await _session.DropAsync().ConfigureAwait(true);
         ClearConfirmationState();
         ToolDescriptor[] tools;
         try
         {
-            tools = await _session.ListToolsAsync(endpoint, CreateClientAsync, normalized.AllowedTools, ct).ConfigureAwait(false);
+            tools = await _session.ListToolsAsync(endpoint, CreateClientAsync, normalized.AllowedTools, ct).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -145,7 +145,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
                 Status = ConnectionStatus.Failing,
                 Detail = error.Message,
             };
-            await SaveServerStateAsync(failed, publishConnectionEvent: false).ConfigureAwait(false);
+            await SaveServerStateAsync(failed, publishConnectionEvent: false).ConfigureAwait(true);
             throw new InvalidOperationException($"MCP server {normalized.Url} is unreachable: {error.Message}", error);
         }
 
@@ -165,7 +165,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
             AuthMethodId = string.IsNullOrEmpty(Snapshot.AuthMethodId) ? "none" : Snapshot.AuthMethodId,
             Detail = null,
         };
-        await SaveServerStateAsync(connected, publishConnectionEvent: true).ConfigureAwait(false);
+        await SaveServerStateAsync(connected, publishConnectionEvent: true).ConfigureAwait(true);
         return ToServerState(connected);
     }
 
@@ -174,14 +174,14 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
 
     public async Task DisconnectServer(CancellationToken ct = default)
     {
-        await _session.DropAsync().ConfigureAwait(false);
+        await _session.DropAsync().ConfigureAwait(true);
         ClearConfirmationState();
         var disconnected = Snapshot with
         {
             Connected = false,
             Status = ConnectionStatus.Disconnected,
         };
-        await SaveServerStateAsync(disconnected, publishConnectionEvent: false).ConfigureAwait(false);
+        await SaveServerStateAsync(disconnected, publishConnectionEvent: false).ConfigureAwait(true);
     }
 
     public async Task<JsonElement> Run(string tool, JsonElement args, CancellationToken ct = default)
@@ -209,7 +209,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
         }
 
         var argumentsString = args.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ? "{}" : args.GetRawText();
-        var result = await Run(tool, argumentsString, ct).ConfigureAwait(false);
+        var result = await Run(tool, argumentsString, ct).ConfigureAwait(true);
 
         if (result.IsError)
         {
@@ -232,7 +232,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
             throw new ToolExecutionException(tool, $"Tool '{tool}' was not found in MCP server '{Snapshot.Title}'.", isNotFound: true);
         }
 
-        var confirmationGate = await CheckConfirmationAsync(tool).ConfigureAwait(false);
+        var confirmationGate = await CheckConfirmationAsync(tool).ConfigureAwait(true);
         if (confirmationGate is not null)
         {
             return confirmationGate;
@@ -246,10 +246,10 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
                 ["Tool"] = tool,
                 ["Server"] = Snapshot.Title,
                 ["Connection"] = Id.Key,
-            }, cancellation => _session.CallToolAsync(endpoint, CreateClientAsync, tool, arguments, cancellation), ct).ConfigureAwait(false)
-            : await _session.CallToolAsync(endpoint, CreateClientAsync, tool, arguments, ct).ConfigureAwait(false);
+            }, cancellation => _session.CallToolAsync(endpoint, CreateClientAsync, tool, arguments, cancellation), ct).ConfigureAwait(true)
+            : await _session.CallToolAsync(endpoint, CreateClientAsync, tool, arguments, ct).ConfigureAwait(true);
 
-        await PublishAsync(new McpToolRan(tool, result.IsError, (int)clock.ElapsedMilliseconds)).ConfigureAwait(false);
+        await PublishAsync(new McpToolRan(tool, result.IsError, (int)clock.ElapsedMilliseconds)).ConfigureAwait(true);
         return result;
     }
 
@@ -275,7 +275,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
 
     protected override async Task OnConnectedAsync()
     {
-        await _session.DropAsync().ConfigureAwait(false);
+        await _session.DropAsync().ConfigureAwait(true);
         ClearConfirmationState();
 
         // Extract only non-secret configuration from the sealed payload inside UseCredentialAsync; the token never leaves.
@@ -283,7 +283,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
         {
             var parsed = ParseConfigOnly(credential.Value, Snapshot, _log);
             return Task.FromResult(parsed);
-        }, CancellationToken.None).ConfigureAwait(false);
+        }, CancellationToken.None).ConfigureAwait(true);
 
         Uri endpoint;
         try
@@ -307,8 +307,8 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
                 LastError = error.Message,
                 ProbedAt = NowUtc(),
             };
-            await Commit(failed, new McpServerChanged(ToServerState(failed))).ConfigureAwait(false);
-            await MarkFailing(error.Message).ConfigureAwait(false);
+            await Commit(failed, new McpServerChanged(ToServerState(failed))).ConfigureAwait(true);
+            await MarkFailing(error.Message).ConfigureAwait(true);
             return;
         }
 
@@ -324,11 +324,11 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
             LastError = null,
             ProbedAt = NowUtc(),
         };
-        await SaveQuietly(pendingState).ConfigureAwait(false);
+        await SaveQuietly(pendingState).ConfigureAwait(true);
 
         try
         {
-            var tools = await _session.ListToolsAsync(endpoint, CreateClientAsync, normalized.AllowedTools, CancellationToken.None).ConfigureAwait(false);
+            var tools = await _session.ListToolsAsync(endpoint, CreateClientAsync, normalized.AllowedTools, CancellationToken.None).ConfigureAwait(true);
             var connected = Snapshot with
             {
                 Url = normalized.Url,
@@ -342,7 +342,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
                 LastError = null,
                 ProbedAt = NowUtc(),
             };
-            await Commit(connected, new ConnectionUpdated(Key.Connector, Key.Connection), new McpServerChanged(ToServerState(connected))).ConfigureAwait(false);
+            await Commit(connected, new ConnectionUpdated(Key.Connector, Key.Connection), new McpServerChanged(ToServerState(connected))).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -360,8 +360,8 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
                 LastError = ex.Message,
                 ProbedAt = NowUtc(),
             };
-            await Commit(failed, new McpServerChanged(ToServerState(failed))).ConfigureAwait(false);
-            await MarkFailing(ex.Message).ConfigureAwait(false);
+            await Commit(failed, new McpServerChanged(ToServerState(failed))).ConfigureAwait(true);
+            await MarkFailing(ex.Message).ConfigureAwait(true);
         }
     }
 
@@ -380,7 +380,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
         {
             var secret = ExtractToken(credential.Value);
             var headers = McpClientSession.BuildHeaders(normalized.HeaderName, normalized.HeaderPrefix, secret);
-            var tools = await _session.ProbeAsync(endpoint, headers, normalized.AllowedTools, ct).ConfigureAwait(false);
+            var tools = await _session.ProbeAsync(endpoint, headers, normalized.AllowedTools, ct).ConfigureAwait(true);
             return ConnectionProbeResult.Connected($"Connected to {normalized.Title} ({tools.Length} tools).");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -392,16 +392,16 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
 
     protected override async Task OnDisconnectedAsync()
     {
-        await _session.DropAsync().ConfigureAwait(false);
+        await _session.DropAsync().ConfigureAwait(true);
         ClearConfirmationState();
         var disconnected = Snapshot with { Connected = false, Tools = [] };
-        await Commit(disconnected, new ConnectionUpdated(Key.Connector, Key.Connection), new McpServerChanged(ToServerState(disconnected))).ConfigureAwait(false);
+        await Commit(disconnected, new ConnectionUpdated(Key.Connector, Key.Connection), new McpServerChanged(ToServerState(disconnected))).ConfigureAwait(true);
     }
 
     protected override async Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken)
     {
-        await _session.DropAsync().ConfigureAwait(false);
-        await base.OnDeactivate(cause, cancellationToken).ConfigureAwait(false);
+        await _session.DropAsync().ConfigureAwait(true);
+        await base.OnDeactivate(cause, cancellationToken).ConfigureAwait(true);
     }
 
     private void ClearConfirmationState()
@@ -467,7 +467,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
                 continue;
             }
 
-            var outcome = await confirmations.Outcome(planId).ConfigureAwait(false);
+            var outcome = await confirmations.Outcome(planId).ConfigureAwait(true);
             if (outcome is { Approved: true, Skipped: false, Approver.IsHuman: true })
             {
                 _pendingByPlanId.Remove(planId);
@@ -506,7 +506,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
             Subject = $"{Id.Key}/{tool}",
         };
 
-        var result = await confirmations.Request(plan).ConfigureAwait(false);
+        var result = await confirmations.Request(plan).ConfigureAwait(true);
         if (result is { Approved: true, Skipped: false, Approver.IsHuman: true })
         {
             if (mode == McpConfirmationMode.OncePerSession)
@@ -533,8 +533,8 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
         {
             try
             {
-                await Record(next, new ConnectionConnected(connectorId, connectionId, next.AuthMethodId, next.Account, next.ProbedAt)).ConfigureAwait(false);
-                await PublishAsync(serverChanged).ConfigureAwait(false);
+                await Record(next, new ConnectionConnected(connectorId, connectionId, next.AuthMethodId, next.Account, next.ProbedAt)).ConfigureAwait(true);
+                await PublishAsync(serverChanged).ConfigureAwait(true);
                 return;
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -543,7 +543,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
             }
         }
 
-        await Commit(next, serverChanged).ConfigureAwait(false);
+        await Commit(next, serverChanged).ConfigureAwait(true);
     }
 
     private bool TryParseAddress(out string connectorId, out string connectionId)

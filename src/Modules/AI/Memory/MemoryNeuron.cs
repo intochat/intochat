@@ -36,6 +36,9 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         _embedder = embedder;
     }
 
+    // An activation holds the neuron alone, so the copy of memory the knowledge store has not seen yet is made here, not in a read.
+    protected override Task OnActivate(CancellationToken cancellationToken) => SyncAsync();
+
     public Task<MemorySnapshot> Read()
         => Task.FromResult(new MemorySnapshot(State.Revision, State.Episodes, State.Facts)
         {
@@ -57,7 +60,7 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
             Context.Time.GetUtcNow());
         var episodes = State.Episodes.Append(episode).TakeLast(MaxEpisodes).ToArray();
         var next = State with { Revision = State.Revision + 1, Episodes = episodes };
-        await PersistStateAsync(next).ConfigureAwait(false);
+        await PersistStateAsync(next).ConfigureAwait(true);
         return episode;
     }
 
@@ -80,11 +83,11 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
             .TakeLast(MaxFacts)
             .ToArray();
         var next = State with { Revision = State.Revision + 1, Facts = existing };
-        await PersistStateAsync(next).ConfigureAwait(false);
-        await SyncAsync().ConfigureAwait(false);
+        await PersistStateAsync(next).ConfigureAwait(true);
+        await SyncAsync().ConfigureAwait(true);
         if (TryGetStore() is { } store)
         {
-            await store.RecordNodeAsync(ToNode(fact)).ConfigureAwait(false);
+            await store.RecordNodeAsync(ToNode(fact)).ConfigureAwait(true);
         }
         return fact;
     }
@@ -101,7 +104,7 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         var trust = IsAgentCaller() ? MemoryTrust.Agent : MemoryTrust.Owner;
         var trimmedSubject = subject.Trim();
         var trimmedBody = body.Trim();
-        var embedding = await _embedder.EmbedAsync($"{trimmedSubject}: {trimmedBody}").ConfigureAwait(false);
+        var embedding = await _embedder.EmbedAsync($"{trimmedSubject}: {trimmedBody}").ConfigureAwait(true);
         var entities = ExtractEntities(normalizedScope, trimmedSubject);
 
         var note = new MemoryNote(
@@ -125,10 +128,10 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
             .ToArray();
 
         var next = State with { Revision = State.Revision + 1, Notes = updatedNotes };
-        await PersistStateAsync(next).ConfigureAwait(false);
+        await PersistStateAsync(next).ConfigureAwait(true);
         if (TryGetStore() is { } store)
         {
-            await store.RecordNodeAsync(ToNode(note)).ConfigureAwait(false);
+            await store.RecordNodeAsync(ToNode(note)).ConfigureAwait(true);
         }
         return note;
     }
@@ -148,7 +151,7 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         var promoted = target with { Trust = MemoryTrust.Owner };
         var updatedNotes = State.Notes.Select(n => n.Id == promoted.Id ? promoted : n).ToArray();
         var next = State with { Revision = State.Revision + 1, Notes = updatedNotes };
-        await PersistStateAsync(next).ConfigureAwait(false);
+        await PersistStateAsync(next).ConfigureAwait(true);
         return promoted;
     }
 
@@ -173,13 +176,13 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
             .ToArray();
 
         var next = State with { Revision = State.Revision + 1, Edges = updatedEdges };
-        await PersistStateAsync(next).ConfigureAwait(false);
+        await PersistStateAsync(next).ConfigureAwait(true);
 
         if (TryGetStore() is { } store)
         {
-            await store.RecordNodeAsync(new KnowledgeNode(edge.SourceEntity, edge.SourceEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(false);
-            await store.RecordNodeAsync(new KnowledgeNode(edge.TargetEntity, edge.TargetEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(false);
-            await store.RecordEdgeAsync(new KnowledgeEdge(edge.SourceEntity, edge.TargetEntity, edge.Relation, edge.Weight, null, Context.Time.GetUtcNow())).ConfigureAwait(false);
+            await store.RecordNodeAsync(new KnowledgeNode(edge.SourceEntity, edge.SourceEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(true);
+            await store.RecordNodeAsync(new KnowledgeNode(edge.TargetEntity, edge.TargetEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(true);
+            await store.RecordEdgeAsync(new KnowledgeEdge(edge.SourceEntity, edge.TargetEntity, edge.Relation, edge.Weight, null, Context.Time.GetUtcNow())).ConfigureAwait(true);
         }
 
         return edge;
@@ -192,14 +195,14 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
             return [];
         }
 
-        var pack = await RecallPack(query, activeScope: null, limit).ConfigureAwait(false);
+        var pack = await RecallPack(query, activeScope: null, limit).ConfigureAwait(true);
         return pack.RecalledItems;
     }
 
+    // [ReadOnlyCall, Interleaves]: it may run beside a write turn and for a read-only caller, so it writes nothing. The one-time copy
+    // of memory into the knowledge store happens when the neuron activates (OnActivate) and on RememberFact.
     public async Task<MemoryRecallPack> RecallPack(string query, string? activeScope = null, int limit = 5)
     {
-        await SyncAsync().ConfigureAwait(false);
-
         var inferredScope = string.IsNullOrWhiteSpace(activeScope) ? InferRepoScope(query) : activeScope.Trim();
 
         // Slot P2: Deterministic Owner-trusted rules matching global / owner / active repo scope.
@@ -216,7 +219,7 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         }
 
         var terms = HybridMemoryScorer.Tokenize(query);
-        var queryEmbedding = await _embedder.EmbedAsync(query).ConfigureAwait(false);
+        var queryEmbedding = await _embedder.EmbedAsync(query).ConfigureAwait(true);
         var queryLocalEmbedding = queryEmbedding.Length == HybridMemoryEmbedder.LocalDimension
             ? queryEmbedding
             : HybridMemoryEmbedder.LocalDeterministicEmbed(query);
@@ -301,7 +304,7 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         // 4. Graph hits from the knowledge store replace the lexical hit for the same fact and add facts reached by relations.
         if (TryGetStore() is { } store)
         {
-            foreach (var hit in await store.SemanticSearchAsync(query, limit).ConfigureAwait(false))
+            foreach (var hit in await store.SemanticSearchAsync(query, limit).ConfigureAwait(true))
             {
                 hits.RemoveAll(h => h.Id == hit.Node.Id);
                 var text = hit.AssociativePath is { Count: > 1 } path ? $"{hit.Node.Label} (via {string.Join(" → ", path)})" : hit.Node.Label;
@@ -337,23 +340,24 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
 
     private async Task SyncAsync()
     {
-        if (State.Synced || TryGetStore() is not { } store) { return; }
+        // Nothing to copy yet: the flag stays unset rather than costing a write on every fresh activation.
+        if (State.Synced || (State.Facts.Length == 0 && State.Notes.Length == 0 && State.Edges.Length == 0) || TryGetStore() is not { } store) { return; }
         foreach (var fact in State.Facts)
         {
-            await store.RecordNodeAsync(ToNode(fact)).ConfigureAwait(false);
+            await store.RecordNodeAsync(ToNode(fact)).ConfigureAwait(true);
         }
         foreach (var note in State.Notes)
         {
-            await store.RecordNodeAsync(ToNode(note)).ConfigureAwait(false);
+            await store.RecordNodeAsync(ToNode(note)).ConfigureAwait(true);
         }
         foreach (var edge in State.Edges)
         {
-            await store.RecordNodeAsync(new KnowledgeNode(edge.SourceEntity, edge.SourceEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(false);
-            await store.RecordNodeAsync(new KnowledgeNode(edge.TargetEntity, edge.TargetEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(false);
-            await store.RecordEdgeAsync(new KnowledgeEdge(edge.SourceEntity, edge.TargetEntity, edge.Relation, edge.Weight, null, Context.Time.GetUtcNow())).ConfigureAwait(false);
+            await store.RecordNodeAsync(new KnowledgeNode(edge.SourceEntity, edge.SourceEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(true);
+            await store.RecordNodeAsync(new KnowledgeNode(edge.TargetEntity, edge.TargetEntity, "entity", new Dictionary<string, string>(StringComparer.Ordinal), null, 5, Context.Time.GetUtcNow())).ConfigureAwait(true);
+            await store.RecordEdgeAsync(new KnowledgeEdge(edge.SourceEntity, edge.TargetEntity, edge.Relation, edge.Weight, null, Context.Time.GetUtcNow())).ConfigureAwait(true);
         }
         var next = State with { Revision = State.Revision + 1, Synced = true };
-        await PersistStateAsync(next).ConfigureAwait(false);
+        await PersistStateAsync(next).ConfigureAwait(true);
     }
 
     private static KnowledgeNode ToNode(MemoryFact fact)

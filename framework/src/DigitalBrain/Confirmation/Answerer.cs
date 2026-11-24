@@ -24,9 +24,14 @@ public sealed record Answerer
     public bool IsPerson { get; }
 
     /// <summary>Derives an <see cref="Answerer"/> from an ambient <see cref="Caller"/> in <paramref name="brain"/>.</summary>
+    /// <exception cref="UnauthorizedAccessException">There is no caller, or it acts in another brain.</exception>
     public static Answerer Of(Caller? caller, BrainId brain)
     {
-        if (caller is not null && caller.Brain != brain)
+        if (caller is null)
+        {
+            throw new UnauthorizedAccessException("A confirmation is answered only by a stamped caller.");
+        }
+        if (caller.Brain != brain)
         {
             throw new UnauthorizedAccessException("This confirmation belongs to another brain.");
         }
@@ -54,7 +59,7 @@ public sealed record Answerer
         return new Answerer(principal, isPerson: direct && principal.IsHuman);
     }
 
-    internal static ConfirmationPrincipal PrincipalOf(Caller? caller) => caller?.Actor switch
+    internal static ConfirmationPrincipal PrincipalOf(Caller caller) => caller.Actor switch
     {
         Actor.Person p => ConfirmationPrincipal.Person(p.Principal),
         Actor.App a => ConfirmationPrincipal.App(string.IsNullOrEmpty(a.Key) ? a.For.Principal : a.Key),
