@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <DefaultItemExcludes>$(DefaultItemExcludes);.intochat-os/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);.intochat-os/**;**/.last_build_id</DefaultItemExcludes>
     <NoWarn>$(NoWarn);CA2007;CS1591;ORLEANSEXP005</NoWarn>
     <IsPackable>true</IsPackable>
     <PackageId>IntoChat.OS.Kernel</PackageId>
