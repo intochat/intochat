@@ -1174,7 +1174,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Flows.PlanInner",
             "IntoChat.OS.Modules.Apps.Flows.PlanFlow",
             "IntoChat.OS.Modules.Apps.ArtCraftEngineRunner",
-            "IntoChat.OS.Modules.Apps.InoLinks",
             "IntoChat.OS.Modules.Apps.DataAnalyticsEngine",
             "IntoChat.OS.Modules.Apps.InoDataCards",
             "IntoChat.OS.Modules.Apps.AppInstaller",

@@ -59,24 +59,6 @@ public sealed record RatifiedPlan(
     public EngineerTaskSlice[][] TopologicalWaves() => EngineerTaskSlices.ComputeWaves(Slices ?? []);
 }
 
-[GenerateSerializer, Alias("engineer.mission")]
-public sealed record Mission(
-    [property: Id(0)] string MissionId,
-    [property: Id(1)] string RepositoryId,
-    [property: Id(2)] string Goal,
-    [property: Id(3)] EngineeringHarnessKind Harness = EngineeringHarnessKind.InoNative,
-    [property: Id(4)] bool RequirePlanRatification = false,
-    [property: Id(5)] RatifiedPlan? RatifiedPlan = null,
-    [property: Id(6)] MissionCollaborator[]? Collaborators = null,
-    [property: Id(7)] string? LinkedCircleBrainId = null)
-{
-    public Mission()
-        : this("", "os", "", EngineeringHarnessKind.InoNative, false, null, null, null)
-    {
-    }
-}
-
-
 [GenerateSerializer, Alias("engineer.brainstorm-turn")]
 public sealed record EngineerBrainstormTurn(
     [property: Id(0)] string Speaker,

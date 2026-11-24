@@ -165,16 +165,6 @@ internal sealed record EngineerRun
         => Instances.FirstOrDefault(i => i.InstanceIndex == SelectedInstanceIndex)
             ?? Instances.FirstOrDefault();
 
-    public Mission ToMission(MissionCollaborator[]? collaborators = null) => new(
-        MissionId: RunId,
-        RepositoryId: Repository?.Value ?? "os",
-        Goal: Goal,
-        Harness: Harness,
-        RequirePlanRatification: RequirePlanRatification,
-        RatifiedPlan: RatifiedPlan,
-        Collaborators: collaborators,
-        LinkedCircleBrainId: CircleBrainId);
-
     public static EngineerRun Start(
         string? runId,
         RepositoryId repository,

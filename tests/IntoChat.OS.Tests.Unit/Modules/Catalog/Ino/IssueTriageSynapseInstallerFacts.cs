@@ -48,9 +48,9 @@ public sealed class IssueTriageSynapseInstallerFacts
 
         var sourceFiles = await synapseStudio.SourceFiles("gh-triage-main");
         Assert.Contains(IssueTriageSynapseGenerator.CodeFileName, sourceFiles.Keys);
-        var compileCheck = SynapseCheck.CompileOrDefault(os.Services, sourceFiles);
-        Assert.True(compileCheck.Success);
-        Assert.Empty(compileCheck.Errors);
+        var compiler = new DigitalBrain.Runtime.Synapses.SynapseCompiler(DigitalBrain.Runtime.Synapses.ReferenceSet.FromDefaultContext());
+        var build = compiler.Compile(new DigitalBrain.Units.SynapseSource("check", sourceFiles, null));
+        Assert.True(build.Success, string.Join("; ", build.Diagnostics.Select(d => d.Message)));
 
         var sidecars = await synapseStudio.Sidecars("gh-triage-main");
         Assert.Contains(UnitFiles.Spec, sidecars.Keys);

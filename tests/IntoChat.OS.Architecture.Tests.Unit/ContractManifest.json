@@ -8,8 +8,7 @@
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
-    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
-    "IntoChat.OS.Modules.Apps.DataAnalyticsWorker": "dataanalyticsworker"
+    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable"
   },
   "GrainInterfaces": {
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
@@ -17,8 +16,7 @@
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
     "IntoChat.OS.Connections.Platform.Integrations.IIntegration": "integration.registration",
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
-    "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table",
-    "IntoChat.OS.Modules.Apps.IDataAnalyticsWorker": "ino.data-analytics-worker"
+    "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table"
   },
   "Contracts": {
     "IntoChat.OS.Apps.Gallery.GalleryLibraryState": "os.gallery.library; Category=0, Search=1, SelectedId=2, Count=3",

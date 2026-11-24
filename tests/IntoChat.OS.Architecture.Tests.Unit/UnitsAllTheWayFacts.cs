@@ -19,7 +19,6 @@ public sealed partial class UnitsAllTheWayFacts
         "AppSandboxHost.cs",
         "Apps/Creator.cs",
         "Authoring/BuilderTools.cs",
-        "Authoring/SynapseCheck.cs",
         "Flows/BuildFlow.cs",
         "Ino/SynapseStudioNeuron.cs",
         "Packages/AppPackageCompiler.cs",
@@ -190,13 +189,12 @@ public sealed partial class UnitsAllTheWayFacts
 
     // The files that may reference a ShippedApps key constant: the declaration, the apps that alias it as their AppName, and the hosts
     // that must name a shipped app (the ArtCraft engine checks its studios' calls; the installed-modules grant names Settings; the
-    // shipped grants are per app; the files workspace hands a file to Ino; an app's installation mounts the account surface for
-    // Settings).
+    // shipped grants are per app; the files workspace hands a file to Ino).
     private static readonly string[] KeyReferenceFiles =
     [
         "ShippedApps.cs", "SettingsApp.cs", "PhotoCraftApp.cs", "FilmCraftApp.cs", "CreatorApp.cs",
         "ArtCraftEngineNeuron.cs", "ArtCraftEngineRunner.cs", "InstalledModulesNeuron.cs",
-        "ShippedGrants.cs", "FilesWorkspaceNeuron.cs", "AppNeuron.Installation.cs",
+        "ShippedGrants.cs", "FilesWorkspaceNeuron.cs",
     ];
 
     [Fact]

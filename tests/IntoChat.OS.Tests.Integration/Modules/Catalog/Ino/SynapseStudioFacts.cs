@@ -128,18 +128,6 @@ public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFi
     }
 
     [Fact]
-    public async Task CheckCsharpRunsSynapseAnalyzersOnSynapseSource()
-    {
-        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
-
-        var check = SynapseCheck.Compile(runtime.Services, new Dictionary<string, string> { ["poller.cs"] = WithStatus });
-
-        Assert.NotNull(check);
-        Assert.Contains(check.Errors, error => error.Id == "DB0043");
-        Assert.Null(SynapseCheck.Compile(runtime.Services, new Dictionary<string, string> { ["main.cs"] = "int x = 1;" }));
-    }
-
-    [Fact]
     public async Task AHeadlessBuildDeploysAUnitAndWaitsForItsNeeds()
     {
         await using var fixture = new StudioFixture();

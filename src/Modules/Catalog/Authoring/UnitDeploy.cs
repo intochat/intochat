@@ -1,40 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
-
-// check_csharp on synapse source: the silo's SynapseCompiler runs the framework's synapse analyzers (SynapseShape, StateLocality,
-// StatusString) with the compile, so the Builder sees what a deploy would refuse.
-internal static class SynapseCheck
-{
-    public static bool IsSynapseSource(IReadOnlyDictionary<string, string> files)
-        => files.Values.Any(source => source.Contains("[Synapse", StringComparison.Ordinal));
-
-    // Null when the files are not synapse source; throws when they are but the silo hosts no synapse compiler.
-    public static ScriptCompilationCheck? Compile(IServiceProvider services, IReadOnlyDictionary<string, string> files)
-    {
-        if (!IsSynapseSource(files)) { return null; }
-        var compiler = services.GetService<SynapseCompiler>() ?? throw new InvalidOperationException(SynapseStudioNeuron.Unavailable);
-        return Compile(compiler, files);
-    }
-
-    public static ScriptCompilationCheck CompileOrDefault(IServiceProvider? services, IReadOnlyDictionary<string, string> files)
-    {
-        ArgumentNullException.ThrowIfNull(files);
-        var compiler = services?.GetService<SynapseCompiler>() ?? SynapseCompiler.Default;
-        return Compile(compiler, files);
-    }
-
-    public static ScriptCompilationCheck Compile(SynapseCompiler compiler, IReadOnlyDictionary<string, string> files)
-    {
-        ArgumentNullException.ThrowIfNull(compiler);
-        ArgumentNullException.ThrowIfNull(files);
-        var build = compiler.Compile(new SynapseSource("check", files, null));
-        return new ScriptCompilationCheck(build.Success, [.. build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message))]);
-    }
-}
 
 // A unit lands through the studio; its install outcome, not the deploy, says whether it is live.
 internal static class UnitDeploy

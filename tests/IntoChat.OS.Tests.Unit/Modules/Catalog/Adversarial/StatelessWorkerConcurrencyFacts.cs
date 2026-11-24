@@ -6,17 +6,16 @@ using Xunit;
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Adversarial;
 
 /// <summary>
-/// Empirical adversarial verification of [StatelessWorker] grains:
-/// 1. IDataAnalyticsWorker / DataAnalyticsEngine concurrent multi-threaded pipeline execution without deadlocks or state pollution.
+/// Empirical adversarial verification of the stateless engines:
+/// 1. DataAnalyticsEngine concurrent multi-threaded pipeline execution without deadlocks or state pollution.
 /// 2. IMarkdrawSceneWorker / MarkdrawSceneEngine concurrent multi-threaded parsing, patching, and rendering.
 /// </summary>
 public sealed class StatelessWorkerConcurrencyFacts
 {
     [Fact]
-    public async Task DataAnalyticsWorker_ConcurrentMultiThreadedLoad_NoDeadlocksOrStatePollution()
+    public async Task DataAnalyticsEngine_ConcurrentMultiThreadedLoad_NoDeadlocksOrStatePollution()
     {
         const int concurrency = 50;
-        var worker = new DataAnalyticsWorker();
 
         // 50 parallel requests with diverse queries, data shapes, and aggregations
         var tasks = Enumerable.Range(1, concurrency).Select(async i =>
@@ -35,7 +34,9 @@ public sealed class StatelessWorkerConcurrencyFacts
                 Services,{{500 + i}}
                 """;
 
-            var result = await worker.ExecuteAsync(prompt, $"tenant-db-{i}", fileDatasetText: csvData, fileDatasetPath: $"/work/pipeline-{i}.csv");
+            var result = await Task.Run(
+                () => DataAnalyticsEngine.ExecuteInMemory(prompt, $"tenant-db-{i}", fileDatasetText: csvData, fileDatasetPath: $"/work/pipeline-{i}.csv"),
+                TestContext.Current.CancellationToken);
 
             Assert.NotNull(result);
             Assert.NotEmpty(result.ChartTitle);
@@ -101,10 +102,8 @@ public sealed class StatelessWorkerConcurrencyFacts
     }
 
     [Fact]
-    public async Task DataAnalyticsAndMarkdrawWorkers_InterleavedConcurrentLoad_SurvivesWithoutDeadlock()
+    public async Task DataAnalyticsEngineAndMarkdrawWorker_InterleavedConcurrentLoad_SurvivesWithoutDeadlock()
     {
-        var dataWorker = new DataAnalyticsWorker();
-
         const int iterations = 30;
 
         var ct = TestContext.Current.CancellationToken;
@@ -112,10 +111,10 @@ public sealed class StatelessWorkerConcurrencyFacts
         for (var i = 0; i < iterations; i++)
         {
             var idx = i;
-            tasks.Add(Task.Run(async () =>
+            tasks.Add(Task.Run(() =>
             {
                 var query = $"Dataset {idx}: A: {10 + idx}, B: 20, C: 30";
-                var res = await dataWorker.ExecuteAsync(query, $"db-{idx}");
+                var res = DataAnalyticsEngine.ExecuteInMemory(query, $"db-{idx}");
                 Assert.NotNull(res.Summary);
             }, ct));
 
