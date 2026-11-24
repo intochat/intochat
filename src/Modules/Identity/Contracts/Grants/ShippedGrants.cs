@@ -33,7 +33,7 @@ public static class ShippedGrants
         ];
     }
 
-    // The command-line host (IntoChat.OS.Cli) joins the gateway as the app "cli" for a person; it reads what runs, sends app commands, starts workflows and cancels runs; answering approvals is not its to do.
+    // The command-line host (IntoChat.OS.Cli) calls the edge as the app "cli" for the person its proof names (ActingApp); it reads what runs, sends app commands, starts workflows and cancels runs; answering approvals is not its to do.
     public const string CliApp = "cli";
 
     public static Grant[] ForCli(string brain) =>

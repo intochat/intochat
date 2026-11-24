@@ -160,9 +160,10 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
         var (host, client) = (silo.Host, silo.Client);
         RequestContext.Clear();
 
-        // The documented client stamp (ClientCaller.ActAs): the proxy resolves the host grain and asks the interleaving
+        // A client that stamps an app acting for a person: the proxy resolves the host grain and asks the interleaving
         // policy, then the call reaches the stages. An app without a grant is refused there, by the gate, not by routing.
-        using (ClientCaller.ActAs("cli", AccountSession.DefaultLogin, AccountSession.DefaultLogin, host.Scope))
+        var edge = host.Services.GetRequiredService<EdgeAuthority>();
+        using (edge.Enter(edge.App("cli", new Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin), new BrainId(host.Scope))))
         {
             var friends = SiloNeurons.Get<IFriends>(client.Services, FriendsDefaults.Id(host.Scope));
             var refused = await Record.ExceptionAsync(friends.List);
@@ -172,7 +173,7 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
 
     // OPEN (stated in the build report): the gateway has no authentication, so a cluster client that declares itself a
     // person of a brain is admitted to that brain's neuron contracts as that person. The filter cannot tell a first-party
-    // front from a stranger; closing this needs a kernel-issued gateway credential (ClientCaller.cs). This fact pins the
+    // front from a stranger; closing it means refusing every call this silo process did not send. This fact pins the
     // behaviour so that the change that closes it has to turn it around.
     [Fact]
     public async Task Open_AClusterClient_ThatDeclaresItselfTheOwner_IsAdmittedToNeuronContracts()
@@ -249,7 +250,8 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
             Client = new HostBuilder()
                 .UseOrleansClient(client =>
                 {
-                    client.UseLocalhostClustering(Host.GatewayPort).AddIntoChatOS();
+                    client.UseLocalhostClustering(Host.GatewayPort);
+                    client.Services.AddIntoChatOSClient();
                     OrleansAotResponses.Register(client.Services);
                 })
                 .Build();
