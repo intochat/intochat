@@ -259,7 +259,10 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
             await Friends.Unfriend(new IntoChat.OS.Modules.Identity.Contracts.AccountId(request.Account));
             var profile = await Profile.Read();
             var roster = await TryReadRosterAsync();
-            return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.", roster: roster) with { Opened = null });
+            var next = await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.", roster: roster) with { Opened = null });
+            // The door drops the friend's shares when it hears of the removal, a turn later, and refuses them until then;
+            // the screen does not wait for that turn.
+            return next with { SharedByMe = [.. (next.SharedByMe ?? []).Where(share => !string.Equals(share.Account, request.Account, StringComparison.Ordinal))] };
         });
     }
 

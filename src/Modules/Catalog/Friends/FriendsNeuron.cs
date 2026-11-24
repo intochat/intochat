@@ -41,7 +41,6 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private IBrainOwners Owners => services.GetRequiredService<IBrainOwners>();
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
-    private IFileShares Door => Get<IFileShares>(FileSharesDefaults.Id(Id.Brain.Value));
     private IOffers Offers => Context.Offers;
 
     public async Task<Code> Mint()
@@ -100,7 +99,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var account = await Owners.OwnerAccount(target.Brain) ?? throw PersonActs.Refused();
         var name = !string.IsNullOrWhiteSpace(theirs.Name) ? theirs.Name : account;
         var added = new Friend(new AccountId(account), target.Brain, name, now, theirs.PublicKeys);
-        await Store(With(friends: UpsertFriend(State.Friends ?? [], added)));
+        await Save(With(friends: UpsertFriend(State.Friends ?? [], added)), new FriendAdded(added.Account));
         return added;
     }
 
@@ -112,12 +111,10 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var existing = (State.Friends ?? []).FirstOrDefault(row => row.Account == friend);
         if (existing is null) { return; }
 
-        await Store(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != friend)]));
-        // IFriends.IsFriend is [Interleaves] and reads the already-stored roster, breaking the Door.Share <-> DropAccount cycle.
-#pragma warning disable DB0033
-        await Door.DropAccount(friend.Value);
+        // The roster states the fact and revokes the brain's offers; what a neuron kept for the friend (the file door's
+        // shares) that neuron drops when it hears the fact, and it asks IsFriend on every call until then.
+        await Save(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != friend)]), new FriendRemoved(friend));
         await Offers.RevokeAll(friend.Value);
-#pragma warning restore DB0033
         try { await Context.Get<IFriends>(new BindingTarget.Offered(existing.Brain, FriendsDefaults.Id(existing.Brain.Value))).Unfriended(); }
         catch (UnauthorizedAccessException refused)
         {
@@ -160,7 +157,12 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         var remaining = State.Pending.Where(pending => pending != match && pending.ExpiresAt > now).ToArray();
         var redeemerName = !string.IsNullOrWhiteSpace(name) ? name : account;
         var added = new Friend(new AccountId(account), brain, redeemerName, now, publicKeys);
-        await Store(With(pending: remaining, refused: 0, friends: UpsertFriend(State.Friends ?? [], added)));
+        // The caller is a person of another brain. The fact is published as this brain's own module: the silo refuses a
+        // nudge to a subscriber of this brain that carries a caller of another brain, and drops it without a word.
+        using (PersonActs.AsFilesModule(services, Id.Brain))
+        {
+            await Save(With(pending: remaining, refused: 0, friends: UpsertFriend(State.Friends ?? [], added)), new FriendAdded(added.Account));
+        }
         await Book.Spend(match.Hash);
 
         string myName;
@@ -181,13 +183,13 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         await EnsureImported();
 
         var target = new AccountId(account);
-        await Store(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != target)]));
+        // As this brain's own module, for the offers and for the fact (see Accepted).
         using var module = PersonActs.AsFilesModule(services, Id.Brain);
-        // IFriends.IsFriend is [Interleaves] and reads the already-stored roster, breaking the Door.Share <-> DropAccount cycle.
-#pragma warning disable DB0033
-        await Door.DropAccount(account);
+        if ((State.Friends ?? []).Any(row => row.Account == target))
+        {
+            await Save(With(friends: [.. (State.Friends ?? []).Where(row => row.Account != target)]), new FriendRemoved(target));
+        }
         await Offers.RevokeAll(account);
-#pragma warning restore DB0033
     }
 
     public async Task<GroupInvite[]> Groups()

@@ -324,6 +324,46 @@ public sealed class FileSharesDoorFacts
             return world;
         }
 
+        public INeuronRuntime Runtime => runtime;
+
+        // The silo delivers a published fact on a later turn: asks until it holds, for at most ten seconds.
+        public static async Task Eventually(Func<Task<bool>> holds, string what)
+        {
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+            while (!await holds())
+            {
+                Assert.True(DateTime.UtcNow < deadline, $"Not within ten seconds: {what}");
+                await Task.Delay(50, Ct);
+            }
+        }
+
+        public Task NoSharesLeft(string brain) => Eventually(async () =>
+        {
+            using (As(brain)) { return (await Door(brain).Shares()).Length == 0; }
+        }, $"the door of {brain} holds no share");
+
+        // The offers registry answers only inside the cluster: asked as the kernel of that brain.
+        public async Task<DigitalBrain.Components.Role?> OfferTo(string brain, NeuronId resource, string account)
+        {
+            using var kernel = Edge.EnterKernel(new BrainId(brain));
+            return await SiloNeurons.Get<DigitalBrain.Components.IOffers>(runtime.Services, new NeuronId(new BrainId(brain), "component.offers", DigitalBrain.Components.IOffers.DefaultKey))
+                .RoleOf(resource, account, Ct);
+        }
+
+        // The roster of this brain loses every friend with no fact published and no offer revoked: its stored record is
+        // replaced while it sleeps.
+        public async Task ForgetFriendsWithoutSayingSo(string brain)
+        {
+            await runtime.Deactivate(FriendsDefaults.Id(brain));
+            var journal = runtime.Services.GetRequiredService<IBrainJournalWriter>();
+            var grainId = $"neuron.host/{brain}/{FriendsDefaults.TypeName}/{FriendsDefaults.KeyPart}";
+            var stored = await journal.ReadState(brain, grainId, "state", Ct) ?? throw new InvalidOperationException($"{brain} has no roster yet.");
+            var roster = JsonSerializer.Deserialize(stored.Record.Span, FriendsJson.Default.FriendsRecord)!;
+            roster.Friends = [];
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(roster, FriendsJson.Default.FriendsRecord);
+            await journal.Append(brain, new JournalStateWrite(grainId, "state", JournalStateChange.Write, stored.ETag, bytes, stored.StateType), "", [], Ct);
+        }
+
         public IFileShares Door(string brain) => SiloNeurons.Get<IFileShares>(runtime.Services, FileSharesDefaults.Id(brain));
         public ISharedWithMe Mine(string brain) => SiloNeurons.Get<ISharedWithMe>(runtime.Services, SharedWithMeDefaults.Key(brain));
         public IFriends Friends(string brain) => SiloNeurons.Get<IFriends>(runtime.Services, FriendsDefaults.Id(brain));

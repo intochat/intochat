@@ -39,7 +39,7 @@ A folder or file of the workspace can be shared with a confirmed friend as Viewe
 - The owner's side is `IFileShares`: the list of shares, and the only file contract a person of another brain can reach. It checks `IFriends.IsFriend` and decides every request from the caller the kernel stamped and from its own list, so removing a share takes effect at once.
 - The friend's side is `ISharedWithMe`: what friends shared with this person, and the route their requests take.
 - Only a person can share or open a share. An app, an agent or a unit is refused.
-- Removing a friend removes every share between the two.
+- Removing a friend ends their access at once: the door asks the roster on every call of a visitor. The roster publishes `FriendRemoved`, and the door then drops every share it held for that person.
 
 Limits today: both brains must run on the same kernel; a share names a path, so renaming the folder ends it; when two people save the same file, the last save wins; only the workspace's own storage can be shared.
 

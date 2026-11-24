@@ -20,7 +20,9 @@ internal sealed class FileSharesRecord
 internal sealed record FileShareSave(string Path, string Account, DateTimeOffset At);
 
 // The door of a brain's shared files, at "{brain}/files/shares". Its own list is the only authority: a removed share is
-// refused on the next call. It reads and writes the workspace by exact path, as the brain's files module.
+// refused on the next call. A visitor is served only while the roster lists them as a friend: the door asks on every
+// visitor call, and drops a person's shares when the roster states that they were removed. It reads and writes the
+// workspace by exact path, as the brain's files module.
 [Neuron(FileSharesDefaults.TypeName)]
 internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileSharesRecord>, IFileShares
 {
@@ -33,7 +35,18 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
+        // Only the roster's own fact is heard: a signal of the same name from another neuron never arrives here.
+        await Context.Wires.Ensure<FriendRemoved>(FriendsDefaults.Id(Id.Brain.Value));
         if (State.Shares.Length == 0) { return; }
+
+        // Shares for a person removed while this door could not hear it (it was written before the fact existed) go now,
+        // so they cannot come back with a later friendship.
+        var gone = new List<string>();
+        foreach (var account in State.Shares.Select(static s => s.Account).Distinct(StringComparer.Ordinal))
+        {
+            if (!await Friends.IsFriend(new AccountId(account))) { gone.Add(account); }
+        }
+        foreach (var account in gone) { await Remove(account); }
 
         foreach (var group in State.Shares.GroupBy(static s => s.Account, StringComparer.Ordinal))
         {
@@ -60,10 +73,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         if (!Enum.IsDefined(role)) { throw new ArgumentException("The role is Viewer or Editor.", nameof(role)); }
         if (string.Equals(account, owner, StringComparison.Ordinal)) { throw new ArgumentException("A share names another person.", nameof(account)); }
 
-        // IFriends.IsFriend is [Interleaves], so a concurrent Friends.Unfriend -> DropAccount turn cannot deadlock here.
-#pragma warning disable DB0033
         if (!await Friends.IsFriend(new AccountId(account))) { throw new UnauthorizedAccessException("Share only with a confirmed friend."); }
-#pragma warning restore DB0033
         var canonical = SharePath.Normalize(path);
         var item = await Files(vfs => vfs.Stat(canonical))
             ?? throw new ArgumentException("There is no file or folder at that path.", nameof(path));
@@ -92,10 +102,19 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         await Remove(account);
     }
 
+    // Kept for one release (OWED.md): a node that still runs the earlier roster calls it. The roster of this version publishes FriendRemoved.
     public async Task DropAccount(string account)
     {
         if (Context.Caller?.Via is not { Type: FriendsDefaults.TypeName } via || via.Brain != Id.Brain) { throw PersonActs.Refused(); }
         await Remove(account);
+    }
+
+    // The roster removed a friend. Their shares go; until this turn runs, Admit refuses them.
+    [On]
+    public Task On(FriendRemoved removed)
+    {
+        ArgumentNullException.ThrowIfNull(removed);
+        return Remove(removed.Account.Value);
     }
 
     private async Task Remove(string account)
@@ -139,6 +158,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     public async Task<WorkspaceShare[]> SharedWithCaller()
     {
         var (account, _) = await FriendRelay.Require(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
+        if (!await Friends.IsFriend(new AccountId(account))) { throw PersonActs.Refused(); }
         return [.. State.Shares.Where(share => share.Account == account)];
     }
 
@@ -199,12 +219,14 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         return brain == Id.Brain ? account : throw PersonActs.Refused();
     }
 
-    // The person the share names, as a person, from the brain they own, through the friend-side relay neuron.
+    // The person the share names, as a person, from the brain they own, through the friend-side relay neuron, and a
+    // friend at this moment: a share for a removed friend is refused whether or not the door has heard of the removal.
     private async Task<(WorkspaceShare Share, string Account)> Admit(string shareId)
     {
         var (account, _) = await FriendRelay.Require(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
         var share = State.Shares.FirstOrDefault(candidate => candidate.Id == shareId && candidate.Account == account);
-        return share is null ? throw PersonActs.Refused() : (share, account);
+        if (share is null) { throw PersonActs.Refused(); }
+        return await Friends.IsFriend(new AccountId(account)) ? (share, account) : throw PersonActs.Refused();
     }
 
     private Task Commit(WorkspaceShare[] shares, FileShareSave[] saves)

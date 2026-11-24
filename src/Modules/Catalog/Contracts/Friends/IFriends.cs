@@ -11,6 +11,14 @@ public sealed record Friend(AccountId Account, BrainId Brain, string Name, DateT
 
 public sealed record GroupInvite(BrainId Brain, ConversationId Conversation, string Title, AccountId By);
 
+// Facts of the roster. A neuron of the same brain that keeps something for a friend (a share, an offer, a seat in a room)
+// reacts to them; the roster calls none of those neurons.
+[DigitalBrain.Signal("friends.added")]
+public sealed record FriendAdded(AccountId Account) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("friends.removed")]
+public sealed record FriendRemoved(AccountId Account) : DigitalBrain.Signal;
+
 public static class FriendsDefaults
 {
     public const string TypeName = "friends.links";

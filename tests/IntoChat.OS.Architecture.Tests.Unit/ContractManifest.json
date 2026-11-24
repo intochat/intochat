@@ -260,6 +260,8 @@
     "IntoChat.OS.Modules.AI.SystemOne.Signals.SystemOneDecided": "SystemOneDecided",
     "IntoChat.OS.Modules.AI.Testing.Signals.TestSuiteVerified": "TestSuiteVerified",
     "IntoChat.OS.Modules.Apps.FilesWorkspaceChanged": "FilesWorkspaceChanged",
+    "IntoChat.OS.Modules.Apps.FriendAdded": "FriendAdded",
+    "IntoChat.OS.Modules.Apps.FriendRemoved": "FriendRemoved",
     "IntoChat.OS.Modules.Apps.ProfileChanged": "ProfileChanged",
     "IntoChat.OS.Modules.Apps.Signals.AppActivity": "AppActivity",
     "IntoChat.OS.Modules.Apps.Signals.AppChanged": "AppChanged",
