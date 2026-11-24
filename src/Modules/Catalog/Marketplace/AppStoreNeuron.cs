@@ -132,9 +132,10 @@ internal sealed class AppStoreNeuron(
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
             if (Context.Caller is not { } caller || caller.Brain.Value != Scope) { return AppInstallOutcome.Refused("Only you can remove apps."); }
-            // The checks are the installer's (a person, never a root app, the app exists); its refusal comes back as a message.
-            await installer.Remove(name, default);
-            return AppInstallOutcome.Installed(name);
+            // The checks are the installer's (a person, never a root app); its refusal comes back as a message.
+            return await installer.Remove(name, default)
+                ? AppInstallOutcome.Installed(name)
+                : AppInstallOutcome.Refused($"No app named {name} exists in this brain.");
         });
     }
 

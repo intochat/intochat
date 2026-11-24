@@ -266,8 +266,7 @@ internal static class AppsEndpoints
         // The one uninstall path. Removing an app that is not there stays a success, as it was.
         apps.MapDelete("/{name}", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async () =>
         {
-            try { await installer.Remove(name, ct); }
-            catch (KeyNotFoundException) { }
+            _ = await installer.Remove(name, ct);
             return Results.Ok(new { deleted = name });
         }));
     }

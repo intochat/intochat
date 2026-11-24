@@ -121,16 +121,17 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         return AppInstallOutcome.Installed(bundle.Name);
     }
 
-    // The one uninstall path, for DELETE /apps/{name} and IAppStore.Remove alike: the stamped caller is a person, a root
-    // app stays, and the app exists.
-    public async Task Remove(string name, CancellationToken ct)
+    // The one uninstall path, for DELETE /apps/{name} and IAppStore.Remove alike: the stamped caller is a person and a root
+    // app stays. False when no app of that name exists in the brain: nothing was removed.
+    public async Task<bool> Remove(string name, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var scope = RequirePerson("Only you can remove apps.");
         if (ShippedApps.Roots.Contains(name)) { throw new UnauthorizedAccessException($"{name} is part of IntoChat and stays installed."); }
         var app = SiloNeurons.Get<IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key);
-        if ((await app.Read().WaitAsync(ct)).Manifest.Title.Length == 0) { throw new KeyNotFoundException($"No app named {name} exists in this brain."); }
+        if ((await app.Read().WaitAsync(ct)).Manifest.Title.Length == 0) { return false; }
         await app.Delete().WaitAsync(ct);
+        return true;
     }
 
     // The brain of the stamped caller when that caller is a person; an app, an agent, a guest or no caller is refused.
