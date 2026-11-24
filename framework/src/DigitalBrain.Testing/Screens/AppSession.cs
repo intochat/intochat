@@ -250,23 +250,13 @@ public static class AppSession
     /// <param name="runtime">The neuron runtime (in-memory <see cref="TestOS"/> or Orleans silo).</param>
     /// <param name="key">Optional screen neuron key; when omitted, an isolated unique key is generated.</param>
     /// <param name="ct">Cancellation token.</param>
-    public static async Task<AppSession<TScreen>> OpenAsync<TScreen>(
+    public static Task<AppSession<TScreen>> OpenAsync<TScreen>(
         INeuronRuntime runtime,
         string? key = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        var driver = new DirectNeuronSessionDriver(runtime, typeof(TScreen), key);
-        try
-        {
-            var initialView = await driver.ReadViewAsync(ct).ConfigureAwait(false);
-            return new AppSession<TScreen>(driver, initialView);
-        }
-        catch
-        {
-            await driver.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
+        return Open<TScreen>(new DirectNeuronSessionDriver(runtime, typeof(TScreen), key), ct);
     }
 
     /// <summary>Opens a new <see cref="AppSession{TScreen}"/> against any <see cref="INeuronRuntime"/> for a specific <paramref name="brain"/> and <paramref name="caller"/>.</summary>
@@ -276,7 +266,7 @@ public static class AppSession
     /// <param name="caller">The caller stamped on screen operations.</param>
     /// <param name="key">Optional screen neuron key; when omitted, an isolated unique key is generated.</param>
     /// <param name="ct">Cancellation token.</param>
-    public static async Task<AppSession<TScreen>> OpenAsync<TScreen>(
+    public static Task<AppSession<TScreen>> OpenAsync<TScreen>(
         INeuronRuntime runtime,
         BrainId brain,
         DigitalBrain.Access.Caller caller,
@@ -285,17 +275,7 @@ public static class AppSession
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(caller);
-        var driver = new DirectNeuronSessionDriver(runtime, typeof(TScreen), key, brain, caller);
-        try
-        {
-            var initialView = await driver.ReadViewAsync(ct).ConfigureAwait(false);
-            return new AppSession<TScreen>(driver, initialView);
-        }
-        catch
-        {
-            await driver.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
+        return Open<TScreen>(new DirectNeuronSessionDriver(runtime, typeof(TScreen), key, brain, caller), ct);
     }
 
     /// <summary>Opens a new <see cref="AppSession{TScreen}"/> directly against a <see cref="TestOS"/> instance.</summary>
@@ -304,14 +284,19 @@ public static class AppSession
     /// <param name="key">Optional screen neuron key; when omitted, an isolated unique key is generated.</param>
     /// <param name="brain">Optional brain id; defaults to <c>"test"</c>.</param>
     /// <param name="ct">Cancellation token.</param>
-    public static async Task<AppSession<TScreen>> OpenAsync<TScreen>(
+    public static Task<AppSession<TScreen>> OpenAsync<TScreen>(
         TestOS os,
         string? key = null,
         BrainId? brain = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(os);
-        var driver = new DirectNeuronSessionDriver(os, typeof(TScreen), key, brain);
+        return Open<TScreen>(new DirectNeuronSessionDriver(os, typeof(TScreen), key, brain), ct);
+    }
+
+    // Reads the first view; a session that cannot open disposes its driver.
+    private static async Task<AppSession<TScreen>> Open<TScreen>(DirectNeuronSessionDriver driver, CancellationToken ct)
+    {
         try
         {
             var initialView = await driver.ReadViewAsync(ct).ConfigureAwait(false);
