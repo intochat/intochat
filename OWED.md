@@ -41,5 +41,4 @@ A pull request that adds a line here is not done until the line is gone.
 - Gemini Live as a second cloud Talk card (`GeminiLiveRealtimeClient : IRealtimeClient`, WebSocket), ~5× cheaper than OpenAI Realtime. Owner: the repo owner.
 - Cloud Talk carries no tools; wire S2 `ContractTool`s through `FunctionInvokingRealtimeClient`. Owner: the repo owner.
 - MarkItDotNet core (ElBruno.MarkItDotNet 0.9.5): 8 AOT warnings (5 collapsed), 39.1 MB publish EXE (trims ReverseMarkdown converters at runtime without TrimmerRootAssembly); for attachments slice; owner S-attachments.
-- `[Offered]` is now enforced on `ITable`, `IConversation`, and `IFileShares` (Phase 2.11 complete; remove this line on next cleanup). Owner: Phase 2.
 - Ambient `Get<T>` is ratcheted in `HouseRules22Facts`: `AppsAmbientReachCap = 0` (all fixed-key and dynamic-key calls in `IntoChat.OS.Apps` use `[Slot]` / `SlotCollection<T>`), `ModulesAmbientReachCap = 206`, and `PrivilegedSiloNeuronModules` is closed (P6). Owner: Phase 2.
