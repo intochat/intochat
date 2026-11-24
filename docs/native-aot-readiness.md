@@ -23,7 +23,7 @@ Bringing an Orleans + DigitalBrain + ASP.NET Core Minimal API + MCP server runti
   3. `Enum32Codec<TEnum>` and `ZeroCopyCopier<TEnum>` for enums serialized in grain state or RPC calls.
 - **Solution**:
   - Created [OrleansAotResponses.cs](../src/IntoChat.OS.Kernel/AspireServer/OrleansAotResponses.cs) with single-type-parameter closed wrappers (`ClosedResponseCopier<TResult>`, `ClosedResponseCodec<TResult>`, `ClosedResponseActivator<TResult>`, `ClosedSurrogateCopier<TField, TSurrogate, TConverter>`) and pre-registered all closed `IValueSerializer<TSurrogate>`, `IFieldCodec<TField>`, `IDeepCopier<TField>`, enums, and nullable value types in DI.
-  - Wired `OrleansAotResponses.Register(...)` into **both** the Orleans Silo ([ServerHostingExtensions.cs](../src/IntoChat.OS.Kernel/AspireServer/ServerHostingExtensions.cs)) and standalone Orleans Clients ([IntoChatOSClientHostingExtensions.cs](../src/IntoChat.OS.Kernel/AspireClient/IntoChatOSClientHostingExtensions.cs)).
+  - Wired `OrleansAotResponses.Register(...)` into the Orleans silo ([ServerHostingExtensions.cs](../src/IntoChat.OS.Kernel/AspireServer/ServerHostingExtensions.cs)). The product ships no out-of-process Orleans client.
 
 ### C. Eliminating `DispatchProxy`, `MakeGenericMethod`, `Expression.Compile`, and `GetInterfaceMap` in `DigitalBrain`
 - **Problem**:

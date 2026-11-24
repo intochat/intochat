@@ -162,34 +162,6 @@ public static class IntoChatOSHostingExtensions
         return builder;
     }
 
-    public static IResourceBuilder<TResource> WithReference<TResource>(this IResourceBuilder<TResource> builder, IntoChatOSClientReference client)
-        where TResource : IResourceWithEnvironment, IResourceWithEndpoints
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(client);
-
-        builder.WithReference(client.Brain.Orleans.AsClient());
-        AuthPosture.Provision(client.Brain.ApplicationBuilder)?.Apply(builder);
-        if (client.ShareHttpIdentity)
-        {
-            var identity = client.Brain.Identity ?? throw new InvalidOperationException("Configure the brain HTTP identity before sharing sessions.");
-            identity.Apply(builder);
-            // With Azurite (Topology=cloud) the key ring is the shared blob container. A local run has no Azurite: the
-            // kernel and the client run as the same user and share the user's default data protection key ring, keyed by
-            // the same ProtectionApplicationName the identity projects.
-            if (client.Brain.GrainState is { } storage) { builder.WithReference(storage, IntoChatOSNames.GrainState); }
-        }
-        if (client.Brain.Clustering is { } clustering)
-        {
-            builder.WithReference(clustering, IntoChatOSNames.Clustering);
-            // Overrides the development provider the Orleans resource advertises.
-            builder.WithEnvironment("Orleans__Clustering__ProviderType", "AzureTableStorage");
-            builder.WithEnvironment("Orleans__Clustering__ServiceKey", IntoChatOSNames.Clustering);
-        }
-        WaitUntilHealthy(builder, client.Brain.StartupDependencies);
-        return builder;
-    }
-
     public static IResourceBuilder<ContainerResource> AddIntoChatOSContainer(
         this IDistributedApplicationBuilder builder,
         string name,

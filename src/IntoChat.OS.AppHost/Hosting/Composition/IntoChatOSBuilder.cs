@@ -215,8 +215,6 @@ public sealed class IntoChatOSBuilder
         }
     }
 
-    public IntoChatOSClientReference AsClient(bool shareHttpIdentity = false) => new(this, shareHttpIdentity);
-
     internal bool HasResource(string name)
         => ApplicationBuilder.Resources.Any(resource =>
             string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase));
