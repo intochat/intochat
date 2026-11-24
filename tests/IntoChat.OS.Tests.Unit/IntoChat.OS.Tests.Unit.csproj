@@ -15,6 +15,7 @@
     <None Include="Modules/Catalog/Apps/AppStateV1.bin" CopyToOutputDirectory="PreserveNewest" Link="AppStateV1.bin" />
     <None Include="AspireHosting/Snapshots/*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Components/Aspire/Golden/*" CopyToOutputDirectory="PreserveNewest" Link="AspireGolden/%(Filename)%(Extension)" />
+    <None Include="Modules/Catalog/Friends/Golden/*" CopyToOutputDirectory="PreserveNewest" Link="FriendsGolden/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />

@@ -1,0 +1,1 @@
+{"revision":3,"messages":[{"revision":1,"author":"ben","text":"hello","at":"2026-01-02T03:04:05+00:00"},{"revision":2,"author":"ada","text":"hi","at":"2026-01-02T03:04:10+00:00"}],"pinnedScreens":[{"screenType":"app.calculator","screenKey":"room-calc"}],"participants":[{"account":"ben","brain":"ben","role":1},{"account":"eve","brain":"eve-brain","role":0}]}
