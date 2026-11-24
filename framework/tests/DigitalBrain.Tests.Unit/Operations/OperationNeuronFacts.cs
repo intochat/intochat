@@ -63,6 +63,8 @@ public sealed class OperationNeuronFacts
     public async Task PreparedWithApprovalEntersAwaitingApproval()
     {
         var context = new FakeNeuronContext(new NeuronId(new BrainId("b1"), "runtime.operation", "op-1"));
+        // The operation asks its brain's confirmations as the turn's caller; a reaction runs as the brain's scheduler.
+        context.Caller = DigitalBrain.Access.Caller.OfScheduler(new BrainId("b1"));
         var neuron = new OperationNeuron();
         NeuronAttachment.Attach(neuron, context);
 
@@ -85,6 +87,8 @@ public sealed class OperationNeuronFacts
     public async Task OnResolvedIgnoresMismatchedPlanOrNonAwaitingPhase()
     {
         var context = new FakeNeuronContext(new NeuronId(new BrainId("b1"), "runtime.operation", "op-1"));
+        // The operation asks its brain's confirmations as the turn's caller; a reaction runs as the brain's scheduler.
+        context.Caller = DigitalBrain.Access.Caller.OfScheduler(new BrainId("b1"));
         var neuron = new OperationNeuron();
         NeuronAttachment.Attach(neuron, context);
 

@@ -100,10 +100,5 @@ public sealed class OffersNeuron(IFriendCheck? friends = null) : Neuron<OffersSt
     }
 
     private void RequireOwner()
-    {
-        if (Context.Caller is not { } caller || caller.Brain != Id.Brain)
-        {
-            throw new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may manage its offers.");
-        }
-    }
+        => RequireSameBrain(() => new UnauthorizedAccessException($"Only brain '{Id.Brain.Value}' may manage its offers."));
 }

@@ -174,19 +174,7 @@ internal sealed class ConversationNeuron(
         }
     }
 
-    private bool IsSameBrainCaller()
-    {
-        var caller = Context.Caller;
-        return caller is null || caller.Brain == Id.Brain;
-    }
-
-    private void AuthorizeOwnerOnly()
-    {
-        if (!IsSameBrainCaller())
-        {
-            throw FriendRelay.Refused();
-        }
-    }
+    private void AuthorizeOwnerOnly() => RequireSameBrain(FriendRelay.Refused);
 
     private async Task<AccountId> RequireOwnerAsPersonAsync()
     {
@@ -442,7 +430,8 @@ internal sealed class ConversationNeuron(
 
     public async Task Say(string text, ModelId? model = null)
     {
-        if (!IsSameBrainCaller())
+        // The owner's view, or a friend's; a call with no caller is neither.
+        if (RequireCaller().Brain != Id.Brain)
         {
             await SayAsFriendAsync(text);
             return;
@@ -573,7 +562,8 @@ internal sealed class ConversationNeuron(
 
     public async Task<ConversationView> Read(long? sinceRevision = null)
     {
-        if (!IsSameBrainCaller())
+        // The owner's view, or a friend's; a call with no caller is neither.
+        if (RequireCaller().Brain != Id.Brain)
         {
             await Fresh();
             if (_write is { } pendingWrite) { await pendingWrite.Task; }

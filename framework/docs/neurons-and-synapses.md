@@ -13,6 +13,7 @@ A neuron is a plain class that derives from `Neuron` or `Neuron<TState>` and is 
 - `Publish(signal)` publishes without a state change. `PublishEphemeral(signal)` publishes without writing to the journal.
 - `Check(operation, rules)` publishes `Rejected` and throws `RuleViolationException` when a `Rule` is broken.
 - `Get<T>(id)` returns a typed interface to another neuron of the same brain.
+- `RequireCaller()` returns the caller of the turn and `RequireSameBrain()` returns it when it acts in the neuron's brain; both refuse a turn with no caller, so a neuron never decides on a missing caller. `IsSameBrainCaller()` is false for no caller.
 
 ```csharp
 [Neuron("APP_ID.counter")]

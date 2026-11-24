@@ -266,8 +266,7 @@ internal sealed class AskBatchNeuron(ISynapseCatalogSource catalog, ISlotResolve
             throw new UnauthorizedAccessException("Only the asks neuron of the unit stores and runs its asks.");
         }
 
-        if (Context.Caller is { } caller
-            && caller.Via != AskRules.AsksOf(new NeuronId(Id.Brain, owner, "default")))
+        if (RequireCaller().Via != AskRules.AsksOf(new NeuronId(Id.Brain, owner, "default")))
         {
             throw new UnauthorizedAccessException("Only the asks neuron of the unit stores and runs its asks.");
         }

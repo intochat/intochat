@@ -22,11 +22,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
 
     public async Task<IReadOnlyList<Approval>> Pending(CancellationToken ct = default)
     {
-        var authorized = Context.Caller is { } caller && caller.Brain == Id.Brain;
-        if (!authorized)
-        {
-            throw new UnauthorizedAccessException("Only signed-in callers within the same brain can read pending approvals.");
-        }
+        RequireSameBrain(() => new UnauthorizedAccessException("Only signed-in callers within the same brain can read pending approvals."));
         var inboxRead = Context.Get<IConfirmationInbox>(InboxId).Read().WaitAsync(ct);
         var flowsRead = Context.Get<IFlows>(IFlows.Key(Id.Brain.Value)).List(new FlowQuery(Status: FlowStatus.Waiting), ct);
         await Task.WhenAll(inboxRead, flowsRead);

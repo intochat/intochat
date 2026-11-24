@@ -34,6 +34,8 @@ public sealed class AskProgressAndLeaseFacts
         var asksTimers = new RecordingTimers();
         var asksContext = new RecordingContext(AsksId)
         {
+            // The batch neuron of b1 calls back into the asks neuron.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, BatchId),
             Time = clock,
             RecordedTimers = asksTimers,
             RecordedReminders = asksTimers,
@@ -43,6 +45,8 @@ public sealed class AskProgressAndLeaseFacts
         var resolver = new FakeSlotResolver(new Dictionary<string, object> { ["feed"] = probe });
         var batchContext = new RecordingContext(BatchId)
         {
+            // The asks neuron runs the batch.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, AsksId),
             Time = clock,
         };
 
@@ -128,6 +132,8 @@ public sealed class AskProgressAndLeaseFacts
         var asksTimers = new RecordingTimers();
         var asksContext = new RecordingContext(AsksId)
         {
+            // The batch neuron of b1 calls back into the asks neuron.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, BatchId),
             Time = clock,
             RecordedTimers = asksTimers,
             RecordedReminders = asksTimers,
@@ -137,6 +143,8 @@ public sealed class AskProgressAndLeaseFacts
         var resolver = new FakeSlotResolver(new Dictionary<string, object> { ["feed"] = probe });
         var batchContext = new RecordingContext(BatchId)
         {
+            // The asks neuron runs the batch.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, AsksId),
             Time = clock,
         };
 
@@ -200,6 +208,8 @@ public sealed class AskProgressAndLeaseFacts
         var asksTimers = new RecordingTimers();
         var asksContext = new RecordingContext(AsksId)
         {
+            // The batch neuron of b1 calls back into the asks neuron.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, BatchId),
             Time = clock,
             RecordedTimers = asksTimers,
             RecordedReminders = asksTimers,
@@ -209,6 +219,8 @@ public sealed class AskProgressAndLeaseFacts
         var resolver = new FakeSlotResolver(new Dictionary<string, object> { ["feed"] = probe });
         var batchContext = new RecordingContext(BatchId)
         {
+            // The asks neuron runs the batch.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, AsksId),
             Time = clock,
         };
 
@@ -287,6 +299,8 @@ public sealed class AskProgressAndLeaseFacts
         var timers = new RecordingTimers();
         var context = new RecordingContext(AsksId)
         {
+            // The batch neuron of b1 calls back into the asks neuron.
+            Caller = DigitalBrain.Access.Caller.OfKernel(Brain, BatchId),
             Time = clock,
             RecordedTimers = timers,
             RecordedReminders = timers,
@@ -305,9 +319,7 @@ public sealed class AskProgressAndLeaseFacts
 
         // Renew at t0 + 7s with a 10s extension -> due must persist at t0 + 7s + 10s + Grace (22s).
         clock.Advance(TimeSpan.FromSeconds(7));
-        context.Caller = DigitalBrain.Access.Caller.OfKernel(Brain, BatchId);
         await asks1.Renew(new AskLeaseRenewal("b1", 0, 1, TimeSpan.FromSeconds(10)));
-        context.Caller = null;
 
         // Advance past original deadline (t0 + 15s) to t0 + 16s and simulate reactivation via fresh AsksNeuron on same Seat.
         clock.Advance(TimeSpan.FromSeconds(9));

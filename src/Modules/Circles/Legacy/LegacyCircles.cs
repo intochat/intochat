@@ -113,11 +113,7 @@ internal sealed class LegacyCircleIndexNeuron(ICapabilityBroker? broker = null) 
 {
     public async Task<CircleEntry[]> Circles()
     {
-        var caller = Context.Caller;
-        if (caller is null || caller.Brain != Id.Brain)
-        {
-            throw new UnauthorizedAccessException("Only the personal brain's owner lists its legacy circles.");
-        }
+        var caller = RequireSameBrain(() => new UnauthorizedAccessException("Only the personal brain's owner lists its legacy circles."));
 
         var principal = caller.For?.Principal ?? (caller.Actor as Actor.Person)?.Principal ?? "";
         if (broker is null || string.IsNullOrEmpty(principal))

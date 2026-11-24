@@ -149,7 +149,7 @@ internal sealed class AsksNeuron(ISynapseCatalogSource catalog, IUnitResolver? u
             return;
         }
 
-        if (Context.Caller is { } caller && caller.Via != AskRules.BatchOf(Id, renewal.Batch))
+        if (RequireCaller().Via != AskRules.BatchOf(Id, renewal.Batch))
         {
             throw new UnauthorizedAccessException("Only the batch neuron of this ask may renew its lease.");
         }
@@ -176,7 +176,7 @@ internal sealed class AsksNeuron(ISynapseCatalogSource catalog, IUnitResolver? u
             return;
         }
 
-        if (Context.Caller is { } caller && caller.Via != AskRules.BatchOf(Id, report.Batch))
+        if (RequireCaller().Via != AskRules.BatchOf(Id, report.Batch))
         {
             throw new UnauthorizedAccessException("Only the batch neuron of this ask may report its progress.");
         }
@@ -211,7 +211,7 @@ internal sealed class AsksNeuron(ISynapseCatalogSource catalog, IUnitResolver? u
             return;
         }
 
-        if (Context.Caller is { } caller && caller.Via != AskRules.BatchOf(Id, settlement.Batch))
+        if (RequireCaller().Via != AskRules.BatchOf(Id, settlement.Batch))
         {
             throw new UnauthorizedAccessException("Only the batch neuron of this ask may settle it.");
         }

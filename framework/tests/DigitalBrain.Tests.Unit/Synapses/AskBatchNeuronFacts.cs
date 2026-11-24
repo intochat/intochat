@@ -53,7 +53,8 @@ public sealed class AskBatchNeuronFacts
         Context.Neurons[AsksId] = Asks;
     }
 
-    private RecordingContext Context { get; } = new(Id);
+    // The asks neuron of the unit runs its batches; a batch refuses any other caller.
+    private RecordingContext Context { get; } = new(Id) { Caller = DigitalBrain.Access.Caller.OfKernel(Id.Brain, AsksId) };
     private FakeAsks Asks { get; } = new();
     private FakeProbe Probe { get; } = new();
     private Dictionary<string, object> Bound { get; }
@@ -71,7 +72,7 @@ public sealed class AskBatchNeuronFacts
 
     private async Task<AskSettlement> One(Func<Ask, Ask>? change = null)
     {
-        var context = new RecordingContext(Id) { Neurons = { [AsksId] = Asks } };
+        var context = new RecordingContext(Id) { Caller = DigitalBrain.Access.Caller.OfKernel(Id.Brain, AsksId), Neurons = { [AsksId] = Asks } };
         var batch = Attach(context);
         var ask = Ask();
         await batch.Put("asker", [change is null ? ask : change(ask)]);

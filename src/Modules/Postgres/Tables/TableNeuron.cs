@@ -60,12 +60,13 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
 
     private string Scope()
     {
-        if (Context.Caller is { } caller && caller.Brain != Id.Brain)
+        var caller = RequireCaller();
+        if (caller.Brain != Id.Brain)
         {
             return State.Owner ?? throw new UnauthorizedAccessException("offer.none: this table has not been defined yet.");
         }
 
-        var scope = TableOwner.Current(Context.Caller).Key;
+        var scope = TableOwner.Current(caller).Key;
         if (State.Owner is { } owner && owner != scope)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         return scope;
@@ -76,9 +77,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         // Check each operation: caching would allow writes after the owner closes but before
         // its queued Retire reaches this table. Table serialization then orders accepted work before DROP.
         var scope = Scope();
-        using var _ = Context.Caller is { } caller && caller.Brain != Id.Brain
-            ? AsPostgresModule(Id.Brain)
-            : null;
+        using var _ = IsSameBrainCaller() ? null : AsPostgresModule(Id.Brain);
         await Tables(scope).RequireOpen();
         return State.Accepted ?? throw new PostgresQueryException("Define the table first.");
     }
@@ -101,10 +100,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
 
     public async Task Retire(string owner)
     {
-        if (Context.Caller is { } caller && caller.Brain != Id.Brain)
-        {
-            throw new UnauthorizedAccessException("Only the owning brain may retire a table.");
-        }
+        RequireSameBrain(() => new UnauthorizedAccessException("Only the owning brain may retire a table."));
         if (State.Owner != owner) { return; }
         var table = State.Accepted?.Table ?? State.PhysicalTable ?? TablePolicy.PhysicalName(owner, FullKey);
         try { await Tables(Pinned).DropAsync(Pinned, table, CancellationToken.None); }
@@ -117,10 +113,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
 
     public async Task<AcceptedTable> Define(TableDefinition definition)
     {
-        if (Context.Caller is { } caller && caller.Brain != Id.Brain)
-        {
-            throw new UnauthorizedAccessException("Only the owning brain may define a table.");
-        }
+        RequireSameBrain(() => new UnauthorizedAccessException("Only the owning brain may define a table."));
         var scope = Scope();
         var normalized = TablePolicy.Validate(definition);
         await Tables(scope).RequireOpen();

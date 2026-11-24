@@ -18,6 +18,7 @@ internal sealed class HostConsumer(NeuronHostGrainBase grain) : ISignalConsumer
         try
         {
             using var causeScope = CurrentCause.Open(signal);
+            using var reacting = grain.EnterReactionCaller();
             using var scope = openScope();
             await Reactions.Dispatch(neuron, signal, ct).ConfigureAwait(true);
         }

@@ -41,28 +41,21 @@ internal sealed class ViewportNeuron
 
     private void RequireOwner(IntoChat.OS.Host.Primitives.AppRef ownerRef)
     {
-        var contextCaller = Context.Caller;
-        if (contextCaller is not null)
+        var contextCaller = RequireSameBrain(() => new UnauthorizedAccessException("Only callers in the owning brain may change this viewport."));
+
+        if (contextCaller.Actor is DigitalBrain.Access.Actor.App appActor
+            && appActor.Key != ownerRef.Key
+            && !(contextCaller.Inside && contextCaller.Via == ownerRef.ScreenNeuron))
         {
-            if (contextCaller.Brain != Id.Brain)
-            {
-                throw new UnauthorizedAccessException("Only callers in the owning brain may change this viewport.");
-            }
+            throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
+        }
 
-            if (contextCaller.Actor is DigitalBrain.Access.Actor.App appActor
-                && appActor.Key != ownerRef.Key
-                && !(contextCaller.Inside && contextCaller.Via == ownerRef.ScreenNeuron))
-            {
-                throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
-            }
-
-            if (contextCaller.Inside
-                && contextCaller.Via is { } via
-                && via.Type.StartsWith("app.", StringComparison.Ordinal)
-                && (via.Brain != Id.Brain || via != ownerRef.ScreenNeuron))
-            {
-                throw new UnauthorizedAccessException("Only the owning screen may change this viewport.");
-            }
+        if (contextCaller.Inside
+            && contextCaller.Via is { } via
+            && via.Type.StartsWith("app.", StringComparison.Ordinal)
+            && (via.Brain != Id.Brain || via != ownerRef.ScreenNeuron))
+        {
+            throw new UnauthorizedAccessException("Only the owning screen may change this viewport.");
         }
     }
 

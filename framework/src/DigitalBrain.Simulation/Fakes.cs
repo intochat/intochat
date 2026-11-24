@@ -579,7 +579,10 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <summary>The caller stamped on this context.</summary>
     public DigitalBrain.Access.Caller? Caller { get; set; }
 
-    DigitalBrain.Access.Caller? INeuronContext.Caller => Caller ?? DigitalBrain.Testing.TestCallerAmbient.Instance.Current;
+    DigitalBrain.Access.Caller? INeuronContext.Caller => Caller ?? _hopCaller?.Invoke() ?? DigitalBrain.Testing.TestCallerAmbient.Instance.Current;
+
+    // A neuron this fake serves itself (the confirmations inbox) is called as the calling neuron's turn caller, as a hop is.
+    private Func<DigitalBrain.Access.Caller?>? _hopCaller;
 
     private DigitalBrain.Confirmation.ConfirmationsNeuron? _confirmations;
 
@@ -624,7 +627,10 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     {
         if (_confirmations is not null) { return _confirmations; }
         var neuron = new DigitalBrain.Confirmation.ConfirmationsNeuron();
-        NeuronAttachment.Attach(neuron, new FakeNeuronContext(DigitalBrain.Confirmation.IConfirmationRequests.Of(Id.Brain), Services));
+        NeuronAttachment.Attach(neuron, new FakeNeuronContext(DigitalBrain.Confirmation.IConfirmationRequests.Of(Id.Brain), Services)
+        {
+            _hopCaller = () => ((INeuronContext)this).Caller,
+        });
         return _confirmations = neuron;
     }
 

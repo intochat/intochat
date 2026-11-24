@@ -62,6 +62,7 @@ public sealed class ConfirmationsNeuronFacts
     public async Task WithdrawCancelsPendingRequest()
     {
         var context = new FakeNeuronContext(new NeuronId(new BrainId("b1"), "runtime.confirmations", "confirmations"));
+        context.Caller = new DigitalBrain.Access.Caller(new DigitalBrain.Access.Actor.Person("alice", "acc-1"), new BrainId("b1"));
         var neuron = new ConfirmationsNeuron();
         NeuronAttachment.Attach(neuron, context);
 
@@ -101,6 +102,8 @@ public sealed class ConfirmationsNeuronFacts
         // 1. Unstamped / null caller MUST NOT count as a person and MUST NOT cancel/poison the pending plan
         context.Caller = null;
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.Resolve("cf-pr-human", approve: true));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.Read());
+        context.Caller = new DigitalBrain.Access.Caller(alice, brain, via: raiserNeuron);
         Assert.Null(await neuron.Outcome("cf-pr-human"));
         Assert.Single((await neuron.Read()).Pending);
 
@@ -197,6 +200,7 @@ public sealed class ConfirmationsNeuronFacts
     {
         var brain = new BrainId("b1");
         var context = new FakeNeuronContext(new NeuronId(brain, "runtime.confirmations", "confirmations"));
+        context.Caller = new DigitalBrain.Access.Caller(new DigitalBrain.Access.Actor.Person("alice", "acc-1"), brain);
         var neuron = new ConfirmationsNeuron();
         NeuronAttachment.Attach(neuron, context);
         context.Reminders.Target = neuron;
