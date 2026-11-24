@@ -62,7 +62,7 @@ public static class PlatformHosting
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, SiloAccessCallFilter>());
+        SingleSiloGuard.Register(services);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, IntoChat.OS.Modules.Identity.Hosting.AccessPolicyValidation>());
         silo.AddStartupTask<IntoChat.OS.Modules.Identity.Hosting.AccessPolicyValidation>();
         services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName)
