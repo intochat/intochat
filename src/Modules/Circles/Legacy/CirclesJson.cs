@@ -18,8 +18,6 @@ namespace IntoChat.OS.Modules.Circles;
 [JsonSerializable(typeof(CircleCodeInvite))]
 [JsonSerializable(typeof(CircleMachine))]
 [JsonSerializable(typeof(CircleMachine[]))]
-[JsonSerializable(typeof(RedeemOutcome))]
-[JsonSerializable(typeof(RedeemResult))]
 [JsonSerializable(typeof(CircleChanged))]
 [JsonSerializable(typeof(CircleSpoke))]
 [JsonSerializable(typeof(CircleMembershipRevoked))]
