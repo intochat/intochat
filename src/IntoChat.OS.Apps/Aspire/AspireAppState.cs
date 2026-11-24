@@ -24,6 +24,8 @@ public sealed record AspireAppState(
     public const string DashboardUrlEnvKey = "ASPIRE_DASHBOARD_URL";
     public const string DotnetDashboardUrlsKey = "DOTNET_DASHBOARD_URLS";
 
+    public static readonly string[] EndpointKeys = [ConfiguredUrlKey, DashboardUrlEnvKey, DotnetDashboardUrlsKey];
+
     public static readonly string[] SupportedSections =
     [
         "resources",
