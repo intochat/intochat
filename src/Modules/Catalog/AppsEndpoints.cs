@@ -37,9 +37,53 @@ internal static class AppsEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var apps = OsBrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        MapPackages(apps);
+        MapUnits(apps);
+        MapRuns(apps);
+        MapCatalog(apps);
+        MapAuthoring(apps);
+        MapScreens(apps);
+        MapMarketplace(apps);
+    }
 
+    // Sandbox packages: the shipped samples and a compile check.
+    private static void MapPackages(IEndpointRouteBuilder apps)
+    {
         apps.MapGet("/packages", () => Results.Ok(ShippedPackages.All));
 
+        apps.MapPost("/packages/compile", (
+            AppPackage package,
+            [FromServices] AppPackageCompiler compiler,
+            [FromServices] SlotResolver slots,
+            CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(package);
+            var compiled = compiler.Compile(package);
+            if (!compiled.Succeeded || compiled.EnrichedPackage is null)
+            {
+                return Results.UnprocessableEntity(new
+                {
+                    succeeded = false,
+                    errors = compiled.Errors,
+                    package = (AppPackage?)null,
+                    slots = (SlotResolutionResult?)null,
+                });
+            }
+
+            var resolution = await slots.ResolveAsync(BrainScope.CurrentId(), compiled.EnrichedPackage, cancellationToken: ct).ConfigureAwait(false);
+            return Results.Ok(new
+            {
+                succeeded = true,
+                errors = Array.Empty<string>(),
+                package = compiled.EnrichedPackage,
+                slots = resolution,
+            });
+        }));
+    }
+
+    // Units: the skills Ino can use, and unit archives out and in.
+    private static void MapUnits(IEndpointRouteBuilder apps)
+    {
         apps.MapGet("/skills", (INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var studio = brain.Get<ISynapseStudio>(ISynapseStudio.Key(BrainScope.CurrentId()).ToString());
@@ -75,36 +119,11 @@ internal static class AppsEndpoints
                 ? Results.Ok(result)
                 : Results.UnprocessableEntity(result);
         }));
+    }
 
-        apps.MapPost("/packages/compile", (
-            AppPackage package,
-            [FromServices] AppPackageCompiler compiler,
-            [FromServices] SlotResolver slots,
-            CancellationToken ct) => Respond(async () =>
-        {
-            ArgumentNullException.ThrowIfNull(package);
-            var compiled = compiler.Compile(package);
-            if (!compiled.Succeeded || compiled.EnrichedPackage is null)
-            {
-                return Results.UnprocessableEntity(new
-                {
-                    succeeded = false,
-                    errors = compiled.Errors,
-                    package = (AppPackage?)null,
-                    slots = (SlotResolutionResult?)null,
-                });
-            }
-
-            var resolution = await slots.ResolveAsync(BrainScope.CurrentId(), compiled.EnrichedPackage, cancellationToken: ct).ConfigureAwait(false);
-            return Results.Ok(new
-            {
-                succeeded = true,
-                errors = Array.Empty<string>(),
-                package = compiled.EnrichedPackage,
-                slots = resolution,
-            });
-        }));
-
+    // Runs: a command or a signal sent to an app's program.
+    private static void MapRuns(IEndpointRouteBuilder apps)
+    {
         apps.MapPost("/{name}/command/{command}", async (
             string name,
             string command,
@@ -142,7 +161,11 @@ internal static class AppsEndpoints
                 ? Results.Conflict(result)
                 : Results.Ok(result);
         }));
+    }
 
+    // The catalog itself: list, read, configure, roll back, icon, export, import and delete.
+    private static void MapCatalog(IEndpointRouteBuilder apps)
+    {
         apps.MapGet("", (INeuronProxies brain, IBrainObserver kernel, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {
             var listings = await marketplace.List(ct);
@@ -170,12 +193,6 @@ internal static class AppsEndpoints
             return Results.Ok(items);
         }));
 
-        apps.MapPost("", (TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
-            return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
-        }));
-
         apps.MapGet("/{name}", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var key = AppKey(name);
@@ -186,14 +203,44 @@ internal static class AppsEndpoints
                 : Results.Ok(View(snapshot));
         }));
 
-        apps.MapGet("/{name}/view", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPut("/{name}/settings", (string name, SettingsRequest request, INeuronProxies brain) => Respond(async ()
+            => Results.Ok(View(await App(brain, name).Configure(request?.Settings ?? [], request?.Connections ?? [])))));
+
+        apps.MapPost("/{name}/rollback", (string name, RollbackRequest request, INeuronProxies brain) => Respond(async () =>
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            var scope = BrainScope.CurrentId();
-            var published = await ReadLiveAppOrUnitViewAsync(brain, scope, name.Trim(), ct).ConfigureAwait(false);
-            return published is null
-                ? throw new KeyNotFoundException($"No live view is published for '{name}' in brain '{scope}'.")
-                : Results.Json(published, ViewJsonOptions);
+            ArgumentException.ThrowIfNullOrWhiteSpace(request?.Version);
+            return Results.Ok(View(await App(brain, name).Rollback(request.Version)));
+        }));
+
+        apps.MapGet("/{name}/icon", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        {
+            var snapshot = await App(brain, name).Read().WaitAsync(ct);
+            return Icon(snapshot.Manifest.Icon, snapshot.Files, name);
+        }));
+
+        apps.MapGet("/{name}/export", (string name, INeuronProxies brain, CancellationToken ct)
+            => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
+
+        // A raw bundle goes in through the installer too: a person, never over a root app, and with the consent (?consent=,
+        // the digest of what the bundle asks for) when it asks for anything.
+        apps.MapPost("/import", (AppBundle bundle, string? consent, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
+            => Import(bundle, consent, brain, installer, ct));
+
+        // The one uninstall path. Removing an app that is not there stays a success, as it was.
+        apps.MapDelete("/{name}", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async () =>
+        {
+            _ = await installer.Remove(name, ct);
+            return Results.Ok(new { deleted = name });
+        }));
+    }
+
+    // Authoring: create from a prompt, revise the definition, build.
+    private static void MapAuthoring(IEndpointRouteBuilder apps)
+    {
+        apps.MapPost("", (TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
+            return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
         apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
@@ -206,6 +253,20 @@ internal static class AppsEndpoints
         {
             var snapshot = await creator.Implement(brain, AppKey(name), request?.Text, ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
+        }));
+    }
+
+    // The shell's transport: an app's live view and a request to it.
+    private static void MapScreens(IEndpointRouteBuilder apps)
+    {
+        apps.MapGet("/{name}/view", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            var scope = BrainScope.CurrentId();
+            var published = await ReadLiveAppOrUnitViewAsync(brain, scope, name.Trim(), ct).ConfigureAwait(false);
+            return published is null
+                ? throw new KeyNotFoundException($"No live view is published for '{name}' in brain '{scope}'.")
+                : Results.Json(published, ViewJsonOptions);
         }));
 
         // A request is published for a synapse to react to; nothing waits for the app to answer.
@@ -230,16 +291,11 @@ internal static class AppsEndpoints
                 throw;
             }
         }));
+    }
 
-        apps.MapPut("/{name}/settings", (string name, SettingsRequest request, INeuronProxies brain) => Respond(async ()
-            => Results.Ok(View(await App(brain, name).Configure(request?.Settings ?? [], request?.Connections ?? [])))));
-
-        apps.MapPost("/{name}/rollback", (string name, RollbackRequest request, INeuronProxies brain) => Respond(async () =>
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(request?.Version);
-            return Results.Ok(View(await App(brain, name).Rollback(request.Version)));
-        }));
-
+    // Marketplace: publish, install and update.
+    private static void MapMarketplace(IEndpointRouteBuilder apps)
+    {
         apps.MapPost("/{name}/publish", (string name, INeuronProxies brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Publish()))));
 
@@ -248,27 +304,6 @@ internal static class AppsEndpoints
 
         apps.MapPost("/{name}/update", (string name, UpdateBody? body, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
             => Update(name, body, brain, installer, ct));
-
-        apps.MapGet("/{name}/icon", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
-        {
-            var snapshot = await App(brain, name).Read().WaitAsync(ct);
-            return Icon(snapshot.Manifest.Icon, snapshot.Files, name);
-        }));
-
-        apps.MapGet("/{name}/export", (string name, INeuronProxies brain, CancellationToken ct)
-            => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
-
-        // A raw bundle goes in through the installer too: a person, never over a root app, and with the consent (?consent=,
-        // the digest of what the bundle asks for) when it asks for anything.
-        apps.MapPost("/import", (AppBundle bundle, string? consent, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
-            => Import(bundle, consent, brain, installer, ct));
-
-        // The one uninstall path. Removing an app that is not there stays a success, as it was.
-        apps.MapDelete("/{name}", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async () =>
-        {
-            _ = await installer.Remove(name, ct);
-            return Results.Ok(new { deleted = name });
-        }));
     }
 
     internal static Task<IResult> Import(AppBundle bundle, string? consent, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => Respond(async () =>
