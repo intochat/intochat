@@ -109,7 +109,7 @@ public sealed record InoAppState(
     [JsonIgnore]
     public InoCard[] ActiveCards => _cards;
 
-    // Legacy, unwritten; read by nothing, see OWED.md.
+    // Legacy; only cleared to null by InoApp.Commit, see OWED.md.
     public InoMessage[]? Messages { get; init; }
     // Legacy, unwritten; read by nothing, see OWED.md.
     public long ChatRevision { get; init; }
@@ -175,10 +175,9 @@ public sealed record InoAppState(
         && DetectedLocalModels is not null
         && RecentConversations is not null;
 
-    [Invariant("ChatRevision is non-negative and blocked sessions hold neither an active run nor a pending prompt."), JsonIgnore]
+    [Invariant("Blocked sessions hold neither an active run nor a pending prompt."), JsonIgnore]
     public bool ConsistentSessionRunInvariant =>
-        ChatRevision >= 0
-        && (!Blocked || (ActiveRunId is null && Pending is null));
+        !Blocked || (ActiveRunId is null && Pending is null);
 
     // ── Declarative Domain Rules ─────────────────────────────────────────────
 
