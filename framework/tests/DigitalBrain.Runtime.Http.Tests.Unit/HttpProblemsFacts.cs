@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Modules.Validation;
 using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Runtime.Http.Tests.Unit;
 
@@ -36,5 +38,24 @@ public sealed class HttpProblemsFacts
 
         Assert.Null(failure);
         Assert.Equal(new SampleBody("ada"), body);
+    }
+
+    [Fact]
+    public async Task ErrorBodiesKeepTheirWireShape()
+    {
+        Assert.Equal("{\"code\":\"NOPE\"}", await WriteAsync(HttpProblems.Code(StatusCodes.Status409Conflict, "NOPE")));
+        Assert.Equal("{\"code\":\"RATE_LIMITED\",\"retryAt\":null}", await WriteAsync(HttpProblems.RateLimited(null)));
+        Assert.Equal(
+            "{\"code\":\"REQUEST_INVALID\",\"issues\":[{\"path\":\"name\",\"code\":\"REQUIRED\",\"message\":\"Name is required.\"}]}",
+            await WriteAsync(HttpProblems.Validation([new ValidationIssue("name", "REQUIRED", "Name is required.")])));
+    }
+
+    private static async Task<string> WriteAsync(IResult result)
+    {
+        var context = new DefaultHttpContext { RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider() };
+        using var body = new MemoryStream();
+        context.Response.Body = body;
+        await result.ExecuteAsync(context);
+        return Encoding.UTF8.GetString(body.ToArray());
     }
 }
