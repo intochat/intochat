@@ -20,7 +20,8 @@ public sealed record InternalPageReport(
 public sealed class InternalPageInspector(
     IServer server,
     IConfiguration configuration,
-    IOptions<PlaywrightModuleOptions> playwrightOptions)
+    IOptions<PlaywrightModuleOptions> playwrightOptions,
+    WebViewTickets tickets)
 {
     private const string ConnectionsPublicOriginKey = "IntoChatOS:Connections:PublicOrigin";
 
@@ -36,7 +37,7 @@ public sealed class InternalPageInspector(
         }
 
         var origin = ResolveKernelOrigin();
-        var enterUrl = WebViewTicketEndpoints.IssueTicket(caller, relativePath);
+        var enterUrl = tickets.Issue(caller, relativePath);
         var targetUri = new Uri(origin, enterUrl);
 
         using var playwright = await Playwright.CreateAsync().WaitAsync(ct);
