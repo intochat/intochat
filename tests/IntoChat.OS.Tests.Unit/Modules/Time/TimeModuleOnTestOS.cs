@@ -16,6 +16,8 @@ public sealed class TimeModuleOnTestOS : ModuleOnTestOSFacts<TimeModule>
         Assert.Equal(3, TimerNeuron.MaxConsecutiveFailures);
         Assert.True(TimerNeuron.MaximumDelay > TimeSpan.FromDays(40));
         Assert.Equal(TimeSpan.FromSeconds(1), TimerNeuron.DefaultMinimumProductionPeriod);
+        Assert.EndsWith(":Modules:time:Options:MinimumReminderPeriod", TimeModule.MinimumReminderPeriodKey, StringComparison.Ordinal);
+        Assert.Equal(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("time") + ":MinimumReminderPeriod", TimeModule.MinimumReminderPeriodKey);
     }
 
     [Fact]
