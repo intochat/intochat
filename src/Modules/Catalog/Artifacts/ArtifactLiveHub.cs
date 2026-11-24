@@ -26,6 +26,7 @@ internal sealed record ArtifactChanged(
 /// <summary>
 /// Versioned artifact store + live SSE fan-out hub enabling Ino (via MCP/tools)
 /// and interactive WASM studios to share the exact same live document state.
+/// A scope is the brain an artifact belongs to: the same path in two scopes is two artifacts, kept in two folders.
 /// </summary>
 internal sealed class ArtifactLiveHub
 {
@@ -55,17 +56,17 @@ internal sealed class ArtifactLiveHub
         return normalized;
     }
 
-    public ArtifactMetadata? TryGetMetadata(string rawPath)
+    public ArtifactMetadata? TryGetMetadata(string rawPath, string? scope = null)
     {
         var key = NormalizePath(rawPath);
-        return _meta.TryGetValue(key, out var meta) ? meta : null;
+        return _meta.TryGetValue(Scoped(scope, key), out var meta) ? meta : null;
     }
 
-    public async Task<(ArtifactMetadata Meta, byte[] Bytes)?> ReadAsync(string rawPath, CancellationToken ct = default)
+    public async Task<(ArtifactMetadata Meta, byte[] Bytes)?> ReadAsync(string rawPath, CancellationToken ct = default, string? scope = null)
     {
         var key = NormalizePath(rawPath);
-        if (!_meta.TryGetValue(key, out var meta)) { return null; }
-        var diskPath = ResolveDiskPath(key);
+        if (!_meta.TryGetValue(Scoped(scope, key), out var meta)) { return null; }
+        var diskPath = ResolveDiskPath(scope, key);
         if (!File.Exists(diskPath)) { return null; }
         var bytes = await File.ReadAllBytesAsync(diskPath, ct).ConfigureAwait(false);
         return (meta, bytes);
@@ -76,11 +77,12 @@ internal sealed class ArtifactLiveHub
         byte[] bytes,
         string actor = "ino",
         string? mimeType = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? scope = null)
     {
         ArgumentNullException.ThrowIfNull(bytes);
         var key = NormalizePath(rawPath);
-        var diskPath = ResolveDiskPath(key);
+        var diskPath = ResolveDiskPath(scope, key);
         Directory.CreateDirectory(Path.GetDirectoryName(diskPath)!);
         await File.WriteAllBytesAsync(diskPath, bytes, ct).ConfigureAwait(false);
 
@@ -90,12 +92,12 @@ internal sealed class ArtifactLiveHub
         var now = DateTimeOffset.UtcNow;
 
         var next = _meta.AddOrUpdate(
-            key,
+            Scoped(scope, key),
             _ => new ArtifactMetadata(key, resolvedMime, 1, hash, bytes.LongLength, updatedBy, now),
             (_, existing) => new ArtifactMetadata(key, resolvedMime, existing.Version + 1, hash, bytes.LongLength, updatedBy, now));
 
         var changed = new ArtifactChanged(next.Path, next.Version, next.Sha256, next.UpdatedBy, next.UpdatedAt);
-        if (_subscribers.TryGetValue(key, out var channels))
+        if (_subscribers.TryGetValue(Scoped(scope, key), out var channels))
         {
             foreach (var ch in channels.Values)
             {
@@ -106,9 +108,9 @@ internal sealed class ArtifactLiveHub
         return next;
     }
 
-    public (Guid SubscriptionId, ChannelReader<ArtifactChanged> Reader) Subscribe(string rawPath)
+    public (Guid SubscriptionId, ChannelReader<ArtifactChanged> Reader) Subscribe(string rawPath, string? scope = null)
     {
-        var key = NormalizePath(rawPath);
+        var key = Scoped(scope, NormalizePath(rawPath));
         var id = Guid.NewGuid();
         var channel = Channel.CreateBounded<ArtifactChanged>(new BoundedChannelOptions(32)
         {
@@ -121,21 +123,32 @@ internal sealed class ArtifactLiveHub
         return (id, channel.Reader);
     }
 
-    public void Unsubscribe(string rawPath, Guid subscriptionId)
+    public void Unsubscribe(string rawPath, Guid subscriptionId, string? scope = null)
     {
-        var key = NormalizePath(rawPath);
+        var key = Scoped(scope, NormalizePath(rawPath));
         if (_subscribers.TryGetValue(key, out var bucket) && bucket.TryRemove(subscriptionId, out var ch))
         {
             ch.Writer.TryComplete();
         }
     }
 
-    private string ResolveDiskPath(string normalizedKey)
+    // A normalized path starts with '/', which no scope contains, so a scope and a path never run together.
+    private static string Scoped(string? scope, string normalizedKey) => scope is null ? normalizedKey : scope + normalizedKey;
+
+    private string ResolveDiskPath(string? scope, string normalizedKey)
     {
         var relative = normalizedKey.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
         var fullRoot = Path.GetFullPath(_rootDirectory);
+        if (scope is not null)
+        {
+            if (scope.Length == 0 || scope.Contains("..", StringComparison.Ordinal) || scope.AsSpan().IndexOfAny("/\\:") >= 0)
+            {
+                throw new ArgumentException("An artifact scope is one folder name.", nameof(scope));
+            }
+            fullRoot = Path.Combine(fullRoot, scope);
+        }
         var candidate = Path.GetFullPath(Path.Combine(fullRoot, relative));
-        if (!candidate.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+        if (!candidate.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Resolved artifact path escaped root directory.");
         }
