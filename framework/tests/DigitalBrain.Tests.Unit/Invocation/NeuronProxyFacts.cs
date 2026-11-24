@@ -65,6 +65,41 @@ public sealed class NeuronProxyFacts
 
     private static readonly NeuronId Id = NeuronId.Parse("b1/probe/a");
 
+    public interface IShared
+    {
+        Task<int> Twice(int value);
+    }
+
+    // Stands in for an AotPreservationGenerator proxy: it reaches the base Call* path, never Dispatch.
+    private sealed class GeneratedShared : NeuronProxy, IShared
+    {
+        public Task<int> Twice(int value) => CallTask<int>(typeof(IShared).GetMethod(nameof(Twice))!, [value]);
+    }
+
+    [Fact]
+    public async Task Generated_and_dispatch_proxy_calls_share_one_binding_and_build_its_dispatch_once()
+    {
+        var sink = new Sink { Answer = (_, _) => Task.FromResult<JsonElement?>(JsonSerializer.SerializeToElement(8)) };
+        var method = typeof(IShared).GetMethod(nameof(IShared.Twice))!;
+        var methods = (System.Collections.IDictionary)typeof(NeuronProxy).GetField("Methods", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+
+        var generated = NeuronProxy.Initialize<IShared>(new GeneratedShared(), Id, sink);
+        Assert.Equal(8, await generated.Twice(4));
+        var bound = methods[method]!;
+        var dispatch = bound.GetType().GetField("_dispatch", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        Assert.Null(dispatch.GetValue(bound));
+
+        var dynamic = NeuronProxy.Initialize<IShared>((NeuronProxy)(object)DispatchProxy.Create<IShared, NeuronProxy>(), Id, sink);
+        Assert.Equal(8, await dynamic.Twice(4));
+        Assert.Same(bound, methods[method]);
+        var built = dispatch.GetValue(bound);
+        Assert.NotNull(built);
+
+        Assert.Equal(8, await dynamic.Twice(4));
+        Assert.Same(built, dispatch.GetValue(bound));
+        Assert.All(sink.Calls, call => Assert.Equal("Twice", call.Call.Method));
+    }
+
     [Fact]
     public async Task A_call_becomes_one_invocation_with_alias_key_method_and_json_arguments()
     {
