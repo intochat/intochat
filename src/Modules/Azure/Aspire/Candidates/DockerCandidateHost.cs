@@ -1,6 +1,4 @@
 using System.Net.NetworkInformation;
-using System.Security.Cryptography;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Modules.Configuration;
@@ -9,6 +7,7 @@ using DigitalBrain.Flows;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using static IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateWorkspace;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
@@ -480,33 +479,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         { throw new CandidateHostException("remove", $"docker {string.Join(' ', args)}:\n{Tail(result)}"); }
     }
 
-    private static string Tail(ProcessResult result, int lines = 40)
-    {
-        var all = (result.Output + "\n" + result.Error).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return string.Join('\n', all.TakeLast(lines));
-    }
-
-    private static async Task<string> Workdir(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
-    {
-        var snapshot = await integrations.Get("aspire").ReadAsync(ct);
-        return snapshot.Settings.TryGetValue(AspireModule.WorkdirField, out var workdir) && workdir is { Length: > 0 }
-            ? Path.GetFullPath(workdir)
-            : throw new CandidateHostException("prepare", "the aspire Integration has no Workdir");
-    }
-
-    // The aspire Integration's two secrets, projected by AspireModuleHosting from the live resource's environment.
-    private static async Task<CandidateSecrets> Secrets(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
-    {
-        var released = await integrations.Get("aspire").ReleaseAsync(ct);
-        var model = released.Values.TryGetValue(AspireModule.CandidateModelField, out var json) && json is { Length: > 0 }
-            ? JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? []
-            : [];
-        return new(model);
-    }
-
     private Git Git(string root) => new(processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
 
-    private static string Secret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     internal static string Env(string key) => ModuleConfiguration.EnvironmentName(key);
     internal static string ConnectionVariable(string name) => $"ConnectionStrings__{name}";
     internal static string IntegrationVariable(string id, string field) => ModuleConfiguration.IntegrationEnvironmentName(id, field);
@@ -518,7 +492,6 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         => $"DefaultEndpointsProtocol=http;AccountName={CandidateStorage.AccountName};AccountKey={CandidateStorage.AccountKey};"
             + $"BlobEndpoint=http://{AzuriteOf(sha)}:10000/{CandidateStorage.AccountName};TableEndpoint=http://{AzuriteOf(sha)}:10002/{CandidateStorage.AccountName};";
 
-    private static string WorktreeOf(string root, string sha) => Path.Combine(root, "worktrees", sha);
     private static string ImageOf(string sha) => $"intochat-os-candidate:{sha}";
     private static string ContainerOf(string sha) => $"candidate-{sha}";
     private static string AzuriteOf(string sha) => $"candidate-{sha}-azurite";
@@ -534,15 +507,6 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     [GeneratedRegex("\\A[a-zA-Z0-9][a-zA-Z0-9._:/@-]*\\z", RegexOptions.CultureInvariant)]
     private static partial Regex ImageReference();
-
-    [GeneratedRegex("^[0-9a-f]{7,40}$", RegexOptions.CultureInvariant)]
-    private static partial Regex Sha();
-
-    private static void Checked(string sha)
-    {
-        if (sha is null || !Sha().IsMatch(sha)) { throw new CandidateHostException("sha", $"'{sha}' is not a commit sha"); }
-    }
-
 }
 
 internal sealed record CandidateSecrets(IReadOnlyDictionary<string, string> Model);
