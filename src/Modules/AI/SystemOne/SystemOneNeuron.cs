@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.AI;
 // questions to hosted TypeSafe (if configured) or the brain's local System 2 chat model,
 // and feeds high-confidence escalations back into VENN so recurring decisions self-accelerate.
 [Neuron("ai.systemone")]
-internal sealed class SystemOneNeuron(
+internal sealed partial class SystemOneNeuron(
     HttpSystemOne? client = null,
     ModelCatalog? catalog = null) : DigitalBrain.Neurons.Neuron, ISystemOne
 {
@@ -19,13 +19,16 @@ internal sealed class SystemOneNeuron(
     private const double LearnConfidenceThreshold = 0.6;
     internal const string VennModelName = "venn-local";
 
+    [DigitalBrain.Slot(Key = "default")]
+    private partial IVennSystemOne Venn { get; }
+
     public async Task<SystemOneResult> Ask(SystemOneRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         var answers = new Dictionary<string, SystemOneAnswer>(StringComparer.Ordinal);
         var abstained = new Dictionary<string, SystemOneQuestion>(StringComparer.Ordinal);
-        var venn = Get<IVennSystemOne>(IVennSystemOne.DefaultKey(Id.Brain));
+        var venn = Venn;
 
         // 1. Fast path: in-process VENN (<1ms, zero external dependencies).
         if (!string.IsNullOrWhiteSpace(request.State))

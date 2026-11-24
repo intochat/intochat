@@ -20,7 +20,7 @@ public sealed class UiChildApiFacts
     [Fact]
     public void SlotIdentifierAppearsInAppsOnlyOnDeclaredSlotProperties()
     {
-        var appsDir = Path.Combine(Repository.Root, "src", "IntoChat.OS.Apps");
+        var appsDir = Repository.ProjectNamed("IntoChat.OS.Apps").Directory;
         var files = Repository.SourceFiles(appsDir, "*.cs");
         Assert.NotEmpty(files);
 
@@ -63,7 +63,7 @@ public sealed class UiChildApiFacts
     {
         const int StringDotCommandCap = 12;
 
-        var appsDir = Path.Combine(Repository.Root, "src", "IntoChat.OS.Apps");
+        var appsDir = Repository.ProjectNamed("IntoChat.OS.Apps").Directory;
         var files = Repository.SourceFiles(appsDir, "*.cs");
         Assert.NotEmpty(files);
 

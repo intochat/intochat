@@ -93,7 +93,7 @@ public sealed class LocalCheckoutRegistrationFacts : IDisposable
     public void FindCheckoutRoot_WalksUpToGitDirectoryAndWorktreeGitFile()
     {
         var repoRoot = Path.Combine(_tempHome, "repo");
-        var nestedDir = Path.Combine(repoRoot, "src", "AppHost");
+        var nestedDir = Path.Combine(repoRoot, "lib", "AppHost");
         Directory.CreateDirectory(Path.Combine(repoRoot, ".git"));
         Directory.CreateDirectory(nestedDir);
 

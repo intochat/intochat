@@ -107,7 +107,7 @@ public static partial class AIHostingExtensions
                 var connect = tcp.ConnectAsync(uri.Host, uri.Port);
                 return connect.Wait(TimeSpan.FromMilliseconds(200)) && tcp.Connected;
             }
-            catch (Exception)
+            catch (Exception error) when (error is System.Net.Sockets.SocketException or AggregateException or ObjectDisposedException)
             {
                 return false;
             }

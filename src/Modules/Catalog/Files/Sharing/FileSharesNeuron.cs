@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Components;
@@ -44,9 +45,10 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
                     await Offers.Offer(Id, group.Key, desired, cancellationToken);
                 }
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException error)
             {
                 // Persisted share belongs to an ex-friend; leave without an offer.
+                GetLogger().LogSwallowed(error, "file share offer refused");
             }
         }
     }

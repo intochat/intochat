@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DigitalBrain.Log;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
@@ -165,9 +166,10 @@ internal sealed class ConversationNeuron(
                     await offers.Offer(Id, human.Account.Value, DigitalBrain.Components.Role.Editor, cancellationToken);
                 }
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException error)
             {
                 // Persisted participant is no longer a confirmed friend; leave without an offer.
+                Logger.LogSwallowed(error, "conversation participant offer refused");
             }
         }
     }

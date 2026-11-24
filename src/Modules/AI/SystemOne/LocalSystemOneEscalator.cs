@@ -1,4 +1,5 @@
 using System.Globalization;
+using DigitalBrain.Log;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Models;
@@ -182,9 +183,10 @@ internal static class LocalSystemOneEscalator
                 }
             }
         }
-        catch (JsonException)
+        catch (JsonException error)
         {
             // Malformed LLM output simply leaves abstained keys unanswered.
+            IntoChat.OS.Host.Logging.OsConsoleLog.For(typeof(LocalSystemOneEscalator)).LogSwallowed(error, "malformed System One escalation output");
         }
 
         return result;
