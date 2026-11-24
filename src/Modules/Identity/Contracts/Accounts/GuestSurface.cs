@@ -26,6 +26,16 @@ public static class GuestSurface
 
     public static bool IsGuestPrincipal(string? principal) => principal?.StartsWith(BrainPrefix, StringComparison.Ordinal) == true;
 
+    // The guest a trusted issuer's try session makes on this install (a guest ticket, GET /identity/external/guest): its principal,
+    // account and brain id. The issuer scopes it, so two issuers' sessions never meet in one guest; the issuer computes the same id
+    // to send the visitor to its brain.
+    public static string PrincipalOf(string issuer, string session)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(issuer);
+        ArgumentException.ThrowIfNullOrWhiteSpace(session);
+        return BrainPrefix + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(issuer + "\n" + session)))[..32];
+    }
+
     public static bool MayUseTool(string? tool) => tool is not null && Tools.Contains(tool, StringComparer.Ordinal);
 
     // The app id exactly as the caller sent it: no case folding, trimming or path form.

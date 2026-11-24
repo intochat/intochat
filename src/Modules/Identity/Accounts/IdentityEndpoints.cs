@@ -36,6 +36,7 @@ internal static class IdentityEndpoints
             routes.MapPost("/identity/login", LoginAsync);
         }
         IntoChat.OS.Modules.Identity.External.ExternalSignIn.Map(routes);
+        IntoChat.OS.Modules.Identity.External.GuestSignIn.Map(routes);
         routes.MapGet("/identity/session", Session);
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", LogoutAsync);
