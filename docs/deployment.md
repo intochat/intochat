@@ -70,10 +70,17 @@ dotnet run --project src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -- pulum
 
 ## Moving the cloud's records out of an existing install
 
-An install that ran the cloud image before the split keeps the cloud's records (auth, organisations, invites, mail rate, lobby, machine credentials) in the OS app's brain store. Move them once into the cloud's Home with the kernel's `move-records` verb (`RecordMoveCommand`, over `BrainRecordMove`):
+An install that ran the cloud image before the split keeps the cloud's records (auth, organisations, invites, mail rate, lobby, machine credentials) in the OS app's brain store. Move them once into the cloud's Home with the kernel's `move-inventory` and `move-records` verbs (`MoveInventoryCommand`, `RecordMoveCommand`, over `BrainRecordMove`) and the cloud host's `move-plan` verb. Run the OS verbs in a one-off container from the OS image that mounts both shares (`brainlog` and `brainlog-cloud`) and a folder outside both for the lists and the backup, with `IntoChatOS__MasterKey` set from the vault: they open each brain store with the same key custody as the OS app.
 
-1. Stop both container apps (scale to 0) and wait until no replica runs: the move claims each brain store as its writer.
-2. Run the verb in a one-off container that mounts both shares (`brainlog` and `brainlog-cloud`) and a backup folder outside both, with `IntoChatOS__MasterKey` set from the vault:
+1. Stop both container apps (scale to 0) and wait until no replica runs: the verbs claim each brain store as its writer.
+2. List what the OS app's store holds. It changes no record:
+
+   ```
+   os move-inventory --home /data/brain/<format> --out /data/split
+   ```
+
+   It writes `brains.txt` (one brain id per line: `system` and every brain of the identity directory), `principals.txt` (one principal id per line) and `machines.txt` (one `<brain> <machine id>` per line, every enrolled device that is not revoked). With `machines.txt` the cloud keeps each device's machine credential, so no device enrolls again.
+3. Make the plan with the cloud image's `move-plan` verb from `brains.txt` and `machines.txt` (the cloud repository's `ops/cluster-split`), then move:
 
    ```
    os move-records plan.json plan            # lists what the rules select; writes nothing to the target
@@ -82,8 +89,8 @@ An install that ran the cloud image before the split keeps the cloud's records (
    ```
 
    The plan (`BrainMovePlan`) names `sourceHome`, `targetHome`, `backup`, the `brains` and the `rules` (a neuron type or a grain id prefix). Every phase can run again. A record the cloud's Home already holds with other content is reported as a conflict (exit code 2) and never overwritten.
-3. Start the OS app once with `IntoChatOS:Auth:PrincipalLinks` naming a file of `{ issuer, email, principal }` entries for the people the cloud signed up before the split (`PrincipalLinks`). They then sign in through the cloud's ticket to the accounts and brains they already have. The result is written beside the file; remove the setting afterwards.
-4. Deploy the cloud image on the split build and start both apps.
-5. Only after the cloud has run on its copy: `os move-records plan.json remove-source` clears the copied records from the OS app's store, and only those still identical in both stores.
+4. Deploy the split build. Start the Cloud app once with the cloud's principal-links export pointed at `principals.txt`: it reads the moved auth records and writes `principals.txt.links.json`, the `{ issuer, email, principal }` entries of the people it signed up before the split. This must come before step 5, because only the cloud can read those records.
+5. Start the OS app once with `IntoChatOS:Auth:PrincipalLinks` naming that `.links.json` file (`PrincipalLinks`). Those people then sign in through the cloud's ticket to the accounts and brains they already have. The result is written beside the file. Remove both settings afterwards; both apps keep running.
+6. Only after the cloud has run on its copy: stop both apps, `os move-records plan.json remove-source` clears the copied records from the OS app's store, and only those still identical in both stores.
 
-Rollback: until step 5 no record of the OS app's store is changed by the move (opening a store may compact its journal, as any start does), so going back is deploying the previous cloud image into the previous shape. After step 5, restore the listed brain folders from the backup (`<backup>/brains/<folder>`) with both apps stopped. The principal links only add rows; a linked person also keeps the principal they had.
+Rollback: until step 6 no record of the OS app's store is changed by the move (opening a store may compact its journal, as any start does), so going back is deploying the previous images into the previous shape. After step 6, restore the listed brain folders from the backup (`<backup>/brains/<folder>`) with both apps stopped. The principal links only add rows; a linked person also keeps the principal they had.

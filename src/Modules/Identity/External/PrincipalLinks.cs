@@ -24,8 +24,9 @@ public sealed record PrincipalLinkOutcome(string Principal, string Linked, strin
 // It only adds rows: it never changes or removes the existing principal, and a linked principal that already signs in elsewhere is
 // reported as a conflict and left alone. Idempotent: a second run reports "already-linked".
 //
-// Operator: set IntoChatOS:Auth:PrincipalLinks to the file's path for one start; the result is written beside it as
-// "<file>.result.json"; then remove the setting.
+// Operator: the file is the cloud's principal-links export, written when the split cloud first starts on its moved records (from the
+// principals move-inventory lists), so this step comes after that start. Set IntoChatOS:Auth:PrincipalLinks to the file's path for one
+// start; the result is written beside it as "<file>.result.json"; then remove the setting.
 public sealed class PrincipalLinks
 {
     private readonly AuthorityNeurons neurons;
