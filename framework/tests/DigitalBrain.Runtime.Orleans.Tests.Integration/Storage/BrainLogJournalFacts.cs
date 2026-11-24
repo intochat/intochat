@@ -21,11 +21,21 @@ internal sealed class BrainLogJournalTarget : IJournalTarget
     public static async Task<BrainLogJournalTarget> CreateAsync()
     {
         var home = new TempHome();
-        var store = new BrainStore(home.Path);
-        var log = await store.Log("b1");
-        var history = store.History("b1");
-        var journal = new BrainLogJournal(store.Logs, history, id => BrainStore.GrainOf(id).ToString());
-        return new BrainLogJournalTarget(home, store, journal, log);
+        BrainStore? store = null;
+        try
+        {
+            store = new BrainStore(home.Path);
+            var log = await store.Log("b1");
+            var history = store.History("b1");
+            var journal = new BrainLogJournal(store.Logs, history, id => BrainStore.GrainOf(id).ToString());
+            return new BrainLogJournalTarget(home, store, journal, log);
+        }
+        catch
+        {
+            if (store is not null) { await store.DisposeAsync(); }
+            home.Dispose();
+            throw;
+        }
     }
 
     public IBrainJournal Journal => _journal;
@@ -41,8 +51,14 @@ internal sealed class BrainLogJournalTarget : IJournalTarget
 
     public async ValueTask DisposeAsync()
     {
-        await _store.DisposeAsync();
-        _home.Dispose();
+        try
+        {
+            await _store.DisposeAsync();
+        }
+        finally
+        {
+            _home.Dispose();
+        }
     }
 }
 

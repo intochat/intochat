@@ -68,11 +68,12 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
     [Fact]
     public async Task SdkAskAnswersWhenDeploymentDefaultModelAndKeyExist()
     {
+        using var home = new DigitalBrain.Testing.TempDirectory("intochat-sdk-ai-");
         var brain = "sdk-default-keyed";
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["IntoChatOS:Home"] = Path.Combine(Path.GetTempPath(), "intochat-sdk-ai-" + Guid.NewGuid().ToString("N")),
+                ["IntoChatOS:Home"] = home.Path,
             })
             .Build();
 

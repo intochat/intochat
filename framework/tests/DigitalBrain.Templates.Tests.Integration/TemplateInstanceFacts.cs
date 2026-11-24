@@ -34,11 +34,11 @@ public sealed class TemplateInstanceFacts
             var (feed, version) = await Packages(root, work, ct);
             var hive = Path.Combine(work, "hive");
             var template = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "digitalbrain-app");
-            await Dotnet(work, null, ["new", "install", template, "--debug:custom-hive", hive], ct);
+            await Dotnet(work, work, null, ["new", "install", template, "--debug:custom-hive", hive], ct);
 
             var app = Path.Combine(work, name);
             string[] create = ["new", shortName, "-n", name, "-o", app, "--DigitalBrainVersion", version, "--debug:custom-hive", hive];
-            await Dotnet(work, null, appId is null ? create : [.. create, "--AppId", appId], ct);
+            await Dotnet(work, work, null, appId is null ? create : [.. create, "--AppId", appId], ct);
             var source = Path.Combine(app, name, name + ".cs");
             Assert.True(File.Exists(source), name + ".cs");
             Assert.True(File.Exists(Path.Combine(app, name, name + ".spec.md")), name + ".spec.md");
@@ -49,11 +49,11 @@ public sealed class TemplateInstanceFacts
 
             await File.WriteAllTextAsync(Path.Combine(app, "nuget.config"), Config(feed), ct);
             var packages = Path.Combine(work, "packages");
-            await Dotnet(app, packages, ["build", name + ".slnx", "-c", "Release", "-warnaserror"], ct);
-            var test = await Dotnet(app, packages, ["test", "--project", Path.Combine(name + ".Tests.Unit", name + ".Tests.Unit.csproj"), "-c", "Release", "--no-build"], ct);
+            await Dotnet(app, work, packages, ["build", name + ".slnx", "-c", "Release", "-warnaserror", "--disable-build-servers"], ct);
+            var test = await Dotnet(app, work, packages, ["test", "--project", Path.Combine(name + ".Tests.Unit", name + ".Tests.Unit.csproj"), "-c", "Release", "--no-build"], ct);
             Assert.Contains("succeeded: 4", test, StringComparison.Ordinal);
             Assert.Contains("failed: 0", test, StringComparison.Ordinal);
-            var integrationTest = await Dotnet(app, packages, ["test", "--project", Path.Combine(name + ".Tests.Integration", name + ".Tests.Integration.csproj"), "-c", "Release", "--no-build"], ct);
+            var integrationTest = await Dotnet(app, work, packages, ["test", "--project", Path.Combine(name + ".Tests.Integration", name + ".Tests.Integration.csproj"), "-c", "Release", "--no-build"], ct);
             Assert.Contains("succeeded: 2", integrationTest, StringComparison.Ordinal);
             Assert.Contains("failed: 0", integrationTest, StringComparison.Ordinal);
 
@@ -61,14 +61,12 @@ public sealed class TemplateInstanceFacts
             var code = await File.ReadAllTextAsync(source, ct);
             var at = code.LastIndexOf("=>", StringComparison.Ordinal);
             await File.WriteAllTextAsync(source, code[..at] + "{ try { } catch { } return Task.CompletedTask; }\n" + code[(code.IndexOf(';', at) + 1)..], ct);
-            var probe = await Dotnet(app, packages, ["build", Path.Combine(name, name + ".csproj"), "-c", "Release"], ct, expectSuccess: false);
+            var probe = await Dotnet(app, work, packages, ["build", Path.Combine(name, name + ".csproj"), "-c", "Release", "--disable-build-servers"], ct, expectSuccess: false);
             Assert.Contains("DB0022", probe, StringComparison.Ordinal);
         }
         finally
         {
-            try { Directory.Delete(work, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            DeleteDirectoryWithRetry(work);
         }
     }
 
@@ -85,25 +83,23 @@ public sealed class TemplateInstanceFacts
             var (feed, version) = await Packages(root, work, ct);
             var hive = Path.Combine(work, "hive");
             var template = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "digitalbrain-module");
-            await Dotnet(work, null, ["new", "install", template, "--debug:custom-hive", hive], ct);
+            await Dotnet(work, work, null, ["new", "install", template, "--debug:custom-hive", hive], ct);
 
             const string name = "Weather";
             var module = Path.Combine(work, name);
-            await Dotnet(work, null, ["new", shortName, "-n", name, "-o", module, "--ModuleId", "acme.weather", "--DigitalBrainVersion", version, "--debug:custom-hive", hive], ct);
+            await Dotnet(work, work, null, ["new", shortName, "-n", name, "-o", module, "--ModuleId", "acme.weather", "--DigitalBrainVersion", version, "--debug:custom-hive", hive], ct);
             Assert.True(File.Exists(Path.Combine(module, name, name + ".csproj")), name + ".csproj");
 
             await File.WriteAllTextAsync(Path.Combine(module, "nuget.config"), Config(feed), ct);
             var packages = Path.Combine(work, "packages");
             var tests = Path.Combine(module, "tests", name + ".Tests.Unit", name + ".Tests.Unit.csproj");
-            await Dotnet(module, packages, ["build", tests, "-c", "Release", "-warnaserror"], ct);
-            var run = await Dotnet(module, packages, ["test", "--project", tests, "-c", "Release", "--no-build"], ct);
+            await Dotnet(module, work, packages, ["build", tests, "-c", "Release", "-warnaserror", "--disable-build-servers"], ct);
+            var run = await Dotnet(module, work, packages, ["test", "--project", tests, "-c", "Release", "--no-build"], ct);
             Assert.Contains("failed: 0", run, StringComparison.Ordinal);
         }
         finally
         {
-            try { Directory.Delete(work, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            DeleteDirectoryWithRetry(work);
         }
     }
 
@@ -122,12 +118,12 @@ public sealed class TemplateInstanceFacts
         var feed = Path.Combine(work, "feed");
         var artifacts = Path.Combine(work, "artifacts");
         // DigitalBrain bundles the code-fix assembly, which none of the packed projects references, so pack's restore misses it.
-        await Dotnet(root, null, ["restore", Path.Combine(root, "src", "DigitalBrain.Analyzers.CodeFixes", "DigitalBrain.Analyzers.CodeFixes.csproj"),
-            "--artifacts-path", artifacts], ct);
+        await Dotnet(root, work, null, ["restore", Path.Combine(root, "src", "DigitalBrain.Analyzers.CodeFixes", "DigitalBrain.Analyzers.CodeFixes.csproj"),
+            "--artifacts-path", artifacts, "--disable-build-servers"], ct);
         foreach (var id in Packed)
         {
-            await Dotnet(root, null, ["pack", Path.Combine(root, "src", id, id + ".csproj"), "-c", "Release", "-o", feed,
-                "--artifacts-path", artifacts, "-p:VersionSuffix=" + suffix, "-p:IncludeSymbols=false"], ct);
+            await Dotnet(root, work, null, ["pack", Path.Combine(root, "src", id, id + ".csproj"), "-c", "Release", "-o", feed,
+                "--artifacts-path", artifacts, "-p:VersionSuffix=" + suffix, "-p:IncludeSymbols=false", "--disable-build-servers"], ct);
         }
         var versionDir = new DirectoryInfo(root);
         while (versionDir is not null && !File.Exists(Path.Combine(versionDir.FullName, "VERSION"))) { versionDir = versionDir.Parent; }
@@ -166,8 +162,10 @@ public sealed class TemplateInstanceFacts
             """;
     }
 
-    private static async Task<string> Dotnet(string directory, string? packages, string[] arguments, CancellationToken ct, bool expectSuccess = true)
+    private static async Task<string> Dotnet(string directory, string workRoot, string? packages, string[] arguments, CancellationToken ct, bool expectSuccess = true)
     {
+        var childTemp = Path.Combine(workRoot, ".tmp");
+        Directory.CreateDirectory(childTemp);
         var start = new ProcessStartInfo("dotnet")
         {
             WorkingDirectory = directory,
@@ -179,6 +177,8 @@ public sealed class TemplateInstanceFacts
         start.Environment["DOTNET_NOLOGO"] = "1";
         start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         start.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
+        start.Environment["TEMP"] = childTemp;
+        start.Environment["TMP"] = childTemp;
         // The test host's own MSBuild and runner settings must not leak into the child build.
         foreach (var name in new[] { "MSBuildSDKsPath", "MSBUILD_EXE_PATH", "MSBuildExtensionsPath", "DOTNET_HOST_PATH", "TESTINGPLATFORM_DOTNETTEST_EXECUTIONID" })
         {
@@ -193,6 +193,40 @@ public sealed class TemplateInstanceFacts
         output.Append(await stdout).Append(await stderr);
         Assert.True(process.ExitCode == 0 == expectSuccess, $"dotnet {string.Join(' ', arguments)} exited {process.ExitCode} (expected {(expectSuccess ? "success" : "failure")}) in {directory}:\n{output}");
         return output.ToString();
+    }
+
+    private static void DeleteDirectoryWithRetry(string path)
+    {
+        if (!Directory.Exists(path)) { return; }
+        for (var attempt = 0; attempt < 15; attempt++)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < 14)
+            {
+                try
+                {
+                    foreach (var entry in Directory.EnumerateFileSystemEntries(path, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true }))
+                    {
+                        try
+                        {
+                            var attrs = File.GetAttributes(entry);
+                            if ((attrs & FileAttributes.ReadOnly) != 0) { File.SetAttributes(entry, attrs & ~FileAttributes.ReadOnly); }
+                        }
+                        catch (Exception inner) when (inner is IOException or UnauthorizedAccessException) { }
+                    }
+                }
+                catch (Exception inner) when (inner is IOException or UnauthorizedAccessException) { }
+                Thread.Sleep(200);
+            }
+        }
     }
 
     private static string Root()

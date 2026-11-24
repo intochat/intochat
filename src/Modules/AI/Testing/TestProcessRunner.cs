@@ -67,8 +67,7 @@ internal static class TestProcessRunner
         }
 
         var repoRoot = FindRepositoryRoot();
-        var tempDir = Path.Combine(Path.GetTempPath(), "intochat-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"intochat-tests-{Guid.NewGuid():N}");
 
         var exePath = FindExecutable(repoRoot, request.SuiteName, request.Configuration);
         var startInfo = new ProcessStartInfo();
@@ -120,6 +119,7 @@ internal static class TestProcessRunner
         Process? process = null;
         try
         {
+            Directory.CreateDirectory(tempDir);
             process = Process.Start(startInfo);
             if (process is null)
             {

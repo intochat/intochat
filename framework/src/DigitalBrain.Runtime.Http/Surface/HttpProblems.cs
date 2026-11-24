@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Modules.Validation;
 using Microsoft.AspNetCore.Http;
 
@@ -13,17 +14,20 @@ public static class HttpProblems
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public static IResult Code(int status, string code) => Results.Json(new { code }, statusCode: status);
+    public static IResult Code(int status, string code) =>
+        Results.Json(new CodeBody(code), ProblemJson.Default.CodeBody, statusCode: status);
 
     public static IResult BadRequest(string code) => Code(StatusCodes.Status400BadRequest, code);
 
     public static IResult RateLimited(DateTimeOffset? retryAt) =>
-        Results.Json(new { code = RateLimitedCode, retryAt }, statusCode: StatusCodes.Status429TooManyRequests);
+        Results.Json(new RateLimitedBody(RateLimitedCode, retryAt), ProblemJson.Default.RateLimitedBody,
+            statusCode: StatusCodes.Status429TooManyRequests);
 
     public static IResult Validation(ValidationIssue[] issues)
     {
         ArgumentNullException.ThrowIfNull(issues);
-        return Results.Json(new { code = RequestInvalid, issues }, statusCode: StatusCodes.Status400BadRequest);
+        return Results.Json(new ValidationBody(RequestInvalid, issues), ProblemJson.Default.ValidationBody,
+            statusCode: StatusCodes.Status400BadRequest);
     }
 
     public static Task<(T? Body, IResult? Failure)> ReadAsync<T>(HttpRequest request, int maxBodyBytes = MaxBodyBytes) where T : class
@@ -84,3 +88,16 @@ public static class HttpProblems
         }
     }
 }
+
+internal sealed record CodeBody(string Code);
+
+internal sealed record RateLimitedBody(string Code, DateTimeOffset? RetryAt);
+
+internal sealed record ValidationBody(string Code, ValidationIssue[] Issues);
+
+// Web defaults = camelCase with nulls written, the same output the anonymous types gave.
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(CodeBody))]
+[JsonSerializable(typeof(RateLimitedBody))]
+[JsonSerializable(typeof(ValidationBody))]
+internal sealed partial class ProblemJson : JsonSerializerContext;

@@ -39,7 +39,8 @@ public sealed class WorkspaceFilesServiceFacts
     [Fact]
     public async Task Operations_RejectTraversalPaths()
     {
-        var service = new WorkspaceFilesService(brainId: "safe-brain");
+        using var root = new DigitalBrain.Testing.TempDirectory("intochat-vfs-test-");
+        var service = new WorkspaceFilesService(brainId: "safe-brain", rootDirectory: root.Path);
         var content = Encoding.UTF8.GetBytes("hostile attempt");
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.WriteFileAsync("../escape.txt", content, Ct));
@@ -52,7 +53,8 @@ public sealed class WorkspaceFilesServiceFacts
     [Fact]
     public async Task WriteFileAsync_PersistsToWorkMountAndBuildsLocalDiskNeuronUri()
     {
-        var service = new WorkspaceFilesService(brainId: "local");
+        using var root = new DigitalBrain.Testing.TempDirectory("intochat-vfs-test-");
+        var service = new WorkspaceFilesService(brainId: "local", rootDirectory: root.Path);
         var content = Encoding.UTF8.GetBytes("quarter,revenue\nQ1,100\nQ2,150\n");
 
         var entry = await service.WriteFileAsync("q1_q2_revenue.csv", content, Ct);
@@ -73,7 +75,8 @@ public sealed class WorkspaceFilesServiceFacts
     [Fact]
     public async Task ResolveFileAsync_ResolvesByCleanNameVfsPathAndNeuronUri()
     {
-        var service = new WorkspaceFilesService(brainId: "local");
+        using var root = new DigitalBrain.Testing.TempDirectory("intochat-vfs-test-");
+        var service = new WorkspaceFilesService(brainId: "local", rootDirectory: root.Path);
         var content = Encoding.UTF8.GetBytes("# Summary\nAll unified.");
 
         var written = await service.WriteFileAsync("/work/summary.md", content, Ct);
@@ -102,7 +105,8 @@ public sealed class WorkspaceFilesServiceFacts
     [Fact]
     public async Task DeleteFileAsync_RemovesFromStorage()
     {
-        var service = new WorkspaceFilesService(brainId: "local");
+        using var root = new DigitalBrain.Testing.TempDirectory("intochat-vfs-test-");
+        var service = new WorkspaceFilesService(brainId: "local", rootDirectory: root.Path);
         var content = Encoding.UTF8.GetBytes("temporary data");
 
         await service.WriteFileAsync("temp.txt", content, Ct);
@@ -122,11 +126,13 @@ public sealed class WorkspaceFilesServiceFacts
     [Fact]
     public async Task InstanceIsolation_NoCrossBrainLeakage()
     {
+        using var rootA = new DigitalBrain.Testing.TempDirectory("intochat-vfs-test-");
+        using var rootB = new DigitalBrain.Testing.TempDirectory("intochat-vfs-test-");
         var brainA = "brain-iso-a-" + Guid.NewGuid().ToString("N");
         var brainB = "brain-iso-b-" + Guid.NewGuid().ToString("N");
 
-        var serviceA = new WorkspaceFilesService(brainId: brainA);
-        var serviceB = new WorkspaceFilesService(brainId: brainB);
+        var serviceA = new WorkspaceFilesService(brainId: brainA, rootDirectory: rootA.Path);
+        var serviceB = new WorkspaceFilesService(brainId: brainB, rootDirectory: rootB.Path);
 
         var secretData = Encoding.UTF8.GetBytes("brain A exclusive content");
         await serviceA.WriteFileAsync("secret_report.txt", secretData, Ct);
@@ -156,47 +162,37 @@ public sealed class WorkspaceFilesServiceFacts
     [Fact]
     public async Task DiskBackedPersistenceAndReload_SurvivesAcrossServiceInstances()
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), "test-vfs-reload-" + Guid.NewGuid().ToString("N"));
+        using var tempRoot = new DigitalBrain.Testing.TempDirectory("test-vfs-reload-");
         var brainId = "brain-persist-" + Guid.NewGuid().ToString("N");
-        try
-        {
-            var payload = Encoding.UTF8.GetBytes("persisted payload on real disk");
+        var payload = Encoding.UTF8.GetBytes("persisted payload on real disk");
 
-            // Instance 1 writes
-            var service1 = new WorkspaceFilesService(brainId: brainId, rootDirectory: tempRoot);
-            var written = await service1.WriteFileAsync("durable.txt", payload, Ct);
-            Assert.NotNull(written);
+        // Instance 1 writes
+        var service1 = new WorkspaceFilesService(brainId: brainId, rootDirectory: tempRoot.Path);
+        var written = await service1.WriteFileAsync("durable.txt", payload, Ct);
+        Assert.NotNull(written);
 
-            // Verify physical existence on disk under configured rootDirectory
-            var physicalPath = Path.Combine(tempRoot, "work", "durable.txt");
-            Assert.True(File.Exists(physicalPath), $"Expected file at {physicalPath}");
-            var diskBytes = await File.ReadAllBytesAsync(physicalPath, Ct);
-            Assert.Equal(payload, diskBytes);
+        // Verify physical existence on disk under configured rootDirectory
+        var physicalPath = Path.Combine(tempRoot.Path, "work", "durable.txt");
+        Assert.True(File.Exists(physicalPath), $"Expected file at {physicalPath}");
+        var diskBytes = await File.ReadAllBytesAsync(physicalPath, Ct);
+        Assert.Equal(payload, diskBytes);
 
-            // Instance 2 (simulating service restart / fresh DI scope for same brain and root)
-            var service2 = new WorkspaceFilesService(brainId: brainId, rootDirectory: tempRoot);
+        // Instance 2 (simulating service restart / fresh DI scope for same brain and root)
+        var service2 = new WorkspaceFilesService(brainId: brainId, rootDirectory: tempRoot.Path);
 
-            // Instance 2 reloads and reads bytes from disk
-            var reloadedBytes = await service2.ReadBytesAsync("durable.txt", Ct);
-            Assert.NotNull(reloadedBytes);
-            Assert.Equal(payload, reloadedBytes);
+        // Instance 2 reloads and reads bytes from disk
+        var reloadedBytes = await service2.ReadBytesAsync("durable.txt", Ct);
+        Assert.NotNull(reloadedBytes);
+        Assert.Equal(payload, reloadedBytes);
 
-            // Instance 2 resolves file entry from disk
-            var reloadedEntry = await service2.ResolveFileAsync("durable.txt", Ct);
-            Assert.NotNull(reloadedEntry);
-            Assert.Equal("durable.txt", reloadedEntry.Name);
-            Assert.Equal("/work/durable.txt", reloadedEntry.VfsPath);
+        // Instance 2 resolves file entry from disk
+        var reloadedEntry = await service2.ResolveFileAsync("durable.txt", Ct);
+        Assert.NotNull(reloadedEntry);
+        Assert.Equal("durable.txt", reloadedEntry.Name);
+        Assert.Equal("/work/durable.txt", reloadedEntry.VfsPath);
 
-            // Instance 2 lists files from disk
-            var list2 = await service2.ListFilesAsync(ct: Ct);
-            Assert.Contains(list2, f => f.Name == "durable.txt");
-        }
-        finally
-        {
-            if (Directory.Exists(tempRoot))
-            {
-                try { Directory.Delete(tempRoot, recursive: true); } catch { }
-            }
-        }
+        // Instance 2 lists files from disk
+        var list2 = await service2.ListFilesAsync(ct: Ct);
+        Assert.Contains(list2, f => f.Name == "durable.txt");
     }
 }

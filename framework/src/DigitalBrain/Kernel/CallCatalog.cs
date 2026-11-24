@@ -212,19 +212,17 @@ internal sealed class CallCatalog
                 implementation = CallPolicy.FindImplementationMethod(hostClass, method);
             }
 
-            var readOnly = Marked<ReadOnlyCallAttribute>(method, implementation);
-            var isInterleaved = reentrant || readOnly || Marked<InterleavesAttribute>(method, implementation);
+            var readOnly = CallPolicy.Marked<ReadOnlyCallAttribute>(method, implementation);
+            var isInterleaved = reentrant || readOnly || CallPolicy.Marked<InterleavesAttribute>(method, implementation);
             var hasInterleavesWhen = hostClass.IsDefined(typeof(InterleavesWhenAttribute), inherit: true);
 
             var scheduling = isInterleaved ? CallScheduling.Interleaved
                 : hasInterleavesWhen ? CallScheduling.Conditional
                 : CallScheduling.Turn;
 
-            var access = ResolveAccess(contract, method, implementation);
-            var timeout = method.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout
-                ?? implementation?.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout;
-            var isOneWay = method.IsDefined(typeof(OneWayCallAttribute), false)
-                || (implementation?.IsDefined(typeof(OneWayCallAttribute), false) ?? false);
+            var access = CallPolicy.AccessOf(contract, method, implementation);
+            var timeout = CallPolicy.TimeoutOf(method, implementation);
+            var isOneWay = CallPolicy.IsOneWay(method, implementation);
 
             var (kind, resultType, taskResultType, isTask, streamer) = AnalyzeReturnShape(method.ReturnType);
             var invoker = CompileInvoker(method);
@@ -251,13 +249,6 @@ internal sealed class CallCatalog
 
         return descriptors;
     }
-
-    private static bool Marked<TAttribute>(MethodInfo contractMethod, MethodInfo? implementationMethod) where TAttribute : Attribute
-        => contractMethod.IsDefined(typeof(TAttribute), false)
-        || (implementationMethod?.IsDefined(typeof(TAttribute), false) ?? false);
-
-    private static OperationAccess ResolveAccess(Type contract, MethodInfo method, MethodInfo? implementation)
-        => CallPolicy.AccessOf(contract, method, implementation);
 
     private static (InvocationResultKind Kind, Type? ResultType, Type? TaskResultType, bool IsTask, Func<object, CancellationToken, IAsyncEnumerable<object?>>? Streamer) AnalyzeReturnShape(Type returnType)
     {

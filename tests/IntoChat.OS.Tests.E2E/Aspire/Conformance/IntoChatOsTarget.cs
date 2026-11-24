@@ -148,14 +148,15 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
 
         public async ValueTask DisposeAsync()
         {
-            await StopAsync(CancellationToken.None);
-            if (temporary && Directory.Exists(home))
+            try
             {
-                for (var attempt = 0; ; attempt++)
+                await StopAsync(CancellationToken.None);
+            }
+            finally
+            {
+                if (temporary)
                 {
-                    try { Directory.Delete(home, recursive: true); break; }
-                    catch (IOException) when (attempt < 10) { await Task.Delay(100); }
-                    catch (UnauthorizedAccessException) when (attempt < 10) { await Task.Delay(100); }
+                    DigitalBrain.Testing.TempDirectory.DeleteIfPresent(home);
                 }
             }
         }

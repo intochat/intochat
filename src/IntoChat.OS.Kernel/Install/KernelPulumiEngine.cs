@@ -8,8 +8,15 @@ namespace IntoChat.OS.Kernel.Install;
 /// Full Kernel-wired <see cref="IPulumiEngine"/> that synthesizes the complete <see cref="PulumiStackPlan"/>
 /// across all composed <see cref="OsModule"/>s and executes the Pulumi CLI when requested.
 /// </summary>
-internal sealed class KernelPulumiEngine(IReadOnlyList<OsModule> modules) : IPulumiEngine
+internal sealed class KernelPulumiEngine(IReadOnlyList<OsModule> modules, string? workspaceRoot = null) : IPulumiEngine
 {
+    private string ResolveWorkDir(string env)
+        => Path.Combine(
+            string.IsNullOrWhiteSpace(workspaceRoot)
+                ? Path.Combine(Path.GetTempPath(), "intochat-pulumi")
+                : workspaceRoot,
+            env);
+
     public async Task<PulumiStackSummary> SynthesizeAsync(string env, bool includeCloud, bool includeSandbox, CancellationToken cancellationToken = default)
     {
         var hasCloudModules = includeCloud || modules.Any(static m =>
@@ -22,7 +29,7 @@ internal sealed class KernelPulumiEngine(IReadOnlyList<OsModule> modules) : IPul
             includeSandboxApp: includeSandbox);
 
         var plan = PulumiStackSynthesizer.Synthesize(config, modules);
-        var workDir = Path.Combine(Path.GetTempPath(), "intochat-pulumi", env);
+        var workDir = ResolveWorkDir(env);
         await PulumiStackSynthesizer.WriteWorkspaceAsync(plan, workDir, cancellationToken);
 
         return ToSummary(plan, "synthesize", $"Synthesized Pulumi workspace in '{workDir}' ({plan.Resources.Count} resources, {plan.Secrets.Count} secrets, 0 SessionPools).");
@@ -40,7 +47,7 @@ internal sealed class KernelPulumiEngine(IReadOnlyList<OsModule> modules) : IPul
             includeSandboxApp: includeSandbox);
 
         var plan = PulumiStackSynthesizer.Synthesize(config, modules);
-        var workDir = Path.Combine(Path.GetTempPath(), "intochat-pulumi", env);
+        var workDir = ResolveWorkDir(env);
         await PulumiStackSynthesizer.WriteWorkspaceAsync(plan, workDir, cancellationToken);
 
         var (whoamiExit, _) = await RunPulumiProcessAsync(["whoami"], workDir, cancellationToken);

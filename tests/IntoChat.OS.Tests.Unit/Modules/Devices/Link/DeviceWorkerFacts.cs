@@ -123,8 +123,8 @@ public sealed class DeviceWorkerFacts
         string[]? runtimeAnswers = null,
         bool joined = true)
     {
-        var root = Path.Combine(Path.GetTempPath(), "intochat-device-worker-facts", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
+        var tempRoot = new DigitalBrain.Testing.TempDirectory("intochat-device-worker-facts-");
+        var root = tempRoot.Path;
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 21, 12, 0, 0, TimeSpan.Zero));
         var machine = new MachineId(Path.Combine(root, "machine-id"));
         var credentials = new DeviceCredentials(new XorProtector(), Path.Combine(root, "devices", "link.bin"));
@@ -149,7 +149,7 @@ public sealed class DeviceWorkerFacts
         var logger = new ListLogger<DeviceWorker>(logs);
         var worker = new DeviceWorker(cloud, credentials, [runtime], machine, logger, clock, () => "vlad-pc");
 
-        return new Harness(worker, server, runtime, logs, http, root);
+        return new Harness(worker, server, runtime, logs, http, tempRoot);
     }
 
     private sealed class Harness(
@@ -158,7 +158,7 @@ public sealed class DeviceWorkerFacts
         FakeLocalRuntime runtime,
         List<string> logs,
         HttpClient http,
-        string root) : IAsyncDisposable
+        DigitalBrain.Testing.TempDirectory tempRoot) : IAsyncDisposable
     {
         public DeviceWorker Worker => worker;
         public FakeRelayServer Server => server;
@@ -167,12 +167,16 @@ public sealed class DeviceWorkerFacts
 
         public ValueTask DisposeAsync()
         {
-            worker.Dispose();
-            http.Dispose();
-            if (Directory.Exists(root))
+            try
             {
-                Directory.Delete(root, recursive: true);
+                worker.Dispose();
+                http.Dispose();
             }
+            finally
+            {
+                tempRoot.Dispose();
+            }
+
             return ValueTask.CompletedTask;
         }
     }

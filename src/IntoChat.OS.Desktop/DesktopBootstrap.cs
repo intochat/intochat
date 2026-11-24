@@ -42,6 +42,8 @@ internal static partial class DesktopBootstrap
     private static readonly string[] LegacyAppDataDirectoryNames = ["IntoChatOS", "IntoChat", "intochat"];
     private static readonly string[] LegacyMigratedFiles = ["machine-id"];
     private static readonly string[] LegacyMigratedDirectories = ["state", "behaviors", "brains", "channels", "identity", "config"];
+    private static readonly string[] AspireDashboardEnvVars = ["IntoChatOS__AspireDashboardUrl", "ASPIRE_DASHBOARD_URL", "DOTNET_DASHBOARD_URLS"];
+    private static readonly string[] ConfigurableDesktopModules = ["github", "time", "salesforce", "gmail"];
     private static readonly HashSet<string> LegacyExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
         "assets",
@@ -662,7 +664,7 @@ internal static partial class DesktopBootstrap
         environment[OrleansDashboardEnabledEnvVar] = dashboardEnabled;
         environment[IntoChatOrleansDashboardEnabledEnvVar] = dashboardEnabled;
 
-        foreach (var aspireVar in (string[])["IntoChatOS__AspireDashboardUrl", "ASPIRE_DASHBOARD_URL", "DOTNET_DASHBOARD_URLS"])
+        foreach (var aspireVar in AspireDashboardEnvVars)
         {
             if (readEnv(aspireVar) is { Length: > 0 } aspireVal)
             {
@@ -680,7 +682,7 @@ internal static partial class DesktopBootstrap
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var candidate in (string[])["github", "time", "salesforce", "gmail"])
+        foreach (var candidate in ConfigurableDesktopModules)
         {
             var key = ModuleEnabledEnvVar(candidate);
             if (disabledModules.Contains(candidate))

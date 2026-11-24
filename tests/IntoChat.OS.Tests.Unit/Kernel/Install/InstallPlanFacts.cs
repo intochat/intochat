@@ -132,7 +132,8 @@ public sealed class InstallPlanFacts
     [Fact]
     public async Task PulumiNeuronSynthesizesAndPersistsStackSummary()
     {
-        var engine = new KernelPulumiEngine(OperatingSystemModules.Modules);
+        using var workspace = new DigitalBrain.Testing.TempDirectory("intochat-pulumi-test-");
+        var engine = new KernelPulumiEngine(OperatingSystemModules.Modules, workspace.Path);
         var summary = await engine.SynthesizeAsync("test", includeCloud: true, includeSandbox: true, TestContext.Current.CancellationToken);
 
         Assert.Equal("test", summary.Env);

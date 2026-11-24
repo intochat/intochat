@@ -54,7 +54,14 @@ public sealed class GpuCheck : IPreflightCheck
     public async Task<IReadOnlyList<CheckResult>> RunAsync(PreflightContext context, CancellationToken cancellationToken)
     {
         var result = await context.Environment.RunAsync("nvidia-smi", ["--query-gpu=name,memory.total", "--format=csv,noheader"], cancellationToken).ConfigureAwait(false);
-        var first = result.ExitCode == 0 ? result.StdoutText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() : null;
+        string? first = null;
+        if (result.ExitCode == 0)
+        {
+            var text = result.StdoutText.AsSpan().TrimStart();
+            var lineEnd = text.IndexOfAny('\r', '\n');
+            var line = (lineEnd >= 0 ? text[..lineEnd] : text).Trim();
+            first = line.IsEmpty ? null : line.ToString();
+        }
         return [first is null
             ? CheckResult.Warn(Id, "No NVIDIA GPU detected; CPU mode, expect slow answers.", "Install a current NVIDIA driver, or accept CPU mode (qwen3.5:2b is faster: --model qwen3.5:2b).")
             : CheckResult.Pass(Id, $"NVIDIA GPU: {first}.")];

@@ -56,7 +56,8 @@ public sealed class LocalDiskRootFacts
     [Fact]
     public void PrepareAcceptsARealFolderAndRefusesWindows()
     {
-        var folder = PathConfinement.Normalize(Directory.CreateTempSubdirectory("localdisk-root").FullName);
+        using var temp = new DigitalBrain.Testing.TempDirectory("localdisk-root-");
+        var folder = PathConfinement.Normalize(temp.Path);
         Assert.Equal(folder, LocalDiskRoots.Prepare(folder));
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (windows.Length > 0)
@@ -70,7 +71,8 @@ public sealed class LocalDiskRootFacts
     [Fact]
     public async Task OpenWriteRefusesWritesExceedingMaxWriteBytes()
     {
-        var folder = PathConfinement.Normalize(Directory.CreateTempSubdirectory("localdisk-quota").FullName);
+        using var temp = new DigitalBrain.Testing.TempDirectory("localdisk-quota-");
+        var folder = PathConfinement.Normalize(temp.Path);
         var rootId = Guid.NewGuid().ToString("N");
         var storage = new LocalDiskStorage([new LocalRoot(rootId, folder)]);
         var targetFolder = LocalItemId.Of(rootId, "");

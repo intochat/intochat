@@ -13,6 +13,25 @@ public sealed class AlgorithmFacts
     }
 
     [Fact]
+    public void Csr_reverse_is_memoized_per_snapshot_instance()
+    {
+        var g = Graph(3, (0, 1), (1, 2), (0, 2));
+        var first = Csr.Reverse(g);
+        var second = Csr.Reverse(g);
+        Assert.Same(first.RowStart, second.RowStart);
+        Assert.Same(first.Source, second.Source);
+        Assert.Same(first.Edge, second.Edge);
+        Assert.Equal([0, 0, 1, 3], first.RowStart);
+        Assert.Equal([0, 0, 1], first.Source);
+
+        var next = Csr.Reverse(g with { Revision = g.Revision + 1 });
+        Assert.NotSame(first.RowStart, next.RowStart);
+        Assert.Equal(first.RowStart, next.RowStart);
+        Assert.Equal(first.Source, next.Source);
+        Assert.Equal(first.Edge, next.Edge);
+    }
+
+    [Fact]
     public void Csr_orders_edges_by_source_and_merges_duplicates()
     {
         var sink = new GraphSink();

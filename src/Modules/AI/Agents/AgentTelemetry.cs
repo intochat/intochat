@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Text.Json;
 using DigitalBrain.Contracts;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Agents;
@@ -36,7 +36,7 @@ internal static class AgentTelemetry
         if ((schema?.Contract ?? Text(call, "contract")) is { } contract) { activity.SetTag("intochat.contract", contract); }
         if ((schema?.Method ?? Text(call, "method")) is { } method) { activity.SetTag("intochat.method", method); }
         if (Text(call, "key") is { } key) { activity.SetTag("intochat.key", key); }
-        if (sensitive) { activity.SetTag("gen_ai.tool.call.arguments", Clip(JsonSerializer.Serialize(call.Arguments))); }
+        if (sensitive) { activity.SetTag("gen_ai.tool.call.arguments", Clip(ToolJson.Serialize(call.Arguments))); }
         return activity;
     }
 

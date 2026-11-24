@@ -127,14 +127,21 @@ internal sealed class LocalSiloHost(LocalSiloHostFactory factory, InProcessHostO
 
     public async ValueTask DisposeAsync()
     {
-        await Stop(CancellationToken.None).ConfigureAwait(false);
-        if (temporary && Directory.Exists(home))
+        try
         {
-            for (var attempt = 0; ; attempt++)
+            await Stop(CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (temporary && Directory.Exists(home))
             {
-                try { Directory.Delete(home, recursive: true); break; }
-                catch (IOException) when (attempt < 10) { await Task.Delay(100).ConfigureAwait(false); }
-                catch (UnauthorizedAccessException) when (attempt < 10) { await Task.Delay(100).ConfigureAwait(false); }
+                for (var attempt = 0; ; attempt++)
+                {
+                    try { Directory.Delete(home, recursive: true); break; }
+                    catch (DirectoryNotFoundException) { break; }
+                    catch (IOException) when (attempt < 10) { await Task.Delay(100).ConfigureAwait(false); }
+                    catch (UnauthorizedAccessException) when (attempt < 10) { await Task.Delay(100).ConfigureAwait(false); }
+                }
             }
         }
     }

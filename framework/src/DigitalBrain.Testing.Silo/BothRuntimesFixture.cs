@@ -51,14 +51,14 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         return await AppSession.OpenAsync<TScreen>(runtime, key, ct).ConfigureAwait(false);
     }
 
-    // A runtime of kind that the caller disposes; home keeps the silo's state folder (null: a fresh temporary one) and
-    // siloServices runs after ConfigureSilo (fault injection, controls).
     [Module("both-runtimes-core")]
     private sealed class CoreModule : DigitalBrain.Modules.Module
     {
         public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
     }
 
+    // A runtime of kind that the caller disposes; home keeps the silo's state folder (null: a fresh temporary one) and
+    // siloServices runs after ConfigureSilo (fault injection, controls).
     public async Task<INeuronRuntime> Start(NeuronRuntimeKind kind, CancellationToken ct, string? home = null, Action<IServiceCollection>? siloServices = null)
     {
         var modules = Modules;
@@ -77,12 +77,22 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var runtime in _shared.Values.Where(lazy => lazy.IsValueCreated).Select(lazy => lazy.Value))
+        try
         {
-            if (runtime.IsCompletedSuccessfully) { await runtime.Result.DisposeAsync().ConfigureAwait(false); }
+            foreach (var runtime in _shared.Values.Where(lazy => lazy.IsValueCreated).Select(lazy => lazy.Value))
+            {
+                if (runtime.IsCompletedSuccessfully) { await runtime.Result.DisposeAsync().ConfigureAwait(false); }
+            }
         }
-        GC.SuppressFinalize(this);
+        finally
+        {
+            await DisposeCoreAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
+        }
     }
+
+    /// <summary>Runs after shared runtimes have stopped, even if runtime disposal fails.</summary>
+    protected virtual ValueTask DisposeCoreAsync() => ValueTask.CompletedTask;
 
     internal static string AliasOf(Type signal) => signal.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!;
 

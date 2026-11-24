@@ -105,83 +105,86 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
         var home = options.Home ?? new TestHome();
         var ownsHome = options.Home is null;
         var keepHomeOnDispose = options.KeepHomeOnDispose || !ownsHome;
-        var ports = PortReservation.ReservePair();
-
-        var brainId = AccountSession.DefaultLogin;
-        var scope = BrainScope.Create(brainId, brainId).Id;
-        var masterKey = home.LoadOrCreateSealedMasterKey();
-        var presenceToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(PresenceProof.SecretByteCount))
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
-        var presenceHash = PresenceProof.ComputeTokenHash(presenceToken);
-
-        WriteRestrictedFile(home.PresenceFilePath, Encoding.UTF8.GetBytes(presenceToken));
-        WriteKernelConfigurationFile(home, options, masterKey, presenceHash);
-
-        var (fileName, extraArgs, workingDirectory) = ResolveKernelExecutable();
-        var startInfo = BuildStartInfo(
-            fileName,
-            extraArgs,
-            workingDirectory,
-            home,
-            ports,
-            options);
-
-        var stopwatch = Stopwatch.StartNew();
-        var process = new Process
-        {
-            StartInfo = startInfo,
-            EnableRaisingEvents = true,
-        };
-
-        var stdout = new StringBuilder();
-        var stderr = new StringBuilder();
-        var logLock = new Lock();
-        var listeningTcs = new TaskCompletionSource<Uri>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is null)
-            {
-                return;
-            }
-
-            lock (logLock)
-            {
-                stdout.AppendLine(e.Data);
-            }
-
-            var match = ListeningLineRegex().Match(e.Data);
-            if (match.Success && Uri.TryCreate(match.Groups[1].Value, UriKind.Absolute, out var uri))
-            {
-                listeningTcs.TrySetResult(uri);
-            }
-        };
-
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is null)
-            {
-                return;
-            }
-
-            lock (logLock)
-            {
-                stderr.AppendLine(e.Data);
-            }
-        };
-
-        process.Exited += (_, _) =>
-        {
-            listeningTcs.TrySetException(new InvalidOperationException(
-                $"IntoChat.OS.Kernel exited unexpectedly with code {TryGetExitCode(process)} before binding HTTP.\n"
-                + FormatDiagnostics(stdout, stderr, logLock)));
-        };
-
+        PortLease? ports = null;
+        Process? process = null;
         KernelProcessHarness? harness = null;
+
         try
         {
+            ports = PortReservation.ReservePair();
+
+            var brainId = AccountSession.DefaultLogin;
+            var scope = BrainScope.Create(brainId, brainId).Id;
+            var masterKey = home.LoadOrCreateSealedMasterKey();
+            var presenceToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(PresenceProof.SecretByteCount))
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+            var presenceHash = PresenceProof.ComputeTokenHash(presenceToken);
+
+            WriteRestrictedFile(home.PresenceFilePath, Encoding.UTF8.GetBytes(presenceToken));
+            WriteKernelConfigurationFile(home, options, masterKey, presenceHash);
+
+            var (fileName, extraArgs, workingDirectory) = ResolveKernelExecutable();
+            var startInfo = BuildStartInfo(
+                fileName,
+                extraArgs,
+                workingDirectory,
+                home,
+                ports,
+                options);
+
+            var stopwatch = Stopwatch.StartNew();
+            process = new Process
+            {
+                StartInfo = startInfo,
+                EnableRaisingEvents = true,
+            };
+
+            var stdout = new StringBuilder();
+            var stderr = new StringBuilder();
+            var logLock = new Lock();
+            var listeningTcs = new TaskCompletionSource<Uri>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data is null)
+                {
+                    return;
+                }
+
+                lock (logLock)
+                {
+                    stdout.AppendLine(e.Data);
+                }
+
+                var match = ListeningLineRegex().Match(e.Data);
+                if (match.Success && Uri.TryCreate(match.Groups[1].Value, UriKind.Absolute, out var uri))
+                {
+                    listeningTcs.TrySetResult(uri);
+                }
+            };
+
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data is null)
+                {
+                    return;
+                }
+
+                lock (logLock)
+                {
+                    stderr.AppendLine(e.Data);
+                }
+            };
+
+            process.Exited += (_, _) =>
+            {
+                listeningTcs.TrySetException(new InvalidOperationException(
+                    $"IntoChat.OS.Kernel exited unexpectedly with code {TryGetExitCode(process)} before binding HTTP.\n"
+                    + FormatDiagnostics(stdout, stderr, logLock)));
+            };
+
             if (!process.Start())
             {
                 throw new InvalidOperationException($"Failed to start IntoChat.OS.Kernel process '{fileName}'.");
@@ -267,9 +270,13 @@ public sealed partial class KernelProcessHarness : IAsyncDisposable
             }
             else
             {
-                TryKillProcess(process);
-                process.Dispose();
-                ports.Dispose();
+                if (process is not null)
+                {
+                    TryKillProcess(process);
+                    process.Dispose();
+                }
+
+                ports?.Dispose();
                 if (!keepHomeOnDispose)
                 {
                     home.Dispose();

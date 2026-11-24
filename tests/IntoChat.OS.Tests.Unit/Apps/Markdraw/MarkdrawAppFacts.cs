@@ -34,7 +34,8 @@ public sealed class MarkdrawAppFacts
     public async Task MarkdrawCoDrawingAndFilesVfsPersistencePreservesUserStrokesAndExports()
     {
         var ct = TestContext.Current.CancellationToken;
-        var vfs = new WorkspaceFilesService();
+        using var vfsRoot = new TempDirectory("intochat-vfs-markdraw-");
+        var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
 
@@ -90,7 +91,8 @@ public sealed class MarkdrawAppFacts
     public async Task InoAndMarkdrawUnifiedDataAnalysisAndCoDrawingWorkflow()
     {
         var ct = TestContext.Current.CancellationToken;
-        var vfs = new WorkspaceFilesService();
+        using var vfsRoot = new TempDirectory("intochat-vfs-markdraw-");
+        var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await vfs.WriteTextAsync(
             "/work/q4_revenue.csv",
             """

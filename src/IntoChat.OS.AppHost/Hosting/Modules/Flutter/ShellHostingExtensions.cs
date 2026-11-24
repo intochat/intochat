@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Security.Cryptography;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
@@ -250,8 +251,9 @@ public static class ShellHostingExtensions
 
             // The bind-mount source must exist when docker creates the container; the real
             // content lands in Apply right before start, once the kernel endpoint is allocated.
-            _servedConfigPath = Path.Combine(
-                Directory.CreateTempSubdirectory("intochat-os-shell-").FullName, "config.json");
+            var servedConfigDirectory = Directory.CreateTempSubdirectory("intochat-os-shell-").FullName;
+            RegisterServedConfigCleanup(appHost, servedConfigDirectory);
+            _servedConfigPath = Path.Combine(servedConfigDirectory, "config.json");
             File.WriteAllText(_servedConfigPath, "{}");
 
             _shellContainer = appHost
@@ -264,6 +266,36 @@ public static class ShellHostingExtensions
                 .WithBindMount(_servedConfigPath, ShellServedConfig.ContainerPath, isReadOnly: true)
                 .WithParentRelationship(brain.GetOrAddModuleNode(ShellNames.ModuleId))
                 .AsBrainBrowser(path: $"/?semantics=true#presence={_presenceToken}", readySelector: "flt-semantics");
+        }
+
+        private static void RegisterServedConfigCleanup(IDistributedApplicationBuilder builder, string servedConfigDirectory)
+        {
+            void Cleanup()
+            {
+                try
+                {
+                    if (Directory.Exists(servedConfigDirectory))
+                    {
+                        Directory.Delete(servedConfigDirectory, recursive: true);
+                    }
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    OsConsoleLog.For(typeof(ShellHostingExtensions)).LogSwallowed(error, "cleaning up temporary shell config directory");
+                }
+            }
+
+            builder.Eventing.Subscribe<BeforeStartEvent>((evt, _) =>
+            {
+                if (evt.Services.GetService(typeof(IHostApplicationLifetime)) is IHostApplicationLifetime lifetime)
+                {
+                    lifetime.ApplicationStopped.Register(Cleanup);
+                }
+
+                return Task.CompletedTask;
+            });
+
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => Cleanup();
         }
 
         private static void ArmHotReload(

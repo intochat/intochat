@@ -53,24 +53,25 @@ public sealed class WebShellHost : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
-        IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
-        var originPort = FreePort();
-        Origin = $"http://127.0.0.1:{originPort}";
-        var aspireDashboardUrl = $"{Origin}/aspire-dashboard-stub";
-        List<string> args =
-        [
-            $"--{IntoChatOSNames.HomeKey}={_home.Path}",
-            $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
-            $"--{IntoChatOSNames.ShellEnabledKey}=false",
-            $"--{IntoChatOSNames.FrontEnabledKey}=false",
-            $"--{ModuleConfiguration.ModuleSection("devices")}:ReplaceOptions=true",
-            $"--{ModuleConfiguration.ModuleSection("devices")}:Options:FoundryLocal:Enabled=false",
-            $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
-        ];
-        args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
         try
         {
+            var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
+            IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
+            var originPort = FreePort();
+            Origin = $"http://127.0.0.1:{originPort}";
+            var aspireDashboardUrl = $"{Origin}/aspire-dashboard-stub";
+            List<string> args =
+            [
+                $"--{IntoChatOSNames.HomeKey}={_home.Path}",
+                $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
+                $"--{IntoChatOSNames.ShellEnabledKey}=false",
+                $"--{IntoChatOSNames.FrontEnabledKey}=false",
+                $"--{ModuleConfiguration.ModuleSection("devices")}:ReplaceOptions=true",
+                $"--{ModuleConfiguration.ModuleSection("devices")}:Options:FoundryLocal:Enabled=false",
+                $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
+            ];
+            args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
+
             _builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.IntoChat_OS_AppHost>([.. args]);
             if (_builder.Resources.OfType<ProjectResource>().FirstOrDefault(r => r.Name == "os") is { } kernelResource)
             {

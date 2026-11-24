@@ -44,9 +44,7 @@ public sealed class VettedConnect(VettedConnect.Resolver resolve)
     public static IPAddress[] Public(string host, IReadOnlyList<IPAddress> addresses)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        var vetted = addresses.Where(IsPublic).ToArray();
+        var vetted = addresses.Where(HttpHosts.IsPublic).ToArray();
         return vetted.Length > 0 ? vetted : throw new HostNotAllowedException(host);
     }
-
-    public static bool IsPublic(IPAddress address) => HttpHosts.IsPublic(address);
 }

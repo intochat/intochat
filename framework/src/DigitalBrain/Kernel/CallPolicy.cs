@@ -70,18 +70,30 @@ internal static class CallPolicy
     }
 
     /// <summary>Whether <paramref name="method"/> carries <see cref="OneWayCallAttribute"/>.</summary>
-    public static bool IsOneWay(MethodInfo method)
+    public static bool IsOneWay(MethodInfo method) => IsOneWay(method, implementation: null);
+
+    /// <summary>Whether the contract method or its implementation carries <see cref="OneWayCallAttribute"/>.</summary>
+    internal static bool IsOneWay(MethodInfo method, MethodInfo? implementation)
     {
         ArgumentNullException.ThrowIfNull(method);
-        return method.IsDefined(typeof(OneWayCallAttribute), false);
+        return Marked<OneWayCallAttribute>(method, implementation);
     }
 
     /// <summary>Gets the declared timeout override for the method, or null.</summary>
-    public static TimeSpan? TimeoutOf(MethodInfo method)
+    public static TimeSpan? TimeoutOf(MethodInfo method) => TimeoutOf(method, implementation: null);
+
+    /// <summary>The contract method's timeout override, else its implementation's, else null.</summary>
+    internal static TimeSpan? TimeoutOf(MethodInfo method, MethodInfo? implementation)
     {
         ArgumentNullException.ThrowIfNull(method);
-        return method.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout;
+        return method.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout
+            ?? implementation?.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout;
     }
+
+    /// <summary>Whether the contract method or its implementation carries <typeparamref name="TAttribute"/> (not inherited).</summary>
+    internal static bool Marked<TAttribute>(MethodInfo contractMethod, MethodInfo? implementationMethod) where TAttribute : Attribute
+        => contractMethod.IsDefined(typeof(TAttribute), false)
+        || (implementationMethod?.IsDefined(typeof(TAttribute), false) ?? false);
 
     /// <summary>Resolves the access level required to invoke <paramref name="method"/> on <paramref name="contract"/>.</summary>
     public static OperationAccess AccessOf(Type contract, MethodInfo method)

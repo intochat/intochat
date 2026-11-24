@@ -40,9 +40,7 @@ public sealed class TemplateSmokeFacts
         }
         finally
         {
-            try { Directory.Delete(work, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            DeleteDirectoryWithRetry(work);
         }
     }
 
@@ -82,14 +80,14 @@ public sealed class TemplateSmokeFacts
         }
         finally
         {
-            try { Directory.Delete(work, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            DeleteDirectoryWithRetry(work);
         }
     }
 
     private static async Task<string> Dotnet(string directory, string[] arguments, CancellationToken ct)
     {
+        var childTemp = Path.Combine(directory, ".tmp");
+        Directory.CreateDirectory(childTemp);
         var start = new ProcessStartInfo("dotnet")
         {
             WorkingDirectory = directory,
@@ -101,6 +99,8 @@ public sealed class TemplateSmokeFacts
         start.Environment["DOTNET_NOLOGO"] = "1";
         start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         start.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
+        start.Environment["TEMP"] = childTemp;
+        start.Environment["TMP"] = childTemp;
         foreach (var name in new[] { "MSBuildSDKsPath", "MSBUILD_EXE_PATH", "MSBuildExtensionsPath", "DOTNET_HOST_PATH", "TESTINGPLATFORM_DOTNETTEST_EXECUTIONID" })
         {
             start.Environment.Remove(name);
@@ -112,6 +112,27 @@ public sealed class TemplateSmokeFacts
         var output = (await stdout) + (await stderr);
         Assert.True(process.ExitCode == 0, $"dotnet {string.Join(' ', arguments)} exited {process.ExitCode}:\n{output}");
         return output;
+    }
+
+    private static void DeleteDirectoryWithRetry(string path)
+    {
+        if (!Directory.Exists(path)) { return; }
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < 9)
+            {
+                Thread.Sleep(150);
+            }
+        }
     }
 
     private static string Root()

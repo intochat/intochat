@@ -153,20 +153,27 @@ internal sealed class VoiceHostHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        Client.Dispose();
-        await _app.StopAsync();
-        await _app.DisposeAsync();
-        _ports.Dispose();
-        TryDeleteDirectory(_homeDir);
+        try
+        {
+            Client.Dispose();
+            try
+            {
+                await _app.StopAsync();
+            }
+            finally
+            {
+                await _app.DisposeAsync();
+            }
+        }
+        finally
+        {
+            _ports.Dispose();
+            TryDeleteDirectory(_homeDir);
+        }
     }
 
     private static void TryDeleteDirectory(string path)
-    {
-        if (!Directory.Exists(path)) { return; }
-        try { Directory.Delete(path, recursive: true); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-    }
+        => DigitalBrain.Testing.TempDirectory.DeleteIfPresent(path);
 }
 
 internal sealed class StubVoiceClients : IVoiceClients

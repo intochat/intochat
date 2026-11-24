@@ -20,12 +20,14 @@ public interface IConnectionHosts
     }
 
     // The allow-list text of an http connection: comma-separated hosts or a JSON array of strings; blanks dropped.
+    // Read through JsonDocument, not JsonSerializer, so the contract needs no reflection metadata (trim/AOT-safe).
     static string[] Parse(string? text)
     {
         var trimmed = (text ?? "").Trim();
         if (trimmed.StartsWith('['))
         {
-            return [.. (System.Text.Json.JsonSerializer.Deserialize<string[]>(trimmed) ?? []).Select(host => host.Trim()).Where(host => host.Length > 0)];
+            using var json = System.Text.Json.JsonDocument.Parse(trimmed);
+            return [.. json.RootElement.EnumerateArray().Select(entry => (entry.GetString() ?? "").Trim()).Where(host => host.Length > 0)];
         }
         return [.. trimmed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
     }

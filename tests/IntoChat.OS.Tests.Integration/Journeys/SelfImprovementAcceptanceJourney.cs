@@ -234,15 +234,9 @@ public sealed class SelfImprovementAcceptanceJourney
             Assert.Contains("a + b", card.Plan.Body, StringComparison.Ordinal);
             Assert.Contains("Harness attempt #2", card.Plan.Body, StringComparison.Ordinal);
 
-            // 5. Scripted approval resolves the card; WorkTreeService.MergeLocalAsync fast-forwards local main.
-            await inbox.Resolve(card.Plan.Id, approve: true);
-            var requests = os.Runtime.Get<IConfirmationRequests>(IConfirmationRequests.Of(brain));
-            var outcome = await EventuallyAsync(
-                () => requests.Outcome(card.Plan.Id),
-                static r => r is not null);
-            Assert.NotNull(outcome);
-            Assert.True(outcome!.Approved);
-
+            // 5. While the flow is parked at approval-gate it still owns the winner lease, so the local
+            //    fast-forward runs now: once the card resolves, EngineerFlow resumes push -> pr -> clean
+            //    (or its failure path) and removes the worktree concurrently with any caller using it.
             var mergedSha = await workTree.MergeLocalAsync(winner.Lease, approvedSha, "main", Ct);
             Assert.Equal(approvedSha, mergedSha);
 
@@ -251,7 +245,20 @@ public sealed class SelfImprovementAcceptanceJourney
             var mergedSource = await File.ReadAllTextAsync(Path.Combine(sourceRepo, "code", "Calculator.cs"), Ct);
             Assert.Contains("a + b", mergedSource, StringComparison.Ordinal);
 
-            await workTree.CleanupAsync(winner.Lease, Ct);
+            // Scripted approval resolves the card; the flow then owns and releases the worktree.
+            await inbox.Resolve(card.Plan.Id, approve: true);
+            var requests = os.Runtime.Get<IConfirmationRequests>(IConfirmationRequests.Of(brain));
+            var outcome = await EventuallyAsync(
+                () => requests.Outcome(card.Plan.Id),
+                static r => r is not null);
+            Assert.NotNull(outcome);
+            Assert.True(outcome!.Approved);
+
+            var settled = await EventuallyAsync(
+                () => flows.Read(flowId, Ct),
+                static v => v is { Status: FlowStatus.Failed or FlowStatus.Completed });
+            Assert.True(settled is { Status: FlowStatus.Failed or FlowStatus.Completed }, $"EngineerFlow did not settle after approval: {settled?.Status}");
+            Assert.False(Directory.Exists(winner.Lease.TreePath), "EngineerFlow must release the candidate worktree after approval.");
 
             // 6. Exercise CandidateNeuron + DeploymentNeuron:
             //    (a) Promote moves refs/intochat-os/live to approvedSha and Finish completes on healthy reconcile.
