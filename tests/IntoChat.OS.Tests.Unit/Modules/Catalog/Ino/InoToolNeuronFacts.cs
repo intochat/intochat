@@ -117,7 +117,7 @@ public sealed class InoToolNeuronFacts
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
         storage.AddFile(storage.Root, "notes.md", "hello from storage"u8.ToArray());
-        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), storage);
         var files = os.Get<IFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
 
         var opened = await files.Open("notes.md");
@@ -140,7 +140,7 @@ public sealed class InoToolNeuronFacts
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
         storage.AddFile(storage.Root, "roadmap.md", "ship it"u8.ToArray());
-        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), storage);
         var files = os.Get<IFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
 
         var hit = await files.Find("roadmap");
@@ -201,7 +201,7 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = CreateOpportunitiesStorage();
-        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), storage);
 
         var connected = await Data(os).Connect("Host=db.example;Database=sales");
 
@@ -218,7 +218,7 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = CreateOpportunitiesStorage();
-        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), storage);
 
         var queried = await Data(os).Query("SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5");
         Assert.True(queried.Ok);
@@ -240,7 +240,7 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     {
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = CreateOpportunitiesStorage();
-        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>(BrainWorkspaceFiles.ConnectionKey(Brain), storage);
         var result = await Data(os).Chart("show a pie chart of opportunities");
         Assert.Equal("chart", result.Card!.Kind);
         Assert.Equal("pie", result.Card.ChartKind);

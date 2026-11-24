@@ -70,12 +70,24 @@ internal sealed class BrainWorkspaceFiles(ICapabilityBroker broker, BrainId brai
             : [];
     }
 
-    // Every file of the workspace whose name contains the text, with its workspace path.
+    // Every file of the workspace whose name contains the text (the storage's own search), with its workspace path.
     public async Task<IReadOnlyList<(string Path, Item Item)>> Search(string? text, CancellationToken ct = default)
     {
         var storage = await Storage(ct).ConfigureAwait(false);
         var found = new List<(string, Item)>();
-        await Collect(storage, (await storage.Roots(ct).ConfigureAwait(false))[0].Id, "", text?.Trim() ?? "", found, 0, ct).ConfigureAwait(false);
+        string? cursor = null;
+        do
+        {
+            var page = await storage.Search(new SearchQuery(text?.Trim() ?? "", Cursor: cursor), ct).ConfigureAwait(false);
+            foreach (var item in page.Items.Where(item => item.Kind == ItemKind.File))
+            {
+                // The path is the names of the folders above the file; the root's own name is not part of it.
+                var above = await storage.Ancestors(item.Id, ct).ConfigureAwait(false);
+                found.Add((string.Join('/', above.Skip(1).Select(folder => folder.Name).Append(item.Name)), item));
+            }
+            cursor = page.NextCursor;
+        }
+        while (cursor is not null && found.Count < 500);
         return found;
     }
 
@@ -136,16 +148,5 @@ internal sealed class BrainWorkspaceFiles(ICapabilityBroker broker, BrainId brai
         }
         while (cursor is not null && items.Count < 10_000);
         return items;
-    }
-
-    private static async Task Collect(IStorage storage, ItemId folder, string prefix, string text, List<(string, Item)> found, int depth, CancellationToken ct)
-    {
-        if (depth > 6 || found.Count >= 500) { return; }
-        foreach (var item in await All(storage, folder, ct).ConfigureAwait(false))
-        {
-            var path = prefix.Length == 0 ? item.Name : prefix + "/" + item.Name;
-            if (item.Kind == ItemKind.Folder) { await Collect(storage, item.Id, path, text, found, depth + 1, ct).ConfigureAwait(false); }
-            else if (text.Length == 0 || item.Name.Contains(text, StringComparison.OrdinalIgnoreCase)) { found.Add((path, item)); }
-        }
     }
 }
