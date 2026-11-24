@@ -99,26 +99,36 @@ public sealed class SynapseCompilerFacts
         // WeekSpend of the weekly-cap sample is compiled in its own assembly and referenced here.
         var library = new SynapseCompiler(ReferenceSet.FromDefaultContext()).Compile(Source(Budget, "Me.Library"));
         Assert.True(library.Success, string.Join("\n", library.Diagnostics));
-        var references = ReferenceSet.FromDefaultContext();
-        var path = Path.Combine(Path.GetTempPath(), library.AssemblyName + ".dll");
-        File.WriteAllBytes(path, library.Assembly);
-        var withLibrary = new ReferenceSet([.. references.References, MetadataReference.CreateFromFile(path)]);
-        const string text = """
-            namespace Me.Other;
+        var libraryPath = Path.Combine(Path.GetTempPath(), $"synapse.Me.Library.{Guid.NewGuid():N}.dll");
+        File.WriteAllBytes(libraryPath, library.Assembly.ToArray());
+        try
+        {
+            var references = ReferenceSet.FromDefaultContext();
+            var withLibrary = new ReferenceSet([.. references.References, MetadataReference.CreateFromImage(library.Assembly, filePath: libraryPath)]);
+            const string text = """
+                namespace Me.Other;
 
-            using Me.Budget;
+                using Me.Budget;
 
-            public static class Gates
+                public static class Gates
+                {
+                    [Synapse(typeof(Charging), "week")]
+                    public static WeekSpend Cap(Charging s, WeekSpend t) => t;
+                }
+                """;
+
+            var build = new SynapseCompiler(withLibrary).Compile(Source(text, "Me.Other"));
+
+            Assert.False(build.Success);
+            Assert.Contains(build.Diagnostics, d => d.Id == "DB0042");
+        }
+        finally
+        {
+            if (File.Exists(libraryPath))
             {
-                [Synapse(typeof(Charging), "week")]
-                public static WeekSpend Cap(Charging s, WeekSpend t) => t;
+                File.Delete(libraryPath);
             }
-            """;
-
-        var build = new SynapseCompiler(withLibrary).Compile(Source(text, "Me.Other"));
-
-        Assert.False(build.Success);
-        Assert.Contains(build.Diagnostics, d => d.Id == "DB0042");
+        }
     }
 
     [Fact]

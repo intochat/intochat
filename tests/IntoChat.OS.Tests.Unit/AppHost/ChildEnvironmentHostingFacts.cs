@@ -183,34 +183,47 @@ public sealed class ChildEnvironmentHostingFacts
                         o.Hosting = o.Hosting with { WorkingDirectory = webDir, WebContainer = true };
                     });
 
-                var silo = builder.AddExecutable("OperatingSystem-a", "unused", ".")
-                    .WithHttpEndpoint(name: ShellNames.HttpEndpointName, targetPort: 5080)
-                    .WithReference(brain);
-
-                var siloEnv = new Dictionary<string, object>();
-                var siloCtx = new EnvironmentCallbackContext(builder.ExecutionContext, silo.Resource, siloEnv, TestContext.Current.CancellationToken);
-                foreach (var cb in silo.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(siloCtx); }
-
-                Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
-                var expectedHash = Assert.IsType<string>(hashObj);
-
                 var shellContainer = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
-                var browser = Assert.Single(shellContainer.Annotations.OfType<BrainBrowserAnnotation>());
-                var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
-                Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in container browser path '{browser.Path}'.");
-                var fragmentToken = browser.Path[(fragmentIndex + "#presence=".Length)..];
-                Assert.Equal(expectedHash, PresenceProof.ComputeTokenHash(fragmentToken));
+                try
+                {
+                    var silo = builder.AddExecutable("OperatingSystem-a", "unused", ".")
+                        .WithHttpEndpoint(name: ShellNames.HttpEndpointName, targetPort: 5080)
+                        .WithReference(brain);
 
-                var containerEnv = new Dictionary<string, object> { [IntoChatOSNames.MasterKeyEnvironmentVariable] = "ambient-mk", [PresenceTokenEnvVar] = "ambient-pt" };
-                var containerCtx = new EnvironmentCallbackContext(builder.ExecutionContext, shellContainer, containerEnv, TestContext.Current.CancellationToken);
-                foreach (var cb in shellContainer.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(containerCtx); }
-                Assert.False(containerEnv.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
-                Assert.False(containerEnv.ContainsKey(PresenceTokenEnvVar));
+                    var siloEnv = new Dictionary<string, object>();
+                    var siloCtx = new EnvironmentCallbackContext(builder.ExecutionContext, silo.Resource, siloEnv, TestContext.Current.CancellationToken);
+                    foreach (var cb in silo.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(siloCtx); }
+
+                    Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
+                    var expectedHash = Assert.IsType<string>(hashObj);
+
+                    var browser = Assert.Single(shellContainer.Annotations.OfType<BrainBrowserAnnotation>());
+                    var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
+                    Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in container browser path '{browser.Path}'.");
+                    var fragmentToken = browser.Path[(fragmentIndex + "#presence=".Length)..];
+                    Assert.Equal(expectedHash, PresenceProof.ComputeTokenHash(fragmentToken));
+
+                    var containerEnv = new Dictionary<string, object> { [IntoChatOSNames.MasterKeyEnvironmentVariable] = "ambient-mk", [PresenceTokenEnvVar] = "ambient-pt" };
+                    var containerCtx = new EnvironmentCallbackContext(builder.ExecutionContext, shellContainer, containerEnv, TestContext.Current.CancellationToken);
+                    foreach (var cb in shellContainer.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await cb.Callback(containerCtx); }
+                    Assert.False(containerEnv.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
+                    Assert.False(containerEnv.ContainsKey(PresenceTokenEnvVar));
+                }
+                finally
+                {
+                    foreach (var mount in shellContainer.Annotations.OfType<ContainerMountAnnotation>())
+                    {
+                        if (!string.IsNullOrWhiteSpace(mount.Source) && Path.GetDirectoryName(mount.Source) is { } mountDir)
+                        {
+                            DigitalBrain.Testing.TempDirectory.DeleteIfPresent(mountDir);
+                        }
+                    }
+                }
             }
         }
         finally
         {
-            tempRoot.Delete(recursive: true);
+            DigitalBrain.Testing.TempDirectory.DeleteIfPresent(tempRoot.FullName);
         }
     }
 }

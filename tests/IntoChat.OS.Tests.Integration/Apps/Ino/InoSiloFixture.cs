@@ -407,12 +407,17 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null)
+        try
         {
-            await _host.DisposeAsync();
+            if (_host is not null)
+            {
+                await _host.DisposeAsync();
+            }
         }
-
-        _home.Dispose();
+        finally
+        {
+            _home.Dispose();
+        }
     }
 
     private sealed class NoOpSecretRedactor : ISecretRedactor

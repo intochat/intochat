@@ -238,8 +238,8 @@ public sealed class DeviceLinkFacts
     private static Task<Harness> Open(string owner)
     {
         TestOS? os = null;
-        var root = Path.Combine(Path.GetTempPath(), "intochat-device-link-facts", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
+        var tempRoot = new TempDirectory("intochat-device-link-facts-");
+        var root = tempRoot.Path;
         var machine = new MachineId(Path.Combine(root, "machine-id"));
         var credentialsFile = Path.Combine(root, "devices", "link.bin");
         var protector = new XorTestProtector();
@@ -261,7 +261,7 @@ public sealed class DeviceLinkFacts
 
         var linkId = new NeuronId(new BrainId(owner), "devices.link", "device-link");
         var link = os.Get<IDeviceLink>(linkId);
-        return Task.FromResult(new Harness(os, provider, http, server, machine, linkId, link, credentialsFile, root));
+        return Task.FromResult(new Harness(os, provider, http, server, machine, linkId, link, credentialsFile, tempRoot));
     }
 
     private sealed class Harness(
@@ -273,7 +273,7 @@ public sealed class DeviceLinkFacts
         NeuronId linkId,
         IDeviceLink link,
         string credentialsFile,
-        string tempRoot) : IAsyncDisposable
+        TempDirectory tempRoot) : IAsyncDisposable
     {
         public TestOS Os => os;
         public FakeCloudServer Server => server;
@@ -295,12 +295,15 @@ public sealed class DeviceLinkFacts
 
         public async ValueTask DisposeAsync()
         {
-            await os.DisposeAsync();
-            await services.DisposeAsync();
-            http.Dispose();
-            if (Directory.Exists(tempRoot))
+            try
             {
-                Directory.Delete(tempRoot, recursive: true);
+                await os.DisposeAsync();
+                await services.DisposeAsync();
+                http.Dispose();
+            }
+            finally
+            {
+                tempRoot.Dispose();
             }
         }
     }

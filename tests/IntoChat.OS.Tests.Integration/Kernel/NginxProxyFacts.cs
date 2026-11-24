@@ -63,23 +63,25 @@ public sealed class NginxProxyFacts : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        _client?.Dispose();
-
-        if (_app is not null)
+        try
         {
-            await _app.StopAsync();
-            await _app.DisposeAsync();
+            _client?.Dispose();
+
+            if (_app is not null)
+            {
+                try
+                {
+                    await _app.StopAsync();
+                }
+                finally
+                {
+                    await _app.DisposeAsync();
+                }
+            }
         }
-
-        if (!string.IsNullOrEmpty(_tempDir) && Directory.Exists(_tempDir))
+        finally
         {
-            try
-            {
-                Directory.Delete(_tempDir, recursive: true);
-            }
-            catch
-            {
-            }
+            DigitalBrain.Testing.TempDirectory.DeleteIfPresent(_tempDir);
         }
     }
 

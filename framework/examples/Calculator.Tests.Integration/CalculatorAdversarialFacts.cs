@@ -36,12 +36,18 @@ public sealed class InteractiveAdversarialScreen : Screen<InteractiveState>
 
 public sealed class AdversarialRuntimeFixture : BothRuntimesFixture
 {
-    private readonly string _home = Path.Combine(Path.GetTempPath(), "db-adv-" + Guid.NewGuid().ToString("N"));
+    private readonly TempDirectory _home = new("db-adv-", create: false);
 
     protected override IReadOnlyList<Type> Modules => [typeof(CalculatorScreen), typeof(InteractiveAdversarialScreen)];
 
     protected override void ConfigureSilo(IServiceCollection services)
-        => services.AddLocalIdentity(SiloNeurons.Get, _home);
+        => services.AddLocalIdentity(SiloNeurons.Get, _home.Path);
+
+    protected override ValueTask DisposeCoreAsync()
+    {
+        _home.Dispose();
+        return base.DisposeCoreAsync();
+    }
 }
 
 public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture) : IClassFixture<AdversarialRuntimeFixture>

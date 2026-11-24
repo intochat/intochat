@@ -33,7 +33,8 @@ public sealed class DataStudioAppFacts
     public async Task DataStudioQueriesCsvGroupsByColumnSwitchesChartExportsAndDiagramsInMarkdraw()
     {
         var ct = TestContext.Current.CancellationToken;
-        var vfs = new WorkspaceFilesService();
+        using var vfsRoot = new TempDirectory("intochat-vfs-datastudio-");
+        var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
 
@@ -79,7 +80,8 @@ public sealed class DataStudioAppFacts
     public async Task InoDataStudioAndMarkdrawShareLiveDatasetsAndLineageInVfs()
     {
         var ct = TestContext.Current.CancellationToken;
-        var vfs = new WorkspaceFilesService();
+        using var vfsRoot = new TempDirectory("intochat-vfs-datastudio-");
+        var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
 

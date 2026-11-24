@@ -13,12 +13,13 @@ public sealed class DrainOrderFacts
     [Fact]
     public async Task TheDrainStopsTheServerInStoppingAsyncBeforeAnyHostedServiceStops()
     {
+        using var home = new DigitalBrain.Testing.TempDirectory("intochat-drain-");
         var ct = TestContext.Current.CancellationToken;
         var events = new List<string>();
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [IntoChatOSNames.HomeKey] = Path.GetTempPath(),
+            [IntoChatOSNames.HomeKey] = home.Path,
             [HealthProbes.DrainDelayKey] = "00:00:00.010",
         });
         // Registered before the defaults, so it stops after the drain's own service; a later one stops before it.
@@ -26,10 +27,11 @@ public sealed class DrainOrderFacts
         builder.AddServiceDefaults();
         builder.Services.AddSingleton<IServer>(new RecordingServer(events));
         builder.Services.AddSingleton<IHostedService>(new Recorder("late", events));
-        using var host = builder.Build();
-
-        await host.StartAsync(ct);
-        await host.StopAsync(ct);
+        using (var host = builder.Build())
+        {
+            await host.StartAsync(ct);
+            await host.StopAsync(ct);
+        }
 
         var firstStop = events.FindIndex(entry => entry.StartsWith("Stop:", StringComparison.Ordinal));
         Assert.True(events.IndexOf("server-stop") is var stopped and >= 0 && stopped < firstStop, string.Join(", ", events));

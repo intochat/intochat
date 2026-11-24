@@ -169,9 +169,15 @@ public class SynapseSilo : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null) { await _host.DisposeAsync(); }
-        _home.Dispose();
-        GC.SuppressFinalize(this);
+        try
+        {
+            if (_host is not null) { await _host.DisposeAsync(); }
+        }
+        finally
+        {
+            _home.Dispose();
+            GC.SuppressFinalize(this);
+        }
     }
 
     private sealed class Stores : IClusterStoreRegistration

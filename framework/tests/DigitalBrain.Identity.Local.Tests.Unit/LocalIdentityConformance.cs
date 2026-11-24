@@ -59,14 +59,16 @@ public sealed class LocalIdentityConformance : IdentityConformance<BoundIdentity
 
     public async ValueTask DisposeAsync()
     {
-        if (_os is not null)
+        try
         {
-            await _os.DisposeAsync();
+            if (_os is not null)
+            {
+                await _os.DisposeAsync();
+            }
         }
-
-        if (System.IO.Directory.Exists(_directory))
+        finally
         {
-            System.IO.Directory.Delete(_directory, recursive: true);
+            TempDirectory.DeleteIfPresent(_directory);
         }
     }
 

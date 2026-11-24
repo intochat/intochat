@@ -18,24 +18,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_root))
-            {
-                foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
-                {
-                    try { File.SetAttributes(file, FileAttributes.Normal); } catch { }
-                }
-
-                Directory.Delete(_root, recursive: true);
-            }
-        }
-        catch
-        {
-            // Best-effort cleanup of temp git directories.
-        }
-    }
+        => DigitalBrain.Testing.TempDirectory.DeleteIfPresent(_root);
 
     private (string BareOriginPath, string SourceCheckoutPath, string HomeDir) CreateBareOriginAndDirtyCheckout(string initialStashNote = "precious-local-stash")
     {
@@ -599,7 +582,11 @@ public sealed class WorkTreeServiceFacts : IDisposable
             """;
         File.WriteAllText(Path.Combine(srcDir, "Program.cs"), programCs);
 
-        RunProcess("dotnet", ["build", Path.Combine(srcDir, "gh.csproj"), "-c", "Release", "-o", binDir, "-v", "q"], srcDir);
+        RunProcess(
+            "dotnet",
+            ["build", Path.Combine(srcDir, "gh.csproj"), "-c", "Release", "-o", binDir, "-v", "q", "--disable-build-servers"],
+            srcDir,
+            Path.Combine(_root, ".tmp"));
         return binDir;
     }
 
@@ -683,7 +670,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
     private static string RunGit(string workingDirectory, IReadOnlyList<string> args)
         => RunProcess("git", args, workingDirectory);
 
-    private static string RunProcess(string fileName, IReadOnlyList<string> args, string workingDirectory)
+    private static string RunProcess(string fileName, IReadOnlyList<string> args, string workingDirectory, string? tempDirectory = null)
     {
         var psi = new ProcessStartInfo(fileName)
         {
@@ -693,6 +680,13 @@ public sealed class WorkTreeServiceFacts : IDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        if (!string.IsNullOrWhiteSpace(tempDirectory))
+        {
+            Directory.CreateDirectory(tempDirectory);
+            psi.Environment["TEMP"] = tempDirectory;
+            psi.Environment["TMP"] = tempDirectory;
+            psi.Environment["TMPDIR"] = tempDirectory;
+        }
         foreach (var arg in args)
         {
             psi.ArgumentList.Add(arg);

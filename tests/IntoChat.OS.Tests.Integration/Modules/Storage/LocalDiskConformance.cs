@@ -1,16 +1,19 @@
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
 
 namespace IntoChat.OS.Modules.LocalDisk.Tests.Integration;
 
-public sealed class LocalDiskConformance : StorageConformance<IStorage>
+public sealed class LocalDiskConformance : StorageConformance<IStorage>, IDisposable
 {
+    private readonly List<string> _roots = [];
     private string? _rootId;
 
     protected override async Task<StorageSubject> Connect(StorageSeed seed, CancellationToken ct)
     {
         var root = PathConfinement.Normalize(Directory.CreateTempSubdirectory("localdisk-kit").FullName);
+        _roots.Add(root);
         foreach (var entry in seed.Entries)
         {
             var path = Path.Combine(root, entry.Path.Replace('/', Path.DirectorySeparatorChar));
@@ -30,4 +33,14 @@ public sealed class LocalDiskConformance : StorageConformance<IStorage>
 
     protected override ItemId MissingId()
         => LocalItemId.Of(_rootId ?? throw new InvalidOperationException("Connect runs first."), $"missing-{Guid.NewGuid():N}.txt");
+
+    public void Dispose()
+    {
+        foreach (var root in _roots)
+        {
+            TempDirectory.DeleteIfPresent(root);
+        }
+
+        _roots.Clear();
+    }
 }

@@ -90,44 +90,43 @@ public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
-        IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
-
-        var originPort = FreePort();
-        var kernelPort = FreePort();
-        var siloPort = FreePort();
-        var gatewayPort = FreePort();
-
-        Origin = $"http://127.0.0.1:{originPort}";
-        _kernelOrigin = $"http://127.0.0.1:{kernelPort}";
-        var aspireDashboardUrl = $"{Origin}/aspire-dashboard-stub";
-
-        var integrations = new StubGitHubIntegrations(
-            IntegrationStatus.Partial,
-            [],
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["WebhookSecret"] = _webhookSecret,
-            });
-        var registration = new GitHubAppRegistration(integrations);
-        _tokens = new GitHubInstallationTokens(registration, _ghApi, TimeProvider.System);
-        _octokitSource = new GitHubRepositorySource(_tokens, _ghApi, TimeProvider.System);
-
-        List<string> args =
-        [
-            $"--{IntoChatOSNames.HomeKey}={_home.Path}",
-            $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
-            $"--{IntoChatOSNames.ShellEnabledKey}=false",
-            $"--{IntoChatOSNames.FrontEnabledKey}=false",
-            $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
-            $"--{TopologyContext.SiloPortKey}={siloPort.ToString(CultureInfo.InvariantCulture)}",
-            $"--{TopologyContext.GatewayPortKey}={gatewayPort.ToString(CultureInfo.InvariantCulture)}",
-            $"--urls={_kernelOrigin}",
-        ];
-        args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
-
         try
         {
+            var bundle = await WebBundle.Ensure(TestHome.RepoRoot(), "apps/uikit/view");
+            IntoChat.OS.Host.Modules.OsModule.InitializeConfigurationRoot();
+
+            var originPort = FreePort();
+            var kernelPort = FreePort();
+            var siloPort = FreePort();
+            var gatewayPort = FreePort();
+
+            Origin = $"http://127.0.0.1:{originPort}";
+            _kernelOrigin = $"http://127.0.0.1:{kernelPort}";
+            var aspireDashboardUrl = $"{Origin}/aspire-dashboard-stub";
+
+            var integrations = new StubGitHubIntegrations(
+                IntegrationStatus.Partial,
+                [],
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["WebhookSecret"] = _webhookSecret,
+                });
+            var registration = new GitHubAppRegistration(integrations);
+            _tokens = new GitHubInstallationTokens(registration, _ghApi, TimeProvider.System);
+            _octokitSource = new GitHubRepositorySource(_tokens, _ghApi, TimeProvider.System);
+
+            List<string> args =
+            [
+                $"--{IntoChatOSNames.HomeKey}={_home.Path}",
+                $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
+                $"--{IntoChatOSNames.ShellEnabledKey}=false",
+                $"--{IntoChatOSNames.FrontEnabledKey}=false",
+                $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
+                $"--{TopologyContext.SiloPortKey}={siloPort.ToString(CultureInfo.InvariantCulture)}",
+                $"--{TopologyContext.GatewayPortKey}={gatewayPort.ToString(CultureInfo.InvariantCulture)}",
+                $"--urls={_kernelOrigin}",
+            ];
+            args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
             var kernelBuilder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
                 Args = [.. args],
