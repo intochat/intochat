@@ -188,6 +188,51 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
         }
     }
 
+    // The allow-listed reminder entry, driven by the Orleans reminder service itself rather than by a fact: a real
+    // registration falls due and its tick, which carries no caller, reaches the host grain past the default rule.
+    [Fact]
+    public async Task ARealReminderTick_SentByTheReminderService_StillReachesItsNeuron()
+    {
+        var arrived = new ReminderArrivals();
+        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct, builder =>
+        {
+            builder.Services.Configure<Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
+            // Registered last, so it runs inside SiloAccessCallFilter: it sees only what the rule admitted.
+            builder.Services.AddSingleton<IIncomingGrainCallFilter>(arrived);
+        });
+        var edge = host.Services.GetRequiredService<EdgeAuthority>();
+        var reminder = SiloNeurons.Get<IntoChat.OS.Modules.Time.Reminders.IReminder>(
+            host.Services, new NeuronId(new BrainId(host.Scope), "reminder", "default-rule"));
+
+        using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(host.Scope))))
+        {
+            await reminder.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(200));
+        }
+
+        var tick = await arrived.First.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(host.Scope))))
+        {
+            await reminder.Stop();
+        }
+
+        Assert.True(tick.SentByThisSilo, "The reminder service's own call carries the silo's mark.");
+        Assert.False(tick.HadCaller, "A reminder tick carries no caller; the host grain enters the scheduler itself.");
+    }
+
+    private sealed class ReminderArrivals : IIncomingGrainCallFilter
+    {
+        public TaskCompletionSource<(bool SentByThisSilo, bool HadCaller)> First { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Invoke(IIncomingGrainCallContext context)
+        {
+            if (context.InterfaceMethod.DeclaringType == typeof(IRemindable))
+            {
+                First.TrySetResult((SiloOrigin.IsCurrent, RequestContext.Get("db.access.caller") is not null));
+            }
+            return context.Invoke();
+        }
+    }
+
     private static bool IsFilterRefusal(string message)
         => message.Contains("carried no caller provenance", StringComparison.Ordinal)
             || message.Contains("served inside the silo only", StringComparison.Ordinal);
