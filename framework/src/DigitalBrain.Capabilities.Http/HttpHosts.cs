@@ -71,10 +71,10 @@ public static class HttpHosts
         return false;
     }
 
-    /// <summary>Determines whether an IP address is private, loopback, or link-local.</summary>
-    public static bool IsPrivateOrLoopback(IPAddress address) => !IsPublic(address);
-
-    /// <summary>Determines whether an IP address is routable public Internet space.</summary>
+    /// <summary>
+    /// Determines whether an IP address is routable public Internet space: never private, loopback, link-local, multicast,
+    /// shared (CGNAT), benchmarking, documentation or transition space; IPv6 only as global unicast (2000::/3).
+    /// </summary>
     public static bool IsPublic(IPAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
@@ -83,28 +83,23 @@ public static class HttpHosts
             address = address.MapToIPv4();
         }
 
-        if (IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any))
-        {
-            return false;
-        }
-
-        var bytes = address.GetAddressBytes();
+        var b = address.GetAddressBytes();
         if (address.AddressFamily == AddressFamily.InterNetwork)
         {
-            return !(bytes[0] is 0 or 10 or 127 || bytes[0] >= 224
-                || (bytes[0] == 169 && bytes[1] == 254)
-                || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64)
-                || (bytes[0] == 198 && (bytes[1] & 0xFE) == 18)
-                || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
-                || (bytes[0] == 192 && bytes[1] == 168));
+            return b[0] is not (0 or 10 or 127) && b[0] < 224
+                && !(b[0] == 100 && (b[1] & 0xC0) == 64)
+                && !(b[0] == 169 && b[1] == 254)
+                && !(b[0] == 172 && b[1] is >= 16 and <= 31)
+                && !(b[0] == 192 && (b[1] == 168 || (b[1] == 0 && b[2] is 0 or 2) || (b[1] == 88 && b[2] == 99)))
+                && !(b[0] == 198 && (b[1] is 18 or 19 || (b[1] == 51 && b[2] == 100)))
+                && !(b[0] == 203 && b[1] == 0 && b[2] == 113);
         }
 
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            return !(address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast || (bytes[0] & 0xFE) == 0xFC);
-        }
-
-        return false;
+        // Global unicast only; 6to4, Teredo/IETF-protocol and documentation allocations are not public.
+        return address.AddressFamily == AddressFamily.InterNetworkV6 && (b[0] & 0xE0) == 0x20
+            && !(b[0] == 0x20 && b[1] == 0x02)
+            && !(b[0] == 0x20 && b[1] == 0x01 && (b[2] < 2 || (b[2] == 0x0D && b[3] == 0xB8)))
+            && !(b[0] == 0x3F && b[1] == 0xFF && (b[2] & 0xF0) == 0);
     }
 
     private static bool Matches(string entry, string host)
