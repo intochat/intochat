@@ -36,8 +36,8 @@ public sealed class NoOrleansGatewayFacts
     {
         var endpoints = kernel.Annotations.OfType<EndpointAnnotation>().Select(static e => e.Name).ToArray();
         Assert.Contains(RuntimeHosting.OrleansSiloEndpoint, endpoints);
-        Assert.DoesNotContain("orleans-gateway", endpoints);
-        Assert.True(!environment.TryGetValue("Orleans__Endpoints__GatewayPort", out var port) || port is "0",
+        Assert.DoesNotContain(RuntimeHosting.OrleansGatewayEndpoint, endpoints);
+        Assert.True(!environment.TryGetValue(RuntimeHosting.OrleansGatewayPortVariable, out var port) || port is "0",
             $"The kernel is told to open a gateway on {port}.");
     }
 

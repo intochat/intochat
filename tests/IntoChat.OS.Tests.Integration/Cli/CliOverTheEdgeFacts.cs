@@ -258,6 +258,9 @@ public sealed class CliOverTheEdgeFacts(CliOverTheEdgeFacts.Kernel kernel) : ICl
         public async ValueTask InitializeAsync() => Harness = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(CancellationToken.None,
             builder => builder.Services.AddSingleton(new WorkflowDefinition(ApprovalDemoWorkflow.Name, "Waits for a person.", ApprovalDemoWorkflow.Build)));
 
-        public async ValueTask DisposeAsync() => await Harness.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            if (Harness is not null) { await Harness.DisposeAsync(); }
+        }
     }
 }
