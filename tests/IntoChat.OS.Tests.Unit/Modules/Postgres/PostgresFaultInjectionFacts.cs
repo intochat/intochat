@@ -106,6 +106,22 @@ public sealed class PostgresFaultInjectionFacts
         Assert.Contains("unavailable", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task RegistryDisposesSourcesOfASupersededRevision()
+    {
+        var integrations = new RotatingIntegrations();
+        var registry = new PostgresSourceRegistry(integrations, Options.Create(new PostgresModuleOptions { ConnectionName = "postgres" }));
+        var ct = TestContext.Current.CancellationToken;
+
+        var first = await registry.Get(TablePlacement.Shared, ct);
+        integrations.Revision = 2;
+        var second = await registry.Get(TablePlacement.Shared, ct);
+
+        Assert.NotSame(first, second);
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await first.OpenConnectionAsync(ct));
+        await registry.DisposeAsync();
+    }
+
     private sealed class FaultyPostgresProvider(bool connected) : IPostgresProvider
     {
         public Task<PostgresQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<PostgresParameter> parameters, CancellationToken cancellationToken)
@@ -137,6 +153,33 @@ public sealed class PostgresFaultInjectionFacts
                 {
                     Snapshot = new IntegrationSnapshot { IntegrationId = "postgres", Status = status },
                     Values = new Dictionary<string, string>()
+                });
+        }
+    }
+
+    private sealed class RotatingIntegrations : IModuleIntegrations<PostgresModule>
+    {
+        public long Revision { get; set; } = 1;
+
+        public IIntegrationHandle Get(string integrationId) => new Handle(this);
+
+        private sealed class Handle(RotatingIntegrations owner) : IIntegrationHandle
+        {
+            public string IntegrationId => "postgres";
+
+            private IntegrationSnapshot Snapshot => new() { IntegrationId = "postgres", Status = IntegrationStatus.Ready, Revision = owner.Revision };
+
+            public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+                => Task.FromResult(Snapshot);
+
+            public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default)
+                => throw new NotImplementedException();
+
+            public Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default)
+                => Task.FromResult(new ReleasedIntegration
+                {
+                    Snapshot = Snapshot,
+                    Values = new() { ["ConnectionString"] = $"Host=localhost;Database=r{owner.Revision};Username=u;Password=p" },
                 });
         }
     }
