@@ -51,26 +51,6 @@ internal sealed partial class DriveNeuron(
         };
     }
 
-    private async Task<JsonDocument> GetJsonAsync(string path, string operation, CancellationToken ct) =>
-        await SendAsync(path, operation, ct, async response => await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct));
-
-    private async Task<T> SendAsync<T>(string path, string operation, CancellationToken ct, Func<HttpResponseMessage, Task<T>> read)
-    {
-        using var trace = EnterTrace();
-        return await UseCredentialAsync(async (credential, token) =>
-        {
-            using var response = await RequestAsync(new Uri(Options.Endpoint, path), operation, credential.Value, token);
-            if (response.StatusCode == HttpStatusCode.NotFound) { throw new FileNotFoundException("This Drive item does not exist or is not shared with this account."); }
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                await MarkExpired("The Google Drive access token was refused. Reconnect Google Drive.");
-                throw new UnauthorizedAccessException("Google refused the Drive access token. Reconnect Google Drive.");
-            }
-            if (!response.IsSuccessStatusCode) { throw new DriveUnavailableException($"Google Drive answered HTTP {(int)response.StatusCode}."); }
-            return await read(response);
-        }, ct);
-    }
-
     private Task<HttpResponseMessage> AboutAsync(string accessToken, CancellationToken ct) =>
         RequestAsync(new Uri(Options.Endpoint, "about?fields=user(emailAddress)"), GoogleDriveOperations.About, accessToken, ct);
 
