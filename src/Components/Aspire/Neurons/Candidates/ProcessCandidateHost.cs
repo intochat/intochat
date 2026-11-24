@@ -2,10 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Host.Configuration;
@@ -13,6 +10,7 @@ using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using Microsoft.Extensions.Logging;
+using static IntoChat.Aspire.Candidates.CandidateWorkspace;
 
 namespace IntoChat.Aspire.Candidates;
 
@@ -164,7 +162,7 @@ internal sealed class CandidateProcessHandle : IDisposable
 
 // Runs each candidate as an isolated headless local OS process on a dynamically allocated
 // loopback TCP port (never 5080/5081) with an isolated temp home (never ~/.intochat).
-internal sealed partial class ProcessCandidateHost : ICandidateHost
+internal sealed class ProcessCandidateHost : ICandidateHost
 {
     private const string OsProject = "src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj";
     private const int LiveHttpPort = 5080;
@@ -644,41 +642,5 @@ internal sealed partial class ProcessCandidateHost : ICandidateHost
         return result.Output;
     }
 
-    private static string Tail(ProcessResult result, int lines = 40)
-    {
-        var all = (result.Output + "\n" + result.Error).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return string.Join('\n', all.TakeLast(lines));
-    }
-
-    private static async Task<string> Workdir(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
-    {
-        var snapshot = await integrations.Get("aspire").ReadAsync(ct).ConfigureAwait(false);
-        return snapshot.Settings.TryGetValue(AspireModule.WorkdirField, out var workdir) && workdir is { Length: > 0 }
-            ? Path.GetFullPath(workdir)
-            : throw new CandidateHostException("prepare", "the aspire Integration has no Workdir");
-    }
-
-    private static async Task<CandidateSecrets> Secrets(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
-    {
-        var released = await integrations.Get("aspire").ReleaseAsync(ct).ConfigureAwait(false);
-        var model = released.Values.TryGetValue(AspireModule.CandidateModelField, out var json) && json is { Length: > 0 }
-            ? JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? []
-            : [];
-        return new CandidateSecrets(model);
-    }
-
     private Git Git(string root) => new(_processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
-    private static string Secret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-    private static string WorktreeOf(string root, string sha) => Path.Combine(root, "worktrees", sha);
-
-    [GeneratedRegex("^[0-9a-f]{7,40}$", RegexOptions.CultureInvariant)]
-    private static partial Regex Sha();
-
-    private static void Checked(string sha)
-    {
-        if (sha is null || !Sha().IsMatch(sha))
-        {
-            throw new CandidateHostException("sha", $"'{sha}' is not a commit sha");
-        }
-    }
 }
