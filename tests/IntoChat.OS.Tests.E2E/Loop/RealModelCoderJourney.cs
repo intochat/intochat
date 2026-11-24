@@ -90,7 +90,7 @@ public sealed class RealModelCoderJourney(ITestOutputHelper output)
             // Verify Ollama runtime is reachable and Think role resolves to qwen2.5-coder:14b.
             var ollamaRuntime = Assert.Single(provider.GetServices<ILocalRuntime>(), static r => r.Id == RuntimeId.Ollama);
             var probe = await ollamaRuntime.Probe(Ct);
-            Assert.True(probe.Reachable, $"Ollama at {OllamaEndpoint} is not reachable.");
+            Assert.SkipUnless(probe.Reachable, $"Ollama at {OllamaEndpoint} is not reachable.");
 
             var catalog = provider.GetRequiredService<ModelCatalog>();
             var resolved = await catalog.Decide(brainId: null, ModelRole.Think, turn: null, requiresTools: true, Ct);

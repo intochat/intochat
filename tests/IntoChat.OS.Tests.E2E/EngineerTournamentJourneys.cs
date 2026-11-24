@@ -94,7 +94,7 @@ public sealed class EngineerTournamentJourneys(TestOSFixture fixture) : E2ETestB
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(sp =>
             new EngineerBuildVerifier(configuration, sp.GetRequiredService<ISandboxCommandRunner>()));
         serviceCollection.AddSingleton<ILiveVerifier>(liveVerifier);
-        serviceCollection.AddSingleton(roslyn);
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = fixture.CreateIsolated(o => o.Services = services);
