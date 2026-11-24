@@ -36,7 +36,7 @@ public sealed class CloudClusterSplitFacts
         Assert.Single(KeysOf(os, value => value == "grainstate-" + config.StorageFormat));
         Assert.Single(KeysOf(os, value => value == "/data/brain/" + config.StorageFormat));
         Assert.Single(KeysOf(os, value => value.EndsWith("/brainlease-" + config.StorageFormat, StringComparison.Ordinal)));
-        Assert.Equal([InstallPlan.GatewayPort], os.InternalPorts);
+        Assert.Empty(os.InternalPorts);
         Assert.Equal(InstallPlan.BrainLogShare, Assert.Single(os.VolumeMounts).EnvironmentStorage);
     }
 
@@ -75,6 +75,24 @@ public sealed class CloudClusterSplitFacts
 
     [Fact]
     public void TheCloudAppPublishesNoGatewayPort() => Assert.Empty(Apps(WithCloud()).Cloud.InternalPorts);
+
+    // No OS host is an Orleans cluster client, so no app of any install shape publishes the Orleans gateway port (30000) or any
+    // other internal port beside its ingress.
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void NoAppPublishesAnOrleansGatewayPort(bool includeCloudApp, bool includeSandboxApp)
+    {
+        var config = InstallConfig.Universal(env: "test", subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: includeCloudApp, includeSandboxApp: includeSandboxApp).Validated();
+
+        var apps = InstallPlan.Build(config).OfType<ContainerAppSpec>().ToArray();
+
+        Assert.NotEmpty(apps);
+        Assert.All(apps, app => Assert.Empty(app.InternalPorts));
+    }
 
     [Fact]
     public void AModuleDeploymentVariableCannotPutTheCloudBackIntoTheOsNamespace()

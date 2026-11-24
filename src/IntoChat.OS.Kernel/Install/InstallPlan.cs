@@ -19,10 +19,9 @@ public static class InstallPlan
     // The Cloud app's own brain-log share: the cloud is a separate Orleans cluster with its own storage namespace.
     public const string CloudBrainLogShare = "brainlog-cloud";
     public const string Owner = "os";
+    // The only port an app publishes. No OS host is an Orleans cluster client, so no Orleans gateway port is published, and the
+    // silo port is never mapped (a Container Apps port mapping is load-balanced, while silos reach each other's own addresses).
     public const int HttpPort = 8080;
-    // The Orleans gateway. The silo port is deliberately not mapped: a Container Apps port mapping is
-    // load-balanced, while silos must reach each other's own addresses.
-    public const int GatewayPort = 30000;
 
     private const string KeyVaultSecretsOfficer = "b86a8fe4-44ce-4948-aee5-eccb2c155cd7";
     private const string KeyVaultSecretsUser = "4633458b-17de-408a-b874-0445c86b69e6";
@@ -163,7 +162,6 @@ public static class InstallPlan
             Cpu = c.Cpu,
             Memory = c.Memory,
             IngressPort = HttpPort,
-            InternalPorts = [GatewayPort],
             RegistryServer = c.LoginServer,
             // Liveness is the process alone, readiness the drain, startup waits for dependencies.
             ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
@@ -190,7 +188,7 @@ public static class InstallPlan
         if (withCloud)
         {
             // Its own cluster and storage namespace (cluster id, service id, grain state, lease, Home): two clusters never share
-            // grain rows, and the OS silo's SingleSiloGuard never sees the cloud silo. No cluster client reaches it, so no gateway.
+            // grain rows, and the OS silo's SingleSiloGuard never sees the cloud silo. Like the OS app, it publishes no gateway.
             var cloudVariables = Variables(c, account, vault, cloud.Lease, cloud.GrainState, extraVariables);
             cloudVariables["Orleans__ClusterId"] = cloud.ClusterId;
             cloudVariables["Orleans__ServiceId"] = cloud.ServiceId;
