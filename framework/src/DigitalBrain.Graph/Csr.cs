@@ -1,8 +1,12 @@
+using System.Runtime.CompilerServices;
+
 namespace DigitalBrain.Graph;
 
 /// <summary>Builds and reads compressed sparse row snapshots.</summary>
 internal static class Csr
 {
+    private static readonly ConditionalWeakTable<GraphSnapshot, Tuple<int[], int[], int[]>> Reversed = new();
+
     /// <summary>Builds a snapshot from a sink. Duplicate edges (same from, to and kind) collapse into one with summed weight.</summary>
     public static GraphSnapshot Build(long revision, GraphSink sink, GraphGroup[] groups, int[] group)
     {
@@ -39,7 +43,14 @@ internal static class Csr
     }
 
     /// <summary>In-edges as row starts and sources, so walks can go against the arrows.</summary>
+    /// <remarks>Memoized per snapshot instance; callers must treat the arrays as read-only.</remarks>
     public static (int[] RowStart, int[] Source, int[] Edge) Reverse(GraphSnapshot g)
+    {
+        var reversed = Reversed.GetValue(g, static s => BuildReverse(s));
+        return (reversed.Item1, reversed.Item2, reversed.Item3);
+    }
+
+    private static Tuple<int[], int[], int[]> BuildReverse(GraphSnapshot g)
     {
         var n = g.NodeCount;
         var rowStart = new int[n + 1];
@@ -57,7 +68,7 @@ internal static class Csr
                 edge[slot] = e;
             }
         }
-        return (rowStart, source, edge);
+        return Tuple.Create(rowStart, source, edge);
     }
 
     /// <summary>A stable hash of the node ids and edges, so an unchanged rebuild does not bump the revision.</summary>
