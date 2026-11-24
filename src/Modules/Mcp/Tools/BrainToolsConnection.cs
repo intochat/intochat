@@ -42,20 +42,20 @@ internal sealed class BrainToolsConnection(
 
     public async Task<IReadOnlyList<string>> List()
     {
-        var descriptors = await DescribeAll().ConfigureAwait(false);
+        var descriptors = await DescribeAll().ConfigureAwait(true);
         return descriptors.Select(d => d.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task<IReadOnlyList<ToolDescriptor>> DescribeAll(CancellationToken ct = default)
     {
         var allTools = new List<ToolDescriptor>();
-        var sources = await GetSourcesAsync().ConfigureAwait(false);
+        var sources = await GetSourcesAsync().ConfigureAwait(true);
 
         foreach (var source in sources)
         {
             try
             {
-                var toolSet = await source.Tools(ct).ConfigureAwait(false);
+                var toolSet = await source.Tools(ct).ConfigureAwait(true);
                 if (toolSet?.Tools is not null)
                 {
                     allTools.AddRange(toolSet.Tools);
@@ -72,7 +72,7 @@ internal sealed class BrainToolsConnection(
 
     public async Task<IReadOnlyList<ToolDescriptor>> Search(string query, CancellationToken ct = default)
     {
-        var all = await DescribeAll(ct).ConfigureAwait(false);
+        var all = await DescribeAll(ct).ConfigureAwait(true);
         if (string.IsNullOrWhiteSpace(query))
         {
             return all;
@@ -88,7 +88,7 @@ internal sealed class BrainToolsConnection(
     public async Task<bool> Validate(string tool, JsonElement args, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(tool)) { return false; }
-        var all = await DescribeAll(ct).ConfigureAwait(false);
+        var all = await DescribeAll(ct).ConfigureAwait(true);
         var descriptor = all.FirstOrDefault(t => string.Equals(t.Name, tool.Trim(), StringComparison.OrdinalIgnoreCase));
         if (descriptor is null) { return false; }
 
@@ -109,14 +109,14 @@ internal sealed class BrainToolsConnection(
             throw new ToolExecutionException(tool, "Tool arguments must be a JSON object.", isValidationError: true);
         }
 
-        var sources = await GetSourcesAsync().ConfigureAwait(false);
+        var sources = await GetSourcesAsync().ConfigureAwait(true);
         IToolSource? matchedSource = null;
 
         foreach (var source in sources)
         {
             try
             {
-                var toolSet = await source.Tools(ct).ConfigureAwait(false);
+                var toolSet = await source.Tools(ct).ConfigureAwait(true);
                 if (toolSet?.Tools?.Any(t => string.Equals(t.Name, tool.Trim(), StringComparison.OrdinalIgnoreCase)) == true)
                 {
                     matchedSource = source;
@@ -138,7 +138,7 @@ internal sealed class BrainToolsConnection(
         ToolResult result;
         try
         {
-            result = await matchedSource.Run(tool, argumentsString, ct).ConfigureAwait(false);
+            result = await matchedSource.Run(tool, argumentsString, ct).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not ToolExecutionException)
         {
@@ -170,7 +170,7 @@ internal sealed class BrainToolsConnection(
             {
                 if (sp.GetService(typeof(DigitalBrain.Kernel.IBrainObserver)) is DigitalBrain.Kernel.IBrainObserver observer)
                 {
-                    foreach (var source in (await observer.Types(CancellationToken.None).ConfigureAwait(false))
+                    foreach (var source in (await observer.Types(CancellationToken.None).ConfigureAwait(true))
                         .Where(type => type.Kind == DigitalBrain.Kernel.TypeKind.Neuron))
                     {
                         var contract = AppDomain.CurrentDomain.GetAssemblies()
@@ -184,7 +184,7 @@ internal sealed class BrainToolsConnection(
                             continue;
                         }
 
-                        await foreach (var instance in observer.Instances(source.Alias, CancellationToken.None).ConfigureAwait(false))
+                        await foreach (var instance in observer.Instances(source.Alias, CancellationToken.None).ConfigureAwait(true))
                         {
                             try
                             {

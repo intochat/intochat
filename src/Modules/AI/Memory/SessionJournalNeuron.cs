@@ -34,9 +34,9 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
         string? date = null)
     {
         var now = Context.Time.GetUtcNow();
-        var targetDate = await ResolveDateAsync("OpenSession", date, now).ConfigureAwait(false);
+        var targetDate = await ResolveDateAsync("OpenSession", date, now).ConfigureAwait(true);
         var trimmedConv = NormalizeOptional(conversationId);
-        var maskedGoal = goal is null ? null : CollapseLine(await MaskAsync(goal).ConfigureAwait(false));
+        var maskedGoal = goal is null ? null : CollapseLine(await MaskAsync(goal).ConfigureAwait(true));
         var trimmedBrief = NormalizeOptional(projectBrief);
 
         var day = FindDay(State, targetDate) ?? new SessionJournalDay(targetDate, []);
@@ -73,7 +73,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
             updatedSessions = [.. day.Sessions, block];
         }
 
-        await SaveDayAsync(new SessionJournalDay(targetDate, updatedSessions), block).ConfigureAwait(false);
+        await SaveDayAsync(new SessionJournalDay(targetDate, updatedSessions), block).ConfigureAwait(true);
         return block;
     }
 
@@ -81,7 +81,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
     {
         ArgumentNullException.ThrowIfNull(milestone);
         var now = Context.Time.GetUtcNow();
-        var targetDate = await ResolveDateAsync("RecordMilestone", milestone.Date, now).ConfigureAwait(false);
+        var targetDate = await ResolveDateAsync("RecordMilestone", milestone.Date, now).ConfigureAwait(true);
         var trimmedConv = NormalizeOptional(milestone.ConversationId);
         var day = FindDay(State, targetDate) ?? new SessionJournalDay(targetDate, []);
 
@@ -101,12 +101,12 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
         }
 
         var goal = string.IsNullOrWhiteSpace(current.Goal) && !string.IsNullOrWhiteSpace(milestone.Goal)
-            ? CollapseLine(await MaskAsync(milestone.Goal).ConfigureAwait(false))
+            ? CollapseLine(await MaskAsync(milestone.Goal).ConfigureAwait(true))
             : current.Goal;
         var projectBrief = NormalizeOptional(milestone.ProjectBrief) ?? current.ProjectBrief;
-        var deliverables = MergeItems(current.Deliverables, await MaskItemsAsync(milestone.Deliverables).ConfigureAwait(false));
-        var decisions = MergeItems(current.Decisions, await MaskItemsAsync(milestone.Decisions).ConfigureAwait(false));
-        var openThreads = MergeItems(current.OpenThreads, await MaskItemsAsync(milestone.OpenThreads).ConfigureAwait(false));
+        var deliverables = MergeItems(current.Deliverables, await MaskItemsAsync(milestone.Deliverables).ConfigureAwait(true));
+        var decisions = MergeItems(current.Decisions, await MaskItemsAsync(milestone.Decisions).ConfigureAwait(true));
+        var openThreads = MergeItems(current.OpenThreads, await MaskItemsAsync(milestone.OpenThreads).ConfigureAwait(true));
 
         if (milestone.ResolvedThreads is { Length: > 0 } resolved)
         {
@@ -127,14 +127,14 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
         };
 
         var updatedSessions = ReplaceOrAppendSession(day.Sessions, updatedBlock);
-        await SaveDayAsync(new SessionJournalDay(targetDate, updatedSessions), updatedBlock).ConfigureAwait(false);
+        await SaveDayAsync(new SessionJournalDay(targetDate, updatedSessions), updatedBlock).ConfigureAwait(true);
         return updatedBlock;
     }
 
     public async Task<SessionJournalBlock> FinalizeSession(int? sessionNumber = null, string? date = null, string[]? openThreads = null)
     {
         var now = Context.Time.GetUtcNow();
-        var targetDate = await ResolveDateAsync("FinalizeSession", date, now).ConfigureAwait(false);
+        var targetDate = await ResolveDateAsync("FinalizeSession", date, now).ConfigureAwait(true);
         var day = FindDay(State, targetDate);
         await Check(
             "FinalizeSession",
@@ -148,7 +148,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
             IntoChat.OS.UI.Decision.Rule("session_block_exists", target, static t => t is null, $"Session #{sessionNumber} was not found on '{targetDate}'."));
 
         var finalThreads = openThreads is not null
-            ? MergeItems([], await MaskItemsAsync(openThreads).ConfigureAwait(false))
+            ? MergeItems([], await MaskItemsAsync(openThreads).ConfigureAwait(true))
             : target!.OpenThreads;
 
         var finalized = target! with
@@ -160,7 +160,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
         };
 
         var updatedSessions = ReplaceSession(day!.Sessions, finalized);
-        await SaveDayAsync(new SessionJournalDay(targetDate, updatedSessions), finalized).ConfigureAwait(false);
+        await SaveDayAsync(new SessionJournalDay(targetDate, updatedSessions), finalized).ConfigureAwait(true);
         return finalized;
     }
 
@@ -168,7 +168,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentKey);
         var relative = NormalizeAgentKey(agentKey);
-        await Context.Wires.Ensure<TurnCompleted>(new NeuronId(Id.Brain, AgentSignals.NeuronType, relative)).ConfigureAwait(false);
+        await Context.Wires.Ensure<TurnCompleted>(new NeuronId(Id.Brain, AgentSignals.NeuronType, relative)).ConfigureAwait(true);
     }
 
     [On]
@@ -181,7 +181,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
         }
 
         var milestone = ExtractMilestoneFromTurn(signal.AgentId, userText: null, signal.Reply);
-        await RecordMilestone(milestone).ConfigureAwait(false);
+        await RecordMilestone(milestone).ConfigureAwait(true);
     }
 
     public Task<SessionJournalDay?> ReadDay(string? date = null)
@@ -290,7 +290,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
                 next.Revision,
                 updatedDay.Date,
                 changedBlock.SessionNumber,
-                changedBlock.Status)).ConfigureAwait(false);
+                changedBlock.Status)).ConfigureAwait(true);
     }
 
     private async Task<string> ResolveDateAsync(string operation, string? date, DateTimeOffset now)
@@ -319,7 +319,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
     }
 
     private async Task<string> MaskAsync(string text)
-        => redactor is null ? text : (await redactor.Redact(text, CancellationToken.None).ConfigureAwait(false)) ?? text;
+        => redactor is null ? text : (await redactor.Redact(text, CancellationToken.None).ConfigureAwait(true)) ?? text;
 
     private async Task<string[]> MaskItemsAsync(string[]? items)
     {
@@ -333,7 +333,7 @@ internal sealed partial class SessionJournalNeuron(ISecretRedactor? redactor = n
         {
             if (!string.IsNullOrWhiteSpace(item))
             {
-                list.Add(CollapseLine(await MaskAsync(item).ConfigureAwait(false)));
+                list.Add(CollapseLine(await MaskAsync(item).ConfigureAwait(true)));
             }
         }
         return [.. list];

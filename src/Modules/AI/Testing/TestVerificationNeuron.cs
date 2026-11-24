@@ -17,7 +17,7 @@ internal sealed class TestVerificationNeuron : Neuron<TestVerificationState>, IT
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var result = await TestProcessRunner.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+        var result = await TestProcessRunner.ExecuteAsync(request, cancellationToken).ConfigureAwait(true);
 
         var runId = Guid.NewGuid().ToString("N");
         var summary = new TestResultSummary(

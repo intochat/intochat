@@ -30,7 +30,7 @@ internal sealed partial class WebSearchNeuron(
 
     public async Task<SearchProvider> Provider()
     {
-        var (provider, _) = await ResolveConfigurationAsync().ConfigureAwait(false);
+        var (provider, _) = await ResolveConfigurationAsync().ConfigureAwait(true);
         return provider;
     }
 
@@ -38,7 +38,7 @@ internal sealed partial class WebSearchNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         var clamped = Math.Clamp(count, 1, 20);
-        var (provider, searxngUrl) = await ResolveConfigurationAsync().ConfigureAwait(false);
+        var (provider, searxngUrl) = await ResolveConfigurationAsync().ConfigureAwait(true);
 
         switch (provider)
         {
@@ -50,7 +50,7 @@ internal sealed partial class WebSearchNeuron(
 
             default:
                 var adapter = ResolveAdapter(provider, searxngUrl);
-                return await adapter.Search(query, clamped, CancellationToken.None).ConfigureAwait(false);
+                return await adapter.Search(query, clamped, CancellationToken.None).ConfigureAwait(true);
         }
     }
 
@@ -89,7 +89,7 @@ internal sealed partial class WebSearchNeuron(
 
         try
         {
-            var settings = UserSettings is { } settingsNeuron ? await settingsNeuron.Read().ConfigureAwait(false) : null;
+            var settings = UserSettings is { } settingsNeuron ? await settingsNeuron.Read().ConfigureAwait(true) : null;
             if (settings?.Variables is { Length: > 0 })
             {
                 foreach (var entry in settings.Variables)
@@ -124,7 +124,7 @@ internal sealed partial class WebSearchNeuron(
         {
             try
             {
-                var brainKey = await brainKeys.Release(Id.Brain.Value, integrationId, ct).ConfigureAwait(false);
+                var brainKey = await brainKeys.Release(Id.Brain.Value, integrationId, ct).ConfigureAwait(true);
                 if (!string.IsNullOrWhiteSpace(brainKey))
                 {
                     return brainKey;
@@ -141,10 +141,10 @@ internal sealed partial class WebSearchNeuron(
             try
             {
                 var handle = integrations.Get(integrationId);
-                var snapshot = await handle.ReadAsync(ct).ConfigureAwait(false);
+                var snapshot = await handle.ReadAsync(ct).ConfigureAwait(true);
                 if (snapshot.Status == IntegrationStatus.Ready)
                 {
-                    var released = await handle.ReleaseAsync(ct).ConfigureAwait(false);
+                    var released = await handle.ReleaseAsync(ct).ConfigureAwait(true);
                     if (released.Values.TryGetValue(WebIntegrations.ApiKeyField, out var key) && !string.IsNullOrWhiteSpace(key))
                     {
                         return key;

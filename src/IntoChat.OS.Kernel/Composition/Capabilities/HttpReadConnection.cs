@@ -88,7 +88,7 @@ internal sealed class HttpReadConnection(
                 "bytes",
                 DigitalBrain.Capabilities.Compute.Funding.Local,
                 Guid.NewGuid().ToString("N"),
-                ct).ConfigureAwait(false);
+                ct).ConfigureAwait(true);
         }
     }
 

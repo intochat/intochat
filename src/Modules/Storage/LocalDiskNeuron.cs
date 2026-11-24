@@ -39,7 +39,7 @@ internal sealed class LocalDiskNeuron(
         {
             RootIds = [.. State.RootIds, Guid.NewGuid().ToString("N")],
             RootPaths = [.. State.RootPaths, full],
-        }, new LocalDiskRootsChanged("allow")).ConfigureAwait(false);
+        }, new LocalDiskRootsChanged("allow")).ConfigureAwait(true);
     }
 
     public async Task RevokeRoot(string path)
@@ -54,7 +54,7 @@ internal sealed class LocalDiskNeuron(
         {
             RootIds = [.. kept.Select(pair => State.RootIds[pair.index])],
             RootPaths = [.. kept.Select(pair => pair.root)],
-        }, new LocalDiskRootsChanged("revoke")).ConfigureAwait(false);
+        }, new LocalDiskRootsChanged("revoke")).ConfigureAwait(true);
     }
 
     public Task<StorageDescriptor> Describe(CancellationToken ct = default)
@@ -92,8 +92,8 @@ internal sealed class LocalDiskNeuron(
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.Source is { } source) { _ = PathConfinement.Resolve(Paths(), PathOf(source)); }
         if (plan.TargetFolder is { } folder) { _ = PathConfinement.Resolve(Paths(), PathOf(folder)); }
-        await AuthorizeWrite(plan, ct).ConfigureAwait(false);
-        return await Engine.Write(plan, ct).ConfigureAwait(false);
+        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        return await Engine.Write(plan, ct).ConfigureAwait(true);
     }
 
     public Task<Page<Item>> Search(SearchQuery query, CancellationToken ct = default)
@@ -122,22 +122,22 @@ internal sealed class LocalDiskNeuron(
         ArgumentNullException.ThrowIfNull(plan);
         var folder = plan.TargetFolder ?? throw new Unsupported(null);
         _ = PathConfinement.ResolveForCreate(Paths(), PathOf(folder), plan.Name ?? "file", PathConfinement.Current);
-        await AuthorizeWrite(plan, ct).ConfigureAwait(false);
-        return await Engine.OpenWrite(plan, ct).ConfigureAwait(false);
+        await AuthorizeWrite(plan, ct).ConfigureAwait(true);
+        return await Engine.OpenWrite(plan, ct).ConfigureAwait(true);
     }
 
     private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
     {
-        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(false)) { return; }
+        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(true)) { return; }
         if (plan.DryRun) { return; }
         // Fail closed: a host without the confirmation gate must not write on anyone's behalf.
         if (confirmations is null) { throw new InvalidOperationException("Local disk writes need the confirmation gate, and this host has none."); }
-        var descriptor = await Describe(ct).ConfigureAwait(false);
+        var descriptor = await Describe(ct).ConfigureAwait(true);
         var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
         var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
             (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
-        var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
-        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(false);
+        var question = await runner.Confirmation(plan, ct).ConfigureAwait(true);
+        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(true);
         if (answer.Outcome != ConfirmationOutcome.Approved)
         {
             throw new Denied(plan.Source ?? plan.TargetFolder);

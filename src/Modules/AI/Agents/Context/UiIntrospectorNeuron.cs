@@ -75,7 +75,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
             return null;
         }
 
-        return await ReadUiNeuronAsync(discovered, normalizedKey).ConfigureAwait(false);
+        return await ReadUiNeuronAsync(discovered, normalizedKey).ConfigureAwait(true);
     }
 
     public async Task<UiNeuronSnapshot[]> InspectLiveNeurons(string? kindFilter = null)
@@ -92,7 +92,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
 
         if (observer is not null)
         {
-            await foreach (var instance in observer.Instances(null, CancellationToken.None).ConfigureAwait(false))
+            await foreach (var instance in observer.Instances(null, CancellationToken.None).ConfigureAwait(true))
             {
                 if (!contractsByKind.TryGetValue(instance.Type, out var contract))
                 {
@@ -130,7 +130,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
         var snapshots = new List<UiNeuronSnapshot>(candidates.Count);
         foreach (var (contract, relativeKey) in candidates.OrderBy(c => c.Contract.Schema.NeuronKind, StringComparer.Ordinal).ThenBy(c => c.Key, StringComparer.Ordinal))
         {
-            var snap = await ReadUiNeuronAsync(contract, relativeKey).ConfigureAwait(false);
+            var snap = await ReadUiNeuronAsync(contract, relativeKey).ConfigureAwait(true);
             if (snap is not null)
             {
                 snapshots.Add(snap);
@@ -167,7 +167,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
             .TakeLast(MaxTrackedNeurons)
             .ToArray();
         var next = State with { Revision = State.Revision + 1, TrackedNeurons = tracked };
-        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, next.TrackedNeurons.Length, next.StateGraphs.Length)).ConfigureAwait(false);
+        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, next.TrackedNeurons.Length, next.StateGraphs.Length)).ConfigureAwait(true);
     }
 
     public async Task<UiStateGraphSnapshot> ExploreStateGraph(string stateOrScreenTypeName, int maxStates = 32)
@@ -184,7 +184,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
                 $"Could not resolve Aggregate state or AggregateScreen type '{stateOrScreenTypeName}'."));
 
         var snapshot = UnfoldStateGraph(resolvedType!, clampedMax);
-        await UpsertStateGraphAsync(snapshot).ConfigureAwait(false);
+        await UpsertStateGraphAsync(snapshot).ConfigureAwait(true);
         return snapshot;
     }
 
@@ -192,7 +192,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentException.ThrowIfNullOrWhiteSpace(graph.Name);
-        await UpsertStateGraphAsync(graph).ConfigureAwait(false);
+        await UpsertStateGraphAsync(graph).ConfigureAwait(true);
     }
 
     public Task<UiStateGraphSnapshot[]> ListStateGraphs()
@@ -204,15 +204,15 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
             ? IUiIntrospector.DefaultContextKey
             : StripBrainPrefix(contextKey.Trim());
         var contracts = DiscoverUiContracts(null).Select(c => c.Schema).ToArray();
-        var liveNeurons = await InspectLiveNeurons(null).ConfigureAwait(false);
+        var liveNeurons = await InspectLiveNeurons(null).ConfigureAwait(true);
         var graphs = State.StateGraphs;
         var summary = BuildContextSummary(contracts, liveNeurons, graphs);
 
         var contextNeuron = Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", normalizedContextKey));
-        await contextNeuron.Upsert(new ContextEntry("ui.introspector", summary, [typeof(IUiIntrospector).FullName!])).ConfigureAwait(false);
+        await contextNeuron.Upsert(new ContextEntry("ui.introspector", summary, [typeof(IUiIntrospector).FullName!])).ConfigureAwait(true);
 
         var next = State with { Revision = State.Revision + 1 };
-        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, liveNeurons.Length, graphs.Length)).ConfigureAwait(false);
+        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, liveNeurons.Length, graphs.Length)).ConfigureAwait(true);
 
         return new UiIntrospectionReport
         {
@@ -233,7 +233,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
             .ToArray();
 
         var next = State with { Revision = State.Revision + 1, StateGraphs = updated };
-        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, next.TrackedNeurons.Length, next.StateGraphs.Length)).ConfigureAwait(false);
+        await Save(next, new UiIntrospectorSynced(Id.FullKey(), next.Revision, next.TrackedNeurons.Length, next.StateGraphs.Length)).ConfigureAwait(true);
     }
 
     private async Task<UiNeuronSnapshot?> ReadUiNeuronAsync(DiscoveredUiContract discovered, string relativeKey)
@@ -245,7 +245,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
         {
             try
             {
-                var element = await observer.State(targetId, CancellationToken.None).ConfigureAwait(false);
+                var element = await observer.State(targetId, CancellationToken.None).ConfigureAwait(true);
                 if (element is { } jsonElement)
                 {
                     rawJson = jsonElement.GetRawText();
@@ -263,7 +263,7 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
             {
                 var proxy = ContextGetMethod.MakeGenericMethod(discovered.InterfaceType).Invoke(Context, [targetId])!;
                 var task = (Task)discovered.ReadMethod.Invoke(proxy, null)!;
-                var stateObj = await TaskBoxing.ReturnResultAsync(task, discovered.ReadMethod.ReturnType).ConfigureAwait(false);
+                var stateObj = await TaskBoxing.ReturnResultAsync(task, discovered.ReadMethod.ReturnType).ConfigureAwait(true);
                 if (stateObj is not null)
                 {
                     rawJson = JsonSerializer.Serialize(stateObj, JsonSerializerOptions.Web);

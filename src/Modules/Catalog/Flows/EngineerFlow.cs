@@ -576,7 +576,7 @@ internal sealed class EngineerFlow(
         CancellationToken ct)
     {
         var lease = instance.Lease ?? throw new InvalidOperationException($"WorkTreeLease missing on instance {instance.InstanceIndex}.");
-        await WorkTreeService.VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
+        await WorkTreeService.VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(true);
 
         if (instance.Commit is not null)
         {
@@ -612,8 +612,8 @@ internal sealed class EngineerFlow(
                     preHydrated: hydratedSnapshot,
                     recordJournalMilestone: false,
                     onProgress: onProgress,
-                    ct: ct).ConfigureAwait(false)
-                : await harness.ExecuteAsync(request, onProgress, ct).ConfigureAwait(false);
+                    ct: ct).ConfigureAwait(true)
+                : await harness.ExecuteAsync(request, onProgress, ct).ConfigureAwait(true);
 
             var completedIds = harnessResult.CompletedSlices
                 .Where(static s => string.Equals(s.Status, "completed", StringComparison.OrdinalIgnoreCase))
@@ -647,11 +647,11 @@ internal sealed class EngineerFlow(
                 .Select(static p => p.Value)
                 .ToArray();
             var roslynDiagnostics = liveCsPaths.Length > 0
-                ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct).ConfigureAwait(false)).ToArray()
+                ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct).ConfigureAwait(true)).ToArray()
                 : [];
 
             var commitMessage = ChangePolicy.BuildCommitMessage(goal, harnessResult.Summary);
-            var committed = await wt.VerifyAndCommitAsync(lease, commitMessage, ct).ConfigureAwait(false);
+            var committed = await wt.VerifyAndCommitAsync(lease, commitMessage, ct).ConfigureAwait(true);
 
             if (repository is not null)
             {
@@ -992,7 +992,7 @@ internal sealed class EngineerFlow(
         var lease = instance.Lease;
         var currentCommit = instance.Commit;
         var changedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
-        var report = await VerifyInstanceBuildAsync(verifier, lease, changedPaths, ct).ConfigureAwait(false);
+        var report = await VerifyInstanceBuildAsync(verifier, lease, changedPaths, ct).ConfigureAwait(true);
 
         var (strategyId, strategyLabel, strategyLens) = EngineerCandidateStrategies.ForCandidate(instance.InstanceIndex);
         var effectiveStrategy = string.IsNullOrWhiteSpace(instance.Strategy) ? strategyId : instance.Strategy!;
@@ -1052,8 +1052,8 @@ internal sealed class EngineerFlow(
                         preHydrated: hydratedSnapshot,
                         recordJournalMilestone: false,
                         onProgress: onProgress,
-                        ct: ct).ConfigureAwait(false)
-                    : await harness.ExecuteAsync(repairRequest, onProgress, ct).ConfigureAwait(false);
+                        ct: ct).ConfigureAwait(true)
+                    : await harness.ExecuteAsync(repairRequest, onProgress, ct).ConfigureAwait(true);
 
                 if (harnessResult.Succeeded)
                 {
@@ -1069,11 +1069,11 @@ internal sealed class EngineerFlow(
                         .Select(static p => p.Value)
                         .ToArray();
                     var roslynDiagnostics = liveCsPaths.Length > 0
-                        ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct).ConfigureAwait(false)).ToArray()
+                        ? (await activeRoslyn.AnalyzeAsync(lease.TreePath, liveCsPaths, ct).ConfigureAwait(true)).ToArray()
                         : current.RoslynDiagnostics ?? [];
 
                     var commitMessage = ChangePolicy.BuildCommitMessage(goal, harnessResult.Summary);
-                    currentCommit = await wt.VerifyAndAmendAsync(lease, currentCommit.Commit, commitMessage, ct).ConfigureAwait(false);
+                    currentCommit = await wt.VerifyAndAmendAsync(lease, currentCommit.Commit, commitMessage, ct).ConfigureAwait(true);
                     changedPaths = currentCommit.ChangedFiles.Select(static f => f.Value).ToArray();
 
                     current = current with
@@ -1094,7 +1094,7 @@ internal sealed class EngineerFlow(
                     $"engineer worktree instance #{instance.InstanceIndex} build repair round {repairRound}/{MaxBuildRepairRounds} failed");
             }
 
-            report = await VerifyInstanceBuildAsync(verifier, lease, changedPaths, ct).ConfigureAwait(false);
+            report = await VerifyInstanceBuildAsync(verifier, lease, changedPaths, ct).ConfigureAwait(true);
         }
 
         return (current with

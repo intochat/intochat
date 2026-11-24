@@ -62,7 +62,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
             FrozenScratchpad = State.LiveScratchpad,
             FrozenSessionId = normalized,
         };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return BuildStartupPack(next);
     }
 
@@ -70,14 +70,14 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entry);
         await Check("UpsertScratchpad", NoRawSecretRule(entry));
-        var clean = CollapseSingleLine(await MaskAsync(entry).ConfigureAwait(false));
+        var clean = CollapseSingleLine(await MaskAsync(entry).ConfigureAwait(true));
         var currentItems = ItemsOf(State.LiveScratchpad, section);
         var updated = UpsertItems(currentItems, clean, replaceMatching);
         var candidate = Consolidate(WithSection(State.LiveScratchpad, section, updated));
         await Check("UpsertScratchpad", ScratchpadCapRule(candidate));
 
         var next = State with { Revision = State.Revision + 1, LiveScratchpad = candidate };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return candidate;
     }
 
@@ -96,7 +96,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
 
         var candidate = WithSection(State.LiveScratchpad, section, filtered);
         var next = State with { Revision = State.Revision + 1, LiveScratchpad = candidate };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return candidate;
     }
 
@@ -107,14 +107,14 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
         await Check("SetScratchpad", NoRawSecretRule(rawCombined));
 
         var masked = new WorkingMemoryScratchpad(
-            await MaskLinesAsync(scratchpad.ActiveThreads).ConfigureAwait(false),
-            await MaskLinesAsync(scratchpad.EnvironmentNotes).ConfigureAwait(false),
-            await MaskLinesAsync(scratchpad.PendingDecisions).ConfigureAwait(false));
+            await MaskLinesAsync(scratchpad.ActiveThreads).ConfigureAwait(true),
+            await MaskLinesAsync(scratchpad.EnvironmentNotes).ConfigureAwait(true),
+            await MaskLinesAsync(scratchpad.PendingDecisions).ConfigureAwait(true));
         var consolidated = Consolidate(masked);
         await Check("SetScratchpad", ScratchpadCapRule(consolidated));
 
         var next = State with { Revision = State.Revision + 1, LiveScratchpad = consolidated };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return consolidated;
     }
 
@@ -122,7 +122,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
     {
         ArgumentNullException.ThrowIfNull(content);
         await Check("SetSlice", NoRawSecretRule(content));
-        var masked = (await MaskAsync(content).ConfigureAwait(false)).Trim();
+        var masked = (await MaskAsync(content).ConfigureAwait(true)).Trim();
         var cap = MaxSliceChars(kind);
         await Check(
             "SetSlice",
@@ -135,7 +135,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
         var slice = new WorkingMemorySlice(kind, masked, Context.Time.GetUtcNow());
         var slices = State.Slices.Where(existing => existing.Kind != kind).Append(slice).OrderBy(s => s.Kind).ToArray();
         var next = State with { Revision = State.Revision + 1, Slices = slices };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return slice;
     }
 
@@ -152,7 +152,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
         var normalizedKey = key.Trim();
         var normalizedTitle = title.Trim();
         var normalizedCategory = string.IsNullOrWhiteSpace(category) ? "project" : category.Trim().ToLowerInvariant();
-        var maskedContent = (await MaskAsync(content).ConfigureAwait(false)).Trim();
+        var maskedContent = (await MaskAsync(content).ConfigureAwait(true)).Trim();
         await Check(
             "PutBrief",
             IntoChat.OS.UI.Decision.Rule(
@@ -174,7 +174,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
             .ToArray();
 
         var next = State with { Revision = State.Revision + 1, Briefs = updated };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return ToSummary(brief);
     }
 
@@ -195,7 +195,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
         }
 
         var next = State with { Revision = State.Revision + 1, Briefs = filtered };
-        await PersistAsync(next).ConfigureAwait(false);
+        await PersistAsync(next).ConfigureAwait(true);
         return true;
     }
 
@@ -232,7 +232,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
                 next.Briefs.Length));
 
     private async Task<string> MaskAsync(string text)
-        => redactor is null ? text : (await redactor.Redact(text, CancellationToken.None).ConfigureAwait(false)) ?? text;
+        => redactor is null ? text : (await redactor.Redact(text, CancellationToken.None).ConfigureAwait(true)) ?? text;
 
     private async Task<string[]> MaskLinesAsync(string[]? lines)
     {
@@ -246,7 +246,7 @@ internal sealed partial class WorkingMemoryNeuron(ISecretRedactor? redactor = nu
         {
             if (!string.IsNullOrWhiteSpace(line))
             {
-                result.Add(CollapseSingleLine(await MaskAsync(line).ConfigureAwait(false)));
+                result.Add(CollapseSingleLine(await MaskAsync(line).ConfigureAwait(true)));
             }
         }
         return [.. result];

@@ -71,11 +71,11 @@ internal sealed partial class FilesWorkspaceNeuron(
         var app = App;
         if (State.Ready && State.Files.Connection is { } currentConn)
         {
-            await app.Browse(new(currentConn, State.Files.Folder), ct).ConfigureAwait(false);
+            await app.Browse(new(currentConn, State.Files.Folder), ct).ConfigureAwait(true);
         }
         else
         {
-            await app.Open(new(), ct).ConfigureAwait(false);
+            await app.Open(new(), ct).ConfigureAwait(true);
         }
         var nextRevision = Math.Max(1, State.Files.Revision + 1);
         await Persist(State with { Files = app.Snapshot with { Revision = nextRevision }, Ready = true });

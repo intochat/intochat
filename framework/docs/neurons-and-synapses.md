@@ -14,6 +14,7 @@ A neuron is a plain class that derives from `Neuron` or `Neuron<TState>` and is 
 - `Check(operation, rules)` publishes `Rejected` and throws `RuleViolationException` when a `Rule` is broken.
 - `Get<T>(id)` returns a typed interface to another neuron of the same brain.
 - `RequireCaller()` returns the caller of the turn and `RequireSameBrain()` returns it when it acts in the neuron's brain; both refuse a turn with no caller, so a neuron never decides on a missing caller. `IsSameBrainCaller()` is false for no caller.
+- Its awaits stay on the turn: a bare `await` or `ConfigureAwait(true)`. `ConfigureAwait(false)` inside a neuron, or inside kernel code marked `[TurnBound]`, is the error `DB0050`, because on Orleans the rest of the method would run off the activation's scheduler, beside a call that interleaves with it. A method marked `[ReadOnlyCall, Interleaves]` writes no state.
 
 ```csharp
 [Neuron("APP_ID.counter")]

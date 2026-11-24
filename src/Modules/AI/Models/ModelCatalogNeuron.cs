@@ -37,7 +37,7 @@ internal sealed class ModelCatalogNeuron(
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
-        await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).SetRole(role, model).ConfigureAwait(false);
+        await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).SetRole(role, model).ConfigureAwait(true);
     }
 
     public Task<RoleMap> Roles()
@@ -78,7 +78,7 @@ internal sealed class ModelCatalogNeuron(
 
         await grains.GetGrain<IBrainEntries>(brainId)
             .Put(BrainEntries.ProviderEntry(normalized), EntryKind.Secret, credentialValue.Trim())
-            .ConfigureAwait(false);
+            .ConfigureAwait(true);
     }
 
     private void EnforceOwnerOrTrustedShell(string operation, string agentMessage, string appMessage)
@@ -109,7 +109,7 @@ internal sealed class ModelCatalogNeuron(
 
         try
         {
-            return await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).Read().ConfigureAwait(false);
+            return await Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).Read().ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

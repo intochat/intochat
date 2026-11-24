@@ -31,6 +31,7 @@ internal class DeliveryCounters(Action<NeuronId, NeuronId?, Position, Exception>
     }
 }
 
+[TurnBound]
 internal sealed class Delivery(
     NeuronId subscriber,
     IBrainJournal journal,
@@ -64,12 +65,12 @@ internal sealed class Delivery(
 
     public async Task Nudged(Position upTo)
     {
-        await _nudgeGate.WaitAsync().ConfigureAwait(false);
+        await _nudgeGate.WaitAsync().ConfigureAwait(true);
         try
         {
             if (_held.Entries.Count == 0 || !_held.Entries.TrueForAll(entry => entry.Cursor.Value >= upTo.Value))
             {
-                await CatchUp(nudged: true).ConfigureAwait(false);
+                await CatchUp(nudged: true).ConfigureAwait(true);
             }
             else
             {
@@ -138,7 +139,7 @@ internal sealed class Delivery(
             var at = view.LastOf(source);
             _held = _held.Add(source, aliases, at, now);
         }
-        await Flush(force: true).ConfigureAwait(false);
+        await Flush(force: true).ConfigureAwait(true);
     }
 
     public async Task EnsureBrainWide(IEnumerable<string> aliases, DateTimeOffset now, bool exact)
@@ -148,7 +149,7 @@ internal sealed class Delivery(
             var at = view.Last;
             _held = _held.AddBrainWide(aliases, at, now, exact);
         }
-        await Flush(force: true).ConfigureAwait(false);
+        await Flush(force: true).ConfigureAwait(true);
     }
 
     public async Task Remove(NeuronId source)
@@ -157,7 +158,7 @@ internal sealed class Delivery(
         {
             _held = _held.Remove(source);
         }
-        await Flush(force: true).ConfigureAwait(false);
+        await Flush(force: true).ConfigureAwait(true);
     }
 
     public async Task RemoveBrainWide()
@@ -166,7 +167,7 @@ internal sealed class Delivery(
         {
             _held = _held.Remove(null);
         }
-        await Flush(force: true).ConfigureAwait(false);
+        await Flush(force: true).ConfigureAwait(true);
     }
 
     private async Task Pump(NeuronId? source)

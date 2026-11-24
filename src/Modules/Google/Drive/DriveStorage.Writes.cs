@@ -106,14 +106,14 @@ internal sealed partial class DriveNeuron : IStorageUpload
     {
         ArgumentNullException.ThrowIfNull(plan);
         RequireWrite();
-        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(false)) { return; }
+        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(true)) { return; }
         if (confirmations is null || plan.DryRun) { return; }
-        var descriptor = await ((IStorage)this).Describe(ct).ConfigureAwait(false);
+        var descriptor = await ((IStorage)this).Describe(ct).ConfigureAwait(true);
         var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
         var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
             (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
-        var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
-        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(false);
+        var question = await runner.Confirmation(plan, ct).ConfigureAwait(true);
+        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(true);
         if (answer.Outcome != ConfirmationOutcome.Approved)
         {
             throw new Denied(plan.Source ?? plan.TargetFolder);

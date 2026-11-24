@@ -233,16 +233,16 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(runningCts.Token, ct);
             try
             {
-                var result = await execution.Run(plan, self, scope, linked.Token).ConfigureAwait(false);
-                await self.Complete(result).ConfigureAwait(false);
+                var result = await execution.Run(plan, self, scope, linked.Token).ConfigureAwait(true);
+                await self.Complete(result).ConfigureAwait(true);
             }
             catch (OperationCanceledException) when (linked.IsCancellationRequested)
             {
-                await self.Complete(new OperationResult.Cancelled()).ConfigureAwait(false);
+                await self.Complete(new OperationResult.Cancelled()).ConfigureAwait(true);
             }
             catch (Exception error) when (error is not OutOfMemoryException)
             {
-                await self.Complete(new OperationResult.Failed("error", error.Message)).ConfigureAwait(false);
+                await self.Complete(new OperationResult.Failed("error", error.Message)).ConfigureAwait(true);
             }
         });
     }

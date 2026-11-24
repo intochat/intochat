@@ -61,6 +61,13 @@ internal static class Rules
         "Tool name '{0}' for '{1}.{2}' is {3} characters long; tool names must be at most 64 characters",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
+    // On Orleans a neuron runs on its activation's scheduler; ConfigureAwait(false) moves the rest of the method to the thread pool,
+    // where it runs beside an interleaving call, an Admit or a state inspection of the same activation.
+    public static readonly DiagnosticDescriptor TurnContinuation = new(
+        "DB0050", "ConfigureAwait(false) inside a neuron turn",
+        "'{0}' leaves the neuron's turn with ConfigureAwait(false); await on the turn (a bare await or ConfigureAwait(true))",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor ShareableContract = new(
         "DB0031", "Cross-brain contract interface requires [Shareable]",
         "Contract interface or member '{0}' violates [Shareable] contract rules",
@@ -80,6 +87,7 @@ internal static class Rules
     public const string SignalType = "DigitalBrain.Signal";
     public const string NeuronType = "DigitalBrain.Neurons.Neuron";
     public const string OnAttribute = "DigitalBrain.Neurons.OnAttribute";
+    public const string TurnBoundAttribute = "DigitalBrain.Kernel.TurnBoundAttribute";
     public const string ModuleAttribute = "DigitalBrain.Modules.ModuleAttribute";
     public const string ModuleType = "DigitalBrain.Modules.Module";
     public const string ManifestType = "DigitalBrain.Modules.ModuleManifest";

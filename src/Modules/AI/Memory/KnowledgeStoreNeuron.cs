@@ -44,7 +44,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
         var nodes = existing.TakeLast(MaxNodes).ToArray();
 
         var next = new KnowledgeStoreState(State.Revision + 1, nodes, State.Edges);
-        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "store-node", record.Id)).ConfigureAwait(false);
+        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "store-node", record.Id)).ConfigureAwait(true);
     }
 
     public Task<KnowledgeNode?> GetAsync(string id, CancellationToken ct = default)
@@ -78,7 +78,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
                                         && !string.Equals(e.TargetId, id, StringComparison.Ordinal)).ToArray();
 
         var next = new KnowledgeStoreState(State.Revision + 1, nodes, edges);
-        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "delete-node", id)).ConfigureAwait(false);
+        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "delete-node", id)).ConfigureAwait(true);
     }
 
     public async Task RecordEdgeAsync(KnowledgeEdge edge, CancellationToken ct = default)
@@ -112,7 +112,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
         var edges = existing.TakeLast(MaxEdges).ToArray();
 
         var next = new KnowledgeStoreState(State.Revision + 1, State.Nodes, edges);
-        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "store-edge")).ConfigureAwait(false);
+        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "store-edge")).ConfigureAwait(true);
     }
 
     public Task<IReadOnlyList<KnowledgeEdge>> QueryEdgesAsync(string nodeId, EdgeDirection direction = EdgeDirection.Both, CancellationToken ct = default)
@@ -134,7 +134,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
                                           && string.Equals(e.Relation, relation, StringComparison.OrdinalIgnoreCase))).ToArray();
 
         var next = new KnowledgeStoreState(State.Revision + 1, State.Nodes, edges);
-        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "delete-edge")).ConfigureAwait(false);
+        await Save(next, new KnowledgeGraphChanged(next.Revision, next.Nodes.Length, next.Edges.Length, "delete-edge")).ConfigureAwait(true);
     }
 
     public Task<KnowledgeGraphView> QueryGraphAsync(string rootId, int depth = 2, CancellationToken ct = default)
