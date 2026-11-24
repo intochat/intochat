@@ -229,7 +229,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
         ? 'Not set'
         : entry.tail == null
         ? 'Set'
-        : 'Set â€¢â€¢â€¢â€¢${entry.tail}';
+        : 'Set ••••${entry.tail}';
     final busy = _locked;
     return _box(
       const Key('entry-key-row'),
@@ -290,9 +290,7 @@ class _UiEntryControlState extends State<UiEntryControl> {
     final c = UiColors.of(context);
     final type = UiType.of(context);
     final secret = entry.kind == EntryKind.secret;
-    final shown = secret
-        ? 'â€¢â€¢â€¢â€¢${entry.tail ?? ''}'
-        : (entry.value ?? '');
+    final shown = secret ? '••••${entry.tail ?? ''}' : (entry.value ?? '');
     return _box(
       Key('entry-row-${entry.name}'),
       Row(

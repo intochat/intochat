@@ -32,7 +32,7 @@ public static class AIOptionsExtensions
         return options;
     }
 
-    public static AIOptions WithRole(this AIOptions options, Role role, ModelCard card, Where map = Where.Cloud)
+    public static AIOptions WithRole(this AIOptions options, ModelRole role, ModelCard card, Where map = Where.Cloud)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(card);
@@ -41,7 +41,7 @@ public static class AIOptionsExtensions
         return options;
     }
 
-    public static AIOptions WithoutRole(this AIOptions options, Role role, Where map = Where.Cloud)
+    public static AIOptions WithoutRole(this AIOptions options, ModelRole role, Where map = Where.Cloud)
     {
         ArgumentNullException.ThrowIfNull(options);
         TargetMap(options, map).Remove(role);
@@ -72,10 +72,10 @@ public static class AIOptionsExtensions
     internal static bool IsSystemOne(ModelCard card)
         => card.Provider == AiProvider.TypeSafe || card.Id == KnownModels.LocalJev.Id;
 
-    private static Dictionary<Role, string> TargetMap(AIOptions options, Where map)
+    private static Dictionary<ModelRole, string> TargetMap(AIOptions options, Where map)
         => map == Where.Device ? options.Roles.Device : options.Roles.Cloud;
 
-    private static void RemoveDeviceRoles(Dictionary<Role, string> roles)
+    private static void RemoveDeviceRoles(Dictionary<ModelRole, string> roles)
     {
         foreach (var role in roles.Keys.ToArray())
         {

@@ -76,6 +76,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             $"--{IntoChatOSNames.FrontEnabledKey}=false",
             $"--{ModuleConfiguration.ModuleSection("devices")}:ReplaceOptions=true",
             $"--{ModuleConfiguration.ModuleSection("devices")}:Options:FoundryLocal:Enabled=false",
+            "--IntoChatOS:Ollama:AutoContainer=false",
         };
         foreach (var module in DisabledModules)
         {

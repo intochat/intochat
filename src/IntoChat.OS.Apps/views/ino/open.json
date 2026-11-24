@@ -72,7 +72,8 @@
           "action": "send:/scenario q4-renewal",
           "selected": false,
           "badge": "Needs you",
-          "emit": null
+          "command": null,
+          "automationName": "arc-q4-renewal"
         },
         {
           "kind": "navItem",
@@ -82,7 +83,8 @@
           "action": "send:/scenario morning-brief",
           "selected": false,
           "badge": "3",
-          "emit": null
+          "command": null,
+          "automationName": "arc-morning-brief"
         },
         {
           "kind": "divider",
@@ -96,7 +98,8 @@
           "action": "send:/scenario invoice-check",
           "selected": false,
           "badge": "Vault",
-          "emit": null
+          "command": null,
+          "automationName": "arc-invoice-check"
         },
         {
           "kind": "navItem",
@@ -106,7 +109,8 @@
           "action": "send:/scenario first-run",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "arc-first-run"
         },
         {
           "kind": "collection",
@@ -126,22 +130,336 @@
   "main": {
     "title": "Ino",
     "root": {
-      "kind": "neuronRef",
-      "refKind": "slot",
-      "neuronUri": "conversation",
-      "props": {
-        "placeholder": "Ask anything.",
-        "canSend": true,
-        "activeModelLabel": "Qwen 3.5 4B",
-        "activeProviderIcon": "provider:ollama",
-        "dictation": false,
-        "status": "ready",
-        "working": false,
-        "emptyText": "What do you need?",
-        "error": null,
-        "isEnabled": true,
-        "automationName": null
-      }
+      "kind": "column",
+      "children": [
+        {
+          "kind": "neuronRef",
+          "refKind": "slot",
+          "neuronUri": "conversation",
+          "props": {
+            "placeholder": "Ask anything.",
+            "canSend": true,
+            "activeModelLabel": "Gemma 4 12B",
+            "activeProviderIcon": "provider:ollama",
+            "dictation": false,
+            "status": "ready",
+            "working": false,
+            "emptyText": "What do you need?",
+            "error": null,
+            "models": [
+              {
+                "id": "gpt-5.6-sol",
+                "label": "GPT-5.6 Sol",
+                "section": "cloud",
+                "icon": "provider:openai",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gpt-5.6-terra",
+                "label": "GPT-5.6 Terra",
+                "section": "cloud",
+                "icon": "provider:openai",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gpt-5.6-luna",
+                "label": "GPT-5.6 Luna",
+                "section": "cloud",
+                "icon": "provider:openai",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gpt-5.4",
+                "label": "GPT-5.4",
+                "section": "cloud",
+                "icon": "provider:openai",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gpt-5.4-mini",
+                "label": "GPT-5.4 Mini",
+                "section": "cloud",
+                "icon": "provider:openai",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gpt-5.4-nano",
+                "label": "GPT-5.4 Nano",
+                "section": "cloud",
+                "icon": "provider:openai",
+                "abilities": [
+                  "tools"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "claude-fable-5",
+                "label": "Fable 5",
+                "section": "cloud",
+                "icon": "provider:anthropic",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "claude-opus-5",
+                "label": "Opus 5",
+                "section": "cloud",
+                "icon": "provider:anthropic",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "claude-opus-4-6",
+                "label": "Opus 4.6",
+                "section": "cloud",
+                "icon": "provider:anthropic",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "claude-sonnet-5",
+                "label": "Sonnet 5",
+                "section": "cloud",
+                "icon": "provider:anthropic",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "claude-sonnet-4-6",
+                "label": "Sonnet 4.6",
+                "section": "cloud",
+                "icon": "provider:anthropic",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "claude-haiku-4-5",
+                "label": "Haiku 4.5",
+                "section": "cloud",
+                "icon": "provider:anthropic",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gemini-3.1-pro-preview",
+                "label": "Gemini 3.1 Pro",
+                "section": "cloud",
+                "icon": "provider:google",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gemini-3.6-pro",
+                "label": "Gemini 3.6 Pro",
+                "section": "cloud",
+                "icon": "provider:google",
+                "abilities": [
+                  "tools",
+                  "vision",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gemini-3.6-flash",
+                "label": "Gemini 3.6 Flash",
+                "section": "cloud",
+                "icon": "provider:google",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "grok-4.6",
+                "label": "Grok 4.6",
+                "section": "cloud",
+                "icon": "provider:xai",
+                "abilities": [
+                  "tools",
+                  "reasoning"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "deepseek/deepseek-v4.1-flash",
+                "label": "DeepSeek V4.1 Flash",
+                "section": "cloud",
+                "icon": "provider:openrouter",
+                "abilities": [
+                  "tools"
+                ],
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "gemma4:12b",
+                "label": "Gemma 4 12B",
+                "section": "local",
+                "icon": "provider:ollama",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Ollama is not running",
+                "progress": null
+              },
+              {
+                "id": "gemma4:e2b",
+                "label": "Gemma 4 E2B",
+                "section": "local",
+                "icon": "provider:ollama",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Ollama is not running",
+                "progress": null
+              },
+              {
+                "id": "qwen3.5:4b",
+                "label": "Qwen 3.5 4B",
+                "section": "local",
+                "icon": "provider:ollama",
+                "abilities": [
+                  "tools",
+                  "vision"
+                ],
+                "available": false,
+                "note": "Ollama is not running",
+                "progress": null
+              },
+              {
+                "id": "qwen2.5-coder:14b",
+                "label": "Qwen 2.5 Coder 14B",
+                "section": "local",
+                "icon": "provider:ollama",
+                "abilities": [
+                  "tools"
+                ],
+                "available": false,
+                "note": "Ollama is not running",
+                "progress": null
+              },
+              {
+                "id": "jev-latest",
+                "label": "Jev",
+                "section": "cloud",
+                "icon": "brand:intochat",
+                "abilities": null,
+                "available": false,
+                "note": "Add a key in API keys",
+                "progress": null
+              },
+              {
+                "id": "llama3.1",
+                "label": "Local Jev (Llama 3.1)",
+                "section": "local",
+                "icon": "provider:ollama",
+                "abilities": null,
+                "available": false,
+                "note": "Ollama is not running",
+                "progress": null
+              }
+            ],
+            "activeModelId": "gemma4:12b",
+            "conversation": "conversations/main",
+            "readAloud": false,
+            "talkConversation": null,
+            "isEnabled": true,
+            "automationName": null
+          }
+        }
+      ],
+      "gap": 12,
+      "padding": 0,
+      "extents": [
+        1
+      ]
     }
   }
 }

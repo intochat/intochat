@@ -110,7 +110,7 @@ internal sealed class LlmWarmupHostedService(
         if (!string.Equals(topology, "cloud", StringComparison.OrdinalIgnoreCase))
         {
             var roleMap = ai.Roles.ToRoleMap();
-            if (roleMap.Device.TryGetValue(Role.Chat, out var chatId) && !string.IsNullOrWhiteSpace(chatId.Value))
+            if (roleMap.Device.TryGetValue(ModelRole.Chat, out var chatId) && !string.IsNullOrWhiteSpace(chatId.Value))
             {
                 yield return chatId;
             }

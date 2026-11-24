@@ -5,6 +5,9 @@ namespace IntoChat.OS.Modules.Apps.Tests.Unit.Flows;
 
 public sealed class EngineerLiveVerifierFacts : IDisposable
 {
+    private static readonly string Apps = SolutionPaths.Directory("IntoChat.OS.Apps");
+    private static readonly string Catalog = SolutionPaths.Directory("IntoChat.OS.Modules.Catalog");
+
     private readonly string _worktree;
 
     public EngineerLiveVerifierFacts()
@@ -94,7 +97,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
         var report = await verifier.VerifyLiveAsync(
             _worktree,
             "Ensure placebo verification is disabled",
-            ["src/IntoChat.OS.Apps/Calculator/CalculatorApp.cs"],
+            [Apps + "/Calculator/CalculatorApp.cs"],
             Ct);
 
         Assert.False(report.Succeeded);
@@ -119,7 +122,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
             var crashReport = await crashingVerifier.VerifyLiveAsync(
                 _worktree,
                 "Verify startup exception fails live verification",
-                ["src/IntoChat.OS.Apps/Engineer/EngineerApp.cs"],
+                [Apps + "/Engineer/EngineerApp.cs"],
                 Ct);
 
             Assert.False(crashReport.Succeeded);
@@ -153,7 +156,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
             var spanReport = await errorSpanVerifier.VerifyLiveAsync(
                 _worktree,
                 "Verify error span fails live verification",
-                ["src/IntoChat.OS.Apps/Calculator/CalculatorApp.cs"],
+                [Apps + "/Calculator/CalculatorApp.cs"],
                 Ct);
 
             Assert.False(spanReport.Succeeded);
@@ -186,7 +189,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
         var report = await localSpanVerifier.VerifyLiveAsync(
             _worktree,
             "Verify local OTel error span fails verification",
-            ["src/Modules/Catalog/Flows/EngineerFlow.cs"],
+            [Catalog + "/Flows/EngineerFlow.cs"],
             new EngineerLiveContext(TraceId: "trace-err-span"),
             Ct);
 
@@ -226,7 +229,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
         var report = await verifier.VerifyLiveAsync(
             _worktree,
             "Verify healthy candidate succeeds",
-            ["src/IntoChat.OS.Apps/Calculator/CalculatorApp.cs"],
+            [Apps + "/Calculator/CalculatorApp.cs"],
             new EngineerLiveContext(TraceId: "trace-ok-cand"),
             Ct);
 

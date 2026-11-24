@@ -12,6 +12,7 @@ COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packag
 COPY src/IntoChat.OS/ ./src/IntoChat.OS/
 COPY src/IntoChat.OS.Host/ ./src/IntoChat.OS.Host/
 COPY src/IntoChat.OS.UI/ ./src/IntoChat.OS.UI/
+COPY src/IntoChat.OS.Host/ ./src/IntoChat.OS.Host/
 COPY src/Modules/Roslyn/ ./src/Modules/Roslyn/
 COPY src/IntoChat.OS.Sandbox/ ./src/IntoChat.OS.Sandbox/
 COPY src/Modules/AI/Contracts/ ./src/Modules/AI/Contracts/

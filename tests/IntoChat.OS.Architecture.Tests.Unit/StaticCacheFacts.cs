@@ -15,6 +15,7 @@ public sealed partial class StaticCacheFacts
         ["PlainInstanceRegistration.StateNames"] = "string",
         ["SignalTypes.Loaded"] = "string",
         ["ToolCapabilitySource.PlainSources"] = "string",
+        ["TypedTable.Schemas"] = "Type",
     };
 
     [GeneratedRegex(@"\bstatic\s+(?:readonly\s+)?(?:System\.Collections\.Concurrent\.)?(?:Concurrent)?Dictionary<(?<key>[^,<>]+(?:<[^>]*>)?|\([^)]*\)),[^=;]*>\s+(?<name>\w+)\s*(?:=|;)", RegexOptions.CultureInvariant)]

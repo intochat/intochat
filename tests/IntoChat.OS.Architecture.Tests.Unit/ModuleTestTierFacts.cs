@@ -74,9 +74,12 @@ public sealed partial class ModuleTestTierFacts
             var isComponent = !module.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal);
             var shortName = isComponent ? module["IntoChat.".Length..] : module["IntoChat.OS.Modules.".Length..];
             var segment = isComponent ? "Components" : "Modules";
+            // A kit lives in the module's/component's own test project, or under Modules/<Name>/ (or Components/<Name>/) in a shared tier.
             var kit = Repository.TestProjects()
-                .SelectMany(project => Repository.SourceFiles(project.Directory, "*.cs"))
-                .Where(path => Repository.Relative(path).Contains($"/{segment}/{shortName}/", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(project => Repository.SourceFiles(project.Directory, "*.cs").Select(path => (project, path)))
+                .Where(pair => pair.project.Name.StartsWith(module + ".Tests.", StringComparison.Ordinal)
+                    || Repository.Relative(pair.path).Contains($"/{segment}/{shortName}/", StringComparison.OrdinalIgnoreCase))
+                .Select(pair => pair.path)
                 .Any(path => KitSubclass().IsMatch(File.ReadAllText(path)));
             // Drive's storage@1 is the remote Drive neuron. A conformance kit needs a Google account, so it is not an in-process subclass.
             if (!kit && module != "IntoChat.OS.Modules.Google") { offenders.Add($"{module} provides {provides} but no test file of it subclasses a capability kit"); }

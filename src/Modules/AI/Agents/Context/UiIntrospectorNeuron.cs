@@ -50,7 +50,8 @@ internal sealed class UiIntrospectorNeuron(IBrainObserver? observer = null)
 
     private static readonly MethodInfo ContextGetMethod = typeof(INeuronContext)
         .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-        .Single(m => m.Name == nameof(INeuronContext.Get) && m.IsGenericMethodDefinition && m.GetParameters().Length == 1);
+        .Single(m => m.Name == nameof(INeuronContext.Get) && m.IsGenericMethodDefinition
+            && m.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(NeuronId));
 
     public Task<UiContractSchema[]> Contracts(string? kindFilter = null)
     {

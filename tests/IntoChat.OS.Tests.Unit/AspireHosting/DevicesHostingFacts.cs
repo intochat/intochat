@@ -48,7 +48,7 @@ public sealed class DevicesHostingFacts
     public async Task AHearCardBecomesAPrefetchEntry()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var ai = new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo);
+        var ai = new AIOptions().WithRole(ModelRole.Hear, KnownModels.WhisperLargeV3Turbo);
         var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
             .WithHosting<AIModuleHosting, AIOptions>(ai);
         var kernel = builder.AddExecutable("OperatingSystem", "unused", ".").WithReference(brain);
@@ -68,7 +68,7 @@ public sealed class DevicesHostingFacts
             static a => a.Name!.StartsWith("Microsoft.AI.Foundry", StringComparison.Ordinal));
 
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var ai = new AIOptions().WithRole(Role.Hear, KnownModels.WhisperLargeV3Turbo);
+        var ai = new AIOptions().WithRole(ModelRole.Hear, KnownModels.WhisperLargeV3Turbo);
         var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
             .WithHosting<AIModuleHosting, AIOptions>(ai);
         _ = builder.AddExecutable("OperatingSystem", "unused", ".").WithReference(brain);

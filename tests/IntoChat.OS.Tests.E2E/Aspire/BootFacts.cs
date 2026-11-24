@@ -144,7 +144,14 @@ public sealed class BootFacts(OsAppHostFixture host)
         var ct = TestContext.Current.CancellationToken;
         using var home = new TestHome("intochat-kill-");
         await using var ollama = ScriptedOllama.Start();
-        ollama.EnqueueReply("First kernel turn survived.", ollama.Models[0]);
+        // Replies follow the user's turn: the kernel also warms the model with an empty, tool-less chat.
+        ollama.Respond(request =>
+            request.Messages.LastOrDefault(static m => string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase))?.Content switch
+            {
+                { } said when said.Contains("before the crash", StringComparison.Ordinal) => new ScriptedOllamaOutcome.Reply("Second turn after kernel kill!", ollama.Models[0]),
+                { } said when said.Contains("ORBIT-7", StringComparison.Ordinal) => new ScriptedOllamaOutcome.Reply("First kernel turn survived.", ollama.Models[0]),
+                _ => new ScriptedOllamaOutcome.Reply("ok"),
+            });
 
         byte[] sealedMasterKeyBeforeKill;
         string unsealedMasterKeyBeforeKill;
@@ -190,8 +197,6 @@ public sealed class BootFacts(OsAppHostFixture host)
         Assert.Equal(sealedMasterKeyBeforeKill, await File.ReadAllBytesAsync(home.MasterKeyPath, ct));
         Assert.Equal(unsealedMasterKeyBeforeKill, home.ReadSealedMasterKey());
 
-        ollama.EnqueueReply("Second turn after kernel kill!", ollama.Models[0]);
-
         await using var kernel2 = await KernelProcessHarness.StartAsync(
             new KernelProcessOptions
             {
@@ -216,7 +221,7 @@ public sealed class BootFacts(OsAppHostFixture host)
         await WaitForInoScreenTextAsync(kernel2.Client, kernel2.Scope, "Second turn after kernel kill!", ct);
 
         Assert.True(ollama.ChatRequests.Count >= 2, $"Expected at least 2 Ollama chat turns, observed {ollama.ChatRequests.Count}.");
-        var followUpRequest = ollama.ChatRequests[^1];
+        var followUpRequest = ollama.ChatRequests.Last(static r => r.HasMessageContaining("user", "before the crash"));
         Assert.True(
             followUpRequest.HasMessageContaining("user", "ORBIT-7")
             || followUpRequest.HasMessageContaining("assistant", "First kernel turn survived."),

@@ -115,8 +115,8 @@ public sealed partial class ModelPolicyFacts
         var services = new ServiceCollection();
         services.AddOptions<AIOptions>().Configure(o =>
         {
-            o.Roles.Device[Role.Chat] = "claude-sonnet-4-6";
-            o.Roles.Cloud[Role.Chat] = "claude-sonnet-4-6";
+            o.Roles.Device[ModelRole.Chat] = "claude-sonnet-4-6";
+            o.Roles.Cloud[ModelRole.Chat] = "claude-sonnet-4-6";
         });
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials()
             .Ready("openai", "sk-openai")
@@ -133,16 +133,16 @@ public sealed partial class ModelPolicyFacts
         var settings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
 
         // 3. Deployment beats Detected when Turn and Person are omitted.
-        var byDeployment = await catalog.Decide("local", Role.Chat, turn: null, ct: Ct);
+        var byDeployment = await catalog.Decide("local", ModelRole.Chat, turn: null, ct: Ct);
         Assert.Equal((AiProvider.Anthropic, "claude-sonnet-4-6"), (byDeployment.Provider, byDeployment.Model));
 
         // 2. Person beats Deployment and Detected when Turn is omitted.
-        await settings.SetRole(Role.Chat, KnownModels.Gemini36Pro.Id);
-        var byPerson = await catalog.Decide("local", Role.Chat, turn: null, ct: Ct);
+        await settings.SetRole(ModelRole.Chat, KnownModels.Gemini36Pro.Id);
+        var byPerson = await catalog.Decide("local", ModelRole.Chat, turn: null, ct: Ct);
         Assert.Equal((AiProvider.Google, "gemini-3.6-pro"), (byPerson.Provider, byPerson.Model));
 
         // 1. Turn beats Person, Deployment, and Detected.
-        var byTurn = await catalog.Decide("local", Role.Chat, new ModelSelection("gpt-5.4"), ct: Ct);
+        var byTurn = await catalog.Decide("local", ModelRole.Chat, new ModelSelection("gpt-5.4"), ct: Ct);
         Assert.Equal((AiProvider.OpenAI, "gpt-5.4"), (byTurn.Provider, byTurn.Model));
     }
 
@@ -153,8 +153,8 @@ public sealed partial class ModelPolicyFacts
         services.AddOptions<AIOptions>().Configure(o =>
         {
             o.Ollama.Endpoint = "http://127.0.0.1:11434";
-            o.Roles.Device[Role.Chat] = KnownModels.Qwen35.Id.Value;
-            o.Roles.Device[Role.Think] = KnownModels.Qwen25Coder14B.Id.Value;
+            o.Roles.Device[ModelRole.Chat] = KnownModels.Qwen35.Id.Value;
+            o.Roles.Device[ModelRole.Think] = KnownModels.Qwen25Coder14B.Id.Value;
         });
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
@@ -165,10 +165,10 @@ public sealed partial class ModelPolicyFacts
         await using var provider = services.BuildServiceProvider();
         var catalog = provider.GetRequiredService<ModelCatalog>();
 
-        var chat = await catalog.Decide("local", Role.Chat, ct: Ct);
+        var chat = await catalog.Decide("local", ModelRole.Chat, ct: Ct);
         Assert.Equal((AiProvider.Ollama, "qwen3.5:4b"), (chat.Provider, chat.Model));
 
-        var code = await catalog.Decide("local", Role.Think, ct: Ct);
+        var code = await catalog.Decide("local", ModelRole.Think, ct: Ct);
         Assert.Equal((AiProvider.Ollama, "qwen2.5-coder:14b"), (code.Provider, code.Model));
     }
 
@@ -176,7 +176,7 @@ public sealed partial class ModelPolicyFacts
     public void DefaultChatClientFollowsUnifiedDefaultModelGrammar()
     {
         var services = new ServiceCollection();
-        services.AddOptions<AIOptions>().Configure(o => o.Roles.Device[Role.Chat] = KnownModels.Qwen35.Id.Value);
+        services.AddOptions<AIOptions>().Configure(o => o.Roles.Device[ModelRole.Chat] = KnownModels.Qwen35.Id.Value);
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<ILocalRuntime>(new FakeRuntime(false));
         AIClients.Add(services);
@@ -187,8 +187,8 @@ public sealed partial class ModelPolicyFacts
         var chatClient = provider.GetRequiredService<IChatClient>();
 
         Assert.NotNull(chatClient);
-        Assert.Equal("gemma4:12b", KnownModels.Defaults.Device[Role.Chat].Value);
-        Assert.Equal(LocalModelOptions.DefaultModel, KnownModels.Defaults.Device[Role.Chat].Value);
+        Assert.Equal("gemma4:12b", KnownModels.Defaults.Device[ModelRole.Chat].Value);
+        Assert.Equal(LocalModelOptions.DefaultModel, KnownModels.Defaults.Device[ModelRole.Chat].Value);
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public sealed partial class ModelPolicyFacts
 
     [Fact]
     public void TheLocalDefaultChatModelIsTheGemma412BCard()
-        => Assert.Equal(KnownModels.Gemma412B.Id, KnownModels.Defaults.Device[Role.Chat]);
+        => Assert.Equal(KnownModels.Gemma412B.Id, KnownModels.Defaults.Device[ModelRole.Chat]);
 
     private static string FindSolutionFile()
     {

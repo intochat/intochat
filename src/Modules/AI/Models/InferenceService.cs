@@ -80,7 +80,7 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
 
             resolved = await catalog.ResolveCloudFallbackAsync(
                 brainId,
-                Role.Chat,
+                ModelRole.Chat,
                 selection,
                 request.Tools is { Count: > 0 },
                 resolved.Model,
@@ -145,7 +145,7 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
 
             resolved = await catalog.ResolveCloudFallbackAsync(
                 brainId,
-                Role.Chat,
+                ModelRole.Chat,
                 selection,
                 request.Tools is { Count: > 0 },
                 resolved.Model,

@@ -22,10 +22,10 @@ public interface IModelCatalog
     Task<ModelCard[]> List(Abilities need = Abilities.None);
 
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
-    Task<ModelId> Pick(Role role, ModelId? turn = null);
+    Task<ModelId> Pick(ModelRole role, ModelId? turn = null);
 
     // Person or built-in shell screen only (same check as SaveProviderCredential).
-    Task SetRole(Role role, ModelId model);
+    Task SetRole(ModelRole role, ModelId model);
 
     // Effective role map: person overrides over the deployment map.
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]

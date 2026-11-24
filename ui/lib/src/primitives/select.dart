@@ -298,9 +298,7 @@ class _UiMixSelectState<T> extends State<UiMixSelect<T>> {
                 style: BoxStyler()
                     .borderRadius(BorderRadiusGeometryMix.circular(radius + 3))
                     .border(
-                      BoxBorderMix.all(
-                        BorderSideMix.color(c.focus).width(3.0),
-                      ),
+                      BoxBorderMix.all(BorderSideMix.color(c.focus).width(3.0)),
                     ),
               ),
             ),

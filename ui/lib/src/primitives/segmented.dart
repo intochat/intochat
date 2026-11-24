@@ -83,10 +83,7 @@ class _UiSegmentedControlState<T> extends State<UiSegmentedControl<T>> {
     );
 
     if (widget.semanticsId == null) return track;
-    return Semantics(
-      identifier: widget.semanticsId,
-      child: track,
-    );
+    return Semantics(identifier: widget.semanticsId, child: track);
   }
 
   Widget _buildSegment({

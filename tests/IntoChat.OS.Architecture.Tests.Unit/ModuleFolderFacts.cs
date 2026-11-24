@@ -5,7 +5,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // Module folders are grouped by module under src/Modules/<Name>/. Each module project is flattened directly
 // into its module folder (with its Module class, ModuleManifest, neurons, and hosting). No role folders
-// (Runtime, UI, Connectors, Data) at module level. Module tests sit under tests/IntoChat.OS.Tests.Unit/Modules/<Name>/.
+// (Runtime, UI, Connectors, Data) at module level. Module tests sit under tests/IntoChat.OS.Tests.Unit/Modules/<Name>/
+// or in the module's own tests/IntoChat.OS.Modules.<Name>.Tests.Unit project.
 public sealed partial class ModuleFolderFacts
 {
     private static readonly string[] RoleFolders = ["Runtime", "UI", "Connectors", "Data"];
@@ -50,7 +51,8 @@ public sealed partial class ModuleFolderFacts
         var unitTestsDir = Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Modules");
         var untested = modules
             .Where(module => !PlaceholderModules.Contains(Path.GetFileName(module), StringComparer.OrdinalIgnoreCase))
-            .Where(module => !Directory.Exists(Path.Combine(unitTestsDir, Path.GetFileName(module))))
+            .Where(module => !Directory.Exists(Path.Combine(unitTestsDir, Path.GetFileName(module)))
+                && !Repository.Projects.ContainsKey($"IntoChat.OS.Modules.{Path.GetFileName(module)}.Tests.Unit"))
             .Select(Repository.Relative).ToList();
         Assert.True(untested.Count == 0, "Modules without unit tests under tests/IntoChat.OS.Tests.Unit/Modules/: " + string.Join(", ", untested));
         var roles = modules.SelectMany(module => RoleFolders.Where(role => Directory.Exists(Path.Combine(module, role))).Select(role => Repository.Relative(Path.Combine(module, role))))

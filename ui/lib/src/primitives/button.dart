@@ -17,7 +17,7 @@ enum UiMixButtonStyle { primary, secondary, ghost, danger, link }
 /// Desktop-dense button unified with `Btn` (`controls.dart`):
 /// 36px standard / 30px compact height, 14px/10px horizontal padding,
 /// 10px radius, 13px w600 Inter label, 15px Lucide icon, 1px press translate,
-/// [SelectionRing] focus, and `DESIGN.md` Â§10.8 guard/hint [Tooltip] support.
+/// [SelectionRing] focus, and `DESIGN.md` §10.8 guard/hint [Tooltip] support.
 typedef UiKitButton = UiMixActionButton;
 
 final class UiMixActionButton extends StatefulWidget {
@@ -123,10 +123,7 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
           .padding(EdgeInsetsGeometryMix.symmetric(horizontal: hPad))
           .borderRadius(BorderRadiusGeometryMix.circular(tokens.button))
           .animate(
-            AnimationConfig.curve(
-              duration: tokens.fast,
-              curve: tokens.ease,
-            ),
+            AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
           );
       if (fill != null) {
         boxStyle = boxStyle.color(fill);

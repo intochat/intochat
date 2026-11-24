@@ -82,7 +82,7 @@ internal static class AIClients
         {
             var ai = provider.GetRequiredService<IOptions<AIOptions>>().Value;
             var topology = provider.GetService<IConfiguration>()?[IntoChatOSNames.TopologyKey];
-            var chat = RoleMaps.Explicit(ai, topology, Role.Chat)?.Value ?? string.Empty;
+            var chat = RoleMaps.Explicit(ai, topology, ModelRole.Chat)?.Value ?? string.Empty;
             return new AIDefaults(chat);
         });
         services.TryAddSingleton(DefaultChatClient);
@@ -165,7 +165,7 @@ internal static class AIClients
     private static async Task<IChatClient> DefaultChatClientAsync(IServiceProvider provider, CancellationToken cancellationToken)
     {
         var catalog = provider.GetRequiredService<ModelCatalog>();
-        var resolved = await catalog.Decide(brainId: null, Role.Chat, ct: cancellationToken);
+        var resolved = await catalog.Decide(brainId: null, ModelRole.Chat, ct: cancellationToken);
         if (resolved.Provider is AiProvider.Host)
         {
             throw new NoProviderConfiguredException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint.");
@@ -177,7 +177,7 @@ internal static class AIClients
     {
         var configuration = provider.GetRequiredService<IOptions<AIOptions>>().Value;
         var topology = provider.GetService<IConfiguration>()?[IntoChatOSNames.TopologyKey];
-        var configuredId = RoleMaps.Explicit(configuration, topology, Role.Embed);
+        var configuredId = RoleMaps.Explicit(configuration, topology, ModelRole.Embed);
 
         if (configuredId is { Value.Length: > 0 } id)
         {
@@ -198,7 +198,7 @@ internal static class AIClients
         {
             throw new InvalidOperationException(
                 $"No embedding model is configured. Enable a local Ollama runtime for {local.Id}, "
-                + $"or pin {AIKeys.Role(Where.Cloud, Role.Embed)} to a configured cloud embedding "
+                + $"or pin {AIKeys.Role(Where.Cloud, ModelRole.Embed)} to a configured cloud embedding "
                 + $"({string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Embed)).Select(static c => c.Id.Value))}).");
         }
 
@@ -210,10 +210,10 @@ internal static class AIClients
 
     internal static void AddImageGeneration(IServiceCollection services, AIOptions configuration, string? topology = null)
     {
-        var configuredId = RoleMaps.Explicit(configuration, topology, Role.Image);
+        var configuredId = RoleMaps.Explicit(configuration, topology, ModelRole.Image);
         var card = configuredId is { Value.Length: > 0 } id
             ? KnownModels.Find(id.Value)
-            : KnownModels.Find(KnownModels.Defaults.Cloud[Role.Image].Value);
+            : KnownModels.Find(KnownModels.Defaults.Cloud[ModelRole.Image].Value);
 
         // Resolution failure is deferred into the factory rather than thrown here:
         // this runs during service registration, so throwing would take the whole

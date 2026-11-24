@@ -1,3 +1,4 @@
+using DigitalBrain.Components;
 using DigitalBrain.Kernel;
 using DigitalBrain.Units;
 using DigitalBrain.Runtime.Synapses.Tests.Unit.Compile;
@@ -368,6 +369,8 @@ public sealed class HostRefusesBannedApisFacts
         public Task Uninstall(string alias, CancellationToken ct = default) => Task.CompletedTask;
 
         public Task Rewire(string alias, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task BindComponent(ComponentId component, Binding[] bindings, CancellationToken ct = default) => Task.CompletedTask;
 
         public Task<InstallRecord?> Describe(string alias, CancellationToken ct) =>
             Task.FromResult<InstallRecord?>(new InstallRecord(alias, "", new Dictionary<string, string>(), [], DateTimeOffset.UnixEpoch));

@@ -89,10 +89,6 @@ final class UiBadge extends StatelessWidget {
     );
 
     if (semanticsId == null) return badge;
-    return Semantics(
-      identifier: semanticsId,
-      label: label,
-      child: badge,
-    );
+    return Semantics(identifier: semanticsId, label: label, child: badge);
   }
 }

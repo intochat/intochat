@@ -7,21 +7,21 @@ namespace IntoChat.OS.Modules.AI;
 public sealed class AIRoleOptions
 {
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
-    public Dictionary<Role, string> Device { get; } = [];
+    public Dictionary<ModelRole, string> Device { get; } = [];
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
-    public Dictionary<Role, string> Cloud { get; } = [];
+    public Dictionary<ModelRole, string> Cloud { get; } = [];
 
     public RoleMap ToRoleMap()
     {
-        var device = ImmutableDictionary.CreateBuilder<Role, ModelId>();
+        var device = ImmutableDictionary.CreateBuilder<ModelRole, ModelId>();
         foreach (var (role, raw) in Device)
         {
             if (string.IsNullOrWhiteSpace(raw)) { continue; }
             device[role] = KnownModels.Find(raw)?.Id ?? new ModelId(raw.Trim());
         }
 
-        var cloud = ImmutableDictionary.CreateBuilder<Role, ModelId>();
+        var cloud = ImmutableDictionary.CreateBuilder<ModelRole, ModelId>();
         foreach (var (role, raw) in Cloud)
         {
             if (string.IsNullOrWhiteSpace(raw)) { continue; }

@@ -21,7 +21,7 @@ public static partial class AIHostingExtensions
 
         private readonly HashSet<ModelId> _models = [];
         private readonly Dictionary<ModelId, IResourceBuilder<OllamaModelResource>> _ollamaModels = [];
-        private readonly Dictionary<(Where Map, Role Role), ModelId> _roles = [];
+        private readonly Dictionary<(Where Map, ModelRole Role), ModelId> _roles = [];
         private IResourceBuilder<OllamaResource>? _ollama;
 
         internal bool EnableSensitiveData { get; set; }
@@ -115,7 +115,7 @@ public static partial class AIHostingExtensions
                 var connect = tcp.ConnectAsync(uri.Host, uri.Port);
                 return connect.Wait(TimeSpan.FromMilliseconds(200)) && tcp.Connected;
             }
-            catch (Exception)
+            catch (Exception error) when (error is System.Net.Sockets.SocketException or AggregateException or ObjectDisposedException)
             {
                 return false;
             }
@@ -180,7 +180,7 @@ public static partial class AIHostingExtensions
             {
                 throw new InvalidOperationException(
                     $"Voice-to-text is already configured on brain '{brain.Name}' as '{_card.Id}'. "
-                    + "Configure Role.Hear once.");
+                    + "Configure ModelRole.Hear once.");
             }
 
             _card = card;

@@ -54,7 +54,7 @@ public sealed partial class SettingsApp
         var mcpServers = await TryReadMcpServersAsync(State.McpServers);
         var (webProvider, searxngUrl) = ResolveWebSearchSettings(user.Variables ?? State.Variables ?? []);
         var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
-            ? (modelInfo.AutomaticModel ?? KnownModels.Defaults.Device[Role.Chat].Value)
+            ? (modelInfo.AutomaticModel ?? KnownModels.Defaults.Device[ModelRole.Chat].Value)
             : user.DefaultModel.Trim();
         var effectiveUser = string.Equals(displayModel, user.DefaultModel, StringComparison.Ordinal)
             ? user
@@ -100,7 +100,7 @@ public sealed partial class SettingsApp
         AiProvider.OpenRouter,
     ];
 
-    private async Task SetRoleAsync(Role role, string? modelId)
+    private async Task SetRoleAsync(ModelRole role, string? modelId)
     {
         if (string.IsNullOrWhiteSpace(modelId))
         {
@@ -139,7 +139,7 @@ public sealed partial class SettingsApp
             }
         }
 
-        var nextDefaultModel = role == Role.Chat ? trimmed : State.DefaultModel;
+        var nextDefaultModel = role == ModelRole.Chat ? trimmed : State.DefaultModel;
         var modelInfo = await TryReadModelCatalogAsync(nextDefaultModel);
         var baselineRoles = modelInfo.Roles.Length > 0
             ? modelInfo.Roles
@@ -260,7 +260,7 @@ public sealed partial class SettingsApp
             string? autoModel = null;
             try
             {
-                var picked = await catalog.Pick(Role.Chat, string.IsNullOrWhiteSpace(personModel) ? null : new ModelId(personModel.Trim()));
+                var picked = await catalog.Pick(ModelRole.Chat, string.IsNullOrWhiteSpace(personModel) ? null : new ModelId(personModel.Trim()));
                 if (!string.IsNullOrWhiteSpace(picked.Value))
                 {
                     autoModel = picked.Value;
@@ -289,7 +289,7 @@ public sealed partial class SettingsApp
         RoleMap roleMap,
         string? personModel)
     {
-        var allRoles = Enum.GetValues<Role>();
+        var allRoles = Enum.GetValues<ModelRole>();
         var rows = new SettingsRoleRow[allRoles.Length];
         for (var i = 0; i < allRoles.Length; i++)
         {
@@ -332,7 +332,7 @@ public sealed partial class SettingsApp
             {
                 selected = cloudId.Value;
             }
-            else if (role == Role.Chat && !string.IsNullOrWhiteSpace(personModel))
+            else if (role == ModelRole.Chat && !string.IsNullOrWhiteSpace(personModel))
             {
                 selected = personModel.Trim();
             }

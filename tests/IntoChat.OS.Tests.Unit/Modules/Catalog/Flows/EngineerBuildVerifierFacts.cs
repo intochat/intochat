@@ -30,11 +30,11 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
     public void DiscoverTestProjects_SelectsReferencingTestProjectsPlusArchitectureFacts()
     {
         var webProj = WriteFile(
-            "src/Modules/Web/Web.csproj",
+            "lib/Modules/Web/Web.csproj",
             "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
-        WriteFile("src/Modules/Web/Foo.cs", "namespace Web; public sealed class Foo {}");
+        WriteFile("lib/Modules/Web/Foo.cs", "namespace Web; public sealed class Foo {}");
         WriteFile(
-            "src/Modules/Other/Other.csproj",
+            "lib/Modules/Other/Other.csproj",
             "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
         var webTests = WriteFile(
@@ -42,7 +42,7 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
             """
             <Project Sdk="Microsoft.NET.Sdk">
               <ItemGroup>
-                <ProjectReference Include="../../src/Modules/Web/Web.csproj" />
+                <ProjectReference Include="../../lib/Modules/Web/Web.csproj" />
               </ItemGroup>
             </Project>
             """);
@@ -51,7 +51,7 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
             """
             <Project Sdk="Microsoft.NET.Sdk">
               <ItemGroup>
-                <ProjectReference Include="../../src/Modules/Other/Other.csproj" />
+                <ProjectReference Include="../../lib/Modules/Other/Other.csproj" />
               </ItemGroup>
             </Project>
             """);
@@ -63,12 +63,12 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
             """
             <Project Sdk="Microsoft.NET.Sdk">
               <ItemGroup>
-                <ProjectReference Include="../../src/Modules/Web/Web.csproj" />
+                <ProjectReference Include="../../lib/Modules/Web/Web.csproj" />
               </ItemGroup>
             </Project>
             """);
 
-        string[] changedFiles = ["src/Modules/Web/Foo.cs"];
+        string[] changedFiles = ["lib/Modules/Web/Foo.cs"];
         var affectedProjects = EngineerBuildVerifier.DiscoverAffectedProjects(_root, changedFiles);
         Assert.Equal([webProj], affectedProjects);
 
@@ -83,14 +83,14 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
     public void DiscoverAffectedProjects_WalksUpwardFromCsprojAndJsonFiles()
     {
         var webProj = WriteFile(
-            "src/Modules/Web/Web.csproj",
+            "lib/Modules/Web/Web.csproj",
             "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
-        WriteFile("src/Modules/Web/Assets/schema.json", "{}");
+        WriteFile("lib/Modules/Web/Assets/schema.json", "{}");
 
-        var affectedFromJson = EngineerBuildVerifier.DiscoverAffectedProjects(_root, ["src/Modules/Web/Assets/schema.json"]);
+        var affectedFromJson = EngineerBuildVerifier.DiscoverAffectedProjects(_root, ["lib/Modules/Web/Assets/schema.json"]);
         Assert.Equal([webProj], affectedFromJson);
 
-        var affectedFromCsproj = EngineerBuildVerifier.DiscoverAffectedProjects(_root, ["src/Modules/Web/Web.csproj"]);
+        var affectedFromCsproj = EngineerBuildVerifier.DiscoverAffectedProjects(_root, ["lib/Modules/Web/Web.csproj"]);
         Assert.Equal([webProj], affectedFromCsproj);
     }
 

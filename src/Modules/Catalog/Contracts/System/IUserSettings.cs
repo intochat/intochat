@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 public sealed record UserVariableEntry(string Key, string Value);
 
-public sealed record RoleChoice(Role Role, ModelId Model);
+public sealed record RoleChoice(ModelRole Role, ModelId Model);
 
 public sealed record UserSettingsState(
     string DisplayName,
@@ -25,7 +25,7 @@ public sealed record UserSettingsState(
 {
     public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026", "wasm-ui", null) { }
 
-    public ModelId? RoleOf(Role role)
+    public ModelId? RoleOf(ModelRole role)
     {
         if (Roles is { Length: > 0 })
         {
@@ -38,7 +38,7 @@ public sealed record UserSettingsState(
             }
         }
 
-        if (role == Role.Chat && !string.IsNullOrWhiteSpace(DefaultModel))
+        if (role == ModelRole.Chat && !string.IsNullOrWhiteSpace(DefaultModel))
         {
             var trimmed = DefaultModel.Trim();
             return KnownModels.Find(trimmed)?.Id ?? new ModelId(trimmed);
@@ -90,5 +90,5 @@ public interface IUserSettings
 
     Task<UserSettingsState> SetVariable(string key, string value);
 
-    Task<UserSettingsState> SetRole(Role role, ModelId model);
+    Task<UserSettingsState> SetRole(ModelRole role, ModelId model);
 }

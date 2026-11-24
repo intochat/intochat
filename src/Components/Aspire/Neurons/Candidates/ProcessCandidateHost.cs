@@ -375,9 +375,10 @@ internal sealed partial class ProcessCandidateHost : ICandidateHost
                         return;
                     }
                 }
-                catch (HttpRequestException)
+                catch (HttpRequestException error)
                 {
                     // Candidate still binding loopback listener; check exit state and retry.
+                    IntoChat.OS.Host.Logging.OsConsoleLog.For<ProcessCandidateHost>().LogDebug(error, "Candidate {Sha} is not answering health yet.", sha);
                 }
 
                 if (tracked.Process.HasExited)
@@ -496,16 +497,22 @@ internal sealed partial class ProcessCandidateHost : ICandidateHost
         return port;
     }
 
-    private static void EnsureNotLiveHome(string candidateHome)
+    // The developer's live OS home a candidate must never share; null when there is no user profile.
+    internal static string? LiveHome()
     {
         var userProfile = global::System.Environment.GetFolderPath(global::System.Environment.SpecialFolder.UserProfile);
-        if (string.IsNullOrWhiteSpace(userProfile))
+        return string.IsNullOrWhiteSpace(userProfile)
+            ? null
+            : Path.GetFullPath(Path.Combine(userProfile, ".intochat")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static void EnsureNotLiveHome(string candidateHome)
+    {
+        if (LiveHome() is not { } liveHome)
         {
             return;
         }
 
-        var liveHome = Path.GetFullPath(Path.Combine(userProfile, ".intochat"))
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var normalizedCandidate = Path.GetFullPath(candidateHome)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
@@ -527,7 +534,7 @@ internal sealed partial class ProcessCandidateHost : ICandidateHost
             {
                 process.Kill(entireProcessTree: true);
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException) when (process.HasExited)
             {
                 // Already exited.
             }

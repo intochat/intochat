@@ -17,6 +17,7 @@ using IntoChat.OS.Tests.Integration.Components.Aspire;
 using IntoChat.Aspire.Verification;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
+using IntoChat.OS.Tests.Integration.Modules.Roslyn;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -153,7 +154,7 @@ public sealed class SelfImprovementAcceptanceJourney
 
             await using var os = await JourneyOS.Start(
                 kind,
-                [typeof(AppsModule), typeof(AspireModule)],
+                [typeof(AppsModule), typeof(AspireModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
                 f => f.Configure(services =>
                 {
                     services.AddLogging();
@@ -168,6 +169,7 @@ public sealed class SelfImprovementAcceptanceJourney
                     services.AddSingleton<IEngineeringHarness>(harness);
                     services.AddSingleton<IEngineerBuildVerifier>(buildVerifier);
                     services.AddSingleton<ILiveVerifier>(liveVerifier);
+                    services.AddRoslynWorkspace();
                     services.AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer());
                     services.AddSingleton<ICandidateHost>(candidateHost);
                     services.AddSingleton<IClusterHost>(clusterHost);
@@ -217,7 +219,8 @@ public sealed class SelfImprovementAcceptanceJourney
 
             // Run LocalSelfReview on the fixed worktree and assert zero blocking findings.
             var changedPaths = winner.Commit.ChangedFiles.Select(static f => f.Value).ToArray();
-            var selfReview = LocalSelfReview.ReviewWorktree(winner.Lease!.TreePath, changedPaths);
+            var roslyn = os.Runtime.Get<IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn>(new NeuronId(brain, "microsoft.roslyn", "self-review"));
+            var selfReview = await LocalSelfReview.ReviewWorktree(roslyn, winner.Lease!.TreePath, changedPaths, Ct);
             Assert.False(selfReview.HasBlocking, $"Unexpected blocking self-review findings: {selfReview.FormatForCard()}");
             Assert.Empty(selfReview.Findings);
 

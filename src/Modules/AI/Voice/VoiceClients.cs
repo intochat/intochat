@@ -80,7 +80,7 @@ internal sealed class VoiceClients : IVoiceClients
     public Task<Voice<ISpeechToTextClient>> Hear(string brain, CancellationToken ct)
         => ResolveVoiceAsync(
             brain,
-            Role.Hear,
+            ModelRole.Hear,
             Abilities.Hear,
             verb: "hear",
             fromRuntime: static (runtime, id) => runtime.Hear(id),
@@ -91,7 +91,7 @@ internal sealed class VoiceClients : IVoiceClients
     public Task<Voice<ITextToSpeechClient>> Speak(string brain, CancellationToken ct)
         => ResolveVoiceAsync(
             brain,
-            Role.Speak,
+            ModelRole.Speak,
             Abilities.Speak,
             verb: "speak",
             fromRuntime: static (runtime, id) => runtime.Speak(id),
@@ -103,7 +103,7 @@ internal sealed class VoiceClients : IVoiceClients
     {
         var catalog = CatalogFor(brain);
         var roles = await catalog.Roles().WaitAsync(ct).ConfigureAwait(false);
-        var binding = RoleMaps.Deployment(roles, Topology, Role.Talk).FirstOrDefault();
+        var binding = RoleMaps.Deployment(roles, Topology, ModelRole.Talk).FirstOrDefault();
 
         if (binding is { Value.Length: > 0 })
         {
@@ -120,7 +120,7 @@ internal sealed class VoiceClients : IVoiceClients
                     $"{card.Name} cannot talk in this build.");
             }
 
-            var (apiKey, _, error) = await ResolveOpenAiCredentialsAsync(brain, card, Role.Talk, ct).ConfigureAwait(false);
+            var (apiKey, _, error) = await ResolveOpenAiCredentialsAsync(brain, card, ModelRole.Talk, ct).ConfigureAwait(false);
             if (apiKey is null)
             {
                 return new TalkVoice(null, card.Id, RecordsItself: false, InputRate: 24_000, error);
@@ -174,7 +174,7 @@ internal sealed class VoiceClients : IVoiceClients
 
     private async Task<Voice<T>> ResolveVoiceAsync<T>(
         string brain,
-        Role role,
+        ModelRole role,
         Abilities ability,
         string verb,
         Func<ILocalRuntime, ModelId, T?> fromRuntime,
@@ -271,7 +271,7 @@ internal sealed class VoiceClients : IVoiceClients
     private async Task<(string? ApiKey, string? Endpoint, string? Error)> ResolveOpenAiCredentialsAsync(
         string brain,
         ModelCard card,
-        Role role,
+        ModelRole role,
         CancellationToken ct)
     {
         if (BrainScope.IsValidId(brain)
@@ -298,7 +298,7 @@ internal sealed class VoiceClients : IVoiceClients
         }
     }
 
-    private async Task<string?> DescribeMissingRoleAsync(IModelCatalog catalog, Role role, CancellationToken ct)
+    private async Task<string?> DescribeMissingRoleAsync(IModelCatalog catalog, ModelRole role, CancellationToken ct)
     {
         try
         {

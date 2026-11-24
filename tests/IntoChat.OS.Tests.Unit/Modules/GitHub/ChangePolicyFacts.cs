@@ -106,24 +106,24 @@ public sealed class ChangePolicyFacts
         var policy = ChangePolicy.ForRepository("os");
 
         Assert.Equal(8, policy.MaxChangedFiles);
-        Assert.Null(policy.Check(RepoPath.Parse("src/Modules/Web/IntoChat.OS.Modules.Web.csproj")));
-        Assert.Null(policy.Check(RepoPath.Parse("src/Assets/wire/component.json")));
-        Assert.Null(policy.Check(RepoPath.Parse("src/Modules/Web/Foo.cs")));
+        Assert.Null(policy.Check(RepoPath.Parse("lib/Modules/Web/IntoChat.OS.Modules.Web.csproj")));
+        Assert.Null(policy.Check(RepoPath.Parse("lib/Assets/wire/component.json")));
+        Assert.Null(policy.Check(RepoPath.Parse("lib/Modules/Web/Foo.cs")));
 
         var eight = new[]
         {
-            RepoPath.Parse("src/Modules/Web/IntoChat.OS.Modules.Web.csproj"),
-            RepoPath.Parse("src/Assets/wire/component.json"),
-            RepoPath.Parse("src/Modules/Web/File1.cs"),
-            RepoPath.Parse("src/Modules/Web/File2.cs"),
-            RepoPath.Parse("src/Modules/Web/File3.cs"),
-            RepoPath.Parse("src/Modules/Web/File4.cs"),
-            RepoPath.Parse("src/Modules/Web/File5.cs"),
-            RepoPath.Parse("src/Modules/Web/File6.cs"),
+            RepoPath.Parse("lib/Modules/Web/IntoChat.OS.Modules.Web.csproj"),
+            RepoPath.Parse("lib/Assets/wire/component.json"),
+            RepoPath.Parse("lib/Modules/Web/File1.cs"),
+            RepoPath.Parse("lib/Modules/Web/File2.cs"),
+            RepoPath.Parse("lib/Modules/Web/File3.cs"),
+            RepoPath.Parse("lib/Modules/Web/File4.cs"),
+            RepoPath.Parse("lib/Modules/Web/File5.cs"),
+            RepoPath.Parse("lib/Modules/Web/File6.cs"),
         };
         Assert.Null(policy.Check(eight));
 
-        var nine = eight.Append(RepoPath.Parse("src/Modules/Web/File7.cs")).ToArray();
+        var nine = eight.Append(RepoPath.Parse("lib/Modules/Web/File7.cs")).ToArray();
         var budgetRefusal = policy.Check(nine);
         Assert.NotNull(budgetRefusal);
         Assert.Contains("8", budgetRefusal, StringComparison.Ordinal);

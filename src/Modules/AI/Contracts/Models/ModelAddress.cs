@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.AI.Models;
 // the inference signals it publishes journal into that brain, and a machine refuses a key outside every brain.
 public static class ModelAddress
 {
-    // A brain's role-default model neuron (resolves Role.Chat for that brain).
+    // A brain's role-default model neuron (resolves ModelRole.Chat for that brain).
     public static string Key(string brainId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);

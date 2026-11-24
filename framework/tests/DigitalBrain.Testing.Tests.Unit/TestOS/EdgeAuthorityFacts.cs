@@ -55,10 +55,11 @@ public sealed class EdgeAuthorityFacts
     private static readonly BrainId ForeignBrain = new("testos-foreign");
 
     [Fact]
-    public async Task TestOS_Edge_SupportsKernelAndTypedCallers_WithoutExposingEdgeInNeuronServices()
+    public async Task TestOS_Edge_SupportsKernelAndTypedCallers_AndNeuronServicesShareTheSameEdge()
     {
         await using var os = global::DigitalBrain.Testing.TestOS.Local().Register<EdgeProbeNeuron>();
-        Assert.Null(os.Services.GetService(typeof(EdgeAuthority)));
+        // Like the Orleans silo, neuron services resolve the one edge the host enters callers through.
+        Assert.Same(os.Edge, os.Services.GetService(typeof(EdgeAuthority)));
         Assert.False(os.Edge.IsKernelActive);
 
         var id = new NeuronId(Brain, "test.edge.probe", "default");

@@ -351,7 +351,7 @@ List<String> splitSourceLines(String source) =>
     source.replaceAll('\r\n', '\n').split('\n');
 
 final RegExp _numericPattern = RegExp(
-  r'^\s*[$â‚¬Â£Â¥+\-âˆ’]?\s*\d[\d,.\s]*[%KMBkmb]?\s*$',
+  r'^\s*[$€£¥+\-−]?\s*\d[\d,.\s]*[%KMBkmb]?\s*$',
 );
 
 bool isNumericTableColumn(List<List<String>> rows, int columnIndex) {
@@ -359,7 +359,7 @@ bool isNumericTableColumn(List<List<String>> rows, int columnIndex) {
   for (final row in rows) {
     if (columnIndex >= row.length) continue;
     final cell = row[columnIndex].trim();
-    if (cell.isEmpty || cell == 'â€”' || cell == '-') continue;
+    if (cell.isEmpty || cell == '—' || cell == '-') continue;
     nonEmpty++;
     if (!_numericPattern.hasMatch(cell)) return false;
   }

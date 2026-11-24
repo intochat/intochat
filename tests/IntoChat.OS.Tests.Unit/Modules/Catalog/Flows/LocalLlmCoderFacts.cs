@@ -299,7 +299,7 @@ public sealed class LocalLlmCoderFacts : IDisposable
 
         var ex = await Assert.ThrowsAsync<NoProviderConfiguredException>(() => coder.EditAsync(lease, "Add feature", Ct));
         Assert.Contains("Think", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("qwen2.5-coder:14b", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(KnownModels.Defaults.Device[ModelRole.Think].Value, ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, inferenceCalls);
     }
 

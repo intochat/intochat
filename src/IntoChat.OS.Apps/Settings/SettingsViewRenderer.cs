@@ -573,7 +573,7 @@ internal static class SettingsViewRenderer
 
     internal static SettingsRoleRow[] DefaultRoles(SettingsAppState state)
     {
-        var allRoles = Enum.GetValues<Role>();
+        var allRoles = Enum.GetValues<ModelRole>();
         var rows = new SettingsRoleRow[allRoles.Length];
         for (var i = 0; i < allRoles.Length; i++)
         {
@@ -583,14 +583,14 @@ internal static class SettingsViewRenderer
         return rows;
     }
 
-    private static SettingsRoleRow DefaultRoleRow(Role role, SettingsAppState state)
+    private static SettingsRoleRow DefaultRoleRow(ModelRole role, SettingsAppState state)
     {
         var needed = RoleNeeds.Of(role);
         var choices = KnownModels.All
             .Where(card => (card.Can & needed) == needed)
             .Select(static card => new SettingsModelChoice(card.Id.Value, card.Name))
             .ToArray();
-        var selected = role == Role.Chat && !string.IsNullOrWhiteSpace(state.DefaultModel)
+        var selected = role == ModelRole.Chat && !string.IsNullOrWhiteSpace(state.DefaultModel)
             ? state.DefaultModel
             : KnownModels.Defaults.Device.TryGetValue(role, out var deviceId)
                 ? deviceId.Value
@@ -730,16 +730,16 @@ internal static class SettingsViewRenderer
         _ => StatusKind.Idle,
     };
 
-    private static string RoleDescription(Role role) => role switch
+    private static string RoleDescription(ModelRole role) => role switch
     {
-        Role.Chat => "Default conversation",
-        Role.Think => "Hard tasks, Engineer, planning",
-        Role.Fast => "Titles, routing, System One",
-        Role.Hear => "Speech → text",
-        Role.Speak => "Text → speech",
-        Role.Talk => "Realtime voice-to-voice",
-        Role.Embed => "Memory recall",
-        Role.Image => "Image generation",
+        ModelRole.Chat => "Default conversation",
+        ModelRole.Think => "Hard tasks, Engineer, planning",
+        ModelRole.Fast => "Titles, routing, System One",
+        ModelRole.Hear => "Speech → text",
+        ModelRole.Speak => "Text → speech",
+        ModelRole.Talk => "Realtime voice-to-voice",
+        ModelRole.Embed => "Memory recall",
+        ModelRole.Image => "Image generation",
         _ => role.ToString(),
     };
 
@@ -810,7 +810,7 @@ internal static class SettingsViewRenderer
         installChildren.Add(SettingsControls.InstallModelForm(slots, state));
 
         var rolesByKey = state.Roles.ToDictionary(static row => row.Role);
-        var roleControls = Enum.GetValues<Role>()
+        var roleControls = Enum.GetValues<ModelRole>()
             .Select(role =>
             {
                 var row = rolesByKey.TryGetValue(role, out var existing)

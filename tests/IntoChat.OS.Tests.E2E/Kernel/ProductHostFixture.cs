@@ -188,7 +188,8 @@ public sealed class ProductHostFixture : IAsyncLifetime
             var id = new NeuronId(brainId, neuronType, neuronType);
             var context = new FakeNeuronContext(id, Services);
 
-            void RegisterProxy<T>(string key) where T : class
+            // Only a neuron type the silo hosts answers an optional slot; the rest stay unbound, as on a runtime without them.
+            void RegisterProxy<T>(string key, bool hosted = false) where T : class
             {
                 try
                 {
@@ -199,16 +200,17 @@ public sealed class ProductHostFixture : IAsyncLifetime
                     var neuronId = new NeuronId(brainId, type, key);
                     var proxy = SiloNeurons.Get<T>(Services, neuronId);
                     context.Proxies.Register(neuronId, proxy);
+                    if (hosted) { context.RegisterClass(type, typeof(T)); }
                 }
                 catch
                 {
                 }
             }
 
-            RegisterProxy<IntoChat.OS.Modules.Apps.IUserSettings>("settings");
-            RegisterProxy<IntoChat.OS.Modules.Apps.IUserSettings>("default");
-            RegisterProxy<IntoChat.OS.Modules.Apps.IProfile>("profile");
-            RegisterProxy<IntoChat.OS.Modules.Apps.IProfile>("default");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IUserSettings>("settings", hosted: true);
+            RegisterProxy<IntoChat.OS.Modules.Apps.IUserSettings>("default", hosted: true);
+            RegisterProxy<IntoChat.OS.Modules.Apps.IProfile>("profile", hosted: true);
+            RegisterProxy<IntoChat.OS.Modules.Apps.IProfile>("default", hosted: true);
             RegisterProxy<IntoChat.OS.Modules.Apps.IDesktopRecords>(IntoChat.OS.Modules.Apps.IDesktopRecords.Key);
             RegisterProxy<IntoChat.OS.Modules.Apps.IInoRecords>("apps/ino/records");
             RegisterProxy<IntoChat.OS.Modules.Apps.ISynapseStudio>("ino/synapses");
@@ -224,6 +226,8 @@ public sealed class ProductHostFixture : IAsyncLifetime
             RegisterProxy<IMemory>("memory");
             RegisterProxy<IMemory>("default");
 
+            var component = DigitalBrain.Components.ComponentRegistry.Of(typeof(TApp)) ?? new DigitalBrain.Components.ComponentId(neuronType);
+            context.Bindings = DigitalBrain.Components.Slots.Resolve(brainId, component, DigitalBrain.Components.ComponentManifests.SlotsOf(typeof(TApp)), installed: null);
             NeuronAttachment.Attach(neuron, context);
             NeuronAttachment.Activate(neuron, CancellationToken.None).GetAwaiter().GetResult();
         }

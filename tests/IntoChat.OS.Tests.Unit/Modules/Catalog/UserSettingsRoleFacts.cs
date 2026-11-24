@@ -17,8 +17,8 @@ public sealed class UserSettingsRoleFacts
             """{"displayName":"A","theme":"dark","defaultModel":"IQwen35","variables":[]}""",
             Web)!;
 
-        Assert.Equal("qwen3.5:4b", state.RoleOf(Role.Chat)!.Value.Value);
-        Assert.Null(state.RoleOf(Role.Think));
+        Assert.Equal("qwen3.5:4b", state.RoleOf(ModelRole.Chat)!.Value.Value);
+        Assert.Null(state.RoleOf(ModelRole.Think));
     }
 
     [Fact]
@@ -30,10 +30,10 @@ public sealed class UserSettingsRoleFacts
         os.Register<UserSettingsNeuron>();
 
         var settings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
-        var after = await settings.SetRole(Role.Chat, KnownModels.Sonnet5.Id);
+        var after = await settings.SetRole(ModelRole.Chat, KnownModels.Sonnet5.Id);
 
         Assert.Equal("claude-sonnet-5", after.DefaultModel);
-        Assert.Equal(KnownModels.Sonnet5.Id, after.RoleOf(Role.Chat));
+        Assert.Equal(KnownModels.Sonnet5.Id, after.RoleOf(ModelRole.Chat));
     }
 
     [Fact]
@@ -45,13 +45,13 @@ public sealed class UserSettingsRoleFacts
         os.Register<UserSettingsNeuron>();
 
         var settings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
-        await settings.SetRole(Role.Chat, KnownModels.Gpt54.Id);
-        await settings.SetRole(Role.Think, KnownModels.Opus5.Id);
-        var after = await settings.SetRole(Role.Think, KnownModels.Sonnet5.Id);
+        await settings.SetRole(ModelRole.Chat, KnownModels.Gpt54.Id);
+        await settings.SetRole(ModelRole.Think, KnownModels.Opus5.Id);
+        var after = await settings.SetRole(ModelRole.Think, KnownModels.Sonnet5.Id);
 
         Assert.Equal("gpt-5.4", after.DefaultModel);
-        Assert.Equal(KnownModels.Gpt54.Id, after.RoleOf(Role.Chat));
-        Assert.Equal(KnownModels.Sonnet5.Id, after.RoleOf(Role.Think));
+        Assert.Equal(KnownModels.Gpt54.Id, after.RoleOf(ModelRole.Chat));
+        Assert.Equal(KnownModels.Sonnet5.Id, after.RoleOf(ModelRole.Think));
         Assert.Equal(2, after.Roles!.Length);
     }
 }

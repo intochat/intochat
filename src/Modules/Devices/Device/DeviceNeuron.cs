@@ -129,7 +129,7 @@ internal sealed partial class DeviceNeuron(
 
     public Task Install(ModelId model) => EnqueueInstallAsync(model, switchWhenReady: null);
 
-    public async Task Use(Role role, ModelId model)
+    public async Task Use(ModelRole role, ModelId model)
     {
         EnsureThisMachine();
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
@@ -255,7 +255,7 @@ internal sealed partial class DeviceNeuron(
         }
     }
 
-    private async Task EnqueueInstallAsync(ModelId model, Role? switchWhenReady, ResolvedModel? preResolved = null)
+    private async Task EnqueueInstallAsync(ModelId model, ModelRole? switchWhenReady, ResolvedModel? preResolved = null)
     {
         EnsureThisMachine();
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
@@ -304,7 +304,7 @@ internal sealed partial class DeviceNeuron(
             new InstallChanged(model, initialState, 0)).ConfigureAwait(false);
     }
 
-    private async Task SetRoleAsync(Role role, ModelId model)
+    private async Task SetRoleAsync(ModelRole role, ModelId model)
     {
         using var scope = edge?.Enter(edge.Module(DevicesModule.ManifestName, Id.Brain));
         await ModelCatalog.SetRole(role, model).ConfigureAwait(false);
@@ -313,7 +313,7 @@ internal sealed partial class DeviceNeuron(
     private Task<RoleMap> ReadCatalogRolesAsync()
         => ModelCatalog.Roles();
 
-    private static Role? FindAssignedRole(RoleMap roles, ModelId model)
+    private static ModelRole? FindAssignedRole(RoleMap roles, ModelId model)
     {
         foreach (var (role, assigned) in roles.Device)
         {

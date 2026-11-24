@@ -284,7 +284,9 @@ class _UiMixFieldState extends State<UiMixField> {
               child: Align(alignment: Alignment.centerLeft, child: input),
             )
           : SizedBox(
-              height: tokens.inputHeight,
+              // The 1 px border sits outside this box, so the field stays
+              // inputHeight tall overall.
+              height: tokens.inputHeight - 2,
               child: leadingGlyph == null && resolvedSuffix == null
                   ? Align(alignment: Alignment.centerLeft, child: input)
                   : Row(

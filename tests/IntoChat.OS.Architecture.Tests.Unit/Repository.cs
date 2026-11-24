@@ -52,9 +52,11 @@ internal static class Repository
     // The test projects named IntoChat.OS.Modules.<Name>.Tests.Unit sit under tests/, so they must not
     // pull the common directory up to the repository root.
     internal static readonly string ModulesRoot = CommonDirectory(Projects.Values
-        .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
-            && !project.Name.Contains(".Tests", StringComparison.Ordinal))
+        .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && !IsTestProject(project))
         .Select(project => project.Directory));
+
+    // A module's own test project (tests/IntoChat.OS.Modules.<Name>.Tests.Unit) carries the module prefix but is not a module.
+    internal static bool IsTestProject(Project project) => project.Name.Contains(".Tests.", StringComparison.Ordinal) || project.Name.EndsWith(".Tests", StringComparison.Ordinal);
 
     // Components replace modules and apps one at a time, so both roots coexist while the move runs.
     // The components root may hold no component folder yet; every fact must tolerate that.

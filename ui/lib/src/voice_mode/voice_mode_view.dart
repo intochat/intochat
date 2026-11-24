@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart' show PresenceState;
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart'
+    show PresenceState;
 
 import '../design/tokens.dart';
 import '../widgets/ino/ino_orb_v2.dart';
@@ -250,7 +251,9 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                         children: [
                           FilterChip(
                             key: const ValueKey('voice-ptt-toggle'),
-                            label: Text(_pushToTalk ? 'Push-to-talk' : 'Hands-free VAD'),
+                            label: Text(
+                              _pushToTalk ? 'Push-to-talk' : 'Hands-free VAD',
+                            ),
                             selected: _pushToTalk,
                             onSelected: (v) => setState(() {
                               _pushToTalk = v;
@@ -261,7 +264,8 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                             key: const ValueKey('voice-echo-gate-toggle'),
                             label: const Text('Speaker safe'),
                             selected: _muteWhileSpeaking,
-                            onSelected: (v) => setState(() => _muteWhileSpeaking = v),
+                            onSelected: (v) =>
+                                setState(() => _muteWhileSpeaking = v),
                           ),
                         ],
                       ),
@@ -316,9 +320,11 @@ class _VoiceModeViewState extends State<VoiceModeView> {
                             Text(
                               _error != null
                                   ? 'Error'
-                                  : (_pushToTalk && !_pttHeld && _phase == TalkPhase.listening
-                                      ? 'Hold orb to speak'
-                                      : _phaseLabel),
+                                  : (_pushToTalk &&
+                                            !_pttHeld &&
+                                            _phase == TalkPhase.listening
+                                        ? 'Hold orb to speak'
+                                        : _phaseLabel),
                               style: IcType.text(
                                 15,
                                 weight: FontWeight.w600,

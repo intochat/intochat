@@ -10,7 +10,7 @@ public sealed class AIKeysFacts
         string[] keys =
         [
             AIKeys.Roles, AIKeys.LegacyDefault,
-            AIKeys.Role(Where.Device, Role.Chat), AIKeys.Role(Where.Cloud, Role.Embed),
+            AIKeys.Role(Where.Device, ModelRole.Chat), AIKeys.Role(Where.Cloud, ModelRole.Embed),
             AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TelemetryEnableSensitiveData,
         ];
 
@@ -24,8 +24,8 @@ public sealed class AIKeysFacts
         string[] keys =
         [
             AIKeys.Roles, AIKeys.LegacyDefault,
-            AIKeys.Role(Where.Device, Role.Chat), AIKeys.Role(Where.Cloud, Role.Chat),
-            AIKeys.Role(Where.Cloud, Role.Embed), AIKeys.Role(Where.Device, Role.Hear),
+            AIKeys.Role(Where.Device, ModelRole.Chat), AIKeys.Role(Where.Cloud, ModelRole.Chat),
+            AIKeys.Role(Where.Cloud, ModelRole.Embed), AIKeys.Role(Where.Device, ModelRole.Hear),
             AIKeys.Ollama, AIKeys.OllamaEndpoint, AIKeys.OllamaModels, AIKeys.TelemetryEnableSensitiveData,
         ];
 
@@ -42,8 +42,8 @@ public sealed class AIKeysFacts
     [Fact]
     public void RoleKeysNameTheirMapAndRole()
     {
-        Assert.EndsWith(":Roles:Device:Chat", AIKeys.Role(Where.Device, Role.Chat), StringComparison.Ordinal);
-        Assert.EndsWith(":Roles:Cloud:Embed", AIKeys.Role(Where.Cloud, Role.Embed), StringComparison.Ordinal);
+        Assert.EndsWith(":Roles:Device:Chat", AIKeys.Role(Where.Device, ModelRole.Chat), StringComparison.Ordinal);
+        Assert.EndsWith(":Roles:Cloud:Embed", AIKeys.Role(Where.Cloud, ModelRole.Embed), StringComparison.Ordinal);
         Assert.EndsWith(":Default", AIKeys.LegacyDefault, StringComparison.Ordinal);
     }
 }

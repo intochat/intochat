@@ -34,7 +34,7 @@ public static partial class AIHostingExtensions
             if (_default is not null && _default.Id != card.Id)
             {
                 throw new InvalidOperationException(
-                    $"System One is already configured on brain '{brain.Name}' as '{_default.Id}'. Configure Role.Fast once.");
+                    $"System One is already configured on brain '{brain.Name}' as '{_default.Id}'. Configure ModelRole.Fast once.");
             }
             _default = card;
             _backing = backing;

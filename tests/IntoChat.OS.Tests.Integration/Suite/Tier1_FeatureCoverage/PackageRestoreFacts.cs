@@ -128,7 +128,7 @@ public sealed class PackageRestoreFacts : E2ETestBase
 
         var infoVersion = typeof(TestOS).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         Assert.NotNull(infoVersion);
-        Assert.StartsWith("0.23.2", infoVersion, StringComparison.Ordinal);
+        Assert.StartsWith(version, infoVersion, StringComparison.Ordinal);
     }
 
     [Fact]

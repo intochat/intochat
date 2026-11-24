@@ -6,7 +6,7 @@ namespace IntoChat.OS.LocalSetup;
 // The model Ollama serves for the local profile. Defaults to the canonical local chat role; qwen3.5:2b is the supported smaller override.
 public sealed record LocalModelOptions
 {
-    public static string DefaultModel => KnownModels.Defaults.Device[Role.Chat].Value;
+    public static string DefaultModel => KnownModels.Defaults.Device[ModelRole.Chat].Value;
     public const string SmallModel = "qwen3.5:2b";
     public const string DefaultEndpoint = LocalSetupKeys.LocalOllamaEndpoint;
 
