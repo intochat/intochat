@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
@@ -9,8 +7,7 @@ import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` (`NakedToggle(asSwitch: true)`) + `mix` toggle control
-/// with exact C# [UiStyleData] parity, 120fps spring thumb motion, and opt-in
-/// WinForms-style [UiEventMask] signal dispatch.
+/// with exact C# [UiStyleData] parity and 120fps spring thumb motion.
 final class UiMixToggle extends StatefulWidget {
   const UiMixToggle({
     super.key,
@@ -22,8 +19,6 @@ final class UiMixToggle extends StatefulWidget {
       tone: 'accent',
       motion: UiMotionPreset.spring,
     ),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
     this.semanticLabel,
   });
@@ -33,8 +28,6 @@ final class UiMixToggle extends StatefulWidget {
   final String label;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
   final String? semanticLabel;
 
@@ -45,12 +38,6 @@ final class UiMixToggle extends StatefulWidget {
 class _UiMixToggleState extends State<UiMixToggle> {
   bool _hovered = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,16 +62,10 @@ class _UiMixToggleState extends State<UiMixToggle> {
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);
-        _emit(
-          UiEventMask.hover,
-          hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-          const [{}],
-        );
       },
       onFocusChange: (focused) {
         if (_focused == focused) return;
         setState(() => _focused = focused);
-        _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       child: Row(
         mainAxisSize: MainAxisSize.min,

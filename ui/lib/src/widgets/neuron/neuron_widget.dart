@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../core/node_contracts.dart';
 import '../../design/tokens.dart';
 import '../../theme/ui_icon.dart';
-import 'ui_control_surface.dart';
 
 /// Invokes a typed method on a neuron contract over `NeuronChannel` (gRPC).
 typedef NeuronMethodCaller = Future<Map<String, dynamic>?> Function(
@@ -28,8 +27,6 @@ class NeuronWidget extends StatefulWidget {
     required this.neuronKey,
     required this.callNeuron,
     this.watch,
-    this.eventMask = UiEventMask.none,
-    this.motion = UiMotionPreset.standard,
     required this.builder,
   });
 
@@ -37,8 +34,6 @@ class NeuronWidget extends StatefulWidget {
   final String neuronKey;
   final NeuronMethodCaller callNeuron;
   final Stream<void> Function(String kind, String name)? watch;
-  final int eventMask;
-  final UiMotionPreset motion;
   final Widget Function(
     BuildContext context,
     Map<String, dynamic> state,
@@ -199,14 +194,7 @@ class _NeuronWidgetState extends State<NeuronWidget> {
     return Semantics(
       identifier: 'neuron:${widget.kind}:${widget.neuronKey}',
       container: true,
-      child: widget.eventMask != UiEventMask.none
-          ? UiControlSurface(
-              eventMask: widget.eventMask,
-              motion: widget.motion,
-              onEmit: (method, args) => _invoke(method, args),
-              builder: (_, _) => content,
-            )
-          : content,
+      child: content,
     );
   }
 }

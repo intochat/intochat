@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
@@ -11,8 +9,7 @@ import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` (`NakedCheckbox`) + `mix` Checkbox control with exact
-/// C# [UiStyleData] parity, spring check reveal, and opt-in WinForms-style
-/// [UiEventMask] signal dispatch.
+/// C# [UiStyleData] parity and spring check reveal.
 final class UiMixCheckbox extends StatefulWidget {
   const UiMixCheckbox({
     super.key,
@@ -24,8 +21,6 @@ final class UiMixCheckbox extends StatefulWidget {
       tone: 'accent',
       motion: UiMotionPreset.spring,
     ),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -34,8 +29,6 @@ final class UiMixCheckbox extends StatefulWidget {
   final String label;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -46,12 +39,6 @@ class _UiMixCheckboxState extends State<UiMixCheckbox> {
   bool _hovered = false;
   bool _pressed = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,25 +76,14 @@ class _UiMixCheckboxState extends State<UiMixCheckbox> {
       onHoverChange: (hovered) {
         if (_hovered == hovered) return;
         setState(() => _hovered = hovered);
-        _emit(
-          UiEventMask.hover,
-          hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-          const [{}],
-        );
       },
       onPressChange: (pressed) {
         if (_pressed == pressed) return;
         setState(() => _pressed = pressed);
-        _emit(
-          UiEventMask.press,
-          pressed ? 'OnPointerDown' : 'OnPointerUp',
-          const [{}],
-        );
       },
       onFocusChange: (focused) {
         if (_focused == focused) return;
         setState(() => _focused = focused);
-        _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
       },
       child: Row(
         mainAxisSize: MainAxisSize.min,

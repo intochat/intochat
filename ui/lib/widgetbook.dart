@@ -516,6 +516,13 @@ final class _ControlSurfacePlayground extends StatefulWidget {
 class _ControlSurfacePlaygroundState extends State<_ControlSurfacePlayground> {
   final List<String> _log = [];
 
+  void _note(String event) {
+    setState(() {
+      _log.insert(0, event);
+      if (_log.length > 6) _log.removeLast();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
@@ -534,14 +541,12 @@ class _ControlSurfacePlaygroundState extends State<_ControlSurfacePlayground> {
         children: [
           UiControlSurface(
             enabled: enabled,
-            eventMask: UiEventMask.all,
             motion: preset,
-            onEmit: (method, args) async {
-              setState(() {
-                _log.insert(0, '$method(${args.length} arg)');
-                if (_log.length > 6) _log.removeLast();
-              });
-            },
+            onPointerEnter: () => _note('pointer enter'),
+            onPointerLeave: () => _note('pointer leave'),
+            onPointerDown: () => _note('pointer down'),
+            onPointerUp: () => _note('pointer up'),
+            onFocusChanged: (focused) => _note(focused ? 'focus' : 'blur'),
             builder: (context, state) {
               return Container(
                 padding: const EdgeInsets.symmetric(
@@ -646,7 +651,6 @@ class _MixButtonPlaygroundState extends State<_MixButtonPlayground> {
           UiMixButton(
             label: label,
             enabled: enabled,
-            eventMask: UiEventMask.all,
             semanticsId: 'widgetbook:mix-button',
             style: UiStyleData(
               tone: tone,
@@ -658,12 +662,6 @@ class _MixButtonPlaygroundState extends State<_MixButtonPlayground> {
             onPressed: () {
               setState(() {
                 _events.insert(0, 'OnClick("$label")');
-                if (_events.length > 6) _events.removeLast();
-              });
-            },
-            onEmit: (method, _) async {
-              setState(() {
-                _events.insert(0, method);
                 if (_events.length > 6) _events.removeLast();
               });
             },

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mix/mix.dart';
 import 'package:naked_ui/naked_ui.dart';
@@ -10,7 +8,7 @@ import '../widgets/neuron/ui_control_surface.dart';
 import 'style.dart';
 
 /// Option B `naked_ui` (`NakedRadio<T>`) + `mix` Radio control with spring dot
-/// reveal, [UiColors]/[UiTokens] styling, and [UiEventMask] signals.
+/// reveal and [UiColors]/[UiTokens] styling.
 final class UiMixRadio<T> extends StatefulWidget {
   const UiMixRadio({
     super.key,
@@ -23,8 +21,6 @@ final class UiMixRadio<T> extends StatefulWidget {
       tone: 'accent',
       motion: UiMotionPreset.spring,
     ),
-    this.eventMask = UiEventMask.click,
-    this.onEmit,
     this.semanticsId,
   });
 
@@ -34,8 +30,6 @@ final class UiMixRadio<T> extends StatefulWidget {
   final String label;
   final bool enabled;
   final UiStyleData style;
-  final int eventMask;
-  final UiNeuronEventEmitter? onEmit;
   final String? semanticsId;
 
   @override
@@ -45,12 +39,6 @@ final class UiMixRadio<T> extends StatefulWidget {
 class _UiMixRadioState<T> extends State<UiMixRadio<T>> {
   bool _hovered = false;
   bool _focused = false;
-
-  void _emit(int flag, String method, List<Object?> args) {
-    if (!widget.enabled || (widget.eventMask & flag) == 0) return;
-    final emitter = widget.onEmit;
-    if (emitter != null) unawaited(emitter(method, args));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,16 +72,10 @@ class _UiMixRadioState<T> extends State<UiMixRadio<T>> {
         onHoverChange: (hovered) {
           if (_hovered == hovered) return;
           setState(() => _hovered = hovered);
-          _emit(
-            UiEventMask.hover,
-            hovered ? 'OnPointerEnter' : 'OnPointerLeave',
-            const [{}],
-          );
         },
         onFocusChange: (focused) {
           if (_focused == focused) return;
           setState(() => _focused = focused);
-          _emit(UiEventMask.focus, 'OnFocusChanged', [focused]);
         },
         child: Row(
           mainAxisSize: MainAxisSize.min,
