@@ -1,5 +1,3 @@
-using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Kernel.Install;
 using IntoChat.OS.Modules.Microsoft.Azure;
 
@@ -7,16 +5,14 @@ namespace IntoChat.OS.Kernel.Tests.Unit.Install;
 
 // The Cloud app is its own Orleans cluster with its own storage namespace: it never shares a cluster id, service id,
 // grain-state container, lease container or Home with the OS app, so neither silo can join or activate the other's grains.
+// The variables are found by the OS app's values, so the facts hold whatever the variables are called.
 public sealed class CloudClusterSplitFacts
 {
-    private static readonly string Home = ConfigurationKeyGrammar.EnvironmentName(IntoChatOSNames.HomeKey);
-    private static readonly string Lease = ConfigurationKeyGrammar.EnvironmentName(IntoChatOSNames.BrainStorageOwnershipContainerUriConfigurationKey);
-
     private static InstallConfig WithCloud() => InstallConfig.Universal(
         env: "test",
         subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
         includeCloudApp: true,
-        includeSandboxApp: false);
+        includeSandboxApp: false).Validated();
 
     private static (ContainerAppSpec Os, ContainerAppSpec Cloud) Apps(InstallConfig config, Dictionary<string, string>? extra = null)
     {
@@ -24,63 +20,74 @@ public sealed class CloudClusterSplitFacts
         return (InstallPlan.OsApp(config, variables, []), InstallPlan.CloudApp(config, variables, [])!);
     }
 
-    private static string GrainState(ContainerAppSpec app)
-        => Assert.Single(app.Variables, pair => pair.Key.EndsWith("__GrainStateContainer", StringComparison.Ordinal)).Value;
+    // The OS app's variables that carry this namespace value: the cluster and service ids, the grain-state container, the lease
+    // container URI and Home.
+    private static string[] KeysOf(ContainerAppSpec os, Func<string, bool> value)
+        => [.. os.Variables.Where(pair => value(pair.Value)).Select(pair => pair.Key)];
 
     [Fact]
     public void TheOsAppKeepsItsNamespace()
     {
-        var config = WithCloud().Validated();
+        var config = WithCloud();
         var (os, _) = Apps(config);
 
-        Assert.Equal(config.ClusterId, os.Variables["Orleans__ClusterId"]);
-        Assert.Equal(config.ServiceId, os.Variables["Orleans__ServiceId"]);
-        Assert.Equal("grainstate-" + config.StorageFormat, GrainState(os));
-        Assert.Equal("/data/brain/" + config.StorageFormat, os.Variables[Home]);
-        Assert.EndsWith("/brainlease-" + config.StorageFormat, os.Variables[Lease], StringComparison.Ordinal);
+        Assert.NotEmpty(KeysOf(os, value => value == config.ClusterId));
+        Assert.NotEmpty(KeysOf(os, value => value == config.ServiceId));
+        Assert.Single(KeysOf(os, value => value == "grainstate-" + config.StorageFormat));
+        Assert.Single(KeysOf(os, value => value == "/data/brain/" + config.StorageFormat));
+        Assert.Single(KeysOf(os, value => value.EndsWith("/brainlease-" + config.StorageFormat, StringComparison.Ordinal)));
         Assert.Equal([InstallPlan.GatewayPort], os.InternalPorts);
         Assert.Equal(InstallPlan.BrainLogShare, Assert.Single(os.VolumeMounts).EnvironmentStorage);
     }
 
     [Fact]
-    public void TheCloudAppSharesNoClusterOrStateWithTheOsApp()
+    public void TheCloudAppHasItsOwnClusterServiceGrainStateLeaseAndHome()
     {
-        var (os, cloud) = Apps(WithCloud());
+        var config = WithCloud();
+        var (os, cloud) = Apps(config);
 
-        Assert.NotEqual(os.Variables["Orleans__ClusterId"], cloud.Variables["Orleans__ClusterId"]);
-        Assert.NotEqual(os.Variables["Orleans__ServiceId"], cloud.Variables["Orleans__ServiceId"]);
-        Assert.NotEqual(GrainState(os), GrainState(cloud));
-        Assert.NotEqual(os.Variables[Home], cloud.Variables[Home]);
-        Assert.NotEqual(os.Variables[Lease], cloud.Variables[Lease]);
-        var osMount = Assert.Single(os.VolumeMounts);
-        var cloudMount = Assert.Single(cloud.VolumeMounts);
-        Assert.NotEqual(osMount.EnvironmentStorage, cloudMount.EnvironmentStorage);
-        Assert.Equal(cloud.Variables[Home], cloudMount.MountPath);
+        foreach (var key in KeysOf(os, value => value == config.ClusterId || value == config.ServiceId))
+        {
+            Assert.Equal(os.Variables[key] + "-cloud", cloud.Variables[key]);
+        }
+        Assert.Equal("grainstate-cloud-" + config.StorageFormat, cloud.Variables[Assert.Single(KeysOf(os, value => value == "grainstate-" + config.StorageFormat))]);
+        Assert.EndsWith("/brainlease-cloud-" + config.StorageFormat,
+            cloud.Variables[Assert.Single(KeysOf(os, value => value.EndsWith("/brainlease-" + config.StorageFormat, StringComparison.Ordinal)))], StringComparison.Ordinal);
+        var home = cloud.Variables[Assert.Single(KeysOf(os, value => value == "/data/brain/" + config.StorageFormat))];
+        Assert.Equal("/data/brain-cloud/" + config.StorageFormat, home);
+
+        var mount = Assert.Single(cloud.VolumeMounts);
+        Assert.Equal(InstallPlan.CloudBrainLogShare, mount.EnvironmentStorage);
+        Assert.Equal(home, mount.MountPath);
     }
 
     [Fact]
-    public void TheCloudNamespaceIsDerivedFromTheInstallNames()
+    public void TheCloudAppSharesNoNamespaceValueWithTheOsApp()
     {
-        var config = WithCloud().Validated();
-        var (_, cloud) = Apps(config);
+        var config = WithCloud();
+        var (os, cloud) = Apps(config);
+        string[] namespaceValues = [config.ClusterId, config.ServiceId, "grainstate-" + config.StorageFormat, "/data/brain/" + config.StorageFormat];
 
-        Assert.Equal(config.ClusterId + "-cloud", cloud.Variables["Orleans__ClusterId"]);
-        Assert.Equal(config.ServiceId + "-cloud", cloud.Variables["Orleans__ServiceId"]);
-        Assert.Equal("grainstate-cloud-" + config.StorageFormat, GrainState(cloud));
-        Assert.EndsWith("/brainlease-cloud-" + config.StorageFormat, cloud.Variables[Lease], StringComparison.Ordinal);
+        Assert.DoesNotContain(cloud.Variables.Values, value => namespaceValues.Contains(value, StringComparer.Ordinal)
+            || value.EndsWith("/brainlease-" + config.StorageFormat, StringComparison.Ordinal));
+        Assert.NotEqual(Assert.Single(os.VolumeMounts).EnvironmentStorage, Assert.Single(cloud.VolumeMounts).EnvironmentStorage);
     }
 
     [Fact]
     public void TheCloudAppPublishesNoGatewayPort() => Assert.Empty(Apps(WithCloud()).Cloud.InternalPorts);
 
     [Fact]
-    public void AModuleDeploymentVariableCannotPutTheCloudBackIntoTheOsCluster()
+    public void AModuleDeploymentVariableCannotPutTheCloudBackIntoTheOsNamespace()
     {
-        var config = WithCloud().Validated();
-        var (_, cloud) = Apps(config, new Dictionary<string, string> { ["Orleans__ClusterId"] = config.ClusterId, [Home] = "/data/brain/" + config.StorageFormat });
+        var config = WithCloud();
+        var (plainOs, _) = Apps(config);
+        // A module deployment that wrote the OS namespace values under the same variables.
+        var extra = KeysOf(plainOs, value => value == config.ClusterId || value == "/data/brain/" + config.StorageFormat)
+            .ToDictionary(key => key, key => plainOs.Variables[key], StringComparer.Ordinal);
 
-        Assert.Equal(config.ClusterId + "-cloud", cloud.Variables["Orleans__ClusterId"]);
-        Assert.NotEqual("/data/brain/" + config.StorageFormat, cloud.Variables[Home]);
+        var (_, cloud) = Apps(config, extra);
+
+        Assert.All(extra.Keys, key => Assert.NotEqual(extra[key], cloud.Variables[key]));
     }
 
     [Fact]
