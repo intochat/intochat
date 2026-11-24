@@ -107,7 +107,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(sp =>
             new EngineerBuildVerifier(configuration, sp.GetRequiredService<ISandboxCommandRunner>()));
         serviceCollection.AddSingleton<ILiveVerifier>(liveVerifier);
-        serviceCollection.AddSingleton(roslyn);
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = fixture.CreateIsolated(o => o.Services = services);
@@ -216,9 +216,9 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
                     .EnumerateArray()
                     .Select(static p => (Name: p.GetProperty("name").GetString()!, Passed: p.GetProperty("passed").GetBoolean()))
                     .ToArray();
-                Assert.Contains(probeNames, static p => p.Name == "otel-activity-spans" && p.Passed);
-                Assert.Contains(probeNames, static p => p.Name == "brain-trace-reader" && p.Passed);
-                Assert.Contains(probeNames, static p => p.Name == "mcp-screen-app.engineer" && p.Passed);
+                // The candidate verifier owns live verification; its probes are the report's probes.
+                Assert.Contains(probeNames, static p => p.Name == "candidate-health" && p.Passed);
+                Assert.All(probeNames, static p => Assert.True(p.Passed, $"Probe '{p.Name}' failed."));
 
                 var leaseTree = inst.GetProperty("lease").GetProperty("treePath").GetString()!;
                 Assert.True(Directory.Exists(leaseTree), $"Worktree #{idx} must remain intact while parked at approval-gate.");

@@ -119,11 +119,11 @@ public sealed class ModelsFacts
 
     [Fact]
     public void TheCloudTalksThroughGptRealtime() =>
-        Assert.Equal(KnownModels.GptRealtime.Id, KnownModels.Defaults.Cloud[Role.Talk]);
+        Assert.Equal(KnownModels.GptRealtime.Id, KnownModels.Defaults.Cloud[ModelRole.Talk]);
 
     [Fact]
     public void TheDeviceHasNoTalkCard() =>
-        Assert.False(KnownModels.Defaults.Device.ContainsKey(Role.Talk));
+        Assert.False(KnownModels.Defaults.Device.ContainsKey(ModelRole.Talk));
 
     [Fact]
     public void ProviderNumbersNeverMove() =>

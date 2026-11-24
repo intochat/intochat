@@ -48,7 +48,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
                 services.AddIntoChatOSConnections();
                 services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(_ => AIModule.Integrations);
                 services.TryAddSingleton<IBrainSecretSealer, TestSecretSealer>();
-                services.Configure<AIOptions>(options => options.Roles.Device[Role.Chat] = "qwen3.5:4b");
+                services.Configure<AIOptions>(options => options.Roles.Device[ModelRole.Chat] = "qwen3.5:4b");
                 services.RemoveAll<IChatClient>();
                 services.AddSingleton<IChatClient>(client);
                 services.RemoveAll<IAiCredentials>();
@@ -84,7 +84,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
                 AIModule.ConfigureServices(services, config);
                 services.Configure<AIOptions>(options =>
                 {
-                    options.Roles.Device[Role.Chat] = "qwen3.5:4b";
+                    options.Roles.Device[ModelRole.Chat] = "qwen3.5:4b";
                 });
                 services.RemoveAll<IModelInference>();
                 services.AddSingleton<IModelInference>(recording);

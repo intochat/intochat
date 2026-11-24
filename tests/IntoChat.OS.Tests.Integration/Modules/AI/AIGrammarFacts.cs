@@ -13,6 +13,6 @@ public sealed class AIGrammarFacts
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         { ["IntoChatOS:Modules:ai:Options:Default:Model"] = "Fable5" }).Build();
 
-        Assert.Equal("claude-fable-5", AIOptionsRuntime.Read(configuration).Roles.Cloud[Role.Chat]);
+        Assert.Equal("claude-fable-5", AIOptionsRuntime.Read(configuration).Roles.Cloud[ModelRole.Chat]);
     }
 }

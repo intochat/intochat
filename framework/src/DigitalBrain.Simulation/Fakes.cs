@@ -594,6 +594,9 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <summary>The proxies <see cref="Get{T}(NeuronId)"/> returns.</summary>
     public FakeNeuronProxies Proxies { get; } = new();
 
+    /// <summary>The slot bindings the attached neuron resolves its <c>[Slot]</c> properties against.</summary>
+    public IReadOnlyList<DigitalBrain.Components.Binding> Bindings { get; set; } = [];
+
     /// <summary>Every signal published, alone or with a state change, in order.</summary>
     public IReadOnlyList<Signal> Published => _published;
 

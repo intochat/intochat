@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using DigitalBrain.Testing.Views;
@@ -98,7 +99,7 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             return;
         }
 
-        var diff = ViewComparison.Diff(expectedFixture.Main!, actualView);
+        var diff = ViewComparison.Diff(WithoutDeviceNotes(expectedFixture.Main!), WithoutDeviceNotes(actualView));
         Assert.True(diff is null, diff);
     }
 
@@ -328,7 +329,7 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
                         var deserialized = JsonSerializer.Deserialize<View>(viewRaw, JsonOptions);
                         if (deserialized is not null)
                         {
-                            if (!updatingFixtures && ViewComparison.Diff(expected, deserialized) is null)
+                            if (!updatingFixtures && ViewComparison.Diff(WithoutDeviceNotes(expected), WithoutDeviceNotes(deserialized)) is null)
                             {
                                 return deserialized;
                             }
@@ -344,6 +345,42 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(100), deadline.Token);
+        }
+    }
+
+    internal const string DeviceNote = "<depends on this machine's RAM and VRAM>";
+
+    // The kernel probes the real host, so a local model's note ("Too big for this device", "Install 8 GB", ...)
+    // differs between a GPU workstation and a CPU-only runner; compare every other field and pin that one.
+    internal static View WithoutDeviceNotes(View view)
+    {
+        var node = JsonSerializer.SerializeToNode(view, JsonOptions)!;
+        Pin(node);
+        return node.Deserialize<View>(JsonOptions)!;
+
+        static void Pin(JsonNode? current)
+        {
+            switch (current)
+            {
+                case JsonObject obj:
+                    if (obj["section"]?.GetValueKind() == JsonValueKind.String
+                        && string.Equals(obj["section"]!.GetValue<string>(), "local", StringComparison.Ordinal)
+                        && obj.ContainsKey("note"))
+                    {
+                        obj["note"] = DeviceNote;
+                    }
+                    foreach (var (_, child) in obj.ToArray())
+                    {
+                        Pin(child);
+                    }
+                    break;
+                case JsonArray array:
+                    foreach (var child in array)
+                    {
+                        Pin(child);
+                    }
+                    break;
+            }
         }
     }
 

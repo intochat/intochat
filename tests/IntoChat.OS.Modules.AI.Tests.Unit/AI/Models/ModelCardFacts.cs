@@ -46,26 +46,26 @@ public sealed class ModelCardFacts
         Assert.Equal(key, new ModelCard(new("x"), provider, "F", "N", Where.Device, Abilities.Text, Tier.Fast).IconKey());
 
     [Theory]
-    [InlineData(Role.Chat, Abilities.Text)]
-    [InlineData(Role.Think, Abilities.Text)]
-    [InlineData(Role.Fast, Abilities.Text)]
-    [InlineData(Role.Hear, Abilities.Hear)]
-    [InlineData(Role.Speak, Abilities.Speak)]
-    [InlineData(Role.Talk, Abilities.Talk)]
-    [InlineData(Role.Embed, Abilities.Embed)]
-    [InlineData(Role.Image, Abilities.Image)]
-    public void RoleNeedsMatchesEachRole(Role role, Abilities expected) =>
+    [InlineData(ModelRole.Chat, Abilities.Text)]
+    [InlineData(ModelRole.Think, Abilities.Text)]
+    [InlineData(ModelRole.Fast, Abilities.Text)]
+    [InlineData(ModelRole.Hear, Abilities.Hear)]
+    [InlineData(ModelRole.Speak, Abilities.Speak)]
+    [InlineData(ModelRole.Talk, Abilities.Talk)]
+    [InlineData(ModelRole.Embed, Abilities.Embed)]
+    [InlineData(ModelRole.Image, Abilities.Image)]
+    public void RoleNeedsMatchesEachRole(ModelRole role, Abilities expected) =>
         Assert.Equal(expected, RoleNeeds.Of(role));
 
     [Fact]
     public void RoleMapJsonUsesRoleNames()
     {
-        var map = RoleMap.Empty with { Device = RoleMap.Empty.Device.Add(Role.Chat, new("qwen3.5:4b")) };
+        var map = RoleMap.Empty with { Device = RoleMap.Empty.Device.Add(ModelRole.Chat, new("qwen3.5:4b")) };
         var json = JsonSerializer.Serialize(map, AiContractsJson.Default.RoleMap);
         Assert.Contains("\"Chat\":\"qwen3.5:4b\"", json, StringComparison.Ordinal);
         var roundTripped = JsonSerializer.Deserialize(json, AiContractsJson.Default.RoleMap);
         Assert.NotNull(roundTripped);
-        Assert.Equal(new ModelId("qwen3.5:4b"), roundTripped.Device[Role.Chat]);
+        Assert.Equal(new ModelId("qwen3.5:4b"), roundTripped.Device[ModelRole.Chat]);
     }
 
     [Fact]

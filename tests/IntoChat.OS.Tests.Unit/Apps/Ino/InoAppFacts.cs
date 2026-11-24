@@ -366,8 +366,8 @@ public sealed class InoAppFacts
         var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
 
         await ino.Request("send", new InoSend("turn 1"));
-        Assert.Equal("qwen3.5:4b", BackgroundConversation.LastSeatedModel);
-        Assert.Equal("qwen3.5:4b", BackgroundConversation.LastSayModel);
+        Assert.Equal(KnownModels.Defaults.Device[ModelRole.Chat].Value, BackgroundConversation.LastSeatedModel);
+        Assert.Equal(KnownModels.Defaults.Device[ModelRole.Chat].Value, BackgroundConversation.LastSayModel);
         BackgroundConversation.Complete("main", "run-1", "turn 1", "reply 1");
         await Deliver(ino, new ConversationChanged(ConversationId.Parse("main"), BackgroundConversation.Revision));
 
@@ -412,9 +412,9 @@ public sealed class InoAppFacts
         FakeModelCatalog.Reset();
         try
         {
-            FakeModelCatalog.PickedRoles = new Dictionary<Role, ModelId>
+            FakeModelCatalog.PickedRoles = new Dictionary<ModelRole, ModelId>
             {
-                [Role.Hear] = KnownModels.WhisperLargeV3Turbo.Id,
+                [ModelRole.Hear] = KnownModels.WhisperLargeV3Turbo.Id,
             };
             FakeModelCatalog.ListedAvailability =
             [
@@ -602,7 +602,7 @@ public sealed class InoAppFacts
 
             Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
             var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
-            Assert.Null(settings.RoleOf(Role.Chat));
+            Assert.Null(settings.RoleOf(ModelRole.Chat));
         }
         finally
         {
@@ -629,7 +629,7 @@ public sealed class InoAppFacts
 
             Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
             var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
-            Assert.Equal("gpt-5.4", settings.RoleOf(Role.Chat)!.Value.Value);
+            Assert.Equal("gpt-5.4", settings.RoleOf(ModelRole.Chat)!.Value.Value);
         }
         finally
         {
@@ -865,10 +865,10 @@ public sealed class InoAppFacts
             await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.PinModelKey, KnownModels.Gemma4.Id.Value);
             await os.Idle();
 
-            Assert.Equal((Role.Chat, KnownModels.Gemma4.Id), Assert.Single(FakeDevice.Uses));
+            Assert.Equal((ModelRole.Chat, KnownModels.Gemma4.Id), Assert.Single(FakeDevice.Uses));
             Assert.Empty(FakeDevice.Installs);
             var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
-            Assert.Null(settings.RoleOf(Role.Chat));
+            Assert.Null(settings.RoleOf(ModelRole.Chat));
         }
         finally
         {
@@ -1737,7 +1737,7 @@ public sealed class InoAppFacts
     private sealed class FakeModelCatalog : Neuron, IModelCatalog
     {
         public static ModelId? PickedChat { get; set; }
-        public static Dictionary<Role, ModelId>? PickedRoles { get; set; }
+        public static Dictionary<ModelRole, ModelId>? PickedRoles { get; set; }
         public static ModelCard[]? ListedCards { get; set; }
         public static ModelAvailability[]? ListedAvailability { get; set; }
         public static int ListCalls { get; private set; }
@@ -1769,9 +1769,9 @@ public sealed class InoAppFacts
                 : []);
         }
 
-        public Task<ModelId> Pick(Role role, ModelId? turn = null)
+        public Task<ModelId> Pick(ModelRole role, ModelId? turn = null)
         {
-            if (role == Role.Chat && turn is null)
+            if (role == ModelRole.Chat && turn is null)
             {
                 PickChatCalls++;
             }
@@ -1786,7 +1786,7 @@ public sealed class InoAppFacts
                 return Task.FromResult(byRole);
             }
 
-            if (role == Role.Chat && PickedChat is { Value.Length: > 0 } picked)
+            if (role == ModelRole.Chat && PickedChat is { Value.Length: > 0 } picked)
             {
                 return Task.FromResult(picked);
             }
@@ -1794,7 +1794,7 @@ public sealed class InoAppFacts
             return Task.FromResult(new ModelId(string.Empty));
         }
 
-        public Task SetRole(Role role, ModelId model)
+        public Task SetRole(ModelRole role, ModelId model)
             => Get<IUserSettings>(new NeuronId(Id.Brain, "os.settings", "settings")).SetRole(role, model);
 
         public Task<RoleMap> Roles() => Task.FromResult(KnownModels.Defaults);
@@ -1813,7 +1813,7 @@ public sealed class InoAppFacts
     {
         public static string Machine { get; private set; } = "m1";
         public static List<ModelId> Installs { get; } = [];
-        public static List<(Role Role, ModelId Model)> Uses { get; } = [];
+        public static List<(ModelRole Role, ModelId Model)> Uses { get; } = [];
         public static Install[] QueueEntries { get; set; } = [];
         public static DeviceModel[] DeviceModels { get; set; } = [];
         public static int ReadCalls { get; private set; }
@@ -1843,7 +1843,7 @@ public sealed class InoAppFacts
                 QueueEntries));
         }
 
-        public Task Use(Role role, ModelId model)
+        public Task Use(ModelRole role, ModelId model)
         {
             Uses.Add((role, model));
             return Task.CompletedTask;

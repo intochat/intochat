@@ -158,6 +158,7 @@ public static class ServerHostingExtensions
                 DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(
                     IntoChat.OS.Kernel.Sandbox.SandboxOptions.SectionName)));
         builder.Services.AddHttpClient("SandboxWorker");
+        builder.Services.AddSingleton<IntoChat.OS.Kernel.Auth.WebViewTickets>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.AppTokenService>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkAiAdapter>();
         builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkTablesAdapter>();

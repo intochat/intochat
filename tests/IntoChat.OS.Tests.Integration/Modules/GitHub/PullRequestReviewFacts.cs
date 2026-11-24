@@ -99,7 +99,7 @@ public sealed class PullRequestReviewFacts
             HeadSha: headSha,
             Verdict: ReviewVerdict.RequestChanges,
             Body: "Please address the null check.",
-            Comments: [new InlineComment("src/Auth.cs", 42, "Handle null token explicitly.")]);
+            Comments: [new InlineComment("lib/Auth.cs", 42, "Handle null token explicitly.")]);
 
         var submitted = await ada.Get<IRepository>(repoId).SubmitReview(request, ct);
 
@@ -114,7 +114,7 @@ public sealed class PullRequestReviewFacts
         Assert.Equal(ReviewVerdict.RequestChanges, recorded.Verdict);
         Assert.Equal("Please address the null check.", recorded.Body);
         var inline = Assert.Single(recorded.Comments);
-        Assert.Equal("src/Auth.cs", inline.Path);
+        Assert.Equal("lib/Auth.cs", inline.Path);
         Assert.Equal(42, inline.Line);
         Assert.Equal("Handle null token explicitly.", inline.Body);
     }

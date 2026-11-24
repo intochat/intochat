@@ -241,6 +241,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         var services = new ServiceCollection()
             .AddSingleton<IModelInference>(new QueueInference(turns))
+            .AddSingleton<IWorktreeRoslyn>(new WorktreeRoslynAnalyzer())
             .BuildServiceProvider();
 
         var coder = new LocalLlmCoder(services);
@@ -1389,7 +1390,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         // Part 1: Deterministic synthesis (without IModelInference) embeds <= 2 KB CodeGraphDigest, grounded CleanupTargets, and disjoint Wave-0 slices!
         await using var deterministicSp = new ServiceCollection()
             .AddSingleton<IWorkTree>(workTree)
-            .AddSingleton(roslyn)
+            .AddSingleton<IWorktreeRoslyn>(roslyn)
             .AddSingleton<IWorkingMemory>(repoBriefMemory)
             .BuildServiceProvider();
 
@@ -1469,7 +1470,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         await using var llmSp = new ServiceCollection()
             .AddSingleton<IWorkTree>(workTree)
-            .AddSingleton(roslyn)
+            .AddSingleton<IWorktreeRoslyn>(roslyn)
             .AddSingleton<IWorkingMemory>(repoBriefMemory)
             .AddSingleton<IModelInference>(new QueueInference(turns))
             .BuildServiceProvider();

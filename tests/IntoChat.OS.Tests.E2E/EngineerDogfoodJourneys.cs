@@ -99,7 +99,7 @@ public sealed class EngineerDogfoodJourneys(TestOSFixture fixture) : E2ETestBase
                 [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
                 ["span candidate.health status=OK"],
                 "Candidate verified."))));
-        serviceCollection.AddSingleton(roslyn);
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = fixture.CreateIsolated(o => o.Services = services);

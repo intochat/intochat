@@ -39,7 +39,7 @@ internal sealed class DeploymentStorageIdentity(
         await container.CreateIfNotExistsAsync(cancellationToken: ct);
         var current = await ReadAsync(container, ct);
         if (current is not null) { Validate(current, cluster.Value.ServiceId, keys); return; }
-        var binding = new Binding(1, cluster.Value.ServiceId, keys.Wrap(Proof));
+        var binding = new StorageBinding(1, cluster.Value.ServiceId, keys.Wrap(Proof));
         try
         {
             await container.GetBlobClient(MarkerName).UploadAsync(BinaryData.FromObjectAsJson(binding),
@@ -52,17 +52,17 @@ internal sealed class DeploymentStorageIdentity(
         }
     }
 
-    private static async Task<Binding?> ReadAsync(BlobContainerClient container, CancellationToken ct)
+    private static async Task<StorageBinding?> ReadAsync(BlobContainerClient container, CancellationToken ct)
     {
         try
         {
-            return (await container.GetBlobClient(MarkerName).DownloadContentAsync(ct)).Value.Content.ToObjectFromJson<Binding>()
+            return (await container.GetBlobClient(MarkerName).DownloadContentAsync(ct)).Value.Content.ToObjectFromJson<StorageBinding>()
                 ?? throw new InvalidOperationException("Invalid deployment binding.");
         }
         catch (RequestFailedException error) when (error.Status == 404) { return null; }
     }
 
-    internal static void Validate(Binding binding, string serviceId, IKeyWrapper keys)
+    internal static void Validate(StorageBinding binding, string serviceId, IKeyWrapper keys)
     {
         if (binding.Version != 1) { throw new InvalidOperationException("Unsupported deployment binding version."); }
         if (binding.ServiceId != serviceId)
@@ -75,5 +75,5 @@ internal sealed class DeploymentStorageIdentity(
         { throw new OptionsValidationException(nameof(MasterKeyOptions.MasterKey), typeof(MasterKeyOptions), ["The configured master key does not match this persistent deployment."]); }
     }
 
-    internal sealed record Binding(int Version, string ServiceId, string KeyProof);
+    internal sealed record StorageBinding(int Version, string ServiceId, string KeyProof);
 }

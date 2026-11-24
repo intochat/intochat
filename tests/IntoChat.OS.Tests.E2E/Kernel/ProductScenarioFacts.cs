@@ -71,7 +71,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         await film.SwitchMode(new FilmCraftSwitchMode("mcp"));
         Assert.Equal("mcp", film.State.ExecutionMode);
         await film.Export(new FilmCraftExport("h264-1080p60", "/work/timeline.fcproj", "mcp"));
-        Assert.Contains("failed", film.State.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("MCP server 'filmcraft-mcp' is not connected", film.State.Status, StringComparison.Ordinal);
         Assert.Equal("/work/launch-trailer.cut.mp4", film.State.OutputFile);
         Assert.Equal(string.Empty, film.State.LastCliInvocation);
 

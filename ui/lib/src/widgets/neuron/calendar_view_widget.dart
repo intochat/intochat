@@ -49,7 +49,7 @@ class CalendarViewNeuronWidget extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '$title Â· $year-${month.toString().padLeft(2, '0')}',
+                      '$title · $year-${month.toString().padLeft(2, '0')}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

@@ -172,11 +172,11 @@ public sealed class VoiceClientsFacts
         IChatClient? chatClient = null)
     {
         StubCatalogNeuron.ConfiguredRoles = roles;
-        StubCatalogNeuron.Picked = new Dictionary<Role, ModelId?>
+        StubCatalogNeuron.Picked = new Dictionary<ModelRole, ModelId?>
         {
-            [Role.Hear] = pickedHear,
-            [Role.Speak] = pickedSpeak,
-            [Role.Chat] = pickedChat ?? KnownModels.Qwen35.Id,
+            [ModelRole.Hear] = pickedHear,
+            [ModelRole.Speak] = pickedSpeak,
+            [ModelRole.Chat] = pickedChat ?? KnownModels.Qwen35.Id,
         };
 
         var os = TestOS.Local().Register<StubCatalogNeuron>();
@@ -204,11 +204,11 @@ public sealed class VoiceClientsFacts
     private sealed class StubCatalogNeuron : Neuron, IModelCatalog
     {
         public static RoleMap ConfiguredRoles { get; set; } = KnownModels.Defaults;
-        public static Dictionary<Role, ModelId?> Picked { get; set; } = [];
+        public static Dictionary<ModelRole, ModelId?> Picked { get; set; } = [];
 
         public Task<ModelCard[]> List(Abilities need = Abilities.None) => Task.FromResult(KnownModels.All.ToArray());
 
-        public Task<ModelId> Pick(Role role, ModelId? turn = null)
+        public Task<ModelId> Pick(ModelRole role, ModelId? turn = null)
         {
             if (turn is { Value.Length: > 0 } chosen)
             {
@@ -223,7 +223,7 @@ public sealed class VoiceClientsFacts
             throw new InvalidOperationException($"No model available for role '{role}'.");
         }
 
-        public Task SetRole(Role role, ModelId model) => Task.CompletedTask;
+        public Task SetRole(ModelRole role, ModelId model) => Task.CompletedTask;
 
         public Task<RoleMap> Roles() => Task.FromResult(ConfiguredRoles);
 

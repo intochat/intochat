@@ -11,7 +11,7 @@ import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 
 /// Badge / TagPill value node unified with `TagPill` (`controls.dart`) and
-/// `DESIGN.md` Â§2.5 & Â§11.8:
+/// `DESIGN.md` §2.5 & §11.8:
 /// 22px height, 6px `xs` radius, `11.5px w600 tnum` text + `12px` status icon
 /// (`check`, spinning `loaderCircle`, `triangleAlert`, `hand`, `clock`).
 final class ViewBadge extends StatelessWidget {
@@ -28,7 +28,7 @@ final class ViewBadge extends StatelessWidget {
   final String? icon;
 
   /// True when rendered by `BadgeNode` (status pill), ensuring `accent` /
-  /// `needs-you` and `idle` / `neutral` carry their `DESIGN.md` Â§2.5 status icons.
+  /// `needs-you` and `idle` / `neutral` carry their `DESIGN.md` §2.5 status icons.
   final bool statusBadge;
 
   @override

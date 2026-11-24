@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:intochat_os_flutter_shell/src/components/button/ui_neuron_select.dart';
@@ -107,7 +107,7 @@ void main() {
     );
     final box = find.byKey(const ValueKey('ui_kit_field_box'));
     expect(tester.getSize(box).height, 36);
-    var d = tester.widget<DecoratedBox>(box).decoration as BoxDecoration;
+    var d = mixBox(tester, box).decoration as BoxDecoration;
     expect(d.borderRadius, BorderRadius.circular(12));
     expect((d.border as Border).top.color, c.error);
     expect(find.text('Required'), findsOneWidget);
@@ -118,15 +118,14 @@ void main() {
       const SizedBox(width: 300, child: UiKitField(label: 'Name')),
     );
     await tester.tap(find.byType(TextField));
-    await tester.pump();
-    d = tester.widget<DecoratedBox>(box).decoration as BoxDecoration;
+    await tester.pumpAndSettle();
+    d = mixBox(tester, box).decoration as BoxDecoration;
     expect((d.border as Border).top.color, c.accent);
     final ring =
-        tester
-                .widget<DecoratedBox>(
-                  find.byKey(const ValueKey('ui_kit_field_ring')),
-                )
-                .decoration
+        mixBox(
+              tester,
+              find.byKey(const ValueKey('ui_kit_field_ring')),
+            ).decoration
             as BoxDecoration;
     expect((ring.border as Border).top.width, 3);
     expect((ring.border as Border).top.color, c.focus);
@@ -160,7 +159,7 @@ void main() {
     );
     final box = find.byKey(const ValueKey('ui_kit_select_box'));
     expect(tester.getSize(box).height, 48);
-    final d = tester.widget<DecoratedBox>(box).decoration as BoxDecoration;
+    final d = mixBox(tester, box).decoration as BoxDecoration;
     expect(d.borderRadius, BorderRadius.circular(12));
   });
 
@@ -191,3 +190,8 @@ void main() {
     handle.dispose();
   });
 }
+
+/// Mix `Box` renders its style through the first [Container] under its key.
+Container mixBox(WidgetTester tester, Finder box) => tester.widget<Container>(
+  find.descendant(of: box, matching: find.byType(Container)).first,
+);

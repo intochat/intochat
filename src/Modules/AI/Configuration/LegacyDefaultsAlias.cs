@@ -8,13 +8,13 @@ namespace IntoChat.OS.Modules.AI;
 internal sealed class LegacyDefaultsAlias(IConfiguration? configuration = null, ILogger<LegacyDefaultsAlias>? logger = null)
     : IPostConfigureOptions<AIOptions>
 {
-    private static readonly (string Key, Role Role)[] Mappings =
+    private static readonly (string Key, ModelRole Role)[] Mappings =
     [
-        ("Model", Role.Chat),
-        ("Embedding", Role.Embed),
-        ("Transcription", Role.Hear),
-        ("SystemOne", Role.Fast),
-        ("Image", Role.Image),
+        ("Model", ModelRole.Chat),
+        ("Embedding", ModelRole.Embed),
+        ("Transcription", ModelRole.Hear),
+        ("SystemOne", ModelRole.Fast),
+        ("Image", ModelRole.Image),
     ];
 
     public void PostConfigure(string? name, AIOptions options)

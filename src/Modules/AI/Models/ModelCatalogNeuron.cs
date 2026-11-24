@@ -19,10 +19,10 @@ internal sealed class ModelCatalogNeuron(
     public Task<ModelCard[]> List(Abilities need = Abilities.None)
         => catalog.List(Brain, need, CancellationToken.None);
 
-    public Task<ModelId> Pick(Role role, ModelId? turn = null)
+    public Task<ModelId> Pick(ModelRole role, ModelId? turn = null)
         => catalog.Pick(Brain, role, turn, ReadPersonSettingsAsync, CancellationToken.None);
 
-    public async Task SetRole(Role role, ModelId model)
+    public async Task SetRole(ModelRole role, ModelId model)
     {
         var isDevicesModule = Context.Caller is { Actor: DigitalBrain.Access.Actor.Module { Id: "devices" }, Brain: var callerBrain }
             && callerBrain == Id.Brain;

@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-[JsonConverter(typeof(JsonStringEnumConverter<Role>))]
-public enum Role
+[JsonConverter(typeof(JsonStringEnumConverter<ModelRole>))]
+public enum ModelRole
 {
     Chat,
     Think,
@@ -17,24 +17,24 @@ public enum Role
 }
 
 public sealed record RoleMap(
-    ImmutableDictionary<Role, ModelId> Device,
-    ImmutableDictionary<Role, ModelId> Cloud)
+    ImmutableDictionary<ModelRole, ModelId> Device,
+    ImmutableDictionary<ModelRole, ModelId> Cloud)
 {
     public static RoleMap Empty { get; } = new(
-        ImmutableDictionary<Role, ModelId>.Empty,
-        ImmutableDictionary<Role, ModelId>.Empty);
+        ImmutableDictionary<ModelRole, ModelId>.Empty,
+        ImmutableDictionary<ModelRole, ModelId>.Empty);
 }
 
 public static class RoleNeeds
 {
-    public static Abilities Of(Role role) => role switch
+    public static Abilities Of(ModelRole role) => role switch
     {
-        Role.Chat or Role.Think or Role.Fast => Abilities.Text,
-        Role.Hear => Abilities.Hear,
-        Role.Speak => Abilities.Speak,
-        Role.Talk => Abilities.Talk,
-        Role.Embed => Abilities.Embed,
-        Role.Image => Abilities.Image,
+        ModelRole.Chat or ModelRole.Think or ModelRole.Fast => Abilities.Text,
+        ModelRole.Hear => Abilities.Hear,
+        ModelRole.Speak => Abilities.Speak,
+        ModelRole.Talk => Abilities.Talk,
+        ModelRole.Embed => Abilities.Embed,
+        ModelRole.Image => Abilities.Image,
         _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown model role."),
     };
 }

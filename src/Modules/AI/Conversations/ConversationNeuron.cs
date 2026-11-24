@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DigitalBrain.Log;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Compute;
@@ -165,9 +166,10 @@ internal sealed class ConversationNeuron(
                     await offers.Offer(Id, human.Account.Value, DigitalBrain.Components.Role.Editor, cancellationToken);
                 }
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException error)
             {
                 // Persisted participant is no longer a confirmed friend; leave without an offer.
+                Logger.LogSwallowed(error, "conversation participant offer refused");
             }
         }
     }
@@ -751,83 +753,83 @@ internal sealed class ConversationNeuron(
                 switch (ev)
                 {
                     case AgentTurnEvent.ToolStarted tool:
-                    {
-                        var called = new Called(EntryIds.Call(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, tool.Arguments);
-                        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, called);
-                        storeCount++;
-                        await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
-                        break;
-                    }
-                    case AgentTurnEvent.ToolCompleted tool:
-                    {
-                        var refusal = TurnRunner.ToolRefusal(tool.Result);
-                        var ok = refusal is null;
-                        var card = ok ? ConversationCards.FromResult(tool.Result) : null;
-                        var compactedResult = TurnRunner.CompactToolResult(tool.Result);
-                        var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, compactedResult, ok, card);
-                        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
-                        storeCount++;
-                        await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
-                        break;
-                    }
-                    case AgentTurnEvent.ToolFailed tool:
-                    {
-                        var errorJson = TurnRunner.SerializeToolError(tool.Code, tool.Message);
-                        var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, errorJson, Ok: false, Card: null);
-                        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
-                        storeCount++;
-                        await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
-                        break;
-                    }
-                    case AgentTurnEvent.Completed done:
-                    {
-                        var combinedWindow = (AiMessage[])[.. window.Messages, input, .. done.Messages];
-                        var compacted = await AgentHistoryCompactor.CompactAsync(
-                            combinedWindow,
-                            definition,
-                            window.Summary,
-                            focusInstructions: null,
-                            force: false,
-                            Scope,
-                            services,
-                            Logger,
-                            lifetime.Token);
-                        var nextSummary = string.IsNullOrWhiteSpace(compacted.Summary)
-                            ? window.Summary
-                            : (compacted.Summary == window.Summary ? window.Summary : await Runner.Mask(compacted.Summary));
-                        var summarized = nextSummary != window.Summary && nextSummary is { Length: > 0 };
-
-                        var now = Clock.GetUtcNow();
-                        var newEntries = new List<ConversationEntry>(2);
-                        if (summarized)
                         {
-                            var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
-                            newEntries.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, nextSummary!, upTo));
+                            var called = new Called(EntryIds.Call(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, tool.Arguments);
+                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, called);
+                            storeCount++;
+                            await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
+                            break;
                         }
-                        ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
-                        newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId));
-
-                        var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
-                        storeCount++;
-                        await Persist(State with
+                    case AgentTurnEvent.ToolCompleted tool:
                         {
-                            Log = nextLog,
-                            ActiveRun = null,
-                            Replacing = null,
-                            Runs = Keep(State.Runs, turnState.Run),
-                        });
-                        if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
-                        await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
-                        committed = true;
-                        break;
-                    }
+                            var refusal = TurnRunner.ToolRefusal(tool.Result);
+                            var ok = refusal is null;
+                            var card = ok ? ConversationCards.FromResult(tool.Result) : null;
+                            var compactedResult = TurnRunner.CompactToolResult(tool.Result);
+                            var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, compactedResult, ok, card);
+                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
+                            storeCount++;
+                            await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
+                            break;
+                        }
+                    case AgentTurnEvent.ToolFailed tool:
+                        {
+                            var errorJson = TurnRunner.SerializeToolError(tool.Code, tool.Message);
+                            var returned = new Returned(EntryIds.Result(runId, tool.CallId), agentParticipant, Clock.GetUtcNow(), tool.Name, errorJson, Ok: false, Card: null);
+                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, returned);
+                            storeCount++;
+                            await Persist(State with { Log = nextLog, ActiveRun = turnState.Run });
+                            break;
+                        }
+                    case AgentTurnEvent.Completed done:
+                        {
+                            var combinedWindow = (AiMessage[])[.. window.Messages, input, .. done.Messages];
+                            var compacted = await AgentHistoryCompactor.CompactAsync(
+                                combinedWindow,
+                                definition,
+                                window.Summary,
+                                focusInstructions: null,
+                                force: false,
+                                Scope,
+                                services,
+                                Logger,
+                                lifetime.Token);
+                            var nextSummary = string.IsNullOrWhiteSpace(compacted.Summary)
+                                ? window.Summary
+                                : (compacted.Summary == window.Summary ? window.Summary : await Runner.Mask(compacted.Summary));
+                            var summarized = nextSummary != window.Summary && nextSummary is { Length: > 0 };
+
+                            var now = Clock.GetUtcNow();
+                            var newEntries = new List<ConversationEntry>(2);
+                            if (summarized)
+                            {
+                                var upTo = UpToEntryId(window, compacted.EvictedCount, runId);
+                                newEntries.Add(new Summarized(EntryIds.Summary(runId), agentParticipant, now, nextSummary!, upTo));
+                            }
+                            ModelId? usedModel = turnState.Run.Model is { Model.Length: > 0 } resolved ? new ModelId(resolved.Model) : null;
+                            newEntries.Add(new Said(EntryIds.Reply(runId), agentParticipant, now, turnState.Visible, usedModel, replacingId));
+
+                            var nextLog = ConversationLog.Append(State.Log, State.Revision + 1, [.. newEntries]);
+                            storeCount++;
+                            await Persist(State with
+                            {
+                                Log = nextLog,
+                                ActiveRun = null,
+                                Replacing = null,
+                                Runs = Keep(State.Runs, turnState.Run),
+                            });
+                            if (summarized) { await Runner.WriteSummary(definition.Contexts, nextSummary!); }
+                            await Runner.RecordMilestone(definition.Contexts, turnState.Run.UserText, turnState.Visible);
+                            committed = true;
+                            break;
+                        }
                     case AgentTurnEvent.TurnFailed failed:
-                    {
-                        turnState.Failure = failed.Cancelled && timeout.IsCancellationRequested
-                            ? new(timedOut, Cancelled: false) { Failure = AgentFailure.TimedOut }
-                            : failed;
-                        break;
-                    }
+                        {
+                            turnState.Failure = failed.Cancelled && timeout.IsCancellationRequested
+                                ? new(timedOut, Cancelled: false) { Failure = AgentFailure.TimedOut }
+                                : failed;
+                            break;
+                        }
                 }
             }
         }

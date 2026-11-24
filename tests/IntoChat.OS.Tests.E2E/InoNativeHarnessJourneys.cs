@@ -131,7 +131,7 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         serviceCollection.AddSingleton<IEngineerBuildVerifier>(sp =>
             new EngineerBuildVerifier(configuration, sp.GetRequiredService<ISandboxCommandRunner>()));
         serviceCollection.AddSingleton<ILiveVerifier>(liveVerifier);
-        serviceCollection.AddSingleton(roslyn);
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = fixture.CreateIsolated(o => o.Services = services);
@@ -358,7 +358,7 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
                     [new EngineerLiveProbe("candidate-health", "host", true, 200, "GET /health -> 200")],
                     ["span candidate.health status=OK"],
                     "Candidate verified."))));
-        serviceCollection.AddSingleton(roslyn);
+        serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
         await using var os = fixture.CreateIsolated(o => o.Services = services);

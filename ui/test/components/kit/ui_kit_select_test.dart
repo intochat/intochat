@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -42,9 +42,7 @@ void main() {
   ) async {
     await host(tester, select(onChanged: (_) {}, value: 'a'));
     expect(tester.getSize(find.byKey(boxKey)), const Size(600, 48));
-    final d =
-        tester.widget<DecoratedBox>(find.byKey(boxKey)).decoration
-            as BoxDecoration;
+    final d = mixBox(tester, find.byKey(boxKey)).decoration as BoxDecoration;
     expect(d.borderRadius, BorderRadius.circular(12));
     expect((d.border as Border).top.color, c.inputBorder);
     expect(find.text('Alpha'), findsOneWidget);
@@ -74,7 +72,8 @@ void main() {
     expect(find.byKey(const ValueKey('ui_kit_select_ring')), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
-    final ring = tester.widget<DecoratedBox>(
+    final ring = mixBox(
+      tester,
       find.byKey(const ValueKey('ui_kit_select_ring')),
     );
     final border = (ring.decoration as BoxDecoration).border as Border;
@@ -82,3 +81,8 @@ void main() {
     expect(border.top.color, c.focus);
   });
 }
+
+/// Mix `Box` renders its style through the first [Container] under its key.
+Container mixBox(WidgetTester tester, Finder box) => tester.widget<Container>(
+  find.descendant(of: box, matching: find.byType(Container)).first,
+);

@@ -67,9 +67,9 @@ internal static class InoModelSetup
                 return VoiceAbilities.None;
             }
 
-            var hear = await IsRoleReadyAsync(host, catalog, Role.Hear, ready);
-            var speak = await IsRoleReadyAsync(host, catalog, Role.Speak, ready);
-            var talkBoundReady = await IsRoleReadyAsync(host, catalog, Role.Talk, ready);
+            var hear = await IsRoleReadyAsync(host, catalog, ModelRole.Hear, ready);
+            var speak = await IsRoleReadyAsync(host, catalog, ModelRole.Speak, ready);
+            var talkBoundReady = await IsRoleReadyAsync(host, catalog, ModelRole.Talk, ready);
             // LocalTalk requires Silero VAD, which is bundled with Kokoro82M in SherpaOnnxRuntime.
             var localVadReady = ready.Contains(KnownModels.Kokoro82M.Id.Value);
             return new VoiceAbilities(hear, speak, talkBoundReady || (hear && speak && localVadReady));
@@ -84,7 +84,7 @@ internal static class InoModelSetup
     private static async Task<bool> IsRoleReadyAsync(
         InoSetupHost host,
         IModelCatalog catalog,
-        Role role,
+        ModelRole role,
         HashSet<string> ready)
     {
         try
@@ -217,7 +217,7 @@ internal static class InoModelSetup
         var state = host.GetState();
         var preferred = PreferredLocalModel(device);
         var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model.Trim()
-            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : preferred ?? KnownModels.Defaults.Device[Role.Chat].Value;
+            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim() : preferred ?? KnownModels.Defaults.Device[ModelRole.Chat].Value;
         var modelId = KnownModels.Find(model)?.Id ?? new ModelId(model);
         await SetChatRoleAsync(host, modelId);
         await ReseatConversationAsync(host, modelId.Value, state.ConversationId);
@@ -299,7 +299,7 @@ internal static class InoModelSetup
 
         if (makeDefault)
         {
-            await deviceNeuron.Use(Role.Chat, modelId);
+            await deviceNeuron.Use(ModelRole.Chat, modelId);
         }
         else
         {
@@ -382,7 +382,7 @@ internal static class InoModelSetup
                 return;
 
             case "model":
-                var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[Role.Chat].Value : arg.Trim();
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? KnownModels.Defaults.Device[ModelRole.Chat].Value : arg.Trim();
                 await ChooseModelAsync(host, nextModel, makeDefault: true, statusOverride: $"Switched model to {nextModel}");
                 return;
 
@@ -422,7 +422,7 @@ internal static class InoModelSetup
             ModelId? picked = null;
             try
             {
-                var chosen = await catalog.Pick(Role.Chat);
+                var chosen = await catalog.Pick(ModelRole.Chat);
                 if (!string.IsNullOrWhiteSpace(chosen.Value))
                 {
                     picked = chosen;
@@ -452,7 +452,7 @@ internal static class InoModelSetup
         DeviceView? device,
         InoRuntimeSnapshot? runtimeSnapshot = null)
     {
-        var personModel = settings.RoleOf(Role.Chat)?.Value;
+        var personModel = settings.RoleOf(ModelRole.Chat)?.Value;
         if (!string.IsNullOrWhiteSpace(personModel)) { return (personModel, personModel); }
 
         var preferredLocal = PreferredLocalModel(device);
@@ -463,11 +463,11 @@ internal static class InoModelSetup
             {
                 return (picked.Value, picked.Value);
             }
-            var fallbackDisplay = preferredLocal is { Length: > 0 } p ? p : KnownModels.Defaults.Device[Role.Chat].Value;
+            var fallbackDisplay = preferredLocal is { Length: > 0 } p ? p : KnownModels.Defaults.Device[ModelRole.Chat].Value;
             return (null, fallbackDisplay);
         }
 
-        var fallback = preferredLocal is { Length: > 0 } detected ? detected : KnownModels.Defaults.Device[Role.Chat].Value;
+        var fallback = preferredLocal is { Length: > 0 } detected ? detected : KnownModels.Defaults.Device[ModelRole.Chat].Value;
         return (fallback, fallback);
     }
 
@@ -520,12 +520,12 @@ internal static class InoModelSetup
         var persisted = false;
         await host.TryOptional("model-catalog-set-role", async () =>
         {
-            await host.GetCatalog().SetRole(Role.Chat, model);
+            await host.GetCatalog().SetRole(ModelRole.Chat, model);
             persisted = true;
         });
         if (!persisted)
         {
-            await host.TryOptional("settings-set-role", () => host.GetSettings().SetRole(Role.Chat, model));
+            await host.TryOptional("settings-set-role", () => host.GetSettings().SetRole(ModelRole.Chat, model));
         }
     }
 

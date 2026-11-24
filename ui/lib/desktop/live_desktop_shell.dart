@@ -1488,6 +1488,40 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     ),
   ];
 
+  Widget _adaptiveTopActions(
+    List<_ParsedDesktopWindow> windows,
+    Map<String, Map<String, dynamic>> dockButtons,
+  ) => Positioned(
+    top: 8,
+    right: 8,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Home',
+          isSelected: _showDesktopOnly,
+          icon: const Icon(LucideIcons.brainCircuit),
+          onPressed: () => setState(() {
+            _popover = DesktopPopoverKind.none;
+            _allAppsOpen = false;
+            _themeStudioOpen = false;
+            _showDesktopOnly = !_showDesktopOnly;
+          }),
+        ),
+        IconButton(
+          tooltip: 'Settings',
+          icon: const Icon(LucideIcons.settings),
+          onPressed: () {
+            setState(() => _popover = DesktopPopoverKind.none);
+            _launchOrFocusApp('settings', windows, dockButtons);
+          },
+        ),
+        if (widget.profileMenu != null)
+          SizedBox(height: 32, child: widget.profileMenu),
+      ],
+    ),
+  );
+
   int _adaptiveSelectedIndex(_ParsedDesktopWindow? topWindow) {
     if (_themeStudioOpen) return 3;
     if (_allAppsOpen) return 2;
@@ -1796,7 +1830,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         right: 12,
                         bottom: 12,
                         child: InoOrbV2(
-                          state: _presenceState,
+                          state: _presenceState ?? PresenceState.idle,
                           size: 48,
                           semanticsId: 'compact:ino-orb',
                           onTap: () {
@@ -1808,6 +1842,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                           },
                         ),
                       ),
+                    _adaptiveTopActions(windows, dockButtons),
                     if (_systemSheet != DesktopSystemSheetKind.none)
                       Positioned.fill(
                         child: DesktopSystemModalSheet(
@@ -1898,7 +1933,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     _allAppsOpen = false;
                     _themeStudioOpen = false;
                   });
-                  unawaited(_showActiveAppsSheet(context, orderedWindows, byId));
+                  unawaited(
+                    _showActiveAppsSheet(context, orderedWindows, byId),
+                  );
                 case 2:
                   setState(() {
                     _themeStudioOpen = false;
@@ -1945,6 +1982,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       },
                     ),
                   ),
+                _adaptiveTopActions(windows, dockButtons),
                 if (_systemSheet != DesktopSystemSheetKind.none)
                   Positioned.fill(
                     child: DesktopSystemModalSheet(
@@ -2085,7 +2123,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         final isMedium =
             size.width >= _kCompactBreakpoint &&
             size.width < _kExpandedBreakpoint;
-        final focusMode = size.width < _kExpandedBreakpoint || size.height < 640;
+        final focusMode =
+            size.width < _kExpandedBreakpoint || size.height < 640;
         final desk = Size(
           size.width,
           max(320.0, size.height - kOsBarHeight - 8),

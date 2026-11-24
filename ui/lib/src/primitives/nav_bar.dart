@@ -65,17 +65,15 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
     final type = UiType.of(context);
-    final isCompact = MediaQuery.sizeOf(context).width < widget.compactBreakpoint;
+    final isCompact =
+        MediaQuery.sizeOf(context).width < widget.compactBreakpoint;
 
     final nav = isCompact
         ? _buildBottomBar(c, tokens, type)
         : _buildRail(c, tokens, type);
 
     if (widget.semanticsId == null) return nav;
-    return Semantics(
-      identifier: widget.semanticsId,
-      child: nav,
-    );
+    return Semantics(identifier: widget.semanticsId, child: nav);
   }
 
   Widget _buildBottomBar(UiColors c, UiTokens tokens, UiTypeSet type) {
@@ -85,9 +83,7 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
           .height(widget.barHeight)
           .color(c.surface)
           .padding(EdgeInsetsGeometryMix.symmetric(horizontal: tokens.p8))
-          .border(
-            BorderMix(top: BorderSideMix.color(c.hairline).width(1.0)),
-          ),
+          .border(BorderMix(top: BorderSideMix.color(c.hairline).width(1.0))),
       child: SafeArea(
         top: false,
         child: Row(
@@ -122,9 +118,7 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
               horizontal: tokens.p6,
             ),
           )
-          .border(
-            BorderMix(right: BorderSideMix.color(c.hairline).width(1.0)),
-          ),
+          .border(BorderMix(right: BorderSideMix.color(c.hairline).width(1.0))),
       child: SafeArea(
         right: false,
         child: Column(
@@ -252,9 +246,8 @@ class _UiAdaptiveNavBarState extends State<UiAdaptiveNavBar> {
                 )
                 .border(
                   BoxBorderMix.all(
-                    BorderSideMix.color(
-                      focused ? c.focus : Colors.transparent,
-                    ).width(1.5),
+                    BorderSideMix.color(focused ? c.focus : Colors.transparent)
+                        .width(1.5),
                   ),
                 )
                 .animate(

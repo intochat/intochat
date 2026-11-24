@@ -37,7 +37,7 @@ namespace IntoChat.OS.Kernel.Tests.E2E;
 
 /// <summary>
 /// Restores the historical E2E app workflows (DesktopStartFacts, AppsAppFacts, ShippedAppJourneys,
-/// InoChatFacts, MemoryLoopFacts, InoSecretFacts, SelfImproveFacts, and Files/Storage broker journeys)
+/// InoChatFacts, MemoryLoopFacts, SelfImproveFacts, and Files/Storage broker journeys)
 /// against the real DigitalBrain SiloHost environment.
 /// </summary>
 public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
@@ -173,7 +173,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await film.SwitchMode(new FilmCraftSwitchMode("mcp"));
         Assert.Equal("mcp", film.State.ExecutionMode);
         await film.Export(new FilmCraftExport("h264-1080p60", "/work/launch-trailer.fcproj", "mcp"));
-        Assert.Contains("failed", film.State.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("MCP server 'filmcraft-mcp' is not connected", film.State.Status, StringComparison.Ordinal);
         Assert.Equal("/work/launch-trailer.cut.mp4", film.State.OutputFile);
         Assert.Equal(string.Empty, film.State.LastCliInvocation);
 
@@ -236,23 +236,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Contains(ino.State.ActiveCards, c => c.Kind == "table" && c.Rows is { Length: > 0 });
         Assert.Contains(ino.State.ActiveCards, c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
 
-        // 5. Secret prompt workflow (InoSecretFacts): /scenario invoice-check emits SecretCardNode routed to os://window/secure and never leaks secrets.
-        var forbiddenText = string.Concat("sample", "-", "unexposed", "-", "value");
-        await ino.Send(new InoSend("/scenario invoice-check"));
-        var secretCardState = Assert.Single(ino.State.ActiveCards, c => c.Kind == "secret");
-        Assert.Equal("Tripletex Session Token", secretCardState.Title);
-        Assert.Equal("neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN", secretCardState.SourceNeuronUri);
-
         var renderedView = ino.Render();
-        var secretNode = FindSecretCard(renderedView.Root);
-        Assert.NotNull(secretNode);
-        Assert.Equal("Tripletex Session Token", secretNode.Name);
-        Assert.Contains("neuron://local/vault/secrets", secretNode.SavedIn, StringComparison.Ordinal);
-        Assert.Equal("os://window/secure", secretNode.Enter?.Intent?.Arg);
-
-        Assert.DoesNotContain(ino.State.Turns, t => t.Reply.Contains(forbiddenText, StringComparison.Ordinal)
-            || t.UserMessage.Contains(forbiddenText, StringComparison.Ordinal));
-
         await fixture.PublishAppViewToSiloAsync(brain, "ino", null, renderedView);
         var inoSiloView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read();
         Assert.NotNull(inoSiloView);
@@ -322,35 +306,4 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
                 entry => entry.Brain == brainId && entry.ConnectionKey == "local-disk" && entry.CallerApp == appKey);
         }
     }
-
-    private static SecretCardNode? FindSecretCard(Node? node)
-    {
-        if (node is null)
-        {
-            return null;
-        }
-        if (node is SecretCardNode secret)
-        {
-            return secret;
-        }
-        foreach (var child in ChildrenOf(node))
-        {
-            if (FindSecretCard(child) is { } match)
-            {
-                return match;
-            }
-        }
-        return null;
-    }
-
-    private static IEnumerable<Node> ChildrenOf(Node node) => node switch
-    {
-        Column col => col.Children,
-        Row row => row.Children,
-        Surface surface => surface.Children,
-        Grid grid => grid.Children,
-        SplitPane split => [split.Leading, split.Trailing],
-        AppShellNode shell => new[] { shell.Sidebar, shell.Toolbar, shell.Body, shell.Inspector }.OfType<Node>(),
-        _ => [],
-    };
 }

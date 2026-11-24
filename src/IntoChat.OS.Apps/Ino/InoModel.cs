@@ -269,7 +269,7 @@ public static class InoModel
         Approval[] approvals, string[] grantSummaries)
     {
         ArgumentNullException.ThrowIfNull(current);
-        var modelLabel = string.IsNullOrWhiteSpace(defaultModel) ? KnownModels.Defaults.Device[Role.Chat].Value : defaultModel.Trim();
+        var modelLabel = string.IsNullOrWhiteSpace(defaultModel) ? KnownModels.Defaults.Device[ModelRole.Chat].Value : defaultModel.Trim();
         var status = mode == "greet" ? $"Hello, {displayName}! Ready on {modelLabel}."
             : current.Blocked ? Paused : current.ActiveRunId is not null ? Working : Ready;
         var migrate = current.Turns.Length > 0 && string.IsNullOrEmpty(current.AgentKey);

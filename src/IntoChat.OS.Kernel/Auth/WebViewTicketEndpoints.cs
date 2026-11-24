@@ -27,17 +27,13 @@ public static class WebViewTicketEndpoints
     public const string MintPath = "/auth/webview-ticket";
     public const string EnterPath = "/auth/webview-enter";
 
-    private static readonly TimeSpan TicketTtl = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan SessionCookieLifetime = TimeSpan.FromHours(12);
-    private static readonly ConcurrentDictionary<string, WebViewTicket> Tickets = new(StringComparer.Ordinal);
-
-    private sealed record WebViewTicket(ClaimsPrincipal Principal, string Target, DateTimeOffset ExpiresAt);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        endpoints.MapPost(MintPath, async (HttpContext http, IOptions<AuthOptions> authOptions) =>
+        endpoints.MapPost(MintPath, async (HttpContext http, IOptions<AuthOptions> authOptions, WebViewTickets tickets) =>
         {
             http.Response.Headers.CacheControl = "no-store";
 
@@ -70,11 +66,11 @@ public static class WebViewTicketEndpoints
                 return Results.Unauthorized();
             }
 
-            var enterUrl = IssueTicket(principal, target!);
+            var enterUrl = tickets.Issue(principal, target!);
             return Results.Ok(new { enterUrl });
         });
 
-        endpoints.MapGet(EnterPath, async (HttpContext http) =>
+        endpoints.MapGet(EnterPath, async (HttpContext http, WebViewTickets tickets) =>
         {
             http.Response.Headers.CacheControl = "no-store";
 
@@ -84,13 +80,8 @@ public static class WebViewTicketEndpoints
                 return Results.Unauthorized();
             }
 
-            if (!Tickets.TryRemove(token, out var entry))
-            {
-                return Results.Unauthorized();
-            }
-
             var now = DateTimeOffset.UtcNow;
-            if (entry.ExpiresAt <= now || !IsSafeRelativeTarget(entry.Target))
+            if (!tickets.TryRedeem(token, now, out var entry))
             {
                 return Results.Unauthorized();
             }
@@ -141,31 +132,6 @@ public static class WebViewTicketEndpoints
         return true;
     }
 
-    /// <summary>
-    /// Mints a short-lived, single-use <c>/auth/webview-enter?ticket=...</c> URL for
-    /// <paramref name="principal"/> targeting <paramref name="relativePath"/>.
-    /// </summary>
-    public static string IssueTicket(ClaimsPrincipal principal, string relativePath)
-    {
-        ArgumentNullException.ThrowIfNull(principal);
-        if (!IsSafeRelativeTarget(relativePath))
-        {
-            throw new ArgumentException("Invalid target path. Must be a safe relative path starting with '/'.", nameof(relativePath));
-        }
-
-        var cookiePrincipal = string.Equals(principal.Identity?.AuthenticationType, CookieAuthenticationDefaults.AuthenticationScheme, StringComparison.Ordinal)
-            ? principal
-            : new ClaimsPrincipal(new ClaimsIdentity(principal.Claims, CookieAuthenticationDefaults.AuthenticationScheme));
-
-        var now = DateTimeOffset.UtcNow;
-        PruneExpired(now);
-
-        var token = CreateBase64UrlToken();
-        Tickets[token] = new WebViewTicket(cookiePrincipal, relativePath, now + TicketTtl);
-
-        return $"{EnterPath}?ticket={Uri.EscapeDataString(token)}";
-    }
-
     private static ClaimsPrincipal? ResolveCookiePrincipal(HttpContext http, AuthOptions options)
     {
         if (http.User.Identity?.IsAuthenticated == true)
@@ -184,6 +150,56 @@ public static class WebViewTicketEndpoints
         return new ClaimsPrincipal(
             new ClaimsIdentity(sessionUser.Claims, CookieAuthenticationDefaults.AuthenticationScheme));
     }
+}
+
+// Live launch tickets for one host: content-keyed and short-lived, so they are DI-owned rather than a process static.
+public sealed class WebViewTickets
+{
+    private static readonly TimeSpan TicketTtl = TimeSpan.FromSeconds(30);
+    private readonly ConcurrentDictionary<string, WebViewTicket> _tickets = new(StringComparer.Ordinal);
+
+    internal sealed record WebViewTicket(ClaimsPrincipal Principal, string Target, DateTimeOffset ExpiresAt);
+
+    /// <summary>
+    /// Mints a short-lived, single-use <c>/auth/webview-enter?ticket=...</c> URL for
+    /// <paramref name="principal"/> targeting <paramref name="relativePath"/>.
+    /// </summary>
+    public string Issue(ClaimsPrincipal principal, string relativePath)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        if (!WebViewTicketEndpoints.IsSafeRelativeTarget(relativePath))
+        {
+            throw new ArgumentException("Invalid target path. Must be a safe relative path starting with '/'.", nameof(relativePath));
+        }
+
+        var cookiePrincipal = string.Equals(principal.Identity?.AuthenticationType, CookieAuthenticationDefaults.AuthenticationScheme, StringComparison.Ordinal)
+            ? principal
+            : new ClaimsPrincipal(new ClaimsIdentity(principal.Claims, CookieAuthenticationDefaults.AuthenticationScheme));
+
+        var now = DateTimeOffset.UtcNow;
+        PruneExpired(now);
+
+        var token = CreateBase64UrlToken();
+        _tickets[token] = new WebViewTicket(cookiePrincipal, relativePath, now + TicketTtl);
+
+        return $"{WebViewTicketEndpoints.EnterPath}?ticket={Uri.EscapeDataString(token)}";
+    }
+
+    internal bool TryRedeem(string token, DateTimeOffset now, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out WebViewTicket? entry)
+    {
+        if (!_tickets.TryRemove(token, out entry))
+        {
+            return false;
+        }
+
+        if (entry.ExpiresAt <= now || !WebViewTicketEndpoints.IsSafeRelativeTarget(entry.Target))
+        {
+            entry = null;
+            return false;
+        }
+
+        return true;
+    }
 
     private static string CreateBase64UrlToken()
     {
@@ -195,13 +211,13 @@ public static class WebViewTicketEndpoints
             .Replace('/', '_');
     }
 
-    private static void PruneExpired(DateTimeOffset now)
+    private void PruneExpired(DateTimeOffset now)
     {
-        foreach (var pair in Tickets)
+        foreach (var pair in _tickets)
         {
             if (pair.Value.ExpiresAt <= now)
             {
-                Tickets.TryRemove(pair.Key, out _);
+                _tickets.TryRemove(pair.Key, out _);
             }
         }
     }

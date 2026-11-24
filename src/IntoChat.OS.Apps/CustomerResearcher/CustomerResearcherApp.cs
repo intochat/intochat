@@ -18,6 +18,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
@@ -90,9 +91,15 @@ public sealed record UseOwnCustomers() : Signal;
 [Neuron("app.customer-researcher")]
 [Screen("app.customer-researcher", Title = "Customer Researcher", Icon = Icons.Search, Category = "Workspace")]
 [Description("Researches target companies, scores ICP fit, and maintains a structured table of customer profiles.")]
-public sealed partial class CustomerResearcherApp(ILogger<CustomerResearcherApp>? logger = null)
-    : AggregateScreen<CustomerResearcherState>
+public sealed partial class CustomerResearcherApp : AggregateScreen<CustomerResearcherState>
 {
+    private readonly ILogger<CustomerResearcherApp>? _logger;
+
+    public CustomerResearcherApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public CustomerResearcherApp(ILogger<CustomerResearcherApp>? logger = null) => _logger = logger;
+
     public const string ProfilesTableKey = "customer_profiles";
 
     private static readonly TableDefinition ProfilesTableDefinition = new(
@@ -109,7 +116,7 @@ public sealed partial class CustomerResearcherApp(ILogger<CustomerResearcherApp>
     [Slot] private partial IWebSearch Search { get; }
     [Slot(Key = "default", Required = false)] private partial IInstalls? Installs { get; }
 
-    private ILogger Log => logger ?? GetLogger();
+    private ILogger Log => _logger ?? GetLogger();
 
     private NeuronId OwnProfilesTableId => new(Id.Brain, "postgres.table", ProfilesTableKey);
 

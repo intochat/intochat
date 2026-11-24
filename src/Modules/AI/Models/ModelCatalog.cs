@@ -103,9 +103,9 @@ public sealed class ModelCatalog
         }
 
         var localModel = Clean(configuration[IntoChatOSNames.LocalModelKey]);
-        if (localModel is not null && !ai.Roles.Device.ContainsKey(Role.Chat))
+        if (localModel is not null && !ai.Roles.Device.ContainsKey(ModelRole.Chat))
         {
-            ai.Roles.Device[Role.Chat] = KnownModels.Find(localModel)?.Id.Value ?? localModel;
+            ai.Roles.Device[ModelRole.Chat] = KnownModels.Find(localModel)?.Id.Value ?? localModel;
         }
     }
 
@@ -113,12 +113,12 @@ public sealed class ModelCatalog
         => Resolve(null, selection, requiresTools, ct);
 
     public Task<ResolvedModel> Resolve(string? brainId, ModelSelection? selection, bool requiresTools, CancellationToken ct)
-        => Decide(brainId, Role.Chat, selection, requiresTools, ct);
+        => Decide(brainId, ModelRole.Chat, selection, requiresTools, ct);
 
     /// <summary>Single model decision entry point: turn -> person -> deployment -> first available card with the role's ability.</summary>
     public Task<ResolvedModel> Decide(
         string? brainId,
-        Role role,
+        ModelRole role,
         ModelSelection? turn = null,
         bool requiresTools = false,
         CancellationToken ct = default)
@@ -126,7 +126,7 @@ public sealed class ModelCatalog
 
     internal Task<ResolvedModel> Decide(
         BrainId? brain,
-        Role role,
+        ModelRole role,
         ModelSelection? turn,
         bool requiresTools,
         Func<CancellationToken, Task<UserSettingsState?>>? personSettingsReader,
@@ -161,7 +161,7 @@ public sealed class ModelCatalog
 
     internal async Task<ModelId> Pick(
         BrainId? brain,
-        Role role,
+        ModelRole role,
         ModelId? turn,
         Func<CancellationToken, Task<UserSettingsState?>>? personSettingsReader,
         CancellationToken ct)
@@ -199,7 +199,7 @@ public sealed class ModelCatalog
         var cloud = baseMap.Cloud.ToBuilder();
         var changed = false;
 
-        foreach (var role in Enum.GetValues<Role>())
+        foreach (var role in Enum.GetValues<ModelRole>())
         {
             if (person.RoleOf(role) is { Value.Length: > 0 } chosen)
             {
@@ -247,7 +247,7 @@ public sealed class ModelCatalog
 
     private async Task<ResolvedModel> DecideCore(
         string? brainId,
-        Role role,
+        ModelRole role,
         ModelSelection? turn,
         bool requiresTools,
         Func<CancellationToken, Task<UserSettingsState?>>? personSettingsReader,
@@ -1020,7 +1020,7 @@ public sealed class ModelCatalog
 
     internal async Task<ResolvedModel> ResolveCloudFallbackAsync(
         string? brainId,
-        Role role,
+        ModelRole role,
         ModelSelection? selection,
         bool requiresTools,
         string deviceModelId,

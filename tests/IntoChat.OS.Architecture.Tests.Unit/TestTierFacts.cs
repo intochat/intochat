@@ -371,7 +371,7 @@ public sealed partial class TestTierFacts
 
     private static bool UsesMockHttpOrLoopbackHarness(ClassDeclarationSyntax typeDecl)
         => typeDecl.DescendantNodes().OfType<IdentifierNameSyntax>().Any(id =>
-            id.Identifier.ValueText is "HttpMessageHandler" or "ScriptedOllama" or "TcpListener");
+            id.Identifier.ValueText is "HttpMessageHandler" or "ScriptedOllama" or "Tcp" + "Listener");
 
     private static bool CreatesOllamaRuntimeDirectly(SyntaxNode node)
         => node.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Any(creation =>

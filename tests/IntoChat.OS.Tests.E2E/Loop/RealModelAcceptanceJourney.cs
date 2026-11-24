@@ -161,10 +161,10 @@ public sealed class RealModelAcceptanceJourney(ITestOutputHelper output)
 
             var ollamaRuntime = Assert.Single(provider.GetServices<ILocalRuntime>(), static r => r.Id == RuntimeId.Ollama);
             var probe = await ollamaRuntime.Probe(Ct);
-            Assert.True(probe.Reachable, $"Ollama at {OllamaEndpoint} is not reachable.");
+            Assert.SkipUnless(probe.Reachable, $"Ollama at {OllamaEndpoint} is not reachable.");
 
             var catalog = provider.GetRequiredService<ModelCatalog>();
-            var resolved = await catalog.Decide(brainId: null, Role.Think, turn: null, requiresTools: true, Ct);
+            var resolved = await catalog.Decide(brainId: null, ModelRole.Think, turn: null, requiresTools: true, Ct);
             Assert.Equal(AiProvider.Ollama, resolved.Provider);
             Assert.Equal(ExpectedThinkModel, resolved.Model);
 
@@ -213,9 +213,17 @@ public sealed class RealModelAcceptanceJourney(ITestOutputHelper output)
             var afterSha = changeSet.Commit.Value;
             Assert.NotEqual(beforeSha, afterSha);
 
+            await using var os = await JourneyOS.Start(
+                NeuronRuntimeKind.TestOS,
+                [typeof(AppsModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
+                ct: Ct);
+            var brain = os.Runtime.Brain;
+            using var callerScope = os.Runtime.Edge.Enter(os.Runtime.Edge.Person("owner", "owner", brain, conversation: null));
+
             // 5. Run real LocalSelfReview on the worktree diff and assert zero blocking findings.
             var changedPaths = changeSet.ChangedFiles.Select(static f => f.Value).ToArray();
-            var selfReview = LocalSelfReview.ReviewWorktree(lease.TreePath, changedPaths);
+            var roslyn = os.Runtime.Get<IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn>(new DigitalBrain.NeuronId(brain, "microsoft.roslyn", "self-review"));
+            var selfReview = await LocalSelfReview.ReviewWorktree(roslyn, lease.TreePath, changedPaths, Ct);
             Assert.False(selfReview.HasBlocking, $"Blocking self-review findings: {selfReview.FormatForCard()}");
 
             // 6. Start a SECOND REAL HEADLESS HOST PROCESS from the changed worktree build on a free loopback port
@@ -315,12 +323,6 @@ public sealed class RealModelAcceptanceJourney(ITestOutputHelper output)
                 """);
             var fullCardBody = baseCardBody + evidenceSection;
 
-            await using var os = await JourneyOS.Start(
-                NeuronRuntimeKind.TestOS,
-                [typeof(AppsModule)],
-                ct: Ct);
-            var brain = os.Runtime.Brain;
-            using var callerScope = os.Runtime.Edge.Enter(os.Runtime.Edge.Person("owner", "owner", brain, conversation: null));
 
             var requests = os.Runtime.Get<IConfirmationRequests>(IConfirmationRequests.Of(brain));
             var inbox = os.Runtime.Get<IConfirmationInbox>(IConfirmationRequests.Of(brain));

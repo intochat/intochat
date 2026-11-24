@@ -55,7 +55,7 @@ public static partial class AIHostingExtensions
         }
 
         var roleMap = options.Roles.ToRoleMap();
-        if (TryRole(roleMap, Role.Hear, out var hearId))
+        if (TryRole(roleMap, ModelRole.Hear, out var hearId))
         {
             var card = KnownModels.Find(hearId.Value) ?? throw new InvalidOperationException(
                 $"'{hearId.Value}' is not a catalogued transcription model. Known: {string.Join(", ", KnownModels.All.Where(static c => c.Can.HasFlag(Abilities.Hear)).Select(static c => c.Id.Value))}.");
@@ -63,7 +63,7 @@ public static partial class AIHostingExtensions
             voice.SetModel(card);
         }
 
-        if (TryRole(roleMap, Role.Fast, out var fastId) && KnownModels.Find(fastId.Value) is { } fastCard && IsSystemOne(fastCard))
+        if (TryRole(roleMap, ModelRole.Fast, out var fastId) && KnownModels.Find(fastId.Value) is { } fastCard && IsSystemOne(fastCard))
         {
             var systemOne = module.GetOrAddProjection(b => new SystemOneHostingState(b, module.Resource));
             if (fastCard.Provider is AiProvider.Ollama) { systemOne.SetDefault(fastCard, state.AddOllamaBackingModel(fastCard.Id.Value)); }
@@ -83,7 +83,7 @@ public static partial class AIHostingExtensions
         }
     }
 
-    private static bool TryRole(RoleMap map, Role role, out ModelId id)
+    private static bool TryRole(RoleMap map, ModelRole role, out ModelId id)
         => map.Device.TryGetValue(role, out id) || map.Cloud.TryGetValue(role, out id);
 
     private static bool IsSystemOne(ModelCard card)

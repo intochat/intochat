@@ -1,20 +1,24 @@
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using IntoChat.OS.Modules.Microsoft.Roslyn;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
-/// Fast, local Roslyn syntax self-review run over changed C# files in a worktree
-/// before the approval card is presented to the owner.
+/// Fast syntax self-review of changed C# files in a worktree before the approval card is presented to the owner.
+/// The syntax rules run in the Roslyn module behind <see cref="IRoslyn.ReviewSyntax"/>.
 /// </summary>
 internal sealed class LocalSelfReview
 {
-    public static SelfReviewReport ReviewWorktree(string worktreePath, IReadOnlyList<string> changedFiles)
+    public static async Task<SelfReviewReport> ReviewWorktree(
+        IRoslyn roslyn,
+        string worktreePath,
+        IReadOnlyList<string> changedFiles,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(roslyn);
         ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
         ArgumentNullException.ThrowIfNull(changedFiles);
 
-        var findings = new List<ReviewFinding>();
+        var sources = new List<SyntaxSource>();
 
         foreach (var rawPath in changedFiles)
         {
@@ -34,50 +38,40 @@ internal sealed class LocalSelfReview
                 continue;
             }
 
-            var sourceText = File.ReadAllText(fullPath);
-            ReviewSource(normalizedPath, sourceText, findings);
+            var sourceText = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
+            sources.Add(new SyntaxSource(normalizedPath, sourceText));
         }
 
-        return new SelfReviewReport([.. findings]);
+        if (sources.Count == 0)
+        {
+            return SelfReviewReport.Empty;
+        }
+
+        var result = await roslyn.ReviewSyntax(new SyntaxReview(sources), cancellationToken).ConfigureAwait(false);
+        return new SelfReviewReport([.. result.Findings.Select(ToReviewFinding)]);
     }
 
-    public static SelfReviewReport ReviewUnifiedDiff(string diffText)
+    public static async Task<SelfReviewReport> ReviewUnifiedDiff(IRoslyn roslyn, string diffText, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(roslyn);
         if (string.IsNullOrWhiteSpace(diffText))
         {
             return SelfReviewReport.Empty;
         }
 
-        var findings = new List<ReviewFinding>();
         string? currentPath = null;
         var currentNewLine = 0;
         var snippetLines = new List<string>();
         var lineMap = new List<int>();
         var addedLines = new HashSet<int>();
 
+        var snippets = new List<(SyntaxSource Source, int[] LineMap, HashSet<int> Added)>();
+
         void FlushCurrentFile()
         {
-            if (currentPath is null || snippetLines.Count == 0 || addedLines.Count == 0)
+            if (currentPath is not null && snippetLines.Count > 0 && addedLines.Count > 0)
             {
-                snippetLines.Clear();
-                lineMap.Clear();
-                addedLines.Clear();
-                return;
-            }
-
-            var snippetFindings = new List<ReviewFinding>();
-            ReviewSource(currentPath, string.Join('\n', snippetLines), snippetFindings);
-            foreach (var finding in snippetFindings)
-            {
-                var index = finding.Line - 1;
-                if (index >= 0 && index < lineMap.Count)
-                {
-                    var mappedLine = lineMap[index];
-                    if (addedLines.Contains(mappedLine))
-                    {
-                        findings.Add(finding with { Line = mappedLine });
-                    }
-                }
+                snippets.Add((new SyntaxSource(currentPath, string.Join('\n', snippetLines)), [.. lineMap], [.. addedLines]));
             }
 
             snippetLines.Clear();
@@ -148,6 +142,31 @@ internal sealed class LocalSelfReview
         }
 
         FlushCurrentFile();
+        if (snippets.Count == 0)
+        {
+            return SelfReviewReport.Empty;
+        }
+
+        // Each snippet is reviewed under its own index label so findings map back to the file and its new-side lines.
+        var labelled = snippets.Select(static (s, i) => new SyntaxSource(i.ToString(System.Globalization.CultureInfo.InvariantCulture), s.Source.Text)).ToArray();
+        var result = await roslyn.ReviewSyntax(new SyntaxReview(labelled), cancellationToken).ConfigureAwait(false);
+        var findings = new List<ReviewFinding>();
+        foreach (var hit in result.Findings)
+        {
+            if (!int.TryParse(hit.Path, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index)
+                || index < 0 || index >= snippets.Count)
+            {
+                continue;
+            }
+
+            var (source, map, added) = snippets[index];
+            var lineIndex = hit.Line - 1;
+            if (lineIndex >= 0 && lineIndex < map.Length && added.Contains(map[lineIndex]))
+            {
+                findings.Add(ToReviewFinding(hit) with { Path = source.Path, Line = map[lineIndex] });
+            }
+        }
+
         return new SelfReviewReport([.. findings]);
     }
 
@@ -171,113 +190,11 @@ internal sealed class LocalSelfReview
             : 1;
     }
 
-    private static void ReviewSource(string path, string sourceText, List<ReviewFinding> findings)
-    {
-        var tree = CSharpSyntaxTree.ParseText(sourceText, path: path);
-        var root = tree.GetCompilationUnitRoot();
-
-        foreach (var catchClause in root.DescendantNodes().OfType<CatchClauseSyntax>())
-        {
-            if (IsSwallowedCatch(catchClause))
-            {
-                var line = catchClause.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                findings.Add(new ReviewFinding(
-                    RuleId: "HR-Swallow",
-                    Source: ReviewFindingSource.Analyzer,
-                    Path: path,
-                    Line: line,
-                    Severity: ReviewSeverity.Blocking,
-                    Message: "Empty or silent catch block swallows exception (HR-Swallow / DB0022)."));
-            }
-        }
-
-        foreach (var memberAccess in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
-        {
-            var receiver = memberAccess.Expression.ToString();
-            var member = memberAccess.Name.Identifier.Text;
-
-            if (receiver is "DateTime" or "System.DateTime" or "DateTimeOffset" or "System.DateTimeOffset"
-                && member is "Now" or "UtcNow")
-            {
-                var line = memberAccess.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                findings.Add(new ReviewFinding(
-                    RuleId: "HR-12",
-                    Source: ReviewFindingSource.ArchitectureFact,
-                    Path: path,
-                    Line: line,
-                    Severity: ReviewSeverity.Warning,
-                    Message: $"Direct wall-clock access '{receiver}.{member}'; inject TimeProvider instead (HR-12)."));
-            }
-        }
-
-        foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (invocation.Expression is MemberAccessExpressionSyntax
-                {
-                    Name: GenericNameSyntax { Identifier.Text: "Get" },
-                } ma)
-            {
-                var receiver = ma.Expression.ToString();
-                if (receiver is "SiloNeurons" || receiver.EndsWith(".SiloNeurons", StringComparison.Ordinal))
-                {
-                    var line = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                    findings.Add(new ReviewFinding(
-                        RuleId: "HR-23",
-                        Source: ReviewFindingSource.ArchitectureFact,
-                        Path: path,
-                        Line: line,
-                        Severity: ReviewSeverity.Blocking,
-                        Message: $"Ambient neuron lookup '{ma}'; declare a typed slot instead (HR-23)."));
-                }
-            }
-            else if (invocation.Expression is GenericNameSyntax { Identifier.Text: "Get" } generic)
-            {
-                var line = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                findings.Add(new ReviewFinding(
-                    RuleId: "HR-23",
-                    Source: ReviewFindingSource.ArchitectureFact,
-                    Path: path,
-                    Line: line,
-                    Severity: ReviewSeverity.Warning,
-                    Message: $"Ambient lookup '{generic}'; declare a typed slot instead (HR-23)."));
-            }
-        }
-    }
-
-    private static bool IsSwallowedCatch(CatchClauseSyntax catchClause)
-    {
-        var statements = catchClause.Block.Statements;
-        if (statements.Count == 0 || statements.All(static s => s is EmptyStatementSyntax))
-        {
-            return true;
-        }
-
-        var hasThrow = catchClause.Block.DescendantNodes().Any(static n => n is ThrowStatementSyntax or ThrowExpressionSyntax);
-        if (hasThrow)
-        {
-            return false;
-        }
-
-        var hasLogging = catchClause.Block.DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .Any(static inv =>
-            {
-                var name = inv.Expression switch
-                {
-                    MemberAccessExpressionSyntax ma => ma.Name.Identifier.Text,
-                    IdentifierNameSyntax id => id.Identifier.Text,
-                    _ => string.Empty,
-                };
-                return name.StartsWith("Log", StringComparison.Ordinal);
-            });
-
-        if (hasLogging)
-        {
-            return false;
-        }
-
-        var nonEmpty = statements.Where(static s => s is not EmptyStatementSyntax).ToArray();
-        return nonEmpty.Length == 1
-            && nonEmpty[0] is ReturnStatementSyntax or BreakStatementSyntax or ContinueStatementSyntax;
-    }
+    private static ReviewFinding ToReviewFinding(SyntaxFinding hit) => new(
+        hit.RuleId,
+        hit.Kind == SyntaxFindingKind.Analyzer ? ReviewFindingSource.Analyzer : ReviewFindingSource.ArchitectureFact,
+        hit.Path,
+        hit.Line,
+        hit.Blocking ? ReviewSeverity.Blocking : ReviewSeverity.Warning,
+        hit.Message);
 }

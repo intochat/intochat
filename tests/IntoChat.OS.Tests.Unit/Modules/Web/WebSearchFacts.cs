@@ -307,7 +307,7 @@ public sealed class WebSearchFacts
         public Task<UserSettingsState> SetUiIdentity(string stylePreset, string barLayout) => Task.FromResult(state);
         public Task<UserSettingsState> SetPreferences(string? themeMode = null, string? desktopTone = null, string? language = null, string? timeZone = null, string? dateFormat = null, string? artCraftDefaultMode = null) => Task.FromResult(state);
         public Task<UserSettingsState> SetVariable(string key, string value) => Task.FromResult(state);
-        public Task<UserSettingsState> SetRole(AI.Models.Role role, AI.Models.ModelId model) => Task.FromResult(state);
+        public Task<UserSettingsState> SetRole(AI.Models.ModelRole role, AI.Models.ModelId model) => Task.FromResult(state);
     }
 
     private sealed class Harness(TestOS os, ServiceProvider services, IWebSearch search, IDisposable callerScope) : IAsyncDisposable

@@ -50,8 +50,11 @@ internal static class Repository
     internal static readonly string SourceRoot = CommonDirectory(Projects.Values.Select(project => project.Directory));
 
     internal static readonly string ModulesRoot = CommonDirectory(Projects.Values
-        .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+        .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && !IsTestProject(project))
         .Select(project => project.Directory));
+
+    // A module's own test project (tests/IntoChat.OS.Modules.<Name>.Tests.Unit) carries the module prefix but is not a module.
+    internal static bool IsTestProject(Project project) => project.Name.Contains(".Tests.", StringComparison.Ordinal) || project.Name.EndsWith(".Tests", StringComparison.Ordinal);
 
     internal static Project ProjectNamed(string name)
         => Projects.TryGetValue(name, out var project) ? project

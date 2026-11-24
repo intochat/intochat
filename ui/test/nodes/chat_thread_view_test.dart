@@ -381,13 +381,17 @@ void main() {
     expect(y.reduce(math.max) - y.reduce(math.min), lessThanOrEqualTo(1.0));
 
     // Tapping opens VoiceModeView for that conversation.
+    // The voice orb animates continuously, so pump the route transition
+    // rather than waiting for the tree to settle.
     await t.tap(voiceButton);
-    await t.pumpAndSettle();
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 350));
     expect(find.byType(VoiceModeView), findsOneWidget);
     expect(talked, ['c-1']);
 
     await t.tap(find.byKey(const ValueKey('voice-close')));
-    await t.pumpAndSettle();
+    await t.pump();
+    await t.pump(const Duration(seconds: 1));
     expect(find.byType(VoiceModeView), findsNothing);
   });
 

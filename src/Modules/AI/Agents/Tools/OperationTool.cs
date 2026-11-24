@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Log;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -334,8 +335,9 @@ internal sealed class OperationTool : AIFunction
                     return document.RootElement.Clone();
                 }
             }
-            catch (JsonException)
+            catch (JsonException error)
             {
+                IntoChat.OS.Host.Logging.OsConsoleLog.For<OperationTool>().LogSwallowed(error, "operation tool parameter schema is not JSON");
             }
         }
 

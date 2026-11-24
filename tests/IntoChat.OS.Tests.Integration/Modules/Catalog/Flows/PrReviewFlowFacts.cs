@@ -8,6 +8,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Tests.Integration.Modules.Roslyn;
 using IntoChat.OS.Tests.Support.Fakes;
 using IntoChat.OS.Tests.Support.Fakes.GitHub;
 
@@ -75,9 +76,9 @@ public sealed class PrReviewFlowFacts
         var ct = TestContext.Current.CancellationToken;
         var headSha = new string('b', 40);
         var diff = """
-            diff --git a/src/Sample/ClockService.cs b/src/Sample/ClockService.cs
-            --- a/src/Sample/ClockService.cs
-            +++ b/src/Sample/ClockService.cs
+            diff --git a/lib/Sample/ClockService.cs b/lib/Sample/ClockService.cs
+            --- a/lib/Sample/ClockService.cs
+            +++ b/lib/Sample/ClockService.cs
             @@ -1,3 +1,12 @@
              namespace Sample;
             +public sealed class ClockService
@@ -93,11 +94,12 @@ public sealed class PrReviewFlowFacts
 
         await using var os = await JourneyOS.Start(
             kind,
-            [typeof(AppsModule), typeof(GitHubModule)],
+            [typeof(AppsModule), typeof(GitHubModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
             f => f.GitHub(g => g
                 .WebhookSecret(WebhookSecret)
                 .Repository("intochat/os", repositoryId: 61001, installationId: 9101)
-                .PullRequest("intochat/os", 19, headSha, title: "Add clock helper", author: "bob", diff: diff)),
+                .PullRequest("intochat/os", 19, headSha, title: "Add clock helper", author: "bob", diff: diff))
+                .Configure(services => services.AddRoslynWorkspace()),
             ct);
 
         var ada = os.Person(os.Runtime.Brain.Value);
@@ -107,7 +109,7 @@ public sealed class PrReviewFlowFacts
         var uncitedModelFinding = new ReviewFinding(
             RuleId: "",
             Source: ReviewFindingSource.Model,
-            Path: "src/Sample/ClockService.cs",
+            Path: "lib/Sample/ClockService.cs",
             Line: 4,
             Severity: ReviewSeverity.Warning,
             Message: "Consider renaming ReadNow to GetCurrentTimestamp.");
@@ -115,7 +117,7 @@ public sealed class PrReviewFlowFacts
         var citedModelFinding = new ReviewFinding(
             RuleId: "HR-10",
             Source: ReviewFindingSource.Model,
-            Path: "src/Sample/ClockService.cs",
+            Path: "lib/Sample/ClockService.cs",
             Line: 2,
             Severity: ReviewSeverity.Info,
             Message: "Ensure domain primitive constructors stay private (HR-10).");
@@ -197,7 +199,7 @@ public sealed class PrReviewFlowFacts
             GitHubRepo: "intochat/os");
         var changeSet = ChangeSet.Create(
             commitSha,
-            [RepoPath.Parse("src/Demo.cs")],
+            [RepoPath.Parse("lib/Demo.cs")],
             "+ // demo",
             additions: 1,
             deletions: 0);

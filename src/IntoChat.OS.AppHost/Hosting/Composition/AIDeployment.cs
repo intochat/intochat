@@ -85,17 +85,17 @@ public sealed class AIDeployment
                     AddDistinct(prefetch, card.Id.Value);
                 }
 
-                if (_device.RoleBindings.Bindings.TryGetValue(Role.Hear, out var hearCard))
+                if (_device.RoleBindings.Bindings.TryGetValue(ModelRole.Hear, out var hearCard))
                 {
                     AddDistinct(prefetch, hearCard.Id.Value);
                 }
 
-                if (_device.RoleBindings.Bindings.TryGetValue(Role.Speak, out var speakCard))
+                if (_device.RoleBindings.Bindings.TryGetValue(ModelRole.Speak, out var speakCard))
                 {
                     AddDistinct(prefetch, speakCard.Id.Value);
                 }
 
-                if (_device.RoleBindings.Bindings.TryGetValue(Role.Embed, out var embedCard))
+                if (_device.RoleBindings.Bindings.TryGetValue(ModelRole.Embed, out var embedCard))
                 {
                     AddDistinct(prefetch, embedCard.Id.Value);
                 }
@@ -105,7 +105,7 @@ public sealed class AIDeployment
                 {
                     var trimmed = localModel.Trim();
                     var resolved = KnownModels.Find(trimmed)?.Id.Value ?? trimmed;
-                    ai.Roles.Device[Role.Chat] = resolved;
+                    ai.Roles.Device[ModelRole.Chat] = resolved;
                     AddDistinct(prefetch, resolved);
                 }
 
@@ -115,7 +115,7 @@ public sealed class AIDeployment
                 && !string.IsNullOrWhiteSpace(localModel))
             {
                 var trimmed = localModel.Trim();
-                ai.Roles.Device[Role.Chat] = KnownModels.Find(trimmed)?.Id.Value ?? trimmed;
+                ai.Roles.Device[ModelRole.Chat] = KnownModels.Find(trimmed)?.Id.Value ?? trimmed;
             }
         }
 
@@ -265,20 +265,20 @@ public sealed class CloudDeployment
 
 public sealed class RoleBindings
 {
-    private readonly Dictionary<Role, ModelCard> _bindings = [];
+    private readonly Dictionary<ModelRole, ModelCard> _bindings = [];
 
-    internal IReadOnlyDictionary<Role, ModelCard> Bindings => _bindings;
+    internal IReadOnlyDictionary<ModelRole, ModelCard> Bindings => _bindings;
 
-    public RoleBindings Chat(ModelCard card) => Bind(Role.Chat, card);
-    public RoleBindings Think(ModelCard card) => Bind(Role.Think, card);
-    public RoleBindings Fast(ModelCard card) => Bind(Role.Fast, card);
-    public RoleBindings Hear(ModelCard card) => Bind(Role.Hear, card);
-    public RoleBindings Speak(ModelCard card) => Bind(Role.Speak, card);
-    public RoleBindings Talk(ModelCard card) => Bind(Role.Talk, card);
-    public RoleBindings Embed(ModelCard card) => Bind(Role.Embed, card);
-    public RoleBindings Image(ModelCard card) => Bind(Role.Image, card);
+    public RoleBindings Chat(ModelCard card) => Bind(ModelRole.Chat, card);
+    public RoleBindings Think(ModelCard card) => Bind(ModelRole.Think, card);
+    public RoleBindings Fast(ModelCard card) => Bind(ModelRole.Fast, card);
+    public RoleBindings Hear(ModelCard card) => Bind(ModelRole.Hear, card);
+    public RoleBindings Speak(ModelCard card) => Bind(ModelRole.Speak, card);
+    public RoleBindings Talk(ModelCard card) => Bind(ModelRole.Talk, card);
+    public RoleBindings Embed(ModelCard card) => Bind(ModelRole.Embed, card);
+    public RoleBindings Image(ModelCard card) => Bind(ModelRole.Image, card);
 
-    private RoleBindings Bind(Role role, ModelCard card)
+    private RoleBindings Bind(ModelRole role, ModelCard card)
     {
         ArgumentNullException.ThrowIfNull(card);
         var required = RoleNeeds.Of(role);

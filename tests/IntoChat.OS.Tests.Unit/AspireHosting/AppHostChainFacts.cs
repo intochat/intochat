@@ -15,6 +15,8 @@ public sealed class AppHostChainFacts
         {
             $"--IntoChatOS:Topology={topology}",
             "--IntoChatOS:Shell:Enabled=false",
+            // Whether a host Ollama answers is the developer's machine, not the composition under test.
+            "--IntoChatOS:Ollama:AutoContainer=false",
         };
         foreach (var (key, value) in settings)
         {
@@ -30,8 +32,8 @@ public sealed class AppHostChainFacts
         var silos = builder.AddIntoChatOS("Modules")
             .WithAI(ai => ai
                 .Device(d => d.Ollama().FoundryLocal().Attach("lmstudio", new Uri("http://localhost:1234/v1"))
-                              .Roles(r => r.Chat(KnownModels.Qwen35).Think(KnownModels.Qwen25Coder14B).Hear(KnownModels.WhisperLargeV3Turbo).Speak(KnownModels.Kokoro82M))
-                              .Prefetch(KnownModels.Qwen35))
+                              .Roles(r => r.Chat(KnownModels.Gemma412B).Think(KnownModels.Gemma412B).Hear(KnownModels.WhisperLargeV3Turbo).Speak(KnownModels.Kokoro82M).Embed(KnownModels.EmbeddingGemma))
+                              .Prefetch(KnownModels.Gemma412B, KnownModels.WhisperLargeV3Turbo, KnownModels.Kokoro82M, KnownModels.EmbeddingGemma))
                 .Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash).Think(KnownModels.Gpt56Luna).Embed(KnownModels.TextEmbedding3Small).Speak(KnownModels.Gpt4oMiniTts).Talk(KnownModels.GptRealtime)))
                 .Web(w => w.SearXng().MicrosoftLearn().Brave(cloudOnly: true)))
             .WithPostgres("intochat_os").WithGitHub().WithPlaywright()
@@ -95,7 +97,7 @@ public sealed class AppHostChainFacts
     public async Task TheLocalKernelHearsTheDeviceRoles()
     {
         var env = await KernelEnvironment(Compose("local"));
-        Assert.Equal("qwen3.5:4b", env["IntoChatOS__Modules__ai__Options__Roles__Device__Chat"]);
+        Assert.Equal("gemma4:12b", env["IntoChatOS__Modules__ai__Options__Roles__Device__Chat"]);
         Assert.Equal("kokoro-82m", env["IntoChatOS__Modules__ai__Options__Roles__Device__Speak"]);
         Assert.Equal("whisper-large-v3-turbo", env["IntoChatOS__Modules__devices__Options__Prefetch__1"]);
         Assert.DoesNotContain(env.Keys, static k => k.StartsWith("IntoChatOS__Modules__ai__Options__Roles__Cloud__", StringComparison.OrdinalIgnoreCase));

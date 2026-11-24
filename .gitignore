@@ -64,3 +64,5 @@ Directory.Build.local.props
 
 # Locally downloaded ArtCraft WASM release bundles
 src/IntoChat.OS.Kernel/wwwroot/artcraft/
+
+.last_build_id
