@@ -24,12 +24,15 @@ class SmartAppTileSpec {
   }) {
     final spec = IcAppIcon.resolveSpec(node.appId);
     final resolvedIcon =
-        (node.icon != null && node.icon!.isNotEmpty ? uiIcon(node.icon!) : null) ??
+        (node.icon != null && node.icon!.isNotEmpty
+            ? uiIcon(node.icon!)
+            : null) ??
         spec.icon;
     final cleanTitle = node.title.trim().isNotEmpty
         ? node.title.trim()
         : IcAppIcon.humanizeAppTitle(node.appId);
-    final cleanCategory = (node.category != null && node.category!.trim().isNotEmpty)
+    final cleanCategory =
+        (node.category != null && node.category!.trim().isNotEmpty)
         ? node.category!.trim()
         : spec.category;
     final cleanBrain = brain.trim().isNotEmpty ? brain.trim() : 'local';

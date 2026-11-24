@@ -627,6 +627,7 @@ internal static class FlutterClientTargets
         }
         catch (Exception ex)
         {
+            DigitalBrain.Log.Swallow.LogSwallowed(IntoChat.OS.Host.Logging.OsConsoleLog.For(typeof(FlutterClientTargets)), ex, $"running adb '{adbPath}'");
             return (-1, string.Empty, ex.Message);
         }
     }

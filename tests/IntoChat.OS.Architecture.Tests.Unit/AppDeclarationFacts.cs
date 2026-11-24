@@ -123,9 +123,9 @@ public sealed class AppDeclarationFacts
     {
         var roots = new[]
         {
-            Path.Combine(Repository.Root, "src", "IntoChat.OS.Apps"),
-            Path.Combine(Repository.Root, "src", "Components", "Aspire", "Screens"),
-            Path.Combine(Repository.Root, "src", "Components", "Muncly", "Screens"),
+            Repository.ProjectNamed("IntoChat.OS.Apps").Directory,
+            Path.Combine(Repository.ComponentsRoot, "Aspire", "Screens"),
+            Path.Combine(Repository.ComponentsRoot, "Muncly", "Screens"),
         };
 
         var violations = new List<string>();
@@ -155,7 +155,7 @@ public sealed class AppDeclarationFacts
     [Fact]
     public void DesktopAppDoesNotHardcodeAppCatalogOrDockOrder()
     {
-        var path = Path.Combine(Repository.Root, "src", "IntoChat.OS.Apps", "Desktop", "DesktopApp.cs");
+        var path = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Apps").Directory, "Desktop", "DesktopApp.cs");
         Assert.True(File.Exists(path), $"Expected DesktopApp at {path}");
         var source = File.ReadAllText(path);
 

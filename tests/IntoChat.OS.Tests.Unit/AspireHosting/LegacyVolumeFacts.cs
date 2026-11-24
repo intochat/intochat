@@ -14,7 +14,12 @@ public sealed class LegacyVolumeFacts
     [InlineData("cloud", "Modules-clickhouse-server", "-Modules-clickhouse-server-data")]
     public void EveryDataVolumeKeepsTheNameItHadBeforeTheRename(string topology, string resourceName, string expectedTail)
     {
-        var os = AppHostChainFacts.Compose(topology);
+        var os = topology == "local"
+            ? AppHostChainFacts.Compose(
+                topology,
+                ("IntoChatOS:Ollama:AutoContainer", "true"),
+                ("IntoChatOS:Modules:devices:Options:Ollama:Endpoint", "http://127.0.0.1:1"))
+            : AppHostChainFacts.Compose(topology);
         var builder = os.ApplicationBuilder;
 
         var source = VolumeSource(builder, resourceName);
@@ -27,7 +32,10 @@ public sealed class LegacyVolumeFacts
     [Fact]
     public void TheOllamaVolumeIsNotPinnedWithTheDefaultSuffix()
     {
-        var builder = AppHostChainFacts.Compose("local").ApplicationBuilder;
+        var builder = AppHostChainFacts.Compose(
+            "local",
+            ("IntoChatOS:Ollama:AutoContainer", "true"),
+            ("IntoChatOS:Modules:devices:Options:Ollama:Endpoint", "http://127.0.0.1:1")).ApplicationBuilder;
         Assert.False(VolumeSource(builder, "ai-ollama").EndsWith("-data", StringComparison.Ordinal));
     }
 

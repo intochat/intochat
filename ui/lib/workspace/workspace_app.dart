@@ -114,9 +114,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
     for (final id in _knownApps) {
       final norm = id.trim().toLowerCase();
       if (norm.isNotEmpty && seen.add(norm)) {
-        merged.add(
-          SmartAppTileSpec.fromIconSpec(norm),
-        );
+        merged.add(SmartAppTileSpec.fromIconSpec(norm));
       }
     }
     return merged;

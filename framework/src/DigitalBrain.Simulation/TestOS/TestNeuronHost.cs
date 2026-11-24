@@ -273,13 +273,7 @@ internal sealed class TestNeuronHost : IDisposable
                 .ConfigureAwait(false);
         }
 
-        var resolved = Slots.Resolve(
-            Id.Brain,
-            component,
-            needs,
-            record?.EffectiveBindings(),
-            neuronType => _os.ClassOf(neuronType) is not null,
-            _os.IsContractHosted);
+        var resolved = Slots.Resolve(Id.Brain, component, needs, record?.EffectiveBindings());
         _os.BindingIndex.Record(Id.Brain, component, resolved);
         return resolved;
     }

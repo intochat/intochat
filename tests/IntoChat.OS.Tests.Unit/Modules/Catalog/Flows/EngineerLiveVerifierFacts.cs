@@ -7,6 +7,10 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
 {
     private static readonly string Apps = SolutionPaths.Directory("IntoChat.OS.Apps");
     private static readonly string Catalog = SolutionPaths.Directory("IntoChat.OS.Modules.Catalog");
+    private static readonly string Aspire = SolutionPaths.Directory("IntoChat.Aspire");
+    private static readonly string AppHost = SolutionPaths.Directory("IntoChat.OS.AppHost");
+    private static readonly string Web = SolutionPaths.Directory("IntoChat.OS.Modules.Web");
+    private static readonly string Ui = SolutionPaths.Directory("IntoChat.OS.UI");
 
     private readonly string _worktree;
 
@@ -35,7 +39,7 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     [Fact]
     public void AChangeToAComponentScreenPlansAReadOfItsApp()
     {
-        string[] changed = ["src/Components/Aspire/Screens/AspireApp.cs"];
+        string[] changed = [$"{Aspire}/Screens/AspireApp.cs"];
 
         Assert.True(EngineerLiveVerifier.TouchesUiSurface(changed));
         Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan(changed).McpCalls, call => call.Target == "app.aspire" && call.Method == "Read");
@@ -44,28 +48,29 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     [Fact]
     public void AChangeToComponentCodeOutsideScreensIsNotAUiChange()
     {
-        string[] changed = ["src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs"];
+        string[] changed = [$"{Aspire}/Neurons/Telemetry/AspireNeuron.cs"];
 
         Assert.False(EngineerLiveVerifier.TouchesUiSurface(changed));
         Assert.DoesNotContain(EngineerLiveVerifier.DeriveVerificationPlan(changed).McpCalls, call => call.Target.StartsWith("app.", StringComparison.Ordinal));
     }
 
     [Theory]
-    [InlineData("src/IntoChat.OS.Apps/Settings/SettingsApp.cs", "app.settings")]
-    [InlineData("IntoChat.OS.Apps/Orleans/OrleansApp.cs", "app.orleans")]
-    public void AChangeToAShellAppStillPlansAReadOfItsApp(string path, string target)
+    [InlineData("Settings/SettingsApp.cs", "app.settings", true)]
+    [InlineData("IntoChat.OS.Apps/Orleans/OrleansApp.cs", "app.orleans", false)]
+    public void AChangeToAShellAppStillPlansAReadOfItsApp(string path, string target, bool underApps)
     {
-        Assert.True(EngineerLiveVerifier.TouchesUiSurface([path]));
-        Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan([path]).McpCalls, call => call.Target == target && call.Method == "Read");
+        var full = underApps ? $"{Apps}/{path}" : path;
+        Assert.True(EngineerLiveVerifier.TouchesUiSurface([full]));
+        Assert.Contains(EngineerLiveVerifier.DeriveVerificationPlan([full]).McpCalls, call => call.Target == target && call.Method == "Read");
     }
 
     [Theory]
-    [InlineData("src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs")]
-    [InlineData("src/Components/Aspire/Contracts/IAspire.cs")]
-    [InlineData("src/Components/Aspire/AspireModule.cs")]
-    public void AChangeToComponentCodePlansAListOfItsModule(string path)
+    [InlineData("Neurons/Telemetry/AspireNeuron.cs")]
+    [InlineData("Contracts/IAspire.cs")]
+    [InlineData("AspireModule.cs")]
+    public void AChangeToComponentCodePlansAListOfItsModule(string relativePath)
     {
-        var calls = EngineerLiveVerifier.DeriveVerificationPlan([path]).McpCalls;
+        var calls = EngineerLiveVerifier.DeriveVerificationPlan([$"{Aspire}/{relativePath}"]).McpCalls;
 
         Assert.Equal([new EngineerVerificationCall("module.aspire", "neurons_list", "ok")], calls);
     }
@@ -73,8 +78,8 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     [Fact]
     public void AChangeToComponentHostingPlansWhatAnAppHostChangePlans()
     {
-        var hosting = EngineerLiveVerifier.DeriveVerificationPlan(["src/Components/Aspire/Hosting/AspireModuleHosting.cs"]).McpCalls;
-        var appHost = EngineerLiveVerifier.DeriveVerificationPlan(["src/IntoChat.OS.AppHost/Program.cs"]).McpCalls;
+        var hosting = EngineerLiveVerifier.DeriveVerificationPlan([$"{Aspire}/Hosting/AspireModuleHosting.cs"]).McpCalls;
+        var appHost = EngineerLiveVerifier.DeriveVerificationPlan([$"{AppHost}/Program.cs"]).McpCalls;
 
         Assert.Equal(appHost, hosting);
     }
@@ -83,11 +88,11 @@ public sealed class EngineerLiveVerifierFacts : IDisposable
     public void AChangeToAModuleStillPlansAListOfItsModule()
         => Assert.Equal(
             [new EngineerVerificationCall("module.web", "neurons_list", "ok")],
-            EngineerLiveVerifier.DeriveVerificationPlan(["src/Modules/Web/WebModule.cs"]).McpCalls);
+            EngineerLiveVerifier.DeriveVerificationPlan([$"{Web}/WebModule.cs"]).McpCalls);
 
     [Fact]
     public void AChangeToTheUiKitIsAUiChange()
-        => Assert.True(EngineerLiveVerifier.TouchesUiSurface(["src/IntoChat.OS.UI/Kit.cs"]));
+        => Assert.True(EngineerLiveVerifier.TouchesUiSurface([$"{Ui}/Kit.cs"]));
 
     [Fact]
     public async Task VerifyLiveAsync_WithNoConfiguredEndpointOrCandidate_RefusesPlaceboPass()

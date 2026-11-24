@@ -6,8 +6,6 @@ namespace IntoChat.OS.Modules.Flutter;
 
 // Preserve serialized values; 1 belonged to the removed Dart console host.
 public enum FlutterHostKind { Window = 0, Web = 2, None = 3 }
-public enum AndroidDebugTransport { Wireless = 0, Usb = 1, Auto = 2 }
-public enum IosDebugTransport { Auto = 0, Wireless = 1, Usb = 2, Simulator = 3 }
 public sealed record FlutterHostingOptions
 {
     public FlutterHostKind Kind { get; init; } = FlutterHostKind.Window;

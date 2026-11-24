@@ -40,8 +40,9 @@ class _AppTileCardState extends State<_AppTileCard> {
     final duration = disableAnimations ? Duration.zero : tokens.fast;
     final node = widget.node;
     final interactive = widget.ctx.interactive;
-    final iconData =
-        (node.icon != null && node.icon!.isNotEmpty ? uiIcon(node.icon!) : null);
+    final iconData = (node.icon != null && node.icon!.isNotEmpty
+        ? uiIcon(node.icon!)
+        : null);
 
     return Semantics(
       button: true,
@@ -82,11 +83,7 @@ class _AppTileCardState extends State<_AppTileCard> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IcAppIcon(
-                  appId: node.appId,
-                  icon: iconData,
-                  size: 32,
-                ),
+                IcAppIcon(appId: node.appId, icon: iconData, size: 32),
                 SizedBox(width: tokens.p10),
                 Flexible(
                   child: Column(

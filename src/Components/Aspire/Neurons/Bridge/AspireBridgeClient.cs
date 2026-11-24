@@ -4,7 +4,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Log;
-using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,13 +116,19 @@ internal sealed class AspireBridgeClient(
 
     private async Task NotifyBrainsAsync(AspireResourceChanged[] changes, CancellationToken ct)
     {
+        var proxies = services.GetService<INeuronProxies>();
+        if (proxies is null)
+        {
+            return;
+        }
+
         var edge = services.GetService<EdgeAuthority>();
         foreach (var brain in store.Brains)
         {
             try
             {
                 using var scope = edge?.Enter(edge.Module(AspireModule.ManifestName, brain));
-                var feed = SiloNeurons.Get<IAspireFeed>(services, new NeuronId(brain, AspireModule.ManifestName, IAspire.KeyPattern));
+                var feed = proxies.Get<IAspireFeed>(new NeuronId(brain, AspireModule.ManifestName, IAspire.KeyPattern));
                 await feed.Changed(changes).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -165,6 +171,7 @@ internal sealed class AspireBridgeClient(
         catch (Exception error)
 #pragma warning restore CA1031
         {
+            OsConsoleLog.For<AspireBridgeClient>().LogSwallowed(error, $"executing Aspire command '{command}' on '{instanceId}'");
             return new BridgeCommandReply(false, error.Message);
         }
     }
@@ -193,9 +200,10 @@ internal sealed class AspireBridgeClient(
             return [];
         }
 #pragma warning disable CA1031
-        catch (Exception)
+        catch (Exception error)
 #pragma warning restore CA1031
         {
+            OsConsoleLog.For<AspireBridgeClient>().LogSwallowed(error, $"reading Aspire console log for '{instanceId}'");
             return [];
         }
     }

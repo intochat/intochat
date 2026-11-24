@@ -33,12 +33,35 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.Aspire.AspireMo
         // Run mode only: host the local Unix Domain Socket bridge inside the AppHost and pass its path to every kernel instance.
         if (brain.ApplicationBuilder.ExecutionContext.IsRunMode)
         {
-            var socketPath = Path.Combine(Path.GetTempPath(), $"intochat-aspire-{Guid.NewGuid():N}.sock");
+            var socketPath = CreateBridgeSocketPath();
             var endpoint = new AspireBridgeEndpoint(socketPath);
             brain.ApplicationBuilder.Services.TryAddSingleton(endpoint);
             brain.ApplicationBuilder.Services.AddHostedService<AspireBridgeServer>();
             brain.AddProjection(new BridgeSocket(socketPath));
         }
+    }
+
+    private static string CreateBridgeSocketPath()
+    {
+        var fileName = $"ic-asp-{Guid.NewGuid().ToString("N")[..12]}.sock";
+        var primary = Path.Combine(Path.GetTempPath(), fileName);
+        if (primary.Length <= 100)
+        {
+            return primary;
+        }
+
+        var localTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp");
+        if (!string.IsNullOrWhiteSpace(localTemp))
+        {
+            Directory.CreateDirectory(localTemp);
+            var candidate = Path.Combine(localTemp, fileName);
+            if (candidate.Length <= 100)
+            {
+                return candidate;
+            }
+        }
+
+        return Path.Combine(Path.GetPathRoot(primary) ?? Path.GetTempPath(), fileName);
     }
 
     public static string WorkdirOf(IDistributedApplicationBuilder builder)

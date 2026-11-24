@@ -282,13 +282,36 @@ public sealed class Slots
     {
         if (need.IsCollection)
         {
+            if (need.Contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is { } defaultType
+                && !string.IsNullOrWhiteSpace(defaultType.Type))
+            {
+                if (isNeuronTypeHosted is null || isNeuronTypeHosted(defaultType.Type))
+                {
+                    return new BindingTarget.NeuronType(defaultType.Type);
+                }
+                return need.Required ? null : new BindingTarget.NeuronType(string.Empty);
+            }
+
             var collectionType = NeuronTypeOf(need.Contract);
             if (!string.IsNullOrWhiteSpace(collectionType)
-                && IsTargetHosted(need.Contract, collectionType, isNeuronTypeHosted, isContractHosted))
+                && isNeuronTypeHosted is not null
+                && isNeuronTypeHosted(collectionType))
             {
                 return new BindingTarget.NeuronType(collectionType);
             }
-            return need.Required ? null : new BindingTarget.NeuronType(string.Empty);
+
+            if (!need.Required)
+            {
+                return new BindingTarget.NeuronType(string.Empty);
+            }
+
+            if (!string.IsNullOrWhiteSpace(collectionType)
+                && IsTargetHosted(need.Contract, collectionType, isNeuronTypeHosted, isContractHosted))
+            {
+                return new BindingTarget.NeuronType(isNeuronTypeHosted is null ? collectionType : string.Empty);
+            }
+
+            return null;
         }
 
         var neuronType = NeuronTypeOf(need.Contract);

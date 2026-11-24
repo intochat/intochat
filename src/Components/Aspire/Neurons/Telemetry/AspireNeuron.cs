@@ -233,6 +233,7 @@ internal sealed partial class AspireNeuron : Neuron<AspireTelemetryState>, IAspi
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
+            IntoChat.OS.Host.Logging.OsConsoleLog.For<AspireNeuron>().LogSwallowed(error, $"requesting Aspire command confirmation for '{approval.Instance.Id}:{approval.Command.Name}'");
             var message = AspireLiveTelemetry.Sanitize(error.Message);
             await Save(State, new AspireCommandRefused(approval.Instance.Id, approval.Command.Name, RefusalReasons.Declined, message));
             return new AspireCommandResult(approval.Instance.Id, approval.Command.Name, false, RefusalReasons.Declined, Message: message);
@@ -331,6 +332,7 @@ internal sealed partial class AspireNeuron : Neuron<AspireTelemetryState>, IAspi
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
+            IntoChat.OS.Host.Logging.OsConsoleLog.For<AspireNeuron>().LogSwallowed(error, $"running Aspire command '{commandName}' on '{instanceId}'");
             var message = AspireLiveTelemetry.Sanitize(error.Message);
             await Save(nextState, new AspireCommandRefused(instanceId, commandName, RefusalReasons.Failed, message));
             return new AspireCommandResult(instanceId, commandName, false, RefusalReasons.Failed, Message: message, Confirmation: planId);

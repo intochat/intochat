@@ -186,6 +186,7 @@ internal sealed class AspireBridgeServer(
         catch (Exception error)
 #pragma warning restore CA1031
         {
+            logger?.LogWarning(error, "Aspire bridge command '{Command}' failed for '{InstanceId}'.", commandName, instanceId);
             return new BridgeCommandReply(false, error.Message);
         }
     }
@@ -214,9 +215,10 @@ internal sealed class AspireBridgeServer(
             }
         }
 #pragma warning disable CA1031
-        catch (Exception)
+        catch (Exception error)
 #pragma warning restore CA1031
         {
+            logger?.LogWarning(error, "Aspire bridge failed reading console tail for '{InstanceId}'.", instanceId);
             return [];
         }
 

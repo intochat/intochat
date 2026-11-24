@@ -204,7 +204,8 @@ public sealed class InoAppFacts
         Assert.Contains("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`github_repository_dismiss_issue_draft`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`ai_memory_remember_preference`", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`aspire_get_traces_async`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`aspire_resources`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`aspire_console_log`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`roslyn_codegraph_search_symbols`", def.Instructions, StringComparison.Ordinal);
         Assert.DoesNotContain("IntoChat.OS.Modules.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
     }

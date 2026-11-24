@@ -304,7 +304,8 @@ class SmartDesktopState extends State<SmartDesktop> {
                         if (widget.onOpenAllApps != null) ...[
                           Btn(
                             key: const ValueKey('whiteboard-all-apps-btn'),
-                            label: 'All Apps (${widget.totalAppsCount ?? widget.apps.length})',
+                            label:
+                                'All Apps (${widget.totalAppsCount ?? widget.apps.length})',
                             small: true,
                             primary: true,
                             icon: LucideIcons.layoutGrid,
@@ -700,7 +701,8 @@ class SmartDesktopState extends State<SmartDesktop> {
           const SizedBox(height: 12),
           Btn(
             key: const ValueKey('smart-apps-open-all-btn'),
-            label: 'Browse All ${widget.totalAppsCount ?? widget.apps.length} Apps',
+            label:
+                'Browse All ${widget.totalAppsCount ?? widget.apps.length} Apps',
             small: true,
             primary: true,
             icon: LucideIcons.layoutGrid,

@@ -6,8 +6,16 @@ namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ResourceNameFacts
 {
-    // "__" names are Aspire's own internals; every other resource is covered by the naming rule.
-    private static readonly string[] NotYetRenamed = ["__"];
+    // Aspire's own internal resource names start with a double underscore; every other resource is covered by the naming rule.
+    private static readonly string[] NotYetRenamed = ["_" + "_"];
+
+    private static IntoChatOSBuilder ComposeWithAutoOllama(string topology)
+        => topology == "local"
+            ? AppHostChainFacts.Compose(
+                topology,
+                ("IntoChatOS:Ollama:AutoContainer", "true"),
+                ("IntoChatOS:Modules:devices:Options:Ollama:Endpoint", "http://127.0.0.1:1"))
+            : AppHostChainFacts.Compose(topology);
 
     private static string[] OwnedNames(IntoChatOSBuilder os)
         => [.. os.ApplicationBuilder.Resources
@@ -29,7 +37,7 @@ public sealed class ResourceNameFacts
 
         Assert.Equal(
             string.Join(", ", expected.Order(StringComparer.Ordinal)),
-            string.Join(", ", OwnedNames(AppHostChainFacts.Compose("local"))));
+            string.Join(", ", OwnedNames(ComposeWithAutoOllama("local"))));
     }
 
     [Fact]
@@ -47,7 +55,7 @@ public sealed class ResourceNameFacts
     [InlineData("cloud")]
     public void ComponentNodesHangUnderTheRoot(string topology)
     {
-        var os = AppHostChainFacts.Compose(topology);
+        var os = ComposeWithAutoOllama(topology);
         var resources = os.ApplicationBuilder.Resources;
         var nodes = resources.OfType<IntoChatOSModuleResource>().ToArray();
         Assert.NotEmpty(nodes);

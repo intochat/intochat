@@ -156,6 +156,7 @@ public sealed class WorkspaceWindowsFacts
             .AddOptions<AppsOptions>()
             .Services
             .AddSingleton(TimeProvider.System)
+            .AddSingleton(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(DesktopApp).Assembly]))
             .BuildServiceProvider();
         await using var os = TestOS.Local(options => options.Services = services);
         os.Register<DesktopRecordsNeuron>();
@@ -169,6 +170,14 @@ public sealed class WorkspaceWindowsFacts
         await desktopAppNeuron.Import(
             DesktopApp.Bundle,
             new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", DesktopApp.Bundle.Version));
+        await os.Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), IntoChat.OS.Host.Primitives.AppRef.Of(brain, "files").Key))
+            .Import(
+                IntoChat.OS.Modules.Apps.FilesRequests.Bundle,
+                new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "files", IntoChat.OS.Modules.Apps.FilesRequests.Bundle.Version));
+        await os.Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), IntoChat.OS.Host.Primitives.AppRef.Of(brain, "settings").Key))
+            .Import(
+                IntoChat.OS.Apps.Settings.SettingsApp.Bundle,
+                new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "settings", IntoChat.OS.Apps.Settings.SettingsApp.Bundle.Version));
 
         var desktopScreen = os.Get<IScreen>(desktopAppRef.ScreenNeuron);
         var published = await desktopScreen.Read();

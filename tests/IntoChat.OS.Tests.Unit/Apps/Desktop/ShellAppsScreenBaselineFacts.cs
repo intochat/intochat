@@ -106,7 +106,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(35, concreteScreens.Count);
+        Assert.Equal(36, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);
@@ -172,6 +172,7 @@ public sealed class ShellAppsScreenBaselineFacts
             os.Register<TestWorkspaceNeuron>();
             os.Register(typeof(AppsModule).Assembly);
             os.Register(typeof(CalculatorApp).Assembly);
+            os.Register(typeof(IntoChat.Aspire.Screens.AspireApp).Assembly);
 
             var neuronType = appType.GetCustomAttribute<NeuronAttribute>()?.Type ?? appType.Name;
             var screenId = new NeuronId(new BrainId("local"), neuronType, "default");

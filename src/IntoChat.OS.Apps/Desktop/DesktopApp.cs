@@ -593,13 +593,6 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         return new Emit("app.desktop", alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, typeof(TSignal)));
     }
 
-    private static Command EmitsCommand<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-        return new Command(".", alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, typeof(TSignal)));
-    }
-
     protected override Node Render(DesktopAppState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -620,8 +613,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         AppTileNode BuildTile(string key, AppTile tile)
         {
             var command = string.Equals(tile.Id, "settings", StringComparison.OrdinalIgnoreCase)
-                ? EmitsCommand(new DesktopSettings())
-                : EmitsCommand(new DesktopOpen(tile.Id));
+                ? Sends(new DesktopSettings())
+                : Sends(new DesktopOpen(tile.Id));
             return Kit.AppTile(
                 key: key,
                 appId: tile.Id,

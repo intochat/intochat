@@ -1,6 +1,6 @@
 namespace IntoChat.Aspire.Bridge;
 
-internal interface IAspireFeed
+public interface IAspireFeed
 {
     Task Changed(AspireResourceChanged[] changes);
 }

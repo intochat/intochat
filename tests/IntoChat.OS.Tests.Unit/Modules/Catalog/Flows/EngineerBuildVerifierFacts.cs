@@ -97,31 +97,33 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
     [Fact]
     public void DiscoverAffectedProjects_MapsComponentHostingToTheAppHost()
     {
+        var appHostDir = SolutionPaths.Directory("IntoChat.OS.AppHost");
+        var aspireDir = SolutionPaths.Directory("IntoChat.Aspire");
         var appHost = WriteFile(
-            "src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj",
+            $"{appHostDir}/IntoChat.OS.AppHost.csproj",
             "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
         var component = WriteFile(
-            "src/Components/Aspire/IntoChat.Aspire.csproj",
+            $"{aspireDir}/IntoChat.Aspire.csproj",
             "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
-        WriteFile("src/Components/Aspire/Hosting/AspireModuleHosting.cs", "class H {}");
-        WriteFile("src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs", "class N {}");
+        WriteFile($"{aspireDir}/Hosting/AspireModuleHosting.cs", "class H {}");
+        WriteFile($"{aspireDir}/Neurons/Telemetry/AspireNeuron.cs", "class N {}");
         var appHostTests = WriteFile(
             "tests/AppHost.Tests.Unit/AppHost.Tests.Unit.csproj",
-            """
+            $"""
             <Project Sdk="Microsoft.NET.Sdk">
               <ItemGroup>
-                <ProjectReference Include="../../src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
+                <ProjectReference Include="../../{appHostDir}/IntoChat.OS.AppHost.csproj" />
               </ItemGroup>
             </Project>
             """);
 
-        string[] hostingChange = ["src/Components/Aspire/Hosting/AspireModuleHosting.cs"];
+        string[] hostingChange = [$"{aspireDir}/Hosting/AspireModuleHosting.cs"];
         var fromHosting = EngineerBuildVerifier.DiscoverAffectedProjects(_root, hostingChange);
         Assert.Equal([appHost], fromHosting);
         Assert.DoesNotContain(component, fromHosting);
         Assert.Contains(appHostTests, EngineerBuildVerifier.DiscoverTestProjects(_root, hostingChange, fromHosting));
 
-        var fromNeuron = EngineerBuildVerifier.DiscoverAffectedProjects(_root, ["src/Components/Aspire/Neurons/Telemetry/AspireNeuron.cs"]);
+        var fromNeuron = EngineerBuildVerifier.DiscoverAffectedProjects(_root, [$"{aspireDir}/Neurons/Telemetry/AspireNeuron.cs"]);
         Assert.Equal([component], fromNeuron);
     }
 

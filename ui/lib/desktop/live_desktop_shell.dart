@@ -2058,10 +2058,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final effectiveRoot = view!.root;
     _viewKeys = {
       for (final node in _walk(effectiveRoot))
-        if (node is AppTileNode)
-          node.key
-        else if (node is ButtonNode)
-          node.key,
+        if (node is AppTileNode) node.key else if (node is ButtonNode) node.key,
       for (final node in _walk(effectiveRoot))
         if (node is TabsNode)
           for (final item in node.items) item.key,
