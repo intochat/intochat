@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Modules.UI.Widgetbook;
 
 /// <summary>
 /// Serves the free open-source IntoChat.OS Widgetbook web build at <c>/widgetbook/*</c>
@@ -19,16 +20,19 @@ internal static class WidgetbookWebEndpoints
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        endpoints.MapGet("/widgetbook", static (IWebHostEnvironment env) => ServeIndex(env))
+        // Request delegates, not bound lambdas: this assembly is AOT-gated, and the bound overload needs reflection.
+        endpoints.MapGet("/widgetbook", static http => ServeIndex(Environment(http)).ExecuteAsync(http))
             .AllowAnonymous()
             .WithOrder(-100);
-        endpoints.MapGet("/widgetbook/index.html", static (IWebHostEnvironment env) => ServeIndex(env))
+        endpoints.MapGet("/widgetbook/index.html", static http => ServeIndex(Environment(http)).ExecuteAsync(http))
             .AllowAnonymous()
             .WithOrder(-100);
-        endpoints.MapGet("/widgetbook/{**assetPath}", static (string assetPath, IWebHostEnvironment env) => ServeAsset(assetPath, env))
+        endpoints.MapGet("/widgetbook/{**assetPath}", static http => ServeAsset(http.GetRouteValue("assetPath") as string ?? "", Environment(http)).ExecuteAsync(http))
             .AllowAnonymous()
             .WithOrder(-100);
     }
+
+    private static IWebHostEnvironment Environment(HttpContext http) => http.RequestServices.GetRequiredService<IWebHostEnvironment>();
 
     private static IResult ServeIndex(IWebHostEnvironment env)
     {

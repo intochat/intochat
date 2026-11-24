@@ -4,8 +4,12 @@
     <Description>Stateful UI component neurons and signals for IntoChat OS.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
