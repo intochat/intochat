@@ -206,6 +206,12 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
             var noProviderTexts = PresentedView.From(noProviderView).Texts;
             Assert.Contains("Use local model (qwen2.5-coder:14b)", noProviderTexts);
 
+            // The fixture's credentials never release a brain key, so the retried turn answers through the host model, which the
+            // catalog uses only while no other provider is reachable. Take the detected local runtime away first; left reachable,
+            // the retry resolves the saved openai model and fails as Unconfigured whenever it does not pick the local model.
+            fixture.LocalRuntime.Reachable = false;
+            fixture.LocalRuntime.InstalledCards = [];
+
             // Now supply an OpenAI key via the inline D1 credential field and verify it writes to durable IBrainEntries AND retries!
             fixture.Model.Reply("Answered after saving key.");
             for (var attempt = 0; ; attempt++)

@@ -120,13 +120,19 @@ public sealed class SynapseHostFacts
         return state!.Value.GetProperty("spent").GetDecimal();
     }
 
-    private static void Collect()
+    // An unloaded collectible context can need several collections before its weak handle clears, more so
+    // under parallel load; collect until nothing lingers, bounded so a real leak still fails the assertion.
+    private static void Collect(IUnitLoader loader)
     {
-        for (var i = 0; i < 10; i++)
+        for (var i = 0; i < 50 && loader.Lingering().Count > 0; i++)
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            if (i >= 10)
+            {
+                Thread.Sleep(10);
+            }
         }
     }
 
@@ -176,7 +182,7 @@ public sealed class SynapseHostFacts
         Assert.Equal(DeployStatus.Failed, broken.Status);
         Assert.Contains(broken.Diagnostics, d => d.File == "Budget.cs" && d.Line == 22);
         Assert.Empty(broken.Installs);
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Equal(first.Hash, Assert.Single(await os.Synapses.List(Brain("hs2"), Ct)).Hash);
         await Pay(os, "hs2").Charge(50m);
@@ -202,7 +208,7 @@ public sealed class SynapseHostFacts
         await Pay(os, "hs3").Charge(50m);
         await os.Idle();
         Assert.Equal(100m, await Spent(os, "hs3"));
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
@@ -235,7 +241,7 @@ public sealed class SynapseHostFacts
         Assert.NotEmpty(os.Catalog.NeedsOf("hs.week").Slots);
         var deployment4 = os.Get<IUnitDeployment>(NeuronId.Parse($"hs4/synapse.deployment/{HsSource.Key}"));
         Assert.Equal(update.Hash, (await deployment4.Build(update.Hash!, Ct))?.Ref.Hash);
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
@@ -260,7 +266,7 @@ public sealed class SynapseHostFacts
         await Pay(os, "hs5").Charge(50m);
         await os.Idle();
         Assert.Equal(50m, await Spent(os, "hs5"));
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
@@ -273,7 +279,7 @@ public sealed class SynapseHostFacts
         var first = await DeployApproved(os, "hs6");
 
         await AssertRivalRefused(os, first.Hash!);
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         await Pay(os, "hs6").Charge(50m);
         await os.Idle();
@@ -310,7 +316,7 @@ public sealed class SynapseHostFacts
         Assert.Empty(await os.Synapses.List(Brain("hs7"), Ct));
         var deployment7 = os.Get<IUnitDeployment>(NeuronId.Parse($"hs7/synapse.deployment/{HsSource.Key}"));
         Assert.Null(await deployment7.Ref(UnitView.Live, Ct));
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Equal(DeployStatus.Refused, (await os.Synapses.Retire(Brain("hs7"), HsSource.Key, Ct)).Status);
         Assert.Empty(os.Failures);
@@ -336,7 +342,7 @@ public sealed class SynapseHostFacts
         Assert.Contains(pending, p => p.PlanId == second.Installs["hs.week"].Reason);
         Assert.Contains(os.Journal(installs.Brain).Signals(installs), s => s.Signal is InstallDenied { Reason: "superseded" } d && d.PlanId == firstPlan);
         Assert.Equal(second.Hash, Assert.Single(await os.Synapses.List(Brain("hs8"), Ct)).StagedHash);
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
@@ -359,7 +365,7 @@ public sealed class SynapseHostFacts
         Assert.Equal(os.Catalog.NeedsOf("hs.week").Hash(), (await installs.Describe("hs.week", Ct))?.NeedsHash);
         var listed = Assert.Single(await os.Synapses.List(Brain("hs9"), Ct));
         Assert.Equal((DeployStatus.Deployed, staged.Hash), (listed.Status, listed.Hash));
-        Collect();
+        Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         Assert.Empty(os.Failures);
     }
