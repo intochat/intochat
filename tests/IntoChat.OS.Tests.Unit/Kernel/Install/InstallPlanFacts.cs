@@ -129,6 +129,49 @@ public sealed class InstallPlanFacts
         Assert.DoesNotContain("sessionPools", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
     }
 
+    // An OS silo refuses a second silo in its cluster (SingleSiloGuard), so the OS and Cloud apps never overlap two revisions:
+    // an update stops the running one first. The sandbox is no silo and keeps single revision mode's overlap.
+    [Fact]
+    public void TheSiloApps_StopTheirRunningRevisionBeforeAnUpdate()
+    {
+        var config = InstallConfig.Universal(env: "test", subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2", includeCloudApp: true, includeSandboxApp: true);
+        var apps = InstallPlan.Build(config).OfType<ContainerAppSpec>().ToDictionary(app => app.Name, StringComparer.Ordinal);
+
+        Assert.True(apps[config.OsName].StopBeforeUpdate);
+        Assert.True(apps[config.CloudName].StopBeforeUpdate);
+        Assert.False(apps[config.SandboxName].StopBeforeUpdate);
+        Assert.True(InstallPlan.OsApp(config, new Dictionary<string, string>(), []).StopBeforeUpdate);
+    }
+
+    [Fact]
+    public void ThePulumiStack_StopsASiloAppBeforeItsTemplateChanges()
+    {
+        var config = InstallConfig.Universal(env: "test", subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2", includeCloudApp: true, includeSandboxApp: true);
+        var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
+
+        var stops = StopCommands(yaml);
+        Assert.Equal([config.CloudName, config.OsName], stops.Keys.Order(StringComparer.Ordinal));
+        foreach (var name in new[] { config.OsName, config.CloudName })
+        {
+            // The app depends on its stop command, which Pulumi therefore runs before it updates the app.
+            var app = yaml.IndexOf($"containerAppName: \"{name}\"", StringComparison.Ordinal);
+            var header = yaml.LastIndexOf("type: azure-native:app:ContainerApp", app, StringComparison.Ordinal);
+            var dependsOn = yaml[header..app];
+            Assert.Contains(stops[name].Logical, dependsOn, StringComparison.Ordinal);
+            Assert.True(yaml.IndexOf(stops[name].Logical + ":", StringComparison.Ordinal) < header);
+        }
+
+        // A new image is a new revision: the trigger changes. The tags are not part of the revision: they do not trigger.
+        var newImage = StopCommands(PulumiStackSynthesizer.Synthesize(config with { OsImage = "ghcr.io/intochat/os:2.0.0" }, OperatingSystemModules.Modules).PulumiYaml);
+        Assert.NotEqual(stops[config.OsName].Trigger, newImage[config.OsName].Trigger);
+        Assert.Equal(stops[config.CloudName].Trigger, newImage[config.CloudName].Trigger);
+    }
+
+    private static Dictionary<string, (string Logical, string Trigger)> StopCommands(string yaml)
+        => System.Text.RegularExpressions.Regex.Matches(yaml,
+                @"\n  (?<logical>[A-Za-z0-9-]+-stop):\r?\n    type: command:local:Command\r?\n(?:.*\n)*?      triggers: \[""(?<trigger>[0-9a-f]{64})""\]\r?\n      create: \|\r?\n        app=""(?<app>[^""]+)""")
+            .ToDictionary(match => match.Groups["app"].Value, match => (match.Groups["logical"].Value, match.Groups["trigger"].Value), StringComparer.Ordinal);
+
     [Fact]
     public async Task PulumiNeuronSynthesizesAndPersistsStackSummary()
     {

@@ -416,7 +416,8 @@ public sealed class ArmAzure : IAzureArm
         var existing = await rg.GetContainerApps().GetIfExistsAsync(spec.Name, ct);
         var configuration = new ContainerAppConfiguration
         {
-            // The old revision is deactivated only once the new one is ready; lease ownership covers the overlap.
+            // Single revision mode deactivates the old revision once the new one is ready. An app that must run one silo
+            // (StopBeforeUpdate) has its running revision stopped first instead, below.
             ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Single,
             Ingress = new ContainerAppIngressConfiguration { External = spec.Ingress.External, TargetPort = targetPort, Transport = ContainerAppIngressTransportMethod.Auto },
         };
@@ -489,9 +490,41 @@ public sealed class ArmAzure : IAzureArm
         {
             return Ref(existing.Value!.Id, spec, spec.Name) with { Endpoint = existing.Value!.Data.Configuration?.Ingress?.Fqdn ?? "" };
         }
+        // Only a template change makes a new revision; a configuration change (secrets, ingress) updates the running one.
+        if (existing.HasValue && spec.StopBeforeUpdate && existingJson is not null && !SameTemplate(desiredJson.RootElement, existingJson.RootElement))
+        {
+            await StopRunningRevisions(existing.Value!, spec.TerminationGracePeriodSeconds, ct);
+        }
         var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
         return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.Configuration?.Ingress?.Fqdn ?? "" };
     }
+
+    // Stop-then-start: deactivate every active revision, then wait for its replicas to go (their grace period and a minute),
+    // so the new revision's silo starts alone in its cluster. A stop that takes longer delays the update without breaking
+    // it: the new silo refuses to join while the old one is live and its container restarts until the old one is gone.
+    private static async Task StopRunningRevisions(ContainerAppResource app, int gracePeriodSeconds, CancellationToken ct)
+    {
+        await foreach (var revision in app.GetContainerAppRevisions().GetAllAsync(cancellationToken: ct))
+        {
+            if (revision.Data.IsActive == true) { await revision.DeactivateRevisionAsync(ct); }
+        }
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(Math.Max(gracePeriodSeconds, 0) + 60);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var running = false;
+            await foreach (var revision in app.GetContainerAppRevisions().GetAllAsync(cancellationToken: ct))
+            {
+                running |= revision.Data.Replicas is > 0;
+            }
+            if (!running) { return; }
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        }
+    }
+
+    private static bool SameTemplate(JsonElement desired, JsonElement current)
+        => desired.TryGetProperty("properties", out var desiredProperties) && desiredProperties.TryGetProperty("template", out var desiredTemplate)
+            && current.TryGetProperty("properties", out var currentProperties) && currentProperties.TryGetProperty("template", out var currentTemplate)
+            && MatchesDesired(desiredTemplate, currentTemplate);
 
     private static bool MatchesDesired(JsonElement desired, JsonElement current)
     {

@@ -176,6 +176,9 @@ public sealed record ContainerAppSpec : ResourceSpec
     public IngressSpec Ingress { get; init; } = new();
     public SecretFileSpec[] SecretFiles { get; init; } = [];
     public RegistryCredentialSpec[] Registries { get; init; } = [];
+    // An app whose silo must be alone in its cluster: an update stops the running revision before the new one starts,
+    // instead of letting single revision mode run both until the new one is ready.
+    public bool StopBeforeUpdate { get; init; }
 
     public override string Kind => ResourceKinds.ContainerApp;
 }

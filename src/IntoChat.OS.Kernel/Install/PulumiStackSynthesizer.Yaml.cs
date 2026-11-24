@@ -344,7 +344,7 @@ public static partial class PulumiStackSynthesizer
     }
 
     private static void AppendContainerAppYaml(
-        StringBuilder sb,
+        StringBuilder output,
         InstallConfig c,
         ContainerAppSpec app,
         IReadOnlyList<SecretSpec> writtenSecrets,
@@ -371,10 +371,7 @@ public static partial class PulumiStackSynthesizer
             dependsOn.Add(LogicalResourceName(sec));
         }
 
-        sb.AppendLine($"  {logical}:");
-        sb.AppendLine("    type: azure-native:app:ContainerApp");
-        sb.AppendLine("    options:");
-        sb.AppendLine($"      dependsOn: [{string.Join(", ", dependsOn.Distinct(StringComparer.Ordinal).Select(d => $"\"${{{d}}}\""))}]");
+        var sb = new StringBuilder();
         sb.AppendLine("    properties:");
         sb.AppendLine($"      containerAppName: \"{app.Name}\"");
         sb.AppendLine($"      resourceGroupName: \"${{{rgLogical}.name}}\"");
@@ -457,6 +454,49 @@ public static partial class PulumiStackSynthesizer
             }
         }
         AppendTags(sb, tags, indent: 6);
+        var properties = sb.ToString();
+
+        if (app.StopBeforeUpdate)
+        {
+            var stop = logical + "-stop";
+            AppendStopBeforeUpdate(output, c, app, stop, properties);
+            dependsOn.Add(stop);
+        }
+        output.AppendLine($"  {logical}:");
+        output.AppendLine("    type: azure-native:app:ContainerApp");
+        output.AppendLine("    options:");
+        output.AppendLine($"      dependsOn: [{string.Join(", ", dependsOn.Distinct(StringComparer.Ordinal).Select(d => $"\"${{{d}}}\""))}]");
+        output.Append(properties);
+    }
+
+    // Stop-then-start for an app that must run one silo (ContainerAppSpec.StopBeforeUpdate). Pulumi replaces this command
+    // whenever the app's template changes, and the app depends on it, so the running revision is deactivated and its
+    // replicas gone before the update creates the new revision. Before the first install the app does not exist and the
+    // command does nothing. It needs the Azure CLI, signed in to the subscription, where pulumi runs.
+    private static void AppendStopBeforeUpdate(StringBuilder sb, InstallConfig c, ContainerAppSpec app, string logical, string properties)
+    {
+        // Only a template change makes a new revision, so only the template section triggers the stop.
+        var start = properties.IndexOf("      template:", StringComparison.Ordinal);
+        var tags = properties.IndexOf("      tags:", start, StringComparison.Ordinal);
+        var template = tags < 0 ? properties[start..] : properties[start..tags];
+        var trigger = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(template.ReplaceLineEndings("\n"))));
+        var waits = (Math.Max(app.TerminationGracePeriodSeconds, 0) + 60) / 5;
+        sb.AppendLine($"  {logical}:");
+        sb.AppendLine("    type: command:local:Command");
+        sb.AppendLine("    properties:");
+        sb.AppendLine("      interpreter: [\"/bin/sh\", \"-c\"]");
+        sb.AppendLine($"      triggers: [\"{trigger}\"]");
+        sb.AppendLine("      create: |");
+        sb.AppendLine($"        app=\"{app.Name}\"; group=\"{c.GroupName}\"");
+        sb.AppendLine("        if az containerapp show -n \"$app\" -g \"$group\" >/dev/null 2>&1; then");
+        sb.AppendLine("          for revision in $(az containerapp revision list -n \"$app\" -g \"$group\" --query \"[?properties.active].name\" -o tsv); do");
+        sb.AppendLine("            az containerapp revision deactivate -n \"$app\" -g \"$group\" --revision \"$revision\" >/dev/null");
+        sb.AppendLine("          done");
+        sb.AppendLine("          i=0");
+        sb.AppendLine($"          while [ $i -lt {waits} ] && [ -n \"$(az containerapp revision list -n \"$app\" -g \"$group\" --query \"[?properties.replicas > `0`].name\" -o tsv)\" ]; do");
+        sb.AppendLine("            sleep 5; i=$((i+1))");
+        sb.AppendLine("          done");
+        sb.AppendLine("        fi");
     }
 
     private static string DeterministicGuid(string input)
