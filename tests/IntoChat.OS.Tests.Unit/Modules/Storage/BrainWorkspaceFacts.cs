@@ -135,6 +135,24 @@ public sealed class BrainWorkspaceFacts : IDisposable
     }
 
     [Fact]
+    public async Task ASandboxWorkspaceHasItsOwnFolderAndCopiesNothingIn()
+    {
+        Seed(Path.Combine(LegacyFolder, "work", "a.txt"), "legacy a");
+        await using var os = Host();
+        var sandbox = new NeuronId(Brain, "local-cloud", CloudModule.SandboxKey("github"));
+        using (os.Edge.Enter(os.Edge.Kernel(Brain)))
+        {
+            var storage = os.Get<IStorage>(sandbox);
+            var root = (await storage.Roots(Ct))[0];
+            await storage.Write(WritePlan.WriteFile(root.Id, "probe.txt", Encoding.UTF8.GetBytes("sandboxed"), ConflictPolicy.Fail), Ct);
+        }
+        var folder = Path.Combine(_home, "brains", "alice", "sandbox", "sandbox-github");
+        await Eventually(() => Task.FromResult(File.Exists(Path.Combine(folder, "probe.txt"))));
+        Assert.False(File.Exists(Path.Combine(folder, "a.txt")));
+        Assert.False(File.Exists(Path.Combine(WorkspaceFolder, "probe.txt")));
+    }
+
+    [Fact]
     public async Task TheWorkspaceCapCountsTheBytesOnDisk()
     {
         var folder = Directory.CreateTempSubdirectory("workspace-cap-").FullName;

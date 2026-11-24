@@ -37,7 +37,7 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | `Runs` | `runs` | The runs read model: the runs index of a brain (`IRuns`) and its synapse definitions (`ISynapseDefinitions`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
 | `Salesforce` | `salesforce` | One org connection: bounded queries and confirmed record writes. |
 | `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. Its contracts assembly (`IntoChat.OS.Modules.Shell.Contracts`) lives in `src/Modules/Shell/Contracts`. |
-| `Storage` | `local-disk` | Local disks as storage: allowed roots, volume quota and confined file access. |
+| `Storage` | `local-disk`, `cloud` | Local disks as storage (allowed roots, volume quota, confined file access) and each brain's workspace, a confined folder at `{home}/brains/{brain}/workspace`. |
 | `Time` | `time` | Timers and persistent periodic reminders. |
 | `Web` | `webtools` | Web search and vetted public web page reading. Its contracts assembly (`IntoChat.OS.Modules.Web.Contracts`) lives in `src/Modules/Web/Contracts`. |
 | `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |

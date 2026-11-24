@@ -63,7 +63,6 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public const string SandboxConnectionId = "sandbox-test";
 
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<KernelCapabilityConnections>();
-    private readonly ConcurrentDictionary<string, LocalCloudStorage> _sandboxStorages = new(StringComparer.Ordinal);
 
     private static NeuronId LocalDiskId(BrainId brain) => new(brain, "local-disk", "main");
     private static string LocalDiskConnectionKey(BrainId brain) => LocalDiskId(brain).ToString();
@@ -176,10 +175,12 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
             && typeof(TCapability) == typeof(StorageV1)
             && services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector) is null)
         {
+            // Isolated storage for a sandbox or test caller: a workspace of its own ({home}/brains/{brain}/sandbox/{connector}).
+            var sandboxId = new NeuronId(brain, CloudModule.WorkspaceNeuronType, CloudModule.SandboxKey(connector));
             var sandboxStorage = new ConnectionStorage(
-                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudStorage()),
+                SiloNeurons.Get<StorageV1>(plain, sandboxId),
                 key,
-                null,
+                (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), sandboxId),
                 services.GetService<IStorageWriteAuthorizer>(),
                 SandboxCredentialsBadge,
                 Edge);

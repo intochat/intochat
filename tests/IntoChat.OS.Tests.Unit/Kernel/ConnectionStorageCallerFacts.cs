@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Testing;
-using IntoChat.OS.Modules.LocalDisk;
+using DigitalBrain.Testing.Conformance.Storage;
 using IntoChat.OS.Kernel.Composition.Capabilities;
 
 namespace IntoChat.OS.Tests.Unit.Kernel;
@@ -15,7 +15,7 @@ public sealed class ConnectionStorageCallerFacts
     public async Task ACallWithNoCallerIsRefused()
     {
         await using var os = TestOS.Local();
-        var storage = new ConnectionStorage(new LocalCloudStorage(), Key, edge: os.Edge);
+        var storage = new ConnectionStorage(new InMemoryStorage(), Key, edge: os.Edge);
 
         Assert.Null(os.Callers.Current);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => storage.Roots(TestContext.Current.CancellationToken));
@@ -25,7 +25,7 @@ public sealed class ConnectionStorageCallerFacts
     public async Task ABoundConnectionWithoutAnEdgeFails()
     {
         await using var os = TestOS.Local();
-        var storage = new ConnectionStorage(new LocalCloudStorage(), Key);
+        var storage = new ConnectionStorage(new InMemoryStorage(), Key);
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", new BrainId("alice"))))
         {
@@ -37,7 +37,7 @@ public sealed class ConnectionStorageCallerFacts
     public async Task APersonCallsTheProviderAsThemselves()
     {
         await using var os = TestOS.Local();
-        var storage = new ConnectionStorage(new LocalCloudStorage(), Key, edge: os.Edge);
+        var storage = new ConnectionStorage(new InMemoryStorage(), Key, edge: os.Edge);
 
         using (os.Edge.Enter(os.Edge.Person("alice", "alice", new BrainId("alice"))))
         {

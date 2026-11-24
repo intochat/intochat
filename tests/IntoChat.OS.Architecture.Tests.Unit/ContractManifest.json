@@ -78,7 +78,6 @@
     "IntoChat.OS.Modules.Apps.InstalledModule": "apps.installed-module; Id=0, Name=1, Capabilities=2",
     "IntoChat.OS.Modules.Apps.OperationReceipt": "apps.operation-receipt; OperationId=0, RequestHash=1, Result=2",
     "IntoChat.OS.Modules.Apps.RetainedRequest": "apps.retained-request; Sequence=0, Request=1",
-    "IntoChat.OS.Modules.Apps.VfsState": "apps.vfs-state; Revision=0",
     "IntoChat.OS.Modules.ArtCraft.ArtCraftSession": "artcraft.session; App=0, Title=1, McpKey=2, WebUrl=3",
     "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnectionState": "clickhouse.connection-state; ",
     "IntoChat.OS.Modules.Flutter.Viewport.ViewportStorage": "ui.viewport-storage; Revision=0, Target=1",

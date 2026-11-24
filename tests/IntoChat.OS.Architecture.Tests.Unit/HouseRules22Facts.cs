@@ -1160,9 +1160,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.FeatureLoader",
             "IntoChat.OS.Modules.Apps.Features.Module",
             "IntoChat.OS.Modules.Apps.ShippedInstall",
-            "IntoChat.OS.Modules.Apps.IFilesVfsService",
-            "IntoChat.OS.Modules.Apps.IWithFilesVfs",
-            "IntoChat.OS.Modules.Apps.WorkspaceFilesService",
             "IntoChat.OS.Modules.Apps.Flows.AgentInner",
             "IntoChat.OS.Modules.Apps.Flows.AgentFlow`1",
             "IntoChat.OS.Modules.Apps.Flows.BuildFlow",
@@ -1182,7 +1179,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudStorage",
         };
 
         var contractsDeclaredNames = new HashSet<string>(StringComparer.Ordinal);
@@ -1488,8 +1484,6 @@ public sealed class HouseRules22Facts
             "IModelTurnRunner",
             "IToolRouter",
             "IMemoryEmbedder",
-            "IFilesVfsService",
-            "IWithFilesVfs",
             "ITypeTable",
             "IConditionallyAvailable",
             "IAiCredentials",

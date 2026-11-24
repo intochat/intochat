@@ -25,6 +25,13 @@ public sealed class CloudModule : Module
     // The neuron type of the brain's workspace; its key is "main" (the connection {brain}/local-cloud/main).
     public const string WorkspaceNeuronType = "local-cloud";
 
+    // The key of an isolated workspace for sandbox and test callers of one connector, beside the brain's own.
+    public static string SandboxKey(string connector)
+    {
+        var name = new string([.. (connector ?? string.Empty).Where(static c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')]);
+        return "sandbox-" + (name.Length == 0 ? "default" : name);
+    }
+
     public static ModuleManifest Manifest { get; } = new(
         Provides: [Capability.Storage.V1],
         Requires: [],
@@ -50,6 +57,8 @@ internal sealed class BrainWorkspaceRoots(string home, string temp)
     public string For(BrainId brain) => Path.Combine(PathConfinement.Normalize(home), "brains", Segment(brain), "workspace");
 
     public string Legacy(BrainId brain) => Path.Combine(PathConfinement.Normalize(temp), "intochat-vfs", Segment(brain));
+
+    public string Sandbox(BrainId brain, string key) => Path.Combine(PathConfinement.Normalize(home), "brains", Segment(brain), "sandbox", key);
 
     private static string Segment(BrainId brain)
     {
@@ -97,7 +106,7 @@ internal sealed class LocalCloudNeuron(
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        if (State.Migrated || workspaces is null) { return; }
+        if (State.Migrated || workspaces is null || !IsWorkspace) { return; }
         var root = State.RootDirectory is { Length: > 0 } kept && Directory.Exists(kept) ? kept : workspaces.For(Id.Brain);
         Directory.CreateDirectory(root);
         var (copied, failed) = WorkspaceMigration.CopyIfAbsent(workspaces.Legacy(Id.Brain), root, _logger);
@@ -169,10 +178,16 @@ internal sealed class LocalCloudNeuron(
         if (answer.Outcome != ConfirmationOutcome.Approved) { throw new Denied(plan.Source ?? plan.TargetFolder); }
     }
 
+    // "main" is the brain's workspace; a sandbox key is an isolated folder of its own and never copies anything in.
+    private bool IsWorkspace => Id.Key == "main";
+
     private string Root()
     {
+        var folders = workspaces ?? throw new Unavailable(null, new InvalidOperationException("This host has no workspace folder for brains."));
         var root = State.RootDirectory is { Length: > 0 } stored ? stored
-            : workspaces?.For(Id.Brain) ?? throw new Unavailable(null, new InvalidOperationException("This host has no workspace folder for brains."));
+            : IsWorkspace ? folders.For(Id.Brain)
+            : Id.Key.StartsWith("sandbox-", StringComparison.Ordinal) && !Id.Key.Contains('/', StringComparison.Ordinal) ? folders.Sandbox(Id.Brain, Id.Key)
+            : throw new Unavailable(null, new InvalidOperationException("A workspace key is main or a sandbox key."));
         Directory.CreateDirectory(root);
         return PathConfinement.Normalize(root);
     }

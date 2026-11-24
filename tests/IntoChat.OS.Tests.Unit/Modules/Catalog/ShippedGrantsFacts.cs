@@ -23,7 +23,7 @@ public sealed class ShippedGrantsFacts
     }
 
     [Fact]
-    public void All_17_ArtCraft_apps_receive_engine_studio_mcp_and_files_grants()
+    public void All_17_ArtCraft_apps_receive_engine_studio_and_mcp_grants_and_no_files_vfs_grant()
     {
         foreach (var descriptor in ArtCraftCatalog.All)
         {
@@ -31,7 +31,8 @@ public sealed class ShippedGrantsFacts
             Assert.Contains(grants, g => g.Target == "apps.artcraft-engine/ada/*");
             Assert.Contains(grants, g => g.Target == "artcraft/ada/*");
             Assert.Contains(grants, g => g.Target == "mcp/ada/*");
-            Assert.Contains(grants, g => g.Target == "files.vfs/ada/*");
+            // The engine reaches the workspace through the broker; files.vfs is gone.
+            Assert.DoesNotContain(grants, g => g.Target.StartsWith("files.vfs/", StringComparison.Ordinal));
         }
     }
 
