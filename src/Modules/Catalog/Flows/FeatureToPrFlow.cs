@@ -8,9 +8,11 @@ using IntoChat.OS.Host.Logging;
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
-/// Single-instance Feature-to-PR durable flow (<c>flow.change</c>) preserved as a thin wire-compatible adapter
-/// over <see cref="EngineerPipelineStages"/> (<c>prepare-worktree</c> -&gt; <c>edit</c> -&gt; <c>verify-and-commit</c>
-/// -&gt; <c>approval-gate</c> -&gt; <c>push</c> -&gt; <c>pr</c> -&gt; <c>clean</c>).
+/// The retired single-worktree change flow (<c>flow.change</c>: <c>prepare-worktree</c> -&gt; <c>edit</c> -&gt;
+/// <c>verify-and-commit</c> -&gt; <c>approval-gate</c> -&gt; <c>push</c> -&gt; <c>pr</c> -&gt; <c>clean</c>). It starts nothing:
+/// engineering changes start as <c>flow.engineer</c>. The type stays hosted so a run stored in a brain before the retirement,
+/// running or parked at its 48-hour approval gate, activates and finishes; without the class its neuron could not activate and
+/// the run would be stranded (OWED.md names when it can go).
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
 internal sealed class FeatureToPrFlow(
@@ -53,8 +55,10 @@ internal sealed class FeatureToPrFlow(
         ?? services?.GetService(typeof(IConfirmationRequests)) as IConfirmationRequests
         ?? Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
 
+    public const string Retired = "flow.change is retired: it finishes runs already in flight and starts none. Start an engineering change as flow.engineer (IEngineerRuns.StartEngineerRun).";
+
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
-        => Start(title, owner, parentFlowId, Change.FromUntrustedJson(innerJson, Json));
+        => throw new NotSupportedException(Retired);
 
     public Task<FlowHead> Head() => Task.FromResult(EngineerPipelineStages.BuildHead(
         Names,

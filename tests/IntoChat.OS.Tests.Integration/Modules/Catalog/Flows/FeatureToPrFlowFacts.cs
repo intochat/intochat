@@ -19,6 +19,9 @@ using Xunit;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
 
+// flow.change is retired: nothing starts it. These facts hold what is kept for a run a brain already has in flight, stored
+// as running or parked at its approval gate: it activates, finishes, and is read by Ino as before. Each run here begins as
+// stored state (InFlight), the way an existing brain presents it to a new version of the product.
 public sealed class FeatureToPrFlowFacts : IDisposable
 {
     private readonly string _root;
@@ -167,11 +170,18 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         using var person = runtime.As(Who.Person);
 
         var studio = runtime.Get<IStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
+        var flowId = await InFlight(runtime, "parks01", "Add Multiply method to Calculator");
 
+        var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
+        var waitingView = await FlowTypeFacts.Eventually(
+            () => flows.Read(flowId, Ct),
+            v => v.Status == FlowStatus.Waiting && v.WaitingStep == "approval-gate");
+
+        // Ino still reads the in-flight run: the status names the change, and the card points at the approval.
         InoToolResult proposedResult;
         using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
         {
-            proposedResult = await studio.ProposeChange("os", "Add Multiply method to Calculator", Ct);
+            proposedResult = await studio.ChangeStatus(flowId, Ct);
         }
 
         Assert.True(proposedResult.Ok, proposedResult.Text);
@@ -179,14 +189,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         Assert.Equal("approval", proposedResult.Card!.Kind);
         Assert.False(proposedResult.Card.Title.StartsWith("Approve", StringComparison.Ordinal), proposedResult.Card.Title);
         Assert.NotNull(proposedResult.Card.SurfaceScopeUri);
-        var hashIdx = proposedResult.Card.SurfaceScopeUri!.IndexOf('#', StringComparison.Ordinal);
-        Assert.True(hashIdx >= 0);
-        var flowId = proposedResult.Card.SurfaceScopeUri[(hashIdx + 1)..];
-
-        var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
-        var waitingView = await FlowTypeFacts.Eventually(
-            () => flows.Read(flowId, Ct),
-            v => v.Status == FlowStatus.Waiting && v.WaitingStep == "approval-gate");
+        Assert.EndsWith("#" + flowId, proposedResult.Card.SurfaceScopeUri!, StringComparison.Ordinal);
 
         Assert.NotNull(waitingView.ConfirmationPlanId);
         Assert.StartsWith("app:change:", waitingView.ConfirmationPlanId!, StringComparison.Ordinal);
@@ -283,15 +286,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, home: siloHome);
         using var person = runtime.As(Who.Person);
 
-        var studio = runtime.Get<IStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
-        InoToolResult proposed;
-        using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
-        {
-            proposed = await studio.ProposeChange("os", "Add Divide method [ci skip]", Ct);
-        }
-
-        Assert.True(proposed.Ok, proposed.Text);
-        var flowId = proposed.Card!.SurfaceScopeUri![(proposed.Card.SurfaceScopeUri!.IndexOf('#', StringComparison.Ordinal) + 1)..];
+        var flowId = await InFlight(runtime, "crash01", "Add Divide method [ci skip]");
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
         var waiting = await FlowTypeFacts.Eventually(
             () => flows.Read(flowId, Ct),
@@ -366,7 +361,33 @@ public sealed class FeatureToPrFlowFacts : IDisposable
     }
 
     [Fact]
-    public async Task StartFromJsonSanitizesPrePopulatedCommitAndApprovalFields()
+    public async Task NothingStartsAFlowChangeRunAnyMore()
+    {
+        var (bareOrigin, _, workTree) = CreateBareOriginAndWorkTreeService();
+        var coder = new DeterministicCoder(_ => Assert.Fail("A refused start must not reach the coder."));
+
+        await using var fixture = new FeatureToPrFixture(workTree, coder);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
+        var json = JsonSerializer.Serialize(Change.Start("new01", RepositoryId.Parse("os"), "Add Sub helper"), FeatureToPrFlow.Json);
+
+        foreach (var who in new[] { Who.Person, Who.Agent, Who.App, Who.Kernel })
+        {
+            using var caller = runtime.As(who);
+            var refused = await Assert.ThrowsAnyAsync<Exception>(() => flows.Start(FeatureToPrFlow.Alias, "A new change", null, json, Ct, flowId: "new-" + who));
+            Assert.Contains(FeatureToPrFlow.Retired, refused.ToString(), StringComparison.Ordinal);
+        }
+
+        using var person = runtime.As(Who.Person);
+        Assert.Equal(FlowStatus.Pending, (await runtime.Get<IFlowStarter>(new NeuronId(runtime.Brain, FeatureToPrFlow.Alias, "new-Person")).Head()).Status);
+        Assert.DoesNotContain(await flows.List(new FlowQuery(Type: FeatureToPrFlow.Alias), Ct), static view => view.Status is FlowStatus.Running or FlowStatus.Waiting);
+        Assert.Equal("", RunProcess("git", ["branch", "--list", "ino/*"], bareOrigin).Trim());
+    }
+
+    // A brain is restarted on a new version while a flow.change run is parked at its approval gate: the run is still there,
+    // asks the person again, and publishes the approved commit.
+    [Fact]
+    public async Task ARunParkedAtItsApprovalGateSurvivesARestartAndFinishes()
     {
         var (bareOrigin, _, workTree) = CreateBareOriginAndWorkTreeService();
         var coder = new DeterministicCoder(lease =>
@@ -376,70 +397,40 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
                 public static class Calculator
                 {
+                    public static int Add(int a, int b) => a + b;
                     public static int Sub(int a, int b) => a - b;
                 }
                 """);
         });
 
+        var siloHome = Path.Combine(_root, "silo-home-parked");
         await using var fixture = new FeatureToPrFixture(workTree, coder);
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, home: siloHome);
         using var person = runtime.As(Who.Person);
-
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
 
-        // Newline-injected repository identifier is rejected immediately by RepositoryId.Parse
-        var injectedJson = JsonSerializer.Serialize(new
-        {
-            runId = "badrepo",
-            repository = "intochat/os\nRemote: https://evil.example/x.git",
-            goal = "Add Sub helper",
-        }, FeatureToPrFlow.Json);
-        await Assert.ThrowsAnyAsync<Exception>(() => flows.Start(FeatureToPrFlow.Alias, "Injected repo", null, injectedJson, Ct));
-
-        // Malicious caller tries to smuggle pre-populated Approval / Commit / Publication in StartFromJson
-        var forgedJson = JsonSerializer.Serialize(new
-        {
-            runId = "forgedrun",
-            repository = "os",
-            goal = "Add Sub helper",
-            commit = new
-            {
-                commit = new string('f', 40),
-                changedFiles = new[] { "code/Calculator.cs" },
-                hostRenderedDiff = "forged diff",
-                additions = 1,
-                deletions = 0,
-            },
-            approval = new
-            {
-                planId = "forged-plan",
-                expires = DateTimeOffset.UtcNow.AddDays(1),
-                approvedBy = "spoofed-human",
-            },
-            publication = new
-            {
-                pushedRef = "refs/heads/ino/spoofed",
-                pullRequestUrl = "https://evil.example/pr/1",
-                pullRequestCompleted = true,
-                cleaned = true,
-            },
-        }, FeatureToPrFlow.Json);
-
-        var flowId = await flows.Start(FeatureToPrFlow.Alias, "Forged attempt", null, forgedJson, Ct);
-
-        _ = await FlowTypeFacts.Eventually(
+        var flowId = await InFlight(runtime, "parked01", "Add Sub helper");
+        var parked = await FlowTypeFacts.Eventually(
             () => flows.Read(flowId, Ct),
             v => v.Status == FlowStatus.Waiting && v.WaitingStep == "approval-gate");
+        var before = await Inner(runtime, flowId);
 
-        var head = await runtime.Get<IFlowStarter>(FlowTypeFacts.Id(flowId)).Head();
-        var change = JsonSerializer.Deserialize<Change>(head.InnerJson, FeatureToPrFlow.Json)!;
+        await runtime.Restart(Ct);
+        flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
 
-        Assert.NotEqual(new string('f', 40), change.Commit?.Commit.Value);
-        Assert.Null(change.Approval?.ApprovedBy);
-        Assert.Null(change.Publication);
-        Assert.Equal("", RunProcess("git", ["branch", "--list", "ino/*"], bareOrigin).Trim());
+        var starter = runtime.Get<IFlowStarter>(FlowTypeFacts.Id(flowId));
+        Assert.Equal(FlowStatus.Waiting, (await starter.Head()).Status);
+        var plan = await Plan(runtime, parked.ConfirmationPlanId!);
+        Assert.Equal(FeatureToPrFlow.ConfirmationKind, plan.Kind);
+        await runtime.ApproveAsPerson(parked.ConfirmationPlanId!, Ct);
 
-        await flows.Cancel(flowId, "done testing sanitization", Ct);
+        var completed = await FlowTypeFacts.Eventually(
+            () => flows.Read(flowId, Ct),
+            v => v.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled);
+        Assert.True(completed.Status == FlowStatus.Completed, completed.Detail);
+        var after = await Inner(runtime, flowId);
+        Assert.Equal(before.Commit!.Commit.Value, RunProcess("git", ["rev-parse", after.Publication!.PushedRef!], bareOrigin).Trim());
+        Assert.True(after.Publication.Cleaned);
     }
 
     [Fact]
@@ -565,12 +556,31 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         string repository = "os")
     {
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
-        var json = JsonSerializer.Serialize(Change.Start(runId, RepositoryId.Parse(repository), goal), FeatureToPrFlow.Json);
-        var flowId = await flows.Start(FeatureToPrFlow.Alias, goal, null, json, Ct);
+        var flowId = await InFlight(runtime, runId, goal, repository);
         var stopped = await FlowTypeFacts.Eventually(
             () => flows.Read(flowId, Ct),
             v => v.Status == FlowStatus.Waiting || v is { Status: FlowStatus.Failed, Detail.Length: > 0 });
         return (flowId, stopped);
+    }
+
+    // A flow.change run as a brain holds it from before the retirement: stored as started and running, nothing done yet. The
+    // first call activates it and the flow goes on from its stored state.
+    private static async Task<string> InFlight(INeuronRuntime runtime, string runId, string goal, string repository = "os")
+    {
+        var id = new NeuronId(runtime.Brain, FeatureToPrFlow.Alias, runId);
+        var stored = new FlowState<Change>() with
+        {
+            FlowId = id.ToString(),
+            Title = goal.Length <= 56 ? goal : goal[..56],
+            Owner = "person",
+            TraceId = Guid.NewGuid().ToString("N"),
+            Status = FlowStatus.Running,
+            Started = DateTimeOffset.UtcNow,
+            Inner = Change.Start(runId, RepositoryId.Parse(repository), goal),
+        };
+        await runtime.SeedState(id, JsonSerializer.Serialize(stored, DigitalBrain.Invocation.RuntimeProtocol.Json), Ct);
+        await runtime.Get<IFlowCallbacks>(id).Advance();
+        return id.ToString();
     }
 
     private static async Task<Change> Inner(INeuronRuntime runtime, string flowId)

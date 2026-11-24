@@ -327,7 +327,6 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         os.Register(typeof(AppsModule).Assembly);
 
         var flows = os.Get<IFlows>(IFlows.Key("owner"));
-        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key("owner"));
         var startJson = JsonSerializer.Serialize(new
         {
             runId = "engflow01",
@@ -446,6 +445,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await workTree.CleanupAsync(lease, Ct);
     }
 
+    // flow.change starts nothing any more: the run is one a brain already holds, stored as running, and it still finishes.
     [Fact]
     public async Task FeatureToPrFlowAdapterExecutesConsolidatedPipelineStagesEndToEndOnTestOS()
     {
@@ -468,12 +468,28 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         os.Register(typeof(AppsModule).Assembly);
 
         var flows = os.Get<IFlows>(IFlows.Key("owner"));
-        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key("owner"));
         var startJson = JsonSerializer.Serialize(
             Change.Start("f2pr01", RepositoryId.Parse("os"), "Add Multiply via consolidated adapter"),
             FeatureToPrFlow.Json);
+        var refused = await Assert.ThrowsAsync<NotSupportedException>(
+            () => flows.Start(FeatureToPrFlow.Alias, "Consolidated Change Run", null, startJson, Ct, flowId: "refused01"));
+        Assert.Equal(FeatureToPrFlow.Retired, refused.Message);
 
-        var flowId = await flows.Start(FeatureToPrFlow.Alias, "Consolidated Change Run", null, startJson, Ct, flowId: "f2pr01");
+        var flowNeuron = new NeuronId(new BrainId("owner"), FeatureToPrFlow.Alias, "f2pr01");
+        var flowId = flowNeuron.ToString();
+        os.SeedStoredState(flowNeuron, JsonSerializer.Serialize(
+            new FlowState<Change>() with
+            {
+                FlowId = flowId,
+                Title = "Consolidated Change Run",
+                Owner = "owner",
+                TraceId = "trace-f2pr01",
+                Status = FlowStatus.Running,
+                Started = DateTimeOffset.UnixEpoch,
+                Inner = Change.Start("f2pr01", RepositoryId.Parse("os"), "Add Multiply via consolidated adapter"),
+            },
+            DigitalBrain.Invocation.RuntimeProtocol.Json));
+        _ = await os.Get<IFlowStarter>(flowNeuron).Head();
         for (var i = 0; i < 60; i++)
         {
             await os.Idle();

@@ -27,23 +27,25 @@ public interface IStudio
     Task<InoToolResult> List();
 
     /// <summary>
-    /// Starts a hardened Feature-to-PR run on an allowlisted repository (<paramref name="repository"/>, e.g. <c>"os"</c>):
-    /// prepares an isolated worktree, runs the local coder, verifies the Triple Git Lock &amp; path gate, creates 1 commit,
+    /// Starts an engineering run (<c>flow.engineer</c>) on an allowlisted repository (<paramref name="repository"/>, e.g. <c>"os"</c>)
+    /// with every verification gate on: plans, prepares one isolated worktree, implements, builds and tests, verifies live,
     /// and parks at a SHA-bound Person confirmation gate (<c>RequiresPerson = true</c>) before pushing or opening a Draft PR.
+    /// The run is recorded for the calling conversation. Ino cannot switch a gate off.
     /// </summary>
     [Interleaves]
     Task<InoToolResult> ProposeChange(string repository, string goal, CancellationToken ct = default)
         => Task.FromResult(new InoToolResult("Feature-to-PR is not available in this studio instance.", Ok: false));
 
     /// <summary>
-    /// Starts a hardened Feature-to-PR run targeting an explicit <paramref name="baseBranch"/>.
+    /// Starts the same engineering run targeting an explicit <paramref name="baseBranch"/>.
     /// </summary>
     [Interleaves]
     Task<InoToolResult> ProposeChangeOnBranch(string repository, string goal, string baseBranch, CancellationToken ct = default)
         => Task.FromResult(new InoToolResult("Feature-to-PR is not available in this studio instance.", Ok: false));
 
     /// <summary>
-    /// Reads the current status, commit SHA, changed files, confirmation plan ID, and Draft PR URL / pushed ref of a Feature-to-PR run.
+    /// Reads the current status, commit SHA, changed files, confirmation plan ID, and Draft PR URL / pushed ref of an engineering
+    /// run, or of a <c>flow.change</c> run started before that flow type was retired.
     /// </summary>
     [ReadOnlyCall, Interleaves]
     Task<InoToolResult> ChangeStatus(string flowId, CancellationToken ct = default)

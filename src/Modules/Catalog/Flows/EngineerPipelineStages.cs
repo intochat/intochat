@@ -18,8 +18,8 @@ internal sealed record EngineerPullRequestContext(
     EngineerVerificationPolicy? Verification = null);
 
 /// <summary>
-/// Shared durable pipeline stage execution helpers backing both <see cref="EngineerFlow"/> (<c>flow.engineer</c>)
-/// and its single-instance <see cref="FeatureToPrFlow"/> (<c>flow.change</c>) adapter.
+/// The pipeline stages of <see cref="EngineerFlow"/> (<c>flow.engineer</c>): worktrees, the approval gate, push, pull request,
+/// cleanup. The retired <see cref="FeatureToPrFlow"/> (<c>flow.change</c>) finishes its in-flight runs through the same code.
 /// </summary>
 internal static class EngineerPipelineStages
 {

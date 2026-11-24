@@ -23,7 +23,9 @@ internal sealed record ChangePublication(
     bool Cleaned = false);
 
 /// <summary>
-/// Immutable Feature-to-PR aggregate (<c>flow.change</c>) replacing the mutable <c>FeatureToPrInner</c>.
+/// One commit on one worktree on its way to a person's approval and a push: what the approval card draws and what the publish
+/// rule judges. An engineering run projects its selected candidate into one (<see cref="EngineerRun.ToSelectedChange"/>), and
+/// it is the stored state of a retired <c>flow.change</c> run that is still in flight. Nothing starts one from a payload.
 /// Contains zero public setters and enforces valid stage transitions and human-only publish invariants.
 /// </summary>
 internal sealed record Change
@@ -92,22 +94,6 @@ internal sealed record Change
             Goal = goal.Trim(),
             RequestedBaseBranch = requestedBaseBranch,
         };
-    }
-
-    public static Change FromUntrustedJson(string innerJson, JsonSerializerOptions options)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(innerJson);
-        ArgumentNullException.ThrowIfNull(options);
-
-        var untrusted = JsonSerializer.Deserialize<StartPayload>(innerJson, options)
-            ?? throw new ArgumentException("Invalid Feature-to-PR start payload.", nameof(innerJson));
-
-        var repository = RepositoryId.Parse(untrusted.Repository ?? string.Empty);
-        var requestedBase = string.IsNullOrWhiteSpace(untrusted.RequestedBaseBranch)
-            ? null
-            : BranchName.FromRequestedBase(untrusted.RequestedBaseBranch);
-
-        return Start(untrusted.RunId, repository, untrusted.Goal ?? string.Empty, requestedBase);
     }
 
     public Change WithWorkTree(string runId, WorkTreeLease lease)
@@ -273,10 +259,4 @@ internal sealed record Change
             Publication = Publication with { Cleaned = true },
         };
     }
-
-    private sealed record StartPayload(
-        string? RunId,
-        string? Repository,
-        string? Goal,
-        string? RequestedBaseBranch);
 }

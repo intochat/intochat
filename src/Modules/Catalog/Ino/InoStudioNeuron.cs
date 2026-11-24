@@ -20,8 +20,6 @@ internal sealed partial class InoStudioNeuron(IServiceProvider services) : Digit
     // Bounded well below Orleans' default 30s grain RPC ResponseTimeout so contention still returns a tracking card cleanly.
     private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan MakePollInterval = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan ProposePollBudget = TimeSpan.FromSeconds(18);
-    private static readonly TimeSpan ProposePollInterval = TimeSpan.FromMilliseconds(250);
 
     private string CurrentBrainId
     {
