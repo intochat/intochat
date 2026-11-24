@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Activity read model: the runs index of a brain and its synapse definitions.</Description>
+    <Description>Runs read model: the runs index of a brain and its synapse definitions.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />

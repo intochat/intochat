@@ -62,7 +62,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
                 Modules =
                 [
                     typeof(AppsModule),
-                    typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule),
+                    typeof(IntoChat.OS.Modules.Runs.RunsModule),
                     typeof(IdentityModule),
                     typeof(AuthorityPlainNeurons),
                     typeof(FlutterModule),

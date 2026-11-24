@@ -5,17 +5,18 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.Apps.Runs;
 using IntoChat.OS.Modules.Apps.Synapses;
+using IntoChat.OS.Modules.Runs;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
-// The activity read model left the catalog as it was: the same two neuron types under the same contracts, hosted wherever the
+// The runs read model left the catalog as it was: the same two neuron types under the same contracts, hosted wherever the
 // catalog (`apps`) is hosted.
-public sealed class ActivityModuleOnTestOS : ModuleOnTestOSFacts<ActivityModule>
+public sealed class RunsModuleOnTestOS : ModuleOnTestOSFacts<RunsModule>
 {
     [Fact]
     public void TheNeuronsKeepTheirTypeIdsStateNamesAndKeys()
     {
-        var neurons = typeof(ActivityModule).Assembly.GetTypes()
+        var neurons = typeof(RunsModule).Assembly.GetTypes()
             .Select(type => (Type: type, Neuron: type.GetCustomAttribute<NeuronAttribute>(false)))
             .Where(pair => pair.Neuron is not null)
             .Select(pair => $"{pair.Neuron!.Type}|{pair.Neuron.State ?? "state"}|{pair.Type.FullName}")
@@ -37,18 +38,18 @@ public sealed class ActivityModuleOnTestOS : ModuleOnTestOSFacts<ActivityModule>
     [Fact]
     public void TheModuleIsOnWhereverTheCatalogIs()
     {
-        var activity = Assert.Single(OperatingSystemModules.Modules, module => module.Id.ToString() == "activity");
+        var runs = Assert.Single(OperatingSystemModules.Modules, module => module.Id.ToString() == "runs");
         var catalog = Assert.Single(OperatingSystemModules.Modules, module => module.Id.ToString() == "apps");
 
-        Assert.Equal(typeof(ActivityModule), activity.Type);
-        Assert.True(OperatingSystemModules.DeclaresModule(activity.Type.Assembly));
-        Assert.Equal(catalog.RequiresContainer, activity.RequiresContainer);
-        Assert.Contains(OperatingSystemModules.InProcessModules, module => module.Type == typeof(ActivityModule));
+        Assert.Equal(typeof(RunsModule), runs.Type);
+        Assert.True(OperatingSystemModules.DeclaresModule(runs.Type.Assembly));
+        Assert.Equal(catalog.RequiresContainer, runs.RequiresContainer);
+        Assert.Contains(OperatingSystemModules.InProcessModules, module => module.Type == typeof(RunsModule));
         Assert.Contains(OperatingSystemModules.InProcessModules, module => module.Type == catalog.Type);
         foreach (var topology in (string[])[IntoChatOSNames.TopologyLocal, IntoChatOSNames.TopologyLocalCloud, IntoChatOSNames.TopologyCloud])
         {
-            Assert.Equal(catalog.LoadsUnder(topology), activity.LoadsUnder(topology));
-            Assert.DoesNotContain(LocalRunDefaults.EnabledKey("activity"), LocalRunDefaults.For(topology).Keys);
+            Assert.Equal(catalog.LoadsUnder(topology), runs.LoadsUnder(topology));
+            Assert.DoesNotContain(LocalRunDefaults.EnabledKey("runs"), LocalRunDefaults.For(topology).Keys);
             Assert.DoesNotContain(LocalRunDefaults.EnabledKey("apps"), LocalRunDefaults.For(topology).Keys);
         }
     }

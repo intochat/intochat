@@ -109,7 +109,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
                     typeof(ProductHostTestModule),
                     typeof(ChargesTestModule),
                     typeof(AppsModule),
-                    typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule),
+                    typeof(IntoChat.OS.Modules.Runs.RunsModule),
                     typeof(AuthorityPlainNeurons),
                     typeof(AIModule),
                     typeof(AspireModule),

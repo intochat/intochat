@@ -139,7 +139,7 @@ public sealed class InoNativeHarnessJourneys
 
         os.Register(typeof(AIModule).Assembly);
         os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -368,7 +368,7 @@ public sealed class InoNativeHarnessJourneys
 
         os.Register(typeof(AIModule).Assembly);
         os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 

@@ -49,7 +49,7 @@
     <ProjectReference Include="../Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-    <ProjectReference Include="../Modules/Activity/IntoChat.OS.Modules.Activity.csproj" />
+    <ProjectReference Include="../Modules/Runs/IntoChat.OS.Modules.Runs.csproj" />
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
     <ProjectReference Include="../Components/Aspire/IntoChat.Aspire.csproj" />

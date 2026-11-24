@@ -10,7 +10,7 @@ public sealed class CatalogSplitFacts
     // Grows by one name with each module that leaves the catalog.
     private static readonly string[] SplitModules =
     [
-        "IntoChat.OS.Modules.Activity",
+        "IntoChat.OS.Modules.Runs",
     ];
 
     [Fact]

@@ -72,7 +72,6 @@
   <Project Path="src/Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
   <Project Path="src/Modules/AI/Generators/IntoChat.OS.Modules.AI.Generators.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
-  <Project Path="src/Modules/Activity/IntoChat.OS.Modules.Activity.csproj" />
   <Project Path="src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
   <Project Path="src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
   <Project Path="src/Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
@@ -92,6 +91,7 @@
   <Project Path="src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
   <Project Path="src/Modules/Roslyn/Contracts/IntoChat.OS.Modules.Roslyn.Contracts.csproj" />
   <Project Path="src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
+  <Project Path="src/Modules/Runs/IntoChat.OS.Modules.Runs.csproj" />
   <Project Path="src/Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
   <Project Path="src/Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
   <Project Path="src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />

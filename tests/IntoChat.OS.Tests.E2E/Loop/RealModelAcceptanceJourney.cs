@@ -215,7 +215,7 @@ public sealed class RealModelAcceptanceJourney(ITestOutputHelper output)
 
             await using var os = await JourneyOS.Start(
                 NeuronRuntimeKind.TestOS,
-                [typeof(AppsModule), typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
+                [typeof(AppsModule), typeof(IntoChat.OS.Modules.Runs.RunsModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
                 ct: Ct);
             var brain = os.Runtime.Brain;
             using var callerScope = os.Runtime.Edge.Enter(os.Runtime.Edge.Person("owner", "owner", brain, conversation: null));

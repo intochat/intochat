@@ -106,7 +106,7 @@ public sealed class EngineerDogfoodJourneys
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
