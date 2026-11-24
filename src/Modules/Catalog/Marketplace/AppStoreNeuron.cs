@@ -131,13 +131,11 @@ internal sealed class AppStoreNeuron(
         return await Answer(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            if (Context.Caller is not { Actor: DigitalBrain.Access.Actor.Person } caller || caller.Brain.Value != Scope)
-            { return AppInstallOutcome.Refused("Only you can remove apps."); }
-            if (ShippedApps.Roots.Contains(name)) { return AppInstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
-            var app = App(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Key);
-            if ((await app.Read()).Manifest.Title.Length == 0) { return AppInstallOutcome.Refused($"No app named {name} exists in this brain."); }
-            await app.Delete();
-            return AppInstallOutcome.Installed(name);
+            if (Context.Caller is not { } caller || caller.Brain.Value != Scope) { return AppInstallOutcome.Refused("Only you can remove apps."); }
+            // The checks are the installer's (a person, never a root app); its refusal comes back as a message.
+            return await installer.Remove(name, default)
+                ? AppInstallOutcome.Installed(name)
+                : AppInstallOutcome.Refused($"No app named {name} exists in this brain.");
         });
     }
 

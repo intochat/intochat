@@ -24,7 +24,7 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
             || principalId.StartsWith(GuestSurface.BrainPrefix, StringComparison.Ordinal))
         { throw new InvalidOperationException("That username is unavailable."); }
         var credential = Credential(principalId);
-        if (await credential.Hash() is { } existing)
+        if (await Own(credential.Hash) is { } existing)
         {
             // A registration interrupted before its brain or session was provisioned resumes with the same password.
             if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed)
@@ -33,13 +33,13 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
                 ?? await identity.RegisterPrincipal(principalId, displayName));
         }
         var hash = Passwords.HashPassword(principalId, password);
-        if (!await credential.TryCreate(hash)) { throw new InvalidOperationException("That username is unavailable."); }
+        if (!await Own(() => credential.TryCreate(hash))) { throw new InvalidOperationException("That username is unavailable."); }
         BrainProvision registered;
         try { registered = await identity.RegisterPrincipal(principalId, displayName); }
         catch (Exception refused) when (refused is InvalidOperationException or UnauthorizedAccessException or ArgumentException)
         {
             // The trust side refused the username: the credential this attempt stored must not outlive it (R67).
-            await credential.Remove(hash);
+            await Own(async () => { await credential.Remove(hash); return true; });
             throw;
         }
         return await births.Born(registered);
@@ -49,12 +49,20 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
     {
         if (string.IsNullOrEmpty(principalId) || string.IsNullOrEmpty(password) || password.Length > 256) { return null; }
         var credential = Credential(principalId);
-        if (await credential.Hash() is not { } hash) { return null; }
+        if (await Own(credential.Hash) is not { } hash) { return null; }
         var result = Passwords.VerifyHashedPassword(principalId, hash, password);
         if (result == PasswordVerificationResult.Failed) { return null; }
         // A local hash for a principal another machine registered is never a sign-in (R67).
-        if (result == PasswordVerificationResult.SuccessRehashNeeded) { await credential.Rehash(Passwords.HashPassword(principalId, password)); }
+        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        { await Own(async () => { await credential.Rehash(Passwords.HashPassword(principalId, password)); return true; }); }
         return await identity.CompleteRegistration(principalId) is { } provision ? await births.Born(provision) : null;
+    }
+
+    // The credential grain is the identity module's own: registration and sign-in run before any person is stamped.
+    private async Task<T> Own<T>(Func<Task<T>> call)
+    {
+        using var own = neurons.Own();
+        return await call();
     }
 
     [GeneratedRegex("^[a-z0-9][a-z0-9-]*$")]

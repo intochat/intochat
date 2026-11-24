@@ -10,8 +10,10 @@ namespace IntoChat.OS.Modules.AI;
 // Whether a brain holds its own key for a provider, cached per (brain, integration) and revalidated
 // against the brain's entry version, so a Put or Remove takes effect on the next check. Only the
 // boolean is cached; the key itself is released per client build and never kept.
-internal sealed class BrainKeyAvailability(IAiCredentials credentials, IGrainFactory? grains = null)
+internal sealed class BrainKeyAvailability(IAiCredentials credentials, IGrainFactory? grains = null, DigitalBrain.Access.EdgeAuthority? edge = null)
 {
+    internal const string ModuleId = "ai";
+
     private readonly ConcurrentDictionary<(string Brain, string Integration), (bool HasKey, long Version)> _known = new();
 
     public async Task<(bool HasKey, long Version)> Read(string brainId, AiProvider provider, CancellationToken ct)
@@ -22,12 +24,21 @@ internal sealed class BrainKeyAvailability(IAiCredentials credentials, IGrainFac
             return (hasKey, 0);
         }
 
-        var version = await grains.GetGrain<IBrainEntries>(brainId).Version().WaitAsync(ct).ConfigureAwait(false);
+        var version = await EntriesVersion(grains, brainId, ct).ConfigureAwait(false);
         var slot = (brainId, AiIntegrations.IdOf(provider));
         if (_known.TryGetValue(slot, out var known) && known.Version == version) { return known; }
         var fresh = (await credentials.BrainKey(brainId, provider, ct).ConfigureAwait(false) is { Length: > 0 }, version);
         _known[slot] = fresh;
         return fresh;
+    }
+
+    // A model is resolved for a brain by workers that hold only its id (a harness worker, the System One escalation, a
+    // realtime voice session) as well as inside a caller's turn. The silo refuses a grain call with no caller, so without
+    // one the change marker is read as the AI module in that brain; a stamped caller is kept as it is.
+    private async Task<long> EntriesVersion(IGrainFactory entries, string brainId, CancellationToken ct)
+    {
+        using var own = edge is { Current: null } ? edge.Enter(edge.Module(ModuleId, new DigitalBrain.BrainId(brainId))) : null;
+        return await entries.GetGrain<IBrainEntries>(brainId).Version().WaitAsync(ct).ConfigureAwait(false);
     }
 }
 

@@ -21,6 +21,8 @@ internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connec
         try
         {
             // Read every distinct dependency for freshness; only replace its cached snapshot on change.
+            // Startup lists the catalog before any caller exists: the read then runs as the identity module.
+            using var own = neurons.Own();
             foreach (var dependency in connectors.SelectMany(c => c.RequiredIntegrations).Distinct(StringComparer.Ordinal))
             {
                 var snapshot = await neurons.Integration(dependency).Read().WaitAsync(cancellationToken);

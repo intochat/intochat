@@ -845,6 +845,8 @@ public sealed class GitHubIssueWebhookTriageJourneys
             var grains = Services.GetRequiredService<IGrainFactory>();
             var unitGrainId = GrainId.Create("neuron.host", new NeuronId(brainId, unitAlias, "default").ToString());
             var host = grains.GetGrain<INeuronHost>(unitGrainId);
+            // The silo refuses a host call with no caller: the journey reads the state as the kernel of the brain.
+            using var asKernel = Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().EnterKernel(brainId);
 
             var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(15);
             JsonElement last = default;

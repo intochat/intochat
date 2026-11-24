@@ -21,6 +21,20 @@ internal interface INudge
     void Offer(NeuronId subscriber, NeuronId publisher, Signal signal) { }
 }
 
+/// <summary>Who a brain delivers its own signals as.</summary>
+internal static class DeliveryCaller
+{
+    /// <summary>
+    /// The caller a nudge to a subscriber of <paramref name="brain"/> carries. Delivery is the brain's own work: a publish that
+    /// served a caller of another brain (whom the cross-brain wall refuses on the way to the subscriber), or no caller at all, is
+    /// delivered as the brain's scheduler, so the visitor's identity never reaches a reaction. The brain's own caller stays.
+    /// </summary>
+    public static Access.Caller Of(Access.Caller? publishing, BrainId brain)
+        => publishing is null || (publishing.Brain != brain && publishing.Actor is not Access.Actor.Kernel && !brain.IsSystem)
+            ? Access.Caller.OfScheduler(brain)
+            : publishing;
+}
+
 internal sealed class Fanout(
     IJournalView journal,
     INudge nudge,

@@ -258,20 +258,30 @@ internal static class AppsEndpoints
         apps.MapGet("/{name}/export", (string name, INeuronProxies brain, CancellationToken ct)
             => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
 
-        apps.MapPost("/import", (AppBundle bundle, INeuronProxies brain) => Respond(async () =>
-        {
-            ArgumentNullException.ThrowIfNull(bundle);
-            ArgumentException.ThrowIfNullOrWhiteSpace(bundle.Name);
-            if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
-            return Results.Ok(View(await App(brain, bundle.Name).Import(bundle)));
-        }));
+        // A raw bundle goes in through the installer too: a person, never over a root app, and with the consent (?consent=,
+        // the digest of what the bundle asks for) when it asks for anything.
+        apps.MapPost("/import", (AppBundle bundle, string? consent, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
+            => Import(bundle, consent, brain, installer, ct));
 
-        apps.MapDelete("/{name}", (string name, INeuronProxies brain) => Respond(async () =>
+        // The one uninstall path. Removing an app that is not there stays a success, as it was.
+        apps.MapDelete("/{name}", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async () =>
         {
-            await App(brain, name).Delete();
+            _ = await installer.Remove(name, ct);
             return Results.Ok(new { deleted = name });
         }));
     }
+
+    internal static Task<IResult> Import(AppBundle bundle, string? consent, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => Respond(async () =>
+    {
+        var outcome = await installer.Import(bundle, consent, ct);
+        return outcome.Status switch
+        {
+            AppInstallStatus.Ok => Results.Ok(View(await App(brain, outcome.InstalledName!).Read().WaitAsync(ct))),
+            // The digest to send back as ?consent= once the person has seen what the bundle asks for.
+            AppInstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, consent = AppConsent.Of(outcome.Requires), error = outcome.Message }),
+            _ => Refused(outcome),
+        };
+    });
 
     // The one install path over HTTP: a person's own session, never an app's.
     internal static Task<IResult> Install(AppInstallRequest request, AppInstaller installer, CancellationToken ct) => Respond(async () =>

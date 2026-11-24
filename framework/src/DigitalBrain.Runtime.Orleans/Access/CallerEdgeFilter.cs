@@ -8,7 +8,7 @@ namespace DigitalBrain.Runtime.Orleans.Access;
 /// Enforces unforgeable edge caller invariants:
 /// Ensures incoming client calls cannot claim Inside=true or Via != null.
 /// Ensures incoming external client calls cannot claim internal or invalid actors (Kernel, Scheduler, Module).
-/// Sets Inside based on whether SourceId is an internal cluster grain (not sys.client and not null).
+/// Sets Inside based on whether the call was sent by this silo process (<see cref="SiloOrigin"/>) from a grain (SourceId not sys.client and not null).
 /// </summary>
 internal sealed class CallerEdgeFilter : IIncomingGrainCallFilter
 {
@@ -17,7 +17,8 @@ internal sealed class CallerEdgeFilter : IIncomingGrainCallFilter
         var raw = RequestContext.Get(OrleansCallerAmbient.Key);
         if (raw is CallerWire wire)
         {
-            var isInternalGrain = context.SourceId is { } source
+            // The sender's grain id counts only on a call this silo process sent: a cluster client writes its own.
+            var isInternalGrain = SiloOrigin.IsCurrent && context.SourceId is { } source
                 && !source.Type.ToString()!.StartsWith("sys.client", StringComparison.OrdinalIgnoreCase);
             var isInternal = isInternalGrain || InProcessCallerScope.IsActive;
             var isEdgeVerified = isInternal || InProcessCallerScope.IsEdgeActive;

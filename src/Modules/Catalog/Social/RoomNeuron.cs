@@ -1,8 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Components;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Units;
+using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Social;
 
@@ -17,7 +20,24 @@ internal sealed record RoomState(
     public RoomState() : this(0, [], [], []) { }
 }
 
-[Neuron("social.room")]
+// Who a brain's roster lists as a friend, asked as the social module of that brain: the call being served may come from
+// a person of another brain. No friend check in the host, or a roster that refuses, reads as "not a friend".
+internal static class RoomFriends
+{
+    public const string RoomType = "social.room";
+
+    public static async Task<bool> IsFriend(IServiceProvider? services, BrainId brain, AccountId account)
+    {
+        if (services?.GetService(typeof(IFriendCheck)) is not IFriendCheck roster) { return false; }
+        var edge = services.GetService(typeof(EdgeAuthority)) as EdgeAuthority;
+        using var module = edge?.Enter(edge.Module(RoomType, brain));
+        return await roster.IsFriend(brain, account.Value).ConfigureAwait(true);
+    }
+}
+
+// A room of people talking, in its host's brain. The kernel admits a person of another brain who holds an offer on the
+// room; the room then admits only a person the host invited who is the host's friend at that moment.
+[Neuron(RoomFriends.RoomType)]
 internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<RoomState>, IRoom
 {
     private static readonly TimeSpan PresenceTtl = TimeSpan.FromMinutes(2);

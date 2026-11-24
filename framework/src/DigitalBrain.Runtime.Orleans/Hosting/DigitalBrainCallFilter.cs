@@ -77,6 +77,9 @@ public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoing
 
     public async Task Invoke(IOutgoingGrainCallContext context)
     {
+        // 0. Mark the call as sent by this silo process; the receiving filters trust nothing else about where a call came from.
+        SiloOrigin.Stamp();
+
         // 1. Propagate db.caller if present or set from source grain
         if (RequestContext.Get(HostNeuronContext.CallerKey) is null && context.SourceId is { } sourceGrain)
         {

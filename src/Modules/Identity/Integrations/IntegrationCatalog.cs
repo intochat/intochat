@@ -9,6 +9,7 @@ internal static class IntegrationCatalog
     public static async Task<IntegrationCatalogEntry[]> ListAsync(
         IReadOnlyList<IntegrationSchema> definitions, AuthorityNeurons neurons, CancellationToken cancellationToken)
     {
+        using var own = neurons.Own();
         var entries = new List<IntegrationCatalogEntry>(definitions.Count);
         foreach (var definition in definitions)
         {

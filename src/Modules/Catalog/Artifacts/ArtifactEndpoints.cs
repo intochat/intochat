@@ -1,14 +1,17 @@
-using System.Net;
 using System.Text.Json;
+using DigitalBrain.Access;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
-/// Loopback-safe HTTP &amp; SSE endpoints for live workspace artifacts shared
-/// between Ino (MCP tools) and interactive WASM studios.
+/// HTTP &amp; SSE endpoints for live workspace artifacts shared between Ino (MCP tools) and interactive WASM studios.
+/// Every read and write is for the brain of the stamped caller, and only a person's session reaches them: a studio page
+/// calls with the session cookie its WebView was entered with, or the presence proof of the person at this machine.
+/// The routes carry no brain: the session names it, so one person's artifacts are never another's.
 /// </summary>
 internal static class ArtifactEndpoints
 {
@@ -20,33 +23,34 @@ internal static class ArtifactEndpoints
 
         endpoints.MapGet("/artifacts/meta", static (string path, HttpContext ctx, ArtifactLiveHub hub) =>
         {
-            if (!IsLoopbackOrAuthenticated(ctx)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-            var meta = hub.TryGetMetadata(path);
+            if (Brain(ctx) is not { } brain) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            var meta = hub.TryGetMetadata(path, brain);
             return meta is null ? Results.NotFound(new { error = $"Artifact '{path}' not found." }) : Results.Ok(meta);
-        }).AllowAnonymous().WithOrder(-100);
+        }).WithOrder(-100);
 
         endpoints.MapGet("/artifacts/bytes", static async (string path, HttpContext ctx, ArtifactLiveHub hub, CancellationToken ct) =>
         {
-            if (!IsLoopbackOrAuthenticated(ctx)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-            var entry = await hub.ReadAsync(path, ct).ConfigureAwait(false);
+            if (Brain(ctx) is not { } brain) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            var entry = await hub.ReadAsync(path, ct, brain).ConfigureAwait(false);
             if (entry is null) { return Results.NotFound(new { error = $"Artifact '{path}' not found." }); }
             ctx.Response.Headers.ETag = $"\"{entry.Value.Meta.Sha256}\"";
             ctx.Response.Headers["X-Artifact-Version"] = entry.Value.Meta.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return Results.File(entry.Value.Bytes, entry.Value.Meta.MimeType);
-        }).AllowAnonymous().WithOrder(-100);
+        }).WithOrder(-100);
 
-        endpoints.MapPut("/artifacts/bytes", static async (string path, string? actor, HttpContext ctx, ArtifactLiveHub hub, CancellationToken ct) =>
+        // An actor in the query is ignored: who wrote is the stamped caller, a person at a studio.
+        endpoints.MapPut("/artifacts/bytes", static async (string path, HttpContext ctx, ArtifactLiveHub hub, CancellationToken ct) =>
         {
-            if (!IsLoopbackOrAuthenticated(ctx)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            if (Brain(ctx) is not { } brain) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             using var ms = new MemoryStream();
             await ctx.Request.Body.CopyToAsync(ms, ct).ConfigureAwait(false);
-            var meta = await hub.WriteAsync(path, ms.ToArray(), actor ?? "user", ctx.Request.ContentType, ct).ConfigureAwait(false);
+            var meta = await hub.WriteAsync(path, ms.ToArray(), "user", ctx.Request.ContentType, ct, brain).ConfigureAwait(false);
             return Results.Ok(meta);
-        }).AllowAnonymous().WithOrder(-100);
+        }).WithOrder(-100);
 
         endpoints.MapGet("/artifacts/stream", static async (string path, HttpContext ctx, ArtifactLiveHub hub, CancellationToken ct) =>
         {
-            if (!IsLoopbackOrAuthenticated(ctx))
+            if (Brain(ctx) is not { } brain)
             {
                 ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -56,10 +60,10 @@ internal static class ArtifactEndpoints
             ctx.Response.Headers.CacheControl = "no-cache";
             ctx.Response.Headers.Connection = "keep-alive";
 
-            var (subId, reader) = hub.Subscribe(path);
+            var (subId, reader) = hub.Subscribe(path, brain);
             try
             {
-                if (hub.TryGetMetadata(path) is { } current)
+                if (hub.TryGetMetadata(path, brain) is { } current)
                 {
                     var initialJson = JsonSerializer.Serialize(
                         new ArtifactChanged(current.Path, current.Version, current.Sha256, current.UpdatedBy, current.UpdatedAt),
@@ -77,13 +81,13 @@ internal static class ArtifactEndpoints
             }
             finally
             {
-                hub.Unsubscribe(path, subId);
+                hub.Unsubscribe(path, subId, brain);
             }
-        }).AllowAnonymous().WithOrder(-100);
+        }).WithOrder(-100);
     }
 
-    private static bool IsLoopbackOrAuthenticated(HttpContext ctx)
-        => ctx.User.Identity?.IsAuthenticated == true
-           || ctx.Connection.RemoteIpAddress is null
-           || IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress);
+    // The brain of the caller the session middleware stamped, when that caller is a person. The routes are not anonymous
+    // any more, so a request with no session is answered 401 before it gets here; an app, an agent or a guest is refused.
+    private static string? Brain(HttpContext ctx)
+        => ctx.RequestServices.GetService<ICallerAmbient>()?.Current is { Actor: Actor.Person } caller ? caller.Brain.Value : null;
 }
