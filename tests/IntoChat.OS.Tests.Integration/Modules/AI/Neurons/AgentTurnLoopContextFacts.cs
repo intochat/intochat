@@ -337,7 +337,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         await using var mcpEndpoint = await MiniLearnMcpServer.StartAsync(ct);
         await using var webMcpFixture = new WebMcpTurnFixture([typeof(AIModule), typeof(IntoChat.OS.Modules.Identity.IdentityModule), typeof(McpModule), typeof(WebModule)]);
 
-        var compiled = new CompiledTypes([typeof(IWebSearch).Assembly, typeof(IMcpServer).Assembly, typeof(IFocus).Assembly]);
+        var compiled = new CompiledTypes([typeof(IWebSearch).Assembly, typeof(IMcpToolConnection).Assembly, typeof(IFocus).Assembly]);
         var instances = new List<BrainInstance>();
         var observer = new StubBrainObserver(compiled.Entries, instances);
 
@@ -351,16 +351,16 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         });
 
         using var person = runtime.As(Who.Person);
-        var learnKey = $"{runtime.Brain.Value}/mcp/microsoft-learn";
-        await runtime.Get<IMcpServer>(new NeuronId(runtime.Brain, "mcp.server", "mcp/microsoft-learn"))
-            .Connect(new McpServerSpec("Microsoft Learn", mcpEndpoint.Url), ct);
-        instances.Add(new BrainInstance("mcp.server", learnKey, DateTimeOffset.UtcNow, "owner"));
+        var learnId = IMcpToolConnection.NeuronIdOf(runtime.Brain, "microsoft-learn");
+        await runtime.Get<IMcpToolConnection>(learnId)
+            .ConnectServer(new McpConnectionConfig(mcpEndpoint.Url, "Microsoft Learn"), ct);
+        instances.Add(new BrainInstance(IMcpToolConnection.TypeName, learnId.FullKey(), DateTimeOffset.UtcNow, "owner"));
 
         string[] contracts =
         [
             typeof(IWebSearch).FullName!,
             typeof(IWebRead).FullName!,
-            typeof(IMcpServer).FullName!,
+            typeof(IMcpToolConnection).FullName!,
         ];
 
         var events = await TurnLoops.Collect(

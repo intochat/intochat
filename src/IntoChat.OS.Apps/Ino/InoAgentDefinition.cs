@@ -52,7 +52,7 @@ public static class InoAgentDefinition
                 typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
                 typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
                 typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).FullName!,
-                typeof(IMcpServer).FullName!, typeof(IWebSearch).FullName!, typeof(IWebRead).FullName!,
+                typeof(IMcpToolConnection).FullName!, typeof(IWebSearch).FullName!, typeof(IWebRead).FullName!,
                 "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
             ],
             Contexts =

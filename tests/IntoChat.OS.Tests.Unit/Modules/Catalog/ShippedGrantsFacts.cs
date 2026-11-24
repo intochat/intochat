@@ -30,7 +30,7 @@ public sealed class ShippedGrantsFacts
             var grants = ShippedGrants.For("ada", descriptor.Id);
             Assert.Contains(grants, g => g.Target == "apps.artcraft-engine/ada/*");
             Assert.Contains(grants, g => g.Target == "artcraft/ada/*");
-            Assert.Contains(grants, g => g.Target == "mcp.server/ada/*");
+            Assert.Contains(grants, g => g.Target == "mcp/ada/*");
             Assert.Contains(grants, g => g.Target == "files.vfs/ada/*");
         }
     }

@@ -128,7 +128,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Required = false)] private partial SlotCollection<IConnection> Connections { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
     [Slot(Required = false)] private partial SlotCollection<IDevice> Devices { get; }
-    [Slot(Required = false)] private partial SlotCollection<IMcpServer> McpServers { get; }
+    [Slot(Required = false)] private partial SlotCollection<IMcpToolConnection> McpServers { get; }
 
     [GeneratedRegex(@"gh-triage-[a-z0-9._-]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SynapseAliasPattern();

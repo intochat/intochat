@@ -56,7 +56,7 @@ public sealed class NeuronSurfaceFacts
         var ct = TestContext.Current.CancellationToken;
         BrainType[] entries =
         [
-            new("IntoChat.OS.Modules.Mcp.IMcpServer", "mcp.server", TypeKind.Neuron, "mcp",
+            new("IntoChat.OS.Modules.Mcp.IMcpToolConnection", "mcp", TypeKind.Neuron, "mcp",
                 "Microsoft Learn documentation search over MCP.", ["Search(string query)"], []),
             new("IntoChat.OS.Modules.Apps.IFocus", "os.focus", TypeKind.Neuron, "apps",
                 "Focus and highlight surfaces in the workspace.", ["Point(string target)"], []),
@@ -71,7 +71,7 @@ public sealed class NeuronSurfaceFacts
         var hits = await surface.Search("microsoft learn", ct);
 
         var hit = Assert.Single(hits);
-        Assert.Equal("IntoChat.OS.Modules.Mcp.IMcpServer", hit.Type.Contract);
+        Assert.Equal("IntoChat.OS.Modules.Mcp.IMcpToolConnection", hit.Type.Contract);
         Assert.True(hit.Score > 0);
         Assert.Contains(logger.Levels, static level => level == LogLevel.Warning);
     }

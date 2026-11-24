@@ -24,9 +24,9 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         ArgumentNullException.ThrowIfNull(plan);
         var clock = Stopwatch.StartNew();
         var brain = brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId);
-        var server = brains.Get<IMcpServer>(new DigitalBrain.NeuronId(brain, "mcp.server", $"mcp/candidate-{sha}").FullKey());
+        var server = brains.Get<IMcpToolConnection>(IMcpToolConnection.NeuronIdOf(brain, $"candidate-{sha}").FullKey());
         List<VerificationCheck> checks = [];
-        try { await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct); }
+        try { await server.ConnectServer(new McpConnectionConfig($"{endpoints.Mcp}/brains/{brainId}/mcp", $"candidate {sha}"), ct); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             logger.LogWarning(error, "Connecting to candidate {Sha} MCP server failed.", sha);
@@ -51,14 +51,14 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         }
         finally
         {
-            try { await server.Disconnect(CancellationToken.None); }
+            try { await server.DisconnectServer(CancellationToken.None); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Disconnecting candidate {Sha}'s MCP server failed", sha); }
         }
         return new([.. checks], clock.Elapsed);
     }
 
-    private IEnumerable<Check> Checks(string brainId, string sha, VerificationPlan plan, IMcpServer server)
+    private IEnumerable<Check> Checks(string brainId, string sha, VerificationPlan plan, IMcpToolConnection server)
     {
         yield return new("context", async ct =>
         {

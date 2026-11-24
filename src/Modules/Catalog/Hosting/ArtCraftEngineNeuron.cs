@@ -66,14 +66,14 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
         }
     }
 
-    private IMcpServer? TryGetMcpServer(string mcpKey)
+    private IMcpToolConnection? TryGetMcpServer(string mcpKey)
     {
         try
         {
             var key = mcpKey.Contains('/', StringComparison.Ordinal)
                 ? mcpKey[(mcpKey.IndexOf('/', StringComparison.Ordinal) + 1)..]
                 : mcpKey;
-            return Get<IMcpServer>(new DigitalBrain.NeuronId(Id.Brain, "mcp.server", key));
+            return Get<IMcpToolConnection>(new DigitalBrain.NeuronId(Id.Brain, IMcpToolConnection.TypeName, key));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

@@ -20,7 +20,7 @@ internal static class ShippedGrants
         var craft when ArtCraftCatalog.IsArtCraftApp(craft) => Tuples(
             brain,
             ArtCraftCatalog.NormalizeAppId(craft),
-            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*", $"files.vfs/{brain}/*"]),
+            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp/{brain}/*", $"files.vfs/{brain}/*"]),
         _ => [],
     };
 

@@ -161,7 +161,7 @@ public static class ArtCraftEngineRunner
         string? currentDocument,
         string executionMode,
         IArtCraftStudio? studio,
-        Func<string, IMcpServer?>? mcpResolver,
+        Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null,
         IFilesVfsService? vfs = null)
     {
@@ -204,7 +204,7 @@ public static class ArtCraftEngineRunner
         string? currentDocument,
         string executionMode,
         IArtCraftStudio? studio,
-        Func<string, IMcpServer?>? mcpResolver,
+        Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null,
         IFilesVfsService? vfs = null)
     {
@@ -237,7 +237,7 @@ public static class ArtCraftEngineRunner
         string? currentSequence,
         string executionMode,
         IArtCraftStudio? studio,
-        Func<string, IMcpServer?>? mcpResolver,
+        Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null,
         IFilesVfsService? vfs = null)
     {
@@ -280,7 +280,7 @@ public static class ArtCraftEngineRunner
         string inputLabel,
         bool isNewGradient,
         IArtCraftStudio? studio,
-        Func<string, IMcpServer?>? mcpResolver,
+        Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError,
         IFilesVfsService? vfs)
     {

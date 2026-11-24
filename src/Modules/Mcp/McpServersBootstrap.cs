@@ -1,5 +1,7 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Host.Configuration;
@@ -20,7 +22,9 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
     private readonly IHostApplicationLifetime? _lifetime;
     private readonly IBrainObserver? _brains;
     private readonly ILogger<McpServersBootstrap>? _logger;
-    private readonly Func<NeuronId, IMcpServer> _resolveServer;
+    private readonly IReadOnlyList<IMcpConnectionSeedProvider> _seedProviders;
+    private readonly Func<NeuronId, IMcpToolConnection> _resolveToolConnection;
+    private readonly Func<NeuronId, IConnection> _resolveConnection;
     private readonly TimeSpan _retryBackoff;
 
     private readonly object _lock = new();
@@ -35,8 +39,9 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
         IOptions<McpModuleOptions> options,
         IHostApplicationLifetime? lifetime = null,
         IBrainObserver? brains = null,
-        ILogger<McpServersBootstrap>? logger = null)
-        : this(services, options, lifetime, brains, logger, resolveServer: null, retryBackoff: null)
+        ILogger<McpServersBootstrap>? logger = null,
+        IEnumerable<IMcpConnectionSeedProvider>? seedProviders = null)
+        : this(services, options, lifetime, brains, logger, seedProviders, resolveToolConnection: null, resolveConnection: null, retryBackoff: null)
     {
     }
 
@@ -46,7 +51,9 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
         IHostApplicationLifetime? lifetime,
         IBrainObserver? brains,
         ILogger<McpServersBootstrap>? logger = null,
-        Func<NeuronId, IMcpServer>? resolveServer = null,
+        IEnumerable<IMcpConnectionSeedProvider>? seedProviders = null,
+        Func<NeuronId, IMcpToolConnection>? resolveToolConnection = null,
+        Func<NeuronId, IConnection>? resolveConnection = null,
         TimeSpan? retryBackoff = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -56,14 +63,20 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
         _lifetime = lifetime;
         _brains = brains;
         _logger = logger;
-        _resolveServer = resolveServer ?? (id => SiloNeurons.Get<IMcpServer>(services, id));
+        _seedProviders = seedProviders?.ToArray() ?? [];
+        _resolveToolConnection = resolveToolConnection ?? (id => Resolve<IMcpToolConnection>(services, id));
+        _resolveConnection = resolveConnection ?? (id => Resolve<IConnection>(services, id));
         _retryBackoff = retryBackoff ?? DefaultBackoff;
     }
+
+    private static T Resolve<T>(IServiceProvider services, NeuronId id) where T : class
+        => SiloNeurons.Get<T>(services, id);
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_options.Value.Servers is null || _options.Value.Servers.Count == 0)
+        var hasServers = _options.Value.Servers is { Count: > 0 };
+        if (!hasServers && _seedProviders.Count == 0)
         {
             return Task.CompletedTask;
         }
@@ -172,13 +185,14 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
             return;
         }
 
-        var servers = _options.Value.Servers;
-        if (servers is null || servers.Count == 0)
+        var servers = _options.Value.Servers ?? new Dictionary<string, McpServerOptions>(StringComparer.OrdinalIgnoreCase);
+        if (servers.Count == 0 && _seedProviders.Count == 0)
         {
             return;
         }
 
         var reconciled = new HashSet<(string Brain, string Server)>();
+        var seeded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -260,6 +274,59 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
                 }
             }
 
+            if (brainIds.Contains(IntoChatOSNames.DefaultOwnerBrainId, StringComparer.Ordinal))
+            {
+                var ownerBrain = new BrainId(IntoChatOSNames.DefaultOwnerBrainId);
+                foreach (var provider in _seedProviders)
+                {
+                    McpConnectionSeed? seed;
+                    try
+                    {
+                        seed = await provider.ResolveAsync(IntoChatOSNames.DefaultOwnerBrainId, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+#pragma warning disable CA1031
+                    catch (Exception error)
+#pragma warning restore CA1031
+                    {
+                        _logger?.LogDebug(error, "MCP seed provider {Provider} failed.", provider.GetType().Name);
+                        continue;
+                    }
+
+                    if (seed is null || string.IsNullOrWhiteSpace(seed.Name) || seeded.Contains(seed.Name))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        await ApplySeedAsync(ownerBrain, seed, cancellationToken).ConfigureAwait(false);
+                        seeded.Add(seed.Name);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+#pragma warning disable CA1031
+                    catch (Exception error)
+#pragma warning restore CA1031
+                    {
+                        anyPending = true;
+                        if (attempt == MaxAttempts)
+                        {
+                            _logger?.LogWarning(error, "Could not seed MCP connection '{Server}' for owner brain after {Attempts} attempts.", seed.Name, MaxAttempts);
+                        }
+                        else
+                        {
+                            _logger?.LogDebug(error, "MCP seed '{Server}' attempt {Attempt} failed; retrying.", seed.Name, attempt);
+                        }
+                    }
+                }
+            }
+
             if (!anyPending)
             {
                 return;
@@ -277,25 +344,82 @@ internal sealed class McpServersBootstrap : IHostedService, IDisposable
         var edge = _services.GetService<EdgeAuthority>();
         using var edgeScope = edge?.Enter(edge.Module(McpModule.ManifestName, brain));
 
-        var id = new NeuronId(brain, "mcp.server", "mcp/" + name);
-        var server = _resolveServer(id);
-        var state = await server.Read().ConfigureAwait(false);
+        var id = IMcpToolConnection.NeuronIdOf(brain, name);
+        var server = _resolveToolConnection(id);
+        var state = await server.ReadState(cancellationToken).ConfigureAwait(false);
 
         if (!serverOptions.Enabled)
         {
             if (state.Connected)
             {
-                await server.Disconnect(cancellationToken).ConfigureAwait(false);
+                await server.DisconnectServer(cancellationToken).ConfigureAwait(false);
             }
 
             return;
         }
 
-        if (!state.Connected || !string.Equals(state.Url, serverOptions.Url, StringComparison.Ordinal))
+        var title = string.IsNullOrWhiteSpace(serverOptions.Title) ? name : serverOptions.Title.Trim();
+        var allowedChanged = !SameTools(state.AllowedTools, serverOptions.AllowedTools);
+        var modeChanged = state.ConfirmationMode != serverOptions.ConfirmationMode;
+        if (!state.Connected
+            || !string.Equals(state.Url, serverOptions.Url, StringComparison.Ordinal)
+            || allowedChanged
+            || modeChanged)
         {
-            var title = string.IsNullOrWhiteSpace(serverOptions.Title) ? name : serverOptions.Title.Trim();
-            await server.Connect(new McpServerSpec(title, serverOptions.Url), cancellationToken).ConfigureAwait(false);
+            await server.ConnectServer(
+                new McpConnectionConfig(
+                    serverOptions.Url,
+                    title,
+                    AllowedTools: serverOptions.AllowedTools,
+                    ConfirmationMode: serverOptions.ConfirmationMode),
+                cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private async Task ApplySeedAsync(BrainId ownerBrain, McpConnectionSeed seed, CancellationToken cancellationToken)
+    {
+        var edge = _services.GetService<EdgeAuthority>();
+        using var edgeScope = edge?.Enter(edge.RelayedPerson(ownerBrain.Value, ownerBrain.Value, ownerBrain));
+
+        var id = IMcpToolConnection.NeuronIdOf(ownerBrain, seed.Name);
+        var toolConnection = _resolveToolConnection(id);
+        var state = await toolConnection.ReadState(cancellationToken).ConfigureAwait(false);
+        if (state.Connected || !string.IsNullOrWhiteSpace(state.Url))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(seed.Token))
+        {
+            await toolConnection.ConnectServer(seed.Config, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var payload = SerializeSeedPayload(seed.Config, seed.Token);
+        var connection = _resolveConnection(id);
+        await connection.Connect("bearer-token", payload).ConfigureAwait(false);
+    }
+
+    internal static string SerializeSeedPayload(McpConnectionConfig config, string token)
+    {
+        var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["url"] = config.Url,
+            ["title"] = config.Title,
+            ["header"] = config.HeaderName,
+            ["prefix"] = config.HeaderPrefix,
+            ["token"] = token,
+            ["allowedTools"] = config.AllowedTools,
+            ["confirmationMode"] = config.ConfirmationMode.ToString(),
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static bool SameTools(string[]? left, string[]? right)
+    {
+        if (left is null && right is null) { return true; }
+        if (left is null || right is null) { return false; }
+        return left.SequenceEqual(right, StringComparer.Ordinal);
     }
 
     private async Task<bool> DelayBeforeRetryAsync(int attempt, CancellationToken cancellationToken)

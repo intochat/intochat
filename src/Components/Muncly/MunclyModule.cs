@@ -2,8 +2,10 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Mcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.Muncly;
 
@@ -45,5 +47,6 @@ public sealed class MunclyModule : Module
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.AddSingleton(new CompiledAppsRegistration(typeof(MunclyModule).Assembly));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IMcpConnectionSeedProvider, MunclyMcpSeedProvider>());
     }
 }

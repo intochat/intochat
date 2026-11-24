@@ -12,6 +12,7 @@
     <ProjectReference Include="../DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
     <ProjectReference Include="../DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
     <ProjectReference Include="../DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
     <PackageReference Include="Microsoft.Orleans.Server" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />

@@ -12,12 +12,13 @@ public sealed class McpServerNeuronRuntimeFacts(McpFixture fixture) : IClassFixt
     [Theory, MemberData(nameof(Kinds))]
     public async Task ANeverConnectedServerReadsEmptyAndOffersNoTools(NeuronRuntimeKind kind)
     {
+        var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
         using var person = runtime.As(Who.Person);
-        var server = runtime.Get<IMcpServer>(runtime.Id("mcp.server", $"mcp/empty-{kind}"));
+        var server = runtime.Get<IMcpToolConnection>(runtime.Id(IMcpToolConnection.TypeName, IMcpToolConnection.KeyOf($"empty-{kind}")));
 
-        Assert.False((await server.Read()).Connected);
-        Assert.Empty((await server.Tools(TestContext.Current.CancellationToken)).Tools);
+        Assert.False((await server.ReadState(ct)).Connected);
+        Assert.Empty((await server.Tools(ct)).Tools);
     }
 
     [Theory, MemberData(nameof(Kinds))]
@@ -26,12 +27,12 @@ public sealed class McpServerNeuronRuntimeFacts(McpFixture fixture) : IClassFixt
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
         using var person = runtime.As(Who.Person);
-        var id = runtime.Id("mcp.server", $"mcp/unreachable-{kind}");
-        var server = runtime.Get<IMcpServer>(id);
+        var id = runtime.Id(IMcpToolConnection.TypeName, IMcpToolConnection.KeyOf($"unreachable-{kind}"));
+        var server = runtime.Get<IMcpToolConnection>(id);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => server.Connect(new McpServerSpec("Gone", "http://127.0.0.1:9/mcp"), ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => server.ConnectServer(new McpConnectionConfig("http://127.0.0.1:9/mcp", "Gone"), ct));
 
-        var state = await server.Read();
+        var state = await server.ReadState(ct);
         Assert.Equal(("Gone", false), (state.Title, state.Connected));
         Assert.False(string.IsNullOrEmpty(state.Error));
         var changed = Assert.Single(await runtime.WaitForSignals<McpServerChanged>(id, 1, TimeSpan.FromSeconds(20), ct));

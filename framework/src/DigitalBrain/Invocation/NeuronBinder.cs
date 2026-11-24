@@ -68,13 +68,34 @@ public sealed class NeuronBinder(int maximumArgumentBytes = NeuronBinder.Default
         if (candidates.Count == 0) { throw new BindingException($"{contract.Name} has no method {call.Method} taking {call.Arguments.Length} arguments."); }
         if (candidates.Count == 1) { return candidates[0]; }
 
-        var matching = candidates.Where(candidate => Accepts(candidate, call.Arguments)).Take(2).ToArray();
+        var matching = candidates.Where(candidate => Accepts(candidate, call.Arguments)).ToArray();
+        if (matching.Length > 1)
+        {
+            matching = SelectMostSpecific(matching);
+        }
         return matching.Length switch
         {
             1 => matching[0],
             0 => throw new BindingException($"{contract.Name}.{call.Method}: the arguments match no overload."),
             _ => throw new BindingException($"{contract.Name}.{call.Method}: the arguments match more than one overload."),
         };
+    }
+
+    private static CallDescriptor[] SelectMostSpecific(CallDescriptor[] matching)
+    {
+        var bestScore = matching.Max(Specificity);
+        return matching.Where(candidate => Specificity(candidate) == bestScore).ToArray();
+    }
+
+    private static int Specificity(CallDescriptor candidate)
+    {
+        var score = 0;
+        foreach (var type in candidate.ParameterTypes)
+        {
+            if (type == typeof(CancellationToken)) { continue; }
+            if (type != typeof(JsonElement) && type != typeof(object)) { score++; }
+        }
+        return score;
     }
 
     private static ArrangedCall ArrangePositional(Type contract, string method, Candidate[] candidates, JsonElement[] provided)
@@ -96,6 +117,11 @@ public sealed class NeuronBinder(int maximumArgumentBytes = NeuronBinder.Default
 
         var arranged = compatible.Select(c => (Candidate: c, Call: c.MaterializePositional(provided))).ToArray();
         var matching = arranged.Where(item => Accepts(item.Candidate.Descriptor, item.Call.Arguments)).ToArray();
+        if (matching.Length > 1)
+        {
+            var bestScore = matching.Max(item => Specificity(item.Candidate.Descriptor));
+            matching = matching.Where(item => Specificity(item.Candidate.Descriptor) == bestScore).ToArray();
+        }
         return matching.Length switch
         {
             1 => matching[0].Call,

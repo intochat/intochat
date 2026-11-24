@@ -116,7 +116,7 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
     [Slot(Key = IArtCraftStudio.StudioKey, Required = false)] private partial IArtCraftStudio? Studio { get; }
     [Slot(Key = "apps/artcraft-engine", Required = false)] private partial IArtCraftEngine? Engine { get; }
     [Slot(Required = false)] private partial IUserSettings? UserSettings { get; }
-    [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IMcpServer> McpServers { get; }
+    [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IMcpToolConnection> McpServers { get; }
 
     private ILogger AppLogger => _appLogger;
 
@@ -330,12 +330,12 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
     protected static string NormalizeTextOrCurrent(string? requested, string fallback) =>
         string.IsNullOrWhiteSpace(requested) ? fallback : requested.Trim();
 
-    private IMcpServer? TryGetMcpServer(string mcpKey)
+    private IMcpToolConnection? TryGetMcpServer(string mcpKey)
     {
         try { return McpServers.TryGet(mcpKey); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            AppLogger.LogDebug(error, "McpServerNeuron is optional when running {App} in unit tests.", Descriptor.Title);
+            AppLogger.LogDebug(error, "McpToolConnection is optional when running {App} in unit tests.", Descriptor.Title);
             return null;
         }
     }

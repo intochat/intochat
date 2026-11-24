@@ -12,12 +12,9 @@ public sealed partial class ComponentFacts
 {
     // Component implementation projects that may reference another component's or module's implementation project.
     // Each entry is (component project, referenced implementation project) and is mirrored by an OWED.md line naming both.
-    internal static readonly (string Project, string Referenced)[] AllowedImplementationReferences =
-    [
-        ("IntoChat.Aspire", "IntoChat.OS.Modules.Mcp"),
-    ];
+    internal static readonly (string Project, string Referenced)[] AllowedImplementationReferences = [];
 
-    internal const int AllowedImplementationReferencesCap = 1;
+    internal const int AllowedImplementationReferencesCap = 0;
 
     // [Neuron("app.<key>")] declarations still in the IntoChat.OS.Apps assembly; each one moves into a component's Screens.
     internal const int AppsLeftCap = 34;

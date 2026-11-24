@@ -28,7 +28,7 @@ public static class ShippedGrants
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"apps.app2/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"apps.artcraft-engine/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"artcraft/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"mcp.server/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"mcp/{brain}/*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"ui.compute/{brain}/*", GrantRelations.Run),
         ];
     }

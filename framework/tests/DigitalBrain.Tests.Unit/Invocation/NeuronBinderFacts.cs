@@ -36,6 +36,8 @@ public sealed class NeuronBinderFacts
         Task<string> Make(string? alias, string? title, string goal);
         Task<int> List(int limit = 10);
         Task<string> DefaultedTone(StringTone? tone = StringTone.Warning);
+        Task<string> Run(string tool, string arguments);
+        Task<string> Run(string tool, JsonElement args);
     }
 
     public sealed class Probe : IProbe
@@ -69,6 +71,8 @@ public sealed class NeuronBinderFacts
         public Task<string> Make(string? alias, string? title, string goal) => Task.FromResult($"{alias}:{title}:{goal}");
         public Task<int> List(int limit = 10) => Task.FromResult(limit);
         public Task<string> DefaultedTone(StringTone? tone = StringTone.Warning) => Task.FromResult(tone?.ToString() ?? "none");
+        public Task<string> Run(string tool, string arguments) => Task.FromResult($"string:{tool}:{arguments}");
+        public Task<string> Run(string tool, JsonElement args) => Task.FromResult($"json:{tool}:{args.GetRawText()}");
         public void Dispose() { }
     }
 
@@ -273,5 +277,24 @@ public sealed class NeuronBinderFacts
 
         var positional = NeuronBinder.Arrange(typeof(IProbe), "DefaultedTone", J("[]"));
         Assert.Equal(["\"Warning\""], positional.Arguments.Select(a => a.GetRawText()));
+    }
+
+    [Fact]
+    public async Task OverloadPrefersConcreteTypeOverCatchAllJsonElement()
+    {
+        var binder = new NeuronBinder();
+        var probe = new Probe();
+
+        var stringResult = (await Run(binder, probe, Call("Run", Json("echo"), Json("{}"))))!.Value.GetString();
+        Assert.Equal("string:echo:{}", stringResult);
+
+        var jsonResult = (await Run(binder, probe, Call("Run", Json("echo"), J("""{"x":1}"""))))!.Value.GetString();
+        Assert.Equal("""json:echo:{"x":1}""", jsonResult);
+
+        var arrangedString = NeuronBinder.Arrange(typeof(IProbe), "Run", J("""["echo","{}"]"""));
+        Assert.Equal(typeof(string), arrangedString.Method.GetParameters()[1].ParameterType);
+
+        var arrangedJson = NeuronBinder.Arrange(typeof(IProbe), "Run", J("""["echo",{"x":1}]"""));
+        Assert.Equal(typeof(JsonElement), arrangedJson.Method.GetParameters()[1].ParameterType);
     }
 }

@@ -58,26 +58,30 @@ public sealed class MunclyAppFacts
     }
 
     [Fact]
-    public void McpModuleAutoAttachesMunclyServerFromBaseUrlAndToken()
+    public async Task MunclyMcpSeedProviderResolvesConfigAndToken()
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["IntoChatOS:Modules:muncly:Options:BaseUrl"] = "https://acme.munc.ly",
                 ["IntoChatOS:Modules:muncly:Options:ToolSets"] = "core,setup",
+                ["IntoChatOS:Modules:muncly:Options:AllowedTools:0"] = "list_records",
                 ["IntoChatOS:Integrations:muncly:McpToken"] = "tok_live_123",
             })
             .Build();
 
-        var mcp = new McpModuleOptions();
-        McpModule.AttachMunclyServer(mcp, config);
+        var provider = new MunclyMcpSeedProvider(config);
+        var seed = await provider.ResolveAsync("owner", TestContext.Current.CancellationToken);
 
-        Assert.True(mcp.Servers.TryGetValue("muncly-crm", out var server));
-        Assert.Equal("https://acme.munc.ly/api/mcp?sets=core%2Csetup", server!.Url);
-        Assert.Equal("Muncly CRM", server.Title);
-        Assert.Equal("Authorization", server.HeaderName);
-        Assert.Equal("Bearer tok_live_123", server.HeaderValue);
-        mcp.Validate();
+        Assert.NotNull(seed);
+        Assert.Equal("muncly-crm", seed!.Name);
+        Assert.Equal("https://acme.munc.ly/api/mcp?sets=core%2Csetup", seed.Config.Url);
+        Assert.Equal("Muncly CRM", seed.Config.Title);
+        Assert.Equal("Authorization", seed.Config.HeaderName);
+        Assert.Equal("Bearer ", seed.Config.HeaderPrefix);
+        Assert.NotNull(seed.Config.AllowedTools);
+        Assert.Equal(["list_records"], seed.Config.AllowedTools);
+        Assert.Equal("tok_live_123", seed.Token);
     }
 
     [Fact]
