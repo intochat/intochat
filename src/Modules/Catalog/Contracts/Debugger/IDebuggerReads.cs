@@ -6,7 +6,12 @@ namespace IntoChat.OS.Modules.Apps
 {
     // One node of the brain's topology: Role is "unit" for an installed unit's state neuron, "app" for a compiled app, anything
     // else a kernel neuron.
-    public sealed record BrainTopologyNode(string Id, string Label, string Role);
+    public sealed record BrainTopologyNode(string Id, string Label, string Role)
+    {
+        public const string UnitRole = "unit";
+
+        public const string AppRole = "app";
+    }
 
     // One reaction or gate: SourceId "*" means any publisher of SignalType (the alias); the journal tail names who published.
     public sealed record BrainTopologyEdge(string SourceId, string TargetId, string SignalType, string Kind);

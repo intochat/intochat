@@ -18,13 +18,13 @@ namespace IntoChat.OS.Modules.Apps.Debugger;
 internal sealed class DebuggerReadsNeuron(
     ISignalHistory history,
     ISynapseCatalogSource? catalogSource = null,
-    IEnumerable<CompiledAppsRegistration>? appRegistrations = null,
+    ICompiledApps? compiledApps = null,
     UnitResolver? unitResolver = null,
     ILogger<DebuggerReadsNeuron>? logger = null) : Neuron, IDebuggerReads
 {
     private readonly ISignalHistory _history = history ?? throw new ArgumentNullException(nameof(history));
     private readonly ISynapseCatalogSource? _catalogSource = catalogSource;
-    private readonly IEnumerable<CompiledAppsRegistration> _appRegistrations = appRegistrations ?? [];
+    private readonly ICompiledApps? _compiledApps = compiledApps;
     private readonly UnitResolver? _unitResolver = unitResolver;
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<DebuggerReadsNeuron>();
 
@@ -131,7 +131,7 @@ internal sealed class DebuggerReadsNeuron(
         {
             foreach (var alias in catalog.States.Keys.Order(StringComparer.Ordinal))
             {
-                nodes.Add(new BrainTopologyNode(StateNeuron(alias).ToString(), alias, BrainGraph.Unit));
+                nodes.Add(new BrainTopologyNode(StateNeuron(alias).ToString(), alias, BrainTopologyNode.UnitRole));
             }
             foreach (var synapse in catalog.Synapses.Where(s => s.Kind != SynapseKind.View))
             {
@@ -140,14 +140,11 @@ internal sealed class DebuggerReadsNeuron(
                 edges.Add(new BrainTopologyEdge("*", StateNeuron(synapse.StateAlias).ToString(), signal, "reaction"));
             }
         }
-        foreach (var assembly in _appRegistrations.Select(r => r.Assembly).Append(typeof(AppsModule).Assembly).Distinct())
+        foreach (var compiled in _compiledApps?.List() ?? [])
         {
-            foreach (var compiled in CompiledApps.Of(assembly))
-            {
-                var name = compiled.Bundle.Name;
-                if (ShippedApps.Services.Contains(name)) { continue; }
-                nodes.Add(new BrainTopologyNode(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), name).Key, compiled.Bundle.Manifest.Title is { Length: > 0 } title ? title : name, BrainGraph.App));
-            }
+            var name = compiled.Name;
+            if (ShippedApps.Services.Contains(name)) { continue; }
+            nodes.Add(new BrainTopologyNode(IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), name).Key, compiled.Title is { Length: > 0 } title ? title : name, BrainTopologyNode.AppRole));
         }
         return Task.FromResult(new BrainTopology(nodes, [.. edges.Distinct()]));
     }
