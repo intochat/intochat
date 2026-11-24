@@ -8,6 +8,7 @@ using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Host.Logging;
+using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
@@ -26,6 +27,9 @@ internal sealed class FriendsRecord
     public Friend[]? Friends { get; set; }
     public int Misses { get; set; }
     public DateTimeOffset MissesSince { get; set; }
+
+    // Where the invitations to friends' conversations were kept before they moved to the rooms index (IRooms). Nothing
+    // adds to it any more: a roster that still holds some hands them over on its next use and stores an empty list (OWED.md).
     public GroupInvite[] Groups { get; set; } = [];
 
     // Where the brain's private keys were kept before they moved to the identity module (IBrainKeys). Nothing writes them any
@@ -47,12 +51,17 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
     private IBrainKeys Keys => Context.Get<IBrainKeys>(IBrainKeys.Id(Id.Brain));
+    private IRooms Rooms => Context.Get<IRooms>(new NeuronId(Id.Brain, "social.rooms", IRooms.DefaultKey));
+
+    // A host that carries the roster without the rooms index keeps the invitations in the roster, as before.
+    private bool RoomsHosted => Context.ClassOf("social.rooms") is not null;
     private IOffers Offers => Context.Offers;
 
     public async Task<Code> Mint()
     {
         await Owner();
         await EnsureImported();
+        await MoveGroupsToRooms();
         await EnsurePublicKeys();
         var now = Context.Time.GetUtcNow();
         var code = Code.New();
@@ -67,6 +76,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     {
         var owner = await Owner();
         await EnsureImported();
+        await MoveGroupsToRooms();
         var now = Context.Time.GetUtcNow();
         var misses = State.MissesSince != default && now - State.MissesSince < Code.Validity ? State.Misses : 0;
         var missesSince = misses == 0 ? now : State.MissesSince;
@@ -114,6 +124,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         await Owner();
         ArgumentException.ThrowIfNullOrWhiteSpace(friend.Value);
         await EnsureImported();
+        await MoveGroupsToRooms();
         var existing = (State.Friends ?? []).FirstOrDefault(row => row.Account == friend);
         if (existing is null) { return; }
 
@@ -132,6 +143,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     {
         RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
+        await MoveGroupsToRooms();
         return State.Friends ?? [];
     }
 
@@ -202,7 +214,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     {
         RequireSameBrain(PersonActs.Refused);
         await EnsureImported();
-        return State.Groups;
+        return await GroupsNow();
     }
 
     public async Task GroupSay(GroupInvite group, string text)
@@ -210,7 +222,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         ArgumentNullException.ThrowIfNull(group);
         await Owner();
         await EnsureImported();
-        if (!State.Groups.Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
+        if (!(await GroupsNow()).Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
         {
             throw FriendRelay.Refused();
         }
@@ -223,7 +235,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         ArgumentNullException.ThrowIfNull(group);
         await Owner();
         await EnsureImported();
-        if (!State.Groups.Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
+        if (!(await GroupsNow()).Any(g => g.Brain == group.Brain && g.Conversation == group.Conversation))
         {
             throw FriendRelay.Refused();
         }
@@ -246,8 +258,65 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             throw FriendRelay.Refused();
         }
 
-        var others = State.Groups.Where(existing => existing.Brain != group.Brain || existing.Conversation != group.Conversation);
-        await Store(With(groups: [.. others, group]));
+        if (!RoomsHosted)
+        {
+            var others = State.Groups.Where(existing => existing.Brain != group.Brain || existing.Conversation != group.Conversation);
+            await Store(With(groups: [.. others, group]));
+            return;
+        }
+
+        // The rooms index keeps the invitation; the roster only hands it on, as this brain's own module (the caller is a
+        // person of another brain).
+        await MoveGroupsToRooms();
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
+        await Rooms.InvitedToConversation(ToInvite(group));
+    }
+
+    private static ConversationInvite ToInvite(GroupInvite group) => new(group.Brain, group.Conversation, group.Title, group.By);
+
+    private static bool SameGroup(GroupInvite one, ConversationInvite other) => one.Brain == other.Brain && one.Conversation == other.Conversation;
+
+    // The invitations this person holds: those of the rooms index, and any the roster has not handed over yet, each once.
+    private async Task<GroupInvite[]> GroupsNow()
+    {
+        if (!RoomsHosted) { return State.Groups; }
+        await MoveGroupsToRooms();
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
+        var kept = await Rooms.Conversations();
+        return
+        [
+            .. kept.Select(static invite => new GroupInvite(invite.Brain, invite.Conversation, invite.Title, invite.By)),
+            .. State.Groups.Where(group => !kept.Any(invite => SameGroup(group, invite))),
+        ];
+    }
+
+    // A roster written by an earlier version still holds the invitations to friends' conversations. They are moved once, in
+    // two steps that may be interrupted between them: first the rooms index adopts them (one it already holds is left as it
+    // is, so a second attempt changes nothing) and what it now holds is read back; only when every one is there is the
+    // roster stored with an empty list. After an interruption both hold them, readers are answered from the rooms index,
+    // and the next call finishes. If the rooms index cannot be reached, the roster keeps its list and tries on a later call.
+    // Not run from IsFriend, Accepted or Unfriended: the rooms index asks IsFriend while it is in a call of its own.
+    private async Task MoveGroupsToRooms()
+    {
+        if (State.Groups.Length == 0 || !RoomsHosted) { return; }
+        try
+        {
+            using var module = PersonActs.AsFilesModule(services, Id.Brain);
+            await Rooms.AdoptConversations([.. State.Groups.Select(ToInvite)]);
+            var held = await Rooms.Conversations();
+            if (!State.Groups.All(group => held.Any(invite => SameGroup(group, invite))))
+            {
+                OsConsoleLog.For<FriendsNeuron>().LogWarning("The rooms index of {Brain} does not hold every invitation the roster handed over; the roster keeps its list.", Id.Brain.Value);
+                return;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<FriendsNeuron>().LogSwallowed(error, "the roster could not hand its conversation invitations to the rooms index; it keeps them and tries on a later call");
+            return;
+        }
+
+        await Store(With(groups: []));
     }
 
     [ReadOnlyCall]

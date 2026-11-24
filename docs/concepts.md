@@ -43,7 +43,9 @@ A folder or file of the workspace can be shared with a confirmed friend as Viewe
 
 Limits today: both brains must run on the same kernel; a share names a path, so renaming the folder ends it; when two people save the same file, the last save wins; only the workspace's own storage can be shared.
 
-A group is an `IConversation` in its creator's brain with friends invited as participants. Friends reach it only through the `[Shareable]` door via `IFriends`, admitted only while they remain both a participant and a friend, and see only `Visibility.Everyone` entries. Older circle brains in `src/Modules/Circles` remain read-only legacy data so existing records stay readable without wiping state.
+A group chat between people is a room (`IRoom`) in its host's brain; it admits its host and the friends the host invited. A person's rooms index (`IRooms`) lists the rooms and the friends' conversations they were invited to. A friend can also sit as a guest in an `IConversation` in its creator's brain. Friends reach it only through the `[Shareable]` door via `IFriends`, admitted only while they remain both a participant and a friend, and see only `Visibility.Everyone` entries.
+
+A person's posts are kept by one post store in their brain (`IPosts`). A post carries an `Audience` (public, friends, or a fixed list of accounts), and the store shows it to a person of another brain only when that audience admits them and they are a friend at that moment; public means the same as friends for now. Older circle brains in `src/Modules/Circles` remain read-only legacy data so existing records stay readable without wiping state.
 
 Neurons whose contracts carry `[Offered]` (such as `ITable`) can also be shared with a confirmed friend through `IOffers` at a `Role` (`Role.Viewer` or `Role.Editor`). Access is checked on every call; revoking the offer or unfriending takes effect immediately.
 
