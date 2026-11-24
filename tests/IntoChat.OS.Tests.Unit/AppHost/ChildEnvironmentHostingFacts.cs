@@ -94,6 +94,8 @@ public sealed class ChildEnvironmentHostingFacts
             var windowDir = Path.Combine(tempRoot.FullName, "shell-window");
             Directory.CreateDirectory(Path.Combine(windowDir, "lib"));
             Directory.CreateDirectory(Path.Combine(windowDir, "windows"));
+            Directory.CreateDirectory(Path.Combine(windowDir, "linux"));
+            Directory.CreateDirectory(Path.Combine(windowDir, "macos"));
             File.WriteAllText(Path.Combine(windowDir, "pubspec.yaml"), "name: test_window_shell\n");
             File.WriteAllText(Path.Combine(windowDir, "lib", "main.dart"), "void main() {}");
 

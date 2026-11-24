@@ -72,7 +72,7 @@ public sealed class SlotGeneratorFacts
 
             public sealed record SlotNeed(string Name, Type Contract, bool Required = true, string? Key = null, bool IsCollection = false);
 
-            public sealed record ComponentFace(string Title, string Description = "", string? Icon = null, string? Category = null);
+            public sealed record ComponentFace(string Title, string Description = "", string? Icon = null, string? Category = null, int? Dock = null, bool Maximized = false);
 
             public sealed record OperationSpec(string Name, string Description = "", Type? Input = null, string? ParametersJson = null, string? SignalAlias = null);
 

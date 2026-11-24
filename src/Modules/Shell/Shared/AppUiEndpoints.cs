@@ -211,33 +211,36 @@ internal static class AppUiEndpoints
                 var directViewName = name.EndsWith("/view", StringComparison.Ordinal) ? name : $"{name}/view";
                 if (OwnsUi(scope, directViewName))
                 {
-                    var directAppKey = AppOf(scope, directViewName);
-                    var directTarget = directAppKey is not null ? await ResolveScreenTargetAsync(resolver, scope, directAppKey, ct) : null;
-                    var isDirectHostLoaded = directAppKey is null || (hosted?.IsHostLoaded(directAppKey) ?? true);
-                    NeuronId? directScreenId = directTarget is { Kind: IScreenTargetResolver.CompiledScreenKind or IScreenTargetResolver.AgentAppKind }
-                        ? directTarget.ScreenId
-                        : isDirectHostLoaded && ScreenAlias(scope, directViewName) is { } directScreenAlias
-                            ? new NeuronId(new BrainId(scope), directScreenAlias, "default")
-                            : null;
-                    if (directScreenId is { } resolvedDirectScreenId)
+                    if (ScreenAlias(scope, directViewName) is { } directScreenAlias)
                     {
-                        try
+                        var directAppKey = AppOf(scope, directViewName);
+                        var directTarget = directAppKey is not null ? await ResolveScreenTargetAsync(resolver, scope, directAppKey, ct) : null;
+                        var isDirectHostLoaded = directAppKey is null || (hosted?.IsHostLoaded(directAppKey) ?? true);
+                        NeuronId? directScreenId = directTarget is { Kind: IScreenTargetResolver.CompiledScreenKind or IScreenTargetResolver.AgentAppKind }
+                            ? directTarget.ScreenId
+                            : isDirectHostLoaded
+                                ? new NeuronId(new BrainId(scope), directScreenAlias, "default")
+                                : null;
+                        if (directScreenId is { } resolvedDirectScreenId)
                         {
-                            var published = await brain.Get<IScreen>(resolvedDirectScreenId).Read().WaitAsync(ct);
-                            if (published is not null)
+                            try
                             {
-                                return Results.Ok(new
+                                var published = await brain.Get<IScreen>(resolvedDirectScreenId).Read().WaitAsync(ct);
+                                if (published is not null)
                                 {
-                                    Revision = published.Generation,
-                                    Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
-                                    Root = new ViewRef(UIVocabulary.ViewType, directViewName),
-                                    Error = (string?)null,
-                                });
+                                    return Results.Ok(new
+                                    {
+                                        Revision = published.Generation,
+                                        Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
+                                        Root = new ViewRef(UIVocabulary.ViewType, directViewName),
+                                        Error = (string?)null,
+                                    });
+                                }
                             }
-                        }
-                        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
-                        {
-                            log.LogSwallowed(error, "Published screen view could not be read.");
+                            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                            {
+                                log.LogSwallowed(error, "Published screen view could not be read.");
+                            }
                         }
                     }
                     var directView = await brain.Get<IView>(directViewName).Read().WaitAsync(ct);

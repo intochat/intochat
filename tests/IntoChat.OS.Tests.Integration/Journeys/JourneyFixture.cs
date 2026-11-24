@@ -2,6 +2,7 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Identity;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Web;
@@ -20,6 +21,7 @@ public static class Journey
     [
         typeof(AIModule),
         typeof(AppsModule),
+        typeof(FlutterModule),
         typeof(PostgresModule),
         typeof(WebModule),
         typeof(IdentityModule),

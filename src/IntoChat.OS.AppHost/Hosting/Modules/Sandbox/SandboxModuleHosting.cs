@@ -105,6 +105,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
         start.ArgumentList.Add(rid);
         start.ArgumentList.Add("--no-self-contained");
         start.ArgumentList.Add("/t:PublishContainer");
+        start.ArgumentList.Add("-p:EnableSdkContainerSupport=true");
         start.ArgumentList.Add("-p:CodeGraphRefresh=false");
         start.ArgumentList.Add("-p:DebugType=none");
         start.ArgumentList.Add("--nologo");
