@@ -348,7 +348,7 @@ public sealed partial class EngineerApp
             // Candidate {{candidateLabel}} (#{{state.SelectedInstanceIndex}} · {{strategy}}) · {{branch}} · {{state.SelectedFilePath}}
             namespace IntoChat.OS.Modules.Apps.Flows;
 
-            [DigitalBrain.Neurons.Neuron(IFlows.EngineerFlow)]
+            [DigitalBrain.Neurons.Neuron(IEngineerRuns.EngineerFlow)]
             internal sealed class EngineerFlow : Flow<EngineerRun>, IFlowStarter
             {
                 // Goal: {{state.Goal}}

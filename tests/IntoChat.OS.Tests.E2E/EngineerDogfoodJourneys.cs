@@ -122,7 +122,7 @@ public sealed class EngineerDogfoodJourneys
         await os.Idle();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var activeFlows = await flows.List(new FlowQuery(Type: IFlows.EngineerFlow), Ct);
+        var activeFlows = await flows.List(new FlowQuery(Type: IEngineerRuns.EngineerFlow), Ct);
         var startedFlow = Assert.Single(activeFlows);
         var flowId = startedFlow.FlowId;
 

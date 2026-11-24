@@ -123,6 +123,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
     private const string SynapsesKey = "ino/synapses";
 
     [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = ApprovalsKey, Required = false)] private partial IApprovals? Approvals { get; }
     [Slot(Key = SynapsesKey, Required = false)] private partial ISynapseStudio? SynapseStudio { get; }
     [Slot(Key = IFocus.DefaultKey, Required = false)] private partial IFocus? Focus { get; }

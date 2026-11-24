@@ -32,7 +32,7 @@ public sealed record EngineerStartRequest(
         ArgumentNullException.ThrowIfNull(flows);
         var effectiveTitle = string.IsNullOrWhiteSpace(title) ? Goal : title.Trim();
         var explicitKey = string.IsNullOrWhiteSpace(RunId) ? null : RunId.Trim();
-        return flows.Start(IFlows.EngineerFlow, effectiveTitle, parentFlowId, ToStartJson(), ct, flowId: explicitKey);
+        return flows.Start(IEngineerRuns.EngineerFlow, effectiveTitle, parentFlowId, ToStartJson(), ct, flowId: explicitKey);
     }
 }
 

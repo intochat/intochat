@@ -122,15 +122,17 @@ public sealed class InoToEngineerDelegationJourneys
         Assert.NotNull(await inoScreen.Read());
         var personaDef = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Owner", DefaultModel = "qwen2.5-coder:14b" });
         Assert.Contains(typeof(IFlows).FullName!, personaDef.Contracts);
-        Assert.Contains("`flows_start_engineer_run`", personaDef.Instructions, StringComparison.Ordinal);
+        Assert.Contains(typeof(IEngineerRuns).FullName!, personaDef.Contracts);
+        Assert.Contains("`engineer_runs_start_engineer_run`", personaDef.Instructions, StringComparison.Ordinal);
 
         // 1. Ino delegates a 2-worktree ContainerVolume IntoChat-Engineer run on behalf of the user.
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
         var studio = os.Get<IStudio>(new NeuronId(brain, "ino.studio", "ino/studio"));
         EngineerRunSummary started;
         using (os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), brain, conversation: "main")))
         {
-            started = await flows.StartEngineerRun(
+            started = await runs.StartEngineerRun(
                 new EngineerDelegationRequest(
                     RepoSlug: "os",
                     Goal: "Add Subtract and Clamp helpers to Calculator",
@@ -141,14 +143,14 @@ public sealed class InoToEngineerDelegationJourneys
         }
 
         Assert.True(started.Ok, started.SummaryText);
-        Assert.Equal($"{brain.Value}/{IFlows.EngineerFlow}/deleg01", started.FlowId);
+        Assert.Equal($"{brain.Value}/{IEngineerRuns.EngineerFlow}/deleg01", started.FlowId);
 
         // 2. Drive flow.engineer through Architect+Critic planning -> 2 parallel worktrees -> Roslyn AST edits -> Release build -> OTel/Trace/IScreen live-verify -> approval-gate.
         EngineerRunSummary? waiting = null;
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snapshot = await flows.InspectEngineerRun(started.FlowId, Ct);
+            var snapshot = await runs.InspectEngineerRun(started.FlowId, Ct);
             if (snapshot.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed)
             {
                 waiting = snapshot;
@@ -269,7 +271,7 @@ public sealed class InoToEngineerDelegationJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snapshot = await flows.InspectEngineerRun(started.FlowId, Ct);
+            var snapshot = await runs.InspectEngineerRun(started.FlowId, Ct);
             if (snapshot.Status is FlowStatus.Completed or FlowStatus.Failed)
             {
                 completed = snapshot;

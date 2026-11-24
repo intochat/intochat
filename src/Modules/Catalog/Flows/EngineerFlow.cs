@@ -31,9 +31,9 @@ internal sealed class EngineerFlow(
     IWorktreeRoslyn? roslyn = null,
     IConfirmationRequests? confirmationRequests = null,
     IEngineeringHarness? engineeringHarness = null,
-    IServiceProvider? services = null) : Flow<EngineerRun>, IFlowStarter
+    IServiceProvider? services = null) : Flow<EngineerRun>, IFlowStarter, IEngineerFlow
 {
-    public const string Alias = IFlows.EngineerFlow;
+    public const string Alias = IEngineerRuns.EngineerFlow;
     public const string ConfirmationKind = "engineer.publish";
     public const int MaxBuildRepairRounds = 3;
     private const string PlanPrefix = "app:engineer";

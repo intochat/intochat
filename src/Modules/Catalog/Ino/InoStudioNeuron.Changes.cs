@@ -27,19 +27,19 @@ internal sealed partial class InoStudioNeuron
         ArgumentException.ThrowIfNullOrWhiteSpace(flowId);
         var brainId = CurrentBrainId;
         var trimmed = flowId.Trim();
-        if (trimmed.Contains($"/{IFlows.EngineerFlow}/", StringComparison.Ordinal))
+        if (trimmed.Contains($"/{IEngineerRuns.EngineerFlow}/", StringComparison.Ordinal))
         {
-            var engSummary = await Get<IFlows>(IFlows.Key(brainId)).InspectEngineerRun(trimmed, ct).ConfigureAwait(true);
+            var engSummary = await Get<IEngineerRuns>(IEngineerRuns.Key(brainId)).InspectEngineerRun(trimmed, ct).ConfigureAwait(true);
             return new InoToolResult(engSummary.SummaryText, engSummary.Card, Ok: engSummary.Ok);
         }
 
         if (!trimmed.Contains('/', StringComparison.Ordinal))
         {
-            var candidateEngId = new NeuronId(Id.Brain, IFlows.EngineerFlow, trimmed).ToString();
+            var candidateEngId = new NeuronId(Id.Brain, IEngineerRuns.EngineerFlow, trimmed).ToString();
             var existingEng = await Get<IFlows>(IFlows.Key(brainId)).Read(candidateEngId, ct).ConfigureAwait(true);
             if (existingEng is not null)
             {
-                var engSummary = await Get<IFlows>(IFlows.Key(brainId)).InspectEngineerRun(candidateEngId, ct).ConfigureAwait(true);
+                var engSummary = await Get<IEngineerRuns>(IEngineerRuns.Key(brainId)).InspectEngineerRun(candidateEngId, ct).ConfigureAwait(true);
                 return new InoToolResult(engSummary.SummaryText, engSummary.Card, Ok: engSummary.Ok);
             }
         }

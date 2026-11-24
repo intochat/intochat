@@ -19,7 +19,7 @@ internal sealed class FeatureToPrFlow(
     IConfirmationRequests? confirmationRequests = null,
     IServiceProvider? services = null) : Flow<Change>, IFlowStarter
 {
-    public const string Alias = IFlows.ChangeFlow;
+    public const string Alias = IEngineerRuns.ChangeFlow;
     public const string ConfirmationKind = "f2pr.publish";
     private const string PlanPrefix = "app:change";
 

@@ -93,6 +93,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     private const string FlowsKey = "flows/index";
 
     [Slot(Key = FlowsKey, Required = false)] private partial IFlows? Flows { get; }
+    [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = "connection/github/main", Required = false)] private partial IRepository? MainRepository { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
     [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
@@ -285,11 +286,11 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         ArgumentNullException.ThrowIfNull(request);
         if (State.AwaitingPlanRatification
             && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
-            && Flows is { } flows)
+            && EngineerRuns is { } runs)
         {
             try
             {
-                var ratified = await flows.RatifyEngineerPlan(
+                var ratified = await runs.RatifyEngineerPlan(
                     State.ActiveFlowId!,
                     State.EffectiveCleanupTargets,
                     State.EffectiveSlices);
@@ -461,11 +462,11 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         await ApplyDecisionAsync(decision);
         if (decision.IsAccepted
             && !string.IsNullOrWhiteSpace(State.ActiveFlowId)
-            && Flows is { } flows)
+            && EngineerRuns is { } runs)
         {
             try
             {
-                var summary = await flows.SelectEngineerCandidate(State.ActiveFlowId!, request.CandidateIndex);
+                var summary = await runs.SelectEngineerCandidate(State.ActiveFlowId!, request.CandidateIndex);
                 if (!string.IsNullOrWhiteSpace(summary.FlowId))
                 {
                     var synced = ApplyLiveSummary(State, summary, preserveActiveTab: true, preferredFilePath: request.FilePath);
@@ -603,7 +604,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         }
 
         var matchesActive = State.ActiveFlowId is { } active && string.Equals(changed.FlowId, active, StringComparison.Ordinal);
-        var isEngineerFlow = changed.FlowId.Contains("/" + IFlows.EngineerFlow + "/", StringComparison.Ordinal);
+        var isEngineerFlow = changed.FlowId.Contains("/" + IEngineerRuns.EngineerFlow + "/", StringComparison.Ordinal);
         if (matchesActive || isEngineerFlow)
         {
             var synced = await SyncFromLiveFlowAsync(State, changed.FlowId);

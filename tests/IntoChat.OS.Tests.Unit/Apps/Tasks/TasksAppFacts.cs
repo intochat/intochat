@@ -808,6 +808,7 @@ public sealed class TasksAppFacts
         FakeSynapses.Files = [];
         var os = TestOS.Local();
         os.Register<FakeFlows>();
+        os.Register<FakeEngineerRuns>();
         os.Register<FakeApprovals>();
         os.Register<FakeFocus>();
         os.Register<FakeSynapses>();
@@ -870,11 +871,34 @@ public sealed class TasksAppFacts
             return Task.FromResult(id);
         }
 
+        public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task Cancel(string flowId, string reason, CancellationToken ct = default)
+        {
+            if (CancelRefusal is { } message)
+            {
+                throw new DigitalBrain.Rules.RuleViolationException(new DigitalBrain.Rules.Rejected("Cancel", ["apps.flows-person-cancels-approval-wait"], [message]));
+            }
+
+            Cancels.Add(flowId);
+            return Task.CompletedTask;
+        }
+
+        public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default)
+        {
+            Relations.Add((flowId, relation));
+            return Task.CompletedTask;
+        }
+    }
+
+    [Neuron("engineer.runs")]
+    private sealed class FakeEngineerRuns : Neuron, IEngineerRuns
+    {
         public Task<EngineerRunSummary> StartEngineerRun(EngineerDelegationRequest request, CancellationToken ct = default)
         {
-            var runId = $"eng-run-{EngineerRuns.Count + 1}";
-            var flowId = $"local/{IFlows.EngineerFlow}/{runId}";
-            EngineerRuns.Add((request, flowId));
+            var runId = $"eng-run-{FakeFlows.EngineerRuns.Count + 1}";
+            var flowId = $"local/{IEngineerRuns.EngineerFlow}/{runId}";
+            FakeFlows.EngineerRuns.Add((request, flowId));
             return Task.FromResult(new EngineerRunSummary(
                 Ok: true,
                 FlowId: flowId,
@@ -899,24 +923,9 @@ public sealed class TasksAppFacts
                 SummaryText: $"Started {flowId}"));
         }
 
-        public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default) => Task.CompletedTask;
-
-        public Task Cancel(string flowId, string reason, CancellationToken ct = default)
-        {
-            if (CancelRefusal is { } message)
-            {
-                throw new DigitalBrain.Rules.RuleViolationException(new DigitalBrain.Rules.Rejected("Cancel", ["apps.flows-person-cancels-approval-wait"], [message]));
-            }
-
-            Cancels.Add(flowId);
-            return Task.CompletedTask;
-        }
-
-        public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default)
-        {
-            Relations.Add((flowId, relation));
-            return Task.CompletedTask;
-        }
+        public Task<EngineerRunSummary> InspectEngineerRun(string? flowId = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<EngineerRunSummary> SelectEngineerCandidate(string flowId, int candidateIndex, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<EngineerRunSummary> RatifyEngineerPlan(string flowId, string[]? approvedCleanupTargets = null, EngineerTaskSlice[]? slices = null, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     [Neuron("ui.field")]

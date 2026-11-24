@@ -22,7 +22,7 @@ internal sealed partial class PrReviewFlow : Flow<PrReviewState>, IFlowStarter
 
     internal const string SyntaxReviewKey = "syntax-review";
 
-    public const string Alias = IFlows.PrReviewFlow;
+    public const string Alias = IEngineerRuns.PrReviewFlow;
     public const string ConfirmationKind = "review.pr.submit";
     private const string PlanPrefix = "app:pr-review";
 

@@ -301,7 +301,7 @@ public sealed class EngineerFlowRepairFacts : IDisposable
             instanceCount = 1,
         }, EngineerFlow.Json);
 
-        var flowId = await flows.Start(IFlows.EngineerFlow, "Repair Build Failure", null, startJson, Ct, flowId: "engrepair01");
+        var flowId = await flows.Start(IEngineerRuns.EngineerFlow, "Repair Build Failure", null, startJson, Ct, flowId: "engrepair01");
         var waiting = await FlowTypeFacts.Eventually(
             () => flows.Read(flowId, Ct),
             v => v.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed);
@@ -352,7 +352,7 @@ public sealed class EngineerFlowRepairFacts : IDisposable
             instanceCount = 1,
         }, EngineerFlow.Json);
 
-        var flowId = await flows.Start(IFlows.EngineerFlow, "Exhaust Repair Rounds", null, startJson, Ct, flowId: "engrepair02");
+        var flowId = await flows.Start(IEngineerRuns.EngineerFlow, "Exhaust Repair Rounds", null, startJson, Ct, flowId: "engrepair02");
         var failed = await FlowTypeFacts.Eventually(
             () => flows.Read(flowId, Ct),
             v => v.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed);

@@ -199,8 +199,8 @@ public sealed class InoAppFacts
         Assert.Contains(typeof(IFlows).FullName!, def.Contracts);
         Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Contracts);
         Assert.Contains("`studio_propose_change`", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`flows_start_engineer_run`", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`flows_inspect_engineer_run`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`engineer_runs_start_engineer_run`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`engineer_runs_inspect_engineer_run`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`github_repository_dismiss_issue_draft`", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("`ai_memory_remember_preference`", def.Instructions, StringComparison.Ordinal);

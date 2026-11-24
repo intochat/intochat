@@ -116,7 +116,8 @@ public sealed class EngineerTournamentJourneys
         await os.Idle();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
-        var activeFlows = await flows.List(new FlowQuery(Type: IFlows.EngineerFlow), Ct);
+        var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
+        var activeFlows = await flows.List(new FlowQuery(Type: IEngineerRuns.EngineerFlow), Ct);
         var startedFlow = Assert.Single(activeFlows);
         var flowId = startedFlow.FlowId;
 
@@ -125,7 +126,7 @@ public sealed class EngineerTournamentJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snapshot = await flows.InspectEngineerRun(flowId, Ct);
+            var snapshot = await runs.InspectEngineerRun(flowId, Ct);
             if (snapshot.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed)
             {
                 waiting = snapshot;
@@ -213,7 +214,7 @@ public sealed class EngineerTournamentJourneys
         Assert.Contains(scoreboardAfter.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
 
         // Verify flow.engineer re-bound its SHA-locked confirmation plan from shaW1 -> shaW2 and withdrew initialPlanId!
-        var afterPromotion = await flows.InspectEngineerRun(flowId, Ct);
+        var afterPromotion = await runs.InspectEngineerRun(flowId, Ct);
         Assert.Equal(1, afterPromotion.SelectedCandidateIndex);
         Assert.Equal(shaW2, afterPromotion.WinningCommitSha);
         var promotedPlanId = afterPromotion.ConfirmationPlanId!;
@@ -234,7 +235,7 @@ public sealed class EngineerTournamentJourneys
         for (var poll = 0; poll < 160; poll++)
         {
             await os.Idle();
-            var snapshot = await flows.InspectEngineerRun(flowId, Ct);
+            var snapshot = await runs.InspectEngineerRun(flowId, Ct);
             if (snapshot.Status is FlowStatus.Completed or FlowStatus.Failed)
             {
                 completed = snapshot;
