@@ -300,7 +300,7 @@ jobs:
 
       - name: Cache Aspire DCP
         id: cache-dcp
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.aspire/bundle/dcp
           key: aspire-dcp-linux-x64-13.6.1
