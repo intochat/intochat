@@ -185,29 +185,17 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
         return Store(State.Reload());
     }
 
-    public static (string BaseUrl, bool IsConfigured) ResolveEndpoint(
-        IConfiguration? configuration,
-        Func<string, string?>? readEnvironment = null)
+    public static (string BaseUrl, bool IsConfigured) ResolveEndpoint(IConfiguration? configuration)
     {
-        if (configuration is not null)
-        {
-            foreach (var key in (string[])[AspireAppState.ConfiguredUrlKey, AspireAppState.DashboardUrlEnvKey, AspireAppState.DotnetDashboardUrlsKey])
-            {
-                if (AspireAppState.TryNormalizeBaseUrl(configuration[key], out var fromConfig))
-                {
-                    return (fromConfig!, true);
-                }
-            }
+        Func<string, string?> read = configuration is not null
+            ? key => configuration[key]
+            : static key => Environment.GetEnvironmentVariable(key.Replace(":", "__", StringComparison.Ordinal));
 
-            return (AspireAppState.DefaultBaseUrl, false);
-        }
-
-        var env = readEnvironment ?? Environment.GetEnvironmentVariable;
-        foreach (var envKey in (string[])["IntoChatOS__AspireDashboardUrl", AspireAppState.DashboardUrlEnvKey, AspireAppState.DotnetDashboardUrlsKey])
+        foreach (var key in AspireAppState.EndpointKeys)
         {
-            if (AspireAppState.TryNormalizeBaseUrl(env(envKey), out var fromEnv))
+            if (AspireAppState.TryNormalizeBaseUrl(read(key), out var url))
             {
-                return (fromEnv!, true);
+                return (url!, true);
             }
         }
 
