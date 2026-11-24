@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IsIntoChatOSModule>false</IsIntoChatOSModule>
+    <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
+    <PackageId>IntoChat.OS.Components.Treg.Contracts</PackageId>
+    <Description>Contracts and data shapes of the treg MCP preset and skill importer component.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/IntoChat.OS.csproj" />
+  </ItemGroup>
+</Project>
