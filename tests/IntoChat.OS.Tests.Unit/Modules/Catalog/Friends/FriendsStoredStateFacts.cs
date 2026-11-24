@@ -90,12 +90,38 @@ public sealed class FriendsStoredStateFacts
         [new ProfileFriend("ben", "ben", "Ben", "friends", At, "ben", true)],
         ["customer-notes"]);
 
-    private static PostsState Posts() => new(
+    // The post store as its first version wrote it (pinned by 84b289787, kept as PostsState.before-audience.json): a post
+    // had a frozen account list and nothing of what a profile post held.
+    private static PostsState PostsBeforeAudience() => new(
         [
             new SocialPost("p1", "ada", "Hello Ben", ["ben"], [new PostReaction("ben", "like", At.AddMinutes(1))], [new PostComment("c1", "ben", "Nice", At.AddMinutes(2))], 1, At),
             new SocialPost("p2", "ada", "My app", ["ben", "eve"], [], [], 2, At.AddHours(1), new AppDefinitionShare("customer-notes", "Customer Notes", [new SharedSourceFile("App.cs", "// unit source")])),
         ],
         2);
+
+    // The post store now: the same two posts, and posts that carry an audience rule and what a profile post held.
+    private static PostsState Posts() => new(
+        [
+            .. PostsBeforeAudience().Posts,
+            new SocialPost(
+                "post-2",
+                "ada",
+                "An app to fork",
+                ["ben"],
+                [],
+                [],
+                3,
+                At.AddDays(2),
+                new AppDefinitionShare("customer-notes", "Notes", [new SharedSourceFile("App.cs", "// unit source")]),
+                "Notes",
+                new Audience.Only([new AccountId("ben")]),
+                [new PostEmbeddedApp("main", "customer-notes", "Customer Notes", "ada/app/customer-notes")],
+                "post-1",
+                "// template"),
+            new SocialPost("p4", "ada", "For my friends", [], [], [], 4, At.AddDays(3), Audience: new Audience.Friends()),
+            new SocialPost("p5", "ada", "For everyone", [], [], [], 5, At.AddDays(3), Audience: new Audience.Public()),
+        ],
+        5);
 
     private static RoomState Room() => new(
         3,
@@ -159,6 +185,29 @@ public sealed class FriendsStoredStateFacts
         var read = RuntimeProtocol.Deserialize(Encoding.UTF8.GetBytes(widened), sample.GetType());
         Assert.Equivalent(sample, read, strict: true);
     }
+
+    // A post store written by the first version reads back with every later member at its default: no audience rule (the
+    // frozen list is the audience), no title, no embedded apps, no fork trace. The file is the one 84b289787 pinned, byte
+    // for byte; it is read here and never rewritten.
+    [Fact]
+    public void APostStoreOfTheFirstVersionStillReads()
+    {
+        var stored = File.ReadAllBytes(Golden("PostsState.before-audience.json"));
+        Assert.Equal(FirstVersionPosts, Encoding.UTF8.GetString(stored));
+
+        var read = (PostsState)RuntimeProtocol.Deserialize(stored, typeof(PostsState))!;
+        Assert.Equivalent(PostsBeforeAudience(), read, strict: true);
+        Assert.All(read.Posts, static post => Assert.Equal((null, null, null, null, null), ((object?)post.Audience, post.Title, post.EmbeddedApps, post.ForkedFrom, post.TemplateSource)));
+
+        // What this version writes for those posts has the same members with the same values, and the new ones as null:
+        // a brain that still runs the first version ignores them (ARecordWithAFieldThisVersionDoesNotKnowStillReads).
+        var rewritten = Encoding.UTF8.GetString(RuntimeProtocol.SerializeToUtf8Bytes(read, typeof(PostsState)));
+        Assert.Equal(
+            FirstVersionPosts,
+            rewritten.Replace(",\"title\":null,\"audience\":null,\"embeddedApps\":null,\"forkedFrom\":null,\"templateSource\":null", "", StringComparison.Ordinal));
+    }
+
+    private const string FirstVersionPosts = """{"posts":[{"id":"p1","author":"ada","text":"Hello Ben","audienceAccounts":["ben"],"reactions":[{"account":"ben","kind":"like","at":"2026-01-02T03:05:05+00:00"}],"comments":[{"id":"c1","author":"ben","text":"Nice","at":"2026-01-02T03:06:05+00:00"}],"sequence":1,"createdAt":"2026-01-02T03:04:05+00:00","sharedApp":null},{"id":"p2","author":"ada","text":"My app","audienceAccounts":["ben","eve"],"reactions":[],"comments":[],"sequence":2,"createdAt":"2026-01-02T04:04:05+00:00","sharedApp":{"appId":"customer-notes","title":"Customer Notes","files":[{"path":"App.cs","content":"// unit source"}]}}],"nextSequence":2}""";
 
     // A roster written before friends, groups and keys existed: Friends stays null, which is what starts the one-time import.
     [Fact]

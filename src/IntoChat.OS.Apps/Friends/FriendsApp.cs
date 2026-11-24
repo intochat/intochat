@@ -440,7 +440,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
-            await posts.Publish(new PostDraft(text.Trim(), audience));
+            await posts.Publish(new PostDraft(text.Trim(), audience, Audience: new Audience.Friends()));
             var feed = await LoadSocialFeedAsync(roster);
             return State with
             {
