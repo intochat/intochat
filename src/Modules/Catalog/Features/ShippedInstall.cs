@@ -15,6 +15,7 @@ public static class ShippedInstall
         ArgumentNullException.ThrowIfNull(read);
         foreach (var (publisher, name) in await catalog.BootSet())
         {
+            ct.ThrowIfCancellationRequested();
             try
             {
                 if ((await read(name).WaitAsync(ct)).Manifest.Title.Length > 0) { continue; }
@@ -22,7 +23,7 @@ public static class ShippedInstall
                     ?? throw new InvalidOperationException($"{publisher}/{name} is not in the catalog.");
                 await loader.Load(brainId, name, bundle, new AppOrigin(publisher, new AppSource.Shipped(), name, bundle.Version), ct);
             }
-            catch (Exception error) when (error is not OperationCanceledException)
+            catch (Exception error) when (error is not OperationCanceledException && !ct.IsCancellationRequested)
             {
                 OsConsoleLog.For(typeof(ShippedInstall)).LogSwallowed(error, $"installing shipped app '{publisher}/{name}'");
                 failed?.Invoke(error, $"{publisher}/{name}");

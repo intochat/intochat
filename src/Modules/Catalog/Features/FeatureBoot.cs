@@ -4,6 +4,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 using IntoChat.OS.Host.Configuration;
@@ -19,14 +20,15 @@ internal sealed class FeatureBoot(
 {
     private Task _loaded = Task.CompletedTask;
 
-    public async Task Execute(CancellationToken cancellationToken)
+    public async Task Execute(CancellationToken stopping)
     {
         // Registered before the load starts, so no activation during the load is missed; each waits for the load.
         // The registration lives as long as the silo (idempotent by listener name), so its handle is not kept.
         _ = await listeners.Listen<Activated>(nameof(FeatureBoot), (publisher, _, _) =>
         {
+            if (stopping.IsCancellationRequested) { return Task.CompletedTask; }
             var brainId = publisher.Brain.Value;
-            _ = Task.Run(() => ReconcileAsync(brainId, cancellationToken), CancellationToken.None);
+            _ = Task.Run(() => ReconcileAsync(brainId, stopping), CancellationToken.None);
             return Task.CompletedTask;
         });
         _loaded = Task.Run(LoadAsync, CancellationToken.None);
@@ -45,29 +47,49 @@ internal sealed class FeatureBoot(
         { logger.LogError(error, "The shipped apps did not load."); }
     }
 
-    private async Task ReconcileAsync(string brainId, CancellationToken cancellationToken)
+    private async Task ReconcileAsync(string brainId, CancellationToken stopping)
     {
+        if (stopping.IsCancellationRequested) { return; }
         // The listener runs in the turn that published Activated, under that turn's caller; reconciling is the module's own act,
         // so it enters the module caller below rather than clearing the turn's.
         var edge = plain.GetService<EdgeAuthority>();
         try
         {
             using var module = edge?.Enter(edge.Module("apps.feature-boot", new BrainId(brainId)));
-            await _loaded;
-            await SiloNeurons.Get<IFeatureReconciler>(plain, IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
+            await _loaded.WaitAsync(stopping);
+            await SiloNeurons.Get<IFeatureReconciler>(plain, IFeatureReconciler.Key(brainId)).Reconcile(stopping);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        { }
+        catch (Exception error) when (error is not OperationCanceledException && !stopping.IsCancellationRequested)
         { logger.LogWarning(error, "Reconciling features for brain {Brain} failed.", brainId); }
     }
 }
 
 // Runs FeatureBoot when the silo becomes active, as Orleans' AddStartupTask did (06-08: modules register services, not the silo).
-internal sealed class FeatureBootLifecycle(IServiceProvider services) : ILifecycleParticipant<ISiloLifecycle>
+// Cancels in-flight background reconciliations on silo stop so shutdown never stalls retrying placement against a stopping silo.
+internal sealed class FeatureBootLifecycle(IServiceProvider services) : ILifecycleParticipant<ISiloLifecycle>, IDisposable
 {
+    private CancellationTokenSource? _stopping;
+
     public void Participate(ISiloLifecycle lifecycle)
     {
         ArgumentNullException.ThrowIfNull(lifecycle);
         lifecycle.Subscribe<FeatureBootLifecycle>(ServiceLifecycleStage.Active,
-            cancellationToken => ActivatorUtilities.CreateInstance<FeatureBoot>(services).Execute(cancellationToken));
+            _ =>
+            {
+                var appStopping = services.GetService<IHostApplicationLifetime>()?.ApplicationStopping;
+                _stopping = appStopping is { CanBeCanceled: true } token
+                    ? CancellationTokenSource.CreateLinkedTokenSource(token)
+                    : new CancellationTokenSource();
+                return ActivatorUtilities.CreateInstance<FeatureBoot>(services).Execute(_stopping.Token);
+            },
+            _ =>
+            {
+                _stopping?.Cancel();
+                return Task.CompletedTask;
+            });
     }
+
+    public void Dispose() => _stopping?.Dispose();
 }
