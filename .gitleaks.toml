@@ -4,7 +4,7 @@
 useDefault = true
 
 [allowlist]
-description = "Azurite well-known development storage key, Azure built-in RBAC role GUIDs, Auth test hashing keys, and Identity grant test fixtures"
+description = "Azurite well-known development storage key, Azure built-in RBAC role GUIDs, Auth test hashing keys, and Identity grant test fixtures, and neuron key paths the generic rule mistakes for keys"
 commits = [
   "5947a731031e53c66a41b720fd6331510e7d6338",
   "16f94509427027c713ba9fa8979d23d31135771d",
@@ -29,4 +29,6 @@ regexes = [
   '''b86a8fe4-44ce-4948-aee5-eccb2c155cd7''',
   '''4633458b-17de-408a-b874-0445c86b69e6''',
   '''CANARY_PLAIN_SECRET_1''',
+  # IAspire.KeyPattern: the neuron key path "diagnostics/aspire", not a credential.
+  '''diagnostics/aspire''',
 ]
