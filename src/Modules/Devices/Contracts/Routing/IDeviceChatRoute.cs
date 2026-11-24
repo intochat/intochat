@@ -4,7 +4,8 @@ using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.Devices;
 
-// Registered only where a device relay runs (the cloud).
+// The brain's other enrolled devices as chat models. On the OS it goes through the cloud relay over HTTP with the device link's
+// machine credential (RelayDeviceChatRoute); the relay itself runs in the cloud's own cluster.
 public interface IDeviceChatRoute
 {
     // Online devices only; Where = Where.Device, Id = DeviceModelRef.ToModelId().

@@ -8,13 +8,11 @@ namespace IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 
 // Each app runs twice: its headless CLI as an MCP server, and its wasm build behind nginx (optional in headless/cloud mode).
 // Images build from src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker at a pinned upstream commit,
-// on the fixed ports the module options name.
+// on the fixed ports ArtCraftCatalog names (the same ports WithHostedApps writes into the brain's endpoints).
 public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
 {
     public const string PhotoCraftRef = "d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a";
     public const string FilmCraftRef = "7b6c134472287db4367fca80bcb498240ba36567";
-    public const int PhotoCraftWebPort = ArtCraftModuleOptions.PhotoCraftWebPort;
-    public const int FilmCraftWebPort = ArtCraftModuleOptions.FilmCraftWebPort;
     public const string PrebuiltRegistry = "ghcr.io/intochat";
 
     private static IResourceBuilder<ContainerResource> Web(IResourceBuilder<ContainerResource> web, int port) => web
@@ -29,23 +27,20 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
         if (!options.Host) { return; }
         var module = new IntoChatOSModuleBuilder<ArtCraftModuleHosting>(brain);
         var docker = ResolveDockerContext(brain.ApplicationBuilder.AppHostDirectory);
-        foreach (var (app, reference, mcpPort, webPort, webUrl) in new[]
+        foreach (var (app, reference) in new[] { ("photocraft", PhotoCraftRef), ("filmcraft", FilmCraftRef) })
         {
-            ("photocraft", PhotoCraftRef, ArtCraftModuleOptions.PhotoCraftMcpPort, PhotoCraftWebPort, options.PhotoCraftWeb),
-            ("filmcraft", FilmCraftRef, ArtCraftModuleOptions.FilmCraftMcpPort, FilmCraftWebPort, options.FilmCraftWeb),
-        })
-        {
+            var descriptor = ArtCraftCatalog.Get(app);
             var mcp = Image(brain, options, docker, app, "mcp", reference, "craft-mcp.Dockerfile")
-                .WithHttpEndpoint(port: mcpPort, targetPort: 8000, name: "mcp", isProxied: false)
+                .WithHttpEndpoint(port: descriptor.DefaultMcpPort, targetPort: 8000, name: "mcp", isProxied: false)
                 .WithHttpHealthCheck("/status", endpointName: "mcp")
                 .WithVolume("intochat-os-artcraft-work", "/work")
                 .WithLifetime(ContainerLifetime.Persistent)
                 .WithParentRelationship(module.Resource);
             _ = mcp;
 
-            if (!string.IsNullOrWhiteSpace(webUrl))
+            if (!string.IsNullOrWhiteSpace(options.GetWeb(app)))
             {
-                Web(Image(brain, options, docker, app, "web", reference, "craft-web.Dockerfile"), webPort)
+                Web(Image(brain, options, docker, app, "web", reference, "craft-web.Dockerfile"), descriptor.DefaultWebPort)
                     .WithParentRelationship(module.Resource);
             }
         }

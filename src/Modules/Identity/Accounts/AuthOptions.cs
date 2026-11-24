@@ -28,7 +28,17 @@ public sealed class AuthOptions
     //   IntoChatOS:Auth:TrustedIssuers:n:PublicKey the issuer's P-256 public key, SubjectPublicKeyInfo DER in base64.
     //   IntoChatOS:Auth:TrustedIssuers:n:Audience  this install's audience as the issuer addresses it (its public origin,
     //                                             for example https://os.example.com); a ticket's "aud" must equal it.
+    //   IntoChatOS:Auth:TrustedIssuers:n:Services  true lets the issuer call this install's edge on its own behalf with a signed
+    //                                             service assertion (device enrollment for the cloud relay); off by default.
+    //   IntoChatOS:Auth:TrustedIssuers:n:Guests    true lets the issuer send visitors to try this install as guests with a
+    //                                             guest ticket (GET /identity/external/guest); off by default.
     public TrustedIssuer[] TrustedIssuers { get; set; } = [];
+
+    // The one-time mapping step of the cloud/OS split: a JSON file of { issuer, email, principal } entries that lets people the cloud
+    // signed up before the split sign in through the issuer's ticket to the accounts and brains they already have (PrincipalLinks).
+    // Applied once at start, with the result written beside the file; set it for one start, then remove it.
+    //   IntoChatOS:Auth:PrincipalLinks
+    public string PrincipalLinks { get; set; } = "";
 
     // Absolute return URLs external sign-in may redirect to (https origins); local paths are always allowed.
     //   IntoChatOS:Auth:ExternalReturnOrigins:n
@@ -40,4 +50,6 @@ public sealed class TrustedIssuer
     public string Name { get; set; } = "";
     public string PublicKey { get; set; } = "";
     public string Audience { get; set; } = "";
+    public bool Services { get; set; }
+    public bool Guests { get; set; }
 }

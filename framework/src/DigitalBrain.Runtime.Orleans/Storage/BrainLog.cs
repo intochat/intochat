@@ -263,6 +263,24 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         }
     }
 
+    /// <summary>Every stored record: grain id, state name and a copy of the record (bytes, version, type).</summary>
+    internal List<(string Grain, string State, JournalRecord Record)> Records()
+    {
+        RequireOpen();
+        lock (stateLock)
+        {
+            var found = new List<(string, string, JournalRecord)>();
+            foreach (var (grain, records) in _journal.SnapshotRecords())
+            {
+                foreach (var (state, record) in records)
+                {
+                    found.Add((grain, state, new JournalRecord(record.Bytes.ToArray(), record.Version, record.Type)));
+                }
+            }
+            return found;
+        }
+    }
+
     /// <summary>Every stored record of <paramref name="stateName"/>, grain id to a copy of the bytes.</summary>
     internal List<(string Grain, byte[] Record)> Named(string stateName)
     {

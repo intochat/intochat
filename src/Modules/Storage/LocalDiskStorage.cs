@@ -199,7 +199,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         if (destination is not null)
         {
             Recheck(destination, plan.TargetFolder ?? plan.Source);
-            if (source is not null && plan.Kind is WriteKind.Move or WriteKind.Copy && Inside(source, destination)) { throw new Denied(plan.Source); }
+            if (source is not null && plan.Kind is WriteKind.Move or WriteKind.Copy && Under(source, destination)) { throw new Denied(plan.Source); }
         }
         return (source, destination);
     }
@@ -437,13 +437,6 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         if (string.Equals(root, full, PathComparison)) { return true; }
         var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
         return full.StartsWith(prefix, PathComparison);
-    }
-
-    private static bool Inside(string parent, string child)
-    {
-        if (string.Equals(parent, child, PathComparison)) { return true; }
-        var prefix = parent.EndsWith(Path.DirectorySeparatorChar) ? parent : parent + Path.DirectorySeparatorChar;
-        return child.StartsWith(prefix, PathComparison);
     }
 
     private static bool Hidden(string full)

@@ -1,4 +1,3 @@
-using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Tests.Unit.Runtime;
@@ -33,12 +32,12 @@ public sealed class CodeFacts
         => Assert.False(Code.TryParse(input, out _));
 
     [Fact]
-    public void CodeHashesExactlyLikeTheOldInviteCode()
+    public void CodeHashIsAStableBase64UrlHmacOfTheTwelveCharacters()
     {
         var key = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         Assert.True(Code.TryParse("abcd-efgh-jkmn", out var code));
-        Assert.Equal(InviteCode.Hash("ABCD-EFGH-JKMN", key), code.Hash(key));
-        Assert.True(Code.HashesEqual(code.Hash(key), InviteCode.Hash("ABCD-EFGH-JKMN", key)));
-        Assert.False(Code.HashesEqual(code.Hash(key), InviteCode.Hash("ABCD-EFGH-JKMP", key)));
+        Assert.Equal("2lIOgCACwQq00MxXy5ecI1JwDNMvfvn7ZTxhVWStYUM", code.Hash(key));
+        Assert.True(Code.HashesEqual(code.Hash(key), "2lIOgCACwQq00MxXy5ecI1JwDNMvfvn7ZTxhVWStYUM"));
+        Assert.False(Code.HashesEqual(code.Hash(key), "AmnW9EeCsmpV1MD5oaKjfVkShbEGhyu0QpemYo4npV8")); // ABCD-EFGH-JKMP
     }
 }

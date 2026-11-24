@@ -22,7 +22,7 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
 | `Azure` | `azure` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager, and Pulumi stacks. |
 | `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |
-| `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) and the one-release device-enrollment shim (`ICircleInviteRedeemer`). |
+| `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
 | `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |
 | `GitHub` | `github` | GitHub repository connection neurons. |

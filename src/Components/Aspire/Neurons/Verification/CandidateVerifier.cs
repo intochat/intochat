@@ -35,7 +35,7 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         }
         try
         {
-            foreach (var check in Checks(brainId, sha, plan, server))
+            foreach (var check in Checks(brain, sha, plan, server))
             {
                 VerificationCheck outcome;
                 try
@@ -58,7 +58,7 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         return new([.. checks], clock.Elapsed);
     }
 
-    private IEnumerable<Check> Checks(string brainId, string sha, VerificationPlan plan, IMcpToolConnection server)
+    private IEnumerable<Check> Checks(DigitalBrain.BrainId brain, string sha, VerificationPlan plan, IMcpToolConnection server)
     {
         yield return new("context", async ct =>
         {
@@ -68,13 +68,12 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
             if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("brainId", out var id) || id.ValueKind != JsonValueKind.String)
             { return (false, $"no brainId in the candidate's answer: {context.Text}"); }
             var answered = id.GetString();
-            return (answered == brainId, $"candidate answers for brain '{answered}'");
+            return (answered == brain.Value, $"candidate answers for brain '{answered}'");
         });
         yield return new("activation", async ct =>
         {
             // Features reconcile on the brain's activation without anyone waiting: reconciling here makes the
             // candidate's apps the catalog's versions before any plan call reads them.
-            var brain = brainId is ['@', .. var sys] ? DigitalBrain.BrainId.System(sys) : new DigitalBrain.BrainId(brainId);
             var reconcile = JsonSerializer.Serialize(new { contract = ReconcilerContract, key = new DigitalBrain.NeuronId(brain, "apps.reconciler", "apps-reconciler").FullKey(), method = "Reconcile", arguments = "[]" });
             var reconciled = await server.Run("neurons_call", reconcile, ct);
             if (reconciled.IsError) { return (false, $"reconciling features failed: {reconciled.Text}"); }

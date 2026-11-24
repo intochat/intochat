@@ -71,7 +71,7 @@ public sealed class ArtCraftImageSourceFacts
             Assert.Contains(mcp.Annotations.OfType<ContainerMountAnnotation>(), m => m.Target == "/work");
             Assert.DoesNotContain(builder.Resources, r => r.Name.EndsWith(app + "-web", StringComparison.Ordinal));
         }
-        Assert.Equal(18082, ArtCraftModuleHosting.PhotoCraftWebPort);
-        Assert.Equal(18083, ArtCraftModuleHosting.FilmCraftWebPort);
+        Assert.Equal(18082, ArtCraftCatalog.Get("photocraft").DefaultWebPort);
+        Assert.Equal(18083, ArtCraftCatalog.Get("filmcraft").DefaultWebPort);
     }
 }

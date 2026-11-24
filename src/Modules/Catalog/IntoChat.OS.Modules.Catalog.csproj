@@ -2,6 +2,8 @@
   <PropertyGroup>
     <RootNamespace>IntoChat.OS.Modules.Apps</RootNamespace>
     <Description>App catalog, install, versions, runtime authoring, flows, and Ino tools.</Description>
+    <!-- Compile-time minimal-API binding: removes the RequestDelegateFactory IL2026/IL3050 per route. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Contracts/**" />

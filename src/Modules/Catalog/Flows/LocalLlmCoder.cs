@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Security;
 using System.Text;
 using System.Text.Json;
@@ -40,6 +41,12 @@ internal sealed class LocalLlmCoderOptions
 
     /// <summary>Arguments template for <see cref="FallbackCliExecutable"/> (<c>{goal}</c> is replaced with the prompt).</summary>
     public string[] FallbackCliArguments { get; set; } = [];
+
+    /// <summary>
+    /// When the local model fails a coding task (or exhausts intra-slice repair turns), retry once with a keyed cloud
+    /// Think model from <see cref="ModelCatalog.DecideFrontier"/>. Without a cloud key the local outcome stands.
+    /// </summary>
+    public bool EscalateToFrontierOnRepeatedFailure { get; set; } = true;
 }
 
 /// <summary>
@@ -125,22 +132,60 @@ internal sealed class LocalLlmCoder : ICoder
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
 
         var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath, _policy, _roslyn);
+        var attempt = new RunnerAttempt();
+        ExceptionDispatchInfo failure;
         try
         {
-            return await RunWithTimeoutAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
+            return await RunWithTimeoutAsync(sandbox, lease, goal, runner: null, attempt, ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException && !string.IsNullOrWhiteSpace(_options.FallbackCliExecutable))
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "Local LLM coder failed; falling back to configured CLI executable '{Cli}'.", _options.FallbackCliExecutable);
-            var cli = new ExternalCliCoder(_options.FallbackCliExecutable!, _options.FallbackCliArguments, _options.Timeout);
+            _logger.LogInformation(ex, "Local LLM coder model '{Model}' failed the coding task.", attempt.ModelId ?? "unresolved");
+            failure = ExceptionDispatchInfo.Capture(ex);
+        }
+
+        if (failure.SourceException is not SecurityException
+            && _options.EscalateToFrontierOnRepeatedFailure
+            && await ResolveFrontierRunnerAsync(ct).ConfigureAwait(false) is { } frontier
+            && !string.Equals(frontier.ModelId, attempt.ModelId, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation(
+                "frontier-escalation: escalating from local coder model '{LocalModel}' to frontier model '{FrontierModel}'.",
+                attempt.ModelId ?? "unresolved",
+                frontier.ModelId);
+            try
+            {
+                return await RunWithTimeoutAsync(sandbox, lease, goal, frontier, attempt, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "frontier-escalation: frontier model '{FrontierModel}' also failed the coding task.", frontier.ModelId);
+                failure = ExceptionDispatchInfo.Capture(ex);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.FallbackCliExecutable))
+        {
+            _logger.LogWarning(failure.SourceException, "Local LLM coder failed; falling back to configured CLI executable '{Cli}'.", _options.FallbackCliExecutable);
+            var cli = new ExternalCliCoder(_options.FallbackCliExecutable, _options.FallbackCliArguments, _options.Timeout);
             return await cli.EditAsync(lease, goal, ct).ConfigureAwait(false);
         }
+
+        failure.Throw();
+        throw new UnreachableException();
+    }
+
+    private sealed class RunnerAttempt
+    {
+        public string? ModelId { get; set; }
     }
 
     private async Task<CoderEditResult> RunWithTimeoutAsync(
         ConfinedWorkTreeSandbox sandbox,
         WorkTreeLease lease,
         string goal,
+        IModelTurnRunner? runner,
+        RunnerAttempt attempt,
         CancellationToken ct)
     {
         var timeout = _options.Timeout ?? TimeSpan.FromMinutes(4);
@@ -149,7 +194,7 @@ internal sealed class LocalLlmCoder : ICoder
 
         try
         {
-            return await RunModelLoopAsync(sandbox, lease, goal, timeoutCts.Token).ConfigureAwait(false);
+            return await RunModelLoopAsync(sandbox, lease, goal, runner, attempt, timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -161,9 +206,12 @@ internal sealed class LocalLlmCoder : ICoder
         ConfinedWorkTreeSandbox sandbox,
         WorkTreeLease lease,
         string goal,
+        IModelTurnRunner? runner,
+        RunnerAttempt attempt,
         CancellationToken ct)
     {
-        var runner = await ResolveModelRunnerAsync(ct).ConfigureAwait(false);
+        runner ??= await ResolveModelRunnerAsync(ct).ConfigureAwait(false);
+        attempt.ModelId = runner.ModelId;
         var toolDefinitions = CreateToolDefinitions(_policy);
         var initialListing = sandbox.ListFiles(null, null, maxItems: 60);
         var messages = new List<AiMessage>
@@ -320,6 +368,31 @@ internal sealed class LocalLlmCoder : ICoder
         throw new InvalidOperationException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
     }
 
+    private async Task<IModelTurnRunner?> ResolveFrontierRunnerAsync(CancellationToken ct)
+    {
+        if (_services?.GetService<ModelCatalog>() is not { } catalog || _services.GetService<IModelInference>() is not { } inference)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (await catalog.DecideFrontier(brain: null, ModelRole.Think, requiresTools: true, ct).ConfigureAwait(false) is not { } frontier)
+            {
+                return null;
+            }
+
+            var selection = ToSelection(frontier);
+            var desc = await inference.Describe(selection, model: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
+            return new InferenceServiceRunner(inference, selection, frontier.Model, desc.Temperature == CapabilitySupport.Supported, ollamaContextWindowTokens: null);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogSwallowed(ex, "frontier model resolution failed; keeping the local outcome");
+            return null;
+        }
+    }
+
     private int? ResolveOllamaContextWindow(bool isOllama, ModelDescriptor desc)
         => isOllama
             && _options.ContextWindowTokens is { } requestedCtx and > 0
@@ -327,7 +400,7 @@ internal sealed class LocalLlmCoder : ICoder
             ? (int)Math.Min(requestedCtx, maxCtx)
             : null;
 
-    private static ModelSelection? ToSelection(ResolvedModel resolved)
+    internal static ModelSelection? ToSelection(ResolvedModel resolved)
         => resolved.Provider == AiProvider.Host ? null
             : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
             : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
@@ -354,6 +427,10 @@ internal sealed class LocalLlmCoder : ICoder
         if (int.TryParse(configuration["IntoChatOS:Coder:ContextWindowTokens"], NumberStyles.Integer, CultureInfo.InvariantCulture, out var contextWindow) && contextWindow > 0)
         {
             opts.ContextWindowTokens = contextWindow;
+        }
+        if (bool.TryParse(configuration["IntoChatOS:Coder:EscalateToFrontier"], out var escalate))
+        {
+            opts.EscalateToFrontierOnRepeatedFailure = escalate;
         }
 
         return opts;

@@ -47,6 +47,11 @@ internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule>
                 _admin = admin;
                 _adminMaterialized = needAdmin;
                 _revision = released.Snapshot.Revision;
+                // Pools built from a superseded integration revision hold its credentials and are never served again.
+                foreach (var stale in _sources.Keys.Where(key => key.Revision != _revision).ToArray())
+                {
+                    if (_sources.TryRemove(stale, out var retired)) { await retired.DisposeAsync(); }
+                }
             }
             var settings = placement.Kind == TablePlacementKind.Shared ? _platform : _admin
                 ?? throw new PostgresUnavailableException("This table's database is not reachable from this deployment.");

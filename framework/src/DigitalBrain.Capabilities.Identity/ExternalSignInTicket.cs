@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -59,11 +58,11 @@ public static class ExternalSignInTicket
         ArgumentNullException.ThrowIfNull(clock);
         if (!Valid(claims, clock.GetUtcNow()))
         { throw new ArgumentException("A ticket needs a verified address, a known method and a lifetime of at most 60 seconds.", nameof(claims)); }
-        var header = Encode(JsonSerializer.SerializeToUtf8Bytes(new ExternalSignInHeader("ES256", "JWT", claims.Issuer), ExternalSignInTicketJsonContext.Default.ExternalSignInHeader));
-        var payload = Encode(JsonSerializer.SerializeToUtf8Bytes(new ExternalSignInPayload(claims.Issuer, claims.Audience, claims.ExpiresAt.ToUnixTimeSeconds(),
-            claims.Jti, claims.Email, claims.Name, claims.EmailVerified, claims.Amr), ExternalSignInTicketJsonContext.Default.ExternalSignInPayload));
-        var body = header + "." + payload;
-        return body + "." + Encode(privateKey.SignData(Encoding.ASCII.GetBytes(body), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+        return CompactJws.Sign(
+            JsonSerializer.SerializeToUtf8Bytes(new ExternalSignInHeader("ES256", "JWT", claims.Issuer), ExternalSignInTicketJsonContext.Default.ExternalSignInHeader),
+            JsonSerializer.SerializeToUtf8Bytes(new ExternalSignInPayload(claims.Issuer, claims.Audience, claims.ExpiresAt.ToUnixTimeSeconds(),
+                claims.Jti, claims.Email, claims.Name, claims.EmailVerified, claims.Amr), ExternalSignInTicketJsonContext.Default.ExternalSignInPayload),
+            privateKey);
     }
 
     /// <summary>
@@ -74,19 +73,14 @@ public static class ExternalSignInTicket
     {
         ArgumentNullException.ThrowIfNull(keyOf);
         ArgumentNullException.ThrowIfNull(clock);
-        if (string.IsNullOrEmpty(token) || token.Length > MaxTokenLength) { return null; }
+        if (CompactJws.Split(token, MaxTokenLength) is not { } parts) { return null; }
         try
         {
-            var parts = token.Split('.');
-            if (parts.Length != 3 || parts.Any(part => part.Length == 0)) { return null; }
-            var header = JsonSerializer.Deserialize(Decode(parts[0]), ExternalSignInTicketJsonContext.Default.ExternalSignInHeader);
+            var header = JsonSerializer.Deserialize(CompactJws.Decode(parts[0]), ExternalSignInTicketJsonContext.Default.ExternalSignInHeader);
             if (header is not { Alg: "ES256" } || header.Typ is not (null or "JWT") || string.IsNullOrEmpty(header.Kid)) { return null; }
             if (keyOf(header.Kid) is not { } trusted) { return null; }
-            var signature = Decode(parts[2]);
-            if (signature.Length != 64 ||
-                !trusted.Key.VerifyData(Encoding.ASCII.GetBytes(parts[0] + "." + parts[1]), signature, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation))
-            { return null; }
-            var payload = JsonSerializer.Deserialize(Decode(parts[1]), ExternalSignInTicketJsonContext.Default.ExternalSignInPayload);
+            if (!CompactJws.SignatureHolds(parts, trusted.Key)) { return null; }
+            var payload = JsonSerializer.Deserialize(CompactJws.Decode(parts[1]), ExternalSignInTicketJsonContext.Default.ExternalSignInPayload);
             if (payload is null || payload.Iss != header.Kid || payload.Aud is not { } audience || audience != trusted.Audience ||
                 payload.Exp is < 0 or > 253_402_300_799) { return null; }
             var claims = new ExternalSignInClaims(header.Kid, audience, payload.Email ?? "", payload.Name ?? "", payload.EmailVerified,
@@ -116,15 +110,6 @@ public static class ExternalSignInTicket
         NormalizeEmail(claims.Email) is not null &&
         !string.IsNullOrWhiteSpace(claims.Jti) && claims.Jti.Length <= 128 &&
         claims.Name is { Length: <= 200 } && claims.ExpiresAt > now && claims.ExpiresAt <= now.AddSeconds(LifetimeSeconds);
-
-    private static string Encode(byte[] value) => Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-    private static byte[] Decode(string value)
-    {
-        if (value.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_') || value.Length % 4 == 1)
-        { throw new FormatException("Invalid base64url."); }
-        return Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
-    }
 
 }
 

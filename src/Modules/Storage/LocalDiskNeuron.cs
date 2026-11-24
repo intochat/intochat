@@ -180,10 +180,4 @@ internal sealed class LocalDiskNeuron(
         }
         return PathConfinement.Resolve(Paths(), combined);
     }
-
-    private static string Join(string root, string relative)
-    {
-        if (string.IsNullOrWhiteSpace(relative)) { return root; }
-        return SafeRelativePath.Parse(relative).ResolveUnder(root);
-    }
 }

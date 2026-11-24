@@ -2,15 +2,11 @@ using DigitalBrain.Modules.Options;
 
 namespace IntoChat.OS.Modules.ArtCraft;
 
-// Where each app's MCP server (Streamable HTTP) and web build are served. Hosted apps use fixed loopback
-// ports so the brain, the Playwright app origins and a person's browser all name the same URL.
+// Where each app's MCP server (Streamable HTTP) and web build are served. Hosted apps use the fixed loopback
+// ports ArtCraftCatalog names, so the brain, the containers, the Playwright app origins and a person's browser
+// all name the same URL.
 public sealed class ArtCraftModuleOptions : IModuleOptions
 {
-    public const int PhotoCraftMcpPort = 18100;
-    public const int FilmCraftMcpPort = 18101;
-    public const int PhotoCraftWebPort = 18082;
-    public const int FilmCraftWebPort = 18083;
-
     public static string[] HostedOrigins =>
         [.. ArtCraftCatalog.All.Select(static app => $"http://localhost:{app.DefaultWebPort}")];
 

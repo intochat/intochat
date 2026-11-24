@@ -416,7 +416,8 @@ public sealed class ArmAzure : IAzureArm
         var existing = await rg.GetContainerApps().GetIfExistsAsync(spec.Name, ct);
         var configuration = new ContainerAppConfiguration
         {
-            // The old revision is deactivated only once the new one is ready; lease ownership covers the overlap.
+            // Single revision mode deactivates the old revision once the new one is ready. An app that must run one silo
+            // (StopBeforeUpdate) has its running revision stopped first instead, below.
             ActiveRevisionsMode = ContainerAppActiveRevisionsMode.Single,
             Ingress = new ContainerAppIngressConfiguration { External = spec.Ingress.External, TargetPort = targetPort, Transport = ContainerAppIngressTransportMethod.Auto },
         };
@@ -485,13 +486,57 @@ public sealed class ArmAzure : IAzureArm
         // ARM adds read-only/default fields. Requested arrays must match exactly, including removals.
         using var desiredJson = JsonDocument.Parse(ModelReaderWriter.Write(data).ToString());
         using var existingJson = existing.HasValue ? JsonDocument.Parse(ModelReaderWriter.Write(existing.Value!.Data).ToString()) : null;
+        // A silo app that an earlier run stopped and left (an update that failed before this change) gets a revision back
+        // even when nothing else changes.
+        var single = existing.HasValue && spec.StopBeforeUpdate ? new ArmRevisions(existing.Value!) : null;
         if (existingJson is not null && MatchesDesired(desiredJson.RootElement, existingJson.RootElement))
         {
+            if (single is not null) { await RevisionHandover.EnsureActive(single, ct); }
             return Ref(existing.Value!.Id, spec, spec.Name) with { Endpoint = existing.Value!.Data.Configuration?.Ingress?.Fqdn ?? "" };
         }
-        var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        Task<ArmOperation<ContainerAppResource>> Update() => rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        // Only a template change makes a new revision; a configuration change (secrets, ingress) updates the running one.
+        // The stop waits for the old replicas for their grace period and a minute, the new revision for ReadyPolls.
+        var made = single is not null && existingJson is not null && !SameTemplate(desiredJson.RootElement, existingJson.RootElement)
+            ? await RevisionHandover.StopThenUpdate(single, Update, (Math.Max(spec.TerminationGracePeriodSeconds, 0) + 60) / 5, ReadyPolls,
+                static token => Task.Delay(TimeSpan.FromSeconds(5), token), ct)
+            : await Update();
+        if (single is not null) { await RevisionHandover.EnsureActive(single, ct); }
         return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.Configuration?.Ingress?.Fqdn ?? "" };
     }
+
+    private sealed class ArmRevisions(ContainerAppResource app) : AppRevisions
+    {
+        public override async Task<IReadOnlyList<AppRevision>> List(CancellationToken ct)
+        {
+            List<AppRevision> revisions = [];
+            await foreach (var revision in app.GetContainerAppRevisions().GetAllAsync(cancellationToken: ct))
+            {
+                revisions.Add(new AppRevision(revision.Data.Name, revision.Data.IsActive == true, revision.Data.Replicas ?? 0));
+            }
+            return revisions;
+        }
+
+        public override async Task Deactivate(string name, CancellationToken ct)
+            => await (await app.GetContainerAppRevisionAsync(name, ct)).Value.DeactivateRevisionAsync(ct);
+
+        public override async Task Activate(string name, CancellationToken ct)
+            => await (await app.GetContainerAppRevisionAsync(name, ct)).Value.ActivateRevisionAsync(ct);
+
+        public override async Task<(string? Latest, string? LatestReady)> Heads(CancellationToken ct)
+        {
+            var data = (await app.GetAsync(ct)).Value.Data;
+            return (data.LatestRevisionName, data.LatestReadyRevisionName);
+        }
+    }
+
+    // Ten minutes for a new silo revision to become ready: an image pull, a cold start and the startup probe's 30 tries.
+    private const int ReadyPolls = 120;
+
+    private static bool SameTemplate(JsonElement desired, JsonElement current)
+        => desired.TryGetProperty("properties", out var desiredProperties) && desiredProperties.TryGetProperty("template", out var desiredTemplate)
+            && current.TryGetProperty("properties", out var currentProperties) && currentProperties.TryGetProperty("template", out var currentTemplate)
+            && MatchesDesired(desiredTemplate, currentTemplate);
 
     private static bool MatchesDesired(JsonElement desired, JsonElement current)
     {

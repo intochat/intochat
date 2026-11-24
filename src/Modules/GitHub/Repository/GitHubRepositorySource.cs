@@ -716,31 +716,22 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     private static GitHubUnavailableException InvalidEvidence() => new("GitHub returned incomplete or incompatible repository evidence.");
     public void Dispose() => _http.Dispose();
 
-    private async Task<Octokit.Connection> ConnectionAsync(GitHubRepository repository, bool refresh, CancellationToken token)
-    {
-        var credential = repository.IsPersonalAccessToken
+    private async Task<Octokit.Connection> ConnectionAsync(GitHubRepository repository, bool refresh, CancellationToken token) =>
+        Connect(repository, repository.IsPersonalAccessToken
             ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
-            : await _tokens.GetTokenAsync(repository, refresh, token).ConfigureAwait(false);
-        return new Octokit.Connection(
-            new Octokit.ProductHeaderValue("IntoChatOS"),
-            repository.ApiHost,
-            new Octokit.Internal.InMemoryCredentialStore(new Octokit.Credentials(credential)),
-            _http,
-            _json);
-    }
+            : await _tokens.GetTokenAsync(repository, refresh, token).ConfigureAwait(false));
 
-    private async Task<Octokit.Connection> WriteConnectionAsync(GitHubRepository repository, GitHubWriteScope scope, CancellationToken token)
-    {
-        var credential = repository.IsPersonalAccessToken
+    private async Task<Octokit.Connection> WriteConnectionAsync(GitHubRepository repository, GitHubWriteScope scope, CancellationToken token) =>
+        Connect(repository, repository.IsPersonalAccessToken
             ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
-            : await _tokens.GetWriteTokenAsync(repository, scope, token).ConfigureAwait(false);
-        return new Octokit.Connection(
-            new Octokit.ProductHeaderValue("IntoChatOS"),
-            repository.ApiHost,
-            new Octokit.Internal.InMemoryCredentialStore(new Octokit.Credentials(credential)),
-            _http,
-            _json);
-    }
+            : await _tokens.GetWriteTokenAsync(repository, scope, token).ConfigureAwait(false));
+
+    private Octokit.Connection Connect(GitHubRepository repository, string credential) => new(
+        new Octokit.ProductHeaderValue("IntoChatOS"),
+        repository.ApiHost,
+        new Octokit.Internal.InMemoryCredentialStore(new Octokit.Credentials(credential)),
+        _http,
+        _json);
 
     // Octokit owns HTTP, error handling and provider DTO conversion. JsonElement is used only
     // for bounded consistency comparisons and rules endpoints not modeled by stable Octokit.

@@ -330,7 +330,7 @@ public static class InoModel
     }
 
     /// <summary>
-    /// Folds the live <see cref="ConversationView"/> into Ino's screen state without ever copying messages into <see cref="InoAppState.Messages"/>.
+    /// Folds the live <see cref="ConversationView"/> into Ino's screen state; messages stay in the conversation and are never copied into Ino's state.
     /// </summary>
     public static InoAppState FromConversation(InoAppState s, ConversationView view)
     {

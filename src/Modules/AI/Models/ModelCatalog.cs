@@ -1097,6 +1097,67 @@ public sealed class ModelCatalog
         return resolved;
     }
 
+    // Escalation target after a local model keeps failing: a cloud model for the role whose key the brain or
+    // deployment holds (configured cloud role, stock cloud default, then any ready cloud card). Null when no
+    // cloud provider is keyed, so callers keep their local outcome instead of failing on a missing key.
+    public async Task<ResolvedModel?> DecideFrontier(
+        BrainId? brain,
+        ModelRole role,
+        bool requiresTools,
+        CancellationToken ct)
+    {
+        var configuration = options.CurrentValue;
+        var credentials = CredentialsFor(brain?.Value);
+        var local = await GatherLocalStateAsync(ct).ConfigureAwait(false);
+        var reasoning = Clean(configuration.Reasoning);
+        var maxTokens = configuration.MaxOutputTokens;
+        var needed = RoleNeeds.Of(role) | (requiresTools ? Abilities.Tools : Abilities.None);
+
+        var candidates = new List<ModelCard>(local.Cards.Length + 2);
+        if (configuration.Roles.ToRoleMap().Cloud.TryGetValue(role, out var configured)
+            && KnownModels.Find(configured.Value) is { } configuredCard)
+        {
+            candidates.Add(configuredCard);
+        }
+
+        if (KnownModels.Defaults.Cloud.TryGetValue(role, out var stock) && KnownModels.Find(stock.Value) is { } stockCard)
+        {
+            candidates.Add(stockCard);
+        }
+
+        candidates.AddRange(local.Cards);
+        var tried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var card in candidates)
+        {
+            if (!IsCloudChatProvider(card.Provider) || (card.Can & needed) != needed || !tried.Add(card.Id.Value))
+            {
+                continue;
+            }
+
+            var (ready, _) = await CheckCardAvailabilityAsync(card, configuration, credentials, local, ct).ConfigureAwait(false);
+            if (!ready)
+            {
+                continue;
+            }
+
+            try
+            {
+                var resolved = await ResolveCardAsync(card, configuration, credentials, local, reasoning, maxTokens, requiresTools, ct).ConfigureAwait(false);
+                if (IsCloudChatProvider(resolved.Provider))
+                {
+                    return resolved;
+                }
+            }
+            catch (ArgumentException error)
+            {
+                // The card cannot honour this deployment's tuning (e.g. reasoning with tools); try the next one.
+                OsConsoleLog.For<ModelCatalog>().LogSwallowed(error, $"resolving frontier candidate '{card.Id.Value}'");
+            }
+        }
+
+        return null;
+    }
+
     private async Task<bool> CanResolveExplicitCloudAsync(
         string key,
         IReadOnlySet<string> profileNames,

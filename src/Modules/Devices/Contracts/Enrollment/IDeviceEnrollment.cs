@@ -51,7 +51,8 @@ public interface IDeviceEnrollment
     static string Key(string brain) => $"{brain}/device-enrollment";
 }
 
-// In-process redeem for the cloud enrollment endpoint: parses and hashes the presented code and redeems it in the owning brain.
+// Redeems a presented code in the brain that minted it: parses and hashes it, finds the brain, and redeems as the Devices module there.
+// The enrollment edge (EnrollmentEdge.Redeem) calls it for the cloud relay; no brain or identity comes from the caller.
 public interface IDeviceEnrollmentRedeemer
 {
     Task<EnrollmentOutcome> Redeem(string code, string machineId, string machineKeyThumbprint, string machineName);

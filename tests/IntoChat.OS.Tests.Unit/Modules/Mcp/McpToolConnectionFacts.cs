@@ -77,6 +77,25 @@ public sealed class McpToolConnectionFacts
     }
 
     [Fact]
+    public async Task McpToolConnectionRunWrapsNonJsonTextAsResult()
+    {
+        var handler = new FakeMcpHttpHandler(["echo"])
+        {
+            OnToolCall = (_, _) => (false, "plain \"text\""),
+        };
+
+        await using var os = CreateHost(handler);
+        var brain = new BrainId("facts");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", brain));
+
+        var conn = os.Get<IMcpToolConnection>(IMcpToolConnection.NeuronIdOf(brain, "echo"));
+        await conn.ConnectServer(new McpConnectionConfig("https://echo.example.test/mcp", "Echo"), Ct);
+
+        var result = await conn.Run("echo", JsonDocument.Parse("{}").RootElement, Ct);
+        Assert.Equal("plain \"text\"", result.GetProperty("result").GetString());
+    }
+
+    [Fact]
     public async Task KeyedConnectSealsTokenNeverExposesItAndConfigurePreservesToken()
     {
         var handler = new FakeMcpHttpHandler(["a", "b"]);

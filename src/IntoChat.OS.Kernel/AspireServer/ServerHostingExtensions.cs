@@ -49,6 +49,7 @@ public static class ServerHostingExtensions
         builder.Services.ConfigureHttpJsonOptions(static options =>
         {
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, IntoChat.OS.Kernel.Mcp.KernelMcpJsonContext.Default);
+            options.SerializerOptions.TypeInfoResolverChain.Insert(1, IntoChat.OS.Kernel.Sandbox.SandboxEdgeJsonContext.Default);
             options.SerializerOptions.TypeInfoResolverChain.Add(DigitalBrain.Invocation.RuntimeProtocol.Json.TypeInfoResolver!);
         });
         // The stop holds the drain (DrainDelay, then the web server's bounded stop), then Orleans deactivates every

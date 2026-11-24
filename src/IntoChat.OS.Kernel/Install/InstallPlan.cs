@@ -16,6 +16,8 @@ public static class InstallPlan
     public const string SandboxEnrollKeySecret = "sandbox-enroll-key";
     public const string GhcrServer = "ghcr.io";
     public const string BrainLogShare = "brainlog";
+    // The Cloud app's own brain-log share: the cloud is a separate Orleans cluster with its own storage namespace.
+    public const string CloudBrainLogShare = "brainlog-cloud";
     public const string Owner = "os";
     public const int HttpPort = 8080;
     // The Orleans gateway. The silo port is deliberately not mapped: a Container Apps port mapping is
@@ -41,7 +43,7 @@ public static class InstallPlan
     public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
         Build(config, variables, secrets).OfType<ContainerAppSpec>().First(spec => string.Equals(spec.Name, config.Validated().OsName, StringComparison.Ordinal));
 
-    // Optional separate Cloud container app joining the same cluster, environment, vault, and storage.
+    // Optional separate Cloud container app: the same environment, vault and storage account, but its own Orleans cluster and storage namespace.
     public static ContainerAppSpec? CloudApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
         Build(config, variables, secrets).OfType<ContainerAppSpec>().FirstOrDefault(spec => string.Equals(spec.Name, config.Validated().CloudName, StringComparison.Ordinal));
 
@@ -86,6 +88,8 @@ public static class InstallPlan
         var registry = c.RegistryName;
         var grainState = "grainstate-" + c.StorageFormat;
         var lease = "brainlease-" + c.StorageFormat;
+        var withCloud = !string.IsNullOrWhiteSpace(c.CloudImage);
+        var cloud = CloudNamespace(c);
         var scopePrefix = $"/subscriptions/{c.Subscription}/resourceGroups/{group}/providers";
         var vaultScope = $"{scopePrefix}/Microsoft.KeyVault/vaults/{vault}";
         var accountScope = $"{scopePrefix}/Microsoft.Storage/storageAccounts/{account}";
@@ -105,6 +109,12 @@ public static class InstallPlan
             In(new BlobContainerSpec { Name = grainState, StorageAccount = account }),
             In(new BlobContainerSpec { Name = lease, StorageAccount = account }),
         };
+        if (withCloud)
+        {
+            specs.Add(In(new FileShareSpec { Name = CloudBrainLogShare, StorageAccount = account, QuotaGb = c.StorageQuotaGb }));
+            specs.Add(In(new BlobContainerSpec { Name = cloud.GrainState, StorageAccount = account }));
+            specs.Add(In(new BlobContainerSpec { Name = cloud.Lease, StorageAccount = account }));
+        }
         if (c.Registry.Enabled) { specs.Add(In(new RegistrySpec { Name = registry, Sku = c.Registry.Sku })); }
         specs.Add(In(new KeyVaultSpec { Name = vault }));
         if (c.InstallerPrincipalId.Length > 0)
@@ -116,7 +126,13 @@ public static class InstallPlan
         {
             Name = environment,
             LogWorkspace = workspace,
-            Storages = [new EnvironmentStorageSpec { Name = BrainLogShare, StorageAccount = account, ShareName = BrainLogShare }],
+            Storages = withCloud
+                ?
+                [
+                    new EnvironmentStorageSpec { Name = BrainLogShare, StorageAccount = account, ShareName = BrainLogShare },
+                    new EnvironmentStorageSpec { Name = CloudBrainLogShare, StorageAccount = account, ShareName = CloudBrainLogShare },
+                ]
+                : [new EnvironmentStorageSpec { Name = BrainLogShare, StorageAccount = account, ShareName = BrainLogShare }],
         }));
         specs.Add(Grant("vault-secrets", KeyVaultSecretsUser, vaultScope));
         specs.Add(Grant("storage-blobs", StorageBlobDataContributor, accountScope));
@@ -151,6 +167,8 @@ public static class InstallPlan
             RegistryServer = c.LoginServer,
             // Liveness is the process alone, readiness the drain, startup waits for dependencies.
             ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
+            // The OS silo refuses a second silo in its cluster (SingleSiloGuard), so an update cannot overlap two revisions.
+            StopBeforeUpdate = true,
             Variables = Variables(c, account, vault, lease, grainState, extraVariables),
             Secrets = osAndCloudSecrets,
             VolumeMounts =
@@ -169,8 +187,16 @@ public static class InstallPlan
                 ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
                 : [],
         }));
-        if (!string.IsNullOrWhiteSpace(c.CloudImage))
+        if (withCloud)
         {
+            // Its own cluster and storage namespace (cluster id, service id, grain state, lease, Home): two clusters never share
+            // grain rows, and the OS silo's SingleSiloGuard never sees the cloud silo. No cluster client reaches it, so no gateway.
+            var cloudVariables = Variables(c, account, vault, cloud.Lease, cloud.GrainState, extraVariables);
+            cloudVariables["Orleans__ClusterId"] = cloud.ClusterId;
+            cloudVariables["Orleans__ServiceId"] = cloud.ServiceId;
+            cloudVariables[Variable(IntoChatOSNames.HomeKey)] = cloud.Home;
+            cloudVariables[OrleansOption(OrleansIntegrationNames.GrainStateContainer)] = cloud.GrainState;
+            cloudVariables[Variable(IntoChatOSNames.BrainStorageOwnershipContainerUriConfigurationKey)] = $"https://{account}.blob.core.windows.net/" + cloud.Lease;
             specs.Add(In(new ContainerAppSpec
             {
                 Name = c.CloudName,
@@ -180,18 +206,18 @@ public static class InstallPlan
                 Cpu = c.CloudCpu,
                 Memory = c.CloudMemory,
                 IngressPort = HttpPort,
-                InternalPorts = [GatewayPort],
                 RegistryServer = c.LoginServer,
                 ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
-                Variables = Variables(c, account, vault, lease, grainState, extraVariables),
+                StopBeforeUpdate = true,
+                Variables = cloudVariables,
                 Secrets = osAndCloudSecrets,
                 VolumeMounts =
                 [
                     new VolumeMountSpec
                     {
                         Volume = BrainLogVolume,
-                        EnvironmentStorage = BrainLogShare,
-                        MountPath = BrainLogDirectory(c),
+                        EnvironmentStorage = CloudBrainLogShare,
+                        MountPath = cloud.Home,
                         MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,nosharesock"),
                     },
                 ],
@@ -342,6 +368,17 @@ public static class InstallPlan
     }
 
     private static string BrainLogDirectory(InstallConfig c) => "/data/brain/" + c.StorageFormat;
+
+    // The Cloud app's storage namespace. The OS app keeps the install's own names (no OS data moves); the cloud's records are moved
+    // into these once (BrainRecordMove), before the Cloud app first starts on them.
+    private sealed record CloudNames(string ClusterId, string ServiceId, string GrainState, string Lease, string Home);
+
+    private static CloudNames CloudNamespace(InstallConfig c) => new(
+        c.ClusterId + "-cloud",
+        c.ServiceId + "-cloud",
+        "grainstate-cloud-" + c.StorageFormat,
+        "brainlease-cloud-" + c.StorageFormat,
+        "/data/brain-cloud/" + c.StorageFormat);
 
     private static string Variable(string configurationKey) => ConfigurationKeyGrammar.EnvironmentName(configurationKey);
 

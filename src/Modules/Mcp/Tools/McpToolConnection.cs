@@ -216,16 +216,7 @@ internal sealed partial class McpToolConnection : ConnectionNeuron<McpToolConnec
             throw new ToolExecutionException(tool, result.Text);
         }
 
-        try
-        {
-            using var doc = JsonDocument.Parse(result.Text);
-            return doc.RootElement.Clone();
-        }
-        catch (JsonException error)
-        {
-            _log.LogSwallowed(error, "Wrapping non-JSON MCP tool result text.");
-            return JsonSerializer.SerializeToElement(new { result = result.Text });
-        }
+        return ToolResultJson.From(result.Text, _log);
     }
 
     public async Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
