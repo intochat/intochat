@@ -14,12 +14,16 @@ public static class OperatingSystemModules
 {
     public const string ModuleMetadataKey = "IntoChat.OS.Module";
 
-    private static readonly string[] KernelBuiltInAssemblies = ["IntoChat.OS.Modules.Identity", "IntoChat.OS.Kernel"];
+    // Assemblies that carry product modules without the IntoChat.OS.Module metadata: the kernel itself and Identity.
+    private static readonly Assembly[] KernelOwnedAssemblies =
+    [
+        typeof(OperatingSystemModules).Assembly,
+        typeof(IntoChat.OS.Modules.Identity.IdentityModule).Assembly,
+    ];
 
     private static readonly Assembly[] BuiltInModuleAssemblies =
     [
-        typeof(IntoChat.OS.Modules.Identity.IdentityModule).Assembly,
-        typeof(OperatingSystemModules).Assembly,
+        .. KernelOwnedAssemblies,
         typeof(IntoChat.OS.Modules.AI.AIModule).Assembly,
         typeof(IntoChat.OS.Modules.ArtCraft.ArtCraftModule).Assembly,
         typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
@@ -98,7 +102,7 @@ public static class OperatingSystemModules
         {
             var assemblyName = assembly.GetName().Name;
             if (assemblyName is null || !seen.Add(assemblyName)) { return; }
-            if (DeclaresModule(assembly) || KernelBuiltInAssemblies.Contains(assemblyName, StringComparer.Ordinal))
+            if (DeclaresModule(assembly) || KernelOwnedAssemblies.Contains(assembly))
             {
                 found.Add(assembly);
             }
@@ -130,13 +134,11 @@ public static class OperatingSystemModules
             Track(builtIn);
         }
 
-        if (DependencyContext.Load(self) is { } selfContext)
+        Assembly[] origins = rootAssembly == self ? [self] : [self, rootAssembly];
+        foreach (var origin in origins)
         {
-            foreach (var library in selfContext.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
-        }
-        if (rootAssembly != self && DependencyContext.Load(rootAssembly) is { } rootContext)
-        {
-            foreach (var library in rootContext.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
+            if (DependencyContext.Load(origin) is not { } context) { continue; }
+            foreach (var library in context.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
         }
 
         while (queue.TryDequeue(out var assembly))
