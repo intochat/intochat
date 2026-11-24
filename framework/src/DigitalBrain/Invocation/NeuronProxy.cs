@@ -114,32 +114,34 @@ public class NeuronProxy : DispatchProxy
             };
         }
         // Bound once per contract method: parameter types, token position, timeout and the dispatch delegate; no per-call reflection.
-        var bound = targetMethod.DeclaringType?.IsCollectible == true || targetMethod.ReflectedType?.IsCollectible == true
-            ? new ProxyMethod(targetMethod, Dispatch(targetMethod))
-            : Methods.GetOrAdd(targetMethod, static method => new ProxyMethod(method, Dispatch(method)));
-        var call = new RuntimeInvocation(string.Empty, _contract, _key, targetMethod.Name, bound.Encode(args));
-        return (bound.Dispatch ?? Dispatch(targetMethod))(this, call, bound.Shape, bound.TokenOf(args));
+        var (bound, call) = Prepare(targetMethod, args);
+        return bound.Dispatch(this, call, bound.Shape, bound.TokenOf(args));
     }
 
     private sealed class ProxyMethod
     {
         private readonly Type[] _parameters;
         private readonly int _token = -1;
+        private readonly MethodInfo _method;
+        private Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?>? _dispatch;
 
-        public ProxyMethod(MethodInfo method, Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?>? dispatch)
+        public ProxyMethod(MethodInfo method)
         {
+            _method = method;
             _parameters = [.. method.GetParameters().Select(parameter => parameter.ParameterType)];
             _token = Array.IndexOf(_parameters, typeof(CancellationToken));
             ArgumentCount = _parameters.Count(type => type != typeof(CancellationToken));
             Shape = new CallShape(method.GetCustomAttribute<CallTimeoutAttribute>()?.Timeout, method.Name);
-            Dispatch = dispatch;
         }
 
         public int ArgumentCount { get; }
 
         public CallShape Shape { get; }
 
-        public Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?>? Dispatch { get; }
+        // Built on first DispatchProxy use only; generated subclasses never touch it, so AOT paths stay free of MakeGenericMethod.
+        // A race only builds the same delegate twice.
+        public Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?> Dispatch
+            => _dispatch ??= NeuronProxy.Dispatch(_method);
 
         public JsonElement[] Encode(object?[]? args)
         {
@@ -197,28 +199,19 @@ public class NeuronProxy : DispatchProxy
 
     /// <summary>Executes a compile-time generated one-way call without reflection or <c>MakeGenericMethod</c>.</summary>
     public Task CallOneWay(MethodInfo method, object?[] args)
-    {
-        ArgumentNullException.ThrowIfNull(method);
-        var bound = GetBoundMetadata(method);
-        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
-        return _sink.Post(Target, call);
-    }
+        => _sink.Post(Target, Prepare(method, args).Call);
 
     /// <summary>Executes a compile-time generated <see cref="Task"/> call without reflection or <c>MakeGenericMethod</c>.</summary>
     public Task CallNone(MethodInfo method, object?[] args)
     {
-        ArgumentNullException.ThrowIfNull(method);
-        var bound = GetBoundMetadata(method);
-        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        var (bound, call) = Prepare(method, args);
         return InvokeNone(call, bound.Shape, bound.TokenOf(args));
     }
 
     /// <summary>Executes a compile-time generated <see cref="Task{TResult}"/> call without reflection or <c>MakeGenericMethod</c>.</summary>
     public Task<TResult> CallTask<TResult>(MethodInfo method, object?[] args)
     {
-        ArgumentNullException.ThrowIfNull(method);
-        var bound = GetBoundMetadata(method);
-        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        var (bound, call) = Prepare(method, args);
         return Typed<TResult>(call, bound.Shape, bound.TokenOf(args));
     }
 
@@ -229,16 +222,22 @@ public class NeuronProxy : DispatchProxy
     /// <summary>Executes a compile-time generated <see cref="IAsyncEnumerable{TItem}"/> stream call without reflection or <c>MakeGenericMethod</c>.</summary>
     public IAsyncEnumerable<TItem> CallStream<TItem>(MethodInfo method, object?[] args)
     {
-        ArgumentNullException.ThrowIfNull(method);
-        var bound = GetBoundMetadata(method);
-        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        var (bound, call) = Prepare(method, args);
         return Items<TItem>(call, bound.TokenOf(args));
     }
 
-    private static ProxyMethod GetBoundMetadata(MethodInfo method)
+    private (ProxyMethod Bound, RuntimeInvocation Call) Prepare(MethodInfo method, object?[]? args)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var bound = Bind(method);
+        return (bound, new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args)));
+    }
+
+    // Never cache collectible contracts in static dictionaries; doing so pins their AssemblyLoadContext.
+    private static ProxyMethod Bind(MethodInfo method)
         => method.DeclaringType?.IsCollectible == true || method.ReflectedType?.IsCollectible == true
-            ? new ProxyMethod(method, null)
-            : Methods.GetOrAdd(method, static m => new ProxyMethod(m, null));
+            ? new ProxyMethod(method)
+            : Methods.GetOrAdd(method, static m => new ProxyMethod(m));
 
     private async Task InvokeNone(RuntimeInvocation call, CallShape shape, CancellationToken cancellationToken)
         => await Send(call, shape, cancellationToken).ConfigureAwait(false);
