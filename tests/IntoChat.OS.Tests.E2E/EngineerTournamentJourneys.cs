@@ -4,6 +4,7 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
+using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.Apps;
@@ -16,8 +17,6 @@ using IntoChat.OS.Modules.UI.Stepper;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.TreeView;
-using IntoChat.OS.Tests.E2E.Fixtures;
-using IntoChat.OS.Tests.E2E.Harness;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +28,7 @@ namespace IntoChat.OS.Tests.E2E;
 /// deterministic candidate scoring, side-by-side diff inspection &amp; human candidate promotion in <see cref="EngineerApp"/>,
 /// SHA-bound confirmation re-minting at <c>approval-gate</c>, and bare Git remote publication of the promoted candidate.
 /// </summary>
-public sealed class EngineerTournamentJourneys(TestOSFixture fixture) : E2ETestBase, IClassFixture<TestOSFixture>
+public sealed class EngineerTournamentJourneys
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -97,8 +96,8 @@ public sealed class EngineerTournamentJourneys(TestOSFixture fixture) : E2ETestB
         serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
-        await using var os = fixture.CreateIsolated(o => o.Services = services);
-        var brain = NewBrain("tournament");
+        await using var os = TestOS.Local(o => o.Services = services);
+        var brain = new BrainId($"tournament-{Guid.NewGuid():N}");
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AppsModule).Assembly);
