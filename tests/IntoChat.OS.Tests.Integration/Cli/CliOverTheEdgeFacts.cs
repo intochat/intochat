@@ -1,5 +1,6 @@
 using System.Net;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Runtime.Orleans;
 using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -11,6 +12,9 @@ using IntoChat.OS.Kernel.Platform.Proto;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Tests.Integration.Security;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Orleans.Configuration;
+using Orleans.Runtime;
 
 namespace IntoChat.OS.Tests.Integration.Cli;
 
@@ -21,6 +25,28 @@ namespace IntoChat.OS.Tests.Integration.Cli;
 public sealed class CliOverTheEdgeFacts(CliOverTheEdgeFacts.Kernel kernel) : IClassFixture<CliOverTheEdgeFacts.Kernel>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    // The kernel is the full OS composition on the local topology, as the Desktop and a local brain start it: no gateway port is
+    // configured, so the silo opens no Orleans gateway listener, and the CLI still reaches everything through the edge.
+    [Fact]
+    public async Task TheKernel_OpensNoOrleansGateway()
+    {
+        Assert.Equal(TopologyContext.NoGateway, kernel.Harness.Services.GetRequiredService<IOptions<EndpointOptions>>().Value.GatewayPort);
+        Assert.Null(kernel.Harness.Services.GetRequiredService<ILocalSiloDetails>().GatewayAddress);
+        Assert.False(await Listens(kernel.Harness.GatewayPort), "Nothing listens on the port the harness reserved for a gateway.");
+    }
+
+    // A loopback connect to the port this harness reserved itself; nothing else on the machine is probed.
+    internal static async Task<bool> Listens(int port)
+    {
+        using var client = new System.Net.Sockets.TcpClient();
+        try
+        {
+            await client.ConnectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
+            return true;
+        }
+        catch (System.Net.Sockets.SocketException) { return false; }
+    }
 
     [Fact]
     public async Task Runs_ListsTheRunsIndex()

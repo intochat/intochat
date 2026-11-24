@@ -145,6 +145,14 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
         }
     }
 
+    // This harness opted in to a gateway (no OS host opens one), so the facts above have a real TCP client to refuse.
+    [Fact]
+    public async Task TheHarnessGateway_IsOpenOnlyBecauseItOptedIn()
+    {
+        Assert.Equal(silo.Host.GatewayPort, silo.Host.Services.GetRequiredService<ILocalSiloDetails>().GatewayAddress?.Endpoint.Port);
+        Assert.True(await IntoChat.OS.Tests.Integration.Cli.CliOverTheEdgeFacts.Listens(silo.Host.GatewayPort), "The opted-in gateway listens.");
+    }
+
     [Fact]
     public async Task AClusterClient_CannotDeclareItselfTheKernel()
     {
