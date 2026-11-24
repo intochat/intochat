@@ -689,7 +689,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             return;
         }
 
-        if (!MatchesNeuronKey(changed.BoardId, KanbanKey) || changed.Version <= _lastSyncedKanbanVersion)
+        if (!MatchesNeuronSourceKey(changed.BoardId, KanbanKey) || changed.Version <= _lastSyncedKanbanVersion)
         {
             return;
         }
@@ -736,7 +736,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             return;
         }
 
-        if (!MatchesNeuronKey(changed.StepperId, StepperKey) || changed.Version <= _lastSyncedStepperVersion)
+        if (!MatchesNeuronSourceKey(changed.StepperId, StepperKey) || changed.Version <= _lastSyncedStepperVersion)
         {
             return;
         }
@@ -766,7 +766,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             return;
         }
 
-        if (!MatchesNeuronKey(changed.TabsId, TabsKey) || changed.Version <= _lastSyncedTabsVersion)
+        if (!MatchesNeuronSourceKey(changed.TabsId, TabsKey) || changed.Version <= _lastSyncedTabsVersion)
         {
             return;
         }
@@ -790,7 +790,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             return;
         }
 
-        if (!MatchesNeuronKey(selected.TableId, TableKey))
+        if (!MatchesNeuronSourceKey(selected.TableId, TableKey))
         {
             return;
         }
@@ -815,7 +815,7 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
             return Task.CompletedTask;
         }
 
-        if (!MatchesNeuronKey(invoked.BarId, CommandBarKey))
+        if (!MatchesNeuronSourceKey(invoked.BarId, CommandBarKey))
         {
             return Task.CompletedTask;
         }
@@ -974,8 +974,6 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
         => FollowOptionalAsync<TNeuron, TSignal>(key, _logger);
 
     private static Node UiNeuron(string kind, string key) => new NeuronRef(kind, key);
-
-    private static bool MatchesNeuronKey(string sourceId, string expectedKey) => MatchesNeuronSourceKey(sourceId, expectedKey);
 
     private static string FlowKey(string flowId) => flowId[(flowId.LastIndexOf('/') + 1)..];
 
