@@ -42,9 +42,10 @@ public sealed class EngineerRunLiveEnvironmentFacts : IDisposable
         var started = await runs.StartEngineerRun(new EngineerDelegationRequest(RepoSlug: "os", Goal: "Add Multiply to Calculator", RunId: "live01"), Ct);
         Assert.True(started.Ok, started.SummaryText);
 
+        // The index learns the wait and its reason from two signals; the reason is the later one.
         var waiting = await FlowTypeFacts.Eventually(
             () => flows.Read(started.FlowId, Ct),
-            v => v.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed);
+            v => v is { Status: FlowStatus.Waiting, Detail.Length: > 0 } or { Status: FlowStatus.Failed or FlowStatus.Completed });
 
         // Visible: the run waits at live-verify and says why. Nothing was skipped and nobody was asked to approve.
         Assert.True(waiting is { Status: FlowStatus.Waiting, WaitingStep: "live-verify", WaitingFor: WaitReason.Schedule }, $"{waiting.Status} at {waiting.WaitingStep}: {waiting.Detail}");
@@ -73,7 +74,7 @@ public sealed class EngineerRunLiveEnvironmentFacts : IDisposable
         await FlowTypeFacts.Eventually(() => flows.Read(started.FlowId, Ct), _ => live.Calls >= 2);
         var again = await FlowTypeFacts.Eventually(
             () => flows.Read(started.FlowId, Ct),
-            v => v.Status is FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed);
+            v => v is { Status: FlowStatus.Waiting, Detail.Length: > 0 } or { Status: FlowStatus.Failed or FlowStatus.Completed });
         Assert.True(again is { Status: FlowStatus.Waiting, WaitingStep: "live-verify" }, $"{again.Status} at {again.WaitingStep}: {again.Detail}");
         Assert.DoesNotContain("live-verify", again.Done);
 
