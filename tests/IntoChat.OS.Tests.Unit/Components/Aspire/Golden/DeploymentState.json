@@ -1,0 +1,1 @@
+{"currentSha":"0123abc","stage":3,"targetSha":"4567def","remaining":["os-a","os-b"],"rolled":["os-c"],"previousSha":"89abcde","handover":"os-d","failure":"os-b did not start","draining":"os-b","handoverAt":"2026-01-02T03:04:05+00:00","flowId":"flow-1","failedInstance":"os-b"}

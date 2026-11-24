@@ -394,6 +394,10 @@ public static class InoNodeCard
                 refusal = "NavItem actions are not allowed in chat cards.";
                 return true;
 
+            case AppTileNode tile when tile.Command is not null:
+                refusal = "AppTile actions are not allowed in chat cards.";
+                return true;
+
             case InfoBar bar when bar.Close is not null || bar.Action is not null:
                 refusal = "InfoBar actions (action or close) are not allowed in chat cards.";
                 return true;

@@ -6,6 +6,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Tests.Support.Fakes;
 
@@ -23,6 +24,19 @@ public static class PersonJourneyExtensions
 
         var code = await person.Get<IFriends>(FriendsDefaults.Id(person.Brain.Value)).Mint().ConfigureAwait(false);
         await other.Get<IFriends>(FriendsDefaults.Id(other.Brain.Value)).Redeem(code).ConfigureAwait(false);
+    }
+
+    /// <summary>Opens <paramref name="appName"/> in <paramref name="person"/>'s workspace so workspace-scoped assistant tools can reach its operations.</summary>
+    public static async Task OpenInWorkspace(this Person person, string appName, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(person);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appName);
+        ct.ThrowIfCancellationRequested();
+
+        var workspace = person.Get<IWorkspace>(new NeuronId(person.Brain, IWorkspace.Type, "main"));
+        var current = await workspace.Read().WaitAsync(ct).ConfigureAwait(false);
+        var appKey = IntoChat.OS.Host.Primitives.AppRef.Of(person.Brain, appName).Key;
+        await workspace.Show(appKey, $"open-{appName}-{current.Revision}", current.Revision).WaitAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -75,4 +75,19 @@ public static class Ui
         int deletions,
         IReadOnlyList<DiffFileNode> files) =>
         new(id, repo, targetBranch, headSha, filesChanged, additions, deletions, files);
+
+    /// <summary>Creates an installed-app launcher tile emitted by the desktop view.</summary>
+    public static AppTileNode AppTile(
+        string key,
+        string appId,
+        string title,
+        string? icon = null,
+        string? category = null,
+        AppLaunch launch = AppLaunch.Windowed,
+        int? dock = null,
+        string appKind = "compiled",
+        string? description = null,
+        Command? command = null,
+        string automationName = "") =>
+        new(key, appId, title, icon, category, launch, dock, appKind, description, command, automationName);
 }

@@ -58,7 +58,7 @@ internal sealed record DeploymentSnapshot(
 
         var resources = Resources
             .Where(r => !excluded.Any(id =>
-                string.Equals(r, $"Modules-{id}", StringComparison.OrdinalIgnoreCase)))
+                string.Equals(r, ResourceNames.Shown(id), StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
         var settings = new SortedDictionary<string, string?>(StringComparer.OrdinalIgnoreCase);

@@ -24,22 +24,26 @@ public sealed class McpPolicyFacts
 
     private static Task Adopt(TestOS os, string brain, PolicyRule rule) => os.AdoptPolicy(brain, rule, Ct);
 
-    private static Task<(TestOS Os, IMcpServer Neuron, string Brain)> CreateHarnessAsync(Uri endpoint)
+    private static Task<(TestOS Os, IMcpToolConnection Neuron, string Brain)> CreateHarnessAsync(Uri endpoint)
     {
         var brain = Guid.NewGuid().ToString("N");
         var os = TestOS.Local().Register(typeof(McpModule).Assembly);
-        var id = new NeuronId(new BrainId(brain), "mcp.server", $"mcp/{Guid.NewGuid():N}");
+        var id = IMcpToolConnection.NeuronIdOf(new BrainId(brain), Guid.NewGuid().ToString("N"));
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", false);
         os.SeedStoredState(
             id,
             JsonSerializer.Serialize(
-                new McpServerStore
+                new McpToolConnectionState
                 {
-                    State = new McpServerState("Fixture", endpoint.AbsoluteUri, true, [tool], null, DateTimeOffset.UtcNow),
+                    Title = "Fixture",
+                    Url = endpoint.AbsoluteUri,
+                    Connected = true,
+                    Tools = [tool],
+                    ProbedAt = DateTimeOffset.UtcNow,
                 },
-                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(McpServerStore))));
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(McpToolConnectionState))));
 
-        return Task.FromResult((os, os.Get<IMcpServer>(id), brain));
+        return Task.FromResult((os, os.Get<IMcpToolConnection>(id), brain));
     }
 
     [Fact]

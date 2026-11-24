@@ -1,7 +1,9 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Components;
 using DigitalBrain.Contracts;
+using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -12,7 +14,7 @@ public sealed record AppSetting(string Name, string Description, string Default)
 // A named connection slot; the bound connection id is per-brain state, never shared. A slot binds either a capability
 // ("storage@1", any connection whose module provides it) or, for a module with no capability yet, one module id
 // ("google-sheets"). Exactly one of the two is set.
-public sealed record AppSlot(string Name, string Connector = "", string? Capability = null)
+public sealed record AppSlot(string Name, string Connector = "", string? Capability = null, bool Required = true)
 {
     // What the slot binds, for display: its capability id, else its module id.
     public string Binds => Capability ?? Connector;
@@ -124,7 +126,13 @@ public sealed record AppManifest(
     // A studio is an app Ino hands a routed prompt to and lists among its studios.
     bool Studio = false,
     // Optional catalog category for desktop and launcher grouping (e.g. "Workspace", "Studio").
-    string? Category = null)
+    string? Category = null,
+    // Initial window launch mode; omitted from JSON when default (Windowed) to preserve publication digests.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    AppLaunch Launch = AppLaunch.Windowed,
+    // Pure-data agent declaration (Rung 1 agent app); omitted from JSON when null to preserve publication digests.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    AppAgent? Agent = null)
 {
     /// <summary>Projects a <see cref="ComponentManifest"/> into an <see cref="AppManifest"/> view.</summary>
     public static AppManifest From(ComponentManifest manifest)
@@ -146,20 +154,20 @@ public sealed record AppManifest(
             if (slot.Contract.GetCustomAttribute<CapabilityAttribute>(inherit: false) is { } capability)
             {
                 var capabilityId = capability.Id.ToString();
-                slots[i] = new AppSlot(slot.Name, Connector: "", Capability: capabilityId);
-                if (!capabilities.Contains(capabilityId, StringComparer.Ordinal)) { capabilities.Add(capabilityId); }
+                slots[i] = new AppSlot(slot.Name, Connector: "", Capability: capabilityId, Required: slot.Required);
+                if (slot.Required && !capabilities.Contains(capabilityId, StringComparer.Ordinal)) { capabilities.Add(capabilityId); }
             }
             else
             {
                 var connector = ContractIdOf(slot.Contract);
-                slots[i] = new AppSlot(slot.Name, Connector: connector);
-                if (!connectors.Contains(connector, StringComparer.Ordinal)) { connectors.Add(connector); }
+                slots[i] = new AppSlot(slot.Name, Connector: connector, Required: slot.Required);
+                if (slot.Required && !connectors.Contains(connector, StringComparer.Ordinal)) { connectors.Add(connector); }
             }
         }
-        var requires = capabilities.Count > 0
+        var requires = capabilities.Count > 0 || connectors.Count > 0
             ? new AppRequirements(
                 Connectors: connectors.Count > 0 ? [.. connectors] : null,
-                Capabilities: [.. capabilities])
+                Capabilities: capabilities.Count > 0 ? [.. capabilities] : null)
             : null;
         return new AppManifest(
             Title: title,
@@ -169,7 +177,9 @@ public sealed record AppManifest(
             Slots: slots,
             Icon: manifest.Face?.Icon,
             Requires: requires,
-            Category: manifest.Face?.Category);
+            Dock: manifest.Face?.Dock,
+            Category: manifest.Face?.Category,
+            Launch: manifest.Face?.Maximized == true ? AppLaunch.Maximized : AppLaunch.Windowed);
     }
 
     private static string ContractIdOf(Type contract)
@@ -210,29 +220,51 @@ public sealed record AppManifest(
             if (entry.Kind == AppToolbarKinds.Slider && !(entry.Min < entry.Max))
             { throw new InvalidDataException($"Toolbar slider '{entry.Operation}' needs min below max."); }
         }
-        Requires?.Validated();
+
+        var slotNames = new HashSet<string>(StringComparer.Ordinal);
+        List<string>? requiredCapabilities = null;
+        List<string>? requiredConnectors = null;
+
         foreach (var slot in slots)
         {
             if (slot is null || string.IsNullOrWhiteSpace(slot.Name))
             { throw new InvalidDataException("Every declared slot must have a name."); }
+            if (!slotNames.Add(slot.Name))
+            { throw new InvalidDataException($"Duplicate slot '{slot.Name}'."); }
             var connector = slot.Connector ?? string.Empty;
             if (slot.Capability is { } capability)
             {
                 if (connector.Length > 0)
                 { throw new InvalidDataException($"Slot '{slot.Name}' binds both capability '{capability}' and module '{connector}'; bind one."); }
-                if (!(Requires?.Capabilities ?? []).Contains(capability, StringComparer.Ordinal))
-                { throw new InvalidDataException($"Slot '{slot.Name}' binds capability '{capability}', which Requires.Capabilities does not list."); }
+                if (slot.Required)
+                {
+                    requiredCapabilities ??= [];
+                    if (!requiredCapabilities.Contains(capability, StringComparer.Ordinal))
+                    { requiredCapabilities.Add(capability); }
+                }
             }
             else if (connector.Length == 0)
             { throw new InvalidDataException($"Slot '{slot.Name}' binds nothing; give it a capability such as storage@1."); }
-            else if (Requires is { } requires && !(requires.Connectors ?? []).Contains(connector, StringComparer.Ordinal))
-            { throw new InvalidDataException($"Slot '{slot.Name}' binds module '{connector}', which Requires does not list."); }
+            else if (slot.Required)
+            {
+                requiredConnectors ??= [];
+                if (!requiredConnectors.Contains(connector, StringComparer.Ordinal))
+                { requiredConnectors.Add(connector); }
+            }
         }
+
+        var mergedRequires = MergeSlotRequirements(Requires, requiredCapabilities, requiredConnectors);
+        mergedRequires?.Validated();
+
+        var agent = ValidateAgent(Agent, operations, slotNames);
+
         return ReferenceEquals(title, Title)
             && ReferenceEquals(description, Description)
             && ReferenceEquals(operations, Operations)
             && ReferenceEquals(settings, Settings)
             && ReferenceEquals(slots, Slots)
+            && ReferenceEquals(mergedRequires, Requires)
+            && ReferenceEquals(agent, Agent)
             ? this
             : this with
             {
@@ -241,6 +273,90 @@ public sealed record AppManifest(
                 Operations = operations,
                 Settings = settings,
                 Slots = slots,
+                Requires = mergedRequires,
+                Agent = agent,
             };
+    }
+
+    private static AppRequirements? MergeSlotRequirements(
+        AppRequirements? existing,
+        List<string>? requiredCapabilities,
+        List<string>? requiredConnectors)
+    {
+        var missingCapabilities = requiredCapabilities is { Count: > 0 }
+            ? requiredCapabilities.Where(c => !(existing?.Capabilities ?? []).Contains(c, StringComparer.Ordinal)).ToArray()
+            : [];
+        var missingConnectors = requiredConnectors is { Count: > 0 }
+            ? requiredConnectors.Where(c => !(existing?.Connectors ?? []).Contains(c, StringComparer.Ordinal)).ToArray()
+            : [];
+
+        if (missingCapabilities.Length == 0 && missingConnectors.Length == 0)
+        {
+            return existing;
+        }
+
+        var existingCapabilities = existing?.Capabilities ?? [];
+        var existingConnectors = existing?.Connectors ?? [];
+        var mergedCapabilities = missingCapabilities.Length > 0
+            ? [.. existingCapabilities, .. missingCapabilities]
+            : existing?.Capabilities;
+        var mergedConnectors = missingConnectors.Length > 0
+            ? [.. existingConnectors, .. missingConnectors]
+            : existing?.Connectors;
+
+        return existing is null
+            ? new AppRequirements(Connectors: mergedConnectors, Capabilities: mergedCapabilities)
+            : existing with { Connectors = mergedConnectors, Capabilities = mergedCapabilities };
+    }
+
+    private static AppAgent? ValidateAgent(AppAgent? agent, AppOperation[] operations, HashSet<string> slotNames)
+    {
+        if (agent is null)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(agent.Instructions))
+        {
+            throw new InvalidDataException("An agent app requires non-empty instructions.");
+        }
+
+        if (operations.Length > 0)
+        {
+            throw new InvalidDataException("Agent apps cannot declare operations in this version.");
+        }
+
+        var starters = agent.Starters ?? [];
+        foreach (var starter in starters)
+        {
+            if (string.IsNullOrWhiteSpace(starter))
+            {
+                throw new InvalidDataException("Every agent starter must be non-empty.");
+            }
+        }
+
+        var tools = agent.Tools ?? [];
+        var seenTools = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var toolSlot in tools)
+        {
+            if (string.IsNullOrWhiteSpace(toolSlot))
+            {
+                throw new InvalidDataException("Every agent tool entry must name a declared slot.");
+            }
+
+            if (!seenTools.Add(toolSlot))
+            {
+                throw new InvalidDataException($"Agent tool slot '{toolSlot}' is listed more than once.");
+            }
+
+            if (!slotNames.Contains(toolSlot))
+            {
+                throw new InvalidDataException($"Agent tool '{toolSlot}' does not match any declared slot on this app.");
+            }
+        }
+
+        return ReferenceEquals(starters, agent.Starters) && ReferenceEquals(tools, agent.Tools)
+            ? agent
+            : agent with { Starters = starters, Tools = tools };
     }
 }

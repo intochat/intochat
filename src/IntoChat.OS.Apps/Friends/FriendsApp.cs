@@ -9,6 +9,7 @@ A friend is confirmed with a code: one person makes it, the other redeems it. A 
 with a confirmed friend as Viewer or Editor; what friends shared appears under Shared with me.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
+using IntoChat.OS.Host.Apps;
 using System.ComponentModel;
 using DigitalBrain;
 using DigitalBrain.Components;
@@ -81,7 +82,7 @@ public sealed record OpenFriendRoom(string RoomKey = "", string FriendAccount = 
 [Signal("friends.send-room-message")]
 public sealed record SendRoomMessage(string RoomOwnerBrain = "", string RoomKey = "", string Text = "") : Signal;
 
-[Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
+[Neuron("app.friends"), Screen("app.friends", Title = "Friends", Icon = "users", Category = "Social", Dock = 9)]
 public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
 {
     protected override Task OnActivate(CancellationToken cancellationToken)
@@ -90,43 +91,32 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
         return base.OnActivate(cancellationToken);
     }
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<FriendsApp>(
         "friends",
         "2.0.0",
-        new AppManifest(
-            Title: "Friends",
-            Description: "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
-            Operations:
-            [
-                new("open", "Show personal profile, friends list, and interactive app-post feed."),
-                new("publish", "Publish an interactive App-Post template with optional embedded child apps."),
-                new("update-bio", "Update personal profile handle, display name, bio, and pinned apps."),
-                new("make-code", "Make a friend code to send to someone."),
-                new("redeem-code", "Add a friend with the code they sent."),
-                new("unfriend", "Remove a friend and everything shared between you."),
-                new("share-folder", "Share a folder or file of the workspace with a confirmed friend as viewer or editor."),
-                new("unshare", "Stop sharing a folder or file."),
-                new("open-shared", "Open a folder or file a friend shared."),
-                new("save-shared", "Save a text file a friend shared for editing."),
-                new("fork-post", "Fork an interactive App-Post template (and its embedded app slots) into a new post."),
-                new("fork_app", "Fork and install an App-Post unit template into Creator and submit to IInstalls consent loop."),
-                new("filter-scope", "Filter the feed by scope (all, public, friends)."),
-                new("publish-social-post", "Publish a social post visible to confirmed friends."),
-                new("refresh-feed", "Refresh social posts from yourself and confirmed friends."),
-                new("react-to-post", "Add a reaction to a social post."),
-                new("open-friend-room", "Create, invite to, or join a live friend chat room."),
-                new("send-room-message", "Send a chat message to the active friend room."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Friends aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg",
-            Dock: 9),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(FriendsApp).AssemblyQualifiedName,
-    };
+        description: "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
+        operations:
+        [
+            new("open", "Show personal profile, friends list, and interactive app-post feed."),
+            new("publish", "Publish an interactive App-Post template with optional embedded child apps."),
+            new("update-bio", "Update personal profile handle, display name, bio, and pinned apps."),
+            new("make-code", "Make a friend code to send to someone."),
+            new("redeem-code", "Add a friend with the code they sent."),
+            new("unfriend", "Remove a friend and everything shared between you."),
+            new("share-folder", "Share a folder or file of the workspace with a confirmed friend as viewer or editor."),
+            new("unshare", "Stop sharing a folder or file."),
+            new("open-shared", "Open a folder or file a friend shared."),
+            new("save-shared", "Save a text file a friend shared for editing."),
+            new("fork-post", "Fork an interactive App-Post template (and its embedded app slots) into a new post."),
+            new("fork_app", "Fork and install an App-Post unit template into Creator and submit to IInstalls consent loop."),
+            new("filter-scope", "Filter the feed by scope (all, public, friends)."),
+            new("publish-social-post", "Publish a social post visible to confirmed friends."),
+            new("refresh-feed", "Refresh social posts from yourself and confirmed friends."),
+            new("react-to-post", "Add a reaction to a social post."),
+            new("open-friend-room", "Create, invite to, or join a live friend chat room."),
+            new("send-room-message", "Send a chat message to the active friend room."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Friends aggregate command."),
+        ]);
 
     public new FriendsAppState State => base.State;
     public View Render() => PreviewView(State);

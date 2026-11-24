@@ -73,11 +73,12 @@ public sealed class WebModuleHosting : ModuleHosting<WebModule>
                     : brain.ApplicationBuilder.AddParameter(secretName, secret: true);
 
                 _searxng = brain.ApplicationBuilder
-                    .AddContainer(brain.ResourceName(SearxngResourceName), SearxngImage, SearxngImageTag)
+                    .AddContainer(brain.ChildName("webtools", SearxngResourceName, brain.ResourceName(SearxngResourceName)), SearxngImage, SearxngImageTag)
                     .WithHttpEndpoint(targetPort: 8080, name: "http")
                     .WithBindMount(ResolveSearxngConfigDirectory(), "/etc/searxng", isReadOnly: true)
                     .WithEnvironment("SEARXNG_SECRET", secret)
                     .WithLifetime(ContainerLifetime.Persistent)
+                    .WithLegacyContainerCleanup(brain.ApplicationBuilder)
                     .WithParentRelationship(module);
             }
         }

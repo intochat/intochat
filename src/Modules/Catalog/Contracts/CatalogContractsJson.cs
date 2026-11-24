@@ -7,4 +7,6 @@ namespace IntoChat.OS.Modules.Apps;
 [JsonSerializable(typeof(ProfileState))]
 [JsonSerializable(typeof(ProfilePostItem))]
 [JsonSerializable(typeof(Audience))]
+[JsonSerializable(typeof(AppTile))]
+[JsonSerializable(typeof(AppTile[]))]
 public sealed partial class CatalogContractsJson : JsonSerializerContext;

@@ -4,10 +4,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
-using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using static IntoChat.OS.UI.Kit;
@@ -27,171 +24,68 @@ public static class InoThread
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(apps);
 
-        var superseded = SupersededIds(view);
-        var runsById = new Dictionary<string, AgentRun>(StringComparer.Ordinal);
-        var toolArgs = new Dictionary<(string RunId, string CallId), string>();
-
-        foreach (var run in view.Runs)
+        var options = new ConversationThreadOptions
         {
-            runsById[run.RunId] = run;
-            foreach (var call in run.ToolCalls)
+            TransformAssistantText = static raw =>
             {
-                toolArgs[(run.RunId, call.CallId)] = call.Arguments;
-            }
-        }
-
-        if (view.Active is { } activeRun)
-        {
-            runsById[activeRun.RunId] = activeRun;
-            foreach (var call in activeRun.ToolCalls)
+                var (cleanText, slots) = InoCards.ExtractInlineSlots(raw);
+                return (cleanText, slots);
+            },
+            DescribeFailure = InoErrors.Describe,
+            FormatActivity = static (returned, argsJson, callId) =>
             {
-                toolArgs[(activeRun.RunId, call.CallId)] = call.Arguments;
-            }
-        }
-
-        var returnedByRun = new Dictionary<string, List<Returned>>(StringComparer.Ordinal);
-        var replyRunIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var entry in view.Entries)
-        {
-            switch (entry)
+                var formattedTitle = InoModel.FormatActivityTitle(returned.Tool, argsJson);
+                var errorText = returned.Ok ? null : ConversationThreadProjection.ExtractErrorText(returned.ResultJson);
+                var activity = new InoActivity(callId, formattedTitle, returned.Ok ? returned.ResultJson : null, errorText);
+                return InoView.ToActivityNode(activity);
+            },
+            AppendStepCards = static (returned, _, cards) =>
             {
-                case Called called:
-                    if (EntryIds.RunOf(called.Id) is { } callRun && EntryIds.CallOf(called.Id) is { } callId)
-                    {
-                        toolArgs[(callRun, callId)] = called.ArgsJson;
-                    }
-                    break;
-
-                case Returned returned:
-                    if (EntryIds.RunOf(returned.Id) is { } retRun)
-                    {
-                        if (!returnedByRun.TryGetValue(retRun, out var list))
-                        {
-                            list = [];
-                            returnedByRun[retRun] = list;
-                        }
-                        list.Add(returned);
-                    }
-                    break;
-
-                case Said { By: Participant.Assistant } agentSaid:
-                    if (EntryIds.RunOf(agentSaid.Id) is { } repRun && agentSaid.Id == EntryIds.Reply(repRun))
-                    {
-                        replyRunIds.Add(repRun);
-                    }
-                    break;
-            }
-        }
-
-        var emittedNonCompletedRuns = new HashSet<string>(StringComparer.Ordinal);
-        var messages = new List<ThreadMessage>(view.Entries.Length + 2);
-
-        foreach (var entry in view.Entries)
-        {
-            if (entry is not Said said)
-            {
-                continue;
-            }
-
-            if (said.By is Participant.Human)
-            {
-                messages.Add(new ThreadMessage(said.Id.Value, "user", said.Text, "completed"));
-
-                if (EntryIds.RunOf(said.Id) is { } promptRunId
-                    && !replyRunIds.Contains(promptRunId)
-                    && !string.Equals(view.Active?.RunId, promptRunId, StringComparison.Ordinal)
-                    && !superseded.Contains(EntryIds.Reply(promptRunId))
-                    && runsById.TryGetValue(promptRunId, out var run)
-                    && IsTerminalNonCompleted(run))
+                if (!string.IsNullOrWhiteSpace(returned.ResultJson) && InoCards.FromResult(returned.ResultJson) is { } legacyCard)
                 {
-                    emittedNonCompletedRuns.Add(promptRunId);
-                    messages.Add(BuildNonCompletedReply(run, returnedByRun, toolArgs, apps));
+                    cards.AddRange(InoView.RenderCardNodes(legacyCard));
+                }
+            },
+            AppendRunCards = (runId, returns, toolArgs, cards) =>
+            {
+                InoLinkCard? lastOpenedApp = null;
+                foreach (var r in returns)
+                {
+                    if (!r.Ok)
+                    {
+                        continue;
+                    }
+
+                    var callId = EntryIds.CallOf(r.Id) ?? r.Id.Value;
+                    toolArgs.TryGetValue((runId, callId), out var argsJson);
+                    if (Opened(r, argsJson) is { } opened)
+                    {
+                        lastOpenedApp = opened;
+                    }
                 }
 
-                continue;
-            }
-
-            if (said.By is Participant.Assistant)
-            {
-                if (superseded.Contains(said.Id))
+                if (lastOpenedApp is not null)
                 {
-                    continue;
+                    apps.TryGetValue(lastOpenedApp.App, out var manifest);
+                    cards.Add(RenderAppCard(Named(lastOpenedApp, manifest)));
                 }
-
-                messages.Add(BuildAgentReply(said, runsById, returnedByRun, toolArgs, apps, links));
-            }
-        }
-
-        // Any failed/cancelled/interrupted run without its own prompt entry (e.g., a failed regeneration of the latest turn).
-        foreach (var run in view.Runs)
-        {
-            if (run.Posted
-                || !IsTerminalNonCompleted(run)
-                || emittedNonCompletedRuns.Contains(run.RunId)
-                || replyRunIds.Contains(run.RunId)
-                || string.Equals(view.Active?.RunId, run.RunId, StringComparison.Ordinal)
-                || superseded.Contains(EntryIds.Reply(run.RunId)))
+            },
+            AppendSaidCards = (said, cards) =>
             {
-                continue;
-            }
+                if (InoLinkCard.TryReadLinkPost(said.Id.Value, out var linkRequest)
+                    && InoLinkCard.FindLink(links, linkRequest) is { } linkCard)
+                {
+                    apps.TryGetValue(linkCard.App, out var manifest);
+                    cards.Add(RenderAppCard(Named(linkCard, manifest)));
+                }
+            },
+        };
 
-            var bubble = BuildNonCompletedReply(run, returnedByRun, toolArgs, apps);
-            if (messages.Count > 0 && messages[^1] is { Role: "assistant", IsFailed: true })
-            {
-                messages[^1] = bubble;
-            }
-            else
-            {
-                messages.Add(bubble);
-            }
-        }
-
-        if (view.Active is { } active && !replyRunIds.Contains(active.RunId))
-        {
-            messages.Add(BuildRunningReply(active, returnedByRun, toolArgs, apps));
-        }
-
-        if (view.Active is null)
-        {
-            MarkLatestCompletedReplyRegenerable(messages);
-        }
-
-        return messages;
-    }
-
-    private static void MarkLatestCompletedReplyRegenerable(List<ThreadMessage> messages)
-    {
-        for (var i = messages.Count - 1; i >= 0; i--)
-        {
-            var entryId = new EntryId(messages[i].Id);
-            if (EntryIds.RunOf(entryId) is not { Length: > 0 } runId)
-            {
-                continue;
-            }
-            if (messages[i] is { Role: "assistant", Status: "completed" } && entryId == EntryIds.Reply(runId))
-            {
-                messages[i] = messages[i] with { CanRegenerate = true };
-            }
-            break;
-        }
+        return ConversationThreadProjection.ToThreadMessages(view, options);
     }
 
     internal static HashSet<EntryId> SupersededIds(ConversationView view)
-    {
-        var superseded = new HashSet<EntryId>();
-        foreach (var entry in view.Entries)
-        {
-            if (entry is Said { Replaces: { } target })
-            {
-                superseded.Add(target);
-            }
-        }
-        if (view.Replacing is { } replacing)
-        {
-            superseded.Add(replacing);
-        }
-        return superseded;
-    }
+        => ConversationThreadProjection.SupersededIds(view);
 
     internal static bool HasLinkPosts(ConversationView view)
         => view.Entries.OfType<Said>().Any(static s => InoLinkCard.TryReadLinkPost(s.Id.Value, out _));
@@ -416,191 +310,6 @@ public static class InoThread
         return slash >= 0 && slash + 1 < trimmed.Length ? trimmed[(slash + 1)..] : trimmed;
     }
 
-    private static bool IsTerminalNonCompleted(AgentRun run)
-        => run.Status is AgentRunStatus.Failed or AgentRunStatus.Interrupted or AgentRunStatus.Cancelled;
-
-    private static ThreadMessage BuildAgentReply(
-        Said said,
-        Dictionary<string, AgentRun> runsById,
-        Dictionary<string, List<Returned>> returnedByRun,
-        Dictionary<(string RunId, string CallId), string> toolArgs,
-        IReadOnlyDictionary<string, AppManifest?> apps,
-        string? links)
-    {
-        var runId = EntryIds.RunOf(said.Id);
-        var (displayText, inlineSlots) = InoCards.ExtractInlineSlots(said.Text);
-
-        string? rawModel = said.Model?.Value;
-        if (string.IsNullOrWhiteSpace(rawModel) && runId is not null && runsById.TryGetValue(runId, out var run))
-        {
-            rawModel = run.Posted ? null : run.Model?.Model;
-        }
-        var (displayModel, providerIcon) = FormatModelChip(rawModel);
-
-        var (activities, cards) = runId is not null && returnedByRun.TryGetValue(runId, out var returns)
-            ? BuildStepVisuals(runId, returns, toolArgs, apps)
-            : (Array.Empty<ActivityNode>(), new List<Node>());
-
-        if (InoLinkCard.TryReadLinkPost(said.Id.Value, out var linkRequest)
-            && InoLinkCard.FindLink(links, linkRequest) is { } linkCard)
-        {
-            apps.TryGetValue(linkCard.App, out var manifest);
-            cards.Add(RenderAppCard(Named(linkCard, manifest)));
-        }
-
-        if (inlineSlots.Count > 0)
-        {
-            cards.AddRange(inlineSlots);
-        }
-
-        return new ThreadMessage(said.Id.Value, "assistant", displayText, "completed")
-        {
-            Model = displayModel,
-            ProviderIcon = providerIcon,
-            Activities = activities,
-            Cards = cards,
-        };
-    }
-
-    private static (string? Label, string? ProviderIcon) FormatModelChip(string? rawModel)
-    {
-        if (string.IsNullOrWhiteSpace(rawModel))
-        {
-            return (null, null);
-        }
-
-        if (DeviceModelRef.TryParse(rawModel, out var deviceRef))
-        {
-            var inner = InoView.ResolveModel(deviceRef.Model.Value);
-            return ($"{inner?.Name ?? deviceRef.Model.Value} · {deviceRef.Device}", inner?.IconKey() ?? "provider:device");
-        }
-
-        var card = InoView.ResolveModel(rawModel);
-        return (card?.Name ?? rawModel, card?.IconKey());
-    }
-
-    private static ThreadMessage BuildNonCompletedReply(
-        AgentRun run,
-        Dictionary<string, List<Returned>> returnedByRun,
-        Dictionary<(string RunId, string CallId), string> toolArgs,
-        IReadOnlyDictionary<string, AppManifest?> apps)
-    {
-        var (displayText, inlineSlots) = InoCards.ExtractInlineSlots(run.Reply);
-        var status = run.Status switch
-        {
-            AgentRunStatus.Cancelled => "cancelled",
-            AgentRunStatus.Interrupted => "interrupted",
-            _ => "failed",
-        };
-        var failureCode = run.Status switch
-        {
-            AgentRunStatus.Cancelled => "cancelled",
-            AgentRunStatus.Interrupted => "interrupted",
-            _ => AgentFailures.CodeOf(run.Failure),
-        };
-        var failureText = InoErrors.Describe(failureCode) ?? ChatThreadNeuron.NoAnswer;
-
-        var rawModel = run.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } resolved ? resolved.Model : null;
-        var (displayModel, providerIcon) = FormatModelChip(rawModel);
-
-        var (activities, cards) = returnedByRun.TryGetValue(run.RunId, out var returns)
-            ? BuildStepVisuals(run.RunId, returns, toolArgs, apps)
-            : (Array.Empty<ActivityNode>(), new List<Node>());
-
-        if (inlineSlots.Count > 0)
-        {
-            cards.AddRange(inlineSlots);
-        }
-
-        return new ThreadMessage(EntryIds.Reply(run.RunId).Value, "assistant", displayText, status)
-        {
-            Model = displayModel,
-            ProviderIcon = providerIcon,
-            Failure = failureText,
-            Activities = activities,
-            Cards = cards,
-        };
-    }
-
-    private static ThreadMessage BuildRunningReply(
-        AgentRun active,
-        Dictionary<string, List<Returned>> returnedByRun,
-        Dictionary<(string RunId, string CallId), string> toolArgs,
-        IReadOnlyDictionary<string, AppManifest?> apps)
-    {
-        var (displayText, inlineSlots) = InoCards.ExtractInlineSlots(active.Reply);
-        var rawModel = active.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } resolved ? resolved.Model : null;
-        var (displayModel, providerIcon) = FormatModelChip(rawModel);
-
-        var (activities, cards) = returnedByRun.TryGetValue(active.RunId, out var returns)
-            ? BuildStepVisuals(active.RunId, returns, toolArgs, apps)
-            : (Array.Empty<ActivityNode>(), new List<Node>());
-
-        if (inlineSlots.Count > 0)
-        {
-            cards.AddRange(inlineSlots);
-        }
-
-        return new ThreadMessage(EntryIds.Reply(active.RunId).Value, "assistant", displayText, "running")
-        {
-            Model = displayModel,
-            ProviderIcon = providerIcon,
-            Activities = activities,
-            Cards = cards,
-        };
-    }
-
-    private static (ActivityNode[] Activities, List<Node> Cards) BuildStepVisuals(
-        string runId,
-        List<Returned> returns,
-        Dictionary<(string RunId, string CallId), string> toolArgs,
-        IReadOnlyDictionary<string, AppManifest?> apps)
-    {
-        var activities = new ActivityNode[returns.Count];
-        var cards = new List<Node>();
-        InoLinkCard? lastOpenedApp = null;
-
-        for (var i = 0; i < returns.Count; i++)
-        {
-            var r = returns[i];
-            var callId = EntryIds.CallOf(r.Id) ?? r.Id.Value;
-            toolArgs.TryGetValue((runId, callId), out var argsJson);
-
-            var formattedTitle = InoModel.FormatActivityTitle(r.Tool, argsJson);
-            var errorText = r.Ok ? null : ExtractErrorText(r.ResultJson);
-            var activity = new InoActivity(callId, formattedTitle, r.Ok ? r.ResultJson : null, errorText);
-            activities[i] = InoView.ToActivityNode(activity);
-
-            if (r.Ok)
-            {
-                if (r.Card is { Kind: "node", NodeJson.Length: > 0 } nodeCard)
-                {
-                    if (InoNodeCard.TryRead(nodeCard.NodeJson, out var parsedNode, out _))
-                    {
-                        cards.Add(Card(nodeCard.Title)[parsedNode]);
-                    }
-                }
-                else if (!string.IsNullOrWhiteSpace(r.ResultJson) && InoCards.FromResult(r.ResultJson) is { } legacyCard)
-                {
-                    cards.AddRange(InoView.RenderCardNodes(legacyCard));
-                }
-
-                if (Opened(r, argsJson) is { } opened)
-                {
-                    lastOpenedApp = opened;
-                }
-            }
-        }
-
-        if (lastOpenedApp is not null)
-        {
-            apps.TryGetValue(lastOpenedApp.App, out var manifest);
-            cards.Add(RenderAppCard(Named(lastOpenedApp, manifest)));
-        }
-
-        return (activities, cards);
-    }
-
     private static Node RenderAppCard(InoLinkCard card) => new RecordCardNode(
         "App",
         card.Title,
@@ -617,23 +326,6 @@ public static class InoThread
                 .WithIntent(IntentKind.OpenWindow, AppSignals.OpenApp(card.App, string.IsNullOrWhiteSpace(card.Input) ? null : card.Input).Arg)
                 .ToButton()
             : null);
-
-    private static string ExtractErrorText(string? resultJson)
-    {
-        if (string.IsNullOrWhiteSpace(resultJson)) { return "Tool failed."; }
-        try
-        {
-            using var doc = JsonDocument.Parse(resultJson);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object)
-            {
-                if (GetString(doc.RootElement, "error") is { Length: > 0 } err) { return err; }
-                if (GetString(doc.RootElement, "text") is { Length: > 0 } text) { return text; }
-                if (GetString(doc.RootElement, "message") is { Length: > 0 } msg) { return msg; }
-            }
-        }
-        catch (JsonException exception) { OsConsoleLog.For(typeof(InoThread)).LogSwallowed(exception, "Unreadable tool error payload"); }
-        return resultJson;
-    }
 
     private static string? GetString(JsonElement obj, string name)
         => obj.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String ? prop.GetString() : null;

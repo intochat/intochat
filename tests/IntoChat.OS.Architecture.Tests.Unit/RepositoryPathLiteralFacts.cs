@@ -47,8 +47,8 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Tests.Unit/AspireHosting/AppHostChainFacts.cs",
         "IntoChat.OS.Tests.Unit/AspireHosting/WebModuleHostingFacts.cs",
         "IntoChat.OS.Tests.E2E/Aspire/BootFacts.cs",
-        "IntoChat.OS.Tests.Unit/Modules/Azure/Aspire/ProcessCandidateHostFacts.cs",
-        "IntoChat.OS.Tests.Integration/Modules/Azure/Aspire/ProcessCandidateHostProcessFacts.cs",
+        "IntoChat.OS.Tests.Unit/Components/Aspire/ProcessCandidateHostFacts.cs",
+        "IntoChat.OS.Tests.Integration/Components/Aspire/ProcessCandidateHostProcessFacts.cs",
         "IntoChat.OS.Tests.Unit/Modules/GitHub/LocalCheckoutRegistrationFacts.cs",
     ];
 

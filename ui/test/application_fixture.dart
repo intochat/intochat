@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -335,6 +335,29 @@ class ApplicationServer extends http.BaseClient {
           '/desktop/view',
         )) {
       renderedSurface = request.url.queryParameters['name'];
+    }
+    if (path == '/brains/$brain/apps') {
+      return json([
+        for (final id in const [
+          'ino',
+          'assistant',
+          'files',
+          'settings',
+          'engineer',
+          'aspire',
+          'orleans',
+          'desktop',
+        ])
+          {
+            'name': id,
+            'id': id,
+            'title': id,
+            'description': '',
+            'status': 'Live',
+            'version': '1.0.0',
+            'operations': ['open'],
+          },
+      ]);
     }
     if (path.endsWith('/apps/assistant') || path.endsWith('/apps/ino')) {
       return json(assistantView);

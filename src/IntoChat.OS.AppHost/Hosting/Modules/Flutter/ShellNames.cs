@@ -1,3 +1,4 @@
+using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS;
 using IntoChat.OS.Host.Configuration;
 
@@ -5,14 +6,29 @@ namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 public static class ShellNames
 {
-    public const string DefaultFlutterResourceName = "FlutterShell";
+    // The module id is frozen in configuration; the dashboard shows it as "flutter".
+    public const string ModuleId = "flutter";
+    // Run mode names each platform target directly under "flutter" (flutter-windows, flutter-linux, flutter-macos,
+    // flutter-android, flutter-ios, flutter-web). Publish keeps the legacy deployed name.
+    public static string DesktopResourceName => ResourceNames.Child(ModuleId, CurrentHostDeviceTarget);
+    public static string WindowsResourceName => ResourceNames.Child(ModuleId, "windows");
+    public static string LinuxResourceName => ResourceNames.Child(ModuleId, "linux");
+    public static string MacOsResourceName => ResourceNames.Child(ModuleId, "macos");
+    public static string AndroidResourceName => ResourceNames.Child(ModuleId, "android");
+    public static string IosResourceName => ResourceNames.Child(ModuleId, "ios");
+    public static string WebResourceName => ResourceNames.Child(ModuleId, "web");
+    public const string LegacyResourceName = "FlutterShell";
     public const string UIBaseEnvironmentVariable = "INTOCHATOS_UI_BASE";
     public const string ShellEnvironmentVariable = "INTOCHATOS_SHELL";
     public const string ChatEnvironmentVariable = "INTOCHATOS_CHAT";
     public const string FlutterCommandEnvironmentVariable = "FLUTTER_COMMAND";
     public const string DefaultShellName = "desk";
     public const string DefaultChatName = "main";
-    public const string DefaultDeviceTarget = "windows";
+    public const string DefaultDeviceTarget = "auto";
+    public static string CurrentHostDeviceTarget =>
+        OperatingSystem.IsMacOS() ? "macos"
+        : OperatingSystem.IsLinux() ? "linux"
+        : "windows";
     // web-server is Flutter's headless web device: it serves the app over HTTP without driving
     // a browser of its own, so the fixed FlutterWebPort below is a real, addressable endpoint.
     // The "chrome" device never prints or exposes a served URL, which made RunWebApp

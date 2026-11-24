@@ -88,19 +88,13 @@ class DesktopBarPopover extends StatelessWidget {
     required this.barLayout,
     this.anchorX = 0,
     this.dockAppId,
+    this.dockAppTitle,
     this.tokensToday = 14800,
     this.notificationsCount = 0,
     this.notifications = const [],
     this.notificationsLoaded = false,
     this.notificationsLoading = false,
-    this.pinnedAppIds = const {
-      'ino',
-      'files',
-      'creator',
-      'gallery',
-      'post',
-      'settings',
-    },
+    this.pinnedAppIds = const {},
     this.windows = const [],
     required this.onClose,
     this.onOpenSettings,
@@ -119,6 +113,7 @@ class DesktopBarPopover extends StatelessWidget {
   final BarLayout barLayout;
   final double anchorX;
   final String? dockAppId;
+  final String? dockAppTitle;
   final int tokensToday;
   final int notificationsCount;
   final List<DesktopNotificationEntry> notifications;
@@ -210,6 +205,7 @@ class DesktopBarPopover extends StatelessWidget {
         228.0,
         _DockContextMenu(
           appId: dockAppId ?? 'ino',
+          appTitle: dockAppTitle,
           isPinned: pinnedAppIds.contains(dockAppId ?? 'ino'),
           appWindows: [
             for (final w in windows)
@@ -858,6 +854,7 @@ class _NotificationsPopover extends StatelessWidget {
 class _DockContextMenu extends StatelessWidget {
   const _DockContextMenu({
     required this.appId,
+    this.appTitle,
     required this.isPinned,
     required this.appWindows,
     required this.onFocusWindow,
@@ -868,6 +865,7 @@ class _DockContextMenu extends StatelessWidget {
   });
 
   final String appId;
+  final String? appTitle;
   final bool isPinned;
   final List<DesktopWindowSummary> appWindows;
   final ValueChanged<String> onFocusWindow;
@@ -877,12 +875,9 @@ class _DockContextMenu extends StatelessWidget {
   final VoidCallback onQuit;
 
   String get _appName {
-    for (final s in defaultSmartAppSpecs) {
-      if (s.id == appId) return s.name;
-    }
-    return appId.isEmpty
-        ? 'App'
-        : '${appId[0].toUpperCase()}${appId.substring(1)}';
+    final custom = appTitle?.trim();
+    if (custom != null && custom.isNotEmpty) return custom;
+    return IcAppIcon.humanizeAppTitle(appId);
   }
 
   @override

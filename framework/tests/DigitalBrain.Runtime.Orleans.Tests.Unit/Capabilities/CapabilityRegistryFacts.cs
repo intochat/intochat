@@ -2,6 +2,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Capabilities.Tools;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace DigitalBrain.Runtime.Orleans.Tests.Unit.Capabilities;
@@ -9,18 +10,21 @@ namespace DigitalBrain.Runtime.Orleans.Tests.Unit.Capabilities;
 public sealed class CapabilityRegistryFacts
 {
     [Fact]
-    public void Seeded_with_storage_secrets_and_identity_majors_one()
+    public void Seeded_with_storage_secrets_identity_and_tools_majors_one()
     {
         var registry = new CapabilityRegistry();
 
         Assert.True(registry.Known(Capability.Storage.V1));
+        Assert.True(registry.Known(Capability.Tools.V1));
         Assert.False(registry.Known(new CapabilityId("storage", 2)));
         Assert.Equal(typeof(IStorage), registry.ContractOf(Capability.Storage.V1));
         Assert.Equal(typeof(ISecrets), registry.ContractOf(Capability.Secrets.V1));
         Assert.Equal(typeof(IIdentity), registry.ContractOf(Capability.Identity.V1));
+        Assert.Equal(typeof(ITool), registry.ContractOf(Capability.Tools.V1));
         Assert.True(registry.IsSingle(Capability.Secrets.V1));
         Assert.True(registry.IsSingle(Capability.Identity.V1));
         Assert.False(registry.IsSingle(Capability.Storage.V1));
+        Assert.False(registry.IsSingle(Capability.Tools.V1));
     }
 
     [Fact]

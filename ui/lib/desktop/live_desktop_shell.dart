@@ -185,17 +185,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       StreamController<Presence>.broadcast();
   StreamSubscription<void>? _settingsSub, _presenceSub;
   Timer? _presenceReopen;
-  final Set<String> _pinnedAppIds = {
-    'ino',
-    'files',
-    'photocraft',
-    'filmcraft',
-    'creator',
-    'gallery',
-    'friends',
-    'workspace',
-    'settings',
-  };
+  final Set<String> _pinnedAppIds = {};
+  bool _pinsInitialized = false;
+  Map<String, SmartAppTileSpec> _catalogById = const {};
   bool _allAppsOpen = false;
   bool _themeStudioOpen = false;
   bool _switcherOpen = false;
@@ -839,58 +831,38 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _ => null,
   };
 
-  // The host's window shell has a dock of `dock-{app}` buttons.
+  // The host's window shell has a dock of `dock-{app}` tiles or legacy buttons.
   static bool _isDesktopTree(AppView? view) =>
       view != null &&
-      _walk(view.root)
-          .any((node) => node is ButtonNode && node.key.startsWith('dock-'));
+      _walk(view.root).any(
+        (node) =>
+            (node is AppTileNode && node.key.startsWith('dock-')) ||
+            (node is ButtonNode && node.key.startsWith('dock-')),
+      );
 
-  static String _titleForAppId(String appId) {
-    for (final s in allSmartAppSpecs) {
-      if (s.id == appId) return s.name;
+  String _titleForAppId(String appId) {
+    final normalized = appId.trim().toLowerCase();
+    if (_catalogById[normalized] case final spec? when spec.name.isNotEmpty) {
+      return spec.name;
     }
-    final spec = IcAppIcon.resolveSpec(appId);
-    if (spec.appId == appId && spec.title.isNotEmpty) return spec.title;
-    return switch (appId) {
-      'ino' => 'Ino',
-      'files' => 'Files',
-      'photocraft' => 'PhotoCraft',
-      'filmcraft' => 'FilmCraft',
-      'creator' => 'Creator',
-      'gallery' => 'UI Gallery',
-      'post' => 'Post',
-      'workspace' => 'Workspace',
-      'settings' => 'Settings',
-      _ => IcAppIcon.humanizeAppTitle(appId),
-    };
+    return IcAppIcon.humanizeAppTitle(appId);
   }
 
-  static String _inferAppId(String title, Map<String, dynamic>? pinNode) {
+  String _inferAppId(String title, Map<String, dynamic>? pinNode) {
     if (pinNode?['argument'] case final String app when app.isNotEmpty) {
       return app;
     }
-    final normalized = IcAppIcon.normalizeAppId(title);
-    if (IcAppIcon.builtInSpecs.containsKey(normalized)) {
-      return normalized;
-    }
     final lower = title.trim().toLowerCase();
-    for (final s in allSmartAppSpecs) {
-      if (lower == s.id || lower == s.name.toLowerCase()) {
-        return s.id;
+    for (final spec in _catalogById.values) {
+      if (lower == spec.id.toLowerCase() || lower == spec.name.toLowerCase()) {
+        return spec.id;
       }
     }
-    if (lower == 'ino' || lower.startsWith('ino ')) return 'ino';
-    if (lower.contains('photocraft')) return 'photocraft';
-    if (lower.contains('filmcraft') || lower.contains('videocraft')) {
-      return 'filmcraft';
+    final normalized = IcAppIcon.normalizeAppId(title);
+    if (_catalogById.containsKey(normalized) ||
+        IcAppIcon.builtInSpecs.containsKey(normalized)) {
+      return normalized;
     }
-    if (lower.contains('gallery')) return 'gallery';
-    if (lower == 'creator') return 'creator';
-    if (lower == 'files' || lower == 'file') return 'files';
-    if (lower == 'post') return 'post';
-    if (lower == 'workspace') return 'workspace';
-    if (lower.contains('setting')) return 'settings';
-    if (lower.contains('circle')) return 'circleroom';
     return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
@@ -1061,11 +1033,32 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     ];
   }
 
+  Map<String, dynamic> _appTileButton(AppTileNode node) => {
+    'key': node.key,
+    'text': node.title,
+    'enabled': true,
+    'argument': node.appId,
+  };
+
   Map<String, Map<String, dynamic>> _parseDockButtons(Node root) => {
     for (final node in _walk(root))
-      if (node is ButtonNode && node.key.startsWith('dock-'))
+      if (node is AppTileNode && node.key.startsWith('dock-'))
+        node.key: _appTileButton(node)
+      else if (node is ButtonNode && node.key.startsWith('dock-'))
         node.key: _button(node),
   };
+
+  List<SmartAppTileSpec> _parseDockTiles(Node root) => [
+    for (final node in _walk(root))
+      if (node is AppTileNode && node.key.startsWith('dock-'))
+        SmartAppTileSpec.fromNode(node, brain: widget.brain),
+  ];
+
+  List<SmartAppTileSpec> _parseCatalogTiles(Node root) => [
+    for (final node in _walk(root))
+      if (node is AppTileNode && node.key.startsWith('catalog-'))
+        SmartAppTileSpec.fromNode(node, brain: widget.brain),
+  ];
 
   Rect _initialWindowBounds(int index, Size desk) {
     final w = (desk.width * 0.64).clamp(680.0, 980.0);
@@ -1089,11 +1082,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   bool _shouldLaunchMaximized(String appId) {
     final normalized = appId.trim().toLowerCase();
-    return normalized == 'orleans' ||
-        normalized == 'aspire' ||
-        normalized == 'widgetbook' ||
-        normalized == 'devui' ||
-        IcAppIcon.findArtCraftByUrlOrName(normalized) != null;
+    return _catalogById[normalized]?.launch == AppLaunch.maximized;
   }
 
   void _syncWindowStates(List<_ParsedDesktopWindow> parsed, Size desk) {
@@ -2069,48 +2058,99 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final effectiveRoot = view!.root;
     _viewKeys = {
       for (final node in _walk(effectiveRoot))
-        if (node is ButtonNode) node.key,
+        if (node is AppTileNode) node.key else if (node is ButtonNode) node.key,
       for (final node in _walk(effectiveRoot))
         if (node is TabsNode)
           for (final item in node.items) item.key,
     };
     final c = IcTheme.of(context);
+    final dockTiles = _parseDockTiles(effectiveRoot);
+    final catalogTiles = _parseCatalogTiles(effectiveRoot);
+    final catalogById = <String, SmartAppTileSpec>{
+      for (final tile in catalogTiles) tile.id.toLowerCase(): tile,
+      for (final tile in dockTiles) tile.id.toLowerCase(): tile,
+    };
+    _catalogById = catalogById;
+
     final windows = _parseWindows(effectiveRoot);
     final dockButtons = _parseDockButtons(effectiveRoot);
     final openWidgets = _parseOpenWidgets(effectiveRoot);
     final discoveredApps = _collectDynamicApps(windows, dockButtons);
-    _dynamicAppIds = discoveredApps.keys.toSet();
 
-    final defaultDockIds = {for (final s in defaultSmartAppSpecs) s.id};
-    final catalogIds = {for (final s in allSmartAppSpecs) s.id};
-    final extraRuntimeSpecs = <SmartAppTileSpec>[
-      for (final entry in discoveredApps.entries)
-        if (!catalogIds.contains(entry.key))
+    if (!_pinsInitialized && (dockTiles.isNotEmpty || dockButtons.isNotEmpty)) {
+      _pinsInitialized = true;
+      for (final tile in dockTiles) {
+        _pinnedAppIds.add(tile.id.toLowerCase());
+      }
+      for (final entry in dockButtons.entries) {
+        final rawArg = (entry.value['argument'] as String?)?.trim();
+        final rawId = (rawArg != null && rawArg.isNotEmpty)
+            ? rawArg
+            : entry.key.substring(5).trim();
+        if (rawId.isNotEmpty) {
+          _pinnedAppIds.add(rawId.toLowerCase());
+        }
+      }
+    }
+
+    final dockSeen = <String>{};
+    final dockApps = <SmartAppTileSpec>[];
+    for (final tile in dockTiles) {
+      if (dockSeen.add(tile.id.toLowerCase())) {
+        dockApps.add(tile);
+      }
+    }
+    for (final entry in discoveredApps.entries) {
+      if (dockSeen.add(entry.key)) {
+        dockApps.add(
+          catalogById[entry.key] ??
+              SmartAppTileSpec.fromIconSpec(
+                entry.key,
+                titleOverride: entry.value,
+                brain: widget.brain,
+              ),
+        );
+      }
+    }
+
+    final launcherSeen = <String>{};
+    final launcherApps = <SmartAppTileSpec>[];
+    for (final tile in catalogTiles) {
+      if (launcherSeen.add(tile.id.toLowerCase())) {
+        launcherApps.add(tile);
+      }
+    }
+    for (final tile in dockApps) {
+      if (launcherSeen.add(tile.id.toLowerCase())) {
+        launcherApps.add(tile);
+      }
+    }
+    for (final entry in discoveredApps.entries) {
+      if (launcherSeen.add(entry.key)) {
+        launcherApps.add(
           SmartAppTileSpec.fromIconSpec(
             entry.key,
             titleOverride: entry.value,
             categoryOverride: 'Micro-Apps',
+            brain: widget.brain,
           ),
-    ];
-    final dockApps = <SmartAppTileSpec>[
-      ...defaultSmartAppSpecs,
-      for (final entry in discoveredApps.entries)
-        if (!defaultDockIds.contains(entry.key))
-          SmartAppTileSpec.fromIconSpec(entry.key, titleOverride: entry.value),
-    ];
-    final launcherApps = <SmartAppTileSpec>[
-      ...allSmartAppSpecs,
-      ...extraRuntimeSpecs,
-    ];
+        );
+      }
+    }
+    _dynamicAppIds = {
+      ...discoveredApps.keys,
+      for (final tile in launcherApps) tile.id.toLowerCase(),
+    };
 
     if (widget.onDynamicAppsChanged != null) {
-      final sig = [for (final s in extraRuntimeSpecs) '${s.id}:${s.name}']
-          .join('|');
+      final sig = [
+        for (final s in launcherApps) '${s.id}:${s.name}:${s.launch.name}',
+      ].join('|');
       if (sig != _lastDynamicSignature) {
         _lastDynamicSignature = sig;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            widget.onDynamicAppsChanged?.call(extraRuntimeSpecs);
+            widget.onDynamicAppsChanged?.call(launcherApps);
           }
         });
       }
@@ -2230,6 +2270,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   stylePreset: widget.stylePreset,
                   barLayout: widget.barLayout,
                   apps: dockApps,
+                  totalAppsCount: launcherApps.length,
                   openCardIds: openWidgets,
                   onOpenCard: (cardId) {
                     setState(() {
@@ -2640,6 +2681,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   barLayout: widget.barLayout,
                   anchorX: _popoverAnchorX,
                   dockAppId: _dockMenuAppId,
+                  dockAppTitle: _dockMenuAppId == null
+                      ? null
+                      : _titleForAppId(_dockMenuAppId!),
                   notificationsCount: _notificationsCount,
                   notifications: _notifications,
                   notificationsLoaded: _notificationsLoaded,

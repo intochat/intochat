@@ -189,7 +189,7 @@ internal sealed partial class AppNeuron
         VerifyCompiledProgramType();
     }
 
-    // An app runs only when it names a compiled module type; anything else is data.
+    // An app has a program only when it names a compiled module type (VerifyCompiledProgramType decides whether this host runs it).
     private static bool HasProgram(AppState state)
         => state.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var ct) && !string.IsNullOrWhiteSpace(ct);
 
@@ -205,10 +205,19 @@ internal sealed partial class AppNeuron
         VerifyCompiledProgramType();
     }
 
+    // A named compiled program must be one this host can run. The unedited shipped copy of an app the host itself loaded from a
+    // registered compiled-app assembly passes on that provenance, so its stored type name may be stale after the type moved; it is
+    // not parsed and never rewritten. Every other record passes only when its stored type name resolves.
     private void VerifyCompiledProgramType()
     {
         if (!State.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var typeName)
             || string.IsNullOrWhiteSpace(typeName))
+        {
+            return;
+        }
+
+        var hosted = hostedAppTypes ?? services?.GetService<IHostedAppTypes>();
+        if (hosted is not null && ShippedApps.Is(Describe(State), Name()) && hosted.IsHostLoaded(Name()))
         {
             return;
         }

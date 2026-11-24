@@ -10,6 +10,7 @@ Center: live BrainScene topology (with causal replay pulses and Flame camera HUD
 Accordant StateGraphView, and the ISlider + ICommandBar time-travel transport bar.
 Right: 5-tab Modules.UI Inspector (State via IPropertyGrid, Source via ICodeEditor, Signals via ITable, State Graph, Scenarios).
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Components;
@@ -71,7 +72,7 @@ public sealed record CreatorApprove(string? ApprovalId = null) : DigitalBrain.Si
 [DigitalBrain.Signal("creator.reject")]
 public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Signal;
 
-[Neuron("app.creator"), Screen("app.creator", Title = "Creator")]
+[Neuron("app.creator"), Screen("app.creator", Title = "Creator", Icon = "cpu", Category = "Studio", Dock = 7)]
 public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
 {
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Host.Logging.OsConsoleLog.For<CreatorApp>();
@@ -310,36 +311,25 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
     public const string AppName = ShippedApps.Creator;
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<CreatorApp>(
         "creator",
         "3.0.0",
-        new AppManifest(
-            Title: "Creator",
-            Description: "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
-            Operations:
-            [
-                new("open", "Show the brain; input trace/{traceId} opens that trace, node:{id} selects that node."),
-                new("select", "Inspect a node, an edge, a pulse, or switch Studio view/tab."),
-                new("trace", "Inspect a whole trace by its id."),
-                new("replay", "Step the replay timeline: first, prev, toggle, next, last, a step index, or stop."),
-                new("scenario", "Run a unit's kept scenarios on fakes and show the transcript."),
-                new("share", "Publish the inspected unit as an interactive App-Post on your profile."),
-                new("start-workflow", "Start a run of a named workflow."),
-                new("run", "Inspect an active change run pipeline and unified diff."),
-                new("approve", "Approve and promote a pending change run."),
-                new("reject", "Reject and abort a pending change run."),
-                new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg",
-            Dock: 7,
-            SideWidth: 340d),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(CreatorApp).AssemblyQualifiedName,
-    };
+        description: "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
+        operations:
+        [
+            new("open", "Show the brain; input trace/{traceId} opens that trace, node:{id} selects that node."),
+            new("select", "Inspect a node, an edge, a pulse, or switch Studio view/tab."),
+            new("trace", "Inspect a whole trace by its id."),
+            new("replay", "Step the replay timeline: first, prev, toggle, next, last, a step index, or stop."),
+            new("scenario", "Run a unit's kept scenarios on fakes and show the transcript."),
+            new("share", "Publish the inspected unit as an interactive App-Post on your profile."),
+            new("start-workflow", "Start a run of a named workflow."),
+            new("run", "Inspect an active change run pipeline and unified diff."),
+            new("approve", "Approve and promote a pending change run."),
+            new("reject", "Reject and abort a pending change run."),
+            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
+        ],
+        sideWidth: 340d);
 
     [DigitalBrain.Neurons.On]
     public async Task Open(CreatorOpen request)

@@ -94,6 +94,39 @@ public sealed class EngineerBuildVerifierFacts : IDisposable
         Assert.Equal([webProj], affectedFromCsproj);
     }
 
+    [Fact]
+    public void DiscoverAffectedProjects_MapsComponentHostingToTheAppHost()
+    {
+        var appHostDir = SolutionPaths.Directory("IntoChat.OS.AppHost");
+        var aspireDir = SolutionPaths.Directory("IntoChat.Aspire");
+        var appHost = WriteFile(
+            $"{appHostDir}/IntoChat.OS.AppHost.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+        var component = WriteFile(
+            $"{aspireDir}/IntoChat.Aspire.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+        WriteFile($"{aspireDir}/Hosting/AspireModuleHosting.cs", "class H {}");
+        WriteFile($"{aspireDir}/Neurons/Telemetry/AspireNeuron.cs", "class N {}");
+        var appHostTests = WriteFile(
+            "tests/AppHost.Tests.Unit/AppHost.Tests.Unit.csproj",
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <ProjectReference Include="../../{appHostDir}/IntoChat.OS.AppHost.csproj" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        string[] hostingChange = [$"{aspireDir}/Hosting/AspireModuleHosting.cs"];
+        var fromHosting = EngineerBuildVerifier.DiscoverAffectedProjects(_root, hostingChange);
+        Assert.Equal([appHost], fromHosting);
+        Assert.DoesNotContain(component, fromHosting);
+        Assert.Contains(appHostTests, EngineerBuildVerifier.DiscoverTestProjects(_root, hostingChange, fromHosting));
+
+        var fromNeuron = EngineerBuildVerifier.DiscoverAffectedProjects(_root, [$"{aspireDir}/Neurons/Telemetry/AspireNeuron.cs"]);
+        Assert.Equal([component], fromNeuron);
+    }
+
     private string WriteFile(string relativePath, string content)
     {
         var full = Path.GetFullPath(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));

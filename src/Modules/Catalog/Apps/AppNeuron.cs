@@ -1,8 +1,12 @@
+using System.Security.Cryptography;
+using System.Text;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Components;
+using DigitalBrain.Confirmation;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -32,6 +36,12 @@ internal sealed partial class AppNeuron(
     IServiceProvider? services = null)
     : DigitalBrain.Neurons.Neuron<AppState>, IApp, IAppRestore
 {
+    [DigitalBrain.Slot(Key = IConfirmations.ConfirmationsNeuronKey, Required = false)]
+    private partial IConfirmationRequests? Confirmations { get; }
+
+    [DigitalBrain.Slot(Key = "main", Required = false)]
+    private partial IConnectionRequests? ConnectionCatalog { get; }
+
     private IServiceProvider? ServiceProvider => services;
     private static readonly AppState Cleared = new();
     // Whether the app has a record: created apps always carry a manifest.
@@ -46,6 +56,10 @@ internal sealed partial class AppNeuron(
     {
         await MigrateLegacyPrincipal();
         await Interrupt();
+        if (Confirmations is not null)
+        {
+            await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+        }
         if (State.Manifest is null || State.Refused is not null) { return; }
         if (await RefuseLegacy()) { return; }
         await MigrateLegacyConnections(cancellationToken);
@@ -147,19 +161,20 @@ internal sealed partial class AppNeuron(
         foreach (var (slot, connectionId) in connections)
         {
             if (string.IsNullOrWhiteSpace(slot) || string.IsNullOrWhiteSpace(connectionId)) { continue; }
-            var key = ConnectionKeys.Is(connectionId)
-                ? connectionId
-                : ConnectionKeys.For(brain, ConnectorForSlot(slot, slots), connectionId);
+            string key;
+            if (ConnectionKeys.Is(connectionId))
+            {
+                key = connectionId;
+            }
+            else
+            {
+                var declared = slots.FirstOrDefault(s => string.Equals(s.Name, slot, StringComparison.Ordinal));
+                if (string.IsNullOrWhiteSpace(declared?.Connector)) { continue; }
+                key = ConnectionKeys.For(brain, declared.Connector, connectionId);
+            }
             result.Add(new Binding(slot, new BindingTarget.Connection(key)));
         }
         return [.. result];
-    }
-
-    private static string ConnectorForSlot(string slot, AppSlot[] slots)
-    {
-        var declared = slots.FirstOrDefault(s => string.Equals(s.Name, slot, StringComparison.Ordinal))?.Connector;
-        if (!string.IsNullOrWhiteSpace(declared)) { return declared; }
-        return string.Equals(slot, "tables", StringComparison.Ordinal) ? "postgres" : slot;
     }
 
     private static Binding[] MergeTypedBindings(Binding[]? existing, Binding[] updated)
@@ -197,6 +212,10 @@ internal sealed partial class AppNeuron(
             ? new AppPublisher(person.Account, caller.Brain.Value)
             : null;
 
+    private bool IsDirectPerson(Caller? caller)
+        => caller is { Direct: true, Conversation: null, Actor: Actor.Person }
+            && string.Equals(caller.Brain.Value, BrainId(), StringComparison.Ordinal);
+
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(State));
 
     public async Task<AppSnapshot> Create(AppManifest manifest, string spec)
@@ -211,7 +230,8 @@ internal sealed partial class AppNeuron(
         next.Spec = spec ?? "";
         next.Settings = validated.Settings.ToDictionary(setting => setting.Name, setting => setting.Default ?? string.Empty, StringComparer.Ordinal);
         next.Version = "0.1.0";
-        next.Status = AppStatus.Drafted;
+        // Pure-data Rung 1 agent apps require no code build and transition directly to Live.
+        next.Status = validated.Agent is not null && next.FileEntries.Length == 0 ? AppStatus.Live : AppStatus.Drafted;
         await Reopen();
         Record(next);
         await Persist(next);
@@ -259,19 +279,40 @@ internal sealed partial class AppNeuron(
             new AppExists(Name(), State.Manifest),
             new AppRecordIsUsable(Name(), State.Refused),
             new SettingsAreNotReserved(settings?.Keys ?? (IReadOnlyCollection<string>)[]));
-        // A storage hook vetoes a binding change its data depends on, before anything changes.
-        foreach (var (slot, id) in connections ?? [])
+
+        Dictionary<string, string>? canonicalConnections = null;
+        if (connections is { Count: > 0 })
         {
-            if (State.Connections.TryGetValue(slot, out var current) && current == id) { continue; }
-            foreach (var hook in storageHooks)
-            { await hook.RequireRebindable(State.BrainScopeId ?? "", Key, slot, CancellationToken.None); }
+            var changesConnections = connections.Any(pair =>
+                !State.Connections.TryGetValue(pair.Key, out var existing)
+                || !string.Equals(existing, pair.Value, StringComparison.Ordinal));
+            if (changesConnections && !IsDirectPerson(Context.Caller))
+            {
+                throw new UnauthorizedAccessException("Only a person can change app connection bindings; use BindSlots to request approval.");
+            }
+
+            var (resolved, refusal) = await ResolveSlotBindingsAsync(State.Manifest!, connections, CancellationToken.None);
+            if (refusal is not null)
+            {
+                throw new InvalidOperationException(refusal);
+            }
+            canonicalConnections = resolved;
+
+            // A storage hook vetoes a binding change its data depends on, before anything changes.
+            foreach (var (slot, id) in canonicalConnections!)
+            {
+                if (State.Connections.TryGetValue(slot, out var current) && current == id) { continue; }
+                foreach (var hook in storageHooks)
+                { await hook.RequireRebindable(State.BrainScopeId ?? "", Key, slot, CancellationToken.None); }
+            }
         }
+
         var next = State.Clone();
         foreach (var (name, value) in settings ?? []) { next.PutSetting(name, value); }
-        foreach (var (slot, id) in connections ?? []) { next.PutConnection(slot, id); }
+        foreach (var (slot, id) in canonicalConnections ?? []) { next.PutConnection(slot, id); }
         AdvanceProgram(next);
         await Persist(next);
-        if (connections is { Count: > 0 })
+        if (canonicalConnections is { Count: > 0 })
         {
             await SyncConnectionBindings(next, CancellationToken.None);
         }
@@ -279,6 +320,251 @@ internal sealed partial class AppNeuron(
         // configure hands it the whole thing again.
         await Deploy();
         return Describe(State);
+    }
+
+    public async Task<SlotBindingOutcome> BindSlots(Dictionary<string, string> bindings, CancellationToken ct = default)
+    {
+        await Check("BindSlots",
+            new AppExists(Name(), State.Manifest),
+            new AppRecordIsUsable(Name(), State.Refused));
+
+        if (bindings is null || bindings.Count == 0)
+        {
+            return SlotBindingOutcome.Bound(Describe(State));
+        }
+
+        var (canonical, refusal) = await ResolveSlotBindingsAsync(State.Manifest!, bindings, ct);
+        if (refusal is not null)
+        {
+            return SlotBindingOutcome.Refused(refusal);
+        }
+
+        foreach (var (slot, id) in canonical!)
+        {
+            if (State.Connections.TryGetValue(slot, out var current) && string.Equals(current, id, StringComparison.Ordinal)) { continue; }
+            foreach (var hook in storageHooks)
+            { await hook.RequireRebindable(State.BrainScopeId ?? "", Key, slot, ct); }
+        }
+
+        if (IsDirectPerson(Context.Caller))
+        {
+            await ApplySlotBindingsAsync(canonical, pendingPlanIdToClear: null, ct);
+            return SlotBindingOutcome.Bound(Describe(State));
+        }
+
+        if (Confirmations is null)
+        {
+            return SlotBindingOutcome.Refused("Only a person can bind connections to this app.");
+        }
+
+        await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+        var plan = BuildBindSlotsPlan(State.Manifest!, canonical);
+        var immediate = await Confirmations.Request(plan);
+        if (immediate is { Approved: true, Skipped: false, Approver.IsHuman: true })
+        {
+            await ApplySlotBindingsAsync(canonical, pendingPlanIdToClear: null, ct);
+            return SlotBindingOutcome.Bound(Describe(State));
+        }
+
+        if (immediate is not null)
+        {
+            var reason = immediate.Reason == ConfirmationDenyReason.None
+                ? "Connection binding was denied."
+                : $"Connection binding was denied ({immediate.Reason}).";
+            return SlotBindingOutcome.Refused(reason);
+        }
+
+        var next = State.Clone();
+        var pending = new PendingSlotBinding(plan.Id, StringEntry.From(canonical), clock.GetUtcNow());
+        next.PendingSlotBindings = [.. next.PendingSlotBindings.Where(p => !string.Equals(p.PlanId, plan.Id, StringComparison.Ordinal)), pending];
+        await Store(next);
+        return SlotBindingOutcome.Pending(plan.Id, "Waiting for a person to approve binding these connections.");
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnConfirmationResolved(ConfirmationResolved resolved)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+        var pending = State.PendingSlotBindings.FirstOrDefault(p => string.Equals(p.PlanId, resolved.PlanId, StringComparison.Ordinal));
+        if (pending is null) { return; }
+
+        ConfirmationResult? authoritative = null;
+        if (Confirmations is not null)
+        {
+            authoritative = await Confirmations.Outcome(resolved.PlanId);
+        }
+
+        if (authoritative is { Approved: true, Skipped: false, Approver.IsHuman: true }
+            && State.Manifest is not null
+            && State.Refused is null)
+        {
+            var bindings = StringEntry.ToMap(pending.Bindings);
+            foreach (var (slot, id) in bindings)
+            {
+                if (State.Connections.TryGetValue(slot, out var current) && string.Equals(current, id, StringComparison.Ordinal)) { continue; }
+                foreach (var hook in storageHooks)
+                { await hook.RequireRebindable(State.BrainScopeId ?? "", Key, slot, CancellationToken.None); }
+            }
+
+            await ApplySlotBindingsAsync(bindings, pendingPlanIdToClear: resolved.PlanId, CancellationToken.None);
+            return;
+        }
+
+        var cleared = State.Clone();
+        cleared.PendingSlotBindings = [.. cleared.PendingSlotBindings.Where(p => !string.Equals(p.PlanId, resolved.PlanId, StringComparison.Ordinal))];
+        await Store(cleared);
+    }
+
+    private async Task ApplySlotBindingsAsync(
+        IReadOnlyDictionary<string, string> canonicalBindings,
+        string? pendingPlanIdToClear,
+        CancellationToken ct)
+    {
+        var next = State.Clone();
+        foreach (var (slot, key) in canonicalBindings)
+        {
+            next.PutConnection(slot, key);
+        }
+        if (pendingPlanIdToClear is not null)
+        {
+            next.PendingSlotBindings = [.. next.PendingSlotBindings.Where(p => !string.Equals(p.PlanId, pendingPlanIdToClear, StringComparison.Ordinal))];
+        }
+        AdvanceProgram(next);
+        await Persist(next);
+        await SyncConnectionBindings(next, ct);
+        await Deploy();
+    }
+
+    private async Task<(Dictionary<string, string>? Canonical, string? Refusal)> ResolveSlotBindingsAsync(
+        AppManifest manifest,
+        IReadOnlyDictionary<string, string> requested,
+        CancellationToken ct)
+    {
+        var brain = BrainId();
+        var canonical = new Dictionary<string, string>(requested.Count, StringComparer.Ordinal);
+        ConnectionSummary[]? catalogConnections = null;
+        var catalogLoaded = false;
+
+        async Task<ConnectionSummary[]?> LoadCatalogAsync()
+        {
+            if (catalogLoaded) { return catalogConnections; }
+            catalogLoaded = true;
+            if (ConnectionCatalog is null) { return null; }
+            try
+            {
+                catalogConnections = await ConnectionCatalog.ListConnections().WaitAsync(ct);
+            }
+            catch (InvalidOperationException error)
+            {
+                (logger ?? services?.GetService<ILogger<AppNeuron>>())?.LogDebug(
+                    error, "Connection catalog unavailable while validating slot bindings for app {App}.", Key);
+            }
+            return catalogConnections;
+        }
+
+        foreach (var (slotName, rawTarget) in requested)
+        {
+            if (string.IsNullOrWhiteSpace(slotName) || string.IsNullOrWhiteSpace(rawTarget))
+            {
+                return (null, "Every slot binding requires a slot name and connection key.");
+            }
+
+            var slot = manifest.Slots.FirstOrDefault(s => string.Equals(s.Name, slotName, StringComparison.Ordinal));
+            if (slot is null)
+            {
+                return (null, $"This app has no connection named {slotName}.");
+            }
+
+            var target = rawTarget.Trim();
+            if (ConnectionKeys.TryParse(target, out var parsed))
+            {
+                if (!string.Equals(parsed.BrainId, brain, StringComparison.Ordinal))
+                {
+                    return (null, $"Connection '{target}' does not belong to this brain.");
+                }
+
+                var connections = await LoadCatalogAsync();
+                if (connections is not null)
+                {
+                    var matched = connections.FirstOrDefault(c => string.Equals(c.Neuron, target, StringComparison.Ordinal));
+                    if (matched is not null)
+                    {
+                        var satisfies = slot.Capability is { Length: > 0 } cap
+                            ? AppCapabilities.Satisfies(matched.Provides, cap)
+                            : string.Equals(matched.Kind, slot.Connector, StringComparison.Ordinal);
+                        if (!satisfies)
+                        {
+                            return (null, $"Connection '{target}' does not satisfy {slot.Binds} for slot '{slot.Name}'.");
+                        }
+                    }
+                    else if (slot.Capability is null && !string.Equals(parsed.ConnectorId, slot.Connector, StringComparison.Ordinal))
+                    {
+                        return (null, $"Connection '{target}' does not match connector '{slot.Connector}' for slot '{slot.Name}'.");
+                    }
+                }
+                else if (slot.Capability is null && !string.Equals(parsed.ConnectorId, slot.Connector, StringComparison.Ordinal))
+                {
+                    return (null, $"Connection '{target}' does not match connector '{slot.Connector}' for slot '{slot.Name}'.");
+                }
+
+                canonical[slot.Name] = target;
+                continue;
+            }
+
+            // Short connection id: resolve through the live connection catalog first, then fall back to explicit connector slots.
+            var listed = await LoadCatalogAsync();
+            if (listed is not null)
+            {
+                var matched = listed
+                    .Where(c => string.Equals(c.Id, target, StringComparison.Ordinal)
+                        && (slot.Capability is { Length: > 0 } cap
+                            ? AppCapabilities.Satisfies(c.Provides, cap)
+                            : string.Equals(c.Kind, slot.Connector, StringComparison.Ordinal)))
+                    .OrderByDescending(c => string.Equals(c.Status, "connected", StringComparison.Ordinal))
+                    .FirstOrDefault();
+                if (matched is not null)
+                {
+                    canonical[slot.Name] = matched.Neuron;
+                    continue;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(slot.Connector))
+            {
+                canonical[slot.Name] = ConnectionKeys.For(brain, slot.Connector, target);
+                continue;
+            }
+
+            return (null, $"Choose a {slot.Binds} connection for {slot.Name} using its canonical connection key.");
+        }
+
+        return (canonical, null);
+    }
+
+    private ConfirmationPlan BuildBindSlotsPlan(AppManifest manifest, IReadOnlyDictionary<string, string> canonical)
+    {
+        var ordered = canonical.OrderBy(p => p.Key, StringComparer.Ordinal).ToArray();
+        var summary = string.Join(", ", ordered.Select(p => $"{p.Key} -> {p.Value}"));
+        var hashInput = $"{BrainId()}|{Name()}|{summary}";
+        var digest = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(hashInput)))[..16];
+        var planId = $"app-bind:{Name()}:{digest}";
+        if (planId.Length > 128) { planId = planId[..128]; }
+
+        var appTitle = string.IsNullOrWhiteSpace(manifest.Title) ? Name() : manifest.Title;
+        return new ConfirmationPlan(
+            Id: planId,
+            Action: ConfirmationAction.Other,
+            Destructive: false,
+            Title: $"Connect tools to {appTitle}",
+            Body: $"Allow {appTitle} to access: {summary}.",
+            ApproveLabel: "Allow",
+            DenyLabel: "Deny",
+            TargetLabel: appTitle)
+        {
+            RequiresPerson = true,
+            Kind = "app.bind-slots",
+            Subject = $"{Name()}:{string.Join(",", ordered.Select(p => p.Key))}",
+        };
     }
 
     public async Task<AppSnapshot> Rollback(string version)

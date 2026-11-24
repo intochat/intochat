@@ -6,15 +6,17 @@ Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, fo
 
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
+using IntoChat.OS.Host.Apps;
 using System.Reflection;
 using DigitalBrain;
+using DigitalBrain.Components;
 using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.ArtCraft;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
@@ -93,42 +95,33 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
     public static readonly HashSet<string> DesktopWindowVerbs = new(StringComparer.Ordinal)
     { "close", "close-app", "focus", "tab", "newtab", "pin", "unpin", "favourite", "widget-open", "widget-close", "settings" };
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<DesktopApp>(
         "desktop",
         "0.4.0",
-        new AppManifest(
-            Title: "Desktop",
-            Description: "Your apps in windows, with a dock.",
-            Operations:
-            [
-                new("start", "Compose the desktop from the open windows and installed apps."),
-                new("layout", "Choose the layout the next connect shows: desktop or classic."),
-                new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
-                new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
-                new("auto-arrange", "Arrange the open windows."),
-                new("focus", "Focus the window named by Input."),
-                new("tab", "Activate the tab {window}/{index} named by Input."),
-                new("newtab", "Open a new tab, in the window named by Input when given."),
-                new("close", "Close the tab {window}/{index} named by Input."),
-                new("close-app", "Close the app named by Input's windows."),
-                new("pin", "Pin the app named by Input to the dock."),
-                new("unpin", "Unpin the app named by Input from the dock."),
-                new("favourite", "Toggle the favourite of the window named by Input's active tab."),
-                new("widget-open", "Open the widget named by Input."),
-                new("widget-close", "Close the widget named by Input."),
-                new("settings", "Open the settings."),
-                new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
-    };
+        description: "Your apps in windows, with a dock.",
+        operations:
+        [
+            new("start", "Compose the desktop from the open windows and installed apps."),
+            new("layout", "Choose the layout the next connect shows: desktop or classic."),
+            new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
+            new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
+            new("auto-arrange", "Arrange the open windows."),
+            new("focus", "Focus the window named by Input."),
+            new("tab", "Activate the tab {window}/{index} named by Input."),
+            new("newtab", "Open a new tab, in the window named by Input when given."),
+            new("close", "Close the tab {window}/{index} named by Input."),
+            new("close-app", "Close the app named by Input's windows."),
+            new("pin", "Pin the app named by Input to the dock."),
+            new("unpin", "Unpin the app named by Input from the dock."),
+            new("favourite", "Toggle the favourite of the window named by Input's active tab."),
+            new("widget-open", "Open the widget named by Input."),
+            new("widget-close", "Close the widget named by Input."),
+            new("settings", "Open the settings."),
+            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
+        ]);
 
     [Slot(Key = IDesktopRecords.Key, Required = false)] private partial IDesktopRecords? Records { get; }
+    [Slot(Key = IInstalledApps.DefaultKey, Required = false)] private partial IInstalledApps? InstalledApps { get; }
     [Slot(Key = "apps/ino", Required = false)] private partial IApp? InoApp { get; }
     [Slot(Key = "app.ino", Required = false)] private partial IScreen? InoScreen { get; }
     [Slot(Required = false)] private partial IUserSettings? UserSettings { get; }
@@ -139,78 +132,74 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
     [Slot] private partial DigitalBrain.Components.SlotCollection<IScreen> Screens { get; }
     [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IViewport> Viewports { get; }
 
-    public static readonly IReadOnlyList<string> DefaultDockApps =
-        ["ino", "photocraft", "filmcraft", "markdraw", "creator", "files", "settings"];
-
-    public static readonly IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> NativeCatalog =
-    [
-        ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
-        ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
-        ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
-        ("calculator", "Calculator", "neuron://local/apps/calculator", "calculator", "Workspace", "orleans-grain"),
-        ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
-        ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool", "Studio", "orleans-grain"),
-        ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu", "Studio", "orleans-grain"),
-        ("engineer", "IntoChat Engineer", "neuron://local/apps/engineer", "workflow", "Studio", "orleans-grain"),
-        ("aspire", ".NET Aspire", "neuron://local/apps/aspire", "activity", "Developer", "orleans-grain"),
-        ("orleans", "Orleans Dashboard", "neuron://local/apps/orleans", "cpu", "Developer", "orleans-grain"),
-        ("devui", "DevUI", "neuron://local/apps/devui", "terminal", "Developer", "orleans-grain"),
-        ("widgetbook", "Widgetbook", "neuron://local/apps/widgetbook", "layout-grid", "Developer", "orleans-grain"),
-        ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid", "Studio", "orleans-grain"),
-        ("friends", "Friends", "neuron://local/apps/friends", "users", "Social", "orleans-grain"),
-        ("usage", "Usage", "neuron://local/apps/usage", "wallet", "System", "orleans-grain"),
-        ("settings", "Settings", "neuron://local/apps/settings", "settings", "System", "orleans-grain"),
-    ];
-
-    public static IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> Catalog { get; } =
-        NativeCatalog.Concat(
-            ArtCraftCatalog.All.Select(app => (app.Id, app.Title, $"neuron://local/apps/{app.Id}", app.Icon, app.Category, "wasm-ui+mcp+cli"))
-        ).ToArray();
-
-    public IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> EffectiveCatalog()
+    private static AppTile[] ResolveTiles(DesktopAppState state)
     {
-        var brain = TryCurrentBrain();
-        var items = Catalog
-            .Select(entry => brain is { Length: > 0 } b
-                ? entry with { Uri = entry.Uri.Replace("neuron://local/", $"neuron://{b}/", StringComparison.Ordinal) }
-                : entry)
-            .ToList();
-        var knownIds = items.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var list = new List<AppTile>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var manifest in DigitalBrain.Components.ComponentManifests.All.OrderBy(static m => m.Id.Value, StringComparer.Ordinal))
+        if (state.Tiles is { Length: > 0 } liveTiles)
         {
-            if (manifest.Face is not { Category: { Length: > 0 } category }
-                || !manifest.Id.Value.StartsWith("app.", StringComparison.Ordinal))
+            foreach (var tile in liveTiles)
             {
-                continue;
+                if (tile is not null && !string.IsNullOrWhiteSpace(tile.Id) && !ShippedApps.Services.Contains(tile.Id) && seen.Add(tile.Id))
+                {
+                    list.Add(tile);
+                }
             }
-
-            var appId = manifest.Id.Value["app.".Length..];
-            if (string.IsNullOrWhiteSpace(appId) || !knownIds.Add(appId))
+        }
+        else
+        {
+            foreach (var manifest in ComponentManifests.All)
             {
-                continue;
-            }
+                if (manifest.Face is null || !manifest.Id.Value.StartsWith("app.", StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            var appUri = brain is { Length: > 0 } b
-                ? $"neuron://{b}/apps/{appId}"
-                : $"neuron://local/apps/{appId}";
-            items.Add((appId, manifest.Face.Title, appUri, manifest.Face.Icon ?? "app-window", category, "orleans-grain"));
+                var appId = manifest.Id.Value["app.".Length..];
+                if (string.IsNullOrWhiteSpace(appId) || ShippedApps.Services.Contains(appId) || !seen.Add(appId))
+                {
+                    continue;
+                }
+
+                var face = manifest.Face;
+                list.Add(new AppTile(
+                    Id: appId,
+                    Title: string.IsNullOrWhiteSpace(face.Title) ? HumanizeTitle(appId) : face.Title,
+                    Icon: string.IsNullOrWhiteSpace(face.Icon) ? null : face.Icon,
+                    Category: face.Category,
+                    Dock: face.Dock,
+                    Launch: face.Maximized ? AppLaunch.Maximized : AppLaunch.Windowed,
+                    Kind: "compiled",
+                    Description: string.IsNullOrWhiteSpace(face.Description) ? null : face.Description));
+            }
         }
 
-        foreach (var unitAlias in State.DeployedUnits ?? [])
+        foreach (var unitAlias in state.DeployedUnits ?? [])
         {
-            if (string.IsNullOrWhiteSpace(unitAlias) || !knownIds.Add(unitAlias))
+            if (string.IsNullOrWhiteSpace(unitAlias) || ShippedApps.Services.Contains(unitAlias) || !seen.Add(unitAlias))
             {
                 continue;
             }
-            var unitUri = brain is { Length: > 0 } b
-                ? $"neuron://{b}/units/{unitAlias}"
-                : $"neuron:///units/{unitAlias}";
-            items.Add((unitAlias, FormatAppTitle(unitAlias), unitUri, "zap", "Micro-App", "synapse-unit"));
+
+            list.Add(new AppTile(
+                Id: unitAlias,
+                Title: HumanizeTitle(unitAlias),
+                Icon: "zap",
+                Category: "Micro-App",
+                Dock: null,
+                Launch: AppLaunch.Windowed,
+                Kind: "unit"));
         }
 
-        return items;
+        return [.. list
+            .OrderBy(static t => t.Dock ?? int.MaxValue)
+            .ThenBy(static t => t.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static t => t.Id, StringComparer.OrdinalIgnoreCase)];
     }
+
+    private static string HumanizeTitle(string appId)
+        => string.IsNullOrWhiteSpace(appId) ? "App" : char.ToUpperInvariant(appId[0]) + appId[1..];
 
     private string? TryCurrentBrain()
     {
@@ -226,19 +215,6 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         }
     }
 
-    internal static string FormatAppTitle(string appId)
-    {
-        if (string.IsNullOrWhiteSpace(appId)) { return "App"; }
-        var known = Catalog.FirstOrDefault(c => string.Equals(c.Id, appId, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrWhiteSpace(known.Title))
-        {
-            return appId.Equals("ino", StringComparison.OrdinalIgnoreCase) ? "Ino"
-                : appId.Equals("creator", StringComparison.OrdinalIgnoreCase) ? "Creator"
-                : known.Title;
-        }
-        return char.ToUpperInvariant(appId[0]) + appId[1..];
-    }
-
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -247,8 +223,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         catch (Exception ex) { Log.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
         try { await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses"); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
-        try { await Context.Wires.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
+        try { await Context.Wires.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved), typeof(AppChanged)]); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "Brain-wide signal subscriptions are optional when running in standalone mode."); }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
@@ -258,6 +234,12 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
     [On]
     public Task HandleSynapseStudioChanged(SynapseStudioChanged? changed)
         => changed is null || string.IsNullOrEmpty(changed.Alias)
+            ? Task.CompletedTask
+            : SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
+
+    [On]
+    public Task HandleAppChanged(AppChanged? changed)
+        => changed is null || string.IsNullOrEmpty(changed.Name)
             ? Task.CompletedTask
             : SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
 
@@ -616,6 +598,36 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         ArgumentNullException.ThrowIfNull(state);
         var brain = TryCurrentBrain();
         var activeWindows = (state.Windows ?? []).Where(w => w.Tabs is { Length: > 0 }).ToArray();
+        var tiles = ResolveTiles(state);
+        var tilesById = new Dictionary<string, AppTile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tile in tiles)
+        {
+            tilesById.TryAdd(tile.Id, tile);
+        }
+
+        string TitleFor(string id)
+            => tilesById.TryGetValue(id, out var known) && !string.IsNullOrWhiteSpace(known.Title)
+                ? known.Title
+                : HumanizeTitle(id);
+
+        AppTileNode BuildTile(string key, AppTile tile)
+        {
+            var command = string.Equals(tile.Id, "settings", StringComparison.OrdinalIgnoreCase)
+                ? Sends(new DesktopSettings())
+                : Sends(new DesktopOpen(tile.Id));
+            return Kit.AppTile(
+                key: key,
+                appId: tile.Id,
+                title: tile.Title,
+                icon: tile.Icon,
+                category: tile.Category,
+                launch: tile.Launch,
+                dock: tile.Dock,
+                appKind: tile.Kind,
+                description: tile.Description,
+                command: command,
+                automationName: tile.Title);
+        }
 
         Node BuildWindowFrame(WorkspaceWindow window)
         {
@@ -623,7 +635,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
             var activeTab = window.Tabs[activeIndex];
             var appId = brain is { Length: > 0 } b ? IntoChat.OS.Host.Primitives.AppRef.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
-            var title = char.ToUpperInvariant(appId[0]) + appId[1..];
+            var title = TitleFor(appId);
             var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
             var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
 
@@ -642,7 +654,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
 
             var tabItems = window.Tabs.Select((tab, idx) => Kit.Tab(
                 $"{winId}/{idx}",
-                char.ToUpperInvariant(tab.Id[0]) + tab.Id[1..])
+                TitleFor(tab.Id))
                 .Key($"tab-{winId}-{idx}")
                 .Emits(Emits(new DesktopTab($"{winId}/{idx}")))).ToArray();
 
@@ -658,57 +670,49 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             : VStack([.. activeWindows.Chunk(3).Select(row => (Node)HStack([.. row.Select(BuildWindowFrame)]))])
                 .Extents([.. activeWindows.Chunk(3).Select(_ => 0.0)]);
 
-        var deployedUnits = state.DeployedUnits ?? [];
-        var pinnedIds = (state.Pins ?? []).Select(p => p.Id).Where(id => !string.IsNullOrWhiteSpace(id)).ToArray();
-        var hasDynamicDockItems = deployedUnits.Length > 0 || pinnedIds.Length > 0;
+        var dockNodes = new List<Node>();
+        var dockSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        Node[] dockLeftButtons;
-        if (!hasDynamicDockItems)
+        foreach (var tile in tiles)
         {
-            dockLeftButtons =
-            [
-                PrimaryButton("Ino", "ino").Key("dock-ino").Emits(Emits(new DesktopOpen("ino"))),
-                Button("Files").Key("dock-files").Emits(Emits(new DesktopOpen("files"))),
-                Button("Settings").Key("dock-settings").Emits(Emits(new DesktopSettings())),
-                Button("New tab", Icons.Plus).Key("newtab").Small().Emits(Emits(new DesktopNewTab())),
-            ];
+            if (tile.Dock is not null && dockSeen.Add(tile.Id))
+            {
+                dockNodes.Add(BuildTile($"dock-{tile.Id}", tile));
+            }
         }
-        else
+
+        foreach (var pin in state.Pins ?? [])
         {
-            var buttons = new List<Node>
+            var pinId = pin.Id?.Trim();
+            if (string.IsNullOrWhiteSpace(pinId) || ShippedApps.Services.Contains(pinId) || !dockSeen.Add(pinId))
             {
-                PrimaryButton("Ino", "ino").Key("dock-ino").Emits(Emits(new DesktopOpen("ino"))),
-                Button("PhotoCraft", "artcraft:photocraft").Key("dock-photocraft").Emits(Emits(new DesktopOpen("photocraft"))),
-                Button("FilmCraft", "artcraft:filmcraft").Key("dock-filmcraft").Emits(Emits(new DesktopOpen("filmcraft"))),
-                Button("Markdraw", "pen-tool").Key("dock-markdraw").Emits(Emits(new DesktopOpen("markdraw"))),
-                Button("Creator", "cpu").Key("dock-creator").Emits(Emits(new DesktopOpen("creator"))),
-                Button("Files").Key("dock-files").Emits(Emits(new DesktopOpen("files"))),
-                Button("Settings").Key("dock-settings").Emits(Emits(new DesktopSettings())),
-            };
-
-            var builtInSet = new HashSet<string>(DefaultDockApps, StringComparer.OrdinalIgnoreCase);
-            foreach (var pinId in pinnedIds)
-            {
-                if (builtInSet.Add(pinId))
-                {
-                    buttons.Add(Button(FormatAppTitle(pinId)).Key($"dock-pin-{pinId}").Emits(Emits(new DesktopOpen(pinId))));
-                }
+                continue;
             }
 
-            foreach (var unitAlias in deployedUnits)
-            {
-                if (builtInSet.Add(unitAlias))
-                {
-                    buttons.Add(Button(FormatAppTitle(unitAlias), "zap").Key($"dock-unit-{unitAlias}").Emits(Emits(new DesktopOpen(unitAlias))));
-                }
-            }
+            var tile = tilesById.TryGetValue(pinId, out var known)
+                ? known
+                : new AppTile(pinId, TitleFor(pinId), null, null, null, AppLaunch.Windowed, "runtime");
+            dockNodes.Add(BuildTile($"dock-pin-{pinId}", tile));
+        }
 
-            buttons.Add(Button("New tab", Icons.Plus).Key("newtab").Small().Emits(Emits(new DesktopNewTab())));
-            dockLeftButtons = [.. buttons];
+        foreach (var tile in tiles)
+        {
+            if (string.Equals(tile.Kind, "unit", StringComparison.OrdinalIgnoreCase) && dockSeen.Add(tile.Id))
+            {
+                dockNodes.Add(BuildTile($"dock-unit-{tile.Id}", tile));
+            }
+        }
+
+        dockNodes.Add(Button("New tab", Icons.Plus).Key("newtab").Small().Emits(Emits(new DesktopNewTab())));
+
+        var catalogNodes = new Node[tiles.Length];
+        for (var i = 0; i < tiles.Length; i++)
+        {
+            catalogNodes[i] = BuildTile($"catalog-{tiles[i].Id}", tiles[i]);
         }
 
         var dock = HStack([
-            HStack(4, dockLeftButtons),
+            HStack(4, [.. dockNodes]),
             HStack(4)[
                 StatusPill(StatusKind.Done, "Usage"),
                 Text(state.WidgetsText),
@@ -717,7 +721,9 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             ]
         ]).Extents(0, 360);
 
-        return VStack([windows, dock]).Extents(0, 68);
+        var catalog = new Surface(catalogNodes, "app-catalog", Padding: 0);
+
+        return VStack([windows, dock, catalog]).Extents(0, 68, 0);
     }
 
     private async Task SyncSmartDesktopAsync(string layoutMode, bool narrow)
@@ -745,6 +751,19 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
                 if (topology.Nodes.Count > 0) { activeNeurons = topology.Nodes.Count; }
             }
             catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "DebuggerReads is optional."); }
+        }
+
+        var tiles = State.Tiles;
+        if (InstalledApps is { } installedApps)
+        {
+            try
+            {
+                tiles = await installedApps.List();
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Log.LogSwallowed(error, "InstalledApps is optional when DesktopApp runs in standalone tests.");
+            }
         }
 
         string[] deployedUnits = State.DeployedUnits ?? [];
@@ -825,6 +844,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             PinnedApps = pinnedApps,
             WidgetsText = widgetsText,
             DeployedUnits = deployedUnits,
+            Tiles = tiles,
         });
     }
 

@@ -42,7 +42,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using IntoChat.OS.Tests;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -348,13 +348,14 @@ public sealed class InoSiloFixture : IAsyncLifetime
                 AppsModule.ConfigureServices(services, config);
                 AIModule.ConfigureServices(services, config);
                 DevicesModule.ConfigureServices(services, config);
+                FlutterModule.ConfigureServices(services, config);
                 services.TryAddSingleton(new MachineId(Path.Combine(_home.Path, "machine-id")));
                 services.RemoveAll<ILocalRuntime>();
                 services.AddSingleton<ILocalRuntime>(LocalRuntime);
                 services.AddIntoChatOSConnections();
                 services.AddNeuronProxies();
                 services.RemoveAll<IBrainObserver>();
-                services.AddSingleton<IBrainObserver, CompiledBrainObserver>();
+                services.AddSingleton<IBrainObserver>(_observer);
                 services.RemoveAll<OsNeuronSurface>();
                 services.AddSingleton(sp => new OsNeuronSurface(
                     sp.GetRequiredService<INeuronProxies>(),
@@ -429,14 +430,23 @@ public sealed class InoSiloFixture : IAsyncLifetime
             => ValueTask.FromResult(0);
     }
 
+    private readonly CompiledBrainObserver _observer = new();
+
+    public void ObserveInstance(string type, string key) => _observer.Record(type, key);
+
     private sealed class CompiledBrainObserver : IBrainObserver
     {
+        private readonly ConcurrentQueue<BrainInstance> _recorded = new();
         private static readonly BrainType[] HostedTypes = new CompiledTypes(
         [
             typeof(IMemory).Assembly,
             typeof(IUserSettings).Assembly,
             typeof(IAspire).Assembly,
+            typeof(InoWiringTestModule).Assembly,
         ]).Entries;
+
+        public void Record(string type, string key)
+            => _recorded.Enqueue(new BrainInstance(type, key, DateTimeOffset.UtcNow, "test"));
 
         public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
         {
@@ -445,19 +455,39 @@ public sealed class InoSiloFixture : IAsyncLifetime
         }
 
         public IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken = default) where T : class
-            => EmptyInstances(cancellationToken);
-
-        public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default)
         {
-            _ = type;
-            return EmptyInstances(cancellationToken);
+            var type = typeof(T).GetCustomAttributes(typeof(DefaultNeuronTypeAttribute), inherit: false)
+                .OfType<DefaultNeuronTypeAttribute>()
+                .FirstOrDefault()?.Type
+                ?? typeof(T).FullName;
+            return Instances(type, cancellationToken);
         }
 
+        public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default)
+            => MatchingInstances(brain: null, type, cancellationToken);
+
         public IAsyncEnumerable<BrainInstance> InstancesIn(string brain, string? type, CancellationToken cancellationToken = default)
+            => MatchingInstances(brain, type, cancellationToken);
+
+        private async IAsyncEnumerable<BrainInstance> MatchingInstances(
+            string? brain,
+            string? type,
+            [EnumeratorCancellation] CancellationToken ct)
         {
-            _ = brain;
-            _ = type;
-            return EmptyInstances(cancellationToken);
+            ct.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+            foreach (var item in _recorded)
+            {
+                if (type is not null && !string.Equals(item.Type, type, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                if (brain is not null && !item.Key.StartsWith(brain + "/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                yield return item;
+            }
         }
 
         public Task<string[]> Brains(CancellationToken cancellationToken = default)
@@ -486,13 +516,6 @@ public sealed class InoSiloFixture : IAsyncLifetime
             _ = id;
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<System.Text.Json.JsonElement?>(null);
-        }
-
-        private static async IAsyncEnumerable<BrainInstance> EmptyInstances([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-            await Task.CompletedTask;
-            yield break;
         }
 
         private static async IAsyncEnumerable<SignalDelivery> EmptyDeliveries([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)

@@ -1,0 +1,17 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IsIntoChatOSModule>true</IsIntoChatOSModule>
+    <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
+    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Browser" />
+    <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Support" />
+  </ItemGroup>
+</Project>

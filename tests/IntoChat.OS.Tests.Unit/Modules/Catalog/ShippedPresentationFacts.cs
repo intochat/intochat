@@ -11,9 +11,9 @@ public sealed class ShippedPresentationFacts
         var manifests = await ShippedManifests.Of(catalog);
         (string App, string Title, string Icon)[] expected =
         [
-            ("creator", "Creator", "grid"), ("data", "Data Studio", "grid"), ("desktop", "Desktop", "grid"), ("files", "Files", "folder"),
-            ("filmcraft", "FilmCraft", "film"), ("gallery", "UI Gallery", "widgets"), ("ino", "Ino", "grid"), ("markdraw", "Markdraw", "grid"),
-            ("photocraft", "PhotoCraft", "image"), ("post", "Post", "grid"), ("settings", "Settings", "settings"), ("tasks", "Tasks", "tasks"), ("uikit", "UI Kit", "widgets"),
+            ("creator", "Creator", "cpu"), ("data", "Data Studio", "bar-chart-2"), ("desktop", "Desktop", "layout-grid"), ("files", "Files", "folder"),
+            ("filmcraft", "FilmCraft", "artcraft:filmcraft"), ("gallery", "UI Gallery", "layout-grid"), ("ino", "Ino", "sparkles"), ("markdraw", "Markdraw", "pen-tool"),
+            ("photocraft", "PhotoCraft", "artcraft:photocraft"), ("post", "Post", "grid"), ("settings", "Settings", "settings"), ("tasks", "Tasks", "tasks"), ("uikit", "UI Kit", "widgets"),
         ];
         foreach (var (app, title, icon) in expected)
         {

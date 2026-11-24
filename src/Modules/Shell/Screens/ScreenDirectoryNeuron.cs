@@ -24,7 +24,8 @@ namespace IntoChat.OS.Modules.Flutter.Screens;
 [Neuron(IScreenDirectory.TypeName, State = "screens")]
 internal sealed partial class ScreenDirectoryNeuron(
     INeuronProxies? proxies = null,
-    ILogger<ScreenDirectoryNeuron>? logger = null)
+    ILogger<ScreenDirectoryNeuron>? logger = null,
+    IScreenTargetResolver? targetResolver = null)
     : UiNeuron<ScreenDirectoryState>, IScreenDirectory
 {
     private readonly string? _brainOverride;
@@ -32,8 +33,12 @@ internal sealed partial class ScreenDirectoryNeuron(
 
     private ILogger Log => logger ?? ShellConsoleLog.For<ScreenDirectoryNeuron>();
 
-    internal ScreenDirectoryNeuron(INeuronProxies? proxies, string? brainOverride, ILogger<ScreenDirectoryNeuron>? logger = null)
-        : this(proxies, logger)
+    internal ScreenDirectoryNeuron(
+        INeuronProxies? proxies,
+        string? brainOverride,
+        ILogger<ScreenDirectoryNeuron>? logger = null,
+        IScreenTargetResolver? targetResolver = null)
+        : this(proxies, logger, targetResolver)
         => _brainOverride = brainOverride;
 
     private string Brain => _brainOverride ?? Id.Brain.Value;
@@ -205,7 +210,13 @@ internal sealed partial class ScreenDirectoryNeuron(
         View? viewObject = null;
         JsonElement? viewJson = null;
 
-        if (normalizedApp == "confirmations")
+        ScreenTarget? resolvedTarget = null;
+        if (targetResolver is not null && BrainId.IsValid(brainId))
+        {
+            resolvedTarget = await targetResolver.ResolveAsync(new BrainId(brainId), normalizedApp);
+        }
+
+        if (resolvedTarget?.Kind == IScreenTargetResolver.ConfirmationsKind || normalizedApp == "confirmations")
         {
             try
             {
@@ -219,18 +230,31 @@ internal sealed partial class ScreenDirectoryNeuron(
             }
         }
 
-        if (viewObject is null && (!normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal)))
+        NeuronId? targetScreenId = null;
+        var isAgentTarget = false;
+        if (viewObject is null)
         {
-            // Try IScreen: app.{normalizedApp}
-            try
+            if (resolvedTarget is { Kind: IScreenTargetResolver.CompiledScreenKind or IScreenTargetResolver.AgentAppKind })
+            {
+                targetScreenId = resolvedTarget.ScreenId;
+                isAgentTarget = string.Equals(resolvedTarget.Kind, IScreenTargetResolver.AgentAppKind, StringComparison.Ordinal);
+            }
+            else if (targetResolver is null && (!normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal)))
             {
                 var screenAlias = normalizedApp.StartsWith("app.", StringComparison.Ordinal) ? normalizedApp : "app." + normalizedApp;
-                var screenId = new NeuronId(new BrainId(brainId), screenAlias, "default");
-                var screen = ResolveNeuron<IScreen>(screenId);
+                targetScreenId = new NeuronId(new BrainId(brainId), screenAlias, "default");
+            }
+        }
+
+        if (viewObject is null && targetScreenId is { } resolvedScreenId)
+        {
+            try
+            {
+                var screen = ResolveNeuron<IScreen>(resolvedScreenId);
                 var pub = await screen.Read();
-                if (pub is null)
+                if (pub is null && !isAgentTarget)
                 {
-                    var appPrefix = screenAlias.StartsWith("app.", StringComparison.Ordinal) ? screenAlias[4..] : screenAlias;
+                    var appPrefix = resolvedScreenId.Type.StartsWith("app.", StringComparison.Ordinal) ? resolvedScreenId.Type[4..] : resolvedScreenId.Type;
                     await screen.Request($"{appPrefix}.open", JsonSerializer.SerializeToElement(new { }));
                     pub = await screen.Read();
                 }
@@ -238,6 +262,10 @@ internal sealed partial class ScreenDirectoryNeuron(
                 {
                     generation = pub.Generation;
                     viewJson = SlotKeys.Hide(await InlineSlotsAsync(pub.View));
+                    if (isAgentTarget)
+                    {
+                        resolvedKind = IScreenTargetResolver.AgentAppKind;
+                    }
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -425,13 +453,19 @@ internal sealed partial class ScreenDirectoryNeuron(
             return new ScreenActionResult(approveResult.Accepted, approveResult.Message, updatedSnapshot);
         }
 
-        // Try IScreen: app.{normalizedApp}
-        if (!normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal))
+        // Try IScreen: agentapp/{normalizedApp} when Read resolved an agent app, or app.{normalizedApp}/default otherwise.
+        var isAgentScreen = string.Equals(current.Kind, IScreenTargetResolver.AgentAppKind, StringComparison.Ordinal);
+        if (isAgentScreen || (!string.Equals(current.Kind, "unit", StringComparison.Ordinal)
+            && (!normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal))))
         {
             try
             {
-                var screenAlias = normalizedApp.StartsWith("app.", StringComparison.Ordinal) ? normalizedApp : "app." + normalizedApp;
-                var screenId = new NeuronId(new BrainId(brainId), screenAlias, "default");
+                var screenAlias = isAgentScreen
+                    ? "agentapp"
+                    : normalizedApp.StartsWith("app.", StringComparison.Ordinal) ? normalizedApp : "app." + normalizedApp;
+                var screenId = isAgentScreen
+                    ? new NeuronId(new BrainId(brainId), "agentapp", normalizedApp)
+                    : new NeuronId(new BrainId(brainId), screenAlias, "default");
                 var screen = ResolveNeuron<IScreen>(screenId);
                 var pub = await screen.Read();
                 if (pub is not null)

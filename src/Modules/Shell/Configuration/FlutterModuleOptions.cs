@@ -9,8 +9,8 @@ public enum FlutterHostKind { Window = 0, Web = 2, None = 3 }
 public sealed record FlutterHostingOptions
 {
     public FlutterHostKind Kind { get; init; } = FlutterHostKind.Window;
-    public string ResourceName { get; init; } = "FlutterShell";
-    public string DeviceTarget { get; init; } = "windows";
+    public string? ResourceName { get; init; }
+    public string DeviceTarget { get; init; } = "auto";
     public string ShellName { get; init; } = "desk";
     public string ChatName { get; init; } = "main";
     public string? FlutterCommand { get; init; }
@@ -19,6 +19,16 @@ public sealed record FlutterHostingOptions
     // Web only: serve the prebuilt release bundle from a docker image instead of compiling per AppHost.
     // Describes the machine running the AppHost, so CI flips it for every host via configuration.
     public bool WebContainer { get; init; }
+    // Android client target: selects wireless (ADB Wi-Fi / mDNS), USB, or auto-detect.
+    public AndroidDebugTransport AndroidTransport { get; init; } = AndroidDebugTransport.Wireless;
+    // Optional explicit ADB serial or host:port override for the Android client target.
+    public string? AndroidDevice { get; init; }
+    // iOS client target (macOS + Xcode): selects wireless (CoreDevice localNetwork), USB, simulator, or auto-detect.
+    public IosDebugTransport IosTransport { get; init; } = IosDebugTransport.Auto;
+    // Optional explicit iOS device UDID or name override.
+    public string? IosDevice { get; init; }
+    // Optional kernel base URL for physical iOS devices (e.g. http://<mac-lan-ip>:5080).
+    public string? IosUiBase { get; init; }
 }
 public sealed record FlutterModuleOptions : IModuleOptions
 {
@@ -31,7 +41,9 @@ public sealed record FlutterModuleOptions : IModuleOptions
     public void Validate()
     {
         if (!Enum.IsDefined(Hosting.Kind)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Flutter host kind."); }
-        if (string.IsNullOrWhiteSpace(Hosting.ResourceName) || string.IsNullOrWhiteSpace(Hosting.ShellName)
+        if (!Enum.IsDefined(Hosting.AndroidTransport)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Android debug transport."); }
+        if (!Enum.IsDefined(Hosting.IosTransport)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown iOS debug transport."); }
+        if ((Hosting.ResourceName is not null && string.IsNullOrWhiteSpace(Hosting.ResourceName)) || string.IsNullOrWhiteSpace(Hosting.ShellName)
             || string.IsNullOrWhiteSpace(Hosting.ChatName))
         { throw new ArgumentException("Flutter resource, shell and chat names must be specified."); }
     }

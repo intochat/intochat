@@ -8,6 +8,7 @@ Autonomous multi-worktree engineering workbench (`app.engineer`) orchestrating `
 local git worktrees or cloud sandbox volumes with User + Architect + Critic brainstorming, Roslyn C# + Dart code edits,
 Release build/test + live Playwright/MCP verification, parallel candidate tournament scoring, and SHA-bound human PR approval.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Components;
@@ -75,7 +76,7 @@ public sealed record EngineerSelectCandidate(int CandidateIndex = 0, string? Fil
 public sealed record EngineerReplyReview(int PullRequestNumber = 0, long CommentId = 0, string? Body = null) : Signal;
 
 [Neuron("app.engineer")]
-[Screen("app.engineer", Title = "IntoChat Engineer", Icon = "workflow")]
+[Screen("app.engineer", Title = "IntoChat Engineer", Icon = "workflow", Category = "Studio")]
 public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavigatedTo<StudioNavArgs>, INavigatedFrom
 {
     public const string AppName = "engineer";
@@ -120,41 +121,31 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         _services = services;
     }
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<EngineerApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: "IntoChat Engineer",
-            Description: "Autonomous multi-worktree engineering workbench: brainstorm, plan, Roslyn/Dart code, live verify, candidate tournament, and PR review.",
-            Operations:
-            [
-                new("open", "Open the IntoChat Engineer workbench."),
-                new("new-run", "Start a new 1..N parallel worktree engineering run."),
-                new("brainstorm", "Run User + Architect + Critic multi-perspective planning."),
-                new("approve-plan", "Approve the rule-checked EngineerTaskPlan and prepare isolated worktrees."),
-                new("run-verify", "Execute Release build, flutter analyze, unit tests, and live Playwright/MCP verification."),
-                new("approve-pr", "Approve and publish the verified commit SHA as a GitHub Draft Pull Request."),
-                new("clean-worktree", "Clean up all isolated worktree leases idempotently."),
-                new("select-tab", "Switch between Plan, Code, Verification & Traces, and PR Review tabs."),
-                new("select-instance", "Focus a parallel worktree instance or changed file."),
-                new("select-candidate", "Promote a verified candidate worktree diff for PR approval."),
-                new("reply-review", "Reply to a GitHub pull request review comment thread."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Engineer aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "workflow",
-            Toolbar:
-            [
-                new("new-run", Icon: "plus", Label: "New Run"),
-                new("brainstorm", Icon: "sparkles", Label: "Brainstorm"),
-                new("run-verify", Icon: "play", Label: "Run Verify"),
-            ]),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(EngineerApp).AssemblyQualifiedName,
-    };
+        description: "Autonomous multi-worktree engineering workbench: brainstorm, plan, Roslyn/Dart code, live verify, candidate tournament, and PR review.",
+        operations:
+        [
+            new("open", "Open the IntoChat Engineer workbench."),
+            new("new-run", "Start a new 1..N parallel worktree engineering run."),
+            new("brainstorm", "Run User + Architect + Critic multi-perspective planning."),
+            new("approve-plan", "Approve the rule-checked EngineerTaskPlan and prepare isolated worktrees."),
+            new("run-verify", "Execute Release build, flutter analyze, unit tests, and live Playwright/MCP verification."),
+            new("approve-pr", "Approve and publish the verified commit SHA as a GitHub Draft Pull Request."),
+            new("clean-worktree", "Clean up all isolated worktree leases idempotently."),
+            new("select-tab", "Switch between Plan, Code, Verification & Traces, and PR Review tabs."),
+            new("select-instance", "Focus a parallel worktree instance or changed file."),
+            new("select-candidate", "Promote a verified candidate worktree diff for PR approval."),
+            new("reply-review", "Reply to a GitHub pull request review comment thread."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Engineer aggregate command."),
+        ],
+        toolbar:
+        [
+            new("new-run", Icon: "plus", Label: "New Run"),
+            new("brainstorm", Icon: "sparkles", Label: "Brainstorm"),
+            new("run-verify", Icon: "play", Label: "Run Verify"),
+        ]);
 
     public static string CandidateSelectKey(int instanceIndex)
         => string.Create(CultureInfo.InvariantCulture, $"engineer:candidate:select:{instanceIndex + 1}");

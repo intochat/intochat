@@ -50,6 +50,104 @@
     "examples": []
   },
   {
+    "kind": "appTile",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "appId",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "category",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "launch",
+        "type": "AppLaunch",
+        "default": 0
+      },
+      {
+        "name": "dock",
+        "type": "int?",
+        "default": null
+      },
+      {
+        "name": "appKind",
+        "type": "String",
+        "default": "compiled"
+      },
+      {
+        "name": "description",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "command",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "appTile",
+        "key": "dock-ino",
+        "appId": "ino",
+        "title": "Ino",
+        "icon": "sparkles",
+        "category": "System",
+        "launch": 0,
+        "dock": 0,
+        "appKind": "compiled",
+        "command": {
+          "target": ".",
+          "signal": "desktop.open"
+        },
+        "automationName": "Ino"
+      },
+      {
+        "kind": "appTile",
+        "key": "catalog-photocraft",
+        "appId": "photocraft",
+        "title": "PhotoCraft",
+        "icon": "image",
+        "category": "Creative",
+        "launch": 1,
+        "appKind": "compiled",
+        "description": "Raster photo studio",
+        "command": {
+          "target": ".",
+          "signal": "desktop.open"
+        },
+        "automationName": "PhotoCraft"
+      }
+    ]
+  },
+  {
     "kind": "approvalCard",
     "isNeuron": false,
     "props": [

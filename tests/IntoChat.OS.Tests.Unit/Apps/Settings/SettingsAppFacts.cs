@@ -392,7 +392,7 @@ public sealed class SettingsAppFacts
         ];
 
         Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(IntoChat.OS.Apps.Desktop.DesktopApp.NativeCatalog, item => item.Id == "usage");
+        Assert.Contains(DigitalBrain.Components.ComponentManifests.All, m => m.Id.Value == "app.usage");
 
         string[] forbiddenDemoTokens = ["Nordlys", "Havbris", "Kari Holm", "$420,000", "42.80", "1,250,000"];
 
@@ -856,9 +856,9 @@ public sealed class SettingsAppFacts
             await os.Idle();
 
             Assert.Equal(
-                new IntoChat.OS.Modules.Mcp.McpServerSpec("docs", "https://example.org/mcp"),
-                RecordingMcpServerNeuron.LastConnectedSpec);
-            Assert.Equal("mcp/docs", RecordingMcpServerNeuron.LastConnectedKey);
+                new IntoChat.OS.Modules.Mcp.McpConnectionConfig("https://example.org/mcp", "docs"),
+                RecordingMcpServerNeuron.LastConnectedConfig);
+            Assert.Equal("connection/mcp/docs", RecordingMcpServerNeuron.LastConnectedKey);
             Assert.Contains(settings.App.State.McpServers, row =>
                 row.Name == "docs"
                 && row.Url == "https://example.org/mcp"
@@ -868,7 +868,7 @@ public sealed class SettingsAppFacts
             await settings.Request("mcp-remove", new SettingsMcpRemove("docs"));
             await os.Idle();
 
-            Assert.Equal("mcp/docs", RecordingMcpServerNeuron.LastDisconnectedKey);
+            Assert.Equal("connection/mcp/docs", RecordingMcpServerNeuron.LastDisconnectedKey);
             Assert.Contains(settings.App.State.McpServers, row => row.Name == "docs" && !row.Connected);
         }
         finally
@@ -982,10 +982,10 @@ public sealed class SettingsAppFacts
             }
 
             Assert.Equal(
-                new IntoChat.OS.Modules.Mcp.McpServerSpec("learn", "https://learn.microsoft.com/api/mcp"),
-                RecordingMcpServerNeuron.LastConnectedSpec);
+                new IntoChat.OS.Modules.Mcp.McpConnectionConfig("https://learn.microsoft.com/api/mcp", "learn"),
+                RecordingMcpServerNeuron.LastConnectedConfig);
 
-            // Re-navigating refreshes servers from IBrainObserver + IMcpServer.Read()
+            // Re-navigating refreshes servers from IBrainObserver + IMcpToolConnection.ReadState()
             await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
             Assert.Contains(settings.App.State.McpServers, r => r.Name == "learn" && r.Connected && r.ToolCount == 1);
         }
@@ -996,49 +996,64 @@ public sealed class SettingsAppFacts
     }
 }
 
-[DigitalBrain.Neurons.Neuron("mcp.server"), DigitalBrain.Neurons.StatelessNeuron]
-internal sealed class RecordingMcpServerNeuron : DigitalBrain.Neurons.Neuron, IntoChat.OS.Modules.Mcp.IMcpServer
+[DigitalBrain.Neurons.Neuron("mcp"), DigitalBrain.Neurons.StatelessNeuron]
+internal sealed class RecordingMcpServerNeuron : DigitalBrain.Neurons.Neuron, IntoChat.OS.Modules.Mcp.IMcpToolConnection
 {
-    public static IntoChat.OS.Modules.Mcp.McpServerSpec? LastConnectedSpec { get; private set; }
+    public static IntoChat.OS.Modules.Mcp.McpConnectionConfig? LastConnectedConfig { get; private set; }
     public static string? LastConnectedKey { get; private set; }
     public static string? LastDisconnectedKey { get; private set; }
 
     public static void Reset()
     {
-        LastConnectedSpec = null;
+        LastConnectedConfig = null;
         LastConnectedKey = null;
         LastDisconnectedKey = null;
     }
 
-    public Task<IntoChat.OS.Modules.Mcp.McpServerState> Connect(IntoChat.OS.Modules.Mcp.McpServerSpec spec, CancellationToken ct = default)
+    public Task<IntoChat.OS.Modules.Mcp.McpServerState> ConnectServer(IntoChat.OS.Modules.Mcp.McpConnectionConfig config, CancellationToken ct = default)
     {
-        LastConnectedSpec = spec;
+        LastConnectedConfig = config;
         LastConnectedKey = Id.Key;
         return Task.FromResult(new IntoChat.OS.Modules.Mcp.McpServerState(
-            spec.Title,
-            spec.Url,
+            config.Title ?? "",
+            config.Url,
             Connected: true,
             Tools: [new IntoChat.OS.Modules.Tools.ToolDescriptor("search", "Search", "Search docs", "{}", true)],
             Error: null,
             RefreshedAt: DateTimeOffset.UtcNow));
     }
 
-    public Task Disconnect(CancellationToken ct = default)
+    public Task<IntoChat.OS.Modules.Mcp.McpServerState> Configure(IntoChat.OS.Modules.Mcp.McpConnectionConfig config, CancellationToken ct = default)
+        => ConnectServer(config, ct);
+
+    public Task DisconnectServer(CancellationToken ct = default)
     {
         LastDisconnectedKey = Id.Key;
         return Task.CompletedTask;
     }
 
-    public Task<IntoChat.OS.Modules.Mcp.McpServerState> Read()
-        => Task.FromResult(LastConnectedSpec is { } spec && LastDisconnectedKey != Id.Key
+    public Task<IntoChat.OS.Modules.Mcp.McpServerState> ReadState(CancellationToken ct = default)
+        => Task.FromResult(LastConnectedConfig is { } config && LastDisconnectedKey != Id.Key
             ? new IntoChat.OS.Modules.Mcp.McpServerState(
-                spec.Title,
-                spec.Url,
+                config.Title ?? "",
+                config.Url,
                 Connected: true,
                 Tools: [new IntoChat.OS.Modules.Tools.ToolDescriptor("search", "Search", "Search docs", "{}", true)],
                 Error: null,
                 RefreshedAt: DateTimeOffset.UtcNow)
             : new IntoChat.OS.Modules.Mcp.McpServerState("", "", false, [], null, null));
+
+    public Task<IReadOnlyList<string>> List()
+        => Task.FromResult<IReadOnlyList<string>>(["search"]);
+
+    public Task<System.Text.Json.JsonElement> Run(string tool, System.Text.Json.JsonElement args, CancellationToken ct = default)
+        => Task.FromResult(System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone());
+
+    public Task<IReadOnlyList<IntoChat.OS.Modules.Tools.ToolDescriptor>> Search(string query, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<IntoChat.OS.Modules.Tools.ToolDescriptor>>([]);
+
+    public Task<bool> Validate(string tool, System.Text.Json.JsonElement args, CancellationToken ct = default)
+        => Task.FromResult(true);
 
     public Task<IntoChat.OS.Modules.Tools.ToolSet> Tools(CancellationToken ct = default)
         => Task.FromResult(new IntoChat.OS.Modules.Tools.ToolSet("", []));

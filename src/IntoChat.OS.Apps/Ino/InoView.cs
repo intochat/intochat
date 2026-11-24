@@ -44,35 +44,12 @@ public static partial class InoView
     {
         ArgumentNullException.ThrowIfNull(s);
         var source = view is not null ? InoThread.Messages(view, apps ?? EmptyApps, links) : [];
-        var selected = new List<ThreadMessage>(Math.Min(source.Count + 1, MaxRenderedMessages + 1));
-        var totalChars = 0;
-
-        for (var i = source.Count - 1; i >= 0 && selected.Count < MaxRenderedMessages; i--)
-        {
-            var msg = source[i];
-            var text = msg.Text ?? string.Empty;
-            if (selected.Count == 0 && text.Length > MaxRenderedChars)
-            {
-                selected.Add(msg with { Text = text[..MaxRenderedChars] });
-                break;
-            }
-            if (totalChars + text.Length > MaxRenderedChars) { break; }
-            selected.Add(msg);
-            totalChars += text.Length;
-        }
-
-        selected.Reverse();
-        if (s.Pending is { } pending)
-        {
-            for (var i = 0; i < selected.Count; i++)
-            {
-                if (selected[i].CanRegenerate) { selected[i] = selected[i] with { CanRegenerate = false }; }
-            }
-            var pendingText = pending.Text.Length > MaxRenderedChars ? pending.Text[..MaxRenderedChars] : pending.Text;
-            selected.Add(new ThreadMessage($"pending/{pending.Id}", "user", pendingText, "sending"));
-        }
-
-        return selected;
+        return ConversationThreadProjection.CapAndAppendPending(
+            source,
+            pendingId: s.Pending?.Id,
+            pendingText: s.Pending?.Text,
+            maxMessages: MaxRenderedMessages,
+            maxChars: MaxRenderedChars);
     }
 
     /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
@@ -89,30 +66,42 @@ public static partial class InoView
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(voice);
         var shown = Thread(s, view);
-        var activeModel = ResolveModel(s.SelectedModel);
-        var activeModelId = activeModel?.Id.Value ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel.Trim());
         var hasDraft = !string.IsNullOrWhiteSpace(s.DraftPrompt);
         var placeholder = hasDraft
             ? $"Ask Ino: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 96)}"
             : "Ask anything.";
-        var emptyText = shown.Count == 0
-            ? (hasDraft ? $"Ready to ask: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 120)}" : "What do you need?")
-            : null;
-        return new ChatThreadProps(
-            Placeholder: placeholder,
-            CanSend: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
-            ActiveModelLabel: activeModel?.Name ?? (string.IsNullOrWhiteSpace(s.SelectedModel) ? null : s.SelectedModel),
-            ActiveProviderIcon: activeModel?.IconKey(),
-            Dictation: voice.Hear,
-            Status: ConversationStatusOf(s),
-            Working: s.ActiveRunId is not null,
-            EmptyText: emptyText,
-            Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown),
-            Models: cards is { Count: > 0 } ? Choices(cards, availability ?? [], device) : null,
-            ActiveModelId: activeModelId,
-            Conversation: InoModel.ConversationKeyOf(s.ConversationId),
-            ReadAloud: voice.Speak,
-            TalkConversation: voice.Talk && !string.IsNullOrWhiteSpace(conversation) ? conversation : null);
+        var emptyText = hasDraft
+            ? $"Ready to ask: {CompactSingleLine(SanitizePersonVisibleText(s.DraftPrompt!), 120)}"
+            : "What do you need?";
+        ChatThreadError? explicitError = null;
+        if (s.Error is { } error)
+        {
+            var line = InoErrors.Of(error);
+            explicitError = new ChatThreadError(line.What, line.Detail, line.ActionLabel, line.Open, line.Retry);
+        }
+
+        return ConversationThreadProjection.ToThreadProps(
+            view,
+            new ConversationThreadPropsOptions
+            {
+                Placeholder = placeholder,
+                EmptyText = emptyText,
+                ConversationKey = InoModel.ConversationKeyOf(s.ConversationId),
+                SelectedModel = s.SelectedModel,
+                DeriveModelFromView = false,
+                Working = s.ActiveRunId is not null,
+                Blocked = s.Blocked,
+                HasPending = s.Pending is not null,
+                StatusOverride = ConversationStatusOf(s),
+                ThreadFailure = threadFailure,
+                Error = explicitError,
+                DeriveErrorFromView = false,
+                ShownMessages = shown,
+                Models = cards is { Count: > 0 } ? Choices(cards, availability ?? [], device) : null,
+                Dictation = voice.Hear,
+                ReadAloud = voice.Speak,
+                TalkConversation = voice.Talk && !string.IsNullOrWhiteSpace(conversation) ? conversation : null,
+            });
     }
 
     /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
@@ -174,7 +163,9 @@ public static partial class InoView
         var result = new List<ModelChoice>(cards.Count);
         foreach (var card in cards)
         {
-            if (!card.Can.HasFlag(Abilities.Text))
+            if (!card.Can.HasFlag(Abilities.Text)
+                || card.Provider == AiProvider.TypeSafe
+                || card.Id == KnownModels.LocalJev.Id)
             {
                 continue;
             }
@@ -460,16 +451,6 @@ public static partial class InoView
     // The thread fills the height a bounded parent gives (extent 1); what sits above and below it stretches to the width (extent -1).
     private static Node Filling(Node[] above, Node thread, Node[] below)
         => VStack(Space.Md, [.. above, thread, .. below]).Extents([.. above.Select(static _ => -1d), 1d, .. below.Select(static _ => -1d)]);
-
-    // The error drawn under the messages: none when the last message is a failed reply that already says why and offers a retry.
-    private static ChatThreadError? ThreadError(InoAppState s, IReadOnlyList<ThreadMessage> shown)
-    {
-        if (s.Error is not { } error) { return null; }
-        var line = InoErrors.Of(error);
-        var last = shown.Count > 0 ? shown[^1] : null;
-        if (line.Retry && last is { Role: "assistant", IsFailed: true }) { return null; }
-        return new ChatThreadError(line.What, line.Detail, line.ActionLabel, line.Open, line.Retry);
-    }
 
     internal static bool IsVaultSecretUri(string? uri)
         => !string.IsNullOrWhiteSpace(uri) && uri.Contains("/vault/secrets", StringComparison.OrdinalIgnoreCase);

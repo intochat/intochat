@@ -18,6 +18,7 @@ public sealed class OperationToolFacts
             .Turn(t => t.Says("Saved Globex."));
         await using var os = await Journey.Start(kind, f => f.Postgres().WebSearch().Llm(script), ct);
         var alice = os.Person("alice");
+        await alice.OpenInWorkspace("customer-researcher", ct);
 
         await alice.Ino().Say("Research Globex, an energy company.", ct);
         await os.Idle();

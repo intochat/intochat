@@ -197,6 +197,51 @@
           },
           {
             "kind": "navItem",
+            "key": "app:owner/apps/calculator",
+            "label": "Calculator",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/calculator",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/calculator"
+            },
+            "automationName": "Calculator"
+          },
+          {
+            "kind": "navItem",
+            "key": "app:owner/apps/customer-researcher",
+            "label": "Customer Researcher",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/customer-researcher",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/customer-researcher"
+            },
+            "automationName": "Customer Researcher"
+          },
+          {
+            "kind": "navItem",
+            "key": "app:owner/apps/data",
+            "label": "Data Studio",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/data",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/data"
+            },
+            "automationName": "Data Studio"
+          },
+          {
+            "kind": "navItem",
             "key": "app:owner/apps/deckcraft",
             "label": "DeckCraft",
             "icon": "layout-grid",
@@ -227,6 +272,21 @@
           },
           {
             "kind": "navItem",
+            "key": "app:owner/apps/devui",
+            "label": "DevUI",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/devui",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/devui"
+            },
+            "automationName": "DevUI"
+          },
+          {
+            "kind": "navItem",
             "key": "app:owner/apps/effectcraft",
             "label": "EffectCraft",
             "icon": "layout-grid",
@@ -239,6 +299,21 @@
               "args": "node:owner/apps/effectcraft"
             },
             "automationName": "EffectCraft"
+          },
+          {
+            "kind": "navItem",
+            "key": "app:owner/apps/engineer",
+            "label": "IntoChat Engineer",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/engineer",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/engineer"
+            },
+            "automationName": "IntoChat Engineer"
           },
           {
             "kind": "navItem",
@@ -257,6 +332,51 @@
           },
           {
             "kind": "navItem",
+            "key": "app:owner/apps/filmcraft",
+            "label": "FilmCraft",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/filmcraft",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/filmcraft"
+            },
+            "automationName": "FilmCraft"
+          },
+          {
+            "kind": "navItem",
+            "key": "app:owner/apps/friends",
+            "label": "Friends",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/friends",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/friends"
+            },
+            "automationName": "Friends"
+          },
+          {
+            "kind": "navItem",
+            "key": "app:owner/apps/gallery",
+            "label": "UI Gallery",
+            "icon": "layout-grid",
+            "action": "node:owner/apps/gallery",
+            "selected": false,
+            "badge": null,
+            "command": {
+              "target": ".",
+              "signal": "select",
+              "args": "node:owner/apps/gallery"
+            },
+            "automationName": "UI Gallery"
+          },
+          {
+            "kind": "navItem",
             "key": "app:owner/apps/gridcraft",
             "label": "GridCraft",
             "icon": "layout-grid",
@@ -272,138 +392,18 @@
           },
           {
             "kind": "navItem",
-            "key": "app:owner/apps/lightcraft",
-            "label": "LightCraft",
+            "key": "app:owner/apps/ino",
+            "label": "Ino",
             "icon": "layout-grid",
-            "action": "node:owner/apps/lightcraft",
+            "action": "node:owner/apps/ino",
             "selected": false,
             "badge": null,
             "command": {
               "target": ".",
               "signal": "select",
-              "args": "node:owner/apps/lightcraft"
+              "args": "node:owner/apps/ino"
             },
-            "automationName": "LightCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/materialcraft",
-            "label": "MaterialCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/materialcraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/materialcraft"
-            },
-            "automationName": "MaterialCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/pdfcraft",
-            "label": "PdfCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/pdfcraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/pdfcraft"
-            },
-            "automationName": "PdfCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/solidcraft",
-            "label": "SolidCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/solidcraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/solidcraft"
-            },
-            "automationName": "SolidCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/soundcraft",
-            "label": "SoundCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/soundcraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/soundcraft"
-            },
-            "automationName": "SoundCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/texturecraft",
-            "label": "TextureCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/texturecraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/texturecraft"
-            },
-            "automationName": "TextureCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/vectorcraft",
-            "label": "VectorCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/vectorcraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/vectorcraft"
-            },
-            "automationName": "VectorCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/wordcraft",
-            "label": "WordCraft",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/wordcraft",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/wordcraft"
-            },
-            "automationName": "WordCraft"
-          },
-          {
-            "kind": "navItem",
-            "key": "app:owner/apps/aspire",
-            "label": ".NET Aspire",
-            "icon": "layout-grid",
-            "action": "node:owner/apps/aspire",
-            "selected": false,
-            "badge": null,
-            "command": {
-              "target": ".",
-              "signal": "select",
-              "args": "node:owner/apps/aspire"
-            },
-            "automationName": ".NET Aspire"
+            "automationName": "Ino"
           },
           {
             "kind": "heading",
@@ -542,8 +542,8 @@
             "label": "CADCraft",
             "uri": "neuron://owner/apps/cadcraft",
             "kind": "app",
-            "x": 314.86,
-            "y": 57.14,
+            "x": 315.14,
+            "y": 55.57,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -566,404 +566,12 @@
             }
           },
           {
-            "id": "owner/apps/deckcraft",
-            "label": "DeckCraft",
-            "uri": "neuron://owner/apps/deckcraft",
-            "kind": "app",
-            "x": 299.6,
-            "y": 112.44,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/deckcraft",
-              "label": "DeckCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/deckcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/deckcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/designcraft",
-            "label": "DesignCraft",
-            "uri": "neuron://owner/apps/designcraft",
-            "kind": "app",
-            "x": 274.7,
-            "y": 164.13,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/designcraft",
-              "label": "DesignCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/designcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/designcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/effectcraft",
-            "label": "EffectCraft",
-            "uri": "neuron://owner/apps/effectcraft",
-            "kind": "app",
-            "x": 240.98,
-            "y": 210.54,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/effectcraft",
-              "label": "EffectCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/effectcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/effectcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/figcraft",
-            "label": "FigCraft",
-            "uri": "neuron://owner/apps/figcraft",
-            "kind": "app",
-            "x": 199.52,
-            "y": 250.19,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/figcraft",
-              "label": "FigCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/figcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/figcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/gridcraft",
-            "label": "GridCraft",
-            "uri": "neuron://owner/apps/gridcraft",
-            "kind": "app",
-            "x": 151.64,
-            "y": 281.79,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/gridcraft",
-              "label": "GridCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/gridcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/gridcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/lightcraft",
-            "label": "LightCraft",
-            "uri": "neuron://owner/apps/lightcraft",
-            "kind": "app",
-            "x": 98.89,
-            "y": 304.34,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/lightcraft",
-              "label": "LightCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/lightcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/lightcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/materialcraft",
-            "label": "MaterialCraft",
-            "uri": "neuron://owner/apps/materialcraft",
-            "kind": "app",
-            "x": 42.95,
-            "y": 317.1,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/materialcraft",
-              "label": "MaterialCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/materialcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/materialcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/pdfcraft",
-            "label": "PdfCraft",
-            "uri": "neuron://owner/apps/pdfcraft",
-            "kind": "app",
-            "x": -14.36,
-            "y": 319.68,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/pdfcraft",
-              "label": "PdfCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/pdfcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/pdfcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/solidcraft",
-            "label": "SolidCraft",
-            "uri": "neuron://owner/apps/solidcraft",
-            "kind": "app",
-            "x": -71.21,
-            "y": 311.98,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/solidcraft",
-              "label": "SolidCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/solidcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/solidcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/soundcraft",
-            "label": "SoundCraft",
-            "uri": "neuron://owner/apps/soundcraft",
-            "kind": "app",
-            "x": -125.77,
-            "y": 294.25,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/soundcraft",
-              "label": "SoundCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/soundcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/soundcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/texturecraft",
-            "label": "TextureCraft",
-            "uri": "neuron://owner/apps/texturecraft",
-            "kind": "app",
-            "x": -176.29,
-            "y": 267.06,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/texturecraft",
-              "label": "TextureCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/texturecraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/texturecraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/vectorcraft",
-            "label": "VectorCraft",
-            "uri": "neuron://owner/apps/vectorcraft",
-            "kind": "app",
-            "x": -221.14,
-            "y": 231.29,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/vectorcraft",
-              "label": "VectorCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/vectorcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/vectorcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/wordcraft",
-            "label": "WordCraft",
-            "uri": "neuron://owner/apps/wordcraft",
-            "kind": "app",
-            "x": -258.89,
-            "y": 188.09,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/wordcraft",
-              "label": "WordCraft",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/wordcraft"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/wordcraft",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
-            "id": "owner/apps/aspire",
-            "label": ".NET Aspire",
-            "uri": "neuron://owner/apps/aspire",
-            "kind": "app",
-            "x": -288.31,
-            "y": 138.84,
-            "z": 0,
-            "status": "idle",
-            "subtitle": null,
-            "select": {
-              "key": "node:owner/apps/aspire",
-              "label": ".NET Aspire",
-              "command": {
-                "target": ".",
-                "signal": "select",
-                "args": "node:owner/apps/aspire"
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "tooltip": null,
-              "visible": true,
-              "automationName": "node:owner/apps/aspire",
-              "style": "secondary",
-              "small": false
-            }
-          },
-          {
             "id": "owner/apps/calculator",
             "label": "Calculator",
             "uri": "neuron://owner/apps/calculator",
             "kind": "app",
-            "x": -308.47,
-            "y": 85.13,
+            "x": 300.7,
+            "y": 109.45,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -990,8 +598,8 @@
             "label": "Creator",
             "uri": "neuron://owner/apps/creator",
             "kind": "app",
-            "x": -318.71,
-            "y": 28.68,
+            "x": 277.13,
+            "y": 160,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1014,12 +622,40 @@
             }
           },
           {
+            "id": "owner/apps/customer-researcher",
+            "label": "Customer Researcher",
+            "uri": "neuron://owner/apps/customer-researcher",
+            "kind": "app",
+            "x": 245.13,
+            "y": 205.69,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/customer-researcher",
+              "label": "Customer Researcher",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/customer-researcher"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/customer-researcher",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/data",
             "label": "Data Studio",
             "uri": "neuron://owner/apps/data",
             "kind": "app",
-            "x": -318.71,
-            "y": -28.68,
+            "x": 205.69,
+            "y": 245.13,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1042,12 +678,68 @@
             }
           },
           {
+            "id": "owner/apps/deckcraft",
+            "label": "DeckCraft",
+            "uri": "neuron://owner/apps/deckcraft",
+            "kind": "app",
+            "x": 160,
+            "y": 277.13,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/deckcraft",
+              "label": "DeckCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/deckcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/deckcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
+            "id": "owner/apps/designcraft",
+            "label": "DesignCraft",
+            "uri": "neuron://owner/apps/designcraft",
+            "kind": "app",
+            "x": 109.45,
+            "y": 300.7,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/designcraft",
+              "label": "DesignCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/designcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/designcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/devui",
             "label": "DevUI",
             "uri": "neuron://owner/apps/devui",
             "kind": "app",
-            "x": -308.47,
-            "y": -85.13,
+            "x": 55.57,
+            "y": 315.14,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1070,12 +762,40 @@
             }
           },
           {
+            "id": "owner/apps/effectcraft",
+            "label": "EffectCraft",
+            "uri": "neuron://owner/apps/effectcraft",
+            "kind": "app",
+            "x": 0,
+            "y": 320,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/effectcraft",
+              "label": "EffectCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/effectcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/effectcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/engineer",
             "label": "IntoChat Engineer",
             "uri": "neuron://owner/apps/engineer",
             "kind": "app",
-            "x": -288.31,
-            "y": -138.84,
+            "x": -55.57,
+            "y": 315.14,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1098,12 +818,40 @@
             }
           },
           {
+            "id": "owner/apps/figcraft",
+            "label": "FigCraft",
+            "uri": "neuron://owner/apps/figcraft",
+            "kind": "app",
+            "x": -109.45,
+            "y": 300.7,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/figcraft",
+              "label": "FigCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/figcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/figcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/filmcraft",
             "label": "FilmCraft",
             "uri": "neuron://owner/apps/filmcraft",
             "kind": "app",
-            "x": -258.89,
-            "y": -188.09,
+            "x": -160,
+            "y": 277.13,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1130,8 +878,8 @@
             "label": "Friends",
             "uri": "neuron://owner/apps/friends",
             "kind": "app",
-            "x": -221.14,
-            "y": -231.29,
+            "x": -205.69,
+            "y": 245.13,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1158,8 +906,8 @@
             "label": "UI Gallery",
             "uri": "neuron://owner/apps/gallery",
             "kind": "app",
-            "x": -176.29,
-            "y": -267.06,
+            "x": -245.13,
+            "y": 205.69,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1182,12 +930,40 @@
             }
           },
           {
+            "id": "owner/apps/gridcraft",
+            "label": "GridCraft",
+            "uri": "neuron://owner/apps/gridcraft",
+            "kind": "app",
+            "x": -277.13,
+            "y": 160,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/gridcraft",
+              "label": "GridCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/gridcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/gridcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/ino",
             "label": "Ino",
             "uri": "neuron://owner/apps/ino",
             "kind": "app",
-            "x": -125.77,
-            "y": -294.25,
+            "x": -300.7,
+            "y": 109.45,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1210,12 +986,40 @@
             }
           },
           {
+            "id": "owner/apps/lightcraft",
+            "label": "LightCraft",
+            "uri": "neuron://owner/apps/lightcraft",
+            "kind": "app",
+            "x": -315.14,
+            "y": 55.57,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/lightcraft",
+              "label": "LightCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/lightcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/lightcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/markdraw",
             "label": "Markdraw",
             "uri": "neuron://owner/apps/markdraw",
             "kind": "app",
-            "x": -71.21,
-            "y": -311.98,
+            "x": -320,
+            "y": 0,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1238,12 +1042,40 @@
             }
           },
           {
+            "id": "owner/apps/materialcraft",
+            "label": "MaterialCraft",
+            "uri": "neuron://owner/apps/materialcraft",
+            "kind": "app",
+            "x": -315.14,
+            "y": -55.57,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/materialcraft",
+              "label": "MaterialCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/materialcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/materialcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/orleans",
             "label": "Orleans Dashboard",
             "uri": "neuron://owner/apps/orleans",
             "kind": "app",
-            "x": -14.36,
-            "y": -319.68,
+            "x": -300.7,
+            "y": -109.45,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1266,12 +1098,40 @@
             }
           },
           {
+            "id": "owner/apps/pdfcraft",
+            "label": "PdfCraft",
+            "uri": "neuron://owner/apps/pdfcraft",
+            "kind": "app",
+            "x": -277.13,
+            "y": -160,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/pdfcraft",
+              "label": "PdfCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/pdfcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/pdfcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/photocraft",
             "label": "PhotoCraft",
             "uri": "neuron://owner/apps/photocraft",
             "kind": "app",
-            "x": 42.95,
-            "y": -317.1,
+            "x": -245.13,
+            "y": -205.69,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1298,8 +1158,8 @@
             "label": "Settings",
             "uri": "neuron://owner/apps/settings",
             "kind": "app",
-            "x": 98.89,
-            "y": -304.34,
+            "x": -205.69,
+            "y": -245.13,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1322,12 +1182,68 @@
             }
           },
           {
+            "id": "owner/apps/solidcraft",
+            "label": "SolidCraft",
+            "uri": "neuron://owner/apps/solidcraft",
+            "kind": "app",
+            "x": -160,
+            "y": -277.13,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/solidcraft",
+              "label": "SolidCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/solidcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/solidcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
+            "id": "owner/apps/soundcraft",
+            "label": "SoundCraft",
+            "uri": "neuron://owner/apps/soundcraft",
+            "kind": "app",
+            "x": -109.45,
+            "y": -300.7,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/soundcraft",
+              "label": "SoundCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/soundcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/soundcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/tasks",
             "label": "Tasks",
             "uri": "neuron://owner/apps/tasks",
             "kind": "app",
-            "x": 151.64,
-            "y": -281.79,
+            "x": -55.57,
+            "y": -315.14,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1350,12 +1266,40 @@
             }
           },
           {
+            "id": "owner/apps/texturecraft",
+            "label": "TextureCraft",
+            "uri": "neuron://owner/apps/texturecraft",
+            "kind": "app",
+            "x": -0,
+            "y": -320,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/texturecraft",
+              "label": "TextureCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/texturecraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/texturecraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/uikit",
             "label": "UI Kit",
             "uri": "neuron://owner/apps/uikit",
             "kind": "app",
-            "x": 199.52,
-            "y": -250.19,
+            "x": 55.57,
+            "y": -315.14,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1382,8 +1326,8 @@
             "label": "Usage",
             "uri": "neuron://owner/apps/usage",
             "kind": "app",
-            "x": 240.98,
-            "y": -210.54,
+            "x": 109.45,
+            "y": -300.7,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1406,12 +1350,40 @@
             }
           },
           {
+            "id": "owner/apps/vectorcraft",
+            "label": "VectorCraft",
+            "uri": "neuron://owner/apps/vectorcraft",
+            "kind": "app",
+            "x": 160,
+            "y": -277.13,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/vectorcraft",
+              "label": "VectorCraft",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/vectorcraft"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/vectorcraft",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
             "id": "owner/apps/widgetbook",
             "label": "Widgetbook",
             "uri": "neuron://owner/apps/widgetbook",
             "kind": "app",
-            "x": 274.7,
-            "y": -164.13,
+            "x": 205.69,
+            "y": -245.13,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1434,29 +1406,29 @@
             }
           },
           {
-            "id": "owner/apps/customer-researcher",
-            "label": "Customer Researcher",
-            "uri": "neuron://owner/apps/customer-researcher",
+            "id": "owner/apps/wordcraft",
+            "label": "WordCraft",
+            "uri": "neuron://owner/apps/wordcraft",
             "kind": "app",
-            "x": 299.6,
-            "y": -112.44,
+            "x": 245.13,
+            "y": -205.69,
             "z": 0,
             "status": "idle",
             "subtitle": null,
             "select": {
-              "key": "node:owner/apps/customer-researcher",
-              "label": "Customer Researcher",
+              "key": "node:owner/apps/wordcraft",
+              "label": "WordCraft",
               "command": {
                 "target": ".",
                 "signal": "select",
-                "args": "node:owner/apps/customer-researcher"
+                "args": "node:owner/apps/wordcraft"
               },
               "intent": null,
               "enabled": true,
               "tone": "neutral",
               "tooltip": null,
               "visible": true,
-              "automationName": "node:owner/apps/customer-researcher",
+              "automationName": "node:owner/apps/wordcraft",
               "style": "secondary",
               "small": false
             }
@@ -1466,8 +1438,8 @@
             "label": "Files",
             "uri": "neuron://owner/apps/files",
             "kind": "app",
-            "x": 314.86,
-            "y": -57.14,
+            "x": 277.13,
+            "y": -160,
             "z": 0,
             "status": "idle",
             "subtitle": null,
@@ -1485,6 +1457,62 @@
               "tooltip": null,
               "visible": true,
               "automationName": "node:owner/apps/files",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
+            "id": "owner/apps/aspire",
+            "label": ".NET Aspire",
+            "uri": "neuron://owner/apps/aspire",
+            "kind": "app",
+            "x": 300.7,
+            "y": -109.45,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/aspire",
+              "label": ".NET Aspire",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/aspire"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/aspire",
+              "style": "secondary",
+              "small": false
+            }
+          },
+          {
+            "id": "owner/apps/muncly",
+            "label": "Muncly CRM",
+            "uri": "neuron://owner/apps/muncly",
+            "kind": "app",
+            "x": 315.14,
+            "y": -55.57,
+            "z": 0,
+            "status": "idle",
+            "subtitle": null,
+            "select": {
+              "key": "node:owner/apps/muncly",
+              "label": "Muncly CRM",
+              "command": {
+                "target": ".",
+                "signal": "select",
+                "args": "node:owner/apps/muncly"
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "tooltip": null,
+              "visible": true,
+              "automationName": "node:owner/apps/muncly",
               "style": "secondary",
               "small": false
             }

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>IntoChat.OS.Components.Aspire</PackageId>
+    <Description>Aspire telemetry, candidate builds, deployment rolls and candidate verification.</Description>
+    <NoWarn>$(NoWarn);DB0033;CA1812</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The contracts compile in their own assembly; Hosting/ is compiled into the AppHost. -->
+    <Compile Remove="Contracts/**;Hosting/**" />
+    <None Remove="Contracts/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Contracts/IntoChat.Aspire.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
+    <ProjectReference Include="../../Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
+    <ProjectReference Include="../../Modules/Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
+  </ItemGroup>
+</Project>

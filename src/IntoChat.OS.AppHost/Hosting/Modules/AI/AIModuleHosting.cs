@@ -20,7 +20,7 @@ public static partial class AIHostingExtensions
         {
             return;
         }
-        if (!brain.ApplicationBuilder.Configuration.GetValue("IntoChatOS:Ollama:AutoContainer", defaultValue: true))
+        if (!OllamaContainerOptions.Bind(brain.ApplicationBuilder.Configuration).AutoContainer)
         {
             return;
         }
@@ -38,6 +38,7 @@ public static partial class AIHostingExtensions
         var module = new IntoChatOSModuleBuilder<AIModuleHosting>(brain);
         var state = State(module);
         state.EnableSensitiveData = options.Telemetry.EnableSensitiveData ?? false;
+        state.Reasoning = options.Reasoning;
         state.SetRoles(options.Roles);
 
         foreach (var name in options.Hosting.Llms)

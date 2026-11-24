@@ -9,6 +9,7 @@ Persists .markdraw Markdown sketch files, .excalidraw JSON scenes, and .svg expo
 and exposes co-drawing operations (read-canvas, patch-elements, from-data, sync-scene) so both the user and Ino can inspect
 and mutate the exact same live canvas without overwriting hand-drawn strokes.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Log;
@@ -44,7 +45,7 @@ public sealed record MarkdrawSave(string? Document = null, string? Content = nul
 [Signal("markdraw.export")]
 public sealed record MarkdrawExport(string? Format = null, string? TargetPath = null) : Signal;
 
-[Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw")]
+[Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw", Icon = "pen-tool", Category = "Studio", Dock = 4)]
 public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesVfs
 {
     public MarkdrawApp() : this(null) { }
@@ -103,28 +104,22 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "markdraw";
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<MarkdrawApp>(
         "markdraw", "1.0.0",
-        new AppManifest(
-            Title: "Markdraw",
-            Description: "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
-            Operations:
-            [
-                new("open", "Open a .markdraw or .excalidraw file from Files VFS or initialize an architecture/data-flow template."),
-                new("read-canvas", "Inspect all shapes, nodes, text labels, and arrows currently on the active Markdraw canvas."),
-                new("sync-scene", "Synchronize interactive user canvas edits from the Flutter MarkdrawEditor widget and persist to Files VFS."),
-                new("patch-elements", "Co-draw on the active canvas by adding, updating, or connecting nodes and arrows without losing user strokes."),
-                new("from-data", "Generate or update an interactive data-flow or schema diagram on the canvas from a dataset or SQL table."),
-                new("save", "Save the active .markdraw or .excalidraw document to the Files workspace (/work/*)."),
-                new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format in Files VFS."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Markdraw aggregate command."),
-            ],
-            Settings: [], Slots: [], Icon: "icon.svg", Dock: 4, Studio: true,
-            Toolbar: [new("open", Icon: "pen-tool", Label: "Open Canvas"), new("save", Icon: "save", Label: "Save to Files"), new("export", Icon: "download", Label: "Export .excalidraw")]),
-        "", new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(MarkdrawApp).AssemblyQualifiedName,
-    };
+        description: "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
+        operations:
+        [
+            new("open", "Open a .markdraw or .excalidraw file from Files VFS or initialize an architecture/data-flow template."),
+            new("read-canvas", "Inspect all shapes, nodes, text labels, and arrows currently on the active Markdraw canvas."),
+            new("sync-scene", "Synchronize interactive user canvas edits from the Flutter MarkdrawEditor widget and persist to Files VFS."),
+            new("patch-elements", "Co-draw on the active canvas by adding, updating, or connecting nodes and arrows without losing user strokes."),
+            new("from-data", "Generate or update an interactive data-flow or schema diagram on the canvas from a dataset or SQL table."),
+            new("save", "Save the active .markdraw or .excalidraw document to the Files workspace (/work/*)."),
+            new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format in Files VFS."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Markdraw aggregate command."),
+        ],
+        studio: true,
+        toolbar: [new("open", Icon: "pen-tool", Label: "Open Canvas"), new("save", Icon: "save", Label: "Save to Files"), new("export", Icon: "download", Label: "Export .excalidraw")]);
 
     public new MarkdrawAppState State => base.State;
     public View Render() => PreviewView(State);

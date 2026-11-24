@@ -33,6 +33,7 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         "field",
         "switch",
         "navItem",
+        "appTile",
         "webBrowser",
         "conversation",
         "approvalCard",
@@ -120,7 +121,8 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
                 || ((norm.StartsWith("src/IntoChat.OS.Apps/", StringComparison.OrdinalIgnoreCase)
                         || norm.StartsWith("IntoChat.OS.Apps/", StringComparison.OrdinalIgnoreCase)
                         || norm.StartsWith("src/IntoChat.OS.UI/", StringComparison.OrdinalIgnoreCase)
-                        || norm.StartsWith("IntoChat.OS.UI/", StringComparison.OrdinalIgnoreCase))
+                        || norm.StartsWith("IntoChat.OS.UI/", StringComparison.OrdinalIgnoreCase)
+                        || ComponentScreenOf(norm) is not null)
                     && norm.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
@@ -128,6 +130,18 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         }
 
         return false;
+    }
+
+    // src/Components/<Name>/Screens/** is a component's screen: the component name, else null.
+    private static string? ComponentScreenOf(string normalizedPath)
+    {
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 5
+            && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[1], "Components", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[3], "Screens", StringComparison.OrdinalIgnoreCase)
+                ? segments[2]
+                : null;
     }
 
     internal static EngineerVerificationPlan DeriveVerificationPlan(IReadOnlyList<string> changedFiles)
@@ -161,6 +175,28 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
                 if (seenTargets.Add(target))
                 {
                     calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
+                }
+            }
+            else if (ComponentScreenOf(norm) is { } component)
+            {
+                // Paths only: the app is named after its component folder (OWED.md: a component whose app name differs).
+                var target = $"app.{component.ToLowerInvariant()}";
+                if (seenTargets.Add(target))
+                {
+                    calls.Add(new EngineerVerificationCall(target, "Read", "ok"));
+                }
+            }
+            else if (segments.Length >= 4
+                && string.Equals(segments[0], "src", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(segments[1], "Components", StringComparison.OrdinalIgnoreCase)
+                && !EngineerBuildVerifier.IsComponentHosting(norm))
+            {
+                // Same rule as src/Modules/<Name>: the module id is the folder lowercased (Aspire -> "aspire").
+                // Hosting/** is AppHost code and plans what an AppHost change plans: no call of its own.
+                var target = $"module.{segments[2].ToLowerInvariant()}";
+                if (seenTargets.Add(target))
+                {
+                    calls.Add(new EngineerVerificationCall(target, "neurons_list", "ok"));
                 }
             }
             else if (segments.Length >= 3

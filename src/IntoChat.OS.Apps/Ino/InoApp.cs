@@ -4,6 +4,7 @@ Role: Shell
 Shipped: true
 Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, ui.command
 */
+using IntoChat.OS.Host.Apps;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Components;
@@ -33,7 +34,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Apps.Ino;
 
 [Neuron("app.ino")]
-[Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles)]
+[Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles, Category = "Intelligence", Dock = 1)]
 public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavigatedTo<InoNavArgs>, INavigatedFrom
 {
     private const string ApprovalsKey = "approvals/index", DataKey = "ino/data", ModelsKey = "main";
@@ -87,7 +88,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
     public VoiceAbilities Voice { get; private set; } = VoiceAbilities.None;
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
-    public static AppBundle Bundle { get; } = InoModelSetup.BuildBundle(typeof(InoApp));
+    public static AppBundle Bundle => InoModelSetup.BuildBundle(typeof(InoApp));
 
     public new InoAppState State => base.State;
     public new Rejected? LastRejection => RecordedRejection ?? base.LastRejection;
@@ -565,7 +566,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
             return;
         }
 
-        var merged = MergeView(ConversationView, incoming, full);
+        var merged = ConversationThreadProjection.MergeView(ConversationView, incoming, full);
         var hadRunningOrPending = State.ActiveRunId is not null || State.Pending is not null;
         ConversationView = merged;
         SeenRevision = merged.Revision;
@@ -630,31 +631,6 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         {
             AppManifests = updated;
         }
-    }
-
-    private static ConversationView MergeView(ConversationView? previous, ConversationView incoming, bool full)
-    {
-        if (full || previous is null || !string.Equals(previous.Id.Value, incoming.Id.Value, StringComparison.Ordinal))
-        {
-            return incoming;
-        }
-
-        if (incoming.Entries.Length == 0)
-        {
-            return incoming with { Entries = previous.Entries };
-        }
-
-        var mergedEntries = new List<ConversationEntry>(previous.Entries.Length + incoming.Entries.Length);
-        mergedEntries.AddRange(previous.Entries);
-        var seen = new HashSet<EntryId>(previous.Entries.Select(static e => e.Id));
-        foreach (var entry in incoming.Entries)
-        {
-            if (seen.Add(entry.Id))
-            {
-                mergedEntries.Add(entry);
-            }
-        }
-        return incoming with { Entries = [.. mergedEntries] };
     }
 
     private static long ComputeRunTokens(AgentRun run)

@@ -12,6 +12,7 @@ internal static class ShippedGrants
     public static Grant[] For(string brain, string app) => app switch
     {
         "desktop" => Tuples(brain, app, [Workspace(brain), Apps(brain), Person(brain), Compute(brain),
+            $"apps.installed/{brain}/*",
             $"chat/{IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "ino").ChildKey("transcript")}", $"agent/{brain}/*", $"textfield/{brain}/settings/workspace/new-tab-app"]),
         ShippedApps.Settings => Tuples(brain, app, [Apps(brain), $"apps.store/{brain}/*", $"apps.installed-modules/{brain}/*", $"apps.sideload/{brain}/*",
             $"integrations.accounts/{brain}/*", $"ai.models/{brain}/*", $"chat-index/{brain}/*", $"textfield/{brain}/settings/*"]),
@@ -20,7 +21,7 @@ internal static class ShippedGrants
         var craft when ArtCraftCatalog.IsArtCraftApp(craft) => Tuples(
             brain,
             ArtCraftCatalog.NormalizeAppId(craft),
-            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*", $"files.vfs/{brain}/*"]),
+            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp/{brain}/*", $"files.vfs/{brain}/*"]),
         _ => [],
     };
 

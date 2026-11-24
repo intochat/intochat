@@ -33,19 +33,24 @@ public sealed class FlutterHostResolutionFacts
     }
 
     [Fact]
-    public void WindowHostResolvesShellPackageAndWindowsTarget()
+    public void WindowHostResolvesShellPackageAndHostTarget()
     {
         var uiRoot = ShellHostingExtensions.ResolveFlutterWorkingDirectory(AppContext.BaseDirectory, configured: null);
         var launch = FlutterHostLaunch.Resolve(FlutterHostKind.Window, uiRoot, new FlutterHostOptions());
+        var expectedTarget = ShellNames.CurrentHostDeviceTarget;
 
         Assert.EndsWith(Path.DirectorySeparatorChar + "ui", launch.WorkingDirectory, StringComparison.OrdinalIgnoreCase);
-        Assert.True(Directory.Exists(Path.Combine(launch.WorkingDirectory, "windows")));
-        Assert.Equal("windows", launch.DeviceTarget);
-        Assert.Equal(["run", "-d", "windows"], launch.Args);
+        Assert.True(Directory.Exists(Path.Combine(launch.WorkingDirectory, expectedTarget)));
+        Assert.Equal(expectedTarget, launch.DeviceTarget);
+        Assert.Equal(["run", "-d", expectedTarget], launch.Args);
         if (OperatingSystem.IsWindows() && Path.IsPathRooted(launch.Command))
         {
             Assert.NotEmpty(Path.GetExtension(launch.Command));
         }
+
+        var macLaunch = FlutterHostLaunch.Resolve(FlutterHostKind.Window, uiRoot, new FlutterHostOptions { DeviceTarget = "macos" });
+        Assert.Equal("macos", macLaunch.DeviceTarget);
+        Assert.Equal(["run", "-d", "macos"], macLaunch.Args);
     }
 
     [Fact]
@@ -65,7 +70,7 @@ public sealed class FlutterHostResolutionFacts
             Directory.CreateDirectory(buildDir);
             File.WriteAllText(Path.Combine(buildDir, "CMakeCache.txt"), "// stale");
 
-            var launch = FlutterHostLaunch.Resolve(FlutterHostKind.Window, tempRoot, new FlutterHostOptions());
+            var launch = FlutterHostLaunch.Resolve(FlutterHostKind.Window, tempRoot, new FlutterHostOptions { DeviceTarget = "windows" });
 
             Assert.Equal("windows", launch.DeviceTarget);
             Assert.False(Directory.Exists(ephemeralDir));

@@ -69,6 +69,16 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Connections.Platform.Entries.IBrainEntries", "IntoChat.OS.Modules.Identity.Contracts.Entries.IBrainEntries"),
         ("IntoChat.OS.Connections.Platform.Integrations.IIntegration", "IntoChat.OS.Modules.Identity.Contracts.Integrations.IIntegration"),
         ("IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory", "IntoChat.OS.Modules.Identity.Directory.IIdentityDirectory"),
+        // The Aspire module became the first component (src/Components/Aspire, namespace IntoChat.Aspire).
+        ("IntoChat.OS.Modules.Microsoft.Aspire.Deployment.AspireDeploymentState", "IntoChat.Aspire.Deployment.AspireDeploymentState"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.AspireTelemetryChanged", "IntoChat.Aspire.AspireTelemetryChanged"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.CandidateChanged", "IntoChat.Aspire.CandidateChanged"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.CandidateFailed", "IntoChat.Aspire.CandidateFailed"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.CandidateHealthy", "IntoChat.Aspire.CandidateHealthy"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.CandidatePromoted", "IntoChat.Aspire.CandidatePromoted"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.CandidateStarted", "IntoChat.Aspire.CandidateStarted"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.CandidateVerified", "IntoChat.Aspire.CandidateVerified"),
+        ("IntoChat.OS.Modules.Microsoft.Aspire.DeploymentChanged", "IntoChat.Aspire.DeploymentChanged"),
     ];
 
     private static readonly (string Old, Type Current, string? Alias)[] MovedContracts =

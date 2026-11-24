@@ -8,6 +8,6 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
   </ItemGroup>
 </Project>

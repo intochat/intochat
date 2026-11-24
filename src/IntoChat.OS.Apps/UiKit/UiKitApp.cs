@@ -9,6 +9,7 @@ slotted children (slot key = the kind); data node kinds are drawn inline from th
 domain signals and keeps the last 50 in an event log shown on every page: the visible proof each control signals. Controls are
 uncontrolled (they keep their own state) except the switch labelled as controlled, whose value the app owns.
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;
@@ -22,33 +23,23 @@ using IntoChat.OS.UI;
 namespace IntoChat.OS.Apps.UiKit;
 
 [Neuron("app.uikit")]
-[Screen("app.uikit", Title = "UI Kit")]
+[Screen("app.uikit", Title = "UI Kit", Icon = "widgets", Category = "Developer")]
 public sealed class UiKitApp : AggregateScreen<UiKitState>
 {
     public const string AppName = "uikit";
 
     private string _brain = "preview";
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<UiKitApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: "UI Kit",
-            Description: "Working prototypes of every control, with a log of the signals they send.",
-            Operations:
-            [
-                new("open", "Show the page the input names: a scenario id or a catalog kind (the first scenario when empty or unknown)."),
-                new("append", "Append the next sample point to the live chart the current page shows."),
-                new("showcaseCommand", "Log a command a data node example sent (its kind, signal and args)."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "widgets"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(UiKitApp).AssemblyQualifiedName,
-    };
+        description: "Working prototypes of every control, with a log of the signals they send.",
+        operations:
+        [
+            new("open", "Show the page the input names: a scenario id or a catalog kind (the first scenario when empty or unknown)."),
+            new("append", "Append the next sample point to the live chart the current page shows."),
+            new("showcaseCommand", "Log a command a data node example sent (its kind, signal and args)."),
+        ]);
 
     public new UiKitState State => base.State;
 

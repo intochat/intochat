@@ -49,6 +49,7 @@ internal static class NodeOwnerNormalizer
                 Inspector = shell.Inspector is null ? null : Normalize(shell.Inspector, owner),
             },
             NavItemNode nav => nav with { Command = NormalizeCommand(nav.Command, owner) },
+            AppTileNode tile => tile with { Command = NormalizeCommand(tile.Command, owner) },
             DigitalBrain.UI.Conversation conv => conv with
             {
                 Composer = conv.Composer with { OnSubmit = NormalizeEmit(conv.Composer.OnSubmit, owner)! },

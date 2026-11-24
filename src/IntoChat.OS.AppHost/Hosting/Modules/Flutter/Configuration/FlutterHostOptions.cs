@@ -24,6 +24,11 @@ public sealed class FlutterHostOptions
         options.WorkingDirectory = hosting.WorkingDirectory ?? options.WorkingDirectory;
         options.ReleaseBuild = hosting.ReleaseBuild;
         options.WebContainer = hosting.WebContainer;
+        options.AndroidTransport = hosting.AndroidTransport;
+        options.AndroidDevice = hosting.AndroidDevice ?? options.AndroidDevice;
+        options.IosTransport = hosting.IosTransport;
+        options.IosDevice = hosting.IosDevice ?? options.IosDevice;
+        options.IosUiBase = hosting.IosUiBase ?? options.IosUiBase;
         // The record's default device target is the desktop one; keep the web default unless configured away from it.
         if (hosting.DeviceTarget != ShellNames.DefaultDeviceTarget) { options.DeviceTarget = hosting.DeviceTarget; }
         return options;
@@ -31,7 +36,8 @@ public sealed class FlutterHostOptions
 
     public FlutterHostKind Kind { get; set; } = FlutterHostKind.Window;
 
-    public string ResourceName { get; set; } = ShellNames.DefaultFlutterResourceName;
+    // Null: the host names the app (shell-desktop or shell-web in run mode, FlutterShell in publish).
+    public string? ResourceName { get; set; }
 
     public string DeviceTarget { get; set; } = ShellNames.DefaultDeviceTarget;
 
@@ -50,4 +56,14 @@ public sealed class FlutterHostOptions
     // absent from FlutterHostingOptions: it describes the machine running the AppHost, not
     // the product composition, so CI flips it for every host via configuration.
     public bool WebContainer { get; set; }
+
+    public AndroidDebugTransport AndroidTransport { get; set; } = AndroidDebugTransport.Wireless;
+
+    public string? AndroidDevice { get; set; }
+
+    public IosDebugTransport IosTransport { get; set; } = IosDebugTransport.Auto;
+
+    public string? IosDevice { get; set; }
+
+    public string? IosUiBase { get; set; }
 }

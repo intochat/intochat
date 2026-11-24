@@ -44,6 +44,7 @@ public sealed class CustomerResearcherSharingJourney
         await alice.Befriend(bob, ct);
 
         // Alice uses her own app; Ino adds a second company through the tool.
+        await alice.OpenInWorkspace("customer-researcher", ct);
         await using var hers = await alice.Open<CustomerResearcherApp>(ct: ct);
         await hers.Type("input:company", "Acme", ct);
         await hers.Click("btn:research", ct);

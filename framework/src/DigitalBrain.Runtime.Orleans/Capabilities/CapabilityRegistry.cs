@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Capabilities.Tools;
 
 namespace DigitalBrain.Runtime.Orleans.Capabilities;
 
@@ -18,8 +19,8 @@ public enum CapabilityConnectionMode
 
 /// <summary>
 /// The capabilities the runtime knows: id to contract interface, connection mode and any extra binding interfaces a host accepts
-/// as an implementation (R4-02, D-09). Seeded with storage@1 (many), secrets@1 and identity@1 (single), and the contract-less
-/// circle@1 the local+cloud topology requires. Not thread-safe while being configured; hosts configure it before startup.
+/// as an implementation (R4-02, D-09). Seeded with storage@1 (many), secrets@1 and identity@1 (single), tool@1 (many), and the
+/// contract-less circle@1 the local+cloud topology requires. Not thread-safe while being configured; hosts configure it before startup.
 /// </summary>
 public sealed class CapabilityRegistry
 {
@@ -31,6 +32,7 @@ public sealed class CapabilityRegistry
         Register(Capability.Storage.V1, typeof(IStorage), CapabilityConnectionMode.ManyConnections);
         Register(Capability.Secrets.V1, typeof(ISecrets), CapabilityConnectionMode.OneConnection);
         Register(Capability.Identity.V1, typeof(IIdentity), CapabilityConnectionMode.OneConnection);
+        Register(Capability.Tools.V1, typeof(ITool), CapabilityConnectionMode.ManyConnections);
         Register(LocalCloudProfile.Circle, null, CapabilityConnectionMode.ManyConnections);
     }
 

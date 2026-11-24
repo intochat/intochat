@@ -46,6 +46,8 @@ T? _enumOrNull<T extends Enum>(List<T> values, Object? value) {
   return null;
 }
 
+enum AppLaunch { windowed, maximized }
+
 enum BadgeTone { neutral, accent, done, working, error }
 
 enum FieldKind { text, search, number, password, secret, suggest, multiline }
@@ -106,6 +108,7 @@ sealed class Node {
     'errorLine' => ErrorLineNode.fromJson(json),
     'emptyState' => EmptyStateNode.fromJson(json),
     'metricTile' => MetricTileNode.fromJson(json),
+    'appTile' => AppTileNode.fromJson(json),
     'diffCard' => DiffCardNode.fromJson(json),
     'checkBoxView' => CheckBoxViewNode.fromJson(json),
     'toggleSwitchView' => ToggleSwitchViewNode.fromJson(json),
@@ -194,6 +197,53 @@ final class AppShellNode extends Node {
         : null,
     transition: _string(json['transition']),
     edgeToEdge: _bool(json['edgeToEdge']),
+    automationName: _string(json['automationName']),
+  );
+}
+
+final class AppTileNode extends Node {
+  const AppTileNode({
+    required this.key,
+    required this.appId,
+    required this.title,
+    required this.icon,
+    required this.category,
+    required this.launch,
+    required this.dock,
+    required this.appKind,
+    required this.description,
+    required this.command,
+    required this.automationName,
+  });
+
+  @override
+  String get kind => 'appTile';
+
+  final String key;
+  final String appId;
+  final String title;
+  final String? icon;
+  final String? category;
+  final AppLaunch launch;
+  final int? dock;
+  final String appKind;
+  final String? description;
+  final Command? command;
+  final String automationName;
+
+  factory AppTileNode.fromJson(Map<String, dynamic> json) => AppTileNode(
+    key: _string(json['key']),
+    appId: _string(json['appId']),
+    title: _string(json['title']),
+    icon: _stringOrNull(json['icon']),
+    category: _stringOrNull(json['category']),
+    launch: _enum(AppLaunch.values, json['launch']),
+    dock: _intOrNull(json['dock']),
+    appKind: _string(json['appKind'], 'compiled'),
+    description: _stringOrNull(json['description']),
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
     automationName: _string(json['automationName']),
   );
 }

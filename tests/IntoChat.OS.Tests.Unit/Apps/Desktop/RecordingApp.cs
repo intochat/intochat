@@ -49,6 +49,7 @@ internal sealed class RecordingApp : Neuron, IScreen, IApp
     public Task<AppSnapshot> SaveSpec(string spec, Guid operationId) => throw new NotSupportedException();
     public Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId) => throw new NotSupportedException();
     public Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections) => throw new NotSupportedException();
+    public Task<SlotBindingOutcome> BindSlots(Dictionary<string, string> bindings, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<AppSnapshot> Rollback(string version) => throw new NotSupportedException();
     public Task<AppSnapshot> BeginBuild(string? instruction) => throw new NotSupportedException();
     public Task<Guid> CurrentBuildAttempt() => throw new NotSupportedException();

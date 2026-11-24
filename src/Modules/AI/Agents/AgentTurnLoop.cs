@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Web;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,14 +28,20 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
 {
     public string? AgentName { get; init; }
     public bool IncludeComponentOperations { get; init; }
+    public string[]? AlwaysOnOperationApps { get; init; }
+    public string[]? OpenedOperationApps { get; init; }
+    public string[]? ToolSources { get; init; }
 }
 
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
 // pushed: the consumer persists each event before asking for the next, so nothing external starts
 // before the agent has written what came before it. A failure becomes the last event; Run never throws.
-internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null)
+internal sealed class AgentTurnLoop(
+    IServiceProvider services,
+    Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null,
+    Func<string, CancellationToken, Task<IReadOnlyList<string>>>? readOpenApps = null)
 {
-    private static readonly string[] ContractAssemblyPrefixes = ["IntoChat.OS", "DigitalBrain"];
+    private static readonly string[] ContractAssemblyPrefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
         var telemetryConversation = plan.Conversation.StartsWith(plan.ScopeId + "/conversations/", StringComparison.Ordinal)
@@ -88,7 +95,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetService<OsNeuronSurface>();
-        // B06: Callable tools come from the agent definition's declared contracts and installed components' operations; context entries never widen tools.
+        // B06: Callable tools come from the agent definition's declared contracts, scoped ToolSources, and installed components' operations; context entries never widen tools.
         string[] composed = surface is null
             ? []
             : [.. plan.Contracts.Select(static name => LoadedContracts.CurrentName(name, ContractAssemblyPrefixes)).Distinct(StringComparer.Ordinal)];
@@ -110,18 +117,34 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 meta = AgentTools.Meta(edge, restricted, plan.Conversation);
                 Type[] contractTypes = [.. composed.Select(static name => LoadedContracts.Find(name, ContractAssemblyPrefixes))];
                 contractTools.AddRange(AgentTools.For(edge, restricted, contractTypes, plan.Conversation));
-                var sourceTools = await ToolSourceTools.For(restricted, contractTypes, edge, plan.Conversation, ct);
                 routableTools.AddRange(contractTools);
-                routableTools.AddRange(sourceTools);
+                if (plan.ToolSources is null)
+                {
+                    var sourceTools = await ToolSourceTools.For(restricted, contractTypes, edge, plan.Conversation, ct);
+                    routableTools.AddRange(sourceTools);
+                }
                 allTools.AddRange(meta);
                 allTools.AddRange(routableTools);
             }
         }
 
-        if (plan.IncludeComponentOperations && services.GetService<DigitalBrain.Neurons.INeuronProxies>() is { } proxies)
+        if (plan.ToolSources is { Length: > 0 } scopedKeys && surface is not null)
         {
             edge ??= services.GetService<DigitalBrain.Access.EdgeAuthority>();
-            var operationTools = AgentTools.Operations(edge, proxies, plan.Conversation);
+            var scopedTools = await ToolSourceTools.ForKeys(surface, scopedKeys, edge, plan.Conversation, ct);
+            routableTools.AddRange(scopedTools);
+            allTools.AddRange(scopedTools);
+        }
+
+        DigitalBrain.Neurons.INeuronProxies? operationProxies = null;
+        if (plan.IncludeComponentOperations && services.GetService<DigitalBrain.Neurons.INeuronProxies>() is { } proxies)
+        {
+            operationProxies = proxies;
+            edge ??= services.GetService<DigitalBrain.Access.EdgeAuthority>();
+            var brainId = DigitalBrain.Brains.BrainKey.BrainOf(plan.Conversation);
+            var openApps = await ReadOpenApps(proxies, brainId, ct);
+            var allowedApps = ToolPolicy.AppsForAssistant(plan.AlwaysOnOperationApps, openApps, plan.OpenedOperationApps);
+            var operationTools = AgentTools.Operations(edge, proxies, plan.Conversation, allowedApps);
             routableTools.AddRange(operationTools);
             allTools.AddRange(operationTools);
         }
@@ -157,9 +180,17 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 allTools.RemoveAll(IsWebSearchTool);
             }
 
-            var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
-            var router = new ToolRouter(routableTools, ResolveEmbeddings(services));
-            var routed = await router.Route(inputText, 8, ct);
+            IReadOnlyList<AIFunction> routed;
+            if (routableTools.Count <= 16 || meta.Count == 0)
+            {
+                routed = routableTools;
+            }
+            else
+            {
+                var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
+                var router = new ToolRouter(routableTools, ResolveEmbeddings(services));
+                routed = await router.Route(inputText, 8, ct);
+            }
             activeTools.AddRange(meta);
             activeTools.AddRange(routed);
             if (useNativeWebSearch)
@@ -354,6 +385,11 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                     if (string.Equals(tool.Name, AgentTools.SearchName, StringComparison.Ordinal))
                     {
                         WidenToolsFromSearch(result, serialized, routableTools, activeTools, options);
+                    }
+                    else if (operationProxies is not null
+                        && ToolPolicy.TryExtractLaunchedAppId(tool.Name, call.Arguments) is { } launchedAppId)
+                    {
+                        WidenOperationsForLaunchedApp(launchedAppId, edge, operationProxies, plan.Conversation, routableTools, allTools, activeTools, options);
                     }
                     var resultMessage = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, result)]);
                     messages.Add(resultMessage);
@@ -556,5 +592,71 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         // The reads overlap; Task.WhenAll keeps the results in the order of keys.
         return [.. (await Task.WhenAll(keys.Select(key => Read(Absolute(brain, key))))).SelectMany(entries => entries)];
+    }
+
+    private static void WidenOperationsForLaunchedApp(
+        string launchedAppId,
+        DigitalBrain.Access.EdgeAuthority? edge,
+        DigitalBrain.Neurons.INeuronProxies proxies,
+        string conversation,
+        List<AIFunction> routableTools,
+        List<AIFunction> allTools,
+        List<AITool> activeTools,
+        ChatOptions options)
+    {
+        var launchedOps = AgentTools.Operations(edge, proxies, conversation, [launchedAppId]);
+        if (launchedOps.Count == 0) { return; }
+
+        var allNames = allTools.Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var activeNames = activeTools.OfType<AIFunction>().Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var widened = false;
+        foreach (var op in launchedOps)
+        {
+            if (allNames.Add(op.Name))
+            {
+                routableTools.Add(op);
+                allTools.Add(op);
+            }
+
+            if (activeNames.Add(op.Name))
+            {
+                activeTools.Add(op);
+                widened = true;
+            }
+        }
+
+        if (widened)
+        {
+            options.Tools = [.. activeTools];
+            options.ToolMode = ChatToolMode.Auto;
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> ReadOpenApps(
+        DigitalBrain.Neurons.INeuronProxies proxies,
+        string brainId,
+        CancellationToken ct)
+    {
+        try
+        {
+            if (readOpenApps is not null)
+            {
+                return await readOpenApps(brainId, ct).ConfigureAwait(false);
+            }
+
+            if (string.IsNullOrWhiteSpace(brainId))
+            {
+                return [];
+            }
+
+            var workspaceId = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brainId), IWorkspace.Type, "main");
+            var workspace = await proxies.Get<IWorkspace>(workspaceId).Read().WaitAsync(ct).ConfigureAwait(false);
+            return ToolPolicy.OpenAppsFromWorkspace(workspace);
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "reading open workspace apps for scoped component operations");
+            return [];
+        }
     }
 }

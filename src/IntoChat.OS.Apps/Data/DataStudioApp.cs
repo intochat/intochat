@@ -8,6 +8,7 @@ Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization stu
 Powered by DataAnalyticsEngine and IFilesVfsService (/work/*.csv, /work/*.tsv, /work/*.json, and relational tables),
 and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
+using IntoChat.OS.Host.Apps;
 using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Log;
@@ -86,7 +87,7 @@ public sealed record DataStudioAppState(
         ?? Decision.Accept(DataStudioDecisions.DecideToMarkdraw(this, docPath.Trim()));
 }
 
-[Neuron("app.data"), Screen("app.data", Title = "Data Studio")]
+[Neuron("app.data"), Screen("app.data", Title = "Data Studio", Icon = "bar-chart-2", Category = "Studio", Dock = 3)]
 public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFilesVfs
 {
     protected override Task OnActivate(CancellationToken cancellationToken)
@@ -98,36 +99,26 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "data";
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<DataStudioApp>(
         "data",
         "1.0.0",
-        new AppManifest(
-            Title: "Data Studio",
-            Description: "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
-            Operations:
-            [
-                new("open", "Open a CSV, TSV, JSON dataset from Files VFS or a connected PostgreSQL table."),
-                new("query", "Run a SQL or natural-language analytical query (WHERE, GROUP BY, SUM/AVG/COUNT/MIN/MAX, ORDER BY, LIMIT)."),
-                new("group-by", "Aggregate the active dataset by a column using SUM, AVG, COUNT, MIN, or MAX."),
-                new("switch-chart", "Switch the active chart visualization between bar, line, and pie."),
-                new("export-csv", "Export the current filtered or aggregated table to a CSV file in Files VFS (/work/*.csv)."),
-                new("to-markdraw", "Generate a live Markdraw data-lineage diagram from the active dataset and chart."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg",
-            Dock: 3, Studio: true,
-            Toolbar:
-            [
-                new("open", Icon: "database", Label: "Open Dataset"),
-                new("export-csv", Icon: "download", Label: "Export CSV"),
-                new("to-markdraw", Icon: "pen-tool", Label: "Diagram in Markdraw"),
-            ]),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(DataStudioApp).AssemblyQualifiedName,
-    };
+        description: "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
+        operations:
+        [
+            new("open", "Open a CSV, TSV, JSON dataset from Files VFS or a connected PostgreSQL table."),
+            new("query", "Run a SQL or natural-language analytical query (WHERE, GROUP BY, SUM/AVG/COUNT/MIN/MAX, ORDER BY, LIMIT)."),
+            new("group-by", "Aggregate the active dataset by a column using SUM, AVG, COUNT, MIN, or MAX."),
+            new("switch-chart", "Switch the active chart visualization between bar, line, and pie."),
+            new("export-csv", "Export the current filtered or aggregated table to a CSV file in Files VFS (/work/*.csv)."),
+            new("to-markdraw", "Generate a live Markdraw data-lineage diagram from the active dataset and chart."),
+        ],
+        studio: true,
+        toolbar:
+        [
+            new("open", Icon: "database", Label: "Open Dataset"),
+            new("export-csv", Icon: "download", Label: "Export CSV"),
+            new("to-markdraw", Icon: "pen-tool", Label: "Diagram in Markdraw"),
+        ]);
 
     public new DataStudioAppState State => base.State;
     public View Render() => PreviewView(State);

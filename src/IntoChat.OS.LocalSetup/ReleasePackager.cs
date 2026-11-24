@@ -495,6 +495,7 @@ public static class ReleasePackager
             if (Directory.Exists(macOut))
             {
                 CopyDirectory(macOut, shellDir);
+                SetExecutableIfPosix(Path.Combine(shellDir, "intochat_os_flutter.app", "Contents", "MacOS", "intochat_os_flutter"));
             }
         }
         else
@@ -515,11 +516,37 @@ public static class ReleasePackager
         Directory.CreateDirectory(targetDir);
         foreach (var file in Directory.GetFiles(sourceDir))
         {
-            File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), overwrite: true);
+            var dest = Path.Combine(targetDir, Path.GetFileName(file));
+            var info = new FileInfo(file);
+            if (info.LinkTarget is { Length: > 0 } linkTarget)
+            {
+                if (File.Exists(dest))
+                {
+                    File.Delete(dest);
+                }
+                File.CreateSymbolicLink(dest, linkTarget);
+            }
+            else
+            {
+                File.Copy(file, dest, overwrite: true);
+            }
         }
         foreach (var sub in Directory.GetDirectories(sourceDir))
         {
-            CopyDirectory(sub, Path.Combine(targetDir, Path.GetFileName(sub)));
+            var dest = Path.Combine(targetDir, Path.GetFileName(sub));
+            var info = new DirectoryInfo(sub);
+            if (info.LinkTarget is { Length: > 0 } linkTarget)
+            {
+                if (Directory.Exists(dest))
+                {
+                    Directory.Delete(dest, recursive: true);
+                }
+                Directory.CreateSymbolicLink(dest, linkTarget);
+            }
+            else
+            {
+                CopyDirectory(sub, dest);
+            }
         }
     }
 

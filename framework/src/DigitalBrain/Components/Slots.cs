@@ -216,13 +216,17 @@ public sealed class Slots
 
     /// <summary>
     /// Resolves activation bindings for <paramref name="needs"/> against <paramref name="installed"/> bindings and contract defaults.
+    /// When <paramref name="isNeuronTypeHosted"/> is supplied, default targets are only synthesized for neuron types hosted by the runtime
+    /// (or polymorphic <see cref="NeuronAliasAttribute"/> contracts implemented by a hosted neuron via <paramref name="isContractHosted"/>).
     /// Throws <see cref="ActivationRefusedException"/> with <see cref="ActivationRefusedException.SlotUnbound"/> when any required slot remains unbound.
     /// </summary>
     public static IReadOnlyList<Binding> Resolve(
         BrainId brain,
         ComponentId component,
         IReadOnlyList<SlotNeed> needs,
-        IReadOnlyList<Binding>? installed)
+        IReadOnlyList<Binding>? installed,
+        Func<string, bool>? isNeuronTypeHosted = null,
+        Func<Type, bool>? isContractHosted = null)
     {
         ArgumentNullException.ThrowIfNull(needs);
         var explicitBySlot = new Dictionary<string, Binding>(StringComparer.Ordinal);
@@ -245,7 +249,7 @@ public sealed class Slots
                 continue;
             }
 
-            if (TryDefaultTarget(brain, need) is { } defaultTarget)
+            if (TryDefaultTarget(brain, need, isNeuronTypeHosted, isContractHosted) is { } defaultTarget)
             {
                 if (seen.Add(need.Name)) { resolved.Add(new Binding(need.Name, defaultTarget)); }
                 continue;
@@ -253,9 +257,12 @@ public sealed class Slots
 
             if (need.Required)
             {
-                throw new ActivationRefusedException(
-                    ActivationRefusedException.SlotUnbound,
-                    $"Required slot '{need.Name}' on component '{component}' has no binding.");
+                var neuronType = NeuronTypeOf(need.Contract);
+                var reason = !string.IsNullOrWhiteSpace(neuronType)
+                    && !IsTargetHosted(need.Contract, neuronType, isNeuronTypeHosted, isContractHosted)
+                    ? $"Required slot '{need.Name}' on component '{component}' requires neuron type '{neuronType}', which is not hosted in this runtime."
+                    : $"Required slot '{need.Name}' on component '{component}' has no binding.";
+                throw new ActivationRefusedException(ActivationRefusedException.SlotUnbound, reason);
             }
         }
 
@@ -267,29 +274,49 @@ public sealed class Slots
         return resolved;
     }
 
-    private static BindingTarget? TryDefaultTarget(BrainId brain, SlotNeed need)
+    private static BindingTarget? TryDefaultTarget(
+        BrainId brain,
+        SlotNeed need,
+        Func<string, bool>? isNeuronTypeHosted,
+        Func<Type, bool>? isContractHosted)
     {
         if (need.IsCollection)
         {
             if (need.Contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is { } defaultType
                 && !string.IsNullOrWhiteSpace(defaultType.Type))
             {
-                return new BindingTarget.NeuronType(defaultType.Type);
+                if (isNeuronTypeHosted is null || isNeuronTypeHosted(defaultType.Type))
+                {
+                    return new BindingTarget.NeuronType(defaultType.Type);
+                }
+                return need.Required ? null : new BindingTarget.NeuronType(string.Empty);
             }
+
+            var collectionType = NeuronTypeOf(need.Contract);
+            if (!string.IsNullOrWhiteSpace(collectionType)
+                && isNeuronTypeHosted is not null
+                && isNeuronTypeHosted(collectionType))
+            {
+                return new BindingTarget.NeuronType(collectionType);
+            }
+
             if (!need.Required)
             {
                 return new BindingTarget.NeuronType(string.Empty);
             }
-            if (need.Contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false) is { } alias
-                && !string.IsNullOrWhiteSpace(alias.Alias))
+
+            if (!string.IsNullOrWhiteSpace(collectionType)
+                && IsTargetHosted(need.Contract, collectionType, isNeuronTypeHosted, isContractHosted))
             {
-                return new BindingTarget.NeuronType(alias.Alias);
+                return new BindingTarget.NeuronType(isNeuronTypeHosted is null ? collectionType : string.Empty);
             }
+
             return null;
         }
 
         var neuronType = NeuronTypeOf(need.Contract);
         if (string.IsNullOrWhiteSpace(neuronType)) { return null; }
+        if (!IsTargetHosted(need.Contract, neuronType, isNeuronTypeHosted, isContractHosted)) { return null; }
 
         var key = !string.IsNullOrWhiteSpace(need.Key)
             ? need.Key
@@ -299,8 +326,29 @@ public sealed class Slots
         return new BindingTarget.Local(new NeuronId(brain, neuronType, key));
     }
 
-    private static string? NeuronTypeOf(Type contract)
+    /// <summary>
+    /// Returns whether <paramref name="contract"/> targeting <paramref name="neuronType"/> is hosted in the runtime.
+    /// Polymorphic <see cref="NeuronAliasAttribute"/> contracts without a <see cref="DefaultNeuronTypeAttribute"/> (such as <c>IScreen</c>)
+    /// are hosted when any registered neuron implements the contract.
+    /// </summary>
+    public static bool IsTargetHosted(
+        Type contract,
+        string neuronType,
+        Func<string, bool>? isNeuronTypeHosted,
+        Func<Type, bool>? isContractHosted = null)
     {
+        ArgumentNullException.ThrowIfNull(contract);
+        if (isNeuronTypeHosted is null) { return true; }
+        if (isNeuronTypeHosted(neuronType)) { return true; }
+        return contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is null
+            && isContractHosted is not null
+            && isContractHosted(contract);
+    }
+
+    /// <summary>Returns the default neuron type alias declared on <paramref name="contract"/>, if any.</summary>
+    public static string? NeuronTypeOf(Type contract)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
         if (contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is { } defaultType
             && !string.IsNullOrWhiteSpace(defaultType.Type))
         {

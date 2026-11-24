@@ -226,4 +226,29 @@ public sealed record MetricTileNode(
     public override int GetHashCode() => HashCode.Combine(Id, AppId, Title, Value);
 }
 
+/// <summary>An installed-app launcher tile emitted by the desktop view.</summary>
+[ViewNode("appTile")]
+public sealed record AppTileNode(
+    [Showcase("""{"kind":"appTile","key":"dock-ino","appId":"ino","title":"Ino","icon":"sparkles","category":"System","launch":0,"dock":0,"appKind":"compiled","command":{"target":".","signal":"desktop.open"},"automationName":"Ino"}""")]
+    [Showcase("""{"kind":"appTile","key":"catalog-photocraft","appId":"photocraft","title":"PhotoCraft","icon":"image","category":"Creative","launch":1,"appKind":"compiled","description":"Raster photo studio","command":{"target":".","signal":"desktop.open"},"automationName":"PhotoCraft"}""")]
+    string Key,
+    string AppId,
+    string Title,
+    string? Icon = null,
+    string? Category = null,
+    AppLaunch Launch = AppLaunch.Windowed,
+    int? Dock = null,
+    string AppKind = "compiled",
+    string? Description = null,
+    Command? Command = null,
+    string AutomationName = "") : Node
+{
+    /// <summary>The accessible name: the given one, or <see cref="Title"/> / <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = !string.IsNullOrWhiteSpace(AutomationName)
+        ? AutomationName
+        : !string.IsNullOrWhiteSpace(Title)
+            ? Title
+            : Key ?? "";
+}
+
 /// <summary>Structured code diff preview card for Feature-to-PR workflows.</summary>

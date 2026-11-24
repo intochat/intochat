@@ -18,7 +18,8 @@
           "action": "pin:ino",
           "selected": true,
           "badge": "PIN",
-          "emit": null
+          "command": null,
+          "automationName": "launch-ino"
         },
         {
           "kind": "navItem",
@@ -28,7 +29,8 @@
           "action": "pin:files",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-files"
         },
         {
           "kind": "navItem",
@@ -38,7 +40,8 @@
           "action": "pin:data",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-data"
         },
         {
           "kind": "navItem",
@@ -48,7 +51,8 @@
           "action": "pin:markdraw",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-markdraw"
         },
         {
           "kind": "navItem",
@@ -58,7 +62,8 @@
           "action": "pin:photocraft",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-photocraft"
         },
         {
           "kind": "navItem",
@@ -68,7 +73,8 @@
           "action": "pin:filmcraft",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-filmcraft"
         },
         {
           "kind": "navItem",
@@ -78,7 +84,8 @@
           "action": "pin:gallery",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-gallery"
         },
         {
           "kind": "navItem",
@@ -88,7 +95,8 @@
           "action": "pin:creator",
           "selected": true,
           "badge": "PIN",
-          "emit": null
+          "command": null,
+          "automationName": "launch-creator"
         },
         {
           "kind": "navItem",
@@ -98,7 +106,8 @@
           "action": "pin:post",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-post"
         },
         {
           "kind": "navItem",
@@ -108,7 +117,8 @@
           "action": "pin:settings",
           "selected": false,
           "badge": null,
-          "emit": null
+          "command": null,
+          "automationName": "launch-settings"
         },
         {
           "kind": "collection",
@@ -188,9 +198,16 @@
               "kind": "row",
               "children": [
                 {
-                  "kind": "button",
+                  "kind": "appTile",
                   "key": "dock-ino",
-                  "label": "Ino",
+                  "appId": "ino",
+                  "title": "Ino",
+                  "icon": "sparkles",
+                  "category": "Intelligence",
+                  "launch": 0,
+                  "dock": 1,
+                  "appKind": "compiled",
+                  "description": "Talk to your brain, use its capabilities, query databases, and create apps.",
                   "command": {
                     "target": ".",
                     "signal": "desktop.open",
@@ -199,20 +216,19 @@
                       "view": null
                     }
                   },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "accent",
-                  "tooltip": null,
-                  "visible": true,
-                  "automationName": "dock-ino",
-                  "style": "primary",
-                  "icon": "ino",
-                  "small": false
+                  "automationName": "Ino"
                 },
                 {
-                  "kind": "button",
+                  "kind": "appTile",
                   "key": "dock-files",
-                  "label": "Files",
+                  "appId": "files",
+                  "title": "Files",
+                  "icon": "folder",
+                  "category": "Workspace",
+                  "launch": 0,
+                  "dock": 2,
+                  "appKind": "compiled",
+                  "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
                   "command": {
                     "target": ".",
                     "signal": "desktop.open",
@@ -221,32 +237,172 @@
                       "view": null
                     }
                   },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "tooltip": null,
-                  "visible": true,
-                  "automationName": "dock-files",
-                  "style": "secondary",
-                  "small": false
+                  "automationName": "Files"
                 },
                 {
-                  "kind": "button",
+                  "kind": "appTile",
+                  "key": "dock-data",
+                  "appId": "data",
+                  "title": "Data Studio",
+                  "icon": "bar-chart-2",
+                  "category": "Studio",
+                  "launch": 0,
+                  "dock": 3,
+                  "appKind": "compiled",
+                  "description": "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "data",
+                      "view": null
+                    }
+                  },
+                  "automationName": "Data Studio"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-markdraw",
+                  "appId": "markdraw",
+                  "title": "Markdraw",
+                  "icon": "pen-tool",
+                  "category": "Studio",
+                  "launch": 0,
+                  "dock": 4,
+                  "appKind": "compiled",
+                  "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "markdraw",
+                      "view": null
+                    }
+                  },
+                  "automationName": "Markdraw"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-photocraft",
+                  "appId": "photocraft",
+                  "title": "PhotoCraft",
+                  "icon": "artcraft:photocraft",
+                  "category": "Studio",
+                  "launch": 1,
+                  "dock": 5,
+                  "appKind": "compiled",
+                  "description": "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "photocraft",
+                      "view": null
+                    }
+                  },
+                  "automationName": "PhotoCraft"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-filmcraft",
+                  "appId": "filmcraft",
+                  "title": "FilmCraft",
+                  "icon": "artcraft:filmcraft",
+                  "category": "Studio",
+                  "launch": 1,
+                  "dock": 6,
+                  "appKind": "compiled",
+                  "description": "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "filmcraft",
+                      "view": null
+                    }
+                  },
+                  "automationName": "FilmCraft"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-creator",
+                  "appId": "creator",
+                  "title": "Creator",
+                  "icon": "cpu",
+                  "category": "Studio",
+                  "launch": 0,
+                  "dock": 7,
+                  "appKind": "compiled",
+                  "description": "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "creator",
+                      "view": null
+                    }
+                  },
+                  "automationName": "Creator"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-gallery",
+                  "appId": "gallery",
+                  "title": "UI Gallery",
+                  "icon": "layout-grid",
+                  "category": "Studio",
+                  "launch": 0,
+                  "dock": 8,
+                  "appKind": "compiled",
+                  "description": "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "gallery",
+                      "view": null
+                    }
+                  },
+                  "automationName": "UI Gallery"
+                },
+                {
+                  "kind": "appTile",
+                  "key": "dock-friends",
+                  "appId": "friends",
+                  "title": "Friends",
+                  "icon": "users",
+                  "category": "Social",
+                  "launch": 0,
+                  "dock": 9,
+                  "appKind": "compiled",
+                  "description": "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
+                  "command": {
+                    "target": ".",
+                    "signal": "desktop.open",
+                    "args": {
+                      "app": "friends",
+                      "view": null
+                    }
+                  },
+                  "automationName": "Friends"
+                },
+                {
+                  "kind": "appTile",
                   "key": "dock-settings",
-                  "label": "Settings",
+                  "appId": "settings",
+                  "title": "Settings",
+                  "icon": "settings",
+                  "category": "System",
+                  "launch": 0,
+                  "dock": 10,
+                  "appKind": "compiled",
+                  "description": "Your preferences, models, keys, connections and archived chats.",
                   "command": {
                     "target": ".",
                     "signal": "desktop.settings",
                     "args": {}
                   },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "tooltip": null,
-                  "visible": true,
-                  "automationName": "dock-settings",
-                  "style": "secondary",
-                  "small": false
+                  "automationName": "Settings"
                 },
                 {
                   "kind": "button",
@@ -339,13 +495,755 @@
             0,
             360
           ]
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "appTile",
+              "key": "catalog-ino",
+              "appId": "ino",
+              "title": "Ino",
+              "icon": "sparkles",
+              "category": "Intelligence",
+              "launch": 0,
+              "dock": 1,
+              "appKind": "compiled",
+              "description": "Talk to your brain, use its capabilities, query databases, and create apps.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "ino",
+                  "view": null
+                }
+              },
+              "automationName": "Ino"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-files",
+              "appId": "files",
+              "title": "Files",
+              "icon": "folder",
+              "category": "Workspace",
+              "launch": 0,
+              "dock": 2,
+              "appKind": "compiled",
+              "description": "Browse, search, create and manage files across connected storages, with safe confirmations.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "files",
+                  "view": null
+                }
+              },
+              "automationName": "Files"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-data",
+              "appId": "data",
+              "title": "Data Studio",
+              "icon": "bar-chart-2",
+              "category": "Studio",
+              "launch": 0,
+              "dock": 3,
+              "appKind": "compiled",
+              "description": "Interactive data exploration, SQL/CSV/JSON relational analytics, KPI metrics, and live chart visualization synced with Ino and Markdraw.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "data",
+                  "view": null
+                }
+              },
+              "automationName": "Data Studio"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-markdraw",
+              "appId": "markdraw",
+              "title": "Markdraw",
+              "icon": "pen-tool",
+              "category": "Studio",
+              "launch": 0,
+              "dock": 4,
+              "appKind": "compiled",
+              "description": "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, Files VFS persistence, and shared Ino co-drawing.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "markdraw",
+                  "view": null
+                }
+              },
+              "automationName": "Markdraw"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-photocraft",
+              "appId": "photocraft",
+              "title": "PhotoCraft",
+              "icon": "artcraft:photocraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": 5,
+              "appKind": "compiled",
+              "description": "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "photocraft",
+                  "view": null
+                }
+              },
+              "automationName": "PhotoCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-filmcraft",
+              "appId": "filmcraft",
+              "title": "FilmCraft",
+              "icon": "artcraft:filmcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": 6,
+              "appKind": "compiled",
+              "description": "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "filmcraft",
+                  "view": null
+                }
+              },
+              "automationName": "FilmCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-creator",
+              "appId": "creator",
+              "title": "Creator",
+              "icon": "cpu",
+              "category": "Studio",
+              "launch": 0,
+              "dock": 7,
+              "appKind": "compiled",
+              "description": "Inspect the DigitalBrain topology, time-travel causal signals one event at a time, explore Accordant state spaces, and run unit scenarios.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "creator",
+                  "view": null
+                }
+              },
+              "automationName": "Creator"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-gallery",
+              "appId": "gallery",
+              "title": "UI Gallery",
+              "icon": "layout-grid",
+              "category": "Studio",
+              "launch": 0,
+              "dock": 8,
+              "appKind": "compiled",
+              "description": "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "gallery",
+                  "view": null
+                }
+              },
+              "automationName": "UI Gallery"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-friends",
+              "appId": "friends",
+              "title": "Friends",
+              "icon": "users",
+              "category": "Social",
+              "launch": 0,
+              "dock": 9,
+              "appKind": "compiled",
+              "description": "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "friends",
+                  "view": null
+                }
+              },
+              "automationName": "Friends"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-settings",
+              "appId": "settings",
+              "title": "Settings",
+              "icon": "settings",
+              "category": "System",
+              "launch": 0,
+              "dock": 10,
+              "appKind": "compiled",
+              "description": "Your preferences, models, keys, connections and archived chats.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.settings",
+                "args": {}
+              },
+              "automationName": "Settings"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-aspire",
+              "appId": "aspire",
+              "title": ".NET Aspire",
+              "icon": "activity",
+              "category": "Developer",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Built-in .NET Aspire operator dashboard for resources, distributed traces, structured logs, console logs, and metrics.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "aspire",
+                  "view": null
+                }
+              },
+              "automationName": ".NET Aspire"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-artcraft",
+              "appId": "artcraft",
+              "title": "ArtCraft",
+              "icon": "artcraft:artcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Master creative suite hub and launcher for the open-source Rust ArtCraft ecosystem (WASM Web UI, MCP Server, and craft-cli).",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "artcraft",
+                  "view": null
+                }
+              },
+              "automationName": "ArtCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-cadcraft",
+              "appId": "cadcraft",
+              "title": "CADCraft",
+              "icon": "artcraft:cadcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "AutoCAD/FreeCAD-compatible precision parametric 2D drafting and 3D solid modeling studio with STEP/IGES/DXF/STL support.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "cadcraft",
+                  "view": null
+                }
+              },
+              "automationName": "CADCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-calculator",
+              "appId": "calculator",
+              "title": "Calculator",
+              "icon": "calculator",
+              "category": "Workspace",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "A keypad that evaluates arithmetic expressions.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "calculator",
+                  "view": null
+                }
+              },
+              "automationName": "Calculator"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-deckcraft",
+              "appId": "deckcraft",
+              "title": "DeckCraft",
+              "icon": "artcraft:deckcraft",
+              "category": "Workspace",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Keynote/PowerPoint-compatible slide deck studio with master layouts, smart transitions, speaker notes, and PPTX/PDF export.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "deckcraft",
+                  "view": null
+                }
+              },
+              "automationName": "DeckCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-designcraft",
+              "appId": "designcraft",
+              "title": "DesignCraft",
+              "icon": "artcraft:designcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "InDesign-compatible multi-page layout, master spreads, baseline typography grids, and print-ready PDF/X publishing studio.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "designcraft",
+                  "view": null
+                }
+              },
+              "automationName": "DesignCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-devui",
+              "appId": "devui",
+              "title": "DevUI",
+              "icon": "terminal",
+              "category": "Developer",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Built-in developer console and runtime inspector at /devui/.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "devui",
+                  "view": null
+                }
+              },
+              "automationName": "DevUI"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-effectcraft",
+              "appId": "effectcraft",
+              "title": "EffectCraft",
+              "icon": "artcraft:effectcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "After Effects-compatible node and layer motion graphics, keyframe animation, particle emitters, and VFX compositing studio.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "effectcraft",
+                  "view": null
+                }
+              },
+              "automationName": "EffectCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-figcraft",
+              "appId": "figcraft",
+              "title": "FigCraft",
+              "icon": "artcraft:figcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Figma-compatible interface design tool with auto-layout frames, design tokens, component variants, and interactive prototypes.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "figcraft",
+                  "view": null
+                }
+              },
+              "automationName": "FigCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-gridcraft",
+              "appId": "gridcraft",
+              "title": "GridCraft",
+              "icon": "artcraft:gridcraft",
+              "category": "Workspace",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Excel-compatible reactive spreadsheet engine for formula evaluation, pivot tables, financial modeling, and CSV/XLSX/Parquet workflows.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "gridcraft",
+                  "view": null
+                }
+              },
+              "automationName": "GridCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-engineer",
+              "appId": "engineer",
+              "title": "IntoChat Engineer",
+              "icon": "workflow",
+              "category": "Studio",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Autonomous multi-worktree engineering workbench: brainstorm, plan, Roslyn/Dart code, live verify, candidate tournament, and PR review.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "engineer",
+                  "view": null
+                }
+              },
+              "automationName": "IntoChat Engineer"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-lightcraft",
+              "appId": "lightcraft",
+              "title": "LightCraft",
+              "icon": "artcraft:lightcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Lightroom-compatible non-destructive RAW photo catalog, exposure/color grading, LUTs, and batch export studio.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "lightcraft",
+                  "view": null
+                }
+              },
+              "automationName": "LightCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-materialcraft",
+              "appId": "materialcraft",
+              "title": "MaterialCraft",
+              "icon": "artcraft:materialcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Substance Designer-compatible node-based procedural material generator for seamless tileable PBR surfaces.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "materialcraft",
+                  "view": null
+                }
+              },
+              "automationName": "MaterialCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-muncly",
+              "appId": "muncly",
+              "title": "Muncly CRM",
+              "icon": "muncly",
+              "category": "Business",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Muncly CRM workspace with embedded web app and authenticated MCP access for agents.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "muncly",
+                  "view": null
+                }
+              },
+              "automationName": "Muncly CRM"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-orleans",
+              "appId": "orleans",
+              "title": "Orleans Dashboard",
+              "icon": "cpu",
+              "category": "Developer",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Co-hosted Microsoft Orleans grain, silo, activation, method-profile, and reminder dashboard.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "orleans",
+                  "view": null
+                }
+              },
+              "automationName": "Orleans Dashboard"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-pdfcraft",
+              "appId": "pdfcraft",
+              "title": "PdfCraft",
+              "icon": "artcraft:pdfcraft",
+              "category": "Workspace",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Acrobat-compatible PDF reader, structural editor, page organizer, OCR text extractor, form filler, and cryptographic signer.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "pdfcraft",
+                  "view": null
+                }
+              },
+              "automationName": "PdfCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-solidcraft",
+              "appId": "solidcraft",
+              "title": "SolidCraft",
+              "icon": "artcraft:solidcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Blender-compatible 3D polygonal modeling, subdivision surfaces, UV unwrapping, and glTF/USDZ scene studio.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "solidcraft",
+                  "view": null
+                }
+              },
+              "automationName": "SolidCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-soundcraft",
+              "appId": "soundcraft",
+              "title": "SoundCraft",
+              "icon": "artcraft:soundcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Multi-track digital audio workstation (DAW) for spectral denoising, parametric EQ, stem mixing, and loudness normalization.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "soundcraft",
+                  "view": null
+                }
+              },
+              "automationName": "SoundCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-tasks",
+              "appId": "tasks",
+              "title": "Tasks",
+              "icon": "tasks",
+              "category": "Workspace",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Plan and follow workspace tasks and brain flows across Kanban board, list, and stage stepper.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "tasks",
+                  "view": null
+                }
+              },
+              "automationName": "Tasks"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-texturecraft",
+              "appId": "texturecraft",
+              "title": "TextureCraft",
+              "icon": "artcraft:texturecraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Substance Painter-compatible 3D mesh texture painting studio with smart masks, curvature baking, and PBR channel export.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "texturecraft",
+                  "view": null
+                }
+              },
+              "automationName": "TextureCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-uikit",
+              "appId": "uikit",
+              "title": "UI Kit",
+              "icon": "widgets",
+              "category": "Developer",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Working prototypes of every control, with a log of the signals they send.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "uikit",
+                  "view": null
+                }
+              },
+              "automationName": "UI Kit"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-usage",
+              "appId": "usage",
+              "title": "Usage",
+              "icon": "wallet",
+              "category": "System",
+              "launch": 0,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "This brain's compute spending over the last 30 days.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "usage",
+                  "view": null
+                }
+              },
+              "automationName": "Usage"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-vectorcraft",
+              "appId": "vectorcraft",
+              "title": "VectorCraft",
+              "icon": "artcraft:vectorcraft",
+              "category": "Studio",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Illustrator-compatible vector design studio with Bézier anchors, boolean pathfinder operations, live blends, and SVG/PDF export.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "vectorcraft",
+                  "view": null
+                }
+              },
+              "automationName": "VectorCraft"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-widgetbook",
+              "appId": "widgetbook",
+              "title": "Widgetbook",
+              "icon": "layout-grid",
+              "category": "Developer",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Open-source interactive UI Kit & Neuron catalog workbench for IntoChat OS.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "widgetbook",
+                  "view": null
+                }
+              },
+              "automationName": "Widgetbook"
+            },
+            {
+              "kind": "appTile",
+              "key": "catalog-wordcraft",
+              "appId": "wordcraft",
+              "title": "WordCraft",
+              "icon": "artcraft:wordcraft",
+              "category": "Workspace",
+              "launch": 1,
+              "dock": null,
+              "appKind": "compiled",
+              "description": "Word-compatible structured document processor with semantic styles, citations, track changes, and DOCX/Markdown/PDF export.",
+              "command": {
+                "target": ".",
+                "signal": "desktop.open",
+                "args": {
+                  "app": "wordcraft",
+                  "view": null
+                }
+              },
+              "automationName": "WordCraft"
+            }
+          ],
+          "surfaceKind": "app-catalog",
+          "title": null,
+          "subtitle": null,
+          "padding": 0
         }
       ],
       "gap": 12,
       "padding": 0,
       "extents": [
         0,
-        68
+        68,
+        0
       ]
     }
   }

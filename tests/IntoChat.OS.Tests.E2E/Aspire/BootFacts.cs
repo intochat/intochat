@@ -46,7 +46,7 @@ public sealed class BootFacts(OsAppHostFixture host)
         var model = host.App.Services.GetRequiredService<DistributedApplicationModel>();
         var names = model.Resources.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
-        Assert.Contains("OperatingSystem-a", names);
+        Assert.Contains("os", names);
         Assert.Empty(model.Resources.OfType<ContainerResource>());
         Assert.Empty(model.Resources.OfType<YarpResource>());
         Assert.DoesNotContain(model.Resources, r => r.Annotations.Any(a => a.GetType().Name.EndsWith("BuildAnnotation", StringComparison.Ordinal)));
@@ -55,7 +55,7 @@ public sealed class BootFacts(OsAppHostFixture host)
     [Fact]
     public async Task TheProductTierDownloadsNothing()
     {
-        var env = await KernelEnvironmentAsync(host.App, "OperatingSystem-a", TestContext.Current.CancellationToken);
+        var env = await KernelEnvironmentAsync(host.App, "os", TestContext.Current.CancellationToken);
         Assert.DoesNotContain(env.Keys, static k => k.StartsWith("IntoChatOS__Modules__devices__Options__Prefetch__", StringComparison.OrdinalIgnoreCase));
         Assert.Empty(host.App.Services.GetRequiredService<DistributedApplicationModel>().Resources.OfType<ContainerResource>());
     }

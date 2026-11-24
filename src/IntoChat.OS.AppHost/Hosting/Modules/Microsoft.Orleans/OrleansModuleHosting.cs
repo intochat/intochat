@@ -36,7 +36,7 @@ public sealed class OrleansModuleHosting : IIntoChatOSModuleHosting
                 emulator.WithArgs("--silent");
                 if (persist) { emulator.WithLifetime(ContainerLifetime.Persistent); }
                 if (options.Azurite.DataVolume is { } volume) { emulator.WithDataVolume(volume); }
-                else if (persist) { emulator.WithDataVolume(); }
+                else if (persist) { emulator.WithDataVolume(LegacyNames.DataVolume(builder, LegacyNames.Resource(IntoChatOSNames.Storage))); }
             })
             .WithParentRelationship(brain.GetOrAddModuleNode(OrleansIntegrationNames.Id));
         var clustering = storage.AddTables(brain.ResourceName(IntoChatOSNames.Clustering));

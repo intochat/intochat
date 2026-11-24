@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using DigitalBrain.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -12,14 +13,21 @@ public sealed class FeatureCatalog
     internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.Features");
 
     private readonly Assembly[] _modules;
+    private readonly Func<string, bool>? _isNeuronTypeHosted;
+    private readonly Func<Type, bool>? _isContractHosted;
     private readonly Lazy<Loaded> _loaded;
 
     internal FeatureCatalog(Assembly? modules)
         : this(modules is null ? [] : [modules]) { }
 
-    public FeatureCatalog(IEnumerable<Assembly> modules)
+    public FeatureCatalog(
+        IEnumerable<Assembly> modules,
+        Func<string, bool>? isNeuronTypeHosted = null,
+        Func<Type, bool>? isContractHosted = null)
     {
         _modules = [.. (modules ?? []).Where(a => a is not null).Distinct()];
+        _isNeuronTypeHosted = isNeuronTypeHosted;
+        _isContractHosted = isContractHosted;
         _loaded = new(Load);
     }
 
@@ -30,7 +38,10 @@ public sealed class FeatureCatalog
         {
             registered.Insert(0, typeof(AppsModule).Assembly);
         }
-        return new(registered);
+        var hosted = services.GetService<IHostedNeuronTypes>();
+        Func<string, bool>? isHosted = hosted is not null ? hosted.IsHosted : null;
+        Func<Type, bool>? isContractHosted = hosted is not null ? hosted.IsContractHosted : null;
+        return new(registered, isHosted, isContractHosted);
     }
 
     internal Task<IReadOnlyList<FeatureFailure>> Failures() => Task.FromResult<IReadOnlyList<FeatureFailure>>(_loaded.Value.Failures);
@@ -58,13 +69,19 @@ public sealed class FeatureCatalog
             && _loaded.Value.Origins.TryGetValue((ShippedApps.Publisher, name), out var origin)
             && origin is FeatureOrigin.ModuleSource;
 
-    // Every shipped os app, plus every ShippedApps root.
+    /// <summary>Returns whether a shipped app's required host neuron types are available in this runtime.</summary>
+    public Task<AppAvailability> Availability(string owner, string name)
+        => Task.FromResult(_loaded.Value.Availabilities.GetValueOrDefault((owner, name), AppAvailability.Ready.Instance));
+
+    // Every shipped os app whose required host capabilities are available, plus every ShippedApps root.
     public Task<IReadOnlyList<(string Publisher, string Name)>> BootSet()
     {
         var names = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var (owner, name) in _loaded.Value.Origins.Keys)
         {
-            if (owner == ShippedApps.Publisher) { names.Add(name); }
+            if (owner != ShippedApps.Publisher) { continue; }
+            if (_loaded.Value.Availabilities.GetValueOrDefault((owner, name), AppAvailability.Ready.Instance) is not AppAvailability.Ready) { continue; }
+            names.Add(name);
         }
         foreach (var root in ShippedApps.Roots) { names.Add(root); }
         return Task.FromResult<IReadOnlyList<(string Publisher, string Name)>>([.. names.Select(name => (ShippedApps.Publisher, name))]);
@@ -80,6 +97,7 @@ public sealed class FeatureCatalog
         using var load = Telemetry.StartActivity("features.load");
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>();
         var origins = new Dictionary<(string Owner, string Name), FeatureOrigin>();
+        var availabilities = new Dictionary<(string Owner, string Name), AppAvailability>();
         var twice = new HashSet<(string Owner, string Name)>();
         List<FeatureFailure> failures = [];
         foreach (var moduleAssembly in _modules)
@@ -94,22 +112,25 @@ public sealed class FeatureCatalog
                     failures.Add(new(compiled.Owner, compiled.Bundle.Name, compiled.Bundle.Version, reason));
                     bundles.Remove(key);
                     origins.Remove(key);
+                    availabilities.Remove(key);
                     twice.Add(key);
                     continue;
                 }
                 bundles[key] = compiled.Bundle;
                 origins[key] = compiled.Origin;
+                availabilities[key] = AppAvailability.Evaluate(compiled.AppType, _isNeuronTypeHosted, _isContractHosted);
             }
         }
         load?.SetTag("features.count", bundles.Count);
         load?.SetTag("features.failed", failures.Count);
-        return new(bundles, [.. failures], origins);
+        return new(bundles, [.. failures], origins, availabilities);
     }
 
     private sealed record Loaded(
         IReadOnlyDictionary<(string Owner, string Name), AppBundle> Bundles,
         FeatureFailure[] Failures,
-        IReadOnlyDictionary<(string Owner, string Name), FeatureOrigin> Origins);
+        IReadOnlyDictionary<(string Owner, string Name), FeatureOrigin> Origins,
+        IReadOnlyDictionary<(string Owner, string Name), AppAvailability> Availabilities);
 }
 
 internal sealed record FeatureFailure(string Owner, string Name, string Version, string Reason);

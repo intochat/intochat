@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'app_shell.dart';
+import 'app_tile.dart';
 import 'approval_card.dart';
 import 'badge.dart';
 import 'node_common.dart' show keyedControl;
@@ -105,6 +106,7 @@ abstract final class NodeRenderer {
   /// model is covered; `showcase_catalog_test.dart` fails when a new one is not).
   static String? keyOf(Node node) => switch (node) {
     AppShellNode(:final key) ||
+    AppTileNode(:final key) ||
     ApprovalCardNode(:final key) ||
     ButtonNode(:final key) ||
     CheckBoxViewNode(:final key) ||
@@ -172,6 +174,7 @@ abstract final class NodeRenderer {
       ErrorLineNode() => renderErrorLine(node, ctx),
       EmptyStateNode() => renderEmptyState(node, ctx),
       MetricTileNode() => renderMetricTile(node, ctx),
+      AppTileNode() => renderAppTile(node, ctx),
       DiffCardNode() => renderDiffCard(node, ctx),
       CheckBoxViewNode() => renderCheckBoxView(node, ctx),
       ToggleSwitchViewNode() => renderToggleSwitchView(node, ctx),

@@ -315,7 +315,6 @@ internal sealed class ConversationNeuron(
         ArgumentNullException.ThrowIfNull(definition);
         ValidateDefinition(definition);
         await Fresh();
-        EnsureIdle();
 
         var trimmedId = agentId.Trim();
         var normalized = NormalizeDefinition(definition);
@@ -324,6 +323,8 @@ internal sealed class ConversationNeuron(
         {
             return;
         }
+
+        EnsureIdle();
 
         foreach (var ctxId in Runner.ContextIds(normalized.Contexts))
         {
@@ -744,6 +745,8 @@ internal sealed class ConversationNeuron(
             {
                 AgentName = seated.AgentId,
                 IncludeComponentOperations = definition.IncludeComponentOperations,
+                AlwaysOnOperationApps = definition.OperationApps,
+                ToolSources = definition.ToolSources,
             };
 
             streamStart = Clock.GetTimestamp();
@@ -976,9 +979,17 @@ internal sealed class ConversationNeuron(
 
         if (definition.Instructions.Length > 32_000 || definition.Contracts.Length > 128 || definition.Contracts.Any(string.IsNullOrWhiteSpace)
             || definition.Contracts.Distinct(StringComparer.Ordinal).Count() != definition.Contracts.Length
-            || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512))
+            || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
+            || (definition.OperationApps is { } operationApps
+                && (operationApps.Length > 64
+                    || operationApps.Any(app => string.IsNullOrWhiteSpace(app) || app.Length > 128)
+                    || operationApps.Distinct(StringComparer.OrdinalIgnoreCase).Count() != operationApps.Length))
+            || (definition.ToolSources is { } toolSources
+                && (toolSources.Length > 64
+                    || toolSources.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
+                    || toolSources.Distinct(StringComparer.Ordinal).Count() != toolSources.Length)))
         {
-            throw new ArgumentException("Instructions, contracts or contexts are invalid.", nameof(definition));
+            throw new ArgumentException("Instructions, contracts, operation apps, tool sources or contexts are invalid.", nameof(definition));
         }
     }
 
@@ -988,6 +999,8 @@ internal sealed class ConversationNeuron(
         Capabilities = [.. definition.Capabilities],
         RoutingExamples = [.. definition.RoutingExamples],
         Contexts = [.. definition.Contexts],
+        OperationApps = definition.OperationApps is null ? null : [.. definition.OperationApps],
+        ToolSources = definition.ToolSources is null ? null : [.. definition.ToolSources],
     };
 
     private static bool SameDefinition(AgentDefinition a, AgentDefinition b)
@@ -1002,10 +1015,21 @@ internal sealed class ConversationNeuron(
             && a.CompactionThreshold == b.CompactionThreshold
             && a.CompactionRecentWindow == b.CompactionRecentWindow
             && a.UseModelSummarizer == b.UseModelSummarizer
+            && a.IncludeComponentOperations == b.IncludeComponentOperations
             && a.Contracts.SequenceEqual(b.Contracts, StringComparer.Ordinal)
             && a.Capabilities.SequenceEqual(b.Capabilities, StringComparer.Ordinal)
             && a.RoutingExamples.SequenceEqual(b.RoutingExamples, StringComparer.Ordinal)
-            && a.Contexts.SequenceEqual(b.Contexts, StringComparer.Ordinal);
+            && a.Contexts.SequenceEqual(b.Contexts, StringComparer.Ordinal)
+            && SameOptionalSequence(a.OperationApps, b.OperationApps)
+            && SameOptionalSequence(a.ToolSources, b.ToolSources);
+
+    private static bool SameOptionalSequence(string[]? left, string[]? right)
+        => (left, right) switch
+        {
+            (null, null) => true,
+            (null, _) or (_, null) => false,
+            _ => left.SequenceEqual(right, StringComparer.Ordinal),
+        };
 
     private void Abandon(Exception error, string runId)
     {

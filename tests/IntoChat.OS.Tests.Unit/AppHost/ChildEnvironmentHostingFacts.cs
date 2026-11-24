@@ -5,8 +5,8 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
-using IntoChat.OS.Modules.Microsoft.Aspire;
-using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.Aspire;
+using IntoChat.Aspire.Candidates;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.AppHost.Tests.Unit;
@@ -94,6 +94,8 @@ public sealed class ChildEnvironmentHostingFacts
             var windowDir = Path.Combine(tempRoot.FullName, "shell-window");
             Directory.CreateDirectory(Path.Combine(windowDir, "lib"));
             Directory.CreateDirectory(Path.Combine(windowDir, "windows"));
+            Directory.CreateDirectory(Path.Combine(windowDir, "linux"));
+            Directory.CreateDirectory(Path.Combine(windowDir, "macos"));
             File.WriteAllText(Path.Combine(windowDir, "pubspec.yaml"), "name: test_window_shell\n");
             File.WriteAllText(Path.Combine(windowDir, "lib", "main.dart"), "void main() {}");
 
@@ -127,7 +129,7 @@ public sealed class ChildEnvironmentHostingFacts
                 Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
-                var shellResource = Assert.Single(builder.Resources.OfType<ExecutableResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
+                var shellResource = Assert.Single(builder.Resources.OfType<ExecutableResource>(), r => r.Name == ShellNames.DesktopResourceName);
                 var shellArgs = new List<object>();
                 var argsCtx = new CommandLineArgsCallbackContext(shellArgs, shellResource, TestContext.Current.CancellationToken);
                 foreach (var cb in shellResource.Annotations.OfType<CommandLineArgsCallbackAnnotation>()) { await cb.Callback(argsCtx); }
@@ -165,7 +167,7 @@ public sealed class ChildEnvironmentHostingFacts
                 Assert.True(siloEnv.TryGetValue(PresenceProof.TokenHashEnvironmentVariable, out var hashObj));
                 var expectedHash = Assert.IsType<string>(hashObj);
 
-                var shellResource = Assert.Single(builder.Resources, r => r.Name == ShellNames.DefaultFlutterResourceName);
+                var shellResource = Assert.Single(builder.Resources, r => r.Name == ShellNames.WebResourceName);
                 var browser = Assert.Single(shellResource.Annotations.OfType<BrainBrowserAnnotation>());
                 var fragmentIndex = browser.Path.IndexOf("#presence=", StringComparison.Ordinal);
                 Assert.True(fragmentIndex > 0, $"Expected #presence= fragment in browser path '{browser.Path}'.");
@@ -183,7 +185,7 @@ public sealed class ChildEnvironmentHostingFacts
                         o.Hosting = o.Hosting with { WorkingDirectory = webDir, WebContainer = true };
                     });
 
-                var shellContainer = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == ShellNames.DefaultFlutterResourceName);
+                var shellContainer = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == ShellNames.WebResourceName);
                 try
                 {
                     var silo = builder.AddExecutable("OperatingSystem-a", "unused", ".")
@@ -225,5 +227,33 @@ public sealed class ChildEnvironmentHostingFacts
         {
             DigitalBrain.Testing.TempDirectory.DeleteIfPresent(tempRoot.FullName);
         }
+    }
+
+    [Fact]
+    public async Task SandboxModuleHosting_WiresSandboxKernelUrlToKernelHttpEndpoint()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
+            .WithHosting<SandboxModuleHosting>();
+
+        var silo = builder.AddExecutable("OperatingSystem-a", "unused", ".")
+            .WithHttpEndpoint(name: "http", targetPort: 5080)
+            .WithReference(brain);
+
+        var sandbox = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == SandboxModuleHosting.ResourceName);
+        var sandboxEnv = new Dictionary<string, object>();
+        var sandboxCtx = new EnvironmentCallbackContext(builder.ExecutionContext, sandbox, sandboxEnv, TestContext.Current.CancellationToken);
+        foreach (var cb in sandbox.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            await cb.Callback(sandboxCtx);
+        }
+
+        Assert.True(sandboxEnv.TryGetValue("SANDBOX_KERNEL_URL", out var kernelUrl));
+        var endpointRef = Assert.IsType<EndpointReference>(kernelUrl);
+        Assert.Same(silo.Resource, endpointRef.Resource);
+        Assert.Equal("http", endpointRef.EndpointName);
+        Assert.False(sandboxEnv.ContainsKey("KERNEL_URL"));
+        Assert.True(sandboxEnv.TryGetValue("SANDBOX_ENROLL_KEY", out var enrollKey));
+        Assert.False(string.IsNullOrWhiteSpace(Assert.IsType<string>(enrollKey)));
     }
 }

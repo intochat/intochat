@@ -97,6 +97,65 @@ public sealed class ManifestViewFacts
         Assert.Equal("Refreshes the inbox", command.Description);
     }
 
+    [Fact]
+    public void AppManifest_From_preserves_required_connectors_without_capabilities_and_omits_optional_slots_from_requires()
+    {
+        var component = new ComponentManifest(
+            Id: new ComponentId("app.researcher"),
+            Slots:
+            [
+                new SlotNeed("customers", typeof(ITestNotesContract), Key: "customer_profiles", Required: true),
+                new SlotNeed("optionalCap", typeof(ITestStorageCap), Required: false),
+            ],
+            Kind: ComponentKind.App);
+
+        var manifest = AppManifest.From(component);
+
+        Assert.NotNull(manifest.Requires);
+        Assert.Equal(["notes.store"], manifest.Requires!.Connectors!);
+        Assert.Null(manifest.Requires.Capabilities);
+        Assert.True(manifest.Slots[0].Required);
+        Assert.False(manifest.Slots[1].Required);
+        Assert.NotNull(manifest.Validated());
+    }
+
+    [Fact]
+    public void Slots_Resolve_does_not_synthesize_default_target_for_unhosted_neuron_type()
+    {
+        var brain = new BrainId("owner");
+        var component = new ComponentId("app.researcher");
+        var requiredNeed = new SlotNeed("customers", typeof(ITestNotesContract), Key: "customer_profiles", Required: true);
+        var optionalNeed = new SlotNeed("optional", typeof(ITestNotesContract), Key: "customer_profiles", Required: false);
+
+        var refusal = Assert.Throws<DigitalBrain.Units.ActivationRefusedException>(() =>
+        {
+            _ = Slots.Resolve(brain, component, [requiredNeed], installed: null, isNeuronTypeHosted: _ => false);
+        });
+        Assert.Equal(DigitalBrain.Units.ActivationRefusedException.SlotUnbound, refusal.Reason);
+        Assert.Contains("notes.store", refusal.Message, StringComparison.Ordinal);
+
+        var optionalResolved = Slots.Resolve(brain, component, [optionalNeed], installed: null, isNeuronTypeHosted: _ => false);
+        Assert.Empty(optionalResolved);
+
+        var hostedResolved = Slots.Resolve(brain, component, [requiredNeed], installed: null, isNeuronTypeHosted: t => t == "notes.store");
+        var binding = Assert.Single(hostedResolved);
+        Assert.Equal("customers", binding.Slot);
+
+        var polymorphicCollection = new SlotNeed("screens", typeof(ITestPolymorphicScreen), Required: true, IsCollection: true);
+        var polymorphicResolved = Slots.Resolve(
+            brain,
+            component,
+            [polymorphicCollection],
+            installed: null,
+            isNeuronTypeHosted: _ => false,
+            isContractHosted: c => c == typeof(ITestPolymorphicScreen));
+        var polyBinding = Assert.Single(polymorphicResolved);
+        Assert.Equal("screens", polyBinding.Slot);
+    }
+
+    [NeuronAlias("screen")]
+    private interface ITestPolymorphicScreen;
+
     [Capability("storage", 1)]
     private interface ITestStorageCap;
 

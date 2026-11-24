@@ -163,7 +163,7 @@ internal sealed partial class ScreenDirectoryNeuron
                     : null;
 
                 var isInteractive = key is not null && (
-                    kind is "button" or "field" or "tabItem" or "tab" or "action" or "approvalCard" or "confirmCard" or "navItem"
+                    kind is "button" or "field" or "tabItem" or "tab" or "action" or "approvalCard" or "confirmCard" or "navItem" or "appTile"
                     || element.TryGetProperty("emit", out _)
                     || element.TryGetProperty("intent", out _)
                     || element.TryGetProperty("resolve", out _)

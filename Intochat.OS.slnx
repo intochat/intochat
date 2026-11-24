@@ -53,6 +53,12 @@
     <Project Path="framework/tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
   </Folder>
+  <Project Path="src/Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" />
+  <Project Path="src/Components/Aspire/IntoChat.Aspire.csproj" />
+  <Project Path="src/Components/Muncly/Contracts/IntoChat.Muncly.Contracts.csproj" />
+  <Project Path="src/Components/Muncly/IntoChat.Muncly.csproj" />
+  <Project Path="src/Components/Treg/Contracts/IntoChat.Treg.Contracts.csproj" />
+  <Project Path="src/Components/Treg/IntoChat.Treg.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.csproj" />
@@ -78,6 +84,7 @@
   <Project Path="src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
   <Project Path="src/Modules/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
   <Project Path="src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
+  <Project Path="src/Modules/Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
   <Project Path="src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
   <Project Path="src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
   <Project Path="src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />

@@ -7,7 +7,8 @@ using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
+using IntoChat.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -56,11 +57,12 @@ public static class OperatingSystemHosting
         var builder = os.ApplicationBuilder;
         // Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
-        var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
-            Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
+        var silos = ResourceNames.OsInstances(builder, AspireModuleHosting.Instances).Select(name =>
+            Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)).WithIconName(ResourceNames.OsIcon))).ToArray();
         if (profile.FrontEnabled)
         {
-            var front = AspireModuleHosting.AddFront(builder, "OperatingSystem", profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
+            var front = AspireModuleHosting.AddFront(builder, ResourceNames.OsFrontFor(builder), ResourceNames.OsRoleFor(builder), profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
+            front.WithIconName(ResourceNames.OsGatewayIcon);
             os.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(front.Resource));
         }
         return silos;
@@ -78,10 +80,9 @@ public static class OperatingSystemHosting
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/devui/", DisplayText = "DevUI" });
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/widgetbook/", DisplayText = "Widgetbook" });
             silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/orleans/", DisplayText = "Orleans Dashboard" });
-            // A local kernel may read this AppHost through Aspire's own MCP server (Ino's IAspire) and inspect this checkout as the "os" repository; a cloud one never learns where it is.
+            // A local kernel may inspect this checkout as the "os" repository; a cloud one never learns where it is.
             if (!profile.Cloud)
             {
-                silo.WithEnvironment("IntoChatOS__Aspire__AppHostPath", Path.Combine(builder.AppHostDirectory, "IntoChat.OS.AppHost.csproj"));
                 ProjectLocalCheckout(silo, builder);
             }
             // One encrypted local brain store for this deployment.

@@ -303,7 +303,17 @@ public sealed class OllamaRuntime : ILocalRuntime
     public IChatClient Chat(ModelId id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id.Value);
-        return new OllamaApiClient(Endpoint, id.Value);
+        IChatClient inner = new OllamaApiClient(Endpoint, id.Value);
+        return new ChatClientBuilder(inner)
+            .ConfigureOptions(static options =>
+            {
+                if (options.Reasoning?.Effort is { } effort && options.RawRepresentationFactory is null)
+                {
+                    var think = effort != ReasoningEffort.None;
+                    options.RawRepresentationFactory = _ => new OllamaSharp.Models.Chat.ChatRequest { Think = think };
+                }
+            })
+            .Build();
     }
 
     public IEmbeddingGenerator<string, Embedding<float>>? Embed(ModelId id)

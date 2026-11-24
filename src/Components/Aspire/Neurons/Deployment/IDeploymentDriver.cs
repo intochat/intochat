@@ -1,0 +1,10 @@
+namespace IntoChat.Aspire.Deployment;
+
+// Membership changes enter the deployment neuron through this self-reference, on its scheduler.
+// A plain contract of the deployment neuron (06-08).
+[DigitalBrain.Contracts.NeuronAlias("aspire.deployment-driver", Formerly = ["IntoChat.OS.Modules.Microsoft.Aspire.Deployment.IDeploymentDriver"]), DigitalBrain.Contracts.DefaultNeuronType("aspire.deployment")]
+internal interface IDeploymentDriver
+{
+    [DigitalBrain.Contracts.Interleaves]
+    Task MembershipChanged(Guid activation, IntoChat.OS.Host.Cluster.ClusterSnapshot? snapshot);
+}

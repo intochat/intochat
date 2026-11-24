@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -6,14 +8,19 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Mcp;
 
-// McpServerNeuron is a plain neuron on the runtime's host grains. Configured servers reconcile at host start.
+// McpToolConnection is the single connection neuron per MCP server ({brain}/connection/mcp/{name}), providing tool@1.
 [DigitalBrain.Modules.Module(ManifestName)]
 public sealed class McpModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "mcp";
 
+    public static ConnectorDefinition Connector => new(ManifestName, "MCP Servers", ["bearer-token"], [])
+    {
+        Neurons = [typeof(IMcpToolConnection)],
+    };
+
     public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
-        Provides: [],
+        Provides: [Capability.Tools.V1],
         Requires: [],
         Needs: [DigitalBrain.Modules.Need.HttpClient("mcp", requestsPerMinute: 120)],
         Settings: [DigitalBrain.Modules.Setting.Of<McpModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
@@ -22,7 +29,7 @@ public sealed class McpModule : DigitalBrain.Modules.Module
         Actions = [new("mcp.tool.run", "run an MCP tool", null)],
     };
 
-    public static System.Reflection.Assembly? Contracts { get; } = typeof(IMcpServer).Assembly;
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IMcpToolConnection).Assembly;
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {

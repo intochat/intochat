@@ -8,6 +8,8 @@ public sealed class McpServerOptions
     public string Url { get; set; } = "";
     public string? Title { get; set; }
     public bool Enabled { get; set; } = true;
+    public string[]? AllowedTools { get; set; }
+    public McpConfirmationMode ConfirmationMode { get; set; } = McpConfirmationMode.None;
 }
 
 public sealed partial class McpModuleOptions : IModuleOptions
@@ -54,6 +56,11 @@ public sealed partial class McpModuleOptions : IModuleOptions
             if (!allowed)
             {
                 throw new ArgumentException($"MCP server '{name}' URL must use https (http is allowed only for loopback).");
+            }
+
+            if (server.AllowedTools is not null && server.AllowedTools.Any(string.IsNullOrWhiteSpace))
+            {
+                throw new ArgumentException($"MCP server '{name}' AllowedTools entries must be non-empty.");
             }
         }
     }

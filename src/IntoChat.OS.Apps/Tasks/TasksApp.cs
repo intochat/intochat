@@ -7,6 +7,7 @@ Operations: open, view, filter, select, new, cancel, relate-kind, relate, show-s
 Workspace task planning & live brain flow orchestration (`app.tasks`) built on `AggregateScreen<TasksWorkspaceState>`
 and live `IntoChat.OS.Modules.UI` neurons (`IKanbanBoard`, `IStepper`, `ITabs`, `ITable`, `ICommandBar`).
 */
+using IntoChat.OS.Host.Apps;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -105,7 +106,7 @@ public sealed record TasksDismissIssueDraft(string? ConnectionKey = null, string
 public sealed record TasksEscalateIssue(string? ConnectionKey = null, string? Repository = null, int IssueNumber = 0, string? PreviewId = null) : Signal;
 
 [Neuron("app.tasks")]
-[Screen("app.tasks", Title = "Tasks", Icon = "tasks")]
+[Screen("app.tasks", Title = "Tasks", Icon = "tasks", Category = "Workspace")]
 public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INavigatedTo<TasksNavArgs>, INavigatedFrom
 {
     public const string AppName = "tasks";
@@ -160,46 +161,36 @@ public sealed partial class TasksApp : AggregateScreen<TasksWorkspaceState>, INa
 
     public TimeProvider? Time { get; set; }
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<TasksApp>(
         AppName,
         "2.0.0",
-        new AppManifest(
-            Title: "Tasks",
-            Description: "Plan and follow workspace tasks and brain flows across Kanban board, list, and stage stepper.",
-            Operations:
-            [
-                new("open", "Show the workspace Kanban board and live brain flows."),
-                new("view", "Switch between board, list, and details views."),
-                new("filter", "Filter by owner, status, and flow type."),
-                new("select", "Select a task or brain flow to inspect its lifecycle."),
-                new("new", "Start a plan flow or add a task from a title and description."),
-                new("cancel", "Cancel an active brain flow."),
-                new("relate-kind", "Pick the relation kind Relate applies."),
-                new("relate", "Relate a flow to another."),
-                new("show-source", "Show a build flow's deployed or staged unit."),
-                new("ask-ino", "Point Ino at a build flow's unit to change it."),
-                new("move", "Move a task to backlog, in-progress, review, or done."),
-                new("advance", "Advance the selected task to the next lifecycle stage."),
-                new("complete", "Mark the selected task Done."),
-                new("clear-done", "Clear all completed tasks from the board."),
-                new("approve-issue-draft", "Approve and post a pending GitHub issue triage comment draft."),
-                new("dismiss-issue-draft", "Dismiss a pending GitHub issue triage comment draft."),
-                new("escalate-issue", "Escalate a GitHub issue into an Engineer Studio run."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Tasks aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "tasks",
-            Toolbar:
-            [
-                new("view", Icon: "kanban", Label: "Board"),
-                new("new", Icon: "plus", Label: "Add Task"),
-            ]),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(TasksApp).AssemblyQualifiedName,
-    };
+        description: "Plan and follow workspace tasks and brain flows across Kanban board, list, and stage stepper.",
+        operations:
+        [
+            new("open", "Show the workspace Kanban board and live brain flows."),
+            new("view", "Switch between board, list, and details views."),
+            new("filter", "Filter by owner, status, and flow type."),
+            new("select", "Select a task or brain flow to inspect its lifecycle."),
+            new("new", "Start a plan flow or add a task from a title and description."),
+            new("cancel", "Cancel an active brain flow."),
+            new("relate-kind", "Pick the relation kind Relate applies."),
+            new("relate", "Relate a flow to another."),
+            new("show-source", "Show a build flow's deployed or staged unit."),
+            new("ask-ino", "Point Ino at a build flow's unit to change it."),
+            new("move", "Move a task to backlog, in-progress, review, or done."),
+            new("advance", "Advance the selected task to the next lifecycle stage."),
+            new("complete", "Mark the selected task Done."),
+            new("clear-done", "Clear all completed tasks from the board."),
+            new("approve-issue-draft", "Approve and post a pending GitHub issue triage comment draft."),
+            new("dismiss-issue-draft", "Dismiss a pending GitHub issue triage comment draft."),
+            new("escalate-issue", "Escalate a GitHub issue into an Engineer Studio run."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Tasks aggregate command."),
+        ],
+        toolbar:
+        [
+            new("view", Icon: "kanban", Label: "Board"),
+            new("new", Icon: "plus", Label: "Add Task"),
+        ]);
 
     public new TasksWorkspaceState State => base.State;
 

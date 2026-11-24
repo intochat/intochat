@@ -26,6 +26,7 @@ public static partial class AIHostingExtensions
         private IResourceBuilder<OllamaResource>? _ollama;
 
         internal bool EnableSensitiveData { get; set; }
+        internal string? Reasoning { get; set; }
 
         internal void AddModel(ModelCard card)
         {
@@ -81,6 +82,13 @@ public static partial class AIHostingExtensions
                     .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{modelId.Value}:Model"), resource.Resource.ModelName);
             }
 
+            if (!string.IsNullOrWhiteSpace(Reasoning))
+            {
+                builder.WithEnvironment(
+                    ModuleConfiguration.EnvironmentName(ModuleConfiguration.ModuleOptionsSection("ai"), nameof(AIOptions.Reasoning)),
+                    Reasoning.Trim());
+            }
+
             foreach (var ((where, role), modelId) in _roles)
             {
                 builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.Role(where, role)), modelId.Value);
@@ -119,15 +127,18 @@ public static partial class AIHostingExtensions
         private IResourceBuilder<OllamaResource> AddOllama()
         {
             var ollama = brain.ApplicationBuilder
-                .AddOllama(brain.ResourceName("ollama"))
+                .AddOllama(brain.ChildName("ai", "ollama", brain.ResourceName("ollama")))
                 .WithImageTag(OllamaImageTag);
             if (NvidiaGpuAvailable.Value)
             {
                 ollama = ollama.WithGPUSupport();
             }
+            ollama = OllamaContainerOptions.Bind(brain.ApplicationBuilder.Configuration).ApplyTo(ollama);
             return ollama
-                .WithDataVolume()
+                .WithEndpoint("http", static e => e.Port = 11434)
+                .WithDataVolume(LegacyNames.DataVolume(brain.ApplicationBuilder, LegacyNames.Resource("ollama"), suffix: "ollama"))
                 .WithLifetime(ContainerLifetime.Persistent)
+                .WithLegacyContainerCleanup(brain.ApplicationBuilder)
                 .WithOpenWebUI(openwebui => openwebui.WithLifetime(ContainerLifetime.Persistent))
                 .WithParentRelationship(module);
         }

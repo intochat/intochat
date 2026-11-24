@@ -54,14 +54,15 @@ public static class IntoChatOSHostingExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedServiceId);
         var environment = builder.Configuration[IntoChatOSHostingOptions.EnvironmentKey] is { Length: > 0 } configured ? configured : options.Environment;
 
-        var resource = builder.AddResource(new IntoChatOSResource(name))
+        var resource = builder.AddResource(new IntoChatOSResource(ResourceNames.RootFor(builder, name)))
             .ExcludeFromManifest()
+            .WithIconName(ResourceNames.RootIcon)
             .WithInitialState(new CustomResourceSnapshot
             {
-                ResourceType = "Modules",
+                ResourceType = "IntoChat",
                 CreationTimeStamp = DateTime.UtcNow,
                 State = KnownResourceStates.Running,
-                Properties = [new(CustomResourceKnownProperties.Source, "IntoChat.OS modules")],
+                Properties = [new(CustomResourceKnownProperties.Source, "IntoChat components")],
             })
             .WithCommand("reset-state", "Reset Local State", async _ =>
             {

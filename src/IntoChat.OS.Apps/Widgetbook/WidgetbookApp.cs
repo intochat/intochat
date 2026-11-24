@@ -7,6 +7,7 @@ Operations: open, switch-source, set-theme, reload, ui.command
 Built-in full-bleed WebBrowser UI Kit workbench (`app.widgetbook`) hosting IntoChat OS's
 open-source Flutter Widgetbook catalog at `/widgetbook` (or live hot-reload on localhost:8090).
 */
+using IntoChat.OS.Host.Apps;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
@@ -83,33 +84,23 @@ public sealed record WidgetbookAppState(
 }
 
 [Neuron("app.widgetbook")]
-[Screen("app.widgetbook", Title = "Widgetbook", Icon = "layout-grid")]
+[Screen("app.widgetbook", Title = "Widgetbook", Icon = "layout-grid", Category = "Developer", Launch = AppLaunch.Maximized)]
 public sealed class WidgetbookApp : EmbeddedWebApp<WidgetbookAppState>
 {
     public const string AppName = "widgetbook";
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<WidgetbookApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: "Widgetbook",
-            Description: "Open-source interactive UI Kit & Neuron catalog workbench for IntoChat OS.",
-            Operations:
-            [
-                new("open", "Open Widgetbook on a story path and theme."),
-                new("switch-source", "Switch between bundled /widgetbook and Dev Hot-Reload (localhost:8090)."),
-                new("set-theme", "Switch Widgetbook preview theme between dark and light."),
-                new("reload", "Reload the active Widgetbook frame."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Widgetbook command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "layout-grid"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(WidgetbookApp).AssemblyQualifiedName,
-    };
+        description: "Open-source interactive UI Kit & Neuron catalog workbench for IntoChat OS.",
+        operations:
+        [
+            new("open", "Open Widgetbook on a story path and theme."),
+            new("switch-source", "Switch between bundled /widgetbook and Dev Hot-Reload (localhost:8090)."),
+            new("set-theme", "Switch Widgetbook preview theme between dark and light."),
+            new("reload", "Reload the active Widgetbook frame."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Widgetbook command."),
+        ]);
 
     public new WidgetbookAppState State => base.State;
 

@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 
 import 'package:flutter/material.dart' hide Focus;
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -13,11 +13,12 @@ const double kOsBarHeight = 48.0;
 /// pulse badges, compute token counter (`tnum`), connection status,
 /// notifications, and clock.
 class OsBar extends StatelessWidget {
-  OsBar({
+  const OsBar({
     super.key,
     this.barLayout = BarLayout.floatingGlass,
     this.stylePreset = IcStylePreset.fluentAcrylic,
-    List<SmartAppTileSpec>? apps,
+    this.apps = const [],
+    this.totalAppsCount,
     this.openAppIds = const {'ino'},
     this.workingAppIds = const {},
     this.focusedAppId = 'ino',
@@ -42,11 +43,12 @@ class OsBar extends StatelessWidget {
     this.onOpenCompute,
     this.onOpenClock,
     this.profileMenu,
-  }) : apps = apps ?? defaultSmartAppSpecs;
+  });
 
   final BarLayout barLayout;
   final IcStylePreset stylePreset;
   final List<SmartAppTileSpec> apps;
+  final int? totalAppsCount;
   final Set<String> openAppIds;
   final Set<String> workingAppIds;
   final String? focusedAppId;
@@ -109,7 +111,7 @@ class OsBar extends StatelessWidget {
                   const SizedBox(width: 4),
                   _BarButton(
                     key: const ValueKey('os-bar-all-apps'),
-                    tooltip: 'All Apps (${allSmartAppSpecs.length})',
+                    tooltip: 'All Apps (${totalAppsCount ?? apps.length})',
                     selected: allAppsOpen,
                     onTap: onToggleAllApps!,
                     child: Row(

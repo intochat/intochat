@@ -15,7 +15,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Units;
-using IntoChat.OS.Apps.Aspire;
+using IntoChat.Aspire.Screens;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.Composition.Kernel;

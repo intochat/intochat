@@ -25,6 +25,8 @@ public sealed class RepositoryLayoutFacts
         ["IntoChat.OS.Modules.Shell.Contracts"] = "IntoChat.OS.Modules.Flutter",
         ["IntoChat.OS.Modules.Storage"] = "IntoChat.OS.Modules.LocalDisk",
         ["IntoChat.OS.Modules.Windows"] = "IntoChat.OS.Modules.Microsoft.Windows",
+        ["IntoChat.Aspire.Contracts"] = "IntoChat.Aspire",
+        ["IntoChat.Muncly.Contracts"] = "IntoChat.Muncly",
     };
 
     [Fact]
@@ -49,9 +51,10 @@ public sealed class RepositoryLayoutFacts
         {
             var relativePath = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
 
-            // Allow systemone-adapter server.py and official installer scripts under eng/install/
+            // Allow systemone-adapter server.py, official installer scripts under eng/install/, and Flutter's gitignored iOS build helper
             if (relativePath.EndsWith("Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase)
-                || relativePath.StartsWith("eng/install/", StringComparison.OrdinalIgnoreCase))
+                || relativePath.StartsWith("eng/install/", StringComparison.OrdinalIgnoreCase)
+                || relativePath.Equals("ui/ios/Flutter/flutter_export_environment.sh", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -91,6 +94,7 @@ public sealed class RepositoryLayoutFacts
             + string.Join(", ", disk.Except(paths, comparer)) + "\nIn the solution only: " + string.Join(", ", paths.Except(disk, comparer)));
         var sourceRoot = Repository.Relative(Repository.SourceRoot);
         var modulesRoot = Repository.Relative(Repository.ModulesRoot);
+        var componentsRoot = Repository.Relative(Repository.ComponentsRoot);
         foreach (var entry in entries)
         {
             var path = entry.Attribute("Path")!.Value.Replace('\\', '/');
@@ -101,7 +105,11 @@ public sealed class RepositoryLayoutFacts
                     || name == Prefix + folderName
                     || name == "IntoChat.OS.Modules." + folderName
                     || (folderName == "Contracts" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts")
-                    || (folderName == "Generators" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Generators"),
+                    || (folderName == "Generators" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Generators")
+                    // A component: src/Components/<Name>/IntoChat.<Name>.csproj and <Name>/Contracts/IntoChat.<Name>.Contracts.csproj.
+                    || (Path.GetDirectoryName(directory)!.Replace('\\', '/') == componentsRoot && name == "IntoChat." + folderName)
+                    || (folderName == "Contracts" && Path.GetDirectoryName(Path.GetDirectoryName(directory))!.Replace('\\', '/') == componentsRoot
+                        && name == "IntoChat." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts"),
                 $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;
@@ -130,6 +138,11 @@ public sealed class RepositoryLayoutFacts
             }
             foreach (var property in project.Descendants().Where(element => element.Name.LocalName is "RootNamespace" or "AssemblyName" or "PackageId"))
             {
+                // A component's package ids follow their own rule (ComponentFacts.AComponentsPackageIdsAreIntoChatOSComponentsNames).
+                if (property.Name.LocalName == "PackageId" && directory.StartsWith(componentsRoot + "/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
                 var expectedValue = property.Name.LocalName == "RootNamespace" ? RootNamespaces.GetValueOrDefault(name, name) : name;
                 Assert.Equal(expectedValue, property.Value);
             }

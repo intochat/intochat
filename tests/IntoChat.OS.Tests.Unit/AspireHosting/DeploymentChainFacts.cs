@@ -65,7 +65,7 @@ public sealed class DeploymentChainFacts
         var os = Os("local", ($"IntoChatOS:Modules:{id}:Enabled", "false"))
             .WithAI(Chain);
         Assert.DoesNotContain(id, os.Modules);
-        Assert.DoesNotContain(os.ApplicationBuilder.Resources, r => string.Equals(r.Name, $"Modules-{id}", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(os.ApplicationBuilder.Resources, r => string.Equals(r.Name, ResourceNames.Shown(id), StringComparison.OrdinalIgnoreCase));
         if (id == "webtools")
         {
             Assert.DoesNotContain(os.ApplicationBuilder.Resources, static r => r.Name.Contains("searxng", StringComparison.OrdinalIgnoreCase));

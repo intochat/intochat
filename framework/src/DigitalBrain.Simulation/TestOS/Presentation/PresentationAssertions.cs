@@ -64,6 +64,7 @@ public sealed class PresentedView
             ErrorLineNode err => new[] { err.What, err.Detail ?? string.Empty }.Where(s => s.Length > 0).ToArray(),
             EmptyStateNode empty => new[] { empty.Title, empty.Body ?? string.Empty }.Where(s => s.Length > 0).ToArray(),
             MetricTileNode tile => new[] { tile.Title, tile.Value, tile.Delta ?? string.Empty, tile.StatusLabel ?? string.Empty }.Where(s => s.Length > 0).ToArray(),
+            AppTileNode tile => [tile.Title],
             DiffCardNode diff => new[] { diff.Repo, diff.TargetBranch, diff.HeadSha }.Concat(diff.Files.Select(f => f.Path)).Where(s => s.Length > 0).ToArray(),
             ApprovalCardNode approval => new[] { approval.Title, approval.Summary, approval.Status, approval.SourceNeuronUri ?? string.Empty }.Where(s => s.Length > 0).ToArray(),
             DataTable table => new[] { table.Title, table.SourceNeuronUri ?? string.Empty }.Where(s => s.Length > 0).ToArray(),

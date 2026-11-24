@@ -1,6 +1,7 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Modules.Apps.Signals;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Host.Configuration;
 using IntoChat.OS.Host.Kernel;
@@ -17,34 +18,42 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
     ICapabilityBroker? directory = null,
-    IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient? identity = null)
+    IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient? identity = null,
+    IHostApplicationLifetime? lifetime = null)
     : DigitalBrain.Neurons.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
     {
+        using var stop = lifetime is not null
+            ? CancellationTokenSource.CreateLinkedTokenSource(ct, lifetime.ApplicationStopping)
+            : null;
+        var token = stop?.Token ?? ct;
+        token.ThrowIfCancellationRequested();
+
         var brainId = Id.Brain.Value;
         // A circle is born with its room only (R125). Every other brain receives the catalog's apps.
-        if (directory is null || await (await directory.Identity(ct)).KindOf(brainId, ct) != BrainKind.Circle)
+        if (directory is null || await (await directory.Identity(token)).KindOf(brainId, token) != BrainKind.Circle)
         {
             await ShippedInstall.Missing(catalog, loader, brainId, async name =>
-                await Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(ct),
-                (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId), ct);
+                await Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(token),
+                (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId), token);
         }
         // Reconciling runs on the brain's activation, with no caller: it names its own brain.
         List<string> names = [];
-        await foreach (var instance in kernel.InstancesIn(brainId, kernel.TypeOf(typeof(IApp)), ct)) { if (IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, instance.Key, out var app)) { names.Add(app.Name); } }
+        await foreach (var instance in kernel.InstancesIn(brainId, kernel.TypeOf(typeof(IApp)), token)) { if (IntoChat.OS.Host.Primitives.AppRef.TryParse(Id.Brain, instance.Key, out var app)) { names.Add(app.Name); } }
         foreach (var name in names)
         {
+            token.ThrowIfCancellationRequested();
             AppSnapshot snapshot;
-            try { snapshot = await Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(ct); }
-            catch (Exception error) when (error is not OperationCanceledException)
+            try { snapshot = await Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(Id.Brain, name).Neuron).Read().WaitAsync(token); }
+            catch (Exception error) when (error is not OperationCanceledException && !token.IsCancellationRequested)
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
             if (snapshot.Origin is not { Source: AppSource.Shipped } origin) { continue; }
-            await GrantShipped(brainId, name, origin);
+            await GrantShipped(brainId, name, origin, token);
             if (snapshot.Edited) { continue; }
             AppBundle? bundle;
             try { bundle = await catalog.Find(origin.Publisher, origin.Name); }
-            catch (Exception error) when (error is not OperationCanceledException)
+            catch (Exception error) when (error is not OperationCanceledException && !token.IsCancellationRequested)
             { logger.LogWarning(error, "The features folder could not serve {Owner}/{Name}.", origin.Publisher, origin.Name); continue; }
             if (bundle is null)
             { logger.LogWarning("{Brain}/{App} came from {Owner}/{Name}, which the features folder does not carry; it stays at {Version}.", brainId, name, origin.Publisher, origin.Name, origin.Version); continue; }
@@ -56,19 +65,19 @@ internal sealed class FeatureReconciler(
                     brainId, name, bundle.Version, origin.Version);
                 continue;
             }
-            try { await loader.Load(brainId, name, bundle, origin, ct); }
-            catch (Exception error) when (error is not OperationCanceledException)
+            try { await loader.Load(brainId, name, bundle, origin, token); }
+            catch (Exception error) when (error is not OperationCanceledException && !token.IsCancellationRequested)
             { logger.LogWarning(error, "Reconciling {Brain}/{App} to {Version} failed.", brainId, name, bundle.Version); continue; }
             await Publish(new AppReconciled(name, origin.Version, bundle.Version));
         }
     }
 
     // Every activation brings a shipped shell app's grants up to what it needs; recording is idempotent.
-    private async Task GrantShipped(string brainId, string name, AppOrigin origin)
+    private async Task GrantShipped(string brainId, string name, AppOrigin origin, CancellationToken ct)
     {
         if (identity is null || origin.Publisher != ShippedGrants.Publisher || ShippedGrants.For(brainId, name) is not { Length: > 0 } grants) { return; }
-        try { await identity.GrantShipped(brainId, grants); }
-        catch (Exception error) when (error is not OperationCanceledException)
+        try { await identity.GrantShipped(brainId, grants).WaitAsync(ct); }
+        catch (Exception error) when (error is not OperationCanceledException && !ct.IsCancellationRequested)
         { logger.LogWarning(error, "Granting shipped {Brain}/{App} what it needs failed.", brainId, name); }
     }
 }

@@ -29,7 +29,7 @@
     <ProjectReference Include="../Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../Roslyn/Contracts/IntoChat.OS.Modules.Roslyn.Contracts.csproj" />
     <ProjectReference Include="../Playwright/IntoChat.OS.Modules.Playwright.csproj" />

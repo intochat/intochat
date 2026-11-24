@@ -736,10 +736,10 @@ public sealed partial class SettingsApp
         string status;
         if (TryBrainOrNull() is { Value.Length: > 0 } brain)
         {
-            var serverId = new NeuronId(brain, "mcp.server", "mcp/" + name);
+            var serverId = IMcpToolConnection.NeuronIdOf(brain, name);
             try
             {
-                var connected = await McpServers[serverId].Connect(new McpServerSpec(title, url));
+                var connected = await McpServers[serverId].ConnectServer(new McpConnectionConfig(url, title));
                 row = new McpServerRow(
                     Name: name,
                     Title: string.IsNullOrWhiteSpace(connected.Title) ? title : connected.Title,
@@ -784,14 +784,14 @@ public sealed partial class SettingsApp
         var name = request.Name!.Trim().ToLowerInvariant();
         if (TryBrainOrNull() is { Value.Length: > 0 } brain)
         {
-            var serverId = new NeuronId(brain, "mcp.server", "mcp/" + name);
+            var serverId = IMcpToolConnection.NeuronIdOf(brain, name);
             try
             {
-                await McpServers[serverId].Disconnect();
+                await McpServers[serverId].DisconnectServer();
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Log.LogDebug(error, "IMcpServer.Disconnect failed for '{ServerName}' in minimal host.", name);
+                Log.LogDebug(error, "IMcpToolConnection.DisconnectServer failed for '{ServerName}' in minimal host.", name);
             }
         }
 
@@ -937,7 +937,7 @@ public sealed partial class SettingsApp
         {
             try
             {
-                await foreach (var instance in observer.Instances("mcp.server"))
+                await foreach (var instance in observer.Instances(IMcpToolConnection.TypeName))
                 {
                     if (TryExtractMcpServer(brain, instance.Key, out var id, out var name))
                     {
@@ -947,7 +947,7 @@ public sealed partial class SettingsApp
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Log.LogDebug(error, "IBrainObserver.Instances(\"mcp.server\") failed while refreshing Settings Web & tools.");
+                Log.LogDebug(error, "IBrainObserver.Instances(\"mcp\") failed while refreshing Settings Web & tools.");
             }
         }
 
@@ -957,7 +957,7 @@ public sealed partial class SettingsApp
             {
                 if (!string.IsNullOrWhiteSpace(name) && !candidates.ContainsKey(name))
                 {
-                    candidates[name] = new NeuronId(brain, "mcp.server", "mcp/" + name.Trim().ToLowerInvariant());
+                    candidates[name] = IMcpToolConnection.NeuronIdOf(brain, name.Trim().ToLowerInvariant());
                 }
             }
         }
@@ -966,7 +966,7 @@ public sealed partial class SettingsApp
         {
             if (!candidates.ContainsKey(name))
             {
-                candidates[name] = new NeuronId(brain, "mcp.server", "mcp/" + name.Trim().ToLowerInvariant());
+                candidates[name] = IMcpToolConnection.NeuronIdOf(brain, name.Trim().ToLowerInvariant());
             }
         }
 
@@ -975,7 +975,7 @@ public sealed partial class SettingsApp
         {
             try
             {
-                var snapshot = await McpServers[neuronId].Read();
+                var snapshot = await McpServers[neuronId].ReadState();
                 var hasData = !string.IsNullOrWhiteSpace(snapshot.Url)
                     || !string.IsNullOrWhiteSpace(snapshot.Title)
                     || snapshot.Connected
@@ -998,7 +998,7 @@ public sealed partial class SettingsApp
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Log.LogDebug(error, "IMcpServer.Read is optional for '{ServerName}' in standalone tests.", name);
+                Log.LogDebug(error, "IMcpToolConnection.ReadState is optional for '{ServerName}' in standalone tests.", name);
                 if (existingByName.TryGetValue(name, out var preserved))
                 {
                     rows[name] = preserved;
@@ -1012,7 +1012,7 @@ public sealed partial class SettingsApp
     private static bool TryExtractMcpServer(BrainId brain, string instanceKey, out NeuronId neuronId, out string name)
     {
         if (NeuronId.TryParse(instanceKey, out var parsed)
-            && string.Equals(parsed.Type, "mcp.server", StringComparison.Ordinal)
+            && string.Equals(parsed.Type, IMcpToolConnection.TypeName, StringComparison.Ordinal)
             && parsed.Brain == brain)
         {
             neuronId = parsed;
@@ -1024,7 +1024,7 @@ public sealed partial class SettingsApp
         if (instanceKey.StartsWith(prefix, StringComparison.Ordinal))
         {
             var localKey = instanceKey[prefix.Length..];
-            neuronId = new NeuronId(brain, "mcp.server", localKey);
+            neuronId = new NeuronId(brain, IMcpToolConnection.TypeName, localKey);
             name = ExtractMcpName(localKey);
             return !string.IsNullOrWhiteSpace(name);
         }
@@ -1037,6 +1037,11 @@ public sealed partial class SettingsApp
     private static string ExtractMcpName(string localKey)
     {
         var trimmed = localKey.Trim('/');
+        if (trimmed.StartsWith("connection/mcp/", StringComparison.Ordinal))
+        {
+            return trimmed["connection/mcp/".Length..];
+        }
+
         if (trimmed.StartsWith("mcp/", StringComparison.Ordinal))
         {
             return trimmed["mcp/".Length..];

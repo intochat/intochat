@@ -15,6 +15,8 @@ public interface IApp
     Task<AppSnapshot> SaveSpec(string spec, Guid operationId);                 // minor bump
     Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId);    // patch bump
     [DigitalBrain.Contracts.CallTimeout(600_000)] Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections);
+    /// <summary>Binds declared connection slots to canonical connection keys; non-person callers require person confirmation.</summary>
+    [DigitalBrain.Contracts.CallTimeout(600_000)] Task<SlotBindingOutcome> BindSlots(Dictionary<string, string> bindings, CancellationToken ct = default);
     [DigitalBrain.Contracts.CallTimeout(600_000)] Task<AppSnapshot> Rollback(string version);
     Task<AppSnapshot> BeginBuild(string? instruction);
     Task<Guid> CurrentBuildAttempt();

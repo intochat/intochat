@@ -424,26 +424,6 @@
                 "available": false,
                 "note": "Ollama is not running",
                 "progress": null
-              },
-              {
-                "id": "jev-latest",
-                "label": "Jev",
-                "section": "cloud",
-                "icon": "brand:intochat",
-                "abilities": null,
-                "available": false,
-                "note": "Add a key in API keys",
-                "progress": null
-              },
-              {
-                "id": "llama3.1",
-                "label": "Local Jev (Llama 3.1)",
-                "section": "local",
-                "icon": "provider:ollama",
-                "abilities": null,
-                "available": false,
-                "note": "Ollama is not running",
-                "progress": null
               }
             ],
             "activeModelId": "gemma4:12b",

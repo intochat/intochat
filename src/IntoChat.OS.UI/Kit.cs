@@ -371,6 +371,21 @@ public static class Kit
             emit is null ? null : new Command(".", emit.Signal, emit.Args),
             string.IsNullOrWhiteSpace(automationName) ? label : automationName);
 
+    /// <summary>Creates an installed-app launcher tile (forwards to <see cref="DigitalBrain.UI.Ui.AppTile"/>).</summary>
+    public static AppTileNode AppTile(
+        string key,
+        string appId,
+        string title,
+        string? icon = null,
+        string? category = null,
+        AppLaunch launch = AppLaunch.Windowed,
+        int? dock = null,
+        string appKind = "compiled",
+        string? description = null,
+        Command? command = null,
+        string automationName = "")
+        => Ui.AppTile(key, appId, title, icon, category, launch, dock, appKind, description, command, automationName);
+
     /// <summary>Creates a declarative WASM / Web studio browser surface (forwards to <see cref="DigitalBrain.UI.Ui.WebBrowser"/>).</summary>
     public static WebBrowser WebBrowser(
         string url,

@@ -25,7 +25,7 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.Aspire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;

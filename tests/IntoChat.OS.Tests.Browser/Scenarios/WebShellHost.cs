@@ -9,7 +9,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
-using IntoChat.OS.Apps.Aspire;
+using IntoChat.Aspire.Screens;
 using IntoChat.OS.Tests.Support;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -46,7 +46,7 @@ public sealed class WebShellHost : IAsyncLifetime
 
     public HttpClient CreateKernelClient()
     {
-        var client = App.CreateHttpClient("OperatingSystem-a", "http");
+        var client = App.CreateHttpClient("os", "http");
         client.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProof.HeaderName, _presence);
         return client;
     }
@@ -73,7 +73,7 @@ public sealed class WebShellHost : IAsyncLifetime
             args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));
 
             _builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.IntoChat_OS_AppHost>([.. args]);
-            if (_builder.Resources.OfType<ProjectResource>().FirstOrDefault(r => r.Name == "OperatingSystem-a") is { } kernelResource)
+            if (_builder.Resources.OfType<ProjectResource>().FirstOrDefault(r => r.Name == "os") is { } kernelResource)
             {
                 _builder.CreateResourceBuilder(kernelResource)
                     .WithArgs($"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}");
@@ -81,9 +81,9 @@ public sealed class WebShellHost : IAsyncLifetime
             App = await _builder.BuildAsync();
             using var start = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             await App.StartAsync(start.Token);
-            await App.ResourceNotifications.WaitForResourceHealthyAsync("OperatingSystem-a", start.Token);
+            await App.ResourceNotifications.WaitForResourceHealthyAsync("os", start.Token);
             _presence = await TestHome.ReadPresenceTokenAsync(_home.PresenceFilePath, start.Token, TimeSpan.FromMinutes(2));
-            var kernel = App.GetEndpoint("OperatingSystem-a", "http").ToString().TrimEnd('/');
+            var kernel = App.GetEndpoint("os", "http").ToString().TrimEnd('/');
             await StartOrigin(bundle, kernel);
         }
         catch
