@@ -11,8 +11,10 @@ using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
+using IntoChat.OS.Modules.Identity.Contracts.Keys;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -25,6 +27,9 @@ internal sealed class FriendsRecord
     public int Misses { get; set; }
     public DateTimeOffset MissesSince { get; set; }
     public GroupInvite[] Groups { get; set; } = [];
+
+    // Where the brain's private keys were kept before they moved to the identity module (IBrainKeys). Nothing writes them any
+    // more: a roster that still holds them hands them over on its next use and stores null here (OWED.md).
     public byte[]? SigningKeyPkcs8 { get; set; }
     public byte[]? ExchangeKeyPkcs8 { get; set; }
 }
@@ -41,6 +46,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
     private IBrainOwners Owners => services.GetRequiredService<IBrainOwners>();
     private ICodeBook Book => services.GetRequiredService<ICodeBook>();
     private IProfile Profile => Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile"));
+    private IBrainKeys Keys => Context.Get<IBrainKeys>(IBrainKeys.Id(Id.Brain));
     private IOffers Offers => Context.Offers;
 
     public async Task<Code> Mint()
@@ -252,24 +258,43 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         return await EnsurePublicKeys();
     }
 
+    // The brain's key pair lives in the identity module, sealed (IBrainKeys); the roster keeps no private key. The keys are
+    // asked for as this brain's own module: the call may run for a person of another brain (Accepted).
     private async Task<BrainPublicKeys> EnsurePublicKeys()
     {
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
         if (State.SigningKeyPkcs8 is { Length: > 0 } signingPkcs8
             && State.ExchangeKeyPkcs8 is { Length: > 0 } exchangePkcs8)
         {
-            using var signing = ECDsa.Create();
-            signing.ImportPkcs8PrivateKey(signingPkcs8, out _);
-            using var exchange = ECDiffieHellman.Create();
-            exchange.ImportPkcs8PrivateKey(exchangePkcs8, out _);
-            return new BrainPublicKeys(signing.ExportSubjectPublicKeyInfo(), exchange.ExportSubjectPublicKeyInfo());
+            return await MoveKeysToIdentity(signingPkcs8, exchangePkcs8);
         }
 
-        using var generated = BrainKeyPair.Generate();
-        var publicKeys = generated.ExportPublicKeys();
-        await Store(With(
-            signingKeyPkcs8: generated.SigningKey.ExportPkcs8PrivateKey(),
-            exchangeKeyPkcs8: generated.ExchangeKey.ExportPkcs8PrivateKey()));
-        return publicKeys;
+        return await Keys.Ensure();
+    }
+
+    // A roster written by an earlier version still holds the pair. It is moved once, in two steps that may be interrupted
+    // between them: first the identity neuron adopts the pair (only while it holds none, so a second attempt changes
+    // nothing) and what it now holds is read back; only when that is this very pair is the roster stored without it. After
+    // an interruption both hold the same pair, and the next call finds that and finishes. If the identity neuron holds
+    // another pair, that one is the brain's: the roster is left as it is and nothing is overwritten.
+    private async Task<BrainPublicKeys> MoveKeysToIdentity(byte[] signingPkcs8, byte[] exchangePkcs8)
+    {
+        using var signing = ECDsa.Create();
+        signing.ImportPkcs8PrivateKey(signingPkcs8, out _);
+        using var exchange = ECDiffieHellman.Create();
+        exchange.ImportPkcs8PrivateKey(exchangePkcs8, out _);
+        var mine = new BrainPublicKeys(signing.ExportSubjectPublicKeyInfo(), exchange.ExportSubjectPublicKeyInfo());
+
+        await Keys.Adopt(signingPkcs8, exchangePkcs8);
+        var held = await Keys.PublicKeys() ?? throw new InvalidOperationException("The brain's key pair was not kept; the roster still holds it.");
+        if (!held.SigningKey.AsSpan().SequenceEqual(mine.SigningKey) || !held.ExchangeKey.AsSpan().SequenceEqual(mine.ExchangeKey))
+        {
+            OsConsoleLog.For<FriendsNeuron>().LogWarning("The roster of {Brain} holds a key pair that is not the brain's; it is left in the roster record and not used.", Id.Brain.Value);
+            return held;
+        }
+
+        await Store(WithoutPrivateKeys());
+        return held;
     }
 
     private async Task EnsureImported()
@@ -316,9 +341,7 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
         Friend[]? friends = null,
         int? misses = null,
         DateTimeOffset? missesSince = null,
-        GroupInvite[]? groups = null,
-        byte[]? signingKeyPkcs8 = null,
-        byte[]? exchangeKeyPkcs8 = null)
+        GroupInvite[]? groups = null)
         => new()
         {
             Pending = pending ?? State.Pending,
@@ -327,8 +350,20 @@ internal sealed class FriendsNeuron(IServiceProvider services) : Neuron<FriendsR
             Misses = misses ?? State.Misses,
             MissesSince = missesSince ?? State.MissesSince,
             Groups = groups ?? State.Groups,
-            SigningKeyPkcs8 = signingKeyPkcs8 ?? State.SigningKeyPkcs8,
-            ExchangeKeyPkcs8 = exchangeKeyPkcs8 ?? State.ExchangeKeyPkcs8,
+            // Carried while a roster of an earlier version still holds them; only WithoutPrivateKeys drops them.
+            SigningKeyPkcs8 = State.SigningKeyPkcs8,
+            ExchangeKeyPkcs8 = State.ExchangeKeyPkcs8,
+        };
+
+    private FriendsRecord WithoutPrivateKeys()
+        => new()
+        {
+            Pending = State.Pending,
+            Refused = State.Refused,
+            Friends = State.Friends,
+            Misses = State.Misses,
+            MissesSince = State.MissesSince,
+            Groups = State.Groups,
         };
 }
 

@@ -54,7 +54,10 @@ public static class OsFakes
             .Add<ITablePlacements, SharedTablePlacements>(new());
     }
 
-    /// <summary>Registers in-memory friend codes, same-name brain ownership, and <see cref="IFriendCheck"/> for cross-brain sharing.</summary>
+    /// <summary>
+    /// Registers in-memory friend codes, same-name brain ownership, <see cref="IFriendCheck"/> for cross-brain sharing, and an
+    /// in-memory sealer for the brain's key pair, which the roster asks the identity module for.
+    /// </summary>
     public static FakeSet Friends(this FakeSet fakes)
     {
         ArgumentNullException.ThrowIfNull(fakes);
@@ -64,6 +67,7 @@ public static class OsFakes
             .Configure(services =>
             {
                 services.TryAddSingleton<IFriendCheck>(sp => new FriendsFriendCheck(sp.GetRequiredService<INeuronProxies>()));
+                services.TryAddSingleton<DigitalBrain.Capabilities.Connections.Sealing.IBrainSecretSealer, InMemoryBrainSecretSealer>();
             });
     }
 

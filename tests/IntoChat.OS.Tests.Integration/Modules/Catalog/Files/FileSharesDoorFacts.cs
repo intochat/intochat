@@ -537,6 +537,9 @@ public sealed class FileSharesDoorFacts
             DigitalBrain.Invocation.RuntimeProtocol.Register(CodesJson.Default);
             DigitalBrain.Invocation.RuntimeProtocol.Register(ConversationJsonContext.Default);
             services.TryAddSingleton<ICodeBook, CodeBook>();
+            // The identity module's own sealer over this silo's brain store keys, as PlatformHosting registers it: the
+            // roster asks the identity module for the brain's keys, which are kept sealed.
+            services.TryAddSingleton<DigitalBrain.Capabilities.Connections.Sealing.IBrainSecretSealer, IntoChat.OS.Modules.Identity.Secrets.BrainSecretSealer>();
             services.TryAddSingleton<ISecretRedactor, NoSecrets>();
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);

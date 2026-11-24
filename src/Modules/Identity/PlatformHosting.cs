@@ -30,6 +30,7 @@ public static class PlatformHosting
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
         DigitalBrain.Invocation.RuntimeProtocol.Register(IntoChat.OS.Modules.Identity.Codes.CodesJson.Default);
+        DigitalBrain.Invocation.RuntimeProtocol.Register(IntoChat.OS.Modules.Identity.Keys.BrainKeysJson.Default);
         services.AddIdentity();
         services.TryAddSingleton<IntoChat.OS.Modules.Identity.Contracts.Codes.ICodeBook, IntoChat.OS.Modules.Identity.Codes.CodeBook>();
         services.TryAddSingleton<DeploymentStorageIdentity>();

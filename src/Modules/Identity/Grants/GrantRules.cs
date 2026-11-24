@@ -16,6 +16,7 @@ public static class GrantRules
     private static readonly HashSet<string> ForbiddenTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "identity.vault",
+        "identity.brain-keys",
         "vault",
         "secrets",
         "oauth-exchange",
@@ -24,6 +25,7 @@ public static class GrantRules
     private static readonly HashSet<string> ForbiddenInterfaces = new(StringComparer.OrdinalIgnoreCase)
     {
         "IOsVault",
+        "IBrainKeys",
         "IVault",
         "ISecretValueSource",
         "VaultSecretValueSource",

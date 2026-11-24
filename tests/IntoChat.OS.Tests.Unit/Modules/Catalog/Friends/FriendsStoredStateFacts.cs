@@ -8,11 +8,13 @@ using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.Modules.Identity.Contracts;
+using IntoChat.OS.Modules.Identity.Contracts.Keys;
+using IntoChat.OS.Modules.Identity.Keys;
 
 namespace IntoChat.OS.Tests.Unit.Modules.Catalog.Friends;
 
 // Frozen stored state of what people share with each other: the roster, the profile with its posts, the post store, a room,
-// the index of rooms a person was invited to, and both sides of the file-share door. A neuron's state is written through
+// the index of rooms a person was invited to, both sides of the file-share door, and the brain's sealed key pair. A neuron's state is written through
 // RuntimeProtocol as JSON with no type name (KernelState.Write), so the JSON files pin what is in a brain. A record written
 // by today's code has to read back after every later change to these records. UPDATE_GOLDEN=1 rewrites the files.
 public sealed class FriendsStoredStateFacts
@@ -24,7 +26,27 @@ public sealed class FriendsStoredStateFacts
         // What AppsModule.ConfigureServices registers before a brain reads or writes these records.
         RuntimeProtocol.Register(CatalogContractsJson.Default);
         RuntimeProtocol.Register(FriendsJson.Default);
+        // What the identity module registers (PlatformHosting).
+        RuntimeProtocol.Register(BrainKeysJson.Default);
     }
+
+    // The roster after its private keys moved to the identity module: the same record, the two fields null.
+    private static FriendsRecord RosterWithoutKeys()
+    {
+        var roster = Roster();
+        roster.SigningKeyPkcs8 = null;
+        roster.ExchangeKeyPkcs8 = null;
+        return roster;
+    }
+
+    // The brain's key pair as the identity module stores it: both private halves sealed, the public halves in the clear.
+    private static BrainKeysState Keys() => new()
+    {
+        SigningKey = new() { KeyId = "brain:AAAA", Cipher = "BBBB" },
+        ExchangeKey = new() { KeyId = "brain:CCCC", Cipher = "DDDD" },
+        SigningPublicKey = [1, 2, 3],
+        ExchangePublicKey = [4, 5, 6],
+    };
 
     private static FriendsRecord Roster() => new()
     {
@@ -102,6 +124,9 @@ public sealed class FriendsStoredStateFacts
     [
         ("FriendsRecord.json", Roster),
         ("FriendsRecord.empty.json", static () => new FriendsRecord()),
+        ("FriendsRecord.keys-moved.json", RosterWithoutKeys),
+        ("BrainKeysState.json", Keys),
+        ("BrainKeysState.empty.json", static () => new BrainKeysState()),
         ("ProfileState.json", Profile),
         ("PostsState.json", Posts),
         ("RoomState.json", Room),
@@ -167,17 +192,21 @@ public sealed class FriendsStoredStateFacts
                 "files.shared-with-me|state",
                 "files.shares|state",
                 "friends.links|state",
+                "identity.brain-keys|state",
                 "os.profile|state",
                 "social.posts|state",
                 "social.rooms|state",
                 "social.room|state",
             ],
-            new[] { typeof(FriendsNeuron), typeof(ProfileNeuron), typeof(PostsNeuron), typeof(RoomNeuron), typeof(RoomsNeuron), typeof(FileSharesNeuron), typeof(SharedWithMeNeuron) }
+            new[] { typeof(FriendsNeuron), typeof(ProfileNeuron), typeof(PostsNeuron), typeof(RoomNeuron), typeof(RoomsNeuron), typeof(FileSharesNeuron), typeof(SharedWithMeNeuron), typeof(BrainKeysNeuron) }
                 .Select(static type => type.GetCustomAttribute<NeuronAttribute>(false)!)
                 .Select(static neuron => $"{neuron.Type}|{neuron.State ?? "state"}")
                 .Order(StringComparer.Ordinal));
 
         Assert.Equal("owner/friends.links/friends", FriendsDefaults.Id("owner").ToString());
+        Assert.Equal("owner/identity.brain-keys/keys", IBrainKeys.Id(new BrainId("owner")).ToString());
+        // The key store names the roster as its one caller by the roster's type id.
+        Assert.Equal(FriendsDefaults.TypeName, IBrainKeys.RosterType);
         Assert.Equal("owner/files.shares/files/shares", FileSharesDefaults.Id("owner").ToString());
         Assert.Equal("owner/files.shared-with-me/files/shared-with-me", SharedWithMeDefaults.Id("owner").ToString());
         Assert.Equal("default", IPosts.DefaultKey);
@@ -197,10 +226,25 @@ public sealed class FriendsStoredStateFacts
                 "IntoChat.OS.Modules.Apps.Social.IPosts|social.posts|social.posts",
                 "IntoChat.OS.Modules.Apps.Social.IRooms|social.rooms|social.rooms",
                 "IntoChat.OS.Modules.Apps.Social.IRoom|social.room|social.room",
+                "IntoChat.OS.Modules.Identity.Contracts.Keys.IBrainKeys|identity.brain-keys|identity.brain-keys",
             ],
-            new[] { typeof(IFriends), typeof(IProfile), typeof(IPosts), typeof(IRoom), typeof(IRooms), typeof(IFileShares), typeof(ISharedWithMe) }
+            new[] { typeof(IFriends), typeof(IProfile), typeof(IPosts), typeof(IRoom), typeof(IRooms), typeof(IFileShares), typeof(ISharedWithMe), typeof(IBrainKeys) }
                 .Select(static contract => $"{contract.FullName}|{contract.GetCustomAttribute<NeuronAliasAttribute>(false)!.Alias}|{PlainNeuronContracts.TypeOf(contract)}")
                 .Order(StringComparer.Ordinal));
+    }
+
+    // The key store is for the brain's own roster: no other brain is let through to it, and it is not offered.
+    [Fact]
+    public void TheKeyStoreIsNeitherShareableNorOffered()
+    {
+        Assert.NotNull(typeof(IBrainKeys).GetCustomAttribute<DigitalBrain.Access.InternalAttribute>(false));
+        Assert.Null(typeof(IBrainKeys).GetCustomAttribute<DigitalBrain.Access.ShareableAttribute>(false));
+        Assert.Null(typeof(IBrainKeys).GetCustomAttribute<OfferedAttribute>(false));
+        Assert.All(typeof(IBrainKeys).GetMethods().Where(static method => !method.IsStatic), static method => Assert.Empty(method.GetCustomAttributes<DigitalBrain.Access.AccessAttribute>(false)));
+        // No member hands a private key out: what comes back is public keys.
+        Assert.All(typeof(IBrainKeys).GetMethods().Where(static method => !method.IsStatic), static method => Assert.Contains(method.ReturnType, new[] { typeof(Task<BrainPublicKeys>), typeof(Task<BrainPublicKeys?>) }));
+        // And the stored record is not exportable state.
+        Assert.Null(typeof(BrainKeysState).GetCustomAttribute<DigitalBrain.State.ExportableStateAttribute>(false));
     }
 
     // A signal is journaled under its alias.
