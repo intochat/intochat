@@ -45,14 +45,50 @@ internal static class AgentTools
         return tools;
     }
 
-    public static IReadOnlyList<OperationTool> Operations(EdgeAuthority? edge, INeuronProxies proxies, string conversation)
+    public static IReadOnlyList<OperationTool> Operations(
+        EdgeAuthority? edge,
+        INeuronProxies proxies,
+        string conversation,
+        IReadOnlyList<string> appIds)
+        => Operations(edge, proxies, conversation, appIds, ComponentManifests.All);
+
+    internal static IReadOnlyList<OperationTool> Operations(
+        EdgeAuthority? edge,
+        INeuronProxies proxies,
+        string conversation,
+        IReadOnlyList<string> appIds,
+        IEnumerable<ComponentManifest> manifests)
     {
         ArgumentNullException.ThrowIfNull(proxies);
+        ArgumentNullException.ThrowIfNull(appIds);
+        ArgumentNullException.ThrowIfNull(manifests);
+
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in appIds)
+        {
+            var normalized = ToolPolicy.NormalizeAppId(raw);
+            if (normalized.Length > 0)
+            {
+                allowed.Add(normalized);
+            }
+        }
+
+        if (allowed.Count == 0)
+        {
+            return [];
+        }
+
         var tools = new List<OperationTool>();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var manifest in ComponentManifests.All.OrderBy(static m => m.Id.Value, StringComparer.Ordinal))
+        foreach (var manifest in manifests.OrderBy(static m => m.Id.Value, StringComparer.Ordinal))
         {
             if (!manifest.Id.Value.StartsWith("app.", StringComparison.Ordinal) || manifest.Operations.Length == 0)
+            {
+                continue;
+            }
+
+            var appId = manifest.Id.Value["app.".Length..];
+            if (!allowed.Contains(appId))
             {
                 continue;
             }

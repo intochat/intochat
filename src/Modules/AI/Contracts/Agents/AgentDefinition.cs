@@ -24,6 +24,11 @@ public sealed record AgentDefinition
     public string[] Contexts { get; init; } = [];
     public bool IncludeComponentOperations { get; init; }
     /// <summary>
+    /// Optional app IDs whose component operations are always exposed when <see cref="IncludeComponentOperations"/>
+    /// is enabled, in addition to apps currently open in the workspace. Null means no always-on operation apps.
+    /// </summary>
+    public string[]? OperationApps { get; init; }
+    /// <summary>
     /// Optional canonical tool-source keys (e.g. "{brain}/connection/mcp/treg") exposed directly as scoped tools
     /// without granting <see cref="Contracts"/> or meta discovery tools. Null uses the legacy <see cref="Contracts"/> path.
     /// </summary>

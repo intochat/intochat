@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.AI.Agents.Tools;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Web;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,13 +28,18 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
 {
     public string? AgentName { get; init; }
     public bool IncludeComponentOperations { get; init; }
+    public string[]? AlwaysOnOperationApps { get; init; }
+    public string[]? OpenedOperationApps { get; init; }
     public string[]? ToolSources { get; init; }
 }
 
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
 // pushed: the consumer persists each event before asking for the next, so nothing external starts
 // before the agent has written what came before it. A failure becomes the last event; Run never throws.
-internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null)
+internal sealed class AgentTurnLoop(
+    IServiceProvider services,
+    Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null,
+    Func<string, CancellationToken, Task<IReadOnlyList<string>>>? readOpenApps = null)
 {
     private static readonly string[] ContractAssemblyPrefixes = IntoChat.OS.Host.Surface.ContractAssemblies.PrefixArray();
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
@@ -130,10 +136,15 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             allTools.AddRange(scopedTools);
         }
 
+        DigitalBrain.Neurons.INeuronProxies? operationProxies = null;
         if (plan.IncludeComponentOperations && services.GetService<DigitalBrain.Neurons.INeuronProxies>() is { } proxies)
         {
+            operationProxies = proxies;
             edge ??= services.GetService<DigitalBrain.Access.EdgeAuthority>();
-            var operationTools = AgentTools.Operations(edge, proxies, plan.Conversation);
+            var brainId = DigitalBrain.Brains.BrainKey.BrainOf(plan.Conversation);
+            var openApps = await ReadOpenApps(proxies, brainId, ct);
+            var allowedApps = ToolPolicy.AppsForAssistant(plan.AlwaysOnOperationApps, openApps, plan.OpenedOperationApps);
+            var operationTools = AgentTools.Operations(edge, proxies, plan.Conversation, allowedApps);
             routableTools.AddRange(operationTools);
             allTools.AddRange(operationTools);
         }
@@ -375,6 +386,11 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                     {
                         WidenToolsFromSearch(result, serialized, routableTools, activeTools, options);
                     }
+                    else if (operationProxies is not null
+                        && ToolPolicy.TryExtractLaunchedAppId(tool.Name, call.Arguments) is { } launchedAppId)
+                    {
+                        WidenOperationsForLaunchedApp(launchedAppId, edge, operationProxies, plan.Conversation, routableTools, allTools, activeTools, options);
+                    }
                     var resultMessage = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, result)]);
                     messages.Add(resultMessage);
                     generated.Add(resultMessage);
@@ -576,5 +592,71 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         // The reads overlap; Task.WhenAll keeps the results in the order of keys.
         return [.. (await Task.WhenAll(keys.Select(key => Read(Absolute(brain, key))))).SelectMany(entries => entries)];
+    }
+
+    private static void WidenOperationsForLaunchedApp(
+        string launchedAppId,
+        DigitalBrain.Access.EdgeAuthority? edge,
+        DigitalBrain.Neurons.INeuronProxies proxies,
+        string conversation,
+        List<AIFunction> routableTools,
+        List<AIFunction> allTools,
+        List<AITool> activeTools,
+        ChatOptions options)
+    {
+        var launchedOps = AgentTools.Operations(edge, proxies, conversation, [launchedAppId]);
+        if (launchedOps.Count == 0) { return; }
+
+        var allNames = allTools.Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var activeNames = activeTools.OfType<AIFunction>().Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var widened = false;
+        foreach (var op in launchedOps)
+        {
+            if (allNames.Add(op.Name))
+            {
+                routableTools.Add(op);
+                allTools.Add(op);
+            }
+
+            if (activeNames.Add(op.Name))
+            {
+                activeTools.Add(op);
+                widened = true;
+            }
+        }
+
+        if (widened)
+        {
+            options.Tools = [.. activeTools];
+            options.ToolMode = ChatToolMode.Auto;
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> ReadOpenApps(
+        DigitalBrain.Neurons.INeuronProxies proxies,
+        string brainId,
+        CancellationToken ct)
+    {
+        try
+        {
+            if (readOpenApps is not null)
+            {
+                return await readOpenApps(brainId, ct).ConfigureAwait(false);
+            }
+
+            if (string.IsNullOrWhiteSpace(brainId))
+            {
+                return [];
+            }
+
+            var workspaceId = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brainId), IWorkspace.Type, "main");
+            var workspace = await proxies.Get<IWorkspace>(workspaceId).Read().WaitAsync(ct).ConfigureAwait(false);
+            return ToolPolicy.OpenAppsFromWorkspace(workspace);
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "reading open workspace apps for scoped component operations");
+            return [];
+        }
     }
 }

@@ -743,6 +743,7 @@ internal sealed class ConversationNeuron(
             {
                 AgentName = seated.AgentId,
                 IncludeComponentOperations = definition.IncludeComponentOperations,
+                AlwaysOnOperationApps = definition.OperationApps,
                 ToolSources = definition.ToolSources,
             };
 
@@ -977,12 +978,16 @@ internal sealed class ConversationNeuron(
         if (definition.Instructions.Length > 32_000 || definition.Contracts.Length > 128 || definition.Contracts.Any(string.IsNullOrWhiteSpace)
             || definition.Contracts.Distinct(StringComparer.Ordinal).Count() != definition.Contracts.Length
             || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
+            || (definition.OperationApps is { } operationApps
+                && (operationApps.Length > 64
+                    || operationApps.Any(app => string.IsNullOrWhiteSpace(app) || app.Length > 128)
+                    || operationApps.Distinct(StringComparer.OrdinalIgnoreCase).Count() != operationApps.Length))
             || (definition.ToolSources is { } toolSources
                 && (toolSources.Length > 64
                     || toolSources.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512)
                     || toolSources.Distinct(StringComparer.Ordinal).Count() != toolSources.Length)))
         {
-            throw new ArgumentException("Instructions, contracts, tool sources or contexts are invalid.", nameof(definition));
+            throw new ArgumentException("Instructions, contracts, operation apps, tool sources or contexts are invalid.", nameof(definition));
         }
     }
 
@@ -992,6 +997,7 @@ internal sealed class ConversationNeuron(
         Capabilities = [.. definition.Capabilities],
         RoutingExamples = [.. definition.RoutingExamples],
         Contexts = [.. definition.Contexts],
+        OperationApps = definition.OperationApps is null ? null : [.. definition.OperationApps],
         ToolSources = definition.ToolSources is null ? null : [.. definition.ToolSources],
     };
 
@@ -1012,6 +1018,7 @@ internal sealed class ConversationNeuron(
             && a.Capabilities.SequenceEqual(b.Capabilities, StringComparer.Ordinal)
             && a.RoutingExamples.SequenceEqual(b.RoutingExamples, StringComparer.Ordinal)
             && a.Contexts.SequenceEqual(b.Contexts, StringComparer.Ordinal)
+            && SameOptionalSequence(a.OperationApps, b.OperationApps)
             && SameOptionalSequence(a.ToolSources, b.ToolSources);
 
     private static bool SameOptionalSequence(string[]? left, string[]? right)

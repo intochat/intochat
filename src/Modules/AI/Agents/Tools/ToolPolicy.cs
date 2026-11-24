@@ -1,4 +1,6 @@
+using System.Text.Json;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Modules.AI.Agents.Tools;
 
@@ -45,6 +47,89 @@ internal static class ToolPolicy
     }
 
     /// <summary>
+    /// Normalizes an app reference (<c>"{brain}/apps/{id}"</c>, <c>"apps/{id}"</c>, <c>"app.{id}"</c>, or <c>"{id}"</c>)
+    /// into its canonical bare app ID. Returns an empty string when blank.
+    /// </summary>
+    public static string NormalizeAppId(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        var value = raw.Trim();
+        if (IntoChat.OS.Host.Primitives.AppRef.TryParse(value, out var appRef))
+        {
+            value = appRef.Name;
+        }
+        else if (value.StartsWith("apps/", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value["apps/".Length..];
+        }
+
+        if (value.StartsWith("app.", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value["app.".Length..];
+        }
+
+        return value.Trim();
+    }
+
+    /// <summary>
+    /// Extracts the distinct, ordered normalized app IDs currently open in a <see cref="WorkspaceState"/>.
+    /// </summary>
+    public static IReadOnlyList<string> OpenAppsFromWorkspace(WorkspaceState? workspace)
+    {
+        if (workspace is null)
+        {
+            return [];
+        }
+
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        static void Add(List<string> target, HashSet<string> seenSet, string? candidate)
+        {
+            var normalized = NormalizeAppId(candidate);
+            if (normalized.Length > 0 && seenSet.Add(normalized))
+            {
+                target.Add(normalized);
+            }
+        }
+
+        foreach (var view in workspace.OpenViews ?? [])
+        {
+            if (view is not null)
+            {
+                Add(result, seen, view.App);
+            }
+        }
+
+        foreach (var window in workspace.Windows ?? [])
+        {
+            if (window?.Tabs is null)
+            {
+                continue;
+            }
+
+            foreach (var tab in window.Tabs)
+            {
+                if (tab is not null)
+                {
+                    Add(result, seen, tab.App);
+                }
+            }
+        }
+
+        foreach (var open in workspace.Open ?? [])
+        {
+            Add(result, seen, open);
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Returns the distinct ordered app IDs whose operations a workspace assistant may expose in a turn:
     /// always-on apps plus open workspace apps plus apps opened during this conversation.
     /// </summary>
@@ -54,16 +139,15 @@ internal static class ToolPolicy
         IReadOnlyList<string>? openedByConversation)
     {
         var result = new List<string>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         static void Append(List<string> target, HashSet<string> seenSet, IReadOnlyList<string>? items)
         {
             if (items is null) { return; }
             foreach (var raw in items)
             {
-                if (string.IsNullOrWhiteSpace(raw)) { continue; }
-                var normalized = raw.Trim();
-                if (seenSet.Add(normalized))
+                var normalized = NormalizeAppId(raw);
+                if (normalized.Length > 0 && seenSet.Add(normalized))
                 {
                     target.Add(normalized);
                 }
@@ -74,5 +158,45 @@ internal static class ToolPolicy
         Append(result, seen, openApps);
         Append(result, seen, openedByConversation);
         return result;
+    }
+
+    /// <summary>
+    /// Extracts a normalized app ID when a launch tool (e.g. <c>*_launch</c>) is invoked with an <c>appId</c> or <c>app</c> argument.
+    /// </summary>
+    public static string? TryExtractLaunchedAppId(string toolName, IDictionary<string, object?>? arguments)
+    {
+        if (string.IsNullOrWhiteSpace(toolName)
+            || !toolName.EndsWith("_launch", StringComparison.OrdinalIgnoreCase)
+            || arguments is null
+            || arguments.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var key in new[] { "appId", "app" })
+        {
+            foreach (var entry in arguments)
+            {
+                if (!string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase) || entry.Value is null)
+                {
+                    continue;
+                }
+
+                var raw = entry.Value switch
+                {
+                    string text => text,
+                    JsonElement { ValueKind: JsonValueKind.String } el => el.GetString(),
+                    _ => null,
+                };
+
+                var normalized = NormalizeAppId(raw);
+                if (normalized.Length > 0)
+                {
+                    return normalized;
+                }
+            }
+        }
+
+        return null;
     }
 }

@@ -58,9 +58,52 @@ public sealed class ToolPolicyFacts
     {
         var result = ToolPolicy.AppsForAssistant(
             alwaysOn: ["ino", "files"],
-            openApps: ["files", "tasks", " "],
-            openedByConversation: ["treg", "tasks", "notes"]);
+            openApps: ["apps/files", "app.tasks", " "],
+            openedByConversation: ["local/apps/treg", "TASKS", "notes"]);
 
         Assert.Equal(["ino", "files", "tasks", "treg", "notes"], result);
+    }
+
+    [Fact]
+    public void OpenAppsFromWorkspaceExtractsNormalizedDistinctAppsAcrossViewsWindowsAndOpenList()
+    {
+        var workspace = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(
+            Revision: 3,
+            Path: [],
+            Open: ["apps/notes", "tasks"])
+        {
+            OpenViews =
+            [
+                new("v1", "local/apps/tasks", "full", ""),
+                new("v2", "apps/files", "full", ""),
+            ],
+            Windows =
+            [
+                new("w1", [new("v3", "app.calendar", "full", ""), new("v1", "apps/tasks", "full", "")], "v3"),
+            ],
+        };
+
+        var open = ToolPolicy.OpenAppsFromWorkspace(workspace);
+
+        Assert.Equal(["tasks", "files", "calendar", "notes"], open);
+        Assert.Empty(ToolPolicy.OpenAppsFromWorkspace(null));
+    }
+
+    [Fact]
+    public void TryExtractLaunchedAppIdHandlesLaunchToolsAndIgnoresOtherTools()
+    {
+        var fromString = ToolPolicy.TryExtractLaunchedAppId(
+            "studio_launch",
+            new Dictionary<string, object?> { ["appId"] = "apps/tasks" });
+        Assert.Equal("tasks", fromString);
+
+        var fromJson = ToolPolicy.TryExtractLaunchedAppId(
+            "desktop_launch",
+            new Dictionary<string, object?> { ["app"] = System.Text.Json.JsonSerializer.SerializeToElement("app.notes") });
+        Assert.Equal("notes", fromJson);
+
+        Assert.Null(ToolPolicy.TryExtractLaunchedAppId(
+            "files_open",
+            new Dictionary<string, object?> { ["appId"] = "tasks" }));
     }
 }
