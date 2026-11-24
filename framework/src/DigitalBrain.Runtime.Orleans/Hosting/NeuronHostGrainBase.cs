@@ -116,7 +116,6 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             }
             _neuron = neuron;
             _delivery = delivery;
-            RegisterExtensions(neuron, neuronClass);
             await delivery.CatchUp().ConfigureAwait(true);
         }
         catch
@@ -157,32 +156,6 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         {
             _unit = null;
             unit.Handle.Dispose();
-        }
-    }
-
-    private void RegisterExtensions(Neuron neuron, Type neuronClass)
-    {
-        foreach (var iface in neuronClass.GetInterfaces())
-        {
-            if (typeof(IGrainExtension).IsAssignableFrom(iface) && iface != typeof(IGrainExtension))
-            {
-                RegisterExtension(iface, neuron);
-            }
-        }
-    }
-
-    private void RegisterExtension(Type extensionType, object extension)
-    {
-        var nonGeneric = typeof(IGrainContext).GetMethod(nameof(IGrainContext.SetComponent), [typeof(Type), typeof(object)]);
-        if (nonGeneric is not null)
-        {
-            nonGeneric.Invoke(GrainContext, [extensionType, extension]);
-        }
-        else
-        {
-            var generic = typeof(IGrainContext).GetMethods()
-                .First(m => m.Name == nameof(IGrainContext.SetComponent) && m.IsGenericMethodDefinition);
-            generic.MakeGenericMethod(extensionType).Invoke(GrainContext, [extension]);
         }
     }
 

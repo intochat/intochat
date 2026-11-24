@@ -38,5 +38,13 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider se
     public IConnectionInbound ConnectionInbound(string connectionKey) => services.GetConnectionInbound(connectionKey);
     public T CallerConnection<T>(IServiceProvider callerServices, string key) where T : class => callerServices.GetNeuron<T>(services, key);
 
+    // The identity module acting for itself, on a call that has no caller yet: registration, sign-in and startup reach the
+    // module's own grains before any person is stamped, and the silo refuses a call that carries no caller. A stamped caller
+    // stays as it is: those grains read it (an app is refused), so it is never replaced.
+    public IDisposable? Own()
+        => services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) is DigitalBrain.Access.EdgeAuthority { Current: null } edge
+            ? edge.Enter(edge.Module(IdentityModule.Id, DigitalBrain.BrainId.Kernel))
+            : null;
+
     private T Resolve<T>(string key) where T : IGrainWithStringKey => grains.GetGrain<T>(key);
 }

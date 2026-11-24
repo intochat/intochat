@@ -26,8 +26,12 @@ internal sealed class IntegrationHandle(string integrationId, AuthorityNeurons n
 {
     public string IntegrationId => integrationId;
     private IIntegration Integration => neurons.Integration(integrationId);
-    public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
-        => Integration.Read().WaitAsync(cancellationToken);
+    public async Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        // A module reads its registration at startup, before any caller exists: the read then runs as the identity module.
+        using var own = neurons.Own();
+        return await Integration.Read().WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default)
     {

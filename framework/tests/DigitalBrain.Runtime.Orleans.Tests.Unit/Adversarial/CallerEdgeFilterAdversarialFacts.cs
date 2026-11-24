@@ -109,6 +109,8 @@ public sealed class CallerEdgeFilterAdversarialFacts
     public async Task InternalGrainCaller_StampedInsideTrue_AndPreservesVia()
     {
         var filter = new CallerEdgeFilter();
+        // A grain's call is one this silo process sent: its outgoing filter marked it.
+        using var sent = SiloOrigin.Enter();
         var wire = new CallerWire
         {
             Actor = 3, // Module
@@ -285,6 +287,77 @@ public sealed class CallerEdgeFilterAdversarialFacts
         }
     }
 
+    // The gateway does not check the sender id a client writes on its message, so a grain's id proves nothing by itself:
+    // without the mark only this silo process can set, the call is an external client's.
+    [Theory]
+    [InlineData(CallerWire.ActorModule)]
+    [InlineData(CallerWire.ActorScheduler)]
+    [InlineData(CallerWire.ActorKernel)]
+    public async Task ExternalCaller_ForgingAGrainAsItsSender_CannotClaimInternalActors(byte internalActor)
+    {
+        var filter = new CallerEdgeFilter();
+        var wire = new CallerWire { Actor = internalActor, Brain = "victim-brain", Name = "forged-name", Inside = true };
+
+        RequestContext.Set(OrleansCallerAmbient.Key, wire);
+        try
+        {
+            var executed = false;
+            var context = new MockIncomingContext(TargetNeuron, sourceGrainId: InternalGrain, () =>
+            {
+                executed = true;
+                return Task.CompletedTask;
+            });
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
+            Assert.False(executed);
+        }
+        finally
+        {
+            RequestContext.Remove(OrleansCallerAmbient.Key);
+        }
+    }
+
+    [Fact]
+    public async Task ExternalCaller_ForgingAGrainAsItsSender_CannotForgeInsideOrVia()
+    {
+        var filter = new CallerEdgeFilter();
+        var wire = new CallerWire
+        {
+            Actor = CallerWire.ActorPerson,
+            Principal = "malicious-user",
+            Account = "acct-666",
+            Brain = "victim-brain",
+            Inside = true,
+            Via = "victim-brain/trusted-service/0",
+        };
+
+        RequestContext.Set(OrleansCallerAmbient.Key, wire);
+        try
+        {
+            await filter.Invoke(new MockIncomingContext(TargetNeuron, sourceGrainId: InternalGrain));
+
+            Assert.False(wire.Inside);
+            Assert.Null(wire.Via);
+            Assert.False(SiloOrigin.IsCurrent);
+        }
+        finally
+        {
+            RequestContext.Remove(OrleansCallerAmbient.Key);
+        }
+    }
+
+    // What a client sends under the mark's key arrives as another object, never the silo's own.
+    [Fact]
+    public void TheSiloMark_IsNotWhatAClientPutsUnderItsKey()
+    {
+        RequestContext.Set("db.internal.silo_origin", new object());
+        try { Assert.False(SiloOrigin.IsCurrent); }
+        finally { RequestContext.Remove("db.internal.silo_origin"); }
+
+        using (SiloOrigin.Enter()) { Assert.True(SiloOrigin.IsCurrent); }
+        Assert.False(SiloOrigin.IsCurrent);
+    }
+
     [Theory]
     [InlineData(6)]
     [InlineData(255)]
@@ -324,6 +397,7 @@ public sealed class CallerEdgeFilterAdversarialFacts
     public async Task InternalGrainCaller_CanPresentInternalActors_AndStampedInsideTrue(byte internalActor)
     {
         var filter = new CallerEdgeFilter();
+        using var sent = SiloOrigin.Enter();
         var wire = new CallerWire
         {
             Actor = internalActor,

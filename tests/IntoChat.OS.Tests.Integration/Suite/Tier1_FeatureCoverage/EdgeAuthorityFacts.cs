@@ -232,7 +232,7 @@ public sealed class EdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOSFixtur
             RequestContext.Remove("db.access.caller");
         }
 
-        // Scenario 4: Internal cluster grain -> STAMPED with Inside=true
+        // Scenario 4: a grain named as the sender, without the silo's own mark -> REFUSED
         var internalWire = Activator.CreateInstance(wireType)!;
         wireType.GetField("Actor")!.SetValue(internalWire, (byte)3); // ActorModule = 3
         wireType.GetField("Name")!.SetValue(internalWire, "auth-service");
@@ -246,13 +246,14 @@ public sealed class EdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOSFixtur
             var context = new MockIncomingGrainCallContext(targetNeuron, sourceGrainId: internalGrain, () =>
             {
                 executed = true;
-                var inside = (bool)wireType.GetField("Inside")!.GetValue(internalWire)!;
-                Assert.True(inside, "Internal grain call must be stamped with Inside=true.");
                 return Task.CompletedTask;
             });
 
-            await filter.Invoke(context);
-            Assert.True(executed, "Internal grain call must proceed.");
+            // A grain's sender id alone proves nothing: the gateway does not check the id a client writes on its message. Only a
+            // call this silo process sent carries its mark (SiloOrigin; CallerEdgeFilterAdversarialFacts covers the marked call),
+            // so a module claim that arrives without it is an external client's and is refused.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
+            Assert.False(executed, "A forged sender id must not carry an internal actor claim.");
         }
         finally
         {

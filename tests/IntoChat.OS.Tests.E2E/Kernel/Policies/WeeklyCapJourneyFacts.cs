@@ -158,6 +158,9 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
     {
         var grains = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(fixture.Services);
         var host = grains.GetGrain<INeuronHost>(GrainId.Create("neuron.host", IPolicies.Key(brain)));
+        // The silo refuses a host call with no caller: the fact reads the state as the kernel of the brain.
+        var edge = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(fixture.Services);
+        using var asKernel = edge.EnterKernel(new BrainId(brain));
         var state = await host.InspectState(Ct);
         return state is { } json && json.TryGetProperty("pending", out var pending)
             ? pending.GetArrayLength()

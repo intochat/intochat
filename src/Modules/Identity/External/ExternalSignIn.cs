@@ -60,7 +60,13 @@ internal static class ExternalSignIn
             return Results.Json(new { code = InvalidCode }, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        if (!await neurons.ExternalTicketReplay(claims.Issuer, claims.Jti).Consume(claims.Jti, claims.ExpiresAt).WaitAsync(http.RequestAborted))
+        bool fresh;
+        // The replay ledger is the identity module's own: no person is stamped before the ticket is redeemed.
+        using (neurons.Own())
+        {
+            fresh = await neurons.ExternalTicketReplay(claims.Issuer, claims.Jti).Consume(claims.Jti, claims.ExpiresAt).WaitAsync(http.RequestAborted);
+        }
+        if (!fresh)
         {
             log.LogWarning("External sign-in refused: ticket from {Issuer} was already redeemed", claims.Issuer);
             return Results.Json(new { code = InvalidCode }, statusCode: StatusCodes.Status400BadRequest);

@@ -412,8 +412,9 @@ public sealed class Gate20EdgeApprovalWallFacts
         private readonly IDisposable _ports;
         private readonly string _homeDir;
 
-        private EdgeKernelHarness(WebApplication app, HttpClient client, IDisposable ports, string homeDir, string scope, string presenceToken)
+        private EdgeKernelHarness(WebApplication app, HttpClient client, IDisposable ports, string homeDir, string scope, string presenceToken, int gatewayPort)
         {
+            GatewayPort = gatewayPort;
             _app = app;
             Client = client;
             _ports = ports;
@@ -427,6 +428,9 @@ public sealed class Gate20EdgeApprovalWallFacts
         public IServiceProvider Services => _app.Services;
         public string Scope { get; }
         public string PresenceToken { get; }
+
+        // The silo's own gateway on loopback: a fact that plays a cluster client connects here, to this harness only.
+        public int GatewayPort { get; }
 
         // configure runs last on the host builder: a fact replaces a host service there (the model, for one).
         public static async Task<EdgeKernelHarness> StartAsync(CancellationToken ct, Action<WebApplicationBuilder>? configure = null)
@@ -501,7 +505,7 @@ public sealed class Gate20EdgeApprovalWallFacts
                     throw new TimeoutException($"EdgeKernelHarness at '{baseUrl}' did not become ready within 30s.");
                 }
 
-                return new EdgeKernelHarness(app, client, ports, homeDir, scope, proof.Token);
+                return new EdgeKernelHarness(app, client, ports, homeDir, scope, proof.Token, ports.GatewayPort);
             }
             catch
             {

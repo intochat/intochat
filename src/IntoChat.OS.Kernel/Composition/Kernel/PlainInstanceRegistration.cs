@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 using IntoChatOSNames = IntoChat.OS.Host.Configuration.IntoChatOSNames;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Callers;
 
 namespace IntoChat.OS.Kernel.Composition.Kernel;
 
@@ -57,8 +58,16 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
         var known = _known.GetOrCreateValue(context.Grain);
         if (known.Exists == state.RecordExists) { return; }
         var directory = grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, id.Type));
-        if (state.RecordExists) { await directory.Register(fullKey, services.GetService<DigitalBrain.Access.ICallerAmbient>()?.Current?.For?.Principal); }
-        else if (known.Exists is not null) { await directory.Retire(fullKey); }
+        var creator = services.GetService<DigitalBrain.Access.ICallerAmbient>()?.Current?.For?.Principal;
+        // The directory is the kernel's own record: it is written as the kernel of the brain, whoever's call created the neuron
+        // (a call the silo refused for want of a caller is recorded too).
+        var wasKnown = known.Exists is not null;
+        await services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().AsKernel(id.Brain, async () =>
+        {
+            if (state.RecordExists) { await directory.Register(fullKey, creator); }
+            else if (wasKnown) { await directory.Retire(fullKey); }
+            return true;
+        });
         known.Exists = state.RecordExists;
     }
 

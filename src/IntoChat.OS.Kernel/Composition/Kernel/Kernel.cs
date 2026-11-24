@@ -45,10 +45,16 @@ public sealed class OsKernel(IGrainFactory grains, IBrainMembership? membership 
     private DigitalBrain.Access.ICallerAmbient? Callers => services?.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient;
 
     // A call with no caller is in no brain, so it sees the compiled layer alone.
-    public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
-        => (Callers?.Current is not null
-            ? grains.GetGrain<ITypeTable>(BrainScope.CurrentId()).List()
-            : grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).List()).WaitAsync(cancellationToken);
+    public async Task<BrainType[]> Types(CancellationToken cancellationToken = default)
+    {
+        if (Callers?.Current is not null)
+        {
+            return await grains.GetGrain<ITypeTable>(BrainScope.CurrentId()).List().WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        // The compiled layer is the same for every brain: with no caller the kernel reads it as itself.
+        using var asKernel = (services?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority)?.EnterKernel(BrainId.Kernel);
+        return await grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).List().WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<string[]> Brains(CancellationToken cancellationToken = default)
     {

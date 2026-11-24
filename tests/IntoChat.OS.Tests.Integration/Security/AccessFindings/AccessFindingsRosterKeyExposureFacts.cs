@@ -39,9 +39,15 @@ public sealed class AccessFindingsRosterKeyExposureFacts
             await friends.Mint();
         }
 
-        // Read the roster neuron's state the way gRPC ReadState does internally (kernel observation, gate-exempt).
+        // Read the roster neuron's state the way gRPC ReadState does internally: under the person its membership decision
+        // admitted. (With no caller the silo now refuses the read: StateReadOnTheSiloFacts.) What an admitted session sees is
+        // still the whole state record, so this fact stays red until the keys leave the inspectable state.
         var observer = host.Services.GetRequiredService<IBrainObserver>();
-        var state = await observer.State(friendsId, Ct);
+        JsonElement? state;
+        using (edge.Enter(edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, brain)))
+        {
+            state = await observer.State(friendsId, Ct);
+        }
 
         Assert.NotNull(state);
         var json = state!.Value.GetRawText();
