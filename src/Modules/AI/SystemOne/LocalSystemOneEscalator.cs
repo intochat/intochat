@@ -137,48 +137,48 @@ internal static class LocalSystemOneEscalator
                 switch (question)
                 {
                     case SystemOneQuestion.Choice choice:
-                    {
-                        var picked = elem.ValueKind == JsonValueKind.String
-                            ? elem.GetString()
-                            : TryGetString(elem, "choice") ?? TryGetString(elem, "value");
-                        if (string.IsNullOrWhiteSpace(picked) || !choice.Criteria.ContainsKey(picked))
                         {
-                            continue;
+                            var picked = elem.ValueKind == JsonValueKind.String
+                                ? elem.GetString()
+                                : TryGetString(elem, "choice") ?? TryGetString(elem, "value");
+                            if (string.IsNullOrWhiteSpace(picked) || !choice.Criteria.ContainsKey(picked))
+                            {
+                                continue;
+                            }
+                            var conf = Math.Clamp(TryGetDouble(elem, "confidence") ?? 0.75, 0.0, 1.0);
+                            result[key] = new SystemOneAnswer.Choice(
+                                picked,
+                                new Dictionary<string, double>(StringComparer.Ordinal) { [picked] = conf },
+                                conf);
+                            break;
                         }
-                        var conf = Math.Clamp(TryGetDouble(elem, "confidence") ?? 0.75, 0.0, 1.0);
-                        result[key] = new SystemOneAnswer.Choice(
-                            picked,
-                            new Dictionary<string, double>(StringComparer.Ordinal) { [picked] = conf },
-                            conf);
-                        break;
-                    }
                     case SystemOneQuestion.Score:
-                    {
-                        var val = elem.ValueKind == JsonValueKind.Number
-                            ? elem.GetDouble()
-                            : TryGetDouble(elem, "score") ?? TryGetDouble(elem, "value");
-                        if (val is null)
                         {
-                            continue;
+                            var val = elem.ValueKind == JsonValueKind.Number
+                                ? elem.GetDouble()
+                                : TryGetDouble(elem, "score") ?? TryGetDouble(elem, "value");
+                            if (val is null)
+                            {
+                                continue;
+                            }
+                            var conf = Math.Clamp(TryGetDouble(elem, "confidence") ?? 0.75, 0.0, 1.0);
+                            result[key] = new SystemOneAnswer.Score(val.Value, [], conf);
+                            break;
                         }
-                        var conf = Math.Clamp(TryGetDouble(elem, "confidence") ?? 0.75, 0.0, 1.0);
-                        result[key] = new SystemOneAnswer.Score(val.Value, [], conf);
-                        break;
-                    }
                     case SystemOneQuestion.Noul:
-                    {
-                        var val = elem.ValueKind == JsonValueKind.Number
-                            ? elem.GetDouble()
-                            : elem.ValueKind == JsonValueKind.True ? 1.0
-                            : elem.ValueKind == JsonValueKind.False ? 0.0
-                            : TryGetDouble(elem, "noul") ?? TryGetDouble(elem, "value");
-                        if (val is null)
                         {
-                            continue;
+                            var val = elem.ValueKind == JsonValueKind.Number
+                                ? elem.GetDouble()
+                                : elem.ValueKind == JsonValueKind.True ? 1.0
+                                : elem.ValueKind == JsonValueKind.False ? 0.0
+                                : TryGetDouble(elem, "noul") ?? TryGetDouble(elem, "value");
+                            if (val is null)
+                            {
+                                continue;
+                            }
+                            result[key] = new SystemOneAnswer.Noul(Math.Clamp(val.Value, 0.0, 1.0));
+                            break;
                         }
-                        result[key] = new SystemOneAnswer.Noul(Math.Clamp(val.Value, 0.0, 1.0));
-                        break;
-                    }
                 }
             }
         }

@@ -92,33 +92,33 @@ internal sealed class SystemOneNeuron(
         switch (question)
         {
             case SystemOneQuestion.Choice choice when choice.Criteria.Count > 0:
-            {
-                var candidates = choice.Criteria.Keys.ToArray();
-                var res = await venn.ChooseForText(state, candidates).ConfigureAwait(false);
-                if (res.Abstained || string.IsNullOrEmpty(res.ChosenAction))
                 {
-                    return null;
+                    var candidates = choice.Criteria.Keys.ToArray();
+                    var res = await venn.ChooseForText(state, candidates).ConfigureAwait(false);
+                    if (res.Abstained || string.IsNullOrEmpty(res.ChosenAction))
+                    {
+                        return null;
+                    }
+                    return new SystemOneAnswer.Choice(res.ChosenAction, NormalizeScores(res.Scores), res.Confidence);
                 }
-                return new SystemOneAnswer.Choice(res.ChosenAction, NormalizeScores(res.Scores), res.Confidence);
-            }
             case SystemOneQuestion.Score:
-            {
-                var res = await venn.ScoreForText(state).ConfigureAwait(false);
-                if (res.Abstained)
                 {
-                    return null;
+                    var res = await venn.ScoreForText(state).ConfigureAwait(false);
+                    if (res.Abstained)
+                    {
+                        return null;
+                    }
+                    return new SystemOneAnswer.Score(res.PredictedScore, [], res.Confidence);
                 }
-                return new SystemOneAnswer.Score(res.PredictedScore, [], res.Confidence);
-            }
             case SystemOneQuestion.Noul:
-            {
-                var res = await venn.NoulForText(state, key).ConfigureAwait(false);
-                if (res.Abstained)
                 {
-                    return null;
+                    var res = await venn.NoulForText(state, key).ConfigureAwait(false);
+                    if (res.Abstained)
+                    {
+                        return null;
+                    }
+                    return new SystemOneAnswer.Noul(res.Probability);
                 }
-                return new SystemOneAnswer.Noul(res.Probability);
-            }
             default:
                 return null;
         }

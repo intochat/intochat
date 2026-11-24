@@ -46,7 +46,9 @@ final class UiSheet extends StatelessWidget {
         style: BoxStyler()
             .color(c.elevated)
             .borderRadius(BorderRadiusGeometryMix.circular(tokens.modalRadius))
-            .border(BoxBorderMix.all(BorderSideMix.color(c.hairline).width(1.0)))
+            .border(
+              BoxBorderMix.all(BorderSideMix.color(c.hairline).width(1.0)),
+            )
             .shadow(
               BoxShadowMix(
                 color: c.ink.withValues(alpha: 0.16),
@@ -108,10 +110,7 @@ final class UiSheet extends StatelessWidget {
                 SizedBox(height: tokens.p16),
               ],
               Flexible(child: child),
-              if (footer != null) ...[
-                SizedBox(height: tokens.p16),
-                footer!,
-              ],
+              if (footer != null) ...[SizedBox(height: tokens.p16), footer!],
             ],
           ),
         ),
@@ -174,10 +173,7 @@ Future<T?> showUiSheet<T>({
         alignment: sideSheet ? Alignment.centerRight : Alignment.center,
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Material(
-            type: MaterialType.transparency,
-            child: builder(ctx),
-          ),
+          child: Material(type: MaterialType.transparency, child: builder(ctx)),
         ),
       ),
     ),

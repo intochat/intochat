@@ -117,7 +117,10 @@ void main() {
           size: const Size(900, 700),
         ),
       );
-      expect(find.byKey(const ValueKey('ui_adaptive_nav_rail')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('ui_adaptive_nav_rail')),
+        findsOneWidget,
+      );
       expect(find.text('3'), findsOneWidget);
 
       await tester.tap(find.text('Chat'));
@@ -140,33 +143,34 @@ void main() {
       );
     });
 
-    testWidgets('showUiSheet opens dialog on desktop and bottom sheet on compact', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (context) => UiMixActionButton(
-              label: 'Open Sheet',
-              onPressed: () {
-                showUiSheet<void>(
-                  context: context,
-                  builder: (_) => const UiSheet(
-                    title: 'Sheet Title',
-                    child: Text('Sheet Body'),
-                  ),
-                );
-              },
+    testWidgets(
+      'showUiSheet opens dialog on desktop and bottom sheet on compact',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            Builder(
+              builder: (context) => UiMixActionButton(
+                label: 'Open Sheet',
+                onPressed: () {
+                  showUiSheet<void>(
+                    context: context,
+                    builder: (_) => const UiSheet(
+                      title: 'Sheet Title',
+                      child: Text('Sheet Body'),
+                    ),
+                  );
+                },
+              ),
             ),
+            size: const Size(900, 700),
           ),
-          size: const Size(900, 700),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Open Sheet'));
-      await tester.pumpAndSettle();
-      expect(find.text('Sheet Title'), findsOneWidget);
-      expect(find.text('Sheet Body'), findsOneWidget);
-    });
+        await tester.tap(find.text('Open Sheet'));
+        await tester.pumpAndSettle();
+        expect(find.text('Sheet Title'), findsOneWidget);
+        expect(find.text('Sheet Body'), findsOneWidget);
+      },
+    );
   });
 }

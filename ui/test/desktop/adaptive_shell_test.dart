@@ -132,8 +132,14 @@ void main() {
       await tester.pumpWidget(_buildShellHarness(surfaceSize: size));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('adaptive-shell-compact')), findsOneWidget);
-      expect(find.byKey(const ValueKey('ui_adaptive_nav_bottom')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('adaptive-shell-compact')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('ui_adaptive_nav_bottom')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('ui_adaptive_nav_rail')), findsNothing);
       expect(find.byType(WindowFrame), findsNothing);
       expect(find.byType(OsBar), findsNothing);
@@ -171,9 +177,18 @@ void main() {
       await tester.pumpWidget(_buildShellHarness(surfaceSize: size));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('adaptive-shell-medium')), findsOneWidget);
-      expect(find.byKey(const ValueKey('ui_adaptive_nav_rail')), findsOneWidget);
-      expect(find.byKey(const ValueKey('ui_adaptive_nav_bottom')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('adaptive-shell-medium')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('ui_adaptive_nav_rail')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('ui_adaptive_nav_bottom')),
+        findsNothing,
+      );
       expect(find.byType(WindowFrame), findsNothing);
       expect(find.byType(OsBar), findsNothing);
     },

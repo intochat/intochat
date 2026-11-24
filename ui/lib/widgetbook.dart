@@ -855,7 +855,8 @@ final class _MixActionButtonPlayground extends StatefulWidget {
       _MixActionButtonPlaygroundState();
 }
 
-class _MixActionButtonPlaygroundState extends State<_MixActionButtonPlayground> {
+class _MixActionButtonPlaygroundState
+    extends State<_MixActionButtonPlayground> {
   final List<String> _events = [];
 
   void _log(String entry) {
@@ -883,7 +884,10 @@ class _MixActionButtonPlaygroundState extends State<_MixActionButtonPlayground> 
       options: const ['none', 'sparkles', 'rocket', 'check', 'trash-2', 'plus'],
       initialOption: 'sparkles',
     );
-    final compact = context.knobs.boolean(label: 'Compact', initialValue: false);
+    final compact = context.knobs.boolean(
+      label: 'Compact',
+      initialValue: false,
+    );
     final fullWidth = context.knobs.boolean(
       label: 'Full Width',
       initialValue: false,
@@ -933,9 +937,7 @@ class _MixActionButtonPlaygroundState extends State<_MixActionButtonPlayground> 
                     style: s,
                     compact: compact,
                     icon: s == UiMixButtonStyle.danger ? 'trash-2' : null,
-                    onPressed: enabled
-                        ? () => _log('Pressed ${s.name}')
-                        : null,
+                    onPressed: enabled ? () => _log('Pressed ${s.name}') : null,
                   ),
               ],
             ),
@@ -1198,11 +1200,7 @@ final class _BadgePlayground extends StatelessWidget {
                 tone: UiBadgeTone.success,
                 icon: LucideIcons.check,
               ),
-              UiBadge(
-                label: 'Degraded',
-                tone: UiBadgeTone.warning,
-                dot: true,
-              ),
+              UiBadge(label: 'Degraded', tone: UiBadgeTone.warning, dot: true),
               UiBadge(
                 label: 'Offline',
                 tone: UiBadgeTone.danger,
@@ -1231,7 +1229,10 @@ class _SegmentedControlPlaygroundState
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
-    final compact = context.knobs.boolean(label: 'Compact', initialValue: false);
+    final compact = context.knobs.boolean(
+      label: 'Compact',
+      initialValue: false,
+    );
     final expand = context.knobs.boolean(label: 'Expand', initialValue: false);
     final enabled = context.knobs.boolean(label: 'Enabled', initialValue: true);
     final showIcons = context.knobs.boolean(

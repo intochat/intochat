@@ -123,10 +123,7 @@ class _UiMixActionButtonState extends State<UiMixActionButton> {
           .padding(EdgeInsetsGeometryMix.symmetric(horizontal: hPad))
           .borderRadius(BorderRadiusGeometryMix.circular(tokens.button))
           .animate(
-            AnimationConfig.curve(
-              duration: tokens.fast,
-              curve: tokens.ease,
-            ),
+            AnimationConfig.curve(duration: tokens.fast, curve: tokens.ease),
           );
       if (fill != null) {
         boxStyle = boxStyle.color(fill);

@@ -1796,7 +1796,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         right: 12,
                         bottom: 12,
                         child: InoOrbV2(
-                          state: _presenceState,
+                          state: _presenceState ?? PresenceState.idle,
                           size: 48,
                           semanticsId: 'compact:ino-orb',
                           onTap: () {
@@ -1898,7 +1898,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     _allAppsOpen = false;
                     _themeStudioOpen = false;
                   });
-                  unawaited(_showActiveAppsSheet(context, orderedWindows, byId));
+                  unawaited(
+                    _showActiveAppsSheet(context, orderedWindows, byId),
+                  );
                 case 2:
                   setState(() {
                     _themeStudioOpen = false;
@@ -2085,7 +2087,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         final isMedium =
             size.width >= _kCompactBreakpoint &&
             size.width < _kExpandedBreakpoint;
-        final focusMode = size.width < _kExpandedBreakpoint || size.height < 640;
+        final focusMode =
+            size.width < _kExpandedBreakpoint || size.height < 640;
         final desk = Size(
           size.width,
           max(320.0, size.height - kOsBarHeight - 8),
