@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Secrets;
@@ -490,7 +489,7 @@ internal sealed class AgentNeuron(
                         await Runner.RecordMilestone(effectiveContexts, turnState.Run.UserText, turnState.Visible);
                         committed = true;
                         await Announce();
-                        if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, await Runner.Mask(JsonSerializer.Serialize(done.Usage)), ++sequence)); }
+                        if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, await Runner.Mask(ToolJson.Serialize(done.Usage)), ++sequence)); }
                         break;
                     case AgentTurnEvent.TurnFailed failed:
                         // The loop sees only a cancelled token; a run out of time failed, it was not cancelled.
