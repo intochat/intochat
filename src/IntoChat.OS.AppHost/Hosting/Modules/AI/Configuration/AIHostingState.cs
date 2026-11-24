@@ -4,6 +4,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Host.Execution;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Devices.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -135,13 +136,15 @@ public static partial class AIHostingExtensions
         {
             try
             {
-                using var process = Process.Start(new ProcessStartInfo("nvidia-smi", "--query-gpu=name --format=csv,noheader")
+                var start = new ProcessStartInfo("nvidia-smi", "--query-gpu=name --format=csv,noheader")
                 {
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                });
+                };
+                ChildEnvironmentPolicy.Scrub(start);
+                using var process = Process.Start(start);
                 if (process is null) { return false; }
                 if (!process.WaitForExit(2000))
                 {
@@ -150,7 +153,7 @@ public static partial class AIHostingExtensions
                 }
                 return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(process.StandardOutput.ReadToEnd());
             }
-            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
             {
                 return false;
             }
