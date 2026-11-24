@@ -566,7 +566,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
             return;
         }
 
-        var merged = MergeView(ConversationView, incoming, full);
+        var merged = ConversationThreadProjection.MergeView(ConversationView, incoming, full);
         var hadRunningOrPending = State.ActiveRunId is not null || State.Pending is not null;
         ConversationView = merged;
         SeenRevision = merged.Revision;
@@ -631,31 +631,6 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
         {
             AppManifests = updated;
         }
-    }
-
-    private static ConversationView MergeView(ConversationView? previous, ConversationView incoming, bool full)
-    {
-        if (full || previous is null || !string.Equals(previous.Id.Value, incoming.Id.Value, StringComparison.Ordinal))
-        {
-            return incoming;
-        }
-
-        if (incoming.Entries.Length == 0)
-        {
-            return incoming with { Entries = previous.Entries };
-        }
-
-        var mergedEntries = new List<ConversationEntry>(previous.Entries.Length + incoming.Entries.Length);
-        mergedEntries.AddRange(previous.Entries);
-        var seen = new HashSet<EntryId>(previous.Entries.Select(static e => e.Id));
-        foreach (var entry in incoming.Entries)
-        {
-            if (seen.Add(entry.Id))
-            {
-                mergedEntries.Add(entry);
-            }
-        }
-        return incoming with { Entries = [.. mergedEntries] };
     }
 
     private static long ComputeRunTokens(AgentRun run)
