@@ -34,6 +34,10 @@ internal static class SandboxEdgeEndpoints
 
     internal sealed record EdgeLogRequest(string Message, DateTimeOffset TimestampUtc);
 
+    internal sealed record EdgeSignalAck(bool Forwarded, string Signal);
+
+    internal sealed record EdgeLogAck(bool Logged);
+
     internal sealed record EdgeInvokeOutcome(int StatusCode, EdgeInvokeResponse Response);
 
     public static void Map(IEndpointRouteBuilder endpoints)
@@ -57,9 +61,7 @@ internal static class SandboxEdgeEndpoints
             }
 
             var outcome = await InvokeEdgeAsync(identity, request, ai, tables, services, ct).ConfigureAwait(false);
-            return outcome.StatusCode == StatusCodes.Status200OK
-                ? Results.Ok(outcome.Response)
-                : Results.Json(outcome.Response, statusCode: outcome.StatusCode);
+            return Results.Json(outcome.Response, SandboxEdgeJsonContext.Default.EdgeInvokeResponse, statusCode: outcome.StatusCode);
         });
 
         group.MapPost("/signals", async (
@@ -75,7 +77,7 @@ internal static class SandboxEdgeEndpoints
             }
 
             await bridge.ForwardSignalAsync(identity.BrainId, request.SignalName, request.PayloadJson, ct).ConfigureAwait(false);
-            return Results.Ok(new { forwarded = true, signal = request.SignalName });
+            return Results.Json(new EdgeSignalAck(true, request.SignalName), SandboxEdgeJsonContext.Default.EdgeSignalAck);
         });
 
         group.MapPost("/logs", (
@@ -96,7 +98,7 @@ internal static class SandboxEdgeEndpoints
                 identity.AppKey,
                 request.TimestampUtc,
                 request.Message);
-            return Results.Ok(new { logged = true });
+            return Results.Json(new EdgeLogAck(true), SandboxEdgeJsonContext.Default.EdgeLogAck);
         });
     }
 
