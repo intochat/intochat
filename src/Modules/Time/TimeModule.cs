@@ -12,8 +12,9 @@ public sealed class TimeModule : DigitalBrain.Modules.Module
 
     public static System.Reflection.Assembly? Contracts => typeof(Reminders.IReminder).Assembly;
 
-    public static readonly string MinimumReminderPeriodKey =
-        ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)) + ":MinimumReminderPeriod";
+    // Computed on each read: the configuration root is set at host start, after this type may have initialized.
+    public static string MinimumReminderPeriodKey =>
+        ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)) + ":" + nameof(TimeModuleOptions.MinimumReminderPeriod);
 
     public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
