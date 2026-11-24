@@ -1529,6 +1529,7 @@ public sealed class HouseRules22Facts
             "IExternalTicketReplay",
             // App-internal UI seams & IntoChat.OS.UI root navigation lifecycle contracts
             "IGalleryLibrary",
+            "IWidgetbook",
             "ISecretVault",
             "INavigatedTo",
             "INavigatedFrom",

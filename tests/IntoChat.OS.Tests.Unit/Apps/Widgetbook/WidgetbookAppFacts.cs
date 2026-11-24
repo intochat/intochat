@@ -2,8 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Widgetbook;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.Widgetbook;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Widgetbook;
 
@@ -15,7 +13,7 @@ public sealed class WidgetbookAppFacts
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
             IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(WidgetbookApp).Assembly);
 
         var wb = os.Get<IWidgetbook>(new NeuronId(new BrainId("test"), "ui.widgetbook", "default"));
         var state = await wb.NavigateStory("foundations/typography", "light");
@@ -26,6 +24,29 @@ public sealed class WidgetbookAppFacts
         var dev = await wb.SwitchSource(WidgetbookSourceMode.DevHotReload);
         Assert.Equal(WidgetbookSourceMode.DevHotReload, dev.SourceMode);
         Assert.Equal("http://localhost:8090", dev.BaseUrl);
+    }
+
+    // The class of ui.widgetbook moved out of the control module; a state stored before the move still loads after it.
+    [Fact]
+    public async Task StoredWidgetbookStateWrittenBeforeTheMoveStillLoads()
+    {
+        const string stored = """
+            {"version":3,"activeStoryPath":"foundations/typography","themeMode":"light","sourceMode":1,"baseUrl":"http://localhost:8090"}
+            """;
+        var id = new NeuronId(new BrainId("test"), "ui.widgetbook", "default");
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
+            IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
+        await using var os = TestOS.Local();
+        os.Register(typeof(WidgetbookApp).Assembly);
+        os.SeedStoredState(id, stored);
+
+        var state = await os.Get<IWidgetbook>(id).Read();
+
+        Assert.Equal(3, state.Version);
+        Assert.Equal("foundations/typography", state.ActiveStoryPath);
+        Assert.Equal("light", state.ThemeMode);
+        Assert.Equal(WidgetbookSourceMode.DevHotReload, state.SourceMode);
+        Assert.Equal("http://localhost:8090", state.BaseUrl);
     }
 
     [Fact]

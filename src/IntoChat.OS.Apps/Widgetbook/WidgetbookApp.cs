@@ -12,7 +12,6 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.UI.Widgetbook;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
 

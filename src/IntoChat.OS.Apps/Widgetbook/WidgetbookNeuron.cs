@@ -1,10 +1,9 @@
 using DigitalBrain.Neurons;
-using IntoChat.OS.Modules.UI.Core;
 
-namespace IntoChat.OS.Modules.UI.Widgetbook;
+namespace IntoChat.OS.Apps.Widgetbook;
 
 [Neuron("ui.widgetbook")]
-internal sealed class WidgetbookNeuron : UiNeuronBase<WidgetbookState>, IWidgetbook
+internal sealed class WidgetbookNeuron : Neuron<WidgetbookState>, IWidgetbook
 {
     public async Task<WidgetbookState> NavigateStory(string storyPath, string? themeMode = null)
     {

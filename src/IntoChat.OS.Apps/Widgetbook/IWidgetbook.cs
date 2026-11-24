@@ -1,8 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
-using IntoChat.OS.Modules.UI.Core;
 
-namespace IntoChat.OS.Modules.UI.Widgetbook;
+namespace IntoChat.OS.Apps.Widgetbook;
 
 public enum WidgetbookSourceMode
 {
@@ -47,9 +46,9 @@ public sealed record WidgetbookChanged(
     string ThemeMode,
     WidgetbookSourceMode SourceMode) : Signal;
 
-[NeuronAlias("ui.widgetbook")]
+[NeuronAlias("ui.widgetbook", Formerly = ["IntoChat.OS.Modules.UI.Widgetbook.IWidgetbook"])]
 [DefaultNeuronType("ui.widgetbook")]
-public interface IWidgetbook : IUiInteractiveControl
+public interface IWidgetbook
 {
     Task<WidgetbookState> NavigateStory(string storyPath, string? themeMode = null);
     Task<WidgetbookState> SwitchSource(WidgetbookSourceMode mode, string? customBaseUrl = null);
