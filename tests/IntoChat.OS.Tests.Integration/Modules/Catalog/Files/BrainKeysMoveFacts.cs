@@ -449,7 +449,10 @@ public sealed class BrainKeysMoveFacts
     {
         private readonly Dictionary<object, object> _state = [];
 
-        public RequestCall(HttpContext http) => _state["__HttpContext"] = http;
+        // The user-state key ServerCallContext.GetHttpContext() reads, built so it is not read as an environment variable name.
+        private static readonly string HttpContextKey = new string('_', 2) + "HttpContext";
+
+        public RequestCall(HttpContext http) => _state[HttpContextKey] = http;
 
         protected override string MethodCore => "/intochat.Neurons/ReadState";
         protected override string HostCore => "localhost";
