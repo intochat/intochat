@@ -141,8 +141,14 @@ public sealed class OperationSilo : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null) { await _host.DisposeAsync(); }
-        _home.Dispose();
+        try
+        {
+            if (_host is not null) { await _host.DisposeAsync(); }
+        }
+        finally
+        {
+            _home.Dispose();
+        }
     }
 
     private sealed class Stores : IClusterStoreRegistration

@@ -6,6 +6,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.LocalDisk;
 using DigitalBrain.Log;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.Primitives;
@@ -49,21 +50,32 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         _services = services;
         _broker = broker;
         BrainId = string.IsNullOrWhiteSpace(brainId) ? Guid.NewGuid().ToString("N") : brainId.Trim();
-        _rootDirectory = !string.IsNullOrWhiteSpace(rootDirectory)
-            ? Path.GetFullPath(rootDirectory)
-            : Path.Combine(Path.GetTempPath(), "intochat-vfs", BrainId);
+        _rootDirectory = ResolveRootDirectory(services, BrainId, rootDirectory);
 
         var workDir = Path.Combine(_rootDirectory, "work");
         var localDir = Path.Combine(_rootDirectory, "local");
         var driveDir = Path.Combine(_rootDirectory, "drive");
 
-        Directory.CreateDirectory(workDir);
-        Directory.CreateDirectory(localDir);
-        Directory.CreateDirectory(driveDir);
-
         _fallbackWorkStorage = new LocalCloudStorage(workDir);
         _fallbackLocalStorage = new LocalCloudStorage(localDir);
         _fallbackDriveStorage = new LocalCloudStorage(driveDir);
+    }
+
+    private static string ResolveRootDirectory(IServiceProvider? services, string brainId, string? rootDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(rootDirectory))
+        {
+            return Path.GetFullPath(rootDirectory);
+        }
+
+        var configuration = services?.GetService<IConfiguration>();
+        var configuredHome = configuration?["IntoChatOS:Home"] ?? configuration?["DigitalBrain:Home"];
+        if (!string.IsNullOrWhiteSpace(configuredHome))
+        {
+            return Path.Combine(Path.GetFullPath(configuredHome), "vfs", brainId);
+        }
+
+        return Path.Combine(Path.GetTempPath(), "intochat-vfs", brainId);
     }
 
     public string BrainId { get; }
@@ -457,6 +469,14 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
         await WithCallerAsync(async effectiveBroker =>
         {
+            var mountDir = mountPoint switch
+            {
+                "local" => Path.Combine(_rootDirectory, "local"),
+                "drive" => Path.Combine(_rootDirectory, "drive"),
+                _ => Path.Combine(_rootDirectory, "work"),
+            };
+            Directory.CreateDirectory(mountDir);
+
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
             try { await vfs.Write(canonicalPath, bytes, ct).ConfigureAwait(false); }
             catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }

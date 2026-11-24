@@ -1,17 +1,20 @@
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
 // storage@1 of a Windows PC, against the neuron's storage over a fresh folder (CAP-04). Each fact gets its own root.
-public sealed class WindowsStorageKit : StorageConformance<IStorage>
+public sealed class WindowsStorageKit : StorageConformance<IStorage>, IDisposable
 {
+    private readonly List<string> _roots = [];
     private string? _root;
 
     protected override async Task<StorageSubject> Connect(StorageSeed seed, CancellationToken ct)
     {
         var root = PathConfinement.Normalize(Directory.CreateTempSubdirectory("windows-kit").FullName);
+        _roots.Add(root);
         _root = root;
         foreach (var entry in seed.Entries)
         {
@@ -36,4 +39,14 @@ public sealed class WindowsStorageKit : StorageConformance<IStorage>
 
     protected override ItemId MissingId()
         => WindowsStorage.IdOf(Path.Combine(_root ?? throw new InvalidOperationException("Connect runs first."), $"missing-{Guid.NewGuid():N}.txt"));
+
+    public void Dispose()
+    {
+        foreach (var root in _roots)
+        {
+            TempDirectory.DeleteIfPresent(root);
+        }
+
+        _roots.Clear();
+    }
 }

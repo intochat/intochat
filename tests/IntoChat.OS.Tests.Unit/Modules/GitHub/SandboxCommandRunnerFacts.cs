@@ -19,23 +19,7 @@ public sealed class SandboxCommandRunnerFacts : IDisposable
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_root))
-            {
-                foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
-                {
-                    try { File.SetAttributes(file, FileAttributes.Normal); } catch { }
-                }
-
-                Directory.Delete(_root, recursive: true);
-            }
-        }
-        catch
-        {
-        }
-    }
+        => DigitalBrain.Testing.TempDirectory.DeleteIfPresent(_root);
 
     private async Task<WorkTreeLease> PrepareContainerVolumeLeaseAsync(string subName)
     {
@@ -229,11 +213,15 @@ public sealed class SandboxCommandRunnerFacts : IDisposable
             }
             """;
         File.WriteAllText(Path.Combine(toolSrc, "Program.cs"), program);
-        RunProcess("dotnet", ["build", Path.Combine(toolSrc, "fake-container-cli.csproj"), "-c", "Release", "-o", toolBin, "-v", "q"], toolSrc);
+        RunProcess(
+            "dotnet",
+            ["build", Path.Combine(toolSrc, "fake-container-cli.csproj"), "-c", "Release", "-o", toolBin, "-v", "q", "--disable-build-servers"],
+            toolSrc,
+            Path.Combine(_root, ".tmp"));
         return toolBin;
     }
 
-    private static string RunProcess(string fileName, IReadOnlyList<string> args, string workingDirectory)
+    private static string RunProcess(string fileName, IReadOnlyList<string> args, string workingDirectory, string? tempDirectory = null)
     {
         var psi = new ProcessStartInfo(fileName)
         {
@@ -243,6 +231,13 @@ public sealed class SandboxCommandRunnerFacts : IDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        if (!string.IsNullOrWhiteSpace(tempDirectory))
+        {
+            Directory.CreateDirectory(tempDirectory);
+            psi.Environment["TEMP"] = tempDirectory;
+            psi.Environment["TMP"] = tempDirectory;
+            psi.Environment["TMPDIR"] = tempDirectory;
+        }
         foreach (var arg in args)
         {
             psi.ArgumentList.Add(arg);

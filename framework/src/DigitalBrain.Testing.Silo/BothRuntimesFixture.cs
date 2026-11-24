@@ -77,12 +77,22 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var runtime in _shared.Values.Where(lazy => lazy.IsValueCreated).Select(lazy => lazy.Value))
+        try
         {
-            if (runtime.IsCompletedSuccessfully) { await runtime.Result.DisposeAsync().ConfigureAwait(false); }
+            foreach (var runtime in _shared.Values.Where(lazy => lazy.IsValueCreated).Select(lazy => lazy.Value))
+            {
+                if (runtime.IsCompletedSuccessfully) { await runtime.Result.DisposeAsync().ConfigureAwait(false); }
+            }
         }
-        GC.SuppressFinalize(this);
+        finally
+        {
+            await DisposeCoreAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
+        }
     }
+
+    /// <summary>Runs after shared runtimes have stopped, even if runtime disposal fails.</summary>
+    protected virtual ValueTask DisposeCoreAsync() => ValueTask.CompletedTask;
 
     internal static string AliasOf(Type signal) => signal.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!;
 

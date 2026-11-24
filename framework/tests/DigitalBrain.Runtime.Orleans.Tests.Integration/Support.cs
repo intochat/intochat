@@ -74,6 +74,22 @@ internal sealed class TempHome : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(Path)) { Directory.Delete(Path, recursive: true); }
+        if (!Directory.Exists(Path)) { return; }
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                Directory.Delete(Path, recursive: true);
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < 9)
+            {
+                Thread.Sleep(150);
+            }
+        }
     }
 }

@@ -178,29 +178,7 @@ public sealed class TestHome : IDisposable
     }
 
     public static void DeleteDirectoryIfPresent(string path)
-    {
-        if (!Directory.Exists(path))
-        {
-            return;
-        }
-
-        for (var attempt = 0; attempt < 10; attempt++)
-        {
-            try
-            {
-                Directory.Delete(path, recursive: true);
-                return;
-            }
-            catch (IOException) when (attempt < 9)
-            {
-                Thread.Sleep(200);
-            }
-            catch (UnauthorizedAccessException) when (attempt < 9)
-            {
-                Thread.Sleep(200);
-            }
-        }
-    }
+        => DigitalBrain.Testing.TempDirectory.DeleteIfPresent(path);
 
     private static string UnsealMasterKeyFile(string path)
     {

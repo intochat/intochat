@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
@@ -12,7 +13,8 @@ public sealed class WindowsStorageStreamFacts
     [Fact]
     public async Task OpenReadStreamsTheWholeFileSeekableAndARangeBounded()
     {
-        var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
+        using var temp = new TempDirectory("windows-stream-");
+        var root = temp.Path;
         var path = Path.Combine(root, "plan.txt");
         await File.WriteAllBytesAsync(path, [.. Enumerable.Range(0, 16).Select(value => (byte)value)], Ct);
         var storage = new WindowsStorage([PathConfinement.Normalize(root)], new WindowsStorageCoordinator());
@@ -37,7 +39,8 @@ public sealed class WindowsStorageStreamFacts
     [Fact]
     public async Task RootFlagsOfferCreationButNeverRootDestruction()
     {
-        var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
+        using var temp = new TempDirectory("windows-stream-");
+        var root = temp.Path;
         var storage = new WindowsStorage([PathConfinement.Normalize(root)], new WindowsStorageCoordinator());
         var folder = WindowsStorage.IdOf(PathConfinement.Normalize(root));
 
@@ -49,7 +52,8 @@ public sealed class WindowsStorageStreamFacts
     [Fact]
     public async Task AnIdOutsideTheRootsIsDeniedAndAForeignIdNotFound()
     {
-        var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
+        using var temp = new TempDirectory("windows-stream-");
+        var root = temp.Path;
         var storage = new WindowsStorage([PathConfinement.Normalize(root)], new WindowsStorageCoordinator());
 
         Assert.Equal("denied", (await Assert.ThrowsAnyAsync<StorageException>(() => storage.Stat(WindowsStorage.IdOf(Path.Combine(root, "..", "escape.txt")), Ct))).Code);

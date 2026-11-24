@@ -23,18 +23,7 @@ public sealed class HybridMemoryFacts : IDisposable
     }
 
     public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_tempHome))
-            {
-                Directory.Delete(_tempHome, recursive: true);
-            }
-        }
-        catch (IOException)
-        {
-        }
-    }
+        => TempDirectory.DeleteIfPresent(_tempHome);
 
     private static IDisposable AsPerson(string brain)
         => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("person", "person", new BrainId(brain)));

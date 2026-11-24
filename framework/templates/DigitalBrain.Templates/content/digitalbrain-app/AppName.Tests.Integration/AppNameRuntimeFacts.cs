@@ -8,12 +8,18 @@ namespace APP_NAMESPACE.Tests.Integration;
 
 public sealed class APP_CLASSRuntimeFixture : BothRuntimesFixture
 {
-    private readonly string _home = Path.Combine(Path.GetTempPath(), "db-app-" + Guid.NewGuid().ToString("N"));
+    private readonly TempDirectory _home = new("db-app-", create: false);
 
     protected override IReadOnlyList<Type> Modules => [typeof(APP_CLASS)];
 
     protected override void ConfigureSilo(IServiceCollection services)
-        => services.AddLocalIdentity(SiloNeurons.Get, _home);
+        => services.AddLocalIdentity(SiloNeurons.Get, _home.Path);
+
+    protected override ValueTask DisposeCoreAsync()
+    {
+        _home.Dispose();
+        return base.DisposeCoreAsync();
+    }
 }
 
 public sealed class APP_CLASSRuntimeFacts(APP_CLASSRuntimeFixture fixture) : IClassFixture<APP_CLASSRuntimeFixture>

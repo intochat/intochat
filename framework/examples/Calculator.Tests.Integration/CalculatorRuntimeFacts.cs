@@ -9,12 +9,18 @@ namespace Calculator.Tests.Integration;
 
 public sealed class CalculatorRuntimeFixture : BothRuntimesFixture
 {
-    private readonly string _home = Path.Combine(Path.GetTempPath(), "db-calc-" + Guid.NewGuid().ToString("N"));
+    private readonly TempDirectory _home = new("db-calc-", create: false);
 
     protected override IReadOnlyList<Type> Modules => [typeof(CalculatorScreen)];
 
     protected override void ConfigureSilo(IServiceCollection services)
-        => services.AddLocalIdentity(SiloNeurons.Get, _home);
+        => services.AddLocalIdentity(SiloNeurons.Get, _home.Path);
+
+    protected override ValueTask DisposeCoreAsync()
+    {
+        _home.Dispose();
+        return base.DisposeCoreAsync();
+    }
 }
 
 public sealed class CalculatorRuntimeFacts(CalculatorRuntimeFixture fixture) : IClassFixture<CalculatorRuntimeFixture>

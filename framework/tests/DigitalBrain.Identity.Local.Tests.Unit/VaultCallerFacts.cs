@@ -33,8 +33,17 @@ public sealed class VaultCallerFacts : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        await _os.DisposeAsync();
-        if (System.IO.Directory.Exists(_directory)) { System.IO.Directory.Delete(_directory, recursive: true); }
+        try
+        {
+            if (_os is not null)
+            {
+                await _os.DisposeAsync();
+            }
+        }
+        finally
+        {
+            TempDirectory.DeleteIfPresent(_directory);
+        }
     }
 
     private async Task<SecretRef> Stored()

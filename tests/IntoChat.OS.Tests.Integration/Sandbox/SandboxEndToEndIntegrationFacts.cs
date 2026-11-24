@@ -659,13 +659,14 @@ public sealed class SandboxEndToEndIntegrationFacts
             Directory.CreateDirectory(homeDir);
 
             var ports = PortReservation.ReservePair();
-            var sandboxApp = withExternalSandboxUrl ? await StartSandboxWorkerAsync(enrollKey, ct) : null;
-            var sandboxUrl = sandboxApp?.Urls.First() ?? string.Empty;
-
+            WebApplication? sandboxApp = null;
             WebApplication? kernelApp = null;
             HttpClient? kernelClient = null;
             try
             {
+                sandboxApp = withExternalSandboxUrl ? await StartSandboxWorkerAsync(enrollKey, ct) : null;
+                var sandboxUrl = sandboxApp?.Urls.First() ?? string.Empty;
+
                 var kernelBuilder = WebApplication.CreateBuilder(new WebApplicationOptions
                 {
                     EnvironmentName = "Development",
@@ -763,17 +764,35 @@ public sealed class SandboxEndToEndIntegrationFacts
 
         public async ValueTask DisposeAsync()
         {
-            KernelClient.Dispose();
-            await _kernelApp.StopAsync();
-            await _kernelApp.DisposeAsync();
-            if (_sandboxApp is not null)
+            try
             {
-                await _sandboxApp.StopAsync();
-                await _sandboxApp.DisposeAsync();
-            }
+                KernelClient.Dispose();
+                try
+                {
+                    await _kernelApp.StopAsync();
+                }
+                finally
+                {
+                    await _kernelApp.DisposeAsync();
+                }
 
-            _ports.Dispose();
-            DeleteDirectoryIfPresent(_homeDir);
+                if (_sandboxApp is not null)
+                {
+                    try
+                    {
+                        await _sandboxApp.StopAsync();
+                    }
+                    finally
+                    {
+                        await _sandboxApp.DisposeAsync();
+                    }
+                }
+            }
+            finally
+            {
+                _ports.Dispose();
+                DeleteDirectoryIfPresent(_homeDir);
+            }
         }
 
         private static async Task<WebApplication> StartSandboxWorkerAsync(string enrollKey, CancellationToken ct)
@@ -839,21 +858,5 @@ public sealed class SandboxEndToEndIntegrationFacts
     }
 
     private static void DeleteDirectoryIfPresent(string path)
-    {
-        if (!Directory.Exists(path))
-        {
-            return;
-        }
-
-        try
-        {
-            Directory.Delete(path, recursive: true);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-    }
+        => DigitalBrain.Testing.TempDirectory.DeleteIfPresent(path);
 }
