@@ -14,7 +14,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
-public sealed class VoiceTranscriptionFacts
+[Collection("VoiceHost")]
+public sealed class VoiceTranscriptionFacts(VoiceHostFixture fixture)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -25,10 +26,8 @@ public sealed class VoiceTranscriptionFacts
         var stub = new StubVoiceClients(
             hear: (_, _) => Task.FromResult(new Voice<ISpeechToTextClient>(hear, new ModelId("whisper-stub"), null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var rawRequest = new HttpRequestMessage(HttpMethod.Post, "/ai/transcriptions?fileName=voice.wav")
         {
@@ -70,10 +69,8 @@ public sealed class VoiceTranscriptionFacts
                 KnownModels.WhisperLargeV3Turbo.Id,
                 "Whisper Large v3 Turbo is not configured for the Hear role.")));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/ai/transcriptions")
         {
@@ -97,10 +94,8 @@ public sealed class VoiceTranscriptionFacts
         var stub = new StubVoiceClients(
             hear: (_, _) => Task.FromResult(new Voice<ISpeechToTextClient>(hear, new ModelId("whisper-stub"), null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/ai/transcriptions")
         {
@@ -120,31 +115,14 @@ public sealed class VoiceTranscriptionFacts
         var hear = new StubSpeechToTextClient("should not run", "whisper-stub");
         var stub = new StubVoiceClients(
             hear: (_, _) => Task.FromResult(new Voice<ISpeechToTextClient>(hear, new ModelId("whisper-stub"), null)));
-        OverrideCallerAmbient? callerOverride = null;
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-            var existing = builder.Services.LastOrDefault(d => d.ServiceType == typeof(ICallerAmbient));
-            if (existing is not null)
-            {
-                builder.Services.Remove(existing);
-                builder.Services.AddSingleton<ICallerAmbient>(sp =>
-                {
-                    var inner = existing.ImplementationInstance as ICallerAmbient
-                        ?? (existing.ImplementationFactory?.Invoke(sp) as ICallerAmbient)
-                        ?? (ICallerAmbient)ActivatorUtilities.CreateInstance(sp, existing.ImplementationType!);
-                    callerOverride = new OverrideCallerAmbient(inner);
-                    return callerOverride;
-                });
-            }
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var edge = IntoChat.OS.Tests.TestEdge.Authority;
         var owner = new Actor.Person("owner", "owner");
         var brain = new BrainId("owner");
-        Assert.NotNull(callerOverride);
-        callerOverride!.Override = edge.App("some-app", owner, brain);
+        using var callerScope = fixture.OverrideCaller(edge.App("some-app", owner, brain));
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/ai/transcriptions")
         {
@@ -182,10 +160,8 @@ public sealed class VoiceTranscriptionFacts
         var stub = new StubVoiceClients(
             hear: (_, _) => Task.FromResult(new Voice<ISpeechToTextClient>(hear, new ModelId("whisper-stub"), null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var emptyReq = new HttpRequestMessage(HttpMethod.Post, "/ai/transcriptions")
         {

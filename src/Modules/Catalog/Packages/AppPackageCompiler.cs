@@ -49,9 +49,6 @@ internal sealed class AppPackageCompiler
         global using IntoChat.Sdk;
         """;
 
-    private static readonly Lazy<SynapseCompiler> DefaultCompiler =
-        new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
-
     private readonly SynapseCompiler _compiler;
 
     public AppPackageCompiler()
@@ -62,7 +59,7 @@ internal sealed class AppPackageCompiler
     [ActivatorUtilitiesConstructor]
     public AppPackageCompiler(SynapseCompiler? compiler = null)
     {
-        _compiler = compiler ?? DefaultCompiler.Value;
+        _compiler = compiler ?? SynapseCompiler.Default;
     }
 
     public CompiledAppPackage Compile(AppPackage package)

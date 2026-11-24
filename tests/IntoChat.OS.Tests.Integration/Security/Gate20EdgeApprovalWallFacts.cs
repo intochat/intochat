@@ -26,14 +26,15 @@ using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Tests.Integration.Security;
 
-public sealed class Gate20EdgeApprovalWallFacts
+public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.EdgeKernelFixture fixture)
+    : IClassFixture<Gate20EdgeApprovalWallFacts.EdgeKernelFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task LocalHost_BootsWithClosedUnstampedEdge_DisablesDashboardByDefault_AndSignsInWithout500()
     {
-        await using var host = await EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
 
         // B04: an unstamped edge is never the kernel; AccessOptions is gone and the gate refuses a call with no caller (task 1).
 
@@ -62,20 +63,21 @@ public sealed class Gate20EdgeApprovalWallFacts
         Assert.Equal(HttpStatusCode.OK, marketplaceRes.StatusCode);
 
         // B02: POST /identity/register and POST /identity/login succeed with 200 OK (never 500 PrivilegeDenied)
-        using var registerRes = await host.Client.PostAsJsonAsync(
+        using var aliceClient = new HttpClient { BaseAddress = host.BaseAddress };
+        using var registerRes = await aliceClient.PostAsJsonAsync(
             "/identity/register",
             new { principalId = "alice", password = "correct-horse-battery-staple", displayName = "Alice" },
             Ct);
         Assert.Equal(HttpStatusCode.OK, registerRes.StatusCode);
 
-        using var loginRes = await host.Client.PostAsJsonAsync(
+        using var loginRes = await aliceClient.PostAsJsonAsync(
             "/identity/login",
             new { principalId = "alice", password = "correct-horse-battery-staple" },
             Ct);
         Assert.Equal(HttpStatusCode.OK, loginRes.StatusCode);
 
         // Cross-brain isolation holds after alice signs in
-        using var crossBrainRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct);
+        using var crossBrainRes = await aliceClient.GetAsync($"/brains/{host.Scope}/marketplace", Ct);
         Assert.Equal(HttpStatusCode.Forbidden, crossBrainRes.StatusCode);
     }
 
@@ -83,7 +85,7 @@ public sealed class Gate20EdgeApprovalWallFacts
     [Fact]
     public async Task LocalOwner_OverBrainMcp_KeepsEveryToolAndEveryScreen()
     {
-        await using var host = await EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         using var mcpHttp = new HttpClient { BaseAddress = host.BaseAddress };
         mcpHttp.DefaultRequestHeaders.Add(PresenceProof.HeaderName, host.PresenceToken);
         await using var mcpClient = await McpClient.CreateAsync(
@@ -115,7 +117,7 @@ public sealed class Gate20EdgeApprovalWallFacts
     [Fact]
     public async Task Gate20_RequiresPersonConfirmationPlan_ResistsMcpLoopbackForgedPresenceAndAgent_ThenApprovesWithPresenceProof()
     {
-        await using var host = await EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var proxies = host.Services.GetRequiredService<INeuronProxies>();
         var scope = host.Scope;
         var planId = $"gate20:{Guid.NewGuid():N}";
@@ -326,6 +328,9 @@ public sealed class Gate20EdgeApprovalWallFacts
         await RaisePendingPlanAsync(host.Services, scope, requestsId, webPlan);
         Assert.True(await IsPendingAsync(host.Services, scope, webPlanId));
 
+        using var rawNoCookiesHandler = new HttpClientHandler { UseCookies = false };
+        using var rawClient = new HttpClient(rawNoCookiesHandler) { BaseAddress = host.BaseAddress };
+
         string cookiePair;
         using (var exchangeReq = new HttpRequestMessage(HttpMethod.Post, "/auth/local-presence")
         {
@@ -333,16 +338,13 @@ public sealed class Gate20EdgeApprovalWallFacts
         })
         {
             exchangeReq.Headers.Add("Origin", host.BaseAddress.GetLeftPart(UriPartial.Authority));
-            using var exchangeRes = await host.Client.SendAsync(exchangeReq, Ct);
+            using var exchangeRes = await rawClient.SendAsync(exchangeReq, Ct);
             Assert.Equal(HttpStatusCode.OK, exchangeRes.StatusCode);
             var setCookie = Assert.Single(exchangeRes.Headers.GetValues("Set-Cookie"));
             Assert.Contains("HttpOnly", setCookie, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("SameSite=Strict", setCookie, StringComparison.OrdinalIgnoreCase);
             cookiePair = setCookie.Split(';', 2)[0];
         }
-
-        using var rawNoCookiesHandler = new HttpClientHandler { UseCookies = false };
-        using var rawClient = new HttpClient(rawNoCookiesHandler) { BaseAddress = host.BaseAddress };
 
         using (var crossOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
         {
@@ -512,6 +514,16 @@ public sealed class Gate20EdgeApprovalWallFacts
                 client?.Dispose();
                 if (app is not null)
                 {
+                    try
+                    {
+                        using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        await app.StopAsync(stopCts.Token);
+                    }
+                    catch
+                    {
+                        // Startup failed partway; best-effort stop before disposal so Orleans marks the silo Dead in membership.
+                    }
+
                     await app.DisposeAsync();
                 }
 
@@ -544,5 +556,21 @@ public sealed class Gate20EdgeApprovalWallFacts
 
         private static void TryDeleteDirectory(string path)
             => DigitalBrain.Testing.TempDirectory.DeleteIfPresent(path);
+    }
+
+    public sealed class EdgeKernelFixture : IAsyncLifetime
+    {
+        internal EdgeKernelHarness Host { get; private set; } = null!;
+
+        public async ValueTask InitializeAsync()
+            => Host = await EdgeKernelHarness.StartAsync(CancellationToken.None);
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Host is not null)
+            {
+                await Host.DisposeAsync();
+            }
+        }
     }
 }
