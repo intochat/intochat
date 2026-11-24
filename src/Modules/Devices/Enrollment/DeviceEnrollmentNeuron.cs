@@ -49,7 +49,7 @@ internal sealed class DeviceEnrollmentNeuron(IServiceProvider services) : Neuron
 
     public async Task<EnrolledDevice[]> List()
     {
-        if (!IsCircleServerModuleCaller())
+        if (!IsDevicesModuleCaller())
         {
             await RequireOwnerAsPersonAsync();
         }
@@ -141,8 +141,9 @@ internal sealed class DeviceEnrollmentNeuron(IServiceProvider services) : Neuron
         return Task.FromResult(live);
     }
 
-    private bool IsCircleServerModuleCaller()
-        => Context.Caller is { Actor: Actor.Module { Id: "circle-server" }, Brain: var callerBrain }
+    // The Devices module of this brain: the enrollment edge acting on a verified service assertion (EnrollmentEdgeEndpoints).
+    private bool IsDevicesModuleCaller()
+        => Context.Caller is { Actor: Actor.Module { Id: DevicesModule.ManifestName }, Brain: var callerBrain }
             && callerBrain == Id.Brain;
 
     private async Task<string> RequireOwnerAsPersonAsync()

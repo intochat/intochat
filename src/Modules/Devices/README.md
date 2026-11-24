@@ -2,6 +2,8 @@
 
 This machine: hardware, local model runtimes and model installs.
 
+Device enrollment belongs to the brain that mints the code (`IDeviceEnrollment`). The cloud relay runs in its own cluster and asks the enrollment edge (`EnrollmentEdge`: redeem, list, live) with a signed service assertion from a trusted issuer listed with `Services`; the edge then acts as this module in the brain the code or route names.
+
 Module id: `devices`.
 
 How to test: `dotnet test --project tests/IntoChat.OS.Tests.Unit/IntoChat.OS.Tests.Unit.csproj -- --filter-namespace "*Modules.Devices*"`

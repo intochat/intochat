@@ -107,7 +107,7 @@ public sealed class DeviceEnrollmentFacts
     }
 
     [Fact]
-    public async Task CircleServerModuleInSameBrainCanListDevicesButAnotherBrainCannot()
+    public async Task TheDevicesModuleInTheSameBrainListsDevicesButNotAnotherBrainOrTheOldCloudModule()
     {
         await using var harness = await Open(owner: "ada");
 
@@ -115,14 +115,20 @@ public sealed class DeviceEnrollmentFacts
         using (harness.AsPerson("ada")) { code = await harness.Enrollment.Mint(); }
         Assert.Equal(EnrollmentResult.Accepted, (await harness.Redeemer.Redeem(code.Value, "m1", "thumb", "vlad-pc")).Result);
 
-        using (TestEdge.Authority.Enter(TestEdge.Authority.Module("circle-server", new BrainId("ada"))))
+        using (harness.AsDevicesModule("ada"))
         {
             var devices = await harness.Enrollment.List();
             var device = Assert.Single(devices);
             Assert.Equal("vlad-pc", device.Name);
         }
 
-        using (TestEdge.Authority.Enter(TestEdge.Authority.Module("circle-server", new BrainId("ben"))))
+        using (harness.AsDevicesModule("ben"))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(harness.Enrollment.List);
+        }
+
+        // The cloud relay no longer calls inside the cluster: it asks the enrollment edge with a service assertion.
+        using (TestEdge.Authority.Enter(TestEdge.Authority.Module("circle-server", new BrainId("ada"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(harness.Enrollment.List);
         }

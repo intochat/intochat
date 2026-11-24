@@ -34,7 +34,11 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
 
     public static Assembly? Contracts => typeof(IDevice).Assembly;
 
-    public void Configure(IEndpointRouteBuilder endpoints) => DevicesEndpoints.Map(endpoints);
+    public void Configure(IEndpointRouteBuilder endpoints)
+    {
+        DevicesEndpoints.Map(endpoints);
+        EnrollmentEdgeEndpoints.Map(endpoints);
+    }
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {

@@ -28,6 +28,10 @@ public sealed class AuthOptions
     //   IntoChatOS:Auth:TrustedIssuers:n:PublicKey the issuer's P-256 public key, SubjectPublicKeyInfo DER in base64.
     //   IntoChatOS:Auth:TrustedIssuers:n:Audience  this install's audience as the issuer addresses it (its public origin,
     //                                             for example https://os.example.com); a ticket's "aud" must equal it.
+    //   IntoChatOS:Auth:TrustedIssuers:n:Services  true lets the issuer call this install's edge on its own behalf with a signed
+    //                                             service assertion (device enrollment for the cloud relay); off by default.
+    //   IntoChatOS:Auth:TrustedIssuers:n:Guests    true lets the issuer send visitors to try this install as guests with a
+    //                                             guest ticket (GET /identity/external/guest); off by default.
     public TrustedIssuer[] TrustedIssuers { get; set; } = [];
 
     // Absolute return URLs external sign-in may redirect to (https origins); local paths are always allowed.
@@ -40,4 +44,6 @@ public sealed class TrustedIssuer
     public string Name { get; set; } = "";
     public string PublicKey { get; set; } = "";
     public string Audience { get; set; } = "";
+    public bool Services { get; set; }
+    public bool Guests { get; set; }
 }

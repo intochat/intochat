@@ -11,21 +11,32 @@ namespace IntoChat.OS.Modules.Identity.External;
 // so a host with a malformed issuer refuses to start instead of refusing every ticket.
 internal sealed partial class TrustedIssuerKeys : IDisposable
 {
-    private readonly Dictionary<string, (ECDsa Key, string Audience)> _issuers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (ECDsa Key, string Audience, TrustedIssuer Options)> _issuers = new(StringComparer.Ordinal);
 
     public TrustedIssuerKeys(IOptions<AuthOptions> options)
     {
         foreach (var issuer in options.Value.TrustedIssuers)
-        { _issuers[issuer.Name] = (ExternalSignInTicket.ImportPublicKey(issuer.PublicKey), issuer.Audience); }
+        { _issuers[issuer.Name] = (ExternalSignInTicket.ImportPublicKey(issuer.PublicKey), issuer.Audience, issuer); }
     }
 
     public bool Any => _issuers.Count > 0;
 
-    public (ECDsa Key, string Audience)? Of(string issuer) => _issuers.TryGetValue(issuer, out var trusted) ? trusted : null;
+    public bool AnyGuests => _issuers.Values.Any(issuer => issuer.Options.Guests);
+
+    // The key and audience for a sign-in ticket: every listed issuer.
+    public (ECDsa Key, string Audience)? Of(string issuer) => _issuers.TryGetValue(issuer, out var trusted) ? (trusted.Key, trusted.Audience) : null;
+
+    // The key and audience for a service assertion: only an issuer listed with Services.
+    public (ECDsa Key, string Audience)? ServicesOf(string issuer)
+        => _issuers.TryGetValue(issuer, out var trusted) && trusted.Options.Services ? (trusted.Key, trusted.Audience) : null;
+
+    // The key and audience for a guest ticket: only an issuer listed with Guests.
+    public (ECDsa Key, string Audience)? GuestsOf(string issuer)
+        => _issuers.TryGetValue(issuer, out var trusted) && trusted.Options.Guests ? (trusted.Key, trusted.Audience) : null;
 
     public void Dispose()
     {
-        foreach (var (key, _) in _issuers.Values) { key.Dispose(); }
+        foreach (var (key, _, _) in _issuers.Values) { key.Dispose(); }
     }
 
     // The first problem with the configured issuers, or null when they are all usable.
