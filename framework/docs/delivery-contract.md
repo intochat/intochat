@@ -26,6 +26,9 @@ State, signals and the cursor move are one journal entry: durable as a whole or 
 ## Authorization
 Before a synapse is created, the runtime asks the source neuron: `AdmitSynapse` gets a `SynapseRequest` with the subscriber, the signal types and the caller the runtime stamped. The default admits subscribers of the same brain. A refusal throws `UnauthorizedAccessException` and no synapse is recorded.
 
+## Who a reaction runs as
+Delivery is the brain's own work. A reaction runs as the caller whose call made the publisher publish when that caller is of the publisher's brain. When the publish served a caller of another brain, or no caller at all, the subscriber is woken as the scheduler of the brain: a visitor's identity never reaches a reaction, and the signal is delivered all the same.
+
 ## Topologies
 `TestOS.Local()` (in process, deterministic) and the Orleans host started by `SiloHost.Local()` honor the same contract.
 

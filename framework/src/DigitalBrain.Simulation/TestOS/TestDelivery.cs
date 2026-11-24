@@ -71,10 +71,13 @@ internal sealed class SynapseRegistry : INudge
         if (!_os.TryHost(subscriber, out _)) { return; }
         var d = For(subscriber);
         var copies = _os.Options.DuplicateDelivery ? 2 : 1;
+        // As on the silo (GrainNudge): no caller, or a caller of another brain, is delivered as the brain's scheduler.
+        var delivering = DeliveryCaller.Of(TestCallerAmbient.Instance.Current, subscriber.Brain);
         for (var i = 0; i < copies; i++)
         {
             _os.Track(Task.Run(async () =>
             {
+                using var entered = TestCallerAmbient.Instance.Enter(delivering);
                 await d.Nudged(upTo).ConfigureAwait(false);
             }));
         }
