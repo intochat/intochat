@@ -95,6 +95,12 @@ public sealed class HttpReadConnectionFacts
     {
         Assert.Equal(["api.x.com", "*.y.org"], IConnectionHosts.Parse(" api.x.com, *.y.org ,"));
         Assert.Equal(["api.x.com"], IConnectionHosts.Parse("[\"api.x.com\", \" \"]"));
+        Assert.Equal(["a.x.com"], IConnectionHosts.Parse("[null, \" a.x.com \"]"));
+        Assert.Empty(IConnectionHosts.Parse("[]"));
+        Assert.Empty(IConnectionHosts.Parse(null));
+        Assert.Empty(IConnectionHosts.Parse("  "));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => IConnectionHosts.Parse("[\"api.x.com\""));
+        Assert.Throws<InvalidOperationException>(() => IConnectionHosts.Parse("[1]"));
         Assert.True(IConnectionHosts.Covers(["*.x.com"], "api.x.com"));
         Assert.False(IConnectionHosts.Covers(["*.x.com"], "x.com"));
     }
