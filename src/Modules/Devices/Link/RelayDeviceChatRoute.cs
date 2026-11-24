@@ -18,6 +18,9 @@ internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials 
     // The model catalog asks on every listing; the relay's answer is kept this long per brain.
     internal static readonly TimeSpan CacheFor = TimeSpan.FromSeconds(15);
 
+    // The device link's HTTP client waits without limit (chat streams); a listing does not.
+    internal static readonly TimeSpan AskFor = TimeSpan.FromSeconds(5);
+
     private readonly ConcurrentDictionary<string, (DateTimeOffset At, BrainDeviceModels[] Devices)> _cache = new(StringComparer.Ordinal);
 
     public async Task<ModelCard[]> Models(BrainId owner, CancellationToken ct)
@@ -54,14 +57,18 @@ internal sealed class RelayDeviceChatRoute(CloudClient cloud, DeviceCredentials 
         BrainDeviceModels[] devices;
         try
         {
-            var answer = await cloud.BrainModelsAsync(owner.Value, ct).ConfigureAwait(false);
+            using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            bounded.CancelAfter(AskFor);
+            var answer = await cloud.BrainModelsAsync(owner.Value, bounded.Token).ConfigureAwait(false);
             devices = string.Equals(answer.Brain, owner.Value, StringComparison.Ordinal)
                 ? [.. answer.Devices.Where(device => !string.Equals(device.MachineId, thisMachine.Value, StringComparison.Ordinal)
                     && !string.IsNullOrWhiteSpace(device.DeviceName))]
                 : [];
         }
-        catch (DeviceLinkRevokedException)
+        catch (Exception error) when (error is DeviceLinkRevokedException or HttpRequestException or InvalidDataException or JsonException
+            || (error is OperationCanceledException && !ct.IsCancellationRequested))
         {
+            // Revoked, refused (another brain), unreachable, malformed or too slow: no device is offered.
             devices = [];
         }
         _cache[owner.Value] = (now, devices);

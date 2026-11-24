@@ -113,6 +113,16 @@ public sealed class RelayDeviceChatRouteFacts
     }
 
     [Fact]
+    public async Task ARelayThatRefusesTheBrain_OffersNothing()
+    {
+        await using var world = await World.Open();
+        world.Relay.CatalogStatus = HttpStatusCode.Forbidden;
+
+        Assert.Empty(await world.Route.Models(Ada, Ct));
+        Assert.Null(await world.Route.Chat(Ada, new DeviceModelRef("pc2", new ModelId("llama3")), Ct));
+    }
+
+    [Fact]
     public async Task ARevokedCredential_OffersNothing()
     {
         await using var world = await World.Open();
