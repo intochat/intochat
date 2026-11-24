@@ -190,13 +190,9 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
         Assert.NotNull(markdrawView);
 
-        using var dataVfsRoot = new TempDirectory("intochat-vfs-e2e-");
+        // The screen has no route to workspace files (a workspace CSV is read by Ino's data neuron); it renders on the silo.
         var dataStudio = fixture.AttachSilo<DataStudioApp>(brain);
-        dataStudio.FilesVfs ??= new IntoChat.OS.Modules.Apps.WorkspaceFilesService(rootDirectory: dataVfsRoot.Path);
-        await dataStudio.FilesVfs.WriteTextAsync("/work/q4-opportunities.csv", "Opportunity,Account,Stage,Amount\nHavbris pilot,Havbris AS,Proposal,\"€240,000\"\nBergen Port Ops,Bergen Havn,Contract,\"€186,000\"\n", Ct);
         await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
-        await dataStudio.Query(new DataStudioQuery("SELECT stage, SUM(amount) FROM /work/q4-opportunities.csv GROUP BY stage"));
-        Assert.NotEmpty(dataStudio.State.Rows);
         await fixture.PublishAppViewToSiloAsync(brain, "data", null, dataStudio.Render());
         var dataView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/data/view").Read();
         Assert.NotNull(dataView);
@@ -227,16 +223,10 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             updatedSettings.BarLayout));
         Assert.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", ino.State.Status, StringComparison.Ordinal);
 
-        // 3. Database connection (unconfigured postgres refuses honestly) & workspace CSV SQL query producing Table + Chart cards on the silo.
+        // 3. Database connection (unconfigured postgres refuses honestly). A workspace CSV is read by Ino's data neuron, not the screen.
         await ino.ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly", "main"));
         Assert.Null(ino.State.ConnectedDatabase);
         Assert.Contains("not configured", ino.State.Status, StringComparison.OrdinalIgnoreCase);
-        using var inoVfsRoot = new TempDirectory("intochat-vfs-e2e-");
-        ino.FilesVfs ??= new IntoChat.OS.Modules.Apps.WorkspaceFilesService(rootDirectory: inoVfsRoot.Path);
-        await ino.FilesVfs.WriteTextAsync("/work/opportunities.csv", "account,stage,amount\nAcme,Proposal,240000\nBeta,Contract,186000\n", Ct);
-        await ino.QueryDb(new InoQueryDb("SELECT account, stage, amount FROM opportunities"));
-        Assert.Contains(ino.State.ActiveCards, c => c.Kind == "table" && c.Rows is { Length: > 0 });
-        Assert.Contains(ino.State.ActiveCards, c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
 
         var renderedView = ino.Render();
         await fixture.PublishAppViewToSiloAsync(brain, "ino", null, renderedView);

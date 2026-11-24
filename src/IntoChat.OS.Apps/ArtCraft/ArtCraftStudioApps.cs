@@ -108,7 +108,7 @@ internal static class ArtCraftConsoleLog
     internal static readonly ILogger Instance = IntoChat.OS.Host.Logging.OsConsoleLog.For(typeof(ArtCraftStudioAppOpen));
 }
 
-public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogger? logger = null) : AggregateScreen<TState>, IWithFilesVfs
+public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogger? logger = null) : AggregateScreen<TState>
     where TState : class, new()
 {
     private readonly ILogger _appLogger = logger ?? ArtCraftConsoleLog.Instance;
@@ -123,7 +123,6 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
     public new TState State => base.State;
     public View Render() => PreviewView(State);
     public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);
-    public IFilesVfsService? FilesVfs { get; set; }
     protected virtual string ActiveDocumentLabel => "Active";
     protected override string Title => Descriptor.Title;
 
@@ -134,30 +133,6 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
         var doc = NormalizeTextOrCurrent(requestedDocument, currentDocument);
         var webUrl = currentWebUrl;
         var mcpUri = currentMcpUri;
-
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(requestedDocument))
-                {
-                    if (await FilesVfs.ResolveFileAsync(requestedDocument.Trim()) is { } resolvedExplicit) { doc = resolvedExplicit.VfsPath; }
-                }
-                else if (await FilesVfs.ResolveFileAsync(doc) is { } resolvedCurrent) { doc = resolvedCurrent.VfsPath; }
-                else if (string.Equals(doc, Descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
-                {
-                    var files = await FilesVfs.ListFilesAsync();
-                    if (files.FirstOrDefault(f => Descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) is { } matched)
-                    {
-                        doc = matched.VfsPath;
-                    }
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                AppLogger.LogDebug(error, "Files VFS resolution is optional when opening {App}.", Descriptor.Title);
-            }
-        }
 
         var connected = false;
         if (Studio is { } studio)
@@ -185,7 +160,8 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
         string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode)
     {
         ArtCraftEngineResult? result = null;
-        if (FilesVfs is null && Engine is { } engine)
+        // The engine neuron reaches the workspace (through the broker); the app itself has no route to it.
+        if (Engine is { } engine)
         {
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -198,8 +174,7 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
             Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode,
             Studio,
             TryGetMcpServer,
-            (err, reason) => AppLogger.LogDebug(err, "{Reason}", reason),
-            FilesVfs);
+            (err, reason) => AppLogger.LogDebug(err, "{Reason}", reason));
     }
 
     protected Node RenderStudioShell(

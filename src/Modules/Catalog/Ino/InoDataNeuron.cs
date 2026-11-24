@@ -4,14 +4,13 @@ using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The query engine reads files through a WorkspaceFilesService built once per activation, as InoFilesNeuron does.
+// The query engine reads the brain's workspace files through the broker, under the caller of each call.
 [DigitalBrain.Neurons.Neuron("ino.data")]
-internal sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<InoDataState>, IData
+internal sealed class InoDataNeuron(ICapabilityBroker? broker = null) : DigitalBrain.Neurons.Neuron<InoDataState>, IData
 {
-    private IFilesVfsService? _vfs;
     private long _revision;
 
-    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value, broker);
+    private BrainWorkspaceFiles? Workspace => broker is null ? null : new BrainWorkspaceFiles(broker, Id.Brain);
 
     public Task<InoDataState> Read() => Task.FromResult(State);
 
@@ -30,7 +29,7 @@ internal sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServicePr
         InoCard table;
         try
         {
-            result = await DataAnalyticsEngine.ExecuteAsync(statement, database, Vfs, Id.Brain);
+            result = await DataAnalyticsEngine.ExecuteOnWorkspaceAsync(statement, database, Workspace, Id.Brain);
             if (result.Columns.Length == 0 && result.Rows.Length == 0)
             {
                 return new InoToolResult(result.Summary, Ok: false);
@@ -57,7 +56,7 @@ internal sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServicePr
         DataQueryResult result;
         try
         {
-            result = await DataAnalyticsEngine.ExecuteAsync(string.IsNullOrWhiteSpace(spec) ? "chart" : spec.Trim(), database, Vfs, Id.Brain);
+            result = await DataAnalyticsEngine.ExecuteOnWorkspaceAsync(string.IsNullOrWhiteSpace(spec) ? "chart" : spec.Trim(), database, Workspace, Id.Brain);
             if (result.Columns.Length == 0 && result.ChartPoints.Length == 0)
             {
                 return new InoToolResult(result.Summary, Ok: false);

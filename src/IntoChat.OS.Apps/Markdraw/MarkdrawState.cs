@@ -63,7 +63,7 @@ public sealed record MarkdrawAppState(
         "markdraw",
         MarkdrawApp.DefaultArchitectureScene,
         1,
-        "Markdraw Canvas Ready · Co-drawing enabled with Ino & Files VFS",
+        "Markdraw Canvas Ready · Co-drawing enabled with Ino",
         MarkdrawSceneEngine.ParseSceneElements(MarkdrawApp.DefaultArchitectureScene),
         ["/work/architecture.markdraw", "/work/pipeline-flow.markdraw"])
     {

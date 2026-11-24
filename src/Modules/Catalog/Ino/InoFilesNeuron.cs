@@ -7,23 +7,27 @@ using IntoChat.OS.Modules.Flutter.Conversations;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// VfsNeuron also builds its WorkspaceFilesService itself rather than getting a shared one, so this neuron builds one per
-// activation (not per call). Files that live in a connected storage are always visible; files written only into another
-// service instance's in-memory overlay (for example the compiled-app host's cached instance) with no storage connected
-// are not visible here.
+// Ino's file tools. Find, Open and Summarize read the brain's workspace by path and the other connected storages by
+// their own search; a file outside the workspace is named by its storage and id ("storage:<connection>#<id>"), so the
+// tools never guess a file by its name. Write creates a file in the owner's Documents folder on the local disk, the
+// connection named by its key ({brain}/local-disk/main), after the owner approves.
 [DigitalBrain.Neurons.Neuron("ino.files")]
 internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null, IOperations? operations = null)
     : DigitalBrain.Neurons.Neuron<InoFilesState>, IFiles
 {
     private const int KeptWrites = 32;
+    private const int Shown = 12;
+    private const string Elsewhere = "storage:";
 
     private ILogger Logger =>
         (ILogger?)(services?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger<InoFilesNeuron>()
         ?? global::IntoChat.OS.Host.Logging.OsConsoleLog.For<InoFilesNeuron>();
 
-    private IFilesVfsService? _vfs;
+    private ICapabilityBroker Broker => broker ?? throw new InvalidOperationException("No storage is connected in this brain.");
 
-    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value, broker);
+    private BrainWorkspaceFiles Workspace => new(Broker, Id.Brain);
+
+    internal static string LocalDiskKey(DigitalBrain.BrainId brain) => new DigitalBrain.NeuronId(brain, "local-disk", "main").ToString();
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
@@ -35,46 +39,98 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
 
     public async Task<InoToolResult> Find(string pattern)
     {
-        var vfs = Vfs;
-        var files = await vfs.ListFilesAsync(string.IsNullOrWhiteSpace(pattern) ? null : pattern);
-        if (files.Count == 0)
+        var text = string.IsNullOrWhiteSpace(pattern) ? null : pattern.Trim();
+        var found = new List<(string Reference, string Name, string Where, long? Size)>();
+        foreach (var (path, item) in await Workspace.Search(text))
         {
-            return new InoToolResult($"No files match '{pattern}'.", FilesCard("Files Workspace (0 item(s))", "Connected to storage.files", Id.Brain));
+            found.Add((path, item.Name, "workspace", item.Size));
+        }
+        if (text is not null)
+        {
+            var workspaceKey = BrainWorkspaceFiles.ConnectionKey(Id.Brain);
+            foreach (var connection in await Broker.ResolveAll<IStorage>(Id.Brain, CancellationToken.None))
+            {
+                if (connection.ConnectionKey == workspaceKey) { continue; }
+                try
+                {
+                    var page = await connection.Capability.Search(new SearchQuery(text), CancellationToken.None);
+                    found.AddRange(page.Items.Where(item => item.Kind == ItemKind.File)
+                        .Select(item => (Elsewhere + connection.ConnectionKey + "#" + item.Id.Value, item.Name, connection.Label, item.Size)));
+                }
+                // One storage that cannot search does not hide the others; it is logged so telemetry shows it.
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    Logger.LogWarning(error, "Searching {Connection} for Ino's files_find failed.", connection.ConnectionKey);
+                }
+            }
+        }
+        if (found.Count == 0)
+        {
+            return new InoToolResult($"No files match '{pattern}'.", FilesCard("Files (0 item(s))", "Workspace and connected storages.", Id.Brain));
         }
 
-        var lines = string.Join("\n", files.Take(12).Select(f => $"- {f.Name} ({f.NeuronUri} · {f.Kind}{(f.Size is { } size ? $" · {size:N0} bytes" : string.Empty)})"));
-        var card = FilesCard($"Files Workspace ({files.Count} item(s))", string.Join(", ", files.Take(5).Select(f => f.Name)), Id.Brain);
-        return new InoToolResult($"Found {files.Count} file(s):\n{lines}", card);
+        var lines = string.Join("\n", found.Take(Shown).Select(f => $"- {f.Name} ({f.Where} · {f.Reference}{(f.Size is { } size ? $" · {size:N0} bytes" : string.Empty)})"));
+        var card = FilesCard($"Files ({found.Count} item(s))", string.Join(", ", found.Take(5).Select(f => f.Name)), Id.Brain);
+        return new InoToolResult($"Found {found.Count} file(s); open one by the reference after the dot:\n{lines}", card);
     }
 
     public async Task<InoToolResult> Open(string path)
     {
-        var vfs = Vfs;
-        var file = await vfs.ResolveFileAsync(path);
-        if (file is null)
-        {
-            return new InoToolResult($"No file found for '{path}'.");
-        }
-
-        var text = await vfs.ReadTextAsync(file.Name);
-        var summary = Excerpt(text) ?? $"Workspace file resource attached from Files ({file.NeuronUri})";
-        return new InoToolResult($"Opened {file.Name} ({file.NeuronUri}).", FileCard(file, summary, Id.Brain));
+        if (await ReadAsync(path) is not { } file) { return new InoToolResult($"No file found at '{path}'. Use files_find to look it up."); }
+        var summary = Excerpt(file.Text) ?? $"File {file.Name} from {file.Where}";
+        return new InoToolResult($"Opened {file.Name} ({file.Where} · {file.Reference}).", FileCard(file.Name, file.Reference, summary, Id.Brain));
     }
 
     public async Task<InoToolResult> Summarize(string path)
     {
-        var vfs = Vfs;
-        var file = await vfs.ResolveFileAsync(path);
-        var text = file is null ? null : await vfs.ReadTextAsync(file.Name);
-        if (file is null || string.IsNullOrWhiteSpace(text))
+        var file = await ReadAsync(path);
+        if (file is not { } read || string.IsNullOrWhiteSpace(read.Text))
         {
             return new InoToolResult($"No readable text found for '{path}'.");
         }
 
+        var text = read.Text;
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var excerpt = string.Join("\n", lines.Take(6).Select(l => $"> {l}"));
-        return new InoToolResult($"{file.Name} ({file.NeuronUri}): {lines.Length} non-empty line(s), {text.Length} chars.\n{excerpt}", FileCard(file, Excerpt(text)!, Id.Brain));
+        return new InoToolResult($"{read.Name} ({read.Reference}): {lines.Length} non-empty line(s), {text.Length} chars.\n{excerpt}", FileCard(read.Name, read.Reference, Excerpt(text)!, Id.Brain));
     }
+
+    // A workspace path, or the reference files_find gave for a file of another storage. Nothing else is tried.
+    private async Task<(string Name, string Reference, string Where, string? Text)?> ReadAsync(string reference)
+    {
+        if (string.IsNullOrWhiteSpace(reference)) { return null; }
+        var trimmed = reference.Trim();
+        var hash = trimmed.IndexOf('#', StringComparison.Ordinal);
+        if (trimmed.StartsWith(Elsewhere, StringComparison.Ordinal) && hash > Elsewhere.Length)
+        {
+            var key = trimmed[Elsewhere.Length..hash];
+            var connection = (await Broker.ResolveAll<IStorage>(Id.Brain, CancellationToken.None)).FirstOrDefault(item => item.ConnectionKey == key);
+            if (connection is null) { return null; }
+            var id = new ItemId(trimmed[(hash + 1)..]);
+            try
+            {
+                var item = await connection.Capability.Stat(id, CancellationToken.None);
+                if (item.Kind != ItemKind.File) { return null; }
+                var content = await connection.Capability.Read(id, new ByteRange(0, BrainWorkspaceFiles.MaxReadBytes), CancellationToken.None);
+                return (item.Name, trimmed, connection.Label, Text(content.Bytes.Span));
+            }
+            catch (StorageException error)
+            {
+                Logger.LogInformation(error, "Ino's file reference {Reference} could not be read.", trimmed);
+                return null;
+            }
+        }
+
+        string relative;
+        try { relative = BrainWorkspaceFiles.Normalize(trimmed); }
+        catch (ArgumentException) { return null; }
+        if (relative.Length == 0) { return null; }
+        var bytes = await Workspace.Read(relative);
+        if (bytes is null) { return null; }
+        return (relative[(relative.LastIndexOf('/') + 1)..], relative, "workspace", Text(bytes));
+    }
+
+    private static string? Text(ReadOnlySpan<byte> bytes) => bytes.Contains((byte)0) ? null : System.Text.Encoding.UTF8.GetString(bytes);
 
     // A write is a durable storage operation: it waits for the owner's approval (across restarts), runs, and ends with
     // OperationDone. This neuron remembers which conversation asked and posts the outcome there; it never writes itself.
@@ -87,7 +143,8 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         // Storage is reached through the broker only (D-18); the local disk is the connection whose key names it.
         if (broker is null) { throw new InvalidOperationException("No storage is connected in this brain."); }
         var connections = await broker.ResolveAll<IStorage>(Id.Brain, CancellationToken.None);
-        var disk = connections.FirstOrDefault(item => item.ConnectionKey.Contains("local-disk", StringComparison.OrdinalIgnoreCase))?.Capability
+        var diskKey = LocalDiskKey(Id.Brain);
+        var disk = connections.FirstOrDefault(item => string.Equals(item.ConnectionKey, diskKey, StringComparison.Ordinal))?.Capability
             ?? throw new InvalidOperationException("The local disk is not connected in this brain.");
         var roots = await disk.Roots();
         var root = InoFileWriteRules.Target(roots)
@@ -146,8 +203,8 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
     private static string? Excerpt(string? text)
         => string.IsNullOrWhiteSpace(text) ? null : text.Length <= 180 ? text : text[..180] + "…";
 
-    private static InoCard FileCard(WorkspaceFileEntry file, string summary, DigitalBrain.BrainId brain)
-        => new($"file-{file.Name}", "file", file.Name, summary, file.NeuronUri, "ready", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "ino").Key}#file-{file.Name}");
+    private static InoCard FileCard(string name, string reference, string summary, DigitalBrain.BrainId brain)
+        => new($"file-{name}", "file", name, summary, reference, "ready", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "ino").Key}#file-{name}");
 
     private static InoCard FilesCard(string title, string summary, DigitalBrain.BrainId brain)
         => new("files-find", "file", title, summary, $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "files").Key}", "ready", $"neuron://{IntoChat.OS.Host.Primitives.AppRef.Of(brain, "ino").Key}#files-find");

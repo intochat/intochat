@@ -1220,20 +1220,6 @@ public sealed class InoAppFacts
     }
 
     [Fact]
-    public async Task ABadQuerySurfacesInStatus()
-    {
-        await using var os = TestOS.Local();
-        os.RegisterCatalog();
-        var ino = await os.Install<InoApp>();
-        ino.App.FilesVfs = new BrokenVfs();
-
-        await ino.Request("query-db", new InoQueryDb("SELECT a FROM /work/missing.csv"));
-
-        Assert.StartsWith("Could not run the query: disk gone", ino.App.State.Status, StringComparison.Ordinal);
-        Assert.Empty(ino.App.State.ActiveCards);
-    }
-
-    [Fact]
     public async Task EmptySendIsIgnoredWithoutSendingHello()
     {
         await using var os = BackgroundOs();
@@ -1266,13 +1252,10 @@ public sealed class InoAppFacts
         os.Register<RecordingConversation>();
         RecordingConversation.Reset();
         var ino = await os.Install<InoApp>();
-        ino.App.FilesVfs = new BrokenVfs();
 
-        await ino.Request("query-db", new InoQueryDb("SELECT a FROM /work/missing.csv"));
         await ino.Request("send", new InoSend("trigger start error"));
 
         var inoEntries = logs.Entries.Where(e => string.Equals(e.Category, typeof(InoApp).FullName, StringComparison.Ordinal)).ToArray();
-        Assert.Contains(inoEntries, e => e.Level == LogLevel.Warning && e.Exception is IOException);
         Assert.Contains(inoEntries, e => e.Level == LogLevel.Error && e.Exception is NotSupportedException);
     }
 
@@ -1533,17 +1516,6 @@ public sealed class InoAppFacts
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
                 => entries.Add((category, logLevel, exception, formatter(state, exception)));
         }
-    }
-
-    private sealed class BrokenVfs : IFilesVfsService
-    {
-        public string BrainId => "local";
-        public Task<IReadOnlyList<WorkspaceFileEntry>> ListFilesAsync(string? query = null, CancellationToken ct = default) => throw new IOException("disk gone");
-        public Task<WorkspaceFileEntry?> ResolveFileAsync(string? nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
-        public Task<string?> ReadTextAsync(string nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
-        public Task<byte[]?> ReadBytesAsync(string nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
-        public Task<WorkspaceFileEntry> WriteFileAsync(string fileNameOrPath, ReadOnlyMemory<byte> content, CancellationToken ct = default) => throw new IOException("disk gone");
-        public Task<WorkspaceFileEntry> WriteTextAsync(string fileNameOrPath, string content, CancellationToken ct = default) => throw new IOException("disk gone");
     }
 
     [Neuron(IConversation.Type)]
