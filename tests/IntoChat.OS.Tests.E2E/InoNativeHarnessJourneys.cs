@@ -3,6 +3,7 @@ using System.Text;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
@@ -11,8 +12,6 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Tests.E2E.Fixtures;
-using IntoChat.OS.Tests.E2E.Harness;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +25,7 @@ namespace IntoChat.OS.Tests.E2E;
 /// Roslyn AST slices via <c>Task.WhenAll</c>), real <c>dotnet build -c Release</c>, <see cref="ISessionJournal"/> writeback,
 /// and human SHA-bound bare Git remote publication.
 /// </summary>
-public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBase, IClassFixture<TestOSFixture>
+public sealed class InoNativeHarnessJourneys
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -134,8 +133,8 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
-        await using var os = fixture.CreateIsolated(o => o.Services = services);
-        var brain = NewBrain("inonative");
+        await using var os = TestOS.Local(o => o.Services = services);
+        var brain = new BrainId($"inonative-{Guid.NewGuid():N}");
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AIModule).Assembly);
@@ -361,8 +360,8 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
-        await using var os = fixture.CreateIsolated(o => o.Services = services);
-        var brain = NewBrain("inonativev2");
+        await using var os = TestOS.Local(o => o.Services = services);
+        var brain = new BrainId($"inonativev2-{Guid.NewGuid():N}");
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AIModule).Assembly);

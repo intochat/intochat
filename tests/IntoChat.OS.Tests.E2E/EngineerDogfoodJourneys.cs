@@ -4,6 +4,7 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
+using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Engineer;
@@ -17,8 +18,6 @@ using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.Stepper;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.TreeView;
-using IntoChat.OS.Tests.E2E.Fixtures;
-using IntoChat.OS.Tests.E2E.Harness;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,7 +31,7 @@ namespace IntoChat.OS.Tests.E2E;
 /// <see cref="CreatorApp"/> (<c>app.creator</c>) causal signal time-travel (<see cref="CreatorReplay"/> + <see cref="IPropertyGrid"/>),
 /// and owner SHA-bound confirmation pushing to a bare Git remote and cleaning both worktrees.
 /// </summary>
-public sealed class EngineerDogfoodJourneys(TestOSFixture fixture) : E2ETestBase, IClassFixture<TestOSFixture>
+public sealed class EngineerDogfoodJourneys
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -102,8 +101,8 @@ public sealed class EngineerDogfoodJourneys(TestOSFixture fixture) : E2ETestBase
         serviceCollection.AddSingleton<IWorktreeRoslyn>(roslyn);
         await using var services = serviceCollection.BuildServiceProvider();
 
-        await using var os = fixture.CreateIsolated(o => o.Services = services);
-        var brain = NewBrain("dogfood");
+        await using var os = TestOS.Local(o => o.Services = services);
+        var brain = new BrainId($"dogfood-{Guid.NewGuid():N}");
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AppsModule).Assembly);
