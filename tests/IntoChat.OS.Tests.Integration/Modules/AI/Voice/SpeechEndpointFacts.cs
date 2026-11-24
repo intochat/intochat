@@ -10,7 +10,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Voice;
 
-public sealed class SpeechEndpointFacts
+[Collection("VoiceHost")]
+public sealed class SpeechEndpointFacts(VoiceHostFixture fixture)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -21,10 +22,8 @@ public sealed class SpeechEndpointFacts
         var stub = new StubVoiceClients(
             speak: (_, _) => Task.FromResult(new Voice<ITextToSpeechClient>(speak, KnownModels.Kokoro82M.Id, null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var response = await host.PostJsonAsync("/ai/speech", """{"text":"Hello.","voice":"af_heart"}""", Ct);
 
@@ -48,10 +47,8 @@ public sealed class SpeechEndpointFacts
                 KnownModels.Kokoro82M.Id,
                 "Kokoro 82M is not installed for the Speak role.")));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var response = await host.PostJsonAsync("/ai/speech", """{"text":"x"}""", Ct);
 
@@ -67,10 +64,8 @@ public sealed class SpeechEndpointFacts
         var stub = new StubVoiceClients(
             speak: (_, _) => Task.FromResult(new Voice<ITextToSpeechClient>(speak, KnownModels.Kokoro82M.Id, null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var empty = await host.PostJsonAsync("/ai/speech", """{"text":""}""", Ct);
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
@@ -89,25 +84,9 @@ public sealed class SpeechEndpointFacts
         var speak = new StubTextToSpeechClient(new byte[4]);
         var stub = new StubVoiceClients(
             speak: (_, _) => Task.FromResult(new Voice<ITextToSpeechClient>(speak, KnownModels.Kokoro82M.Id, null)));
-        OverrideCallerAmbient? callerOverride = null;
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-            var existing = builder.Services.LastOrDefault(d => d.ServiceType == typeof(ICallerAmbient));
-            if (existing is not null)
-            {
-                builder.Services.Remove(existing);
-                builder.Services.AddSingleton<ICallerAmbient>(sp =>
-                {
-                    var inner = existing.ImplementationInstance as ICallerAmbient
-                        ?? (existing.ImplementationFactory?.Invoke(sp) as ICallerAmbient)
-                        ?? (ICallerAmbient)ActivatorUtilities.CreateInstance(sp, existing.ImplementationType!);
-                    callerOverride = new OverrideCallerAmbient(inner);
-                    return callerOverride;
-                });
-            }
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var unauthenticated = await host.PostJsonAsync("/ai/speech", """{"text":"hi"}""", Ct, authenticated: false);
         Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
@@ -115,8 +94,7 @@ public sealed class SpeechEndpointFacts
         var edge = IntoChat.OS.Tests.TestEdge.Authority;
         var owner = new Actor.Person("owner", "owner");
         var brain = new BrainId("owner");
-        Assert.NotNull(callerOverride);
-        callerOverride!.Override = edge.App("some-app", owner, brain);
+        using var callerScope = fixture.OverrideCaller(edge.App("some-app", owner, brain));
 
         using var asApp = await host.PostJsonAsync("/ai/speech", """{"text":"hi"}""", Ct, authenticated: true);
         Assert.Equal(HttpStatusCode.Forbidden, asApp.StatusCode);

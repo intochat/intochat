@@ -25,10 +25,20 @@ public sealed class TwoSiloClusterFacts
     // Why SingleSiloGuard exists, with the guard taken out of the second silo. The first silo's startup activates the
     // identity grains; the second silo's own startup (a module caller, the integration seeder) calls them on the first
     // silo, which refuses the call because the origin mark of the second process does not count there.
+    private static Task<Gate20EdgeApprovalWallFacts.EdgeKernelHarness> StartPrimaryAsync()
+        => Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(
+            Ct,
+            builder => builder.Services.Configure<Orleans.Configuration.SiloMessagingOptions>(options =>
+            {
+                // Silo B fails startup after joining membership, leaving an unreachable peer row; keep teardown bounded.
+                options.ResponseTimeout = TimeSpan.FromSeconds(2);
+                options.SystemResponseTimeout = TimeSpan.FromSeconds(2);
+            }));
+
     [Fact]
     public async Task WithoutTheGuard_ASecondSilo_CannotStart_BecauseItsInternalCallsToTheFirstAreRefused()
     {
-        await using var a = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        await using var a = await StartPrimaryAsync();
         var primary = a.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress.Endpoint;
 
         var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
@@ -51,7 +61,7 @@ public sealed class TwoSiloClusterFacts
     [Fact]
     public async Task ASecondSilo_RefusesToJoin_AndTheFirstKeepsServing()
     {
-        await using var a = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        await using var a = await StartPrimaryAsync();
         var primary = a.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress.Endpoint;
 
         var error = await Assert.ThrowsAnyAsync<Exception>(async () =>

@@ -16,7 +16,8 @@ namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 //   holds today (ServeStudioAssetAsync bounds the resolved path), so it passes and stays as a regression guard.
 // Finding 5 (42-installed-apps.md): DELETE /apps/{name} skips the root-app check that AppStoreNeuron.Remove enforces.
 [Trait("Category", "AccessFindings")]
-public sealed class AccessFindingsHttpRouteFacts
+public sealed class AccessFindingsHttpRouteFacts(Gate20EdgeApprovalWallFacts.EdgeKernelFixture fixture)
+    : IClassFixture<Gate20EdgeApprovalWallFacts.EdgeKernelFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -24,7 +25,7 @@ public sealed class AccessFindingsHttpRouteFacts
     [Fact]
     public async Task WritingAndReadingALiveArtifact_RequiresAnAuthenticatedOwner()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var path = "proof-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
 
         // No presence token at all; caller names its own actor in the query.
@@ -50,7 +51,7 @@ public sealed class AccessFindingsHttpRouteFacts
     [InlineData("/artcraft/photocraft/%2e%2e%2f%2e%2e%2fsecrets.json")]
     public async Task AnonymousArtCraftAsset_CannotEscapeTheStudioDirectory(string route)
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
 
         using var res = await host.Client.GetAsync(route, Ct);
 
@@ -65,7 +66,7 @@ public sealed class AccessFindingsHttpRouteFacts
     [InlineData("creator")]
     public async Task DeletingAppOverHttp_RefusesAShippedRootApp(string rootApp)
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
 
         using var req = new HttpRequestMessage(HttpMethod.Delete, $"/brains/{host.Scope}/apps/{rootApp}");
         req.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);

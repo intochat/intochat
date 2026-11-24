@@ -22,14 +22,15 @@ namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 // Named for the property that SHOULD hold: a brain that the victim has not befriended cannot mutate the victim's room
 // index. It FAILS today if the write is accepted.
 [Trait("Category", "AccessFindings")]
-public sealed class AccessFindingsCrossBrainRoomsFacts
+public sealed class AccessFindingsCrossBrainRoomsFacts(Gate20EdgeApprovalWallFacts.EdgeKernelFixture fixture)
+    : IClassFixture<Gate20EdgeApprovalWallFacts.EdgeKernelFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task AForeignBrain_CannotWriteIntoAnotherBrainsRoomIndex_ViaInvited()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var edge = host.Services.GetRequiredService<EdgeAuthority>();
 
         var victim = new BrainId(host.Scope);
@@ -53,7 +54,7 @@ public sealed class AccessFindingsCrossBrainRoomsFacts
     [Fact]
     public async Task ARegisteredStranger_CannotWriteIntoAnotherBrainsRoomIndex()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var edge = host.Services.GetRequiredService<EdgeAuthority>();
         var victim = new BrainId(host.Scope);
         var name = "mallory-" + Guid.NewGuid().ToString("N")[..8];
@@ -117,7 +118,7 @@ public sealed class AccessFindingsCrossBrainRoomsFacts
     [Fact]
     public async Task AForeignBrain_CannotWriteIntoAnotherBrainsRoomIndex_ViaChanged()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var edge = host.Services.GetRequiredService<EdgeAuthority>();
 
         var victim = new BrainId(host.Scope);

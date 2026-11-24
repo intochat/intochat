@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart'
-    hide TableColumn;
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../design/cards/table_card.dart';
 import '../theme/wire_node_values.dart';

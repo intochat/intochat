@@ -416,19 +416,6 @@ final class IntoChatOSUiClient {
     return signal;
   }
 
-  Future<List<TableSummary>> listTables(String workspace) async {
-    final body = await _tableRequest(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspace)}/ui/tables',
-    );
-    return (body as List)
-        .map(
-          (item) =>
-              TableSummary.fromJson(Map<String, dynamic>.from(item as Map)),
-        )
-        .toList();
-  }
-
   /// This brain's apps, with where each installed copy came from and whether an update is offered.
   Future<List<InstalledAppSummary>> listInstalledApps(String workspace) async {
     final body = await _tableRequest(
@@ -493,34 +480,6 @@ final class IntoChatOSUiClient {
       rethrow;
     }
   }
-
-  Future<TableSnapshot> readTable(
-    String workspace,
-    String id, {
-    int offset = 0,
-    int limit = 50,
-  }) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'GET',
-        '/brains/${Uri.encodeComponent(workspace)}/ui/tables/${Uri.encodeComponent(id)}?offset=$offset&limit=$limit',
-      ) as Map,
-    ),
-  );
-
-  Future<TableSnapshot> updateTableView(
-    String workspace,
-    String id,
-    TableViewUpdate update,
-  ) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspace)}/ui/tables/${Uri.encodeComponent(id)}/view',
-        body: update.toJson(),
-      ) as Map,
-    ),
-  );
 
   Future<WorkspaceSnapshot> readWorkspace(
     String workspaceId, {
