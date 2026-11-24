@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Testing;
 
@@ -18,13 +19,7 @@ public sealed class FakeSet
         ArgumentNullException.ThrowIfNull(fake);
         _actions.Add(services =>
         {
-            for (var index = services.Count - 1; index >= 0; index--)
-            {
-                if (services[index].ServiceType == typeof(TEdge))
-                {
-                    services.RemoveAt(index);
-                }
-            }
+            services.RemoveAll<TEdge>();
             services.Add(ServiceDescriptor.Singleton<TEdge>(fake));
         });
         _byFakeType[typeof(TFake)] = fake;
