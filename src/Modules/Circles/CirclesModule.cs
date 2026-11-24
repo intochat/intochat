@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -32,9 +31,6 @@ public sealed class CirclesModule : DigitalBrain.Modules.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         DigitalBrain.Invocation.RuntimeProtocol.Register(CirclesJson.Default);
-#pragma warning disable CS0618
-        services.TryAddSingleton<ICircleInviteRedeemer, CircleInviteRedeemer>();
-#pragma warning restore CS0618
     }
 
     private static Task Gone(HttpContext http)

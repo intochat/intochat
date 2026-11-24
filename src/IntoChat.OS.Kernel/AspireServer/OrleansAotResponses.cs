@@ -52,7 +52,6 @@ internal static class OrleansAotResponses
         AddEnum<AppInstallStatus>(services);
         AddEnum<PresenceState>(services);
         AddEnum<FocusTone>(services);
-        AddEnum<IntoChat.OS.Modules.Circles.RedeemResult>(services);
         AddEnum<IntoChat.OS.Modules.Devices.EnrollmentResult>(services);
         AddEnum<IntoChat.OS.Modules.Devices.Link.LinkState>(services);
         AddEnum<IntoChat.OS.Modules.Devices.Link.EnrollErrorKind>(services);

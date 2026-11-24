@@ -1,9 +1,7 @@
-using System.Text;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Testing;
-using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Identity.Codes;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
@@ -16,8 +14,6 @@ namespace IntoChat.OS.Modules.Devices.Tests.Unit;
 
 public sealed class DeviceEnrollmentFacts
 {
-    private static readonly byte[] Spki = Encoding.UTF8.GetBytes("test-subject-public-key-info-bytes");
-
     [Fact]
     public async Task AMintedCodeEnrollsOneMachineOnce()
     {
@@ -132,24 +128,6 @@ public sealed class DeviceEnrollmentFacts
         }
     }
 
-    [Fact]
-    public void TheThumbprintIsTheOldOne()
-        => Assert.Equal(InviteCode.Thumbprint(Spki), DeviceKeys.Thumbprint(Spki));
-
-#pragma warning disable CS0618
-    [Fact]
-    public async Task TheCircleShimAnswersInTheOldShape()
-    {
-        await using var harness = await Open(owner: "ada");
-
-        Code code;
-        using (harness.AsPerson("ada")) { code = await harness.Enrollment.Mint(); }
-
-        var old = await harness.Services.GetRequiredService<ICircleInviteRedeemer>().Redeem(code.Value, "m1", "thumb", "PC");
-        Assert.Equal((RedeemResult.Accepted, "ada", "PC", "owner", "ada", false), (old.Result, old.CircleId, old.CircleName, old.Role, old.AccountId, old.PendingAccount));
-    }
-#pragma warning restore CS0618
-
     private static Task<Harness> Open(string owner)
     {
         TestOS? os = null;
@@ -164,9 +142,6 @@ public sealed class DeviceEnrollmentFacts
             sp,
             sp.GetRequiredService<ICodeBook>(),
             (_, brain) => os!.Get<IDeviceEnrollment>(new NeuronId(new BrainId(brain), "devices.enrollment", "device-enrollment"))));
-#pragma warning disable CS0618
-        services.AddSingleton<ICircleInviteRedeemer, CircleInviteRedeemer>();
-#pragma warning restore CS0618
         var provider = services.BuildServiceProvider();
 
         os = TestOS.Local(o => o.Services = provider);
@@ -181,7 +156,6 @@ public sealed class DeviceEnrollmentFacts
     private sealed class Harness(TestOS os, ServiceProvider services, IDeviceEnrollment enrollment) : IAsyncDisposable
     {
         public TestOS Os => os;
-        public IServiceProvider Services => services;
         public IDeviceEnrollment Enrollment => enrollment;
         public ICodeBook Book => services.GetRequiredService<ICodeBook>();
         public IDeviceEnrollmentRedeemer Redeemer => services.GetRequiredService<IDeviceEnrollmentRedeemer>();
