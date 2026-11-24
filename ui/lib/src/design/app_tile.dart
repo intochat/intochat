@@ -4,10 +4,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'tokens.dart';
-
-enum AppTileStyle { glass, brand, outline }
-
 /// Bespoke multi-layered vector and SVG brand glyphs for IntoChat OS apps.
 enum IcBrandGlyph {
   inoStar,
@@ -1103,86 +1099,4 @@ class _InoStarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _InoStarPainter old) => old.color != color;
-}
-
-/// Shared app icon tile used in the desktop launcher, dock, and gallery.
-class AppTile extends StatelessWidget {
-  const AppTile({
-    super.key,
-    this.icon,
-    this.accent,
-    this.size = 44,
-    this.appId,
-    this.accentHex,
-    this.style = AppTileStyle.brand,
-    this.brandColor,
-    this.glyph,
-  });
-
-  final IconData? icon;
-  final Color? accent;
-  final double size;
-  final String? appId;
-  final String? accentHex;
-  final AppTileStyle style;
-  final Color? brandColor;
-  final Widget? glyph;
-
-  @override
-  Widget build(BuildContext context) {
-    if (appId != null) {
-      return IcAppIcon(
-        appId: appId!,
-        icon: icon,
-        accentHex: accentHex,
-        size: size,
-        gradientTop: brandColor ?? accent,
-      );
-    }
-    final c = IcTheme.of(context);
-    final effectiveAccent = brandColor ?? accent ?? c.accent;
-    final r = size * 0.22;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(r),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: style == AppTileStyle.brand
-              ? [
-                  effectiveAccent,
-                  Color.lerp(effectiveAccent, const Color(0xFF000000), 0.36)!,
-                ]
-              : [
-                  effectiveAccent.withValues(alpha: c.isDark ? 0.28 : 0.18),
-                  effectiveAccent.withValues(alpha: c.isDark ? 0.10 : 0.06),
-                ],
-        ),
-        border: Border.all(
-          color: style == AppTileStyle.brand
-              ? const Color(0x38FFFFFF)
-              : effectiveAccent.withValues(alpha: 0.45),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: effectiveAccent.withValues(alpha: c.isDark ? 0.22 : 0.12),
-            blurRadius: size * 0.28,
-            offset: Offset(0, size * 0.08),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child:
-          glyph ??
-          Icon(
-            icon ?? LucideIcons.layoutGrid,
-            size: size * 0.50,
-            color: style == AppTileStyle.brand
-                ? const Color(0xFFFFFFFF)
-                : effectiveAccent,
-          ),
-    );
-  }
 }

@@ -100,35 +100,6 @@ class CardShell extends StatelessWidget {
   }
 }
 
-/// Empty state inside a card.
-class CardEmpty extends StatelessWidget {
-  const CardEmpty({
-    super.key,
-    required this.text,
-    this.icon = LucideIcons.inbox,
-  });
-
-  final String text;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: c.textMuted),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text, style: IcType.text(14, color: c.textBody)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Small status pill.
 class CardChip extends StatelessWidget {
   const CardChip({

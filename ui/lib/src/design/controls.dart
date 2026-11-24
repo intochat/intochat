@@ -218,17 +218,6 @@ class _WorkingSpinnerState extends State<WorkingSpinner>
   }
 }
 
-/// "Needs you": a raised hand when a session waits for your response.
-class NeedsYouIcon extends StatelessWidget {
-  const NeedsYouIcon({super.key, this.size = 14});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) =>
-      Icon(LucideIcons.hand, size: size, color: IcTheme.of(context).accent);
-}
-
 /// On/off switch. Saves at once; the caller shows the toast.
 class IcSwitch extends StatelessWidget {
   const IcSwitch({
