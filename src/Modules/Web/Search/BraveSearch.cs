@@ -5,11 +5,6 @@ namespace IntoChat.OS.Modules.Web.Search;
 
 internal sealed class BraveSearch(HttpClient client, Func<CancellationToken, Task<string?>> getKey) : ISearchAdapter
 {
-    public BraveSearch(HttpClient client, Func<Task<string?>> getKey)
-        : this(client, _ => getKey())
-    {
-    }
-
     public SearchProvider Provider => SearchProvider.Brave;
 
     public async Task<WebResult[]> Search(string query, int count, CancellationToken ct)

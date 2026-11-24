@@ -8,11 +8,6 @@ internal sealed class TavilySearch(HttpClient client, Func<CancellationToken, Ta
 {
     private static readonly Uri Endpoint = new("https://api.tavily.com/search");
 
-    public TavilySearch(HttpClient client, Func<Task<string?>> getKey)
-        : this(client, _ => getKey())
-    {
-    }
-
     public SearchProvider Provider => SearchProvider.Tavily;
 
     public async Task<WebResult[]> Search(string query, int count, CancellationToken ct)
