@@ -113,7 +113,7 @@ jobs:
     name: test-architecture
     needs: [build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -153,6 +153,7 @@ jobs:
       - name: Free root disk
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          mkdir -p ~/.nuget/packages
           df -h /
 
       - uses: actions/setup-dotnet@v6
@@ -205,6 +206,7 @@ jobs:
       - name: Free root disk
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          mkdir -p ~/.nuget/packages
           df -h /
 
       - uses: actions/setup-dotnet@v6
@@ -240,6 +242,7 @@ jobs:
       - name: Free root disk
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          mkdir -p ~/.nuget/packages
           df -h /
 
       - uses: actions/setup-dotnet@v6
@@ -339,6 +342,7 @@ jobs:
       - name: Free root disk
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          mkdir -p ~/.nuget/packages
           df -h /
 
       - uses: actions/setup-dotnet@v6
