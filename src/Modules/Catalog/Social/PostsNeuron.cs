@@ -4,11 +4,13 @@ using DigitalBrain.Components;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Host.Logging;
+using Microsoft.Extensions.Logging;
 using IntoChat.OS.Modules.Identity.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Social;
 
-internal sealed record PostsState(SocialPost[] Posts, long NextSequence)
+// ProfileImported: the posts the profile kept were copied into this store (once; see PostsNeuron.EnsureProfileImported).
+internal sealed record PostsState(SocialPost[] Posts, long NextSequence, bool ProfileImported = false)
 {
     public PostsState() : this([], 0) { }
 }
@@ -76,6 +78,7 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.Text);
         var author = RequireOwnSide().Account;
+        await EnsureProfileImported().ConfigureAwait(true);
 
         var listed = (draft.AudienceAccounts ?? [])
             .Where(static a => !string.IsNullOrWhiteSpace(a))
@@ -106,7 +109,7 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
             string.IsNullOrWhiteSpace(draft.ForkedFrom) ? null : draft.ForkedFrom.Trim(),
             string.IsNullOrWhiteSpace(draft.TemplateSource) ? null : draft.TemplateSource);
 
-        await Store(new PostsState([.. State.Posts.Where(existing => !ReferenceEquals(existing, replaced)), post], sequence)).ConfigureAwait(true);
+        await Store(State with { Posts = [.. State.Posts.Where(existing => !ReferenceEquals(existing, replaced)), post], NextSequence = sequence }).ConfigureAwait(true);
         await HearTheRoster().ConfigureAwait(true);
 
         // An offer opens the kernel's gate for a person the post may be shown to: the accounts the draft names and, for a
@@ -129,6 +132,7 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
     public async Task<PostPage> Since(long cursor = 0, CancellationToken ct = default)
     {
         var reader = await WhoAsks().ConfigureAwait(true);
+        await EnsureProfileImported().ConfigureAwait(true);
         var visible = State.Posts
             .Where(p => p.Sequence > cursor && Sees(reader, p))
             .OrderBy(static p => p.Sequence)
@@ -144,6 +148,7 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
         ArgumentException.ThrowIfNullOrWhiteSpace(reaction);
 
         var reader = await WhoAsks().ConfigureAwait(true);
+        await EnsureProfileImported().ConfigureAwait(true);
         var index = FindVisiblePost(reader, postId);
         var post = State.Posts[index];
 
@@ -165,6 +170,7 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
 
         var reader = await WhoAsks().ConfigureAwait(true);
+        await EnsureProfileImported().ConfigureAwait(true);
         var index = FindVisiblePost(reader, postId);
         var post = State.Posts[index];
 
@@ -175,6 +181,55 @@ internal sealed class PostsNeuron(IServiceProvider? services = null) : Neuron<Po
         updatedPosts[index] = post with { Comments = [.. post.Comments, comment] };
         await Store(State with { Posts = updatedPosts }).ConfigureAwait(true);
         return commentId;
+    }
+
+    // The posts the profile kept before this store held everything a post has are copied in once, on the first call of any
+    // kind after the upgrade (the owner's, an app's, or a friend's read), never on activation. The copy and the flag that
+    // says it was made are one write: interrupted before it, nothing changed and the next call starts over; after it,
+    // done. A profile that cannot be read leaves the flag unset and the store in use. Nothing is taken out of the profile.
+    private Task EnsureProfileImported()
+    {
+        if (State.ProfileImported) { return Task.CompletedTask; }
+        // One copy at a time: Since may run beside another Since.
+        return _import is { IsCompleted: false } running ? running : _import = ImportProfilePosts();
+    }
+
+    private Task? _import;
+
+    private async Task ImportProfilePosts()
+    {
+        {
+            ProfilePostItem[] kept;
+            string author;
+            try
+            {
+                // As this brain's own module: the call being served may come from a person of another brain, and the
+                // profile is not for them.
+                using var own = AsPostsModule();
+                if (services?.GetService(typeof(INeuronProxies)) is not INeuronProxies proxies) { return; }
+                kept = (await proxies.Get<IProfile>(new NeuronId(Id.Brain, "os.profile", "profile")).Read().ConfigureAwait(true)).Posts ?? [];
+                var owner = services.GetService(typeof(IBrainOwners)) is IBrainOwners owners
+                    ? await owners.OwnerAccount(Id.Brain).ConfigureAwait(true)
+                    : null;
+                author = string.IsNullOrEmpty(owner) ? Id.Brain.Value : owner;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<PostsNeuron>().LogSwallowed(error, "the profile's posts could not be copied into the post store; the copy is made on a later call");
+                return;
+            }
+
+            if (State.ProfileImported) { return; }
+            // No await between reading this store's state and writing it.
+            var copied = ProfilePosts.NotYetHeld(kept, State.Posts, author, State.NextSequence);
+            await Store(new PostsState([.. State.Posts, .. copied], State.NextSequence + copied.Length, ProfileImported: true)).ConfigureAwait(true);
+            if (kept.Length > 0)
+            {
+                OsConsoleLog.For<PostsNeuron>().LogInformation(
+                    "Copied {Copied} of {Kept} profile posts of {Brain} into its post store; a post with no id, or with an id the store already held, is not copied.",
+                    copied.Length, kept.Length, Id.Brain.Value);
+            }
+        }
     }
 
     // The audience rule is applied here and nowhere else: Since, React and Comment all pass through WhoAsks and Sees.

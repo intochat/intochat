@@ -115,6 +115,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     [Slot(Key = GitHubPatFormKey, Required = false)] private partial IForm? GitHubPatForm { get; }
     [Slot(Key = "settings")] private partial IUserSettings UserSettings { get; }
     [Slot(Key = "profile")] private partial IProfile Profile { get; }
+    [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Social.IPosts? Posts { get; }
     [Slot(Key = "ino/synapses")] private partial ISynapseStudio SynapseStudio { get; }
     [Slot(Key = "vault", Required = false)] private partial ISecretVault? Vault { get; }
     [Slot(Key = "default", Required = false)] private partial IPolicies? Policies { get; }
@@ -478,7 +479,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson) ? State.ExportedArchiveJson! : request.ArchiveJson;
         var snapshot = PortableBrainArchive.FromJson(archiveJson);
         var settings = UserSettings;
-        await PortableBrainArchive.ImportAsync(snapshot, settings, Profile, SynapseStudio);
+        await PortableBrainArchive.ImportAsync(snapshot, settings, Profile, SynapseStudio, Posts);
         var user = await settings.Read();
         var computeProjection = await ReadComputeSummaryAsync(State);
         var approvals = await TryReadPendingApprovalsAsync();

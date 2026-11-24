@@ -104,6 +104,50 @@ public sealed class FriendsAppFacts
         Assert.Contains("last saved by ben-account at 1970-01-01 00:00:00Z", json, StringComparison.Ordinal);
     }
 
+    // One list of posts: this person's own and a friend's, with and without an app, in one card. Forking is offered on
+    // the person's own posts only.
+    [Fact]
+    public void Own_and_friends_posts_are_one_list()
+    {
+        var state = WithFriends() with
+        {
+            SocialFeed =
+            [
+                new SocialFeedItem("ada", "post-a", "ada", "An app of mine", [], [], 3, default, "First app", "friends", "unit-a",
+                    [new PostEmbeddedApp("slot-1", "markdraw", "Markdraw App", "local/apps/markdraw")], Mine: true),
+                new SocialFeedItem("ben", "post-b", "ben-account", "An app of Ben", [], [], 2, default, "Second app", "friends", "unit-b",
+                    [new PostEmbeddedApp("slot-1", "data", "Data App", "local/apps/data")]),
+                new SocialFeedItem("ben", "p1", "ben-account", "Hello from Ben", [], [], 1, default),
+            ],
+        };
+
+        var view = Preview(state);
+        var keys = Nodes(view).OfType<Button>().Select(button => button.Key).ToArray();
+        var json = System.Text.Json.JsonSerializer.Serialize(view);
+
+        Assert.Contains("An app of mine", json, StringComparison.Ordinal);
+        Assert.Contains("Second app", json, StringComparison.Ordinal);
+        Assert.Contains("Hello from Ben", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("Social Feed", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("App-Posts", json, StringComparison.Ordinal);
+        Assert.Contains("btn:social-publish", keys);
+        Assert.Contains("btn:react-like:ada:post-a", keys);
+        Assert.Contains("btn:react-like:ben:post-b", keys);
+        Assert.Contains("btn:react-like:ben:p1", keys);
+        Assert.Contains("fork-app-template:post-a", keys);
+        Assert.Contains("fork-and-install:post-a", keys);
+        Assert.DoesNotContain("fork-app-template:post-b", keys);
+        Assert.DoesNotContain("fork-and-install:post-b", keys);
+        // A friend's post names apps of the friend's brain: they are listed, not opened here.
+        Assert.Contains("local/apps/markdraw", System.Text.Json.JsonSerializer.Serialize(Nodes(view).OfType<NeuronRef>().ToArray()), StringComparison.Ordinal);
+        Assert.DoesNotContain("local/apps/data", System.Text.Json.JsonSerializer.Serialize(Nodes(view).OfType<NeuronRef>().ToArray()), StringComparison.Ordinal);
+
+        // The scope tabs filter the one list.
+        var publicOnly = System.Text.Json.JsonSerializer.Serialize(Preview(state with { SelectedScope = "public" }));
+        Assert.DoesNotContain("An app of mine", publicOnly, StringComparison.Ordinal);
+        Assert.Contains("No posts in this scope", publicOnly, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void A_viewer_sees_the_text_and_no_save()
     {

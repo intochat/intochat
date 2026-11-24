@@ -1,4 +1,5 @@
 using System.Text.Json;
+using IntoChat.OS.Modules.Apps.Social;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -19,11 +20,14 @@ public static class PortableBrainArchive
     public const string CurrentFormatVersion = "1.0";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
+    // Posts live in the post store. The snapshot keeps its shape: Profile.Posts carries the store's posts, newest first.
+    // Without a post store the snapshot carries what the profile itself still holds.
     public static async Task<PortableBrainSnapshot> ExportAsync(
         string brainId,
         IUserSettings settings,
         IProfile profile,
-        ISynapseStudio studio)
+        ISynapseStudio studio,
+        IPosts? posts = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         ArgumentNullException.ThrowIfNull(settings);
@@ -32,6 +36,11 @@ public static class PortableBrainArchive
 
         var settingsState = await settings.Read();
         var profileState = await profile.Read();
+        if (posts is not null)
+        {
+            var stored = (await posts.Since(0)).Posts;
+            profileState = profileState with { Posts = [.. stored.OrderByDescending(static post => post.Sequence).Select(post => ProfilePosts.ToProfile(post, brainId.Trim()))] };
+        }
         var units = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
         foreach (var deployed in await studio.List())
         {
@@ -67,11 +76,14 @@ public static class PortableBrainArchive
             ?? throw new InvalidOperationException("Portable brain snapshot JSON is empty or invalid.");
     }
 
+    // The snapshot's posts go to the post store under their ids and dates, oldest first, for the owner only: an archive
+    // says nothing about who a post was shown to in the brain it came from.
     public static async Task ImportAsync(
         PortableBrainSnapshot snapshot,
         IUserSettings settings,
         IProfile profile,
-        ISynapseStudio studio)
+        ISynapseStudio studio,
+        IPosts? posts = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(settings);
@@ -95,12 +107,14 @@ public static class PortableBrainArchive
         if (snapshot.Profile is { } p)
         {
             await profile.UpdateProfile(p.Handle, p.DisplayName, p.Bio, p.PinnedApps ?? [], p.AvatarUrl);
-            foreach (var post in p.Posts ?? [])
+            var kept = (p.Posts ?? []).Where(static post => !string.IsNullOrWhiteSpace(post.Id) && !string.IsNullOrWhiteSpace(post.Content)).ToArray();
+            if (kept.Length > 0 && posts is null)
             {
-                if (!string.IsNullOrWhiteSpace(post.Id) && !string.IsNullOrWhiteSpace(post.Content))
-                {
-                    await profile.PublishAppPost(post);
-                }
+                throw new InvalidOperationException($"The archive holds {kept.Length} post(s) and no post store was given to import them into; nothing of them was stored.");
+            }
+            foreach (var post in kept.Reverse())
+            {
+                await posts!.Publish(ProfilePosts.ToDraft(post));
             }
         }
 

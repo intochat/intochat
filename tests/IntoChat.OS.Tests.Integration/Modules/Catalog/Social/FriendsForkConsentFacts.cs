@@ -11,6 +11,7 @@ using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Apps.Social;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,8 +24,8 @@ namespace IntoChat.OS.Modules.Apps.Tests.Integration.Social;
 
 /// <summary>
 /// Verifies the full social App-Post lifecycle and 1-click fork/install consent flow:
-/// 1. Author publishes an App-Post containing micro-app unit files and needs manifest.
-/// 2. Recipient views the post in their Friends feed and invokes ForkPost / fork_app.
+/// 1. Author publishes an App-Post containing micro-app unit files and needs manifest to the post store.
+/// 2. Forking the post (the Friends screen does this; FriendsOneFeedFacts drives the screen) takes the files the stored post carries.
 /// 3. The unit files are deployed to Synapse Studio and registered in IInstalls.
 /// 4. Because the unit declares needs (views/reactions), IInstalls marks it Pending and raises a SynapseStaged approval card.
 /// 5. Recipient executes ApproveAsPerson to grant consent.
@@ -69,6 +70,25 @@ public sealed class FriendsForkConsentFacts
     private static IDisposable AsPerson(INeuronRuntime runtime)
         => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
+    private static IPosts PostsOf(INeuronRuntime runtime) => runtime.Get<IPosts>(new NeuronId(runtime.Brain, "social.posts", IPosts.DefaultKey));
+
+    // An App-Post as the Friends screen publishes it: the unit's files travel in the post.
+    private static PostDraft AppPost(string id, string text, string title, IReadOnlyDictionary<string, string> unitFiles) => new(
+        text,
+        [],
+        new AppDefinitionShare(ShippedUnitAlias, title, [.. unitFiles.OrderBy(static file => file.Key, StringComparer.Ordinal).Select(static file => new SharedSourceFile(file.Key, file.Value))]),
+        Id: id,
+        Title: title,
+        Audience: new Audience.Friends());
+
+    // What forking a post does with its files: the ones the stored post carries go to Synapse Studio.
+    private static async Task ForkIntoStudio(INeuronRuntime runtime, string postId)
+    {
+        var post = Assert.Single((await PostsOf(runtime).Since(0, Ct)).Posts, stored => stored.Id == postId);
+        var files = post.SharedApp!.Files.ToDictionary(static file => file.Path, static file => file.Content, StringComparer.Ordinal);
+        await runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value)).DeployFiles(post.SharedApp.AppId, files, new Dictionary<string, string>(StringComparer.Ordinal));
+    }
+
     [Fact]
     public async Task AuthorPublishesAppPostWithUnitFiles_PostIsPersistedAndVisibleInFeed()
     {
@@ -76,32 +96,18 @@ public sealed class FriendsForkConsentFacts
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = AsPerson(runtime);
 
-        var profile = runtime.Get<IProfile>(new NeuronId(runtime.Brain, "os.profile", "profile"));
         var unitFiles = ShippedUnits.Files(ShippedUnitAlias);
         Assert.NotEmpty(unitFiles);
 
-        var post = new ProfilePostItem(
-            Id: "post-room-1",
-            Content: "Check out this circle room app template!",
-            CreatedAt: DateTimeOffset.UtcNow,
-            Circle: "friends",
-            Title: "Shared Circle Room",
-            TemplateAppId: ShippedUnitAlias,
-            TemplateSource: unitFiles.TryGetValue("CircleRoom.cs", out var src) ? src : "",
-            EmbeddedApps: [new("room-view", ShippedUnitAlias, "Circle Room", $"{runtime.Brain.Value}/apps/{ShippedUnitAlias}")],
-            UnitFiles: unitFiles,
-            AuthorBrainId: runtime.Brain.Value);
+        await PostsOf(runtime).Publish(AppPost("post-room-1", "Check out this circle room app template!", "Shared Circle Room", unitFiles), Ct);
 
-        var updated = await profile.PublishAppPost(post);
-
-        Assert.NotEmpty(updated.Posts);
-        var found = Assert.Single(updated.Posts, p => p.Id == "post-room-1");
+        var found = Assert.Single((await PostsOf(runtime).Since(0, Ct)).Posts);
         Assert.Equal("post-room-1", found.Id);
-        Assert.Equal(ShippedUnitAlias, found.TemplateAppId);
-        Assert.NotNull(found.UnitFiles);
-        Assert.True(found.UnitFiles.ContainsKey("CircleRoom.cs"));
-        Assert.True(found.UnitFiles.ContainsKey("spec.md"));
-        Assert.True(found.UnitFiles.ContainsKey("scenarios.json"));
+        Assert.Equal(ShippedUnitAlias, found.SharedApp!.AppId);
+        var paths = found.SharedApp.Files.Select(static file => file.Path).ToArray();
+        Assert.Contains("CircleRoom.cs", paths);
+        Assert.Contains("spec.md", paths);
+        Assert.Contains("scenarios.json", paths);
     }
 
     [Fact]
@@ -111,30 +117,14 @@ public sealed class FriendsForkConsentFacts
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = AsPerson(runtime);
 
-        var profile = runtime.Get<IProfile>(new NeuronId(runtime.Brain, "os.profile", "profile"));
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         var unitFiles = ShippedUnits.Files(ShippedUnitAlias);
 
-        var post = new ProfilePostItem(
-            Id: "post-source",
-            Content: "Original shared template",
-            CreatedAt: DateTimeOffset.UtcNow,
-            Circle: "public",
-            Title: "Original Template",
-            TemplateAppId: ShippedUnitAlias,
-            TemplateSource: unitFiles["CircleRoom.cs"],
-            UnitFiles: unitFiles,
-            AuthorBrainId: runtime.Brain.Value);
+        await PostsOf(runtime).Publish(AppPost("post-source", "Original shared template", "Original Template", unitFiles), Ct);
 
-        await profile.PublishAppPost(post);
+        // Fork the post: the unit files the stored post carries are deployed to ISynapseStudio
+        await ForkIntoStudio(runtime, "post-source");
 
-        // Fork the post into a new remixed post
-        var forkedProfile = await profile.ForkPost("post-source", "post-fork-1", "My Remixed Room");
-
-        var forkedPost = Assert.Single(forkedProfile.Posts, p => p.Id == "post-fork-1");
-        Assert.Equal("post-fork-1", forkedPost.Id);
-
-        // The fork automatically deploys unit files to ISynapseStudio
         var studioSources = await studio.SourceFiles(ShippedUnitAlias);
         Assert.NotEmpty(studioSources);
         Assert.True(studioSources.ContainsKey("CircleRoom.cs"));
@@ -147,28 +137,15 @@ public sealed class FriendsForkConsentFacts
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         using var person = AsPerson(runtime);
 
-        var profile = runtime.Get<IProfile>(new NeuronId(runtime.Brain, "os.profile", "profile"));
-        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         var installs = runtime.Get<IInstalls>(new NeuronId(runtime.Brain, "synapse.installs", "default"));
         var approvals = runtime.Get<IApprovals>(IApprovals.Key(runtime.Brain.Value));
         var unitFiles = ShippedUnits.Files(ShippedUnitAlias);
 
         // 1. Author publishes App-Post
-        var post = new ProfilePostItem(
-            Id: "post-room-consent",
-            Content: "Circle room template requiring consent",
-            CreatedAt: DateTimeOffset.UtcNow,
-            Circle: "friends",
-            Title: "Circle Room Unit",
-            TemplateAppId: ShippedUnitAlias,
-            TemplateSource: unitFiles["CircleRoom.cs"],
-            UnitFiles: unitFiles,
-            AuthorBrainId: runtime.Brain.Value);
-
-        await profile.PublishAppPost(post);
+        await PostsOf(runtime).Publish(AppPost("post-room-consent", "Circle room template requiring consent", "Circle Room Unit", unitFiles), Ct);
 
         // 2. Recipient forks the post
-        await profile.ForkPost("post-room-consent", "post-room-forked", "Forked Circle Room");
+        await ForkIntoStudio(runtime, "post-room-consent");
 
         // 3. 1-Click Install trigger on IInstalls
         var defaultBindings = new Dictionary<string, string>(StringComparer.Ordinal);
