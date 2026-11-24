@@ -17,6 +17,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.UI` (`IAutoSuggestBox`, `IBreadcrumbBar`, `ICalendarView`, `IChartSource`, `IChart`, `IChatThread`, `ICheckBox`, `ICodeEditor`, `IColorPicker`, `ICommandBar`, `IContextMenu`, `IDatePicker`, `IDialog`, `IExpander`, `IFilePicker`, `IForm`, `IGridView`, `IImageViewer`, `IInfoBadge`, `IInfoBar`, `IKanbanBoard`, `IListBox`, `IMarkdownViewer`, `IMediaPlayer`, `INotificationToast`, `INumberBox`, `IPersonPicture`, `IPipsPager`, `IProgressIndicator`, `IPropertyGrid`, `IRadioButtons`, `IRating`, `ISelect`, `ISlider`, `ISplitButton`, `IStepper`, `ITable`, `ITabs`, `ITeachingTip`, `ITimePicker`, `IToggleSplitButton`, `IToggle`, `ITreeView`, `IUiInteractiveControl`, `IUiTableSource`, `IWidgetbook`).
+Contracts: assembly `IntoChat.OS.Modules.UI` (`IBreadcrumbBar`, `IChartSource`, `IChart`, `IChatThread`, `ICodeEditor`, `ICommandBar`, `IContextMenu`, `IDialog`, `IForm`, `IGridView`, `IImageViewer`, `IKanbanBoard`, `IMarkdownViewer`, `IPropertyGrid`, `ISlider`, `IStepper`, `ITable`, `ITabs`, `ITreeView`, `IUiInteractiveControl`, `IUiTableSource`, `IWidgetbook`).
 Hosting: runs in process.
 <!-- END GENERATED -->

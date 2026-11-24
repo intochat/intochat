@@ -136,7 +136,6 @@ public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryS
         new("stepper", "layout", "Stepper (IStepper)", "Workflow stage indicator neuron with interactive step selection and Advance.", "IntoChat.OS.Modules.UI.Stepper.IStepper@1", ["ui.stepper-changed"], "neuron://local/ui.stepper/demo", "await stepper.Configure([new StepperStep(\"plan\", \"Plan\", \"done\"), new StepperStep(\"build\", \"Build\", \"active\")]);") { Icon = "milestone" },
         new("property-grid", "controls", "PropertyGrid (IPropertyGrid)", "Live JSON and neuron state tree inspector with filter and inline value editing.", "IntoChat.OS.Modules.UI.PropertyGrid.IPropertyGrid@1", ["ui.property-grid-changed"], "neuron://local/ui.property-grid/demo", "await grid.LoadJson(\"Neuron State\", stateJson);") { Icon = "braces" },
         new("kanban-board", "layout", "KanbanBoard (IKanbanBoard)", "Multi-column Kanban board neuron with WIP limits and movable cards.", "IntoChat.OS.Modules.UI.KanbanBoard.IKanbanBoard@1", ["ui.kanban-changed"], "neuron://local/ui.kanban/demo", "await kanban.MoveCard(\"c1\", \"in-progress\");") { Icon = "kanban" },
-        new("file-picker", "controls", "FilePicker (IFilePicker)", "Files VFS path, extension filter, and multi-select file picker neuron.", "IntoChat.OS.Modules.UI.FilePicker.IFilePicker@1", ["ui.file-picker-changed"], "neuron://local/ui.file-picker/demo", "await picker.Select(\"/workspace/GalleryApp.cs\");") { Icon = "folder-open" },
     ];
 }
 

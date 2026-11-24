@@ -57,7 +57,7 @@ public sealed class GallerySettingsFilesReactorFacts
     public void GalleryAppStateExplorerVerifiesAllTabsUniqueKeysAndZeroMonospace()
     {
         var choices = new ChoiceSet()
-            .ForParameter("page", "home", "colors", "toggle", "charts", "graphs")
+            .ForParameter("page", "home", "colors", "tabs", "charts", "graphs")
             .ForParameter("holder", "alice")
             .ForParameter("amount", 50m, 30m, 70m)
             .ForParameter("stateId", "s0")

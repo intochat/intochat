@@ -2,21 +2,21 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Modules.UI.Core;
-using IntoChat.OS.Modules.UI.Toggle;
+using IntoChat.OS.Modules.UI.Tabs;
 
 namespace IntoChat.OS.Tests.Unit.Modules.UI;
 
 public sealed class UiNeuronBaseFacts
 {
     [Fact]
-    public async Task ToggleNeuronInheritsWinFormsStylePointerFocusAndStyleLifecycle()
+    public async Task TabsNeuronInheritsWinFormsStylePointerFocusAndStyleLifecycle()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(
             IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register(typeof(UiModule).Assembly);
 
-        var toggle = os.Get<IToggle>(new NeuronId(new BrainId("test"), "ui.toggle", "wifi"));
+        var toggle = os.Get<ITabs>(new NeuronId(new BrainId("test"), "ui.tabs", "wifi"));
 
         var configured = await toggle.ConfigureInteraction(
             subscribedEvents: UiEventMask.Hover | UiEventMask.Press | UiEventMask.Focus,
