@@ -95,6 +95,11 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IDeviceEnrollmentRedeemer, DeviceEnrollmentRedeemer>();
+        services.TryAddSingleton<IDeviceChatRoute>(static sp => new RelayDeviceChatRoute(
+            sp.GetRequiredService<CloudClient>(),
+            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());

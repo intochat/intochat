@@ -108,6 +108,32 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         return await ReadJsonAsync(response, DeviceWireJson.Default.DeviceChatJob, ct).ConfigureAwait(false);
     }
 
+    public async Task<BrainDevicesResponse> BrainModelsAsync(string brain, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
+        using var response = await SendSignedAsync(
+            HttpMethod.Get,
+            DeviceRoutes.Catalog + "?brain=" + Uri.EscapeDataString(brain),
+            createContent: null,
+            ct).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, DeviceWireJson.Default.BrainDevicesResponse, ct).ConfigureAwait(false)
+            ?? throw new InvalidDataException("Cloud returned an empty device models response.");
+    }
+
+    // The relay's NDJSON stream of DeviceChunk lines for one chat; the caller disposes the response.
+    public async Task<HttpResponseMessage> BrainChatAsync(BrainChatRequest chat, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(chat);
+        return await SendSignedAsync(
+            HttpMethod.Post,
+            DeviceRoutes.Chat,
+            () => JsonContent(chat, DeviceWireJson.Default.BrainChatRequest),
+            ct,
+            HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+    }
+
     public async Task StreamAsync(string jobId, HttpContent ndjsonContent, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
@@ -130,12 +156,13 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         HttpMethod method,
         string route,
         Func<HttpContent>? createContent,
-        CancellationToken ct)
+        CancellationToken ct,
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
         var (secrets, refreshed) = await EnsureFreshSecretsWithFlagAsync(ct).ConfigureAwait(false);
         var url = Combine(secrets.Server, route);
 
-        var response = await SendOnceAsync(method, url, secrets, createContent?.Invoke(), ct).ConfigureAwait(false);
+        var response = await SendOnceAsync(method, url, secrets, createContent?.Invoke(), ct, completion).ConfigureAwait(false);
         if (response.StatusCode != HttpStatusCode.Unauthorized)
         {
             return response;
@@ -150,7 +177,7 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         }
 
         secrets = await RefreshAsync(secrets, ct).ConfigureAwait(false);
-        var retry = await SendOnceAsync(method, url, secrets, createContent?.Invoke(), ct).ConfigureAwait(false);
+        var retry = await SendOnceAsync(method, url, secrets, createContent?.Invoke(), ct, completion).ConfigureAwait(false);
         if (retry.StatusCode == HttpStatusCode.Unauthorized)
         {
             retry.Dispose();
@@ -166,10 +193,11 @@ internal sealed class CloudClient(HttpClient http, DeviceCredentials credentials
         Uri url,
         LinkSecrets secrets,
         HttpContent? content,
-        CancellationToken ct)
+        CancellationToken ct,
+        HttpCompletionOption completion)
     {
         using var request = BuildSignedRequest(method, url, secrets, content);
-        return await http.SendAsync(request, ct).ConfigureAwait(false);
+        return await http.SendAsync(request, completion, ct).ConfigureAwait(false);
     }
 
     private async Task<LinkSecrets> EnsureFreshSecretsAsync(CancellationToken ct)

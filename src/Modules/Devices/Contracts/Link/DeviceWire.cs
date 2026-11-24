@@ -43,6 +43,12 @@ public static class DeviceRoutes
     public const string Stream = CircleRoutes.Prefix + "/compute/{jobId}/stream";
     public const int WaitSeconds = 25;
 
+    // The brain's own install asks the relay, with its machine credential, for the models its brain's other online devices offer
+    // (GET, BrainDevicesResponse) and streams a chat through one of them (POST BrainChatRequest, NDJSON DeviceChunk lines). The relay
+    // takes the brain from the credential, never from the request; the request's Brain only lets it refuse a mismatch.
+    public const string Catalog = CircleRoutes.Prefix + "/compute/models";
+    public const string Chat = CircleRoutes.Prefix + "/compute/chat";
+
     public static string StreamFor(string jobId)
         => CircleRoutes.Prefix + "/compute/" + Uri.EscapeDataString(jobId) + "/stream";
 }
@@ -113,7 +119,19 @@ public sealed record DeviceChunk(
     [property: Id(3)] int? InputTokens = null,
     [property: Id(4)] int? OutputTokens = null);
 
+// One online device of the credential's brain and the models it advertises.
+public sealed record BrainDeviceModels(string MachineId, string DeviceName, AdvertisedModel[] Models);
+
+// Brain is the credential's brain as the relay knows it.
+public sealed record BrainDevicesResponse(string Brain, BrainDeviceModels[] Devices);
+
+// A chat for one device of the credential's brain; Brain is what the caller expects and must equal the credential's.
+public sealed record BrainChatRequest(string Brain, string Device, DeviceChatJob Job);
+
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(BrainDeviceModels))]
+[JsonSerializable(typeof(BrainDevicesResponse))]
+[JsonSerializable(typeof(BrainChatRequest))]
 [JsonSerializable(typeof(EnrollRequest))]
 [JsonSerializable(typeof(EnrollResponse))]
 [JsonSerializable(typeof(EnrollError))]
