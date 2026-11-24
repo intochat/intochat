@@ -147,7 +147,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             return;
         }
 
-        if (!MatchesNeuronKey(changed.TabsId, CreatorView.InspectorTabsKey) || changed.Version <= _lastSyncedTabsVersion)
+        if (!MatchesNeuronSourceKey(changed.TabsId, CreatorView.InspectorTabsKey) || changed.Version <= _lastSyncedTabsVersion)
         {
             return;
         }
@@ -171,7 +171,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             return;
         }
 
-        if (!MatchesNeuronKey(changed.SliderId, CreatorView.ReplaySliderKey) || changed.Version <= _lastSyncedSliderVersion)
+        if (!MatchesNeuronSourceKey(changed.SliderId, CreatorView.ReplaySliderKey) || changed.Version <= _lastSyncedSliderVersion)
         {
             return;
         }
@@ -202,7 +202,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             return;
         }
 
-        if (!MatchesNeuronKey(invoked.BarId, CreatorView.ReplayCommandBarKey))
+        if (!MatchesNeuronSourceKey(invoked.BarId, CreatorView.ReplayCommandBarKey))
         {
             return;
         }
@@ -218,7 +218,7 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             return;
         }
 
-        if (!MatchesNeuronKey(selected.TableId, CreatorView.InspectorSignalsKey))
+        if (!MatchesNeuronSourceKey(selected.TableId, CreatorView.InspectorSignalsKey))
         {
             return;
         }
@@ -713,8 +713,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         where TNeuron : class
         where TSignal : DigitalBrain.Signal
         => FollowOptionalAsync<TNeuron, TSignal>(key, Log);
-
-    private static bool MatchesNeuronKey(string sourceId, string expectedKey) => MatchesNeuronSourceKey(sourceId, expectedKey);
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
