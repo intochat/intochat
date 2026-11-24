@@ -42,9 +42,14 @@ public static class RecordMoveCommand
             await error.WriteLineAsync($"{Verb}: the plan '{file}' is empty.".AsMemory(), ct);
             return 66;
         }
+        if (Custody(configuration) is not { } custody)
+        {
+            await error.WriteLineAsync($"{Verb}: IntoChatOS__MasterKey is not set; the brain stores cannot be opened.".AsMemory(), ct);
+            return 1;
+        }
         try
         {
-            var lines = await BrainRecordMove.Run(plan, phase, configuration, OsRuntimeOptions.Value, ct);
+            var lines = await BrainRecordMove.Run(plan, phase, configuration, OsRuntimeOptions.Value, ct, custody);
             foreach (var line in lines)
             {
                 await output.WriteLineAsync($"{phaseName} {line.Brain}: selected {line.Selected}, copied {line.Copied}, already there {line.AlreadyThere}, removed {line.Removed}, conflicts {line.Conflicts.Length}".AsMemory(), ct);
@@ -58,6 +63,13 @@ public static class RecordMoveCommand
             return 1;
         }
     }
+
+    // The custody an install with a configured master key wraps its brain keys with (KernelPlatformHosting): the same object here, so
+    // the move opens each store exactly as its host does.
+    internal static OsBrainKeyCustody? Custody(IConfiguration configuration)
+        => configuration[OsRuntimeOptions.Value.MasterKeyKey] is { Length: > 0 } masterKey
+            ? new OsBrainKeyCustody(new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(System.Text.Encoding.UTF8.GetBytes(masterKey)))
+            : null;
 
     private static BrainMovePhase? Phase(string name) => name switch
     {

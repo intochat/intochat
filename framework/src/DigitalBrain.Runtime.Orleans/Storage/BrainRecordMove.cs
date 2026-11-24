@@ -52,6 +52,9 @@ public enum BrainMovePhase
     RemoveSource,
 }
 
+/// <summary>One stored record as <see cref="BrainRecordMove.Read"/> finds it: its brain, grain id, state name and bytes.</summary>
+public sealed record BrainStoredRecord(string Brain, string Grain, string State, byte[] Bytes);
+
 /// <summary>What one phase did in one brain.</summary>
 public sealed record BrainMoveLine(string Brain, int Selected, int Copied, int AlreadyThere, int Removed, string[] Conflicts);
 
@@ -66,10 +69,12 @@ public static partial class BrainRecordMove
     private const string BackupManifest = "backup-manifest.json";
 
     /// <summary>
-    /// Runs <paramref name="phase"/> of <paramref name="plan"/>. <paramref name="configuration"/> carries the master key under
-    /// <paramref name="runtime"/>'s key; the Homes come from the plan.
+    /// Runs <paramref name="phase"/> of <paramref name="plan"/>. <paramref name="custody"/> wraps the brain keys as the hosts of both
+    /// stores do; without it, the runtime's default custody derives them from the master key <paramref name="configuration"/> carries
+    /// under <paramref name="runtime"/>'s key. The Homes come from the plan.
     /// </summary>
-    public static async Task<BrainMoveLine[]> Run(BrainMovePlan plan, BrainMovePhase phase, IConfiguration configuration, RuntimeOptions runtime, CancellationToken ct)
+    public static async Task<BrainMoveLine[]> Run(BrainMovePlan plan, BrainMovePhase phase, IConfiguration configuration, RuntimeOptions runtime, CancellationToken ct,
+        IBrainKeyCustody? custody = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -79,10 +84,10 @@ public static partial class BrainRecordMove
         var ledger = Ledger.Load(plan.Backup);
         return phase switch
         {
-            BrainMovePhase.Plan => await WithStores(plan, configuration, runtime, target: false, (source, _) => Select(plan, source, ct)).ConfigureAwait(false),
-            BrainMovePhase.Backup => await BackupAsync(plan, configuration, runtime, ledger, ct).ConfigureAwait(false),
-            BrainMovePhase.Copy => await WithStores(plan, configuration, runtime, target: true, (source, target) => CopyAsync(plan, source, target!, ledger, ct)).ConfigureAwait(false),
-            BrainMovePhase.RemoveSource => await WithStores(plan, configuration, runtime, target: true, (source, target) => RemoveAsync(plan, source, target!, ledger, ct)).ConfigureAwait(false),
+            BrainMovePhase.Plan => await WithStores(plan, configuration, runtime, custody, target: false, (source, _) => Select(plan, source, ct)).ConfigureAwait(false),
+            BrainMovePhase.Backup => await BackupAsync(plan, configuration, runtime, custody, ledger, ct).ConfigureAwait(false),
+            BrainMovePhase.Copy => await WithStores(plan, configuration, runtime, custody, target: true, (source, target) => CopyAsync(plan, source, target!, ledger, ct)).ConfigureAwait(false),
+            BrainMovePhase.RemoveSource => await WithStores(plan, configuration, runtime, custody, target: true, (source, target) => RemoveAsync(plan, source, target!, ledger, ct)).ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(phase)),
         };
     }
@@ -126,9 +131,10 @@ public static partial class BrainRecordMove
             .OrderBy(record => record.Grain, StringComparer.Ordinal).ThenBy(record => record.State, StringComparer.Ordinal)];
 
     // Raw copy of each brain's store folder, then a verify pass over the copy. A brain already backed up and still verifying is kept.
-    private static async Task<BrainMoveLine[]> BackupAsync(BrainMovePlan plan, IConfiguration configuration, RuntimeOptions runtime, Ledger ledger, CancellationToken ct)
+    private static async Task<BrainMoveLine[]> BackupAsync(BrainMovePlan plan, IConfiguration configuration, RuntimeOptions runtime, IBrainKeyCustody? custody, Ledger ledger,
+        CancellationToken ct)
     {
-        await using var source = Store.Open(plan.SourceHome, configuration, runtime);
+        await using var source = Store.Open(plan.SourceHome, configuration, runtime, custody);
         var lines = new List<BrainMoveLine>();
         foreach (var brain in plan.Brains)
         {
@@ -247,11 +253,39 @@ public static partial class BrainRecordMove
         return [.. lines];
     }
 
-    private static async Task<BrainMoveLine[]> WithStores(BrainMovePlan plan, IConfiguration configuration, RuntimeOptions runtime, bool target,
+    /// <summary>
+    /// The records <paramref name="rule"/> selects in each listed brain of the store under <paramref name="home"/>, for an operator's
+    /// inventory before a move. It changes no record and creates no brain; like every phase it claims each store as its writer, so it
+    /// runs while no host serves the store.
+    /// </summary>
+    public static async Task<BrainStoredRecord[]> Read(string home, IEnumerable<string> brains, BrainRecordRule rule, IConfiguration configuration,
+        RuntimeOptions runtime, CancellationToken ct, IBrainKeyCustody? custody = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(home);
+        ArgumentNullException.ThrowIfNull(brains);
+        ArgumentNullException.ThrowIfNull(rule);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(runtime);
+        await using var store = Store.Open(home, configuration, runtime, custody);
+        var found = new List<BrainStoredRecord>();
+        foreach (var brain in brains.Distinct(StringComparer.Ordinal))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!store.Exists(brain)) { continue; }
+            var log = await store.Logs.For(brain).ConfigureAwait(false);
+            found.AddRange(log.Records()
+                .Where(record => record.Record.Bytes.Length > 0 && rule.Matches(record.Grain, record.State))
+                .OrderBy(record => record.Grain, StringComparer.Ordinal).ThenBy(record => record.State, StringComparer.Ordinal)
+                .Select(record => new BrainStoredRecord(brain, record.Grain, record.State, record.Record.Bytes.ToArray())));
+        }
+        return [.. found];
+    }
+
+    private static async Task<BrainMoveLine[]> WithStores(BrainMovePlan plan, IConfiguration configuration, RuntimeOptions runtime, IBrainKeyCustody? custody, bool target,
         Func<Store, Store?, Task<BrainMoveLine[]>> run)
     {
-        await using var source = Store.Open(plan.SourceHome, configuration, runtime);
-        await using var into = target ? Store.Open(plan.TargetHome, configuration, runtime) : null;
+        await using var source = Store.Open(plan.SourceHome, configuration, runtime, custody);
+        await using var into = target ? Store.Open(plan.TargetHome, configuration, runtime, custody) : null;
         return await run(source, into).ConfigureAwait(false);
     }
 
@@ -268,10 +302,11 @@ public static partial class BrainRecordMove
     {
         public BrainLogs Logs { get; } = services.GetRequiredService<BrainLogs>();
 
-        public static Store Open(string home, IConfiguration configuration, RuntimeOptions runtime)
+        public static Store Open(string home, IConfiguration configuration, RuntimeOptions runtime, IBrainKeyCustody? custody)
         {
             var services = new ServiceCollection();
             services.AddSingleton(runtime);
+            if (custody is not null) { services.AddSingleton(custody); }
             services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
                 .AddConfiguration(configuration)
                 .AddInMemoryCollection(new Dictionary<string, string?> { [runtime.HomeKey] = Path.GetFullPath(home) })

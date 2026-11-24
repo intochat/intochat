@@ -72,6 +72,10 @@ public static class KernelHost
         {
             return await RecordMoveCommand.Run(args, Console.Out, Console.Error, cancellationToken);
         }
+        if (MoveInventoryCommand.IsInventory(args))
+        {
+            return await MoveInventoryCommand.Run(args, Console.Out, Console.Error, cancellationToken);
+        }
 
         await app.RunAsync(cancellationToken);
         return Environment.ExitCode;
@@ -94,6 +98,10 @@ public static class KernelHost
         if (RecordMoveCommand.IsMove(args))
         {
             return await RecordMoveCommand.Run(args, Console.Out, Console.Error, cancellationToken);
+        }
+        if (MoveInventoryCommand.IsInventory(args))
+        {
+            return await MoveInventoryCommand.Run(args, Console.Out, Console.Error, cancellationToken);
         }
 
         var builder = WebApplication.CreateBuilder(args);

@@ -83,6 +83,25 @@ public sealed class RecordMoveCommandFacts : IDisposable
     }
 
     [Fact]
+    public async Task WithoutTheMasterKeyNoStoreIsOpened()
+    {
+        var file = await PlanFile(Plan());
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        Assert.Equal(1, await RecordMoveCommand.Run(["move-records", file, "plan"], new ConfigurationBuilder().Build(), output, error, Ct));
+        Assert.Contains("MasterKey is not set", error.ToString(), StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(root.Path, "os")));
+    }
+
+    [Fact]
+    public void OnlyItsVerbIsAnInventory()
+    {
+        Assert.True(MoveInventoryCommand.IsInventory(["move-inventory", "--home", "h", "--out", "o"]));
+        Assert.False(MoveInventoryCommand.IsInventory(["move-records"]));
+    }
+
+    [Fact]
     public async Task ABackupInsideAHomeIsRefused()
     {
         var file = await PlanFile(Plan(backup: Path.Combine("os", "backup")));

@@ -159,6 +159,20 @@ public sealed class BrainRecordMoveFacts : IDisposable
     }
 
     [Fact]
+    public async Task ReadingListsTheSelectedRecordsOfTheListedBrains_AndCreatesNoBrain()
+    {
+        await Seed();
+        await Write(Source, "neuron.host/b2/lobby.visitor/v2", "other", brain: "b2");
+
+        var records = await BrainRecordMove.Read(Source, ["b1", "b2", "absent"], new BrainRecordRule(Neuron: "lobby.visitor"), Keys, RuntimeOptions.Default, Ct);
+
+        Assert.Equal([("b1", Visitor), ("b2", "neuron.host/b2/lobby.visitor/v2")], records.Select(record => (record.Brain, record.Grain)));
+        Assert.Equal(Encoding.UTF8.GetString(Bytes("other")), Encoding.UTF8.GetString(records[1].Bytes));
+        await using var store = new BrainStore(Source);
+        Assert.False(System.IO.Directory.Exists(store.DirectoryOf("absent")));
+    }
+
+    [Fact]
     public async Task ABrainWithNoStoreIsSkipped()
     {
         var plan = Plan with { Brains = ["absent"] };
