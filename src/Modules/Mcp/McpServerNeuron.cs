@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Limits;
@@ -30,6 +31,11 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
 {
     private const int MaxText = 128 * 1024;
     private static readonly TimeSpan CallBudget = TimeSpan.FromMinutes(5);
+    // The SDK's source-generated contracts, so the wire reads below stay trim- and AOT-safe.
+    private static readonly JsonTypeInfo<ModelContextProtocol.Protocol.CallToolResult> CallResultJson =
+        (JsonTypeInfo<ModelContextProtocol.Protocol.CallToolResult>)McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(ModelContextProtocol.Protocol.CallToolResult));
+    private static readonly JsonTypeInfo<ModelContextProtocol.Protocol.Tool> ToolJson =
+        (JsonTypeInfo<ModelContextProtocol.Protocol.Tool>)McpJsonUtilities.DefaultOptions.GetTypeInfo(typeof(ModelContextProtocol.Protocol.Tool));
 
     private McpClient? _client;
     private Uri? _endpoint;
@@ -80,7 +86,7 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
             ["Tool"] = tool,
             ["Server"] = state.Title,
         }, cancellation => Session(new Uri(state.Url), async (client, token) =>
-            Result(JsonSerializer.SerializeToElement(await client.CallToolAsync(tool, input, cancellationToken: token), McpJsonUtilities.DefaultOptions)), cancellation), ct);
+            Result(JsonSerializer.SerializeToElement(await client.CallToolAsync(tool, input, cancellationToken: token), CallResultJson)), cancellation), ct);
         await Publish(new McpToolRan(tool, result.IsError, (int)clock.ElapsedMilliseconds));
         return result;
     }
@@ -178,7 +184,7 @@ internal sealed partial class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpS
     private static ToolDescriptor[] Describe(IList<McpClientTool> tools)
         => [.. tools.Select(tool =>
         {
-            var wire = JsonSerializer.SerializeToElement(tool.ProtocolTool, McpJsonUtilities.DefaultOptions);
+            var wire = JsonSerializer.SerializeToElement(tool.ProtocolTool, ToolJson);
             var name = wire.GetProperty("name").GetString()!;
             return new ToolDescriptor(
                 name,

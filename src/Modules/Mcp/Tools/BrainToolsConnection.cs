@@ -150,16 +150,7 @@ internal sealed class BrainToolsConnection(
             throw new ToolExecutionException(tool, result.Text);
         }
 
-        try
-        {
-            using var doc = JsonDocument.Parse(result.Text);
-            return doc.RootElement.Clone();
-        }
-        catch (JsonException error)
-        {
-            Log.LogSwallowed(error, "Wrapping non-JSON tool result text.");
-            return JsonSerializer.SerializeToElement(new { result = result.Text });
-        }
+        return ToolResultJson.From(result.Text, Log);
     }
 
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
