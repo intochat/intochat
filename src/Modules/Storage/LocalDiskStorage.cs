@@ -14,7 +14,7 @@ internal sealed record LocalRoot(string Id, string Path);
 
 // storage@1 for allowed folders on this computer. Item ids are ld: plus root id and a relative path.
 // Access recording belongs to the runtime broker, not this type.
-internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperations? operations = null, IVolumeSource? volumes = null) : IStorage
+internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperations? operations = null, IVolumeSource? volumes = null, LocalDiskCoordinator? coordinator = null) : IStorage
 {
     internal const string TrashName = ".localdisk-trash";
     internal const string PartialSuffix = ".intochat-partial";
@@ -26,14 +26,15 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder
         | ItemFlags.Copy | ItemFlags.Move | ItemFlags.Rename | ItemFlags.Trash | ItemFlags.Delete;
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    // The neuron builds an engine per call; the gate is the host's, per root folder.
+    private readonly LocalDiskCoordinator _coordinator = coordinator ?? new LocalDiskCoordinator();
     private static readonly StringComparison PathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     private string[] Paths => [.. roots.Select(root => root.Path)];
 
     public Task<StorageDescriptor> Describe(CancellationToken ct = default)
     {
-        var quota = roots.Count == 0 ? Quota.Unknown : LocalVolumes.QuotaFor(roots[0].Path, volumes ?? DriveVolumeSource.Instance);
+        var quota = LocalVolumes.QuotaFor([.. roots.Select(root => root.Path)], volumes ?? DriveVolumeSource.Instance);
         return Task.FromResult(new StorageDescriptor(Label, Kind, quota, Offered));
     }
 
@@ -147,7 +148,6 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             var stage = Partial(destination);
             Recheck(destination, plan.TargetFolder);
             PathConfinement.RequireNoLinks(Path.GetDirectoryName(destination)!);
-            if (File.Exists(stage)) { File.Delete(stage); }
             var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
             return (StorageWriteStream)new WriteHandle(this, plan, stage, destination, new BoundedWriteStream(stream, MaxWriteBytes, plan.TargetFolder));
         }));
@@ -215,8 +215,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             _ = await writer.Commit(ct).ConfigureAwait(false);
             return;
         }
-        await _gate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        using var held = await Hold([plan.Source, plan.TargetFolder], ct).ConfigureAwait(false);
         {
             var (source, destination) = Prepare(plan);
             ct.ThrowIfCancellationRequested();
@@ -239,13 +238,11 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             }
             MovePath(source!, destination, plan.Conflict == ConflictPolicy.Overwrite);
         }
-        finally { _gate.Release(); }
     }
 
     private async Task<ItemId> Commit(string stage, string destination, WritePlan plan, CancellationToken ct)
     {
-        await _gate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        using var held = await Hold([plan.TargetFolder], ct).ConfigureAwait(false);
         {
             ct.ThrowIfCancellationRequested();
             destination = Place(destination, plan.Conflict, source: null, plan.TargetFolder);
@@ -256,7 +253,40 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             var root = RootContaining(destination);
             return LocalItemId.Of(root.Id, Relative(root.Path, destination));
         }
-        finally { _gate.Release(); }
+    }
+
+    // Takes the gates of the roots the items are in, in one order, so two plans over two roots cannot wait on each other.
+    private async Task<Held> Hold(ItemId?[] items, CancellationToken ct)
+    {
+        var folders = items.OfType<ItemId>()
+            .Select(item => Root(LocalItemId.Read(item).RootId).Path)
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var taken = new List<SemaphoreSlim>(folders.Length);
+        try
+        {
+            foreach (var folder in folders)
+            {
+                var gate = _coordinator.GateFor(folder);
+                await gate.WaitAsync(ct).ConfigureAwait(false);
+                taken.Add(gate);
+            }
+        }
+        catch
+        {
+            foreach (var gate in taken) { gate.Release(); }
+            throw;
+        }
+        return new Held(taken);
+    }
+
+    private sealed class Held(List<SemaphoreSlim> gates) : IDisposable
+    {
+        public void Dispose()
+        {
+            foreach (var gate in gates) { gate.Release(); }
+        }
     }
 
     private string Full(ItemId id)
@@ -369,8 +399,9 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         else { File.Move(source, destination, overwrite: false); }
     }
 
+    // Each write stages under its own name, so two writes to one file never share (or delete) a staging file.
     private static string Partial(string destination)
-        => Path.Combine(Path.GetDirectoryName(destination)!, "." + Path.GetFileName(destination) + PartialSuffix);
+        => Path.Combine(Path.GetDirectoryName(destination)!, "." + Path.GetFileName(destination) + "." + Guid.NewGuid().ToString("N")[..12] + PartialSuffix);
 
     private void Walk(string directory, string relative, int depth, string text, List<Item> found, CancellationToken ct)
     {

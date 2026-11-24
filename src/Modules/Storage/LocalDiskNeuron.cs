@@ -21,17 +21,23 @@ internal sealed record LocalDiskRootsChanged(string Action) : DigitalBrain.Signa
 internal sealed class LocalDiskNeuron(
     IOperations operations,
     IConfirmations? confirmations = null,
-    IStorageWriteAuthorizer? authorizer = null) : DigitalBrain.Neurons.Neuron<LocalDiskState>, ILocalDisk, IStorage
+    IStorageWriteAuthorizer? authorizer = null,
+    LocalDiskCoordinator? coordinator = null) : DigitalBrain.Neurons.Neuron<LocalDiskState>, ILocalDisk, IStorage
 {
     internal const string TypeName = "local-disk";
     internal const string KeyName = "main";
 
-    private LocalDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance);
+    // A host without the module's coordinator (a test host) still serializes this activation's own writes.
+    private LocalDiskCoordinator? _own;
+    private LocalDiskCoordinator Coordinator => coordinator ?? (_own ??= new LocalDiskCoordinator());
+
+    private LocalDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance, Coordinator);
 
     public Task<string[]> Roots() => Task.FromResult(Paths());
 
     public async Task AllowRoot(string path)
     {
+        RequireRootsChanger();
         var full = LocalDiskRoots.Prepare(path);
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (State.RootPaths.Any(root => string.Equals(root, full, comparison))) { return; }
@@ -44,6 +50,7 @@ internal sealed class LocalDiskNeuron(
 
     public async Task RevokeRoot(string path)
     {
+        RequireRootsChanger();
         var full = PathConfinement.Normalize(path);
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var kept = State.RootPaths
@@ -142,6 +149,20 @@ internal sealed class LocalDiskNeuron(
         {
             throw new Denied(plan.Source ?? plan.TargetFolder);
         }
+    }
+
+    // Which folders of this computer a brain may reach is the person's choice (acting directly, not through an app or an
+    // agent) or the host's (a module or the kernel of this brain). The caller is the one the runtime stamped.
+    private void RequireRootsChanger()
+    {
+        var caller = Context.Caller;
+        var allowed = caller is not null && caller.Brain == Id.Brain && caller.Actor switch
+        {
+            DigitalBrain.Access.Actor.Person => caller.Direct,
+            DigitalBrain.Access.Actor.Module or DigitalBrain.Access.Actor.Kernel => true,
+            _ => false,
+        };
+        if (!allowed) { throw new UnauthorizedAccessException("Only the person of this brain or the host changes the local folders it may reach."); }
     }
 
     private LocalRoot[] Current()

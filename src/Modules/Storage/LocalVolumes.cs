@@ -38,6 +38,30 @@ internal static class LocalVolumes
         return !ExcludedMacVolumes.Contains(name, StringComparer.Ordinal);
     }
 
+    // Every distinct volume the roots are on, summed; unknown when any of them is unknown.
+    public static Quota QuotaFor(IReadOnlyList<string> roots, IVolumeSource source)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(source);
+        if (roots.Count == 0) { return Quota.Unknown; }
+        var seen = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        long used = 0, total = 0;
+        foreach (var root in roots)
+        {
+            VolumeRow? volume;
+            try { volume = source.ForPath(root); }
+            catch (IOException) { return Quota.Unknown; }
+            catch (UnauthorizedAccessException) { return Quota.Unknown; }
+            if (volume is null) { return Quota.Unknown; }
+            if (!seen.Add(volume.Name)) { continue; }
+            var one = QuotaFor(root, source);
+            if (one.State != QuotaState.Known || one.Used is not { } u || one.Total is not { } t) { return Quota.Unknown; }
+            try { checked { used += u; total += t; } }
+            catch (OverflowException) { return Quota.Unknown; }
+        }
+        return Quota.Known(used, total);
+    }
+
     public static Quota QuotaFor(string root, IVolumeSource source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);

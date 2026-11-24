@@ -1,6 +1,8 @@
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
@@ -17,4 +19,10 @@ public sealed class LocalDiskModule : DigitalBrain.Modules.Module, IHttpModule
         Secrets: []);
 
     public void Configure(IEndpointRouteBuilder endpoints) => LocalDiskEndpoints.Map(endpoints);
+
+    public static void ConfigureServices(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<LocalDiskCoordinator>();
+    }
 }
