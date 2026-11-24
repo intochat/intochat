@@ -26,7 +26,7 @@ public sealed class WebSearchFacts
             return JsonResponse("""{"web":{"results":[{"title":"A","url":"https://a.org","description":"d"}]}}""");
         });
         using var http = new HttpClient(handler);
-        var adapter = new BraveSearch(http, () => Task.FromResult<string?>("k1"));
+        var adapter = new BraveSearch(http, _ => Task.FromResult<string?>("k1"));
 
         var results = await adapter.Search("dotnet aot", 3, Ct);
 
@@ -66,7 +66,7 @@ public sealed class WebSearchFacts
             return JsonResponse("""{"results":[{"title":"T","url":"https://t.org","content":"from tavily"}]}""");
         });
         using var http = new HttpClient(handler);
-        var adapter = new TavilySearch(http, () => Task.FromResult<string?>("k"));
+        var adapter = new TavilySearch(http, _ => Task.FromResult<string?>("k"));
 
         var results = await adapter.Search("q", 5, Ct);
 
@@ -126,7 +126,7 @@ public sealed class WebSearchFacts
         });
 
         using var http = new HttpClient(new CapturingHandler(_ => JsonResponse(json)));
-        var adapter = new BraveSearch(http, () => Task.FromResult<string?>("k1"));
+        var adapter = new BraveSearch(http, _ => Task.FromResult<string?>("k1"));
 
         var results = await adapter.Search("test", 8, Ct);
 
