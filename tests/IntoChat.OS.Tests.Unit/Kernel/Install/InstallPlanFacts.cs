@@ -149,7 +149,7 @@ public sealed class InstallPlanFacts
         var config = InstallConfig.Universal(env: "test", subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2", includeCloudApp: true, includeSandboxApp: true);
         var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
 
-        var stops = StopCommands(yaml);
+        var stops = Commands(yaml, "stop");
         Assert.Equal([config.CloudName, config.OsName], stops.Keys.Order(StringComparer.Ordinal));
         foreach (var name in new[] { config.OsName, config.CloudName })
         {
@@ -162,14 +162,46 @@ public sealed class InstallPlanFacts
         }
 
         // A new image is a new revision: the trigger changes. The tags are not part of the revision: they do not trigger.
-        var newImage = StopCommands(PulumiStackSynthesizer.Synthesize(config with { OsImage = "ghcr.io/intochat/os:2.0.0" }, OperatingSystemModules.Modules).PulumiYaml);
+        var newImage = Commands(PulumiStackSynthesizer.Synthesize(config with { OsImage = "ghcr.io/intochat/os:2.0.0" }, OperatingSystemModules.Modules).PulumiYaml, "stop");
         Assert.NotEqual(stops[config.OsName].Trigger, newImage[config.OsName].Trigger);
         Assert.Equal(stops[config.CloudName].Trigger, newImage[config.CloudName].Trigger);
     }
 
-    private static Dictionary<string, (string Logical, string Trigger)> StopCommands(string yaml)
+    // The stop can run in a `pulumi up` that then changes nothing (the first run after the stop command appears, or a run
+    // that fails before the app): the start command after the app runs in every up that ran the stop, and in the next one
+    // when that run failed first, and brings the app's revision back.
+    [Fact]
+    public void ThePulumiStack_StartsASiloAppAgainAfterEveryUpThatStoppedIt()
+    {
+        var config = InstallConfig.Universal(env: "test", subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2", includeCloudApp: true, includeSandboxApp: true);
+        var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
+
+        var stops = Commands(yaml, "stop");
+        var starts = Commands(yaml, "start");
+        Assert.Equal(stops.Keys.Order(StringComparer.Ordinal), starts.Keys.Order(StringComparer.Ordinal));
+        foreach (var name in new[] { config.OsName, config.CloudName })
+        {
+            // The same trigger: Pulumi replaces, and so runs, both in the same up.
+            Assert.Equal(stops[name].Trigger, starts[name].Trigger);
+            var appLogical = stops[name].Logical[..^"-stop".Length];
+            var app = yaml.IndexOf($"containerAppName: \"{name}\"", StringComparison.Ordinal);
+            var start = yaml.IndexOf("\n  " + starts[name].Logical + ":", StringComparison.Ordinal);
+            var next = System.Text.RegularExpressions.Regex.Match(yaml[(start + 1)..], @"\n  \S|\n\S");
+            var block = next.Success ? yaml[start..(start + 1 + next.Index)] : yaml[start..];
+            Assert.True(start > app);
+            Assert.Contains($"\"${{{appLogical}}}\"", block, StringComparison.Ordinal);
+            Assert.Contains($"\"${{{stops[name].Logical}}}\"", block, StringComparison.Ordinal);
+            // An inactive latest revision is activated; one that does not become ready gives way to the last ready one.
+            Assert.Contains("az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$latest\"", block, StringComparison.Ordinal);
+            Assert.Contains("latestReadyRevisionName", block, StringComparison.Ordinal);
+            Assert.Contains("az containerapp revision activate -n \"$app\" -g \"$group\" --revision \"$ready\"", block, StringComparison.Ordinal);
+            Assert.Contains("exit 1", block, StringComparison.Ordinal);
+        }
+    }
+
+    private static Dictionary<string, (string Logical, string Trigger)> Commands(string yaml, string kind)
         => System.Text.RegularExpressions.Regex.Matches(yaml,
-                @"\n  (?<logical>[A-Za-z0-9-]+-stop):\r?\n    type: command:local:Command\r?\n(?:.*\n)*?      triggers: \[""(?<trigger>[0-9a-f]{64})""\]\r?\n      create: \|\r?\n        app=""(?<app>[^""]+)""")
+                @"\n  (?<logical>[A-Za-z0-9-]+-" + kind + @"):\r?\n    type: command:local:Command\r?\n(?:.*\n)*?      triggers: \[""(?<trigger>[0-9a-f]{64})""\]\r?\n      create: \|\r?\n        app=""(?<app>[^""]+)""")
             .ToDictionary(match => match.Groups["app"].Value, match => (match.Groups["logical"].Value, match.Groups["trigger"].Value), StringComparer.Ordinal);
 
     [Fact]
