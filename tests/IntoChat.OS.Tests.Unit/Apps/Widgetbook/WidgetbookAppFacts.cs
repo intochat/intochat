@@ -53,7 +53,7 @@ public sealed class WidgetbookAppFacts
     public async Task WidgetbookAppRendersFullscreenFramelessBrowser()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         var installed = await os.Install<WidgetbookApp>();
 
         var json = System.Text.Json.JsonSerializer.Serialize(

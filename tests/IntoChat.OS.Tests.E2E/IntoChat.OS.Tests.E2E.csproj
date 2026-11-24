@@ -25,6 +25,7 @@
     <ProjectReference Include="../../src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../../src/Modules/Runs/IntoChat.OS.Modules.Runs.csproj" />
+    <ProjectReference Include="../../src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
     <ProjectReference Include="../../src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../../src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
     <ProjectReference Include="../../src/Components/Aspire/IntoChat.Aspire.csproj" />

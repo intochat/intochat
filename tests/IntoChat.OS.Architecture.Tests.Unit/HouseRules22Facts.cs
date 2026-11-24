@@ -1711,6 +1711,7 @@ public sealed class HouseRules22Facts
     private static readonly HashSet<string> PrivilegedSiloNeuronModules = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI",
+        "IntoChat.OS.Modules.Authoring",
         "IntoChat.OS.Modules.Catalog",
         "IntoChat.OS.Modules.Devices",
         "IntoChat.OS.Modules.GitHub",

@@ -38,7 +38,7 @@ public sealed class ScenarioExportFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var driver = await KernelDriver.Start(os);
         var last = await driver.Snapshot();
         var steps = new List<object> { new { afterIndex = -1, view = last } };

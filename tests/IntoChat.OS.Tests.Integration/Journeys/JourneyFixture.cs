@@ -23,6 +23,7 @@ public static class Journey
         typeof(AppsModule),
         typeof(FlutterModule),
         typeof(IntoChat.OS.Modules.Runs.RunsModule),
+        typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),
         typeof(PostgresModule),
         typeof(WebModule),
         typeof(IdentityModule),

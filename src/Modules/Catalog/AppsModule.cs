@@ -62,11 +62,6 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IBrainOwners, IdentityBrainOwners>();
         services.TryAddSingleton<IFriendCheck, FriendsFriendCheck>();
 
-        services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
-        services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();
-        services.TryAddSingleton<Creator>();
-        services.TryAddSingleton<ICreator>(sp => sp.GetRequiredService<Creator>());
-        services.TryAddSingleton<IUnitVerifier, UnitVerifier>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();
         services.TryAddSingleton<IWorktreeRoslyn>(UnavailableWorktreeRoslyn.Instance);
@@ -77,7 +72,6 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<AppOperationCatalog>();
         services.AddHostedService<AppMenuHost>();
         services.AddNeuronProxies();
-        services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
         services.TryAddSingleton<PolicyWriter>();
         services.TryAddSingleton<ArtifactLiveHub>();
         services.TryAddSingleton(new IntoChat.OS.Host.Conversations.ConversationDefaults(

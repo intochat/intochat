@@ -118,7 +118,7 @@ public sealed class StubRepository : DigitalBrain.Neurons.Neuron<StubRepositoryS
 // A silo with the Apps module, the facts' flow types and the stubs above.
 public sealed class FlowTypesFixture : BothRuntimesFixture
 {
-    protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlowsFactsModule)];
+    protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlowsFactsModule)];
 
     protected override void ConfigureSilo(IServiceCollection services)
     {

@@ -33,7 +33,7 @@ public sealed class NotificationsSlotFacts
         services.Configure<NotificationsOptions>(options => options.MaxItems = 200);
         await using var os = TestOS.Local(options => options.Services = services.BuildServiceProvider())
             .Register(typeof(NotificationsModule).Assembly)
-            .Register(typeof(AppsModule).Assembly);
+            .RegisterCatalog();
 
         var slot = os.Get<INotifications>(new NeuronId(Owner, NotificationsSlotConnection.TypeName, "btcalert/inbox"));
         var receipt = await slot.Notify("BTC Alert", "BTC crossed $100k", "high", Ct);
@@ -53,7 +53,7 @@ public sealed class NotificationsSlotFacts
     public async Task NotificationsSlotFailsHonestlyWhenInboxMissing()
     {
         await using var os = TestOS.Local()
-            .Register(typeof(AppsModule).Assembly);
+            .RegisterCatalog();
 
         var slot = os.Get<INotifications>(new NeuronId(Owner, NotificationsSlotConnection.TypeName, "btcalert/inbox"));
 

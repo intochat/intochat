@@ -25,7 +25,7 @@ public sealed class EngineerAppFacts
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> EngineerOperations
         => ScreenBaseline.Cases(typeof(EngineerApp), os =>
         {
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(UiModule).Assembly);
         });
 
@@ -106,7 +106,7 @@ public sealed class EngineerAppFacts
         var brain = new BrainId("engtest");
         await using var os = TestOS.Local();
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -240,7 +240,7 @@ public sealed class EngineerAppFacts
 
             await using var os = TestOS.Local(o => o.Services = services);
             using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(UiModule).Assembly);
             os.Register(typeof(EngineerApp).Assembly);
 
@@ -355,7 +355,7 @@ public sealed class EngineerAppFacts
 
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);

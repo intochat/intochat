@@ -324,7 +324,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         await using var os = TestOS.Local(o => o.Services = services);
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner")));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key("owner"));
         var startJson = JsonSerializer.Serialize(new
@@ -465,7 +465,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
 
         await using var os = TestOS.Local(o => o.Services = services);
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner")));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key("owner"));
         var startJson = JsonSerializer.Serialize(
@@ -728,7 +728,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os = TestOS.Local(o => o.Services = services);
         var brain = new BrainId("owner");
         using var agentCaller = os.Edge.Enter(os.Edge.Agent(new Actor.Person("owner", "owner"), brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
         var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
@@ -862,7 +862,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         {
             var brain = new BrainId("owner");
             using var person = os1.Edge.Enter(os1.Edge.Person("owner", "owner", brain));
-            os1.Register(typeof(AppsModule).Assembly);
+            os1.RegisterCatalog();
 
             var flows1 = os1.Get<IFlows>(IFlows.Key(brain.Value));
             var runs1 = os1.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
@@ -921,7 +921,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os2 = TestOS.Local(o => o.Services = sp2);
         var brain2 = new BrainId("owner");
         using var owner2 = os2.Edge.Enter(os2.Edge.Person("owner", "owner", brain2));
-        os2.Register(typeof(AppsModule).Assembly);
+        os2.RegisterCatalog();
 
         var flows2 = os2.Get<IFlows>(IFlows.Key(brain2.Value));
         var runs2 = os2.Get<IEngineerRuns>(IEngineerRuns.Key(brain2.Value));
@@ -1229,7 +1229,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os = TestOS.Local(o => o.Services = sp);
         var brain = new BrainId("owner");
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
         var runs = os.Get<IEngineerRuns>(IEngineerRuns.Key(brain.Value));
@@ -1646,7 +1646,7 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
         await using var os = TestOS.Local();
         var brain = new BrainId("owner");
         using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 

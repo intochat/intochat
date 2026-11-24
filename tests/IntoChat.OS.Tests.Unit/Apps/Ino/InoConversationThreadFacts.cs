@@ -39,7 +39,7 @@ public sealed class InoConversationThreadFacts
             .AddSingleton(TimeProvider.System)
             .BuildServiceProvider();
         var os = TestOS.Local(options => options.Services = services);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly);
         os.Register<InoApp>();
@@ -89,7 +89,7 @@ public sealed class InoConversationThreadFacts
             .AddSingleton(TimeProvider.System)
             .BuildServiceProvider();
         await using var os = TestOS.Local(options => options.Services = services);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly);
         os.Register<InoApp>();

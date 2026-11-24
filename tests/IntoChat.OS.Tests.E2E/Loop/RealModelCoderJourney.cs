@@ -84,6 +84,7 @@ public sealed class RealModelCoderJourney(ITestOutputHelper output)
             });
 
             AppsModule.ConfigureServices(services, configuration);
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, configuration);
 
             await using var provider = services.BuildServiceProvider();
 

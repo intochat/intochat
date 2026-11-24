@@ -51,11 +51,12 @@ public sealed class FriendsForkConsentFacts
 
     private sealed class SocialConsentFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlutterModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);

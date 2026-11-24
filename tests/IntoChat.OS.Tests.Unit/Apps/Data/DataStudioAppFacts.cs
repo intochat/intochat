@@ -13,7 +13,7 @@ public sealed class DataStudioAppFacts
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> DataStudioOperations
         => ScreenBaseline.Cases(
             typeof(DataStudioApp),
-            os => os.Register(typeof(AppsModule).Assembly));
+            os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(DataStudioOperations))]
     public Task DataStudioBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -23,7 +23,7 @@ public sealed class DataStudioAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DataStudioApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.data", "default"));
         Assert.NotNull(await screen.Read());
@@ -36,7 +36,7 @@ public sealed class DataStudioAppFacts
         using var vfsRoot = new TempDirectory("intochat-vfs-datastudio-");
         var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var dataStudio = await os.Install<DataStudioApp>();
         dataStudio.App.FilesVfs = vfs;
@@ -83,7 +83,7 @@ public sealed class DataStudioAppFacts
         using var vfsRoot = new TempDirectory("intochat-vfs-datastudio-");
         var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var dataStudio = await os.Install<DataStudioApp>();
         dataStudio.App.FilesVfs = vfs;

@@ -11,6 +11,7 @@ public sealed class CatalogSplitFacts
     private static readonly string[] SplitModules =
     [
         "IntoChat.OS.Modules.Runs",
+        "IntoChat.OS.Modules.Authoring",
     ];
 
     [Fact]

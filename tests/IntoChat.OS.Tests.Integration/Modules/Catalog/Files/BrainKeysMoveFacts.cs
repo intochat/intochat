@@ -257,7 +257,7 @@ public sealed class BrainKeysMoveFacts
         services.AddSingleton<IBrainAccess, OwnBrainOnly>();
         await using var root = services.BuildServiceProvider();
         await using var host = os = DigitalBrain.Testing.TestOS.Local(options => options.Services = root);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.Identity.IdentityModule).Assembly);
         var kim = new BrainId(Kim);
         var roster = EarlierRoster(pair, new Friend(new AccountId(Lee), new BrainId(Lee), "Lee", DateTimeOffset.UtcNow, Pair.New().Public));

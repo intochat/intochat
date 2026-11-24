@@ -278,7 +278,7 @@ public sealed class IssueTriageSynapseInstallerFacts
             .AddSingleton<IUnitVerifier, UnitVerifier>()
             .BuildServiceProvider();
         await using (var minimalOs = TestOS.Local(o => o.Services = minimalServices)
-            .Register(typeof(AppsModule).Assembly))
+            .RegisterCatalog())
         {
             minimalOs.Confirmations.ApproveAll();
             using var minimalPerson = minimalOs.Edge.Enter(minimalOs.Edge.Person("owner", "owner", minimalBrain));
@@ -339,7 +339,7 @@ public sealed class IssueTriageSynapseInstallerFacts
 
         return TestOS.Local(o => o.Services = services.BuildServiceProvider())
             .Register(typeof(GitHubModule).Assembly)
-            .Register(typeof(AppsModule).Assembly);
+            .RegisterCatalog();
     }
 
     private static void SeedConnectedRepository(TestOS os, NeuronId connId)

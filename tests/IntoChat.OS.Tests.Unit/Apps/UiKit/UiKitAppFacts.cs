@@ -46,7 +46,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task Every_page_renders_without_error()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, UiKitPages.First);
         foreach (var page in UiKitPages.All)
         {
@@ -59,7 +59,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task Child_signal_lands_in_log()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, "checkBox");
 
         await Send(uikit, "checkBox", new Toggle());
@@ -72,7 +72,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task Log_capped_at_50()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, "checkBox");
 
         for (var i = 0; i < UiKitState.MaxLog + 5; i++) { await Send(uikit, "checkBox", new Toggle()); }
@@ -84,7 +84,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task Chart_page_append_updates_view()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, UiKitPages.LiveChart);
 
         await uikit.Request("append", new UiKitAppend());
@@ -98,7 +98,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task Failed_reply_page_writes_its_failed_message_on_show()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         _ = await UiKit(os, UiKitPages.FailedReply);
 
         var thread = await Drawn<ChatThreadView>(os, "control.chatThread", UiKitPages.FailedReply);
@@ -109,7 +109,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task The_controlled_switch_stores_its_value_in_the_app()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, "toggleSwitch");
 
         await Send(uikit, UiKitPages.ControlledSwitch, new Toggle());
@@ -120,7 +120,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task The_nav_switches_pages()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, UiKitPages.First);
 
         await Send(uikit, UiKitPages.Nav, new DigitalBrain.UI.Commands.Select("form"));
@@ -131,7 +131,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task The_chart_page_is_seeded_once()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, UiKitPages.LiveChart);
         await uikit.Request("open", new UiKitOpen(UiKitPages.First));
         await uikit.Request("open", new UiKitOpen(UiKitPages.LiveChart));
@@ -143,7 +143,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task Every_data_node_example_command_lands_in_the_log()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, UiKitPages.First);
         var clicked = 0;
         foreach (var page in UiKitPages.All)
@@ -172,7 +172,7 @@ public sealed class UiKitAppFacts
     [Fact]
     public async Task The_nav_groups_its_pages()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, UiKitPages.First);
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));

@@ -211,7 +211,7 @@ public sealed class SettingsGitHubHubFacts
             var brain = new BrainId("local");
             using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<FakeGitHubHubNeuron>();
             var settings = await os.Install<SettingsApp>();
             var screen = settings.Screen;
@@ -307,7 +307,7 @@ public sealed class SettingsGitHubHubFacts
             var brain = new BrainId("local");
             using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register(typeof(UiModule).Assembly)
                 .Register<FakeGitHubHubNeuron>();
 

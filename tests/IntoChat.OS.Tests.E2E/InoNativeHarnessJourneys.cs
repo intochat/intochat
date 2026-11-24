@@ -138,8 +138,9 @@ public sealed class InoNativeHarnessJourneys
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AIModule).Assembly);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 
@@ -367,8 +368,9 @@ public sealed class InoNativeHarnessJourneys
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
         os.Register(typeof(AIModule).Assembly);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 

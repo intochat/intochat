@@ -32,11 +32,12 @@ public sealed class HelloWorldInteractiveAppFacts
 
     private sealed class LiveCreatorHelloFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(AIModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlutterModule), typeof(AIModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);

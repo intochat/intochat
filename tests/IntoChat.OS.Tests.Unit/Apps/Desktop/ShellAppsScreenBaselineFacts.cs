@@ -170,7 +170,7 @@ public sealed class ShellAppsScreenBaselineFacts
             os.Register<DesktopRecordsNeuron>();
             os.Register<TestViewportNeuron>();
             os.Register<TestWorkspaceNeuron>();
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(CalculatorApp).Assembly);
             os.Register(typeof(IntoChat.Aspire.Screens.AspireApp).Assembly);
 
@@ -201,7 +201,7 @@ public sealed class ShellAppsScreenBaselineFacts
         using var person = Edge.AsPerson();
         var cases = ScreenBaseline.Cases(typeof(TasksApp), os =>
         {
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(TasksApp).Assembly);
         });
 
@@ -217,7 +217,7 @@ public sealed class ShellAppsScreenBaselineFacts
         using var person = Edge.AsPerson();
         var cases = ScreenBaseline.Cases(typeof(ArtCraftApp), os =>
         {
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(ArtCraftApp).Assembly);
         });
 
@@ -235,7 +235,7 @@ public sealed class ShellAppsScreenBaselineFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
@@ -342,7 +342,7 @@ public sealed class ShellAppsScreenBaselineFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
@@ -382,7 +382,7 @@ public sealed class ShellAppsScreenBaselineFacts
         os.Register<DesktopRecordsNeuron>();
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(DesktopApp).Assembly);
 
         var desktop = await os.Install<DesktopApp>();

@@ -89,7 +89,7 @@ public sealed class InoAppFacts
             typeof(InoApp),
             os =>
             {
-                os.Register(typeof(AppsModule).Assembly);
+                os.RegisterCatalog();
             });
 
     [Theory, MemberData(nameof(InoOperations))]
@@ -258,7 +258,7 @@ public sealed class InoAppFacts
         using var person = Edge.AsPerson();
         await using var checkOs = TestOS.Local(options => options.Services = WithRedactor());
         checkOs.Register<DesktopRecordsNeuron>();
-        checkOs.Register(typeof(AppsModule).Assembly);
+        checkOs.RegisterCatalog();
         checkOs.Register(typeof(InoApp).Assembly);
         checkOs.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         checkOs.Register(typeof(FlutterModule).Assembly);
@@ -277,7 +277,7 @@ public sealed class InoAppFacts
         Assert.NotNull(await friendsScreen.Read());
 
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(CreatorApp).Assembly);
         var settings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
         var updated = await settings.SetProfile("Vlad", "light", "gpt-5");
@@ -326,7 +326,7 @@ public sealed class InoAppFacts
     private static TestOS ConversationOs()
     {
         var os = TestOS.Local(options => options.Services = WithRedactor());
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         os.Register(typeof(FlutterModule).Assembly);
         return os;
@@ -655,7 +655,7 @@ public sealed class InoAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = services);
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
@@ -706,7 +706,7 @@ public sealed class InoAppFacts
             ];
 
             await using var os = TestOS.Local(o => o.Services = services);
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
@@ -769,7 +769,7 @@ public sealed class InoAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = services);
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<ModelCatalogNeuron>();
@@ -853,7 +853,7 @@ public sealed class InoAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = services);
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
@@ -903,7 +903,7 @@ public sealed class InoAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = services);
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
             os.Register<BackgroundConversation>();
             os.Register<FakeModelCatalog>();
@@ -981,7 +981,7 @@ public sealed class InoAppFacts
         BackgroundConversation.Reset();
         FakeCompute.Reset();
         var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<IntoChat.OS.Modules.Flutter.Conversations.SessionListNeuron>();
         os.Register<BackgroundConversation>();
         os.Register<FakeCompute>();
@@ -1133,7 +1133,7 @@ public sealed class InoAppFacts
         var inoId = new NeuronId(Brain, "app.ino", "default");
         var legacyState = new InoAppState("main", "Legacy", "Ready", "idle", [new InoTurn("old question", "old reply", "agent", 0)], AgentKey: null);
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<RecordingConversation>();
         os.SeedStoredState(inoId, JsonSerializer.Serialize(legacyState, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
         RecordingConversation.Reset();
@@ -1159,7 +1159,7 @@ public sealed class InoAppFacts
         var inoId = new NeuronId(Brain, "app.ino", "default");
         var legacyState = new InoAppState("main", "Legacy", "Ready", "idle", [new InoTurn("old question", "old reply", "agent", 0)], AgentKey: null);
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<RecordingConversation>();
         os.SeedStoredState(inoId, JsonSerializer.Serialize(legacyState, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
         RecordingConversation.Reset();
@@ -1184,7 +1184,7 @@ public sealed class InoAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", Brain));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         var id = new NeuronId(Brain, "apps.ino-records", IInoRecords.Key);
         var journaled = os.Journal(Brain).Signals(id).Count();
 
@@ -1202,7 +1202,7 @@ public sealed class InoAppFacts
     {
         using var person = Edge.AsPerson();
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<RecordingConversation>();
         RecordingConversation.Reset();
         var ino = await os.Install<InoApp>();
@@ -1223,7 +1223,7 @@ public sealed class InoAppFacts
     public async Task ABadQuerySurfacesInStatus()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         var ino = await os.Install<InoApp>();
         ino.App.FilesVfs = new BrokenVfs();
 
@@ -1262,7 +1262,7 @@ public sealed class InoAppFacts
         Assert.NotNull(diConstructed);
 
         await using var os = TestOS.Local(o => o.Services = provider);
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register<RecordingConversation>();
         RecordingConversation.Reset();
         var ino = await os.Install<InoApp>();
@@ -1295,7 +1295,7 @@ public sealed class InoAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = provider);
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             os.Register(typeof(FlutterModule).Assembly);
             os.Register<BackgroundConversation>();
             var ino = await os.Install<InoApp>();

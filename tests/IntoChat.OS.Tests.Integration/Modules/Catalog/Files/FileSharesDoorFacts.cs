@@ -527,7 +527,7 @@ public sealed class FileSharesDoorFacts
     {
         public override BrainId Brain { get; } = new(Ada);
 
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlutterModule), typeof(IdentityModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(AIModule), typeof(FlutterModule), typeof(IdentityModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
@@ -542,6 +542,7 @@ public sealed class FileSharesDoorFacts
             services.TryAddSingleton<DigitalBrain.Capabilities.Connections.Sealing.IBrainSecretSealer, IntoChat.OS.Modules.Identity.Secrets.BrainSecretSealer>();
             services.TryAddSingleton<ISecretRedactor, NoSecrets>();
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
             services.AddJournalPayloads(typeof(AIModule).Assembly);

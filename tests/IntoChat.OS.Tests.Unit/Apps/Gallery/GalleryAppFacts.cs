@@ -8,7 +8,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.Gallery;
 public sealed class GalleryAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> GalleryOperations
-        => ScreenBaseline.Cases(typeof(GalleryApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(GalleryApp), os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(GalleryOperations))]
     public Task GalleryBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -18,7 +18,7 @@ public sealed class GalleryAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(GalleryApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.gallery", "default"));
         Assert.NotNull(await screen.Read());
@@ -52,7 +52,7 @@ public sealed class GalleryAppFacts
     public async Task GalleryFilterAndSelectUpdateSelectedCatalogId()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var gallery = await os.Install<GalleryApp>();
 
         await gallery.Request("filter", new GalleryFilter("chat-lfp", "Table"));

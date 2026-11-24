@@ -40,10 +40,10 @@ public sealed class FakeComputeNeuron : DigitalBrain.Neurons.Neuron, IntoChat.OS
 public sealed class CalculatorAndUsageAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> CalculatorOperations
-        => ScreenBaseline.Cases(typeof(CalculatorApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(CalculatorApp), os => os.RegisterCatalog());
 
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> UsageOperations
-        => ScreenBaseline.Cases(typeof(UsageApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(UsageApp), os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(CalculatorOperations))]
     public Task CalculatorBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -56,7 +56,7 @@ public sealed class CalculatorAndUsageAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(CalculatorApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.calculator", "default"));
         Assert.NotNull(await screen.Read());
@@ -67,7 +67,7 @@ public sealed class CalculatorAndUsageAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(UsageApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.usage", "default"));
         Assert.NotNull(await screen.Read());
@@ -81,7 +81,7 @@ public sealed class CalculatorAndUsageAppFacts
         try
         {
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<FakeComputeNeuron>();
             var usage = await os.Install<UsageApp>();
             var settings = await os.Install<IntoChat.OS.Apps.Settings.SettingsApp>();
@@ -116,7 +116,7 @@ public sealed class CalculatorAndUsageAppFacts
         try
         {
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<FakeComputeNeuron>();
             var ino = await os.Install<IntoChat.OS.Apps.Ino.InoApp>();
 

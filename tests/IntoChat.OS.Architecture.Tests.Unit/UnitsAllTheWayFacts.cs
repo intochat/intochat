@@ -17,10 +17,10 @@ public sealed partial class UnitsAllTheWayFacts
     private static readonly string[] CompilerCallers =
     [
         "AppSandboxHost.cs",
-        "Apps/Creator.cs",
-        "Authoring/BuilderTools.cs",
+        "Creator/Creator.cs",
         "Flows/BuildFlow.cs",
-        "Ino/SynapseStudioNeuron.cs",
+        "Studio/SynapseStudioNeuron.cs",
+        "Units/BuilderTools.cs",
         "Packages/AppPackageCompiler.cs",
     ];
 

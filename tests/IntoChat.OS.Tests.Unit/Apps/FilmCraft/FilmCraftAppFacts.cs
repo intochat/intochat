@@ -8,7 +8,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.FilmCraft;
 public sealed class FilmCraftAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> FilmCraftOperations
-        => ScreenBaseline.Cases(typeof(FilmCraftApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(FilmCraftApp), os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(FilmCraftOperations))]
     public Task FilmCraftStudioBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -18,7 +18,7 @@ public sealed class FilmCraftAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(FilmCraftApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.filmcraft", "default"));
         Assert.NotNull(await screen.Read());
@@ -28,7 +28,7 @@ public sealed class FilmCraftAppFacts
     public async Task FilmCraftWithoutConnectedMcpFailsHonestlyWithoutProceduralPngOrFakeCli()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         var installed = await os.Install<FilmCraftApp>();
 
         Assert.Equal("wasm-ui", installed.App.State.ExecutionMode);

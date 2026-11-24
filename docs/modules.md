@@ -20,8 +20,9 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | --- | --- | --- |
 | `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients). Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
+| `Authoring` | `authoring` | Unit authoring: the Creator's Author and Builder, the build flow (`BuildFlow`), the synapse studio (`ISynapseStudio`) and the deploy gate that runs a unit's scenarios (`IUnitVerifier`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`, and it reads the Author and Builder models from the `apps` options. |
 | `Azure` | `azure` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager, and Pulumi stacks. |
-| `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |
+| `Catalog` | `apps` | App manifests, install, versions, approvals and flows. Units are built by the `Authoring` module. |
 | `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
 | `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |

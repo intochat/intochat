@@ -69,7 +69,7 @@ public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neurons.Neuron,
 public sealed class SettingsAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> Operations
-        => ScreenBaseline.Cases(typeof(SettingsApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(SettingsApp), os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(Operations))]
     public Task Baseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -79,7 +79,7 @@ public sealed class SettingsAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(SettingsApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
         Assert.NotNull(await screen.Read());
@@ -99,7 +99,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsNavigationAndBackstackTracksHistory()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var installed = await os.Install<SettingsApp>();
         var app = installed.App;
         Assert.Equal("general", app.State.Section);
@@ -134,7 +134,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsInitialStateIncludesDefaultThemeAndAppearance()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var installed = await os.Install<SettingsApp>();
         var app = installed.App;
         Assert.Equal("auto", app.State.ThemeMode);
@@ -148,7 +148,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsRendersAllThirteenSectionsSubPagesAndModalSheetsInCSharp()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var installed = await os.Install<SettingsApp>();
         var app = installed.App;
         string[] sections =
@@ -206,7 +206,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsExportAndImportBrainArchiveRestoresSettingsAndUnits()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
 
         await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Ada", Theme: "light", DefaultModel: "gpt-5"));
@@ -278,7 +278,7 @@ public sealed class SettingsAppFacts
     public async Task SettingsProjectsVariablesDeployedUnitsAndTeamFriendsFromLiveNeurons()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         os.SeedStoredState(
             FriendsDefaults.Id("local"),
             """{"pending":[],"refused":0,"friends":[{"account":"grace","brain":"grace-brain","name":"Grace Hopper","since":"2026-01-01T00:00:00+00:00"}]}""");
@@ -409,7 +409,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsRedactedISecretVaultStatusNeverExposesRawSecrets()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         var vault = new MemorySecretVault();
         settings.App.SecretVault = vault;
@@ -443,7 +443,7 @@ public sealed class SettingsAppFacts
     public async Task BrainPreferenceStorePersistsPreferencesAcrossReload()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         var userSettings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
         var store = new BrainPreferenceStore(userSettings);
@@ -480,7 +480,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task EveryIdOfferedToAUserIsInTheCatalogue()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         await settings.App.Navigate(new SettingsNavigate("models"));
 
@@ -611,7 +611,7 @@ public sealed class SettingsAppFacts
         Assert.True(badVar.IsRefused);
         Assert.Contains("variable_key_required", badVar.Rejection!.Rules);
 
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
         Assert.NotNull(await settings.Screen.Open());
@@ -687,7 +687,7 @@ public sealed class SettingsAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = services)
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<FakeSettingsDevice>();
             var settings = await os.Install<SettingsApp>();
             await settings.Request("navigate", new SettingsNavigate("models"));
@@ -746,7 +746,7 @@ public sealed class SettingsAppFacts
     public async Task ChoosingBraveWritesTheBrainVariable()
     {
         var brain = new BrainId("local");
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
 
@@ -791,7 +791,7 @@ public sealed class SettingsAppFacts
         try
         {
             await using var os = TestOS.Local(o => o.Services = services)
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<FakeSettingsDevice>();
             var settings = await os.Install<SettingsApp>();
             await settings.Request("navigate", new SettingsNavigate("models"));
@@ -847,7 +847,7 @@ public sealed class SettingsAppFacts
         try
         {
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<RecordingMcpServerNeuron>();
             var settings = await os.Install<SettingsApp>();
             await settings.Request("navigate", new SettingsNavigate("models", SubPage: "web-tools"));
@@ -880,7 +880,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task KeysPageListsBraveAndTavily()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var settings = await os.Install<SettingsApp>();
         var vault = new MemorySecretVault();
         settings.App.SecretVault = vault;
@@ -937,7 +937,7 @@ public sealed class SettingsAppFacts
         try
         {
             await using var os = TestOS.Local()
-                .Register(typeof(AppsModule).Assembly)
+                .RegisterCatalog()
                 .Register<RecordingMcpServerNeuron>();
             var settings = await os.Install<SettingsApp>();
             settings.App.Observer = os;

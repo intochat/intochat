@@ -27,7 +27,7 @@ public sealed class FlowsSecurityFacts
 
     private sealed class SecurityFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(AIModule), typeof(FlowsFactsModule)];
 
 
         protected override void ConfigureSilo(IServiceCollection services)

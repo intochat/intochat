@@ -102,7 +102,7 @@ public sealed class XWatchEndToEndFacts
 
     private sealed class Fixture(XConnection connection) : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlutterModule), typeof(FlowsFactsModule)];
 
         protected override void ConfigureTestOS(IServiceCollection services) => Configure(services);
 
@@ -111,6 +111,7 @@ public sealed class XWatchEndToEndFacts
         private void Configure(IServiceCollection services)
         {
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+            IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);

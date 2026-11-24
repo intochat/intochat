@@ -13,7 +13,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.Friends;
 public sealed class FriendsAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> FriendsOperations
-        => ScreenBaseline.Cases(typeof(FriendsApp), os => os.Register(typeof(AppsModule).Assembly));
+        => ScreenBaseline.Cases(typeof(FriendsApp), os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(FriendsOperations))]
     public Task FriendsBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -23,7 +23,7 @@ public sealed class FriendsAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(FriendsApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.friends", "default"));
         Assert.NotNull(await screen.Read());
@@ -32,7 +32,7 @@ public sealed class FriendsAppFacts
     [Fact]
     public async Task MultipleAppPostsRenderUniqueButtonKeysAndValidViewportUris()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var friends = await os.Install<FriendsApp>();
 
         await friends.Request("publish", new FriendsPublish("First post", "friends", "post-a", "First", "unit-a", "markdraw"));
@@ -164,7 +164,7 @@ public sealed class FriendsAppFacts
     [Fact]
     public async Task A_step_that_is_refused_keeps_the_screen_and_says_why()
     {
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var friends = await os.Install<FriendsApp>();
 
         // No person is stamped here, so the friend links refuse.
@@ -226,7 +226,7 @@ public sealed class FriendsAppFacts
         Assert.True(badHandle.IsRefused);
         Assert.Contains("invalid_handle", badHandle.Rejection!.Rules);
 
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var friends = await os.Install<FriendsApp>();
 
         await friends.Request("filter-scope", new FriendsFilterScope("secret"));

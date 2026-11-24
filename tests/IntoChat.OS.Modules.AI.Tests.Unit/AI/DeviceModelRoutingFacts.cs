@@ -276,7 +276,7 @@ public sealed class DeviceModelRoutingFacts
             var os = TestOS.Local(o => o.Services = sp);
             osRef = os;
             os.Register(typeof(AIModule).Assembly);
-            os.Register(typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly);
+            IntoChat.OS.Modules.Apps.CatalogFamily.RegisterCatalog(os);
 
             return Task.FromResult(new AiWorld(os, sp, cloud, logs));
         }

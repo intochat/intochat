@@ -154,7 +154,7 @@ public sealed class SelfImprovementAcceptanceJourney
 
             await using var os = await JourneyOS.Start(
                 kind,
-                [typeof(AppsModule), typeof(AspireModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
+                [.. CatalogFamily.Modules, typeof(AspireModule), typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule)],
                 f => f.Configure(services =>
                 {
                     services.AddLogging();

@@ -14,7 +14,7 @@ public sealed class ClientGrantsFacts
     private static TestOS NewOs()
     {
         var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         return os;
     }
 

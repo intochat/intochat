@@ -14,7 +14,7 @@ public sealed class MarkdrawAppFacts
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> MarkdrawOperations
         => ScreenBaseline.Cases(
             typeof(MarkdrawApp),
-            os => os.Register(typeof(AppsModule).Assembly));
+            os => os.RegisterCatalog());
 
     [Theory, MemberData(nameof(MarkdrawOperations))]
     public Task MarkdrawBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -24,7 +24,7 @@ public sealed class MarkdrawAppFacts
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(MarkdrawApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.markdraw", "default"));
         Assert.NotNull(await screen.Read());
@@ -37,7 +37,7 @@ public sealed class MarkdrawAppFacts
         using var vfsRoot = new TempDirectory("intochat-vfs-markdraw-");
         var vfs = new WorkspaceFilesService(rootDirectory: vfsRoot.Path);
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var markdraw = await os.Install<MarkdrawApp>();
         markdraw.App.FilesVfs = vfs;
@@ -106,7 +106,7 @@ public sealed class MarkdrawAppFacts
             ct);
 
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
 
         var ino = await os.Install<InoApp>();
         ino.App.FilesVfs = vfs;
@@ -200,7 +200,7 @@ public sealed class MarkdrawAppFacts
         Assert.True(emptyExport.IsRefused);
         Assert.Contains("canvas_empty", emptyExport.Rejection!.Rules);
 
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var markdraw = await os.Install<MarkdrawApp>();
         var baselineElementsCount = markdraw.App.State.Elements.Length;
 

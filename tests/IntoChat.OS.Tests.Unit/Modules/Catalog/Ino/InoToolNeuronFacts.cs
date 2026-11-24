@@ -14,7 +14,7 @@ public sealed class InoToolNeuronFacts
     {
         var sp = services ?? new ServiceCollection().BuildServiceProvider();
         var os = TestOS.Local(options => options.Services = sp).Register<AppNeuron>();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         return os;
     }

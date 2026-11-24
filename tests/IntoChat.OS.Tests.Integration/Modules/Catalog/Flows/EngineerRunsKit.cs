@@ -115,7 +115,7 @@ internal sealed class EngineerRunsKit : IDisposable
         ILiveVerifier? liveVerifier,
         ICoder? coder = null) : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [.. CatalogFamily.Modules, typeof(FlowsFactsModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {

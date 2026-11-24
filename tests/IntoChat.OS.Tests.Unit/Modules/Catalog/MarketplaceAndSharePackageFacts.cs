@@ -14,7 +14,7 @@ public sealed class MarketplaceAndSharePackageFacts
     {
         // The system brain is platform territory: its directory, marketplace and circles are reached by platform code.
         using var kernel = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("system"));
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var marketplace = os.Get<IMarketplace>(new NeuronId(new BrainId("system"), "apps.marketplace", "main"));
 
         var initial = await marketplace.List();
@@ -73,7 +73,7 @@ public sealed class MarketplaceAndSharePackageFacts
     public async Task PostStoreShareAndRemixPreserveAppPackageUnitFiles()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice", new BrainId("alice")));
-        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        await using var os = TestOS.Local().RegisterCatalog();
         var posts = os.Get<IntoChat.OS.Modules.Apps.Social.IPosts>(new NeuronId(new BrainId("alice"), "social.posts", IntoChat.OS.Modules.Apps.Social.IPosts.DefaultKey));
 
         var package = ShippedPackages.Find("email-notifier")!;

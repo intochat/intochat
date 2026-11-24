@@ -50,6 +50,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
             services =>
             {
                 AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
+                IntoChat.OS.Modules.Authoring.AuthoringModule.ConfigureServices(services, new ConfigurationBuilder().Build());
                 services.AddOperatingSystemBoot();
                 services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
                 services.AddIdentityCapability<TestIdentityDirectoryPort>();
@@ -63,6 +64,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
                 [
                     typeof(AppsModule),
                     typeof(IntoChat.OS.Modules.Runs.RunsModule),
+                    typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),
                     typeof(IdentityModule),
                     typeof(AuthorityPlainNeurons),
                     typeof(FlutterModule),
@@ -114,7 +116,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         // 1. TestOS tier
         await using (var os = TestOS.Local())
         {
-            os.Register(typeof(AppsModule).Assembly);
+            os.RegisterCatalog();
             using var ungrantedCaller = os.Edge.Enter(
                 os.Edge.App("local/apps/calculator", new Actor.Person("local", "local"), new BrainId("local")));
 
@@ -145,7 +147,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
     {
         await using var os = TestOS.Local();
         using var person = os.Edge.Enter(os.Edge.Person("test", "test", new BrainId("test")));
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(SettingsApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
 

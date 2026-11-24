@@ -100,8 +100,9 @@ public sealed class EngineerTournamentJourneys
         var brain = new BrainId($"tournament-{Guid.NewGuid():N}");
         using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
 
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
 

@@ -123,7 +123,7 @@ public sealed class InoNodeCardFacts
     public async Task FocusShowReturnsNodeCardOnValidTreeAndRefusesHostileTree()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.RegisterCatalog();
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
         var focus = os.Get<IFocus>(new NeuronId(new BrainId("local"), "ino.focus", IFocus.DefaultKey));
 
