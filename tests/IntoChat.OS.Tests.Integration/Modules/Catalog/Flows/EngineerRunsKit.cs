@@ -112,7 +112,7 @@ internal sealed class EngineerRunsKit : IDisposable
     internal sealed class Fixture(
         IWorkTree workTree,
         IEngineerBuildVerifier buildVerifier,
-        ILiveVerifier liveVerifier,
+        ILiveVerifier? liveVerifier,
         ICoder? coder = null) : BothRuntimesFixture
     {
         protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlowsFactsModule)];
@@ -136,7 +136,9 @@ internal sealed class EngineerRunsKit : IDisposable
             services.AddSingleton<IEngineerPlanner>(new OneTaskPlanner());
             services.AddSingleton<IEngineeringHarness>(new MultiplyHarness());
             services.AddSingleton(buildVerifier);
-            services.AddSingleton(liveVerifier);
+            // No verifier given: the product's own, registered as the catalog module registers it, with nothing configured.
+            if (liveVerifier is not null) { services.AddSingleton(liveVerifier); }
+            else { services.AddSingleton<ILiveVerifier, EngineerLiveVerifier>(); }
             services.AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer());
             if (coder is not null) { services.AddSingleton(coder); }
         }
@@ -238,6 +240,24 @@ internal sealed class EngineerRunsKit : IDisposable
 
         public static EngineerLiveReport Green()
             => new(true, true, true, true, 0, 0, 0, 0, [], [], "Live verify green.");
+    }
+
+    // A verifier that also says whether a live environment is configured, as the product's own does, and can be switched.
+    internal sealed class EnvironmentLiveVerifier : ILiveVerifier, ILiveEnvironment
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public bool Configured { get; set; } = true;
+
+        public Func<EngineerLiveReport> Answer { get; set; } = ScriptedLiveVerifier.Green;
+
+        public Task<EngineerLiveReport> VerifyLiveAsync(string worktreePath, string goal, IReadOnlyList<string> changedFiles, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult(Answer());
+        }
     }
 
     // The real worktree service, with a push that can be made to fail as a network error does.

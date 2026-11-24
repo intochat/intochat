@@ -255,8 +255,15 @@ internal sealed record EngineerRun
         return Verification.SkipsAny ? this with { Verification = Verification with { SkippedBy = who.Trim() } } : this;
     }
 
-    // A gate is passed when it ran and succeeded, or when the policy switches it off and nothing ran. A result that is there
-    // counts: the policy never forgives a gate that ran and failed.
+    // Records that live-verify could not run because the installation has no live environment. Only the flow calls this, from
+    // what the installation has configured; a run whose live-verify a person switched off records nothing here.
+    public EngineerRun WithLiveVerifyNotAvailable()
+        => Verification.LiveVerify && !Verification.LiveVerifyNotAvailable
+            ? this with { Verification = Verification with { LiveVerifyNotAvailable = true } }
+            : this;
+
+    // A gate is passed when it ran and succeeded, or when nothing ran because the policy switches it off or, for live-verify,
+    // because it was recorded as not available. A result that is there counts: a gate that ran and failed is never forgiven.
     public bool BuildGatePassed(EngineerInstance instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
@@ -266,7 +273,7 @@ internal sealed record EngineerRun
     public bool LiveGatePassed(EngineerInstance instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
-        return instance.Live is { } live ? live.Succeeded : !Verification.LiveVerify;
+        return instance.Live is { } live ? live.Succeeded : !Verification.LiveVerify || Verification.LiveVerifyNotAvailable;
     }
 
     public static IReadOnlyList<EngineerInstance> OrderByTournamentRank(IEnumerable<EngineerInstance> instances)

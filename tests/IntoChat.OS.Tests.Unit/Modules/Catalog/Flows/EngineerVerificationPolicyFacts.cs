@@ -138,6 +138,94 @@ public sealed class EngineerVerificationPolicyFacts
     }
 
     [Fact]
+    public void A_run_stored_before_not_available_existed_still_reads()
+    {
+        // The policy as it was stored before the outcome existed: three members.
+        const string stored = """{"runId":"old2","repository":"os","goal":"Goal","instanceCount":1,"instances":[],"selectedInstanceIndex":0,"verification":{"buildAndTest":true,"liveVerify":false,"skippedBy":"ada"}}""";
+
+        var run = JsonSerializer.Deserialize<EngineerRun>(stored, EngineerFlow.Json)!;
+
+        Assert.Equal(new EngineerVerificationPolicy(true, false, "ada"), run.Verification);
+        Assert.False(run.Verification.LiveVerifyNotAvailable);
+        // And it is written back as it was: the new member is written only when it is set.
+        Assert.Contains("\"verification\":{\"buildAndTest\":true,\"liveVerify\":false,\"skippedBy\":\"ada\"}", JsonSerializer.Serialize(run, EngineerFlow.Json), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Not_available_is_kept_with_the_run_and_is_neither_a_pass_nor_a_skip()
+    {
+        var run = EngineerRun.Start("r1", RepositoryId.Parse("os"), "Goal").WithLiveVerifyNotAvailable();
+
+        var json = JsonSerializer.Serialize(run, EngineerFlow.Json);
+        var read = JsonSerializer.Deserialize<EngineerRun>(json, EngineerFlow.Json)!;
+
+        Assert.Contains("\"verification\":{\"buildAndTest\":true,\"liveVerify\":true,\"skippedBy\":null,\"liveVerifyNotAvailable\":true}", json, StringComparison.Ordinal);
+        Assert.True(read.Verification.LiveVerifyNotAvailable);
+        Assert.True(read.Verification.LiveVerify);
+        Assert.False(read.Verification.SkipsAny);
+        Assert.Empty(read.Verification.SkippedGates);
+        Assert.Null(read.Verification.SkippedBy);
+        Assert.True(read.Verification.LeavesUnchecked);
+        Assert.False(EngineerVerificationPolicy.Full.LeavesUnchecked);
+    }
+
+    [Fact]
+    public void A_start_payload_cannot_say_that_live_verify_is_not_available()
+    {
+        const string payload = """{"runId":"r1","repository":"os","goal":"Goal","verification":{"buildAndTest":true,"liveVerify":true,"liveVerifyNotAvailable":true}}""";
+
+        var run = EngineerRun.FromUntrustedJson(payload, EngineerFlow.Json);
+
+        Assert.Equal(EngineerVerificationPolicy.Full, run.Verification);
+        // A person's skip is the other path: a run whose live-verify was switched off records no "not available".
+        var skipped = EngineerRun.Start("r1", RepositoryId.Parse("os"), "Goal", verification: new EngineerVerificationPolicy(LiveVerify: false, SkippedBy: "ada"));
+        Assert.False(skipped.WithLiveVerifyNotAvailable().Verification.LiveVerifyNotAvailable);
+    }
+
+    [Fact]
+    public void Not_available_lets_a_built_commit_reach_approval_but_forgives_no_failure()
+    {
+        var notAvailable = new EngineerVerificationPolicy(LiveVerifyNotAvailable: true);
+        var liveFailed = LiveOk with { Succeeded = false, Summary = "MCP probe failed" };
+
+        // Build-and-test still gates.
+        Assert.Throws<InvalidOperationException>(() => Committed(notAvailable, null, null).WithApprovalPending("app:engineer:r1:" + Sha.Value, DateTimeOffset.UtcNow.AddHours(1)));
+        Assert.Throws<InvalidOperationException>(() => Committed(notAvailable, BuildOk with { Succeeded = false }, null).WithApprovalPending("app:engineer:r1:" + Sha.Value, DateTimeOffset.UtcNow.AddHours(1)));
+        // A live check that ran and failed is never forgiven by the outcome.
+        Assert.Throws<InvalidOperationException>(() => Committed(notAvailable, BuildOk, liveFailed).WithApprovalPending("app:engineer:r1:" + Sha.Value, DateTimeOffset.UtcNow.AddHours(1)));
+
+        var ready = Committed(notAvailable, BuildOk, null).WithApprovalPending("app:engineer:r1:" + Sha.Value, DateTimeOffset.UtcNow.AddHours(1));
+        Assert.Equal("person-1", ready.EnsureCanPublish(PersonApproved, Sha));
+        // The person approval is what it was.
+        Assert.Throws<SecurityException>(() => ready.EnsureCanPublish(null, Sha));
+    }
+
+    [Fact]
+    public void The_policy_says_plainly_that_a_change_was_not_live_verified()
+    {
+        const string line = "NOT LIVE-VERIFIED: no live environment is available on this installation, so live-verify did not run and this commit was not checked against a running system.";
+
+        Assert.Equal(line, new EngineerVerificationPolicy(LiveVerifyNotAvailable: true).Describe());
+        Assert.Equal(
+            "Verification SKIPPED for build-and-test by ada: this commit was not checked by that gate. " + line,
+            new EngineerVerificationPolicy(BuildAndTest: false, SkippedBy: "ada", LiveVerifyNotAvailable: true).Describe());
+    }
+
+    [Fact]
+    public void The_pull_request_says_that_the_change_was_not_live_verified()
+    {
+        var run = Committed(null, BuildOk, null).WithLiveVerifyNotAvailable();
+        var winner = run.SelectedInstance!;
+
+        var body = EngineerPipelineStages.BuildPullRequestBody("Goal", "Done", "m", winner.Commit!, "person-1", "plan-1", new EngineerPullRequestContext(run.Plan, 1, winner, null, run.Verification));
+        var full = EngineerPipelineStages.BuildPullRequestBody("Goal", "Done", "m", winner.Commit!, "person-1", "plan-1", new EngineerPullRequestContext(run.Plan, 1, winner, null, EngineerVerificationPolicy.Full));
+
+        Assert.Contains("- **Not live-verified:** `live-verify` did not run because no live environment is available", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Verification skipped", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Not live-verified", full, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_pull_request_names_a_gate_that_was_switched_off()
     {
         var policy = new EngineerVerificationPolicy(BuildAndTest: true, LiveVerify: false, SkippedBy: "ada");

@@ -52,4 +52,16 @@ public sealed class EngineerAppVerificationPolicyFacts
         Assert.False(state.VerificationPassed);
         Assert.Contains("Verification SKIPPED for live-verify by ada", state.StatusBanner, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void A_run_that_could_not_be_live_verified_says_so_and_does_not_show_verification_passed()
+    {
+        var policy = new EngineerVerificationPolicy(LiveVerifyNotAvailable: true);
+
+        var state = EngineerApp.ApplyLiveSummary(new EngineerWorkspaceState(), AtApprovalGate(policy), preserveActiveTab: false, preferredFilePath: null);
+
+        Assert.False(state.VerificationPassed);
+        Assert.Contains("NOT LIVE-VERIFIED: no live environment is available on this installation", state.StatusBanner, StringComparison.Ordinal);
+        Assert.DoesNotContain("SKIPPED", state.StatusBanner, StringComparison.Ordinal);
+    }
 }

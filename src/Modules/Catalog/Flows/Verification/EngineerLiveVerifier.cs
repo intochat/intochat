@@ -21,7 +21,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
+internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnvironment, IDisposable
 {
     private const int MaxCapturedSpans = 256;
 
@@ -58,6 +58,9 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
     internal static bool EnvironmentMissing(EngineerLiveReport report)
         => report is { Succeeded: false } && report.Probes.Any(static probe => !probe.Passed && string.Equals(probe.Name, EnvironmentMissingProbe, StringComparison.Ordinal));
 
+    internal const string LiveBaseUrlKey = "IntoChatOS:Engineer:LiveBaseUrl";
+    internal const string LoopbackHealthUrlKey = "IntoChatOS:Engineer:LoopbackHealthUrl";
+
     private readonly IServiceProvider? _services;
     private readonly IConfiguration? _configuration;
     private readonly IHttpClientFactory? _httpClientFactory;
@@ -90,6 +93,13 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         };
         ActivitySource.AddActivityListener(_activityListener);
     }
+
+    // A live environment is configured when a candidate verifier is registered in the services, or a live endpoint is set in
+    // configuration. Whether it answers is another matter: that is found by running the check.
+    public bool Configured
+        => _candidateVerifier is not null
+            || !string.IsNullOrWhiteSpace(_configuration?[LiveBaseUrlKey])
+            || !string.IsNullOrWhiteSpace(_configuration?[LoopbackHealthUrlKey]);
 
     private static ActivitySamplingResult SampleAllActivities(ref ActivityCreationOptions<ActivityContext> _)
         => ActivitySamplingResult.AllDataAndRecorded;
@@ -353,8 +363,8 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
             };
         }
 
-        var liveBaseUrl = _configuration?["IntoChatOS:Engineer:LiveBaseUrl"]
-            ?? _configuration?["IntoChatOS:Engineer:LoopbackHealthUrl"];
+        var liveBaseUrl = _configuration?[LiveBaseUrlKey]
+            ?? _configuration?[LoopbackHealthUrlKey];
         var mcpUrl = _configuration?["IntoChatOS:Engineer:McpEndpoint"];
         var injectedHttpClient = _services?.GetService<HttpClient>();
         var hasHttpTransport = _httpClientFactory is not null || injectedHttpClient is not null;

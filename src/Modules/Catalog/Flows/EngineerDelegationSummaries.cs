@@ -185,8 +185,9 @@ internal static class EngineerDelegationSummaries
             engineerUri,
             view?.Detail);
 
-        // A switched-off gate is said wherever the run's status is: the text the model gets, the card and the diagnostics.
-        if (run.Verification.SkipsAny)
+        // A gate that did not check the commit (switched off, or live-verify not available) is said wherever the run's status
+        // is: the text the model gets, the card and the diagnostics.
+        if (run.Verification.LeavesUnchecked)
         {
             var skippedLine = run.Verification.Describe();
             summaryText = summaryText + "\n" + skippedLine;

@@ -794,7 +794,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
                 CultureInfo.InvariantCulture,
                 $"Promoted candidate w{selectedIdx + 1} ({activeCandidate.StrategyLabel}) · Score {activeCandidate.TotalScore} · Commit {shortSha} · Plan {summary.ConfirmationPlanId ?? "pending"}")
             : $"Live flow {summary.FlowId} · {summary.Status} ({stage}) · Candidate w{selectedIdx + 1}";
-        if (summary.Verification is { SkipsAny: true } skippedGates)
+        if (summary.Verification is { LeavesUnchecked: true } skippedGates)
         {
             banner = $"{banner} · {skippedGates.Describe()}";
         }
@@ -814,7 +814,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             SelectedLanguage = selectedLang,
             HasPlan = summary.Plan is not null || basis.HasPlan,
             PlanApproved = summary.CompletedStages.Contains("prepare-worktree", StringComparer.Ordinal) || basis.PlanApproved,
-            VerificationPassed = (summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) && summary.Verification is not { SkipsAny: true }) || basis.VerificationPassed,
+            VerificationPassed = (summary.CompletedStages.Contains("live-verify", StringComparer.Ordinal) && summary.Verification is not { LeavesUnchecked: true }) || basis.VerificationPassed,
             PrPublished = summary.Status == FlowStatus.Completed || !string.IsNullOrWhiteSpace(summary.PushedRef),
             WorktreesCleaned = summary.CompletedStages.Contains("clean", StringComparer.Ordinal),
             Tasks = summary.Plan?.Tasks is { Length: > 0 } planTasks ? planTasks : basis.Tasks,

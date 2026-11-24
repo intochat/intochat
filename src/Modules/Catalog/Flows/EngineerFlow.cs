@@ -44,6 +44,9 @@ internal sealed class EngineerFlow(
     // How long a run waits at live-verify before it looks again for a live environment.
     public static readonly TimeSpan LiveEnvironmentRecheck = TimeSpan.FromMinutes(30);
 
+    public const string LiveVerifyNotAvailableReason =
+        "live-verify not available: no live environment is configured on this installation (no candidate verifier and no live endpoint), so the change was NOT live-verified; build-and-test still gated it and a person still approves it.";
+
     public static readonly string[] Names =
     [
         "brainstorm-and-plan",
@@ -326,7 +329,7 @@ internal sealed class EngineerFlow(
             verifiedCommit);
 
         // The person who approves reads first what was not checked.
-        return inner.Verification.SkipsAny ? plan with { Body = inner.Verification.Describe() + "\n\n" + plan.Body } : plan;
+        return inner.Verification.LeavesUnchecked ? plan with { Body = inner.Verification.Describe() + "\n\n" + plan.Body } : plan;
     }
 
     // A gate the run's policy switches off is done as a skipped step: journaled with the reason, never run.
@@ -1165,6 +1168,17 @@ internal sealed class EngineerFlow(
         }
 
         var verifier = LiveVerifier;
+        if (verifier is ILiveEnvironment { Configured: false })
+        {
+            // Nothing is configured to check against on this installation. The run records that, which is neither a pass nor a
+            // person's skip, and goes on to the approval, where the person reads it first. The verifier is not called. A run
+            // that was parked here before this rule takes this path at its next recheck or resume.
+            return new StepResult<EngineerRun>(
+                inner.WithLiveVerifyNotAvailable(),
+                Disposition: StepDisposition.Skip,
+                Reason: LiveVerifyNotAvailableReason);
+        }
+
         var liveContext = BuildLiveVerificationContext();
         var unchecked_ = 0;
         var liveTasks = inner.Instances.Select(async instance =>
@@ -1211,7 +1225,7 @@ internal sealed class EngineerFlow(
             // of this step, or the end of the wait, runs the check again.
             var reason = string.Create(
                 CultureInfo.InvariantCulture,
-                $"live-verify waits: there is no live environment to check the change against (no candidate host and no configured live endpoint). The run checks again in {LiveEnvironmentRecheck.TotalMinutes:0} minutes or when this step is resumed; nothing was skipped.");
+                $"live-verify waits: there is no live environment to check the change against (the configured one answered that it has no candidate host and no live endpoint). The run checks again in {LiveEnvironmentRecheck.TotalMinutes:0} minutes or when this step is resumed; nothing was skipped.");
             return new StepResult<EngineerRun>(
                 inner.WithUpdatedInstances(results, inner.SelectedInstanceIndex),
                 Emits: [new FlowStep(Id.ToString(), "live-verify", StepOutcome.Repeated, reason)],

@@ -46,7 +46,8 @@ public sealed class EngineerRunFailedPushFacts : IDisposable
 
         var failed = await FlowTypeFacts.Eventually(
             () => flows.Read(started.FlowId, Ct),
-            v => v.Status is FlowStatus.Failed or FlowStatus.Completed or FlowStatus.Cancelled);
+            // The index learns the failure and its reason from two signals; the reason is the later one.
+            v => v is { Status: FlowStatus.Failed, Detail.Length: > 0 } or { Status: FlowStatus.Completed or FlowStatus.Cancelled });
         Assert.Equal(FlowStatus.Failed, failed.Status);
         Assert.Contains("unable to access the remote", failed.Detail ?? string.Empty, StringComparison.Ordinal);
         Assert.Equal(1, workTree.PushAttempts);

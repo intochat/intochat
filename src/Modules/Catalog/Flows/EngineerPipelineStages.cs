@@ -404,6 +404,11 @@ internal static class EngineerPipelineStages
             sb.AppendLine($"- **Verification skipped:** {string.Join(", ", skippedPolicy.SkippedGates.Select(static gate => $"`{gate}`"))} (switched off by `{skippedPolicy.SkippedBy ?? "the starter"}` when the run was started)");
         }
 
+        if (engineerContext?.Verification is { LiveVerifyNotAvailable: true })
+        {
+            sb.AppendLine("- **Not live-verified:** `live-verify` did not run because no live environment is available on the installation that made this change; it was not checked against a running system.");
+        }
+
         sb.AppendLine($"- **Approved by Person:** `{approverId}` (plan `{planId}`)");
         if (!string.IsNullOrWhiteSpace(modelId))
         {
