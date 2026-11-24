@@ -60,26 +60,17 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
             {
                 return slot.Token;
             }
-            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(repository.ApiHost,
-                $"app/installations/{repository.InstallationId}/access_tokens"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await CreateAppJwtAsync(repository, cancellationToken).ConfigureAwait(false));
-            AddHeaders(request);
-            request.Content = JsonContent.Create(new
-            {
-                repository_ids = new[] { repository.RepositoryId },
-                permissions = new
-                {
-                    contents = "read",
-                    pull_requests = "read",
-                    issues = "read",
-                    checks = "read",
-                    statuses = "read",
-                    metadata = "read",
-                    administration = "read",
-                },
-            });
             // This authentication POST is never retried; a later independent read can request a new token.
-            var (token, expiry, permissions) = await SendInstallationTokenRequestAsync(request, repository, cancellationToken).ConfigureAwait(false);
+            var (token, expiry, permissions) = await MintAsync(repository, new
+            {
+                contents = "read",
+                pull_requests = "read",
+                issues = "read",
+                checks = "read",
+                statuses = "read",
+                metadata = "read",
+                administration = "read",
+            }, cancellationToken).ConfigureAwait(false);
             if (permissions.EnumerateObject().Any(static permission => permission.Value.GetString() != "read"))
             {
                 throw new GitHubAccessDeniedException("GitHub did not grant a read-only installation token.");
@@ -87,8 +78,7 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
             slot.Token = token; slot.Expiry = expiry; slot.Repository = repository;
             return token;
         }
-        catch (Exception error) when (error is not GitHubAccessDeniedException and not GitHubUnavailableException
-            && (error is HttpRequestException or JsonException or CryptographicException or InvalidOperationException or KeyNotFoundException or ArgumentException))
+        catch (Exception error) when (IsMintFailure(error))
         {
             throw new GitHubUnavailableException("GitHub App authentication could not be completed. Check the configured App key and connection.");
         }
@@ -110,17 +100,7 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(repository.ApiHost,
-                $"app/installations/{repository.InstallationId}/access_tokens"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await CreateAppJwtAsync(repository, cancellationToken).ConfigureAwait(false));
-            AddHeaders(request);
-            request.Content = JsonContent.Create(new
-            {
-                repository_ids = new[] { repository.RepositoryId },
-                permissions = requestedPermissions,
-            });
-
-            var (token, _, permissions) = await SendInstallationTokenRequestAsync(request, repository, cancellationToken).ConfigureAwait(false);
+            var (token, _, permissions) = await MintAsync(repository, requestedPermissions, cancellationToken).ConfigureAwait(false);
             var grantedWrite = false;
             foreach (var permission in permissions.EnumerateObject())
             {
@@ -142,8 +122,7 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
 
             return token;
         }
-        catch (Exception error) when (error is not GitHubAccessDeniedException and not GitHubUnavailableException
-            && (error is HttpRequestException or JsonException or CryptographicException or InvalidOperationException or KeyNotFoundException or ArgumentException))
+        catch (Exception error) when (IsMintFailure(error))
         {
             throw new GitHubUnavailableException("GitHub App write authentication could not be completed. Check the configured App key and permissions.");
         }
@@ -157,11 +136,19 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
         _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown GitHub write scope."),
     };
 
-    private async Task<(string Token, DateTimeOffset Expiry, JsonElement Permissions)> SendInstallationTokenRequestAsync(
-        HttpRequestMessage request,
+    private static bool IsMintFailure(Exception error) => error is not GitHubAccessDeniedException and not GitHubUnavailableException
+        && (error is HttpRequestException or JsonException or CryptographicException or InvalidOperationException or KeyNotFoundException or ArgumentException);
+
+    private async Task<(string Token, DateTimeOffset Expiry, JsonElement Permissions)> MintAsync(
         GitHubRepository repository,
+        object permissions,
         CancellationToken cancellationToken)
     {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(repository.ApiHost,
+            $"app/installations/{repository.InstallationId}/access_tokens"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await CreateAppJwtAsync(repository, cancellationToken).ConfigureAwait(false));
+        AddHeaders(request);
+        request.Content = JsonContent.Create(new { repository_ids = new[] { repository.RepositoryId }, permissions });
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         // A rate limit answers 403 or 429; it is transient and must not read as a denied App.
         if (response.StatusCode == HttpStatusCode.TooManyRequests
@@ -192,12 +179,12 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
         {
             throw new GitHubAccessDeniedException("GitHub did not scope the installation token to the configured repository.");
         }
-        if (!json.TryGetProperty("permissions", out var permissions) || permissions.ValueKind != JsonValueKind.Object)
+        if (!json.TryGetProperty("permissions", out var granted) || granted.ValueKind != JsonValueKind.Object)
         {
             throw new GitHubAccessDeniedException("GitHub did not grant valid installation token permissions.");
         }
 
-        return (token, expiry, permissions.Clone());
+        return (token, expiry, granted.Clone());
     }
 
     // At capacity the cache evicts, it never refuses: expired or never-minted slots first, then the
