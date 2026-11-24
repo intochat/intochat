@@ -26,14 +26,6 @@ public static class SignalLog
             ?? throw new ArgumentException($"{signal.Name} is not a [Signal] record.", nameof(signal));
     }
 
-    /// <summary>A <c>[Signal]</c> record from the JSON a session or a journal entry carries.</summary>
-    public static T Decode<T>(string json) where T : Signal
-        => JsonSerializer.Deserialize<T>(json, JsonSerializerOptions.Web) ?? throw new JsonException($"A {typeof(T).Name} payload was null.");
-
-    /// <summary><see cref="Decode{T}(string)"/> for a journal payload.</summary>
-    public static T Decode<T>(ReadOnlyMemory<byte> json) where T : Signal
-        => JsonSerializer.Deserialize<T>(json.Span, JsonSerializerOptions.Web) ?? throw new JsonException($"A {typeof(T).Name} payload was null.");
-
     /// <summary>The newest held signal of <paramref name="alias"/> that <paramref name="publisher"/> published, or null.</summary>
     public static async Task<SessionSignal?> Newest(IBrainJournalWriter journal, NeuronId publisher, string alias, CancellationToken cancellationToken)
     {
