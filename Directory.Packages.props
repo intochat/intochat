@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <AspireVersion>17.1.0-preview.1.26563.10</AspireVersion>
+    <AspireVersion>17.1.0-preview.1.26573.9</AspireVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Pin patched transitive dependencies; keep NuGet auditing enabled.
@@ -30,14 +30,14 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting" Version="17.1.0-preview.1.26569.1" />
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.1.0-preview.1.26569.1" />
-    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.1.0-preview.1.26569.1" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.1.0-preview.1.26569.1" />
+    <PackageVersion Include="Aspire.Hosting" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.1.0-preview.1.26573.9" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="17.1.0-preview.1.26569.1" />
-    <PackageVersion Include="Aspire.Hosting.Orleans" Version="17.1.0-preview.1.26569.1" />
-    <PackageVersion Include="Aspire.Hosting.Yarp" Version="17.1.0-preview.1.26569.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting.Orleans" Version="17.1.0-preview.1.26573.9" />
+    <PackageVersion Include="Aspire.Hosting.Yarp" Version="17.1.0-preview.1.26573.9" />
     <PackageVersion Include="Aspire.Hosting.ClickHouse" Version="13.5.3" />
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="$(AspireVersion)" />
@@ -46,7 +46,7 @@
     <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
     <PackageVersion Include="ClickHouse.Driver" Version="1.5.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="17.0.0-beta.1051" />
+    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="17.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="11.0.0" />
