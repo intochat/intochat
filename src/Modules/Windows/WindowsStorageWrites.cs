@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Log;
@@ -272,7 +273,7 @@ internal sealed partial class WindowsStorage
         Directory.CreateDirectory(receipt);
         try
         {
-            File.WriteAllText(Path.Combine(receipt, "receipt.json"), JsonSerializer.Serialize(new TrashReceipt(source, Path.GetFileName(source))));
+            File.WriteAllText(Path.Combine(receipt, "receipt.json"), JsonSerializer.Serialize(new TrashReceipt(source, Path.GetFileName(source)), TrashReceiptJson.Default.TrashReceipt));
             _ = Resolve(IdOf(source));
             PathConfinement.RequireNoLinks(receipt);
             MovePath(source, Path.Combine(receipt, Path.GetFileName(source)));
@@ -374,6 +375,8 @@ internal sealed partial class WindowsStorage
 
     private static string IoCode(IOException error) => (error.HResult & 0xffff) is 0x70 or 0x27 ? "quota-exceeded" : "unavailable";
     private sealed record TrashReceipt(string OriginalPath, string Name);
+    [JsonSerializable(typeof(TrashReceipt))]
+    private sealed partial class TrashReceiptJson : JsonSerializerContext;
     private sealed record WindowsStorageOperation(WritePlan Plan, long? Bytes, string? Sha256) : OperationPlan(Plan.DryRun);
     private sealed class SourceRemovalFailed() : StorageException("source-delete-failed", null, null);
 }
