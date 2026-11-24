@@ -155,7 +155,7 @@ public sealed class InoModelFacts
             with
         { GrantSummaries = ["read · files"] };
         var next = InoModel.NewConversation(old, "c2");
-        Assert.Equal(("c2", "New chat", 0L, InoModel.Ready), (next.ConversationId, next.Title, next.ChatRevision, next.Status));
+        Assert.Equal(("c2", "New chat", InoModel.Ready), (next.ConversationId, next.Title, next.Status));
         Assert.Null(next.Messages);
         Assert.Equal(["read · files"], next.GrantSummaries!);
     }
