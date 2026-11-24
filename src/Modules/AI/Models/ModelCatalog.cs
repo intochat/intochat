@@ -1144,9 +1144,10 @@ public sealed class ModelCatalog
                     return resolved;
                 }
             }
-            catch (ArgumentException)
+            catch (ArgumentException error)
             {
                 // The card cannot honour this deployment's tuning (e.g. reasoning with tools); try the next one.
+                OsConsoleLog.For<ModelCatalog>().LogSwallowed(error, $"resolving frontier candidate '{card.Id.Value}'");
             }
         }
 

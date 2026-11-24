@@ -140,6 +140,7 @@ internal sealed class LocalLlmCoder : ICoder
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogInformation(ex, "Local LLM coder model '{Model}' failed the coding task.", attempt.ModelId ?? "unresolved");
             failure = ExceptionDispatchInfo.Capture(ex);
         }
 
@@ -149,9 +150,8 @@ internal sealed class LocalLlmCoder : ICoder
             && !string.Equals(frontier.ModelId, attempt.ModelId, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogInformation(
-                "frontier-escalation: local coder model '{LocalModel}' failed ({Failure}); escalating to frontier model '{FrontierModel}'.",
+                "frontier-escalation: escalating from local coder model '{LocalModel}' to frontier model '{FrontierModel}'.",
                 attempt.ModelId ?? "unresolved",
-                failure.SourceException.GetType().Name,
                 frontier.ModelId);
             try
             {
@@ -159,6 +159,7 @@ internal sealed class LocalLlmCoder : ICoder
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                _logger.LogWarning(ex, "frontier-escalation: frontier model '{FrontierModel}' also failed the coding task.", frontier.ModelId);
                 failure = ExceptionDispatchInfo.Capture(ex);
             }
         }
