@@ -77,13 +77,15 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
 
         var requires = bundle.Manifest.Requires ?? new AppRequirements();
         if (request.Consent != AppConsent.Of(requires)) { return AppInstallOutcome.NeedsConsent(requires); }
-        if (await Unbound(scope, bundle.Manifest, request.Bindings, ct) is { } refusal) { return AppInstallOutcome.Refused(refusal); }
-        if ((requires.SemanticTypes is { Length: > 0 } || request.Bindings is { Count: > 0 }) && !await IsOwner(scope, caller))
+        var (resolvedBindings, refusal) = await ResolveBindings(scope, bundle.Manifest, request.Bindings, ct);
+        if (refusal is not null) { return AppInstallOutcome.Refused(refusal); }
+        if ((requires.SemanticTypes is { Length: > 0 } || resolvedBindings is { Count: > 0 }) && !await IsOwner(scope, caller))
         { return AppInstallOutcome.Refused(OwnerOnly); }
 
         // A retried exact install resumes a copy that exists already; only a copy this call created is rolled back.
         var key = IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key;
-        var existed = exact && (await SiloNeurons.Get<IApp>(plain, key).Read().WaitAsync(ct)).Manifest.Title.Length > 0;
+        var app = SiloNeurons.Get<IApp>(plain, key);
+        var existed = exact && (await app.Read().WaitAsync(ct)).Manifest.Title.Length > 0;
         var consented = origin with { Consented = Recorded(requires) };
         _ = exact
             ? await loader.Create(scope, name, bundle, consented, receipt!, ct)
@@ -91,8 +93,14 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         try
         {
             await Grant(key, requires.SemanticTypes, caller, ct);
-            if (request.Bindings is { Count: > 0 } bindings)
-            { await SiloNeurons.Get<IApp>(plain, key).Configure([], new(bindings, StringComparer.Ordinal)).WaitAsync(ct); }
+            if (resolvedBindings is { Count: > 0 })
+            {
+                var outcome = await app.BindSlots(resolvedBindings, ct).WaitAsync(ct);
+                if (outcome.Status != SlotBindingStatus.Ok)
+                {
+                    throw new InvalidOperationException(outcome.Reason ?? "Could not bind app connection slots.");
+                }
+            }
         }
         catch
         {
@@ -117,21 +125,36 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     // An app that asks for nothing records no consent, as every copy installed before consent was asked does.
     private static AppRequirements? Recorded(AppRequirements requires) => AppConsent.IsEmpty(requires) ? null : requires;
 
-    // Each binding names a slot the manifest declares and one of this brain's live connections of that slot's connector.
-    internal async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
+    // Each binding names a slot the manifest declares and one of this brain's live connections of that slot's capability or connector,
+    // resolved to the connection's canonical Neuron key ("{brain}/connection/{connector}/{id}").
+    internal async Task<(Dictionary<string, string>? Canonical, string? Refusal)> ResolveBindings(
+        string scope,
+        AppManifest manifest,
+        Dictionary<string, string>? bindings,
+        CancellationToken ct)
     {
-        if (bindings is not { Count: > 0 }) { return null; }
+        if (bindings is not { Count: > 0 }) { return (null, null); }
         var connections = await SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(scope)).ListConnections().WaitAsync(ct);
+        var canonical = new Dictionary<string, string>(bindings.Count, StringComparer.Ordinal);
         foreach (var (slotName, id) in bindings)
         {
             if (manifest.Slots.FirstOrDefault(slot => slot.Name == slotName) is not { } slot)
-            { return $"This app has no connection named {slotName}."; }
-            if (!connections.Any(connection => connection.Id == id && connection.Status == "connected"
-                && (slot.Capability is { } capability ? AppCapabilities.Satisfies(connection.Provides, capability) : connection.Kind == slot.Connector)))
-            { return $"Choose a {slot.Binds} connection for {slot.Name}."; }
+            { return (null, $"This app has no connection named {slotName}."); }
+            var matched = connections.FirstOrDefault(connection =>
+                (string.Equals(connection.Neuron, id, StringComparison.Ordinal) || string.Equals(connection.Id, id, StringComparison.Ordinal))
+                && string.Equals(connection.Status, "connected", StringComparison.Ordinal)
+                && (slot.Capability is { } capability
+                    ? AppCapabilities.Satisfies(connection.Provides, capability)
+                    : string.Equals(connection.Kind, slot.Connector, StringComparison.Ordinal)));
+            if (matched is null)
+            { return (null, $"Choose a {slot.Binds} connection for {slot.Name}."); }
+            canonical[slotName] = matched.Neuron;
         }
-        return null;
+        return (canonical, null);
     }
+
+    internal async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
+        => (await ResolveBindings(scope, manifest, bindings, ct)).Refusal;
 
     // A person, not an app or a script, who owns this brain: its Owner member in the directory.
     internal async Task<bool> IsOwner(string scope, DigitalBrain.Access.Caller? caller)

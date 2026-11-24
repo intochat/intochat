@@ -27,6 +27,7 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
 {
     public string? AgentName { get; init; }
     public bool IncludeComponentOperations { get; init; }
+    public string[]? ToolSources { get; init; }
 }
 
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
@@ -88,7 +89,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetService<OsNeuronSurface>();
-        // B06: Callable tools come from the agent definition's declared contracts and installed components' operations; context entries never widen tools.
+        // B06: Callable tools come from the agent definition's declared contracts, scoped ToolSources, and installed components' operations; context entries never widen tools.
         string[] composed = surface is null
             ? []
             : [.. plan.Contracts.Select(static name => LoadedContracts.CurrentName(name, ContractAssemblyPrefixes)).Distinct(StringComparer.Ordinal)];
@@ -110,12 +111,23 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 meta = AgentTools.Meta(edge, restricted, plan.Conversation);
                 Type[] contractTypes = [.. composed.Select(static name => LoadedContracts.Find(name, ContractAssemblyPrefixes))];
                 contractTools.AddRange(AgentTools.For(edge, restricted, contractTypes, plan.Conversation));
-                var sourceTools = await ToolSourceTools.For(restricted, contractTypes, edge, plan.Conversation, ct);
                 routableTools.AddRange(contractTools);
-                routableTools.AddRange(sourceTools);
+                if (plan.ToolSources is null)
+                {
+                    var sourceTools = await ToolSourceTools.For(restricted, contractTypes, edge, plan.Conversation, ct);
+                    routableTools.AddRange(sourceTools);
+                }
                 allTools.AddRange(meta);
                 allTools.AddRange(routableTools);
             }
+        }
+
+        if (plan.ToolSources is { Length: > 0 } scopedKeys && surface is not null)
+        {
+            edge ??= services.GetService<DigitalBrain.Access.EdgeAuthority>();
+            var scopedTools = await ToolSourceTools.ForKeys(surface, scopedKeys, edge, plan.Conversation, ct);
+            routableTools.AddRange(scopedTools);
+            allTools.AddRange(scopedTools);
         }
 
         if (plan.IncludeComponentOperations && services.GetService<DigitalBrain.Neurons.INeuronProxies>() is { } proxies)
@@ -157,9 +169,17 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 allTools.RemoveAll(IsWebSearchTool);
             }
 
-            var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
-            var router = new ToolRouter(routableTools, ResolveEmbeddings(services));
-            var routed = await router.Route(inputText, 8, ct);
+            IReadOnlyList<AIFunction> routed;
+            if (routableTools.Count <= 16 || meta.Count == 0)
+            {
+                routed = routableTools;
+            }
+            else
+            {
+                var inputText = string.Join(" ", plan.Input.Content.OfType<AiText>().Select(static part => part.Text));
+                var router = new ToolRouter(routableTools, ResolveEmbeddings(services));
+                routed = await router.Route(inputText, 8, ct);
+            }
             activeTools.AddRange(meta);
             activeTools.AddRange(routed);
             if (useNativeWebSearch)

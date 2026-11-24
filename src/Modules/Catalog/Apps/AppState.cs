@@ -48,6 +48,8 @@ public sealed class AppState
     [Id(45)] public string? BuildFlowId { get; set; }
     // Why a record stored by an older OS was refused on activation; null for a usable app. A Failed status alone stays retryable.
     [Id(46)] public string? Refused { get; set; }
+    // Pending slot-binding requests awaiting a person's confirmation decision.
+    [Id(47), JsonInclude] internal PendingSlotBinding[] PendingSlotBindings { get; set; } = [];
 
     // The maps as callers read and replace them. Each read is a copy: change a map by assigning a new one.
     [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
@@ -139,8 +141,15 @@ public sealed class AppState
         DeadLetters = [.. DeadLetters],
         BuildFlowId = BuildFlowId,
         Refused = Refused,
+        PendingSlotBindings = [.. PendingSlotBindings],
     };
 }
+
+[GenerateSerializer, Alias("apps.pending-binding")]
+internal sealed record PendingSlotBinding(
+    [property: Id(0)] string PlanId,
+    [property: Id(1)] StringEntry[] Bindings,
+    [property: Id(2)] DateTimeOffset RequestedAt);
 
 [GenerateSerializer, Alias("apps.version-record")]
 public sealed record AppVersionRecord(

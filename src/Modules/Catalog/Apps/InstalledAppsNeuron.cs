@@ -128,7 +128,7 @@ internal sealed class InstalledAppsNeuron(
                         Category: string.IsNullOrWhiteSpace(manifest.Category) ? "Workspace" : manifest.Category,
                         Dock: manifest.Dock,
                         Launch: manifest.Launch,
-                        Kind: "runtime",
+                        Kind: manifest.Agent is not null ? "agent" : "runtime",
                         Description: string.IsNullOrWhiteSpace(manifest.Description) ? null : manifest.Description));
                 }
             }

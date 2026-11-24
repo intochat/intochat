@@ -23,4 +23,9 @@ public sealed record AgentDefinition
     public InferenceOptions? Options { get; init; }
     public string[] Contexts { get; init; } = [];
     public bool IncludeComponentOperations { get; init; }
+    /// <summary>
+    /// Optional canonical tool-source keys (e.g. "{brain}/connection/mcp/treg") exposed directly as scoped tools
+    /// without granting <see cref="Contracts"/> or meta discovery tools. Null uses the legacy <see cref="Contracts"/> path.
+    /// </summary>
+    public string[]? ToolSources { get; init; }
 }

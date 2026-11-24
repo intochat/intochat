@@ -31,6 +31,7 @@ public sealed class FlutterModule : DigitalBrain.Modules.Module, IHttpModule
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+        services.TryAddSingleton<Screens.IScreenTargetResolver, Screens.ScreenTargetResolver>();
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

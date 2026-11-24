@@ -1,9 +1,12 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Contracts;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Host.Logging;
@@ -17,6 +20,7 @@ internal static class ToolSourceTools
     public const string ToolSourceContract = "IntoChat.OS.Modules.Tools.IToolSource";
     private const int MaxToolNameLength = 64;
     private const int MaxDescriptionLength = 1_000;
+    private static readonly string[] ContractAssemblyPrefixes = ContractAssemblies.PrefixArray();
 
     public static Task<IReadOnlyList<AIFunction>> For(
         OsNeuronSurface surface,
@@ -34,6 +38,127 @@ internal static class ToolSourceTools
             edge,
             conversation,
             ct);
+    }
+
+    /// <summary>
+    /// Reads <c>Tools()</c> and builds <see cref="AIFunction"/> wrappers ONLY for the specified canonical tool-source keys,
+    /// without exposing any contract methods or discovery meta-tools.
+    /// </summary>
+    public static async Task<IReadOnlyList<AIFunction>> ForKeys(
+        OsNeuronSurface surface,
+        IReadOnlyList<string> sourceKeys,
+        EdgeAuthority? edge,
+        string conversation,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(sourceKeys);
+
+        if (sourceKeys.Count == 0)
+        {
+            return [];
+        }
+
+        var hostedContracts = await surface.Contracts(ct).ConfigureAwait(false);
+        var toolSourceTypes = new List<Type>();
+        var byConnectorAlias = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in hostedContracts)
+        {
+            Type type;
+            try
+            {
+                type = LoadedContracts.Find(name, ContractAssemblyPrefixes);
+            }
+            catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                OsConsoleLog.For<ToolSourceFunction>().LogSwallowed(error, $"resolving hosted contract {name}");
+                continue;
+            }
+
+            if (!IsToolSource(type) || string.IsNullOrWhiteSpace(type.FullName))
+            {
+                continue;
+            }
+
+            toolSourceTypes.Add(type);
+            if (type.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type is { Length: > 0 } defaultType)
+            {
+                byConnectorAlias.TryAdd(defaultType, type.FullName);
+            }
+            if (type.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias is { Length: > 0 } alias)
+            {
+                byConnectorAlias.TryAdd(alias, type.FullName);
+            }
+        }
+
+        if (toolSourceTypes.Count == 0)
+        {
+            return [];
+        }
+
+        var resolvedSources = new List<(string ContractName, string Key)>(sourceKeys.Count);
+        Dictionary<string, string>? fallbackKeyToContract = null;
+
+        foreach (var rawKey in sourceKeys)
+        {
+            if (string.IsNullOrWhiteSpace(rawKey))
+            {
+                continue;
+            }
+
+            var key = rawKey.Trim();
+            if (ConnectionKeys.TryParse(key, out var parsed)
+                && byConnectorAlias.TryGetValue(parsed.ConnectorId, out var contractName))
+            {
+                resolvedSources.Add((contractName, key));
+                continue;
+            }
+
+            // Non-connection IToolSource keys (e.g., custom test sources): resolve exact key from hosted tool sources.
+            fallbackKeyToContract ??= await IndexToolSourceKeysAsync(surface, toolSourceTypes, ct).ConfigureAwait(false);
+            if (fallbackKeyToContract.TryGetValue(key, out var matchedContract))
+            {
+                resolvedSources.Add((matchedContract, key));
+            }
+            else if (toolSourceTypes.Count == 1 && toolSourceTypes[0].FullName is { Length: > 0 } onlyContract)
+            {
+                resolvedSources.Add((onlyContract, key));
+            }
+        }
+
+        if (resolvedSources.Count == 0)
+        {
+            return [];
+        }
+
+        return await ForKeys(surface.Call, resolvedSources, edge, conversation, ct).ConfigureAwait(false);
+    }
+
+    internal static async Task<IReadOnlyList<AIFunction>> ForKeys(
+        Func<string, string, string, string, CancellationToken, Task<JsonElement?>> call,
+        IReadOnlyList<(string ContractName, string Key)> sources,
+        EdgeAuthority? edge,
+        string conversation,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        ArgumentNullException.ThrowIfNull(sources);
+
+        var tools = new List<AIFunction>();
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var (contractName, key) in sources)
+        {
+            if (string.IsNullOrWhiteSpace(contractName) || string.IsNullOrWhiteSpace(key) || !seenKeys.Add(key))
+            {
+                continue;
+            }
+
+            await AppendToolsFromSourceAsync(call, contractName, key, edge, conversation, seenNames, tools, ct).ConfigureAwait(false);
+        }
+
+        return tools;
     }
 
     internal static async Task<IReadOnlyList<AIFunction>> For(
@@ -71,60 +196,98 @@ internal static class ToolSourceTools
 
             foreach (var instance in instances)
             {
-                JsonElement? rawSet;
-                try
-                {
-                    rawSet = await call(contract.FullName, instance.Key, "Tools", "{}", ct).ConfigureAwait(false);
-                }
-                catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
-                {
-                    OsConsoleLog.For<ToolSourceFunction>().LogSwallowed(error, $"reading tools from source {instance.Key}");
-                    continue;
-                }
-
-                if (rawSet is not { ValueKind: JsonValueKind.Object } setObj
-                    || !TryGetProperty(setObj, "tools", "Tools", out var toolsEl)
-                    || toolsEl.ValueKind != JsonValueKind.Array)
-                {
-                    continue;
-                }
-
-                foreach (var entry in toolsEl.EnumerateArray())
-                {
-                    if (entry.ValueKind != JsonValueKind.Object)
-                    {
-                        continue;
-                    }
-
-                    var rawName = GetString(entry, "name", "Name");
-                    if (string.IsNullOrWhiteSpace(rawName))
-                    {
-                        continue;
-                    }
-
-                    var description = ClipDescription(GetString(entry, "description", "Description") ?? string.Empty);
-                    var schemaJson = GetString(entry, "inputSchema", "InputSchema");
-                    var toolName = NameOf(instance.Key, rawName);
-                    if (!seenNames.Add(toolName))
-                    {
-                        continue;
-                    }
-
-                    tools.Add(new ToolSourceFunction(
-                        contract.FullName,
-                        instance.Key,
-                        rawName,
-                        toolName,
-                        description,
-                        ParseSchema(schemaJson),
-                        edge,
-                        conversation,
-                        call));
-                }
+                await AppendToolsFromSourceAsync(call, contract.FullName, instance.Key, edge, conversation, seenNames, tools, ct).ConfigureAwait(false);
             }
         }
 
         return tools;
+    }
+
+    private static async Task<Dictionary<string, string>> IndexToolSourceKeysAsync(
+        OsNeuronSurface surface,
+        List<Type> toolSourceTypes,
+        CancellationToken ct)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var type in toolSourceTypes)
+        {
+            if (string.IsNullOrWhiteSpace(type.FullName)) { continue; }
+            try
+            {
+                var instances = await surface.List(type.FullName, ct).ConfigureAwait(false);
+                foreach (var instance in instances)
+                {
+                    map.TryAdd(instance.Key, type.FullName);
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                OsConsoleLog.For<ToolSourceFunction>().LogSwallowed(error, $"indexing tool source keys for {type.FullName}");
+            }
+        }
+        return map;
+    }
+
+    private static async Task AppendToolsFromSourceAsync(
+        Func<string, string, string, string, CancellationToken, Task<JsonElement?>> call,
+        string contractName,
+        string sourceKey,
+        EdgeAuthority? edge,
+        string conversation,
+        HashSet<string> seenNames,
+        List<AIFunction> tools,
+        CancellationToken ct)
+    {
+        JsonElement? rawSet;
+        try
+        {
+            rawSet = await call(contractName, sourceKey, "Tools", "{}", ct).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            OsConsoleLog.For<ToolSourceFunction>().LogSwallowed(error, $"reading tools from source {sourceKey}");
+            return;
+        }
+
+        if (rawSet is not { ValueKind: JsonValueKind.Object } setObj
+            || !TryGetProperty(setObj, "tools", "Tools", out var toolsEl)
+            || toolsEl.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var entry in toolsEl.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var rawName = GetString(entry, "name", "Name");
+            if (string.IsNullOrWhiteSpace(rawName))
+            {
+                continue;
+            }
+
+            var description = ClipDescription(GetString(entry, "description", "Description") ?? string.Empty);
+            var schemaJson = GetString(entry, "inputSchema", "InputSchema");
+            var toolName = NameOf(sourceKey, rawName);
+            if (!seenNames.Add(toolName))
+            {
+                continue;
+            }
+
+            tools.Add(new ToolSourceFunction(
+                contractName,
+                sourceKey,
+                rawName,
+                toolName,
+                description,
+                ParseSchema(schemaJson),
+                edge,
+                conversation,
+                call));
+        }
     }
 
     internal static string NameOf(string sourceKey, string tool)
