@@ -22,7 +22,7 @@ For any environment `<env>` (default `test`) and prefix `<prefix>` (default `int
 | **Container Apps Environment** | `intochat-test-env` | Shared network, mounted `brainlog` file share, and Orleans cluster boundary (`Orleans__ClusterId=intochat-test`). |
 | **OS Container App** | `intochat-test-os` | Runs `acrintochattest.azurecr.io/os:latest`: Native AOT Kernel (`/app/silo`), Flutter Web UI + 15 ArtCraft studios (`/app/wwwroot`), and DevKit Roslyn Sandbox (`/app/unithost`). |
 
-> **Note on Multi-Tenant Cloud**: When synthesized from the external Cloud host repository, the same foundation additionally provisions a second Container App (`intochat-<env>-cloud`) in the same `intochat-<env>-env` and Orleans cluster (`Orleans__ClusterId=intochat-<env>`), plus the Key Vault secret references required by the multi-tenant modules.
+> **Note on Multi-Tenant Cloud**: When synthesized from the external Cloud host repository, the same foundation additionally provisions a second Container App (`intochat-<env>-cloud`) in the same `intochat-<env>-env`, storage account and Key Vault, but as its own Orleans cluster with its own storage namespace (`InstallPlan`): cluster and service id `intochat-<env>-cloud`, grain-state container `grainstate-cloud-<format>`, lease container `brainlease-cloud-<format>`, and Home on its own `brainlog-cloud` share at `/data/brain-cloud/<format>`. It publishes no Orleans gateway port. The OS app keeps every name it had. The cloud reaches the OS app only over the OS app's HTTP edge, as a trusted issuer (`IntoChatOS:Auth:TrustedIssuers`, with `Services` and `Guests` for device enrollment and guest try).
 
 ---
 
@@ -67,3 +67,23 @@ To deploy to a brand-new environment/resource group (for example `intochat-test2
 ```powershell
 dotnet run --project src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -- pulumi --env test2
 ```
+
+## Moving the cloud's records out of an existing install
+
+An install that ran the cloud image before the split keeps the cloud's records (auth, organisations, invites, mail rate, lobby, machine credentials) in the OS app's brain store. Move them once into the cloud's Home with the kernel's `move-records` verb (`RecordMoveCommand`, over `BrainRecordMove`):
+
+1. Stop both container apps (scale to 0) and wait until no replica runs: the move claims each brain store as its writer.
+2. Run the verb in a one-off container that mounts both shares (`brainlog` and `brainlog-cloud`) and a backup folder outside both, with `IntoChatOS__MasterKey` set from the vault:
+
+   ```
+   os move-records plan.json plan            # lists what the rules select; writes nothing to the target
+   os move-records plan.json backup          # byte copy of every listed brain store, verified by SHA-256
+   os move-records plan.json copy            # writes and verifies each selected record in the cloud's Home
+   ```
+
+   The plan (`BrainMovePlan`) names `sourceHome`, `targetHome`, `backup`, the `brains` and the `rules` (a neuron type or a grain id prefix). Every phase can run again. A record the cloud's Home already holds with other content is reported as a conflict (exit code 2) and never overwritten.
+3. Start the OS app once with `IntoChatOS:Auth:PrincipalLinks` naming a file of `{ issuer, email, principal }` entries for the people the cloud signed up before the split (`PrincipalLinks`). They then sign in through the cloud's ticket to the accounts and brains they already have. The result is written beside the file; remove the setting afterwards.
+4. Deploy the cloud image on the split build and start both apps.
+5. Only after the cloud has run on its copy: `os move-records plan.json remove-source` clears the copied records from the OS app's store, and only those still identical in both stores.
+
+Rollback: until step 5 no record of the OS app's store is changed by the move (opening a store may compact its journal, as any start does), so going back is deploying the previous cloud image into the previous shape. After step 5, restore the listed brain folders from the backup (`<backup>/brains/<folder>`) with both apps stopped. The principal links only add rows; a linked person also keeps the principal they had.

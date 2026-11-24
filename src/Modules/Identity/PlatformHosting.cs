@@ -50,6 +50,10 @@ public static class PlatformHosting
         services.TryAddSingleton<IBrainBirths>(provider => provider.GetRequiredService<BrainBirths>());
         services.TryAddSingleton<PrincipalPasswords>();
         silo.AddStartupTask<IntoChat.OS.Modules.Identity.Accounts.OwnerBootstrap>(ServiceLifecycleStage.Active + 1);
+        services.TryAddSingleton(provider => new IntoChat.OS.Modules.Identity.External.PrincipalLinks(provider.GetRequiredService<AuthorityNeurons>(),
+            provider.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(), provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<IntoChat.OS.Modules.Identity.Accounts.AuthOptions>>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IntoChat.OS.Modules.Identity.External.PrincipalLinks>>()));
+        silo.AddStartupTask((provider, ct) => provider.GetRequiredService<IntoChat.OS.Modules.Identity.External.PrincipalLinks>().Execute(ct), ServiceLifecycleStage.Active + 2);
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>

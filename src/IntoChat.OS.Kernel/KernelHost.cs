@@ -68,6 +68,10 @@ public static class KernelHost
             var modules = OperatingSystemModules.Discover(rootAssembly);
             return await AzureInstaller.Run(args, new ArmAzure(), modules, Console.Out, Console.Error, cancellationToken);
         }
+        if (RecordMoveCommand.IsMove(args))
+        {
+            return await RecordMoveCommand.Run(args, Console.Out, Console.Error, cancellationToken);
+        }
 
         await app.RunAsync(cancellationToken);
         return Environment.ExitCode;
@@ -86,6 +90,10 @@ public static class KernelHost
         {
             var modules = OperatingSystemModules.Discover(rootAssembly);
             return await AzureInstaller.Run(args, new ArmAzure(), modules, Console.Out, Console.Error, cancellationToken);
+        }
+        if (RecordMoveCommand.IsMove(args))
+        {
+            return await RecordMoveCommand.Run(args, Console.Out, Console.Error, cancellationToken);
         }
 
         var builder = WebApplication.CreateBuilder(args);

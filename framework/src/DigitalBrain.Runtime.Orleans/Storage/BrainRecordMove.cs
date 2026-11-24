@@ -173,7 +173,14 @@ public static partial class BrainRecordMove
         {
             ct.ThrowIfCancellationRequested();
             if (ledger.BackedUp(brain) is null) { throw new InvalidOperationException($"Brain '{brain}' has no verified backup; run the Backup phase first."); }
-            if (!source.Exists(brain)) { lines.Add(new BrainMoveLine(brain, 0, 0, 0, 0, [])); continue; }
+            if (!source.Exists(brain))
+            {
+                // Nothing to copy is a verified copy of nothing.
+                ledger.Verified(brain, true);
+                await ledger.Save(plan.Backup, ct).ConfigureAwait(false);
+                lines.Add(new BrainMoveLine(brain, 0, 0, 0, 0, []));
+                continue;
+            }
             var from = await source.Logs.For(brain).ConfigureAwait(false);
             var selected = Selected(plan, from);
             var to = await target.Logs.For(brain).ConfigureAwait(false);

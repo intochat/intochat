@@ -58,6 +58,18 @@ internal interface IDirectoryStore
     [Shared]
     Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode);
     Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null);
+    // The one-time mapping step of the cloud/OS split: linkedPrincipalId (a trusted issuer's principal, ExternalSignIn.PrincipalOf)
+    // signs in to principalId's default membership and joins every brain principalId is a member of, with the same role.
+    Task<PrincipalLinkResult> LinkPrincipal(string principalId, string linkedPrincipalId);
+}
+
+internal enum PrincipalLinkResult
+{
+    Linked = 0,
+    AlreadyLinked = 1,
+    NoSuchPrincipal = 2,
+    // The linked principal already signs in somewhere else; nothing was changed.
+    Conflict = 3,
 }
 
 [DigitalBrain.Signal("identity.directory-changed")]
@@ -205,6 +217,36 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         var name = string.IsNullOrWhiteSpace(displayName) ? normalizedEmail : displayName.Trim();
         return await CompleteRegistration(principalId) ?? await RegisterPrincipal(principalId, name);
     }
+
+    public async Task<PrincipalLinkResult> LinkPrincipal(string principalId, string linkedPrincipalId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(linkedPrincipalId);
+        // Only the directory's own module identity (LocalIdentityClient's): no person, app or other module links principals.
+        if (Context.Caller is not { Actor: Actor.Module { Id: DirectoryModuleId } } caller || caller.Brain != Id.Brain)
+        { throw new UnauthorizedAccessException("Only the identity directory links principals."); }
+        if (PrincipalOf(State, principalId) is not { DefaultMembership: { } membership } source) { return PrincipalLinkResult.NoSuchPrincipal; }
+        if (PrincipalOf(State, linkedPrincipalId) is { DefaultMembership: { } existing })
+        {
+            return existing.AccountId == membership.AccountId && existing.BrainId == membership.BrainId
+                ? PrincipalLinkResult.AlreadyLinked
+                : PrincipalLinkResult.Conflict;
+        }
+        var next = State;
+        foreach (var entry in source.Brains)
+        {
+            if (MemberOf(BrainOf(next, entry.Id), principalId) is { } member)
+            {
+                next = await AddMember(next, member with { PrincipalId = linkedPrincipalId });
+            }
+        }
+        var linked = PrincipalOf(next, linkedPrincipalId) ?? new PrincipalRow { PrincipalId = linkedPrincipalId };
+        next = UpsertPrincipal(next, linked with { DefaultMembership = membership with { PrincipalId = linkedPrincipalId }, RegistrationComplete = true });
+        await Commit(next, membership.BrainId);
+        return PrincipalLinkResult.Linked;
+    }
+
+    internal const string DirectoryModuleId = "identity.directory";
 
     public Task<BrainEntry[]> BrainsOf(string principalId) => Task.FromResult(PrincipalOf(State, principalId)?.Brains ?? []);
 

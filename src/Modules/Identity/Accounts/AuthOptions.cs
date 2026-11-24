@@ -34,6 +34,12 @@ public sealed class AuthOptions
     //                                             guest ticket (GET /identity/external/guest); off by default.
     public TrustedIssuer[] TrustedIssuers { get; set; } = [];
 
+    // The one-time mapping step of the cloud/OS split: a JSON file of { issuer, email, principal } entries that lets people the cloud
+    // signed up before the split sign in through the issuer's ticket to the accounts and brains they already have (PrincipalLinks).
+    // Applied once at start, with the result written beside the file; set it for one start, then remove it.
+    //   IntoChatOS:Auth:PrincipalLinks
+    public string PrincipalLinks { get; set; } = "";
+
     // Absolute return URLs external sign-in may redirect to (https origins); local paths are always allowed.
     //   IntoChatOS:Auth:ExternalReturnOrigins:n
     public string[] ExternalReturnOrigins { get; set; } = [];
