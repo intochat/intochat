@@ -26,6 +26,7 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | `Circles` | `circles` | Legacy read-only circles (kept readable for two releases) |
 | `ClickHouse` | `clickhouse` | Read-only ClickHouse queries and live query tables. Needs a container. |
 | `Devices` | `devices` | This machine: hardware, local model runtimes and model installs. |
+| `Diagnostics` | `diagnostics` | The read side of diagnostics: the Creator's reads of the running brain (`IDebuggerReads`: a unit's state, view, signals and failures, and the topology) and the trace reader (`ITraceReader`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
 | `GitHub` | `github` | GitHub repository connection neurons. |
 | `Google` | `google-auth`, `google-drive`, `gmail` | Google sign-in shared by Drive and Gmail; Drive as storage; Gmail. |
 | `Mcp` | `mcp`, `tools` | Any Streamable-HTTP MCP server as a tool source, and the per-brain registry of tool sources. |

@@ -698,6 +698,7 @@ public sealed class GitHubIssueWebhookTriageJourneys
                         typeof(AppsModule),
                         typeof(IntoChat.OS.Modules.Runs.RunsModule),
                         typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),
+                        typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule),
                         typeof(ShippedShellAppsModule),
                         typeof(AuthorityPlainNeurons),
                         typeof(AIModule),

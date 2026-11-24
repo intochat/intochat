@@ -116,6 +116,7 @@ public sealed class InoToEngineerDelegationJourneys
         os.RegisterCatalog();
         os.Register(typeof(IntoChat.OS.Modules.Runs.RunsModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.Authoring.AuthoringModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Diagnostics.DiagnosticsModule).Assembly);
         os.Register(typeof(UiModule).Assembly);
         os.Register(typeof(InoApp).Assembly);
 

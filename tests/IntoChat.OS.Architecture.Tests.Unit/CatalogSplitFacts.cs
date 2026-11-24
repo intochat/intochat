@@ -12,6 +12,7 @@ public sealed class CatalogSplitFacts
     [
         "IntoChat.OS.Modules.Runs",
         "IntoChat.OS.Modules.Authoring",
+        "IntoChat.OS.Modules.Diagnostics",
     ];
 
     [Fact]

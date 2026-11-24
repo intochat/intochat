@@ -2,24 +2,11 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.Units;
-using IntoChat.OS.Modules.Apps.Trace;
 
 namespace IntoChat.OS.Modules.Apps;
 
 public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
 {
-    [Fact]
-    public void TraceReaderRedactsBearerAndApiKeysInPayloads()
-    {
-        var raw = """{"auth":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9","openai":"sk-proj-1234567890abcdef","github":"ghp_9876543210abcdef","safe":"hello"}""";
-        var redacted = TraceReaderNeuron.Redact(raw);
-        Assert.DoesNotContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", redacted, StringComparison.Ordinal);
-        Assert.DoesNotContain("sk-proj-1234567890abcdef", redacted, StringComparison.Ordinal);
-        Assert.DoesNotContain("ghp_9876543210abcdef", redacted, StringComparison.Ordinal);
-        Assert.Contains("[REDACTED]", redacted, StringComparison.Ordinal);
-        Assert.Contains("\"safe\":\"hello\"", redacted, StringComparison.Ordinal);
-    }
-
     [Fact]
     public async Task PortableBrainArchiveRoundTripsSettingsProfileAndUnitsThroughJson()
     {
