@@ -91,7 +91,7 @@ internal static partial class DesktopBootstrap
                 return true;
             }
 
-            using var doc = JsonDocument.Parse(utf8Span.ToArray());
+            using var doc = JsonDocument.Parse(rawBytes.AsMemory(rawBytes.Length - utf8Span.Length));
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object
                 || !root.TryGetProperty("pid", out var pidProp)
