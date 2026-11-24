@@ -162,7 +162,7 @@ public static class ArtCraftEngineRunner
         string? currentDocument,
         string executionMode,
         IArtCraftStudio? studio,
-        Func<string, IMcpServer?>? mcpResolver,
+        Func<string, IMcpToolConnection?>? mcpResolver,
         Action<Exception, string>? onRecoverableError = null)
         => ExecuteOnWorkspaceAsync(app, instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs: null);
 
