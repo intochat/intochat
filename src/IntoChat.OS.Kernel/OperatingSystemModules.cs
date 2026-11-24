@@ -25,6 +25,7 @@ public static class OperatingSystemModules
     [
         .. KernelOwnedAssemblies,
         typeof(IntoChat.OS.Modules.AI.AIModule).Assembly,
+        typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule).Assembly,
         typeof(IntoChat.OS.Modules.ArtCraft.ArtCraftModule).Assembly,
         typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
         typeof(IntoChat.Aspire.AspireModule).Assembly,

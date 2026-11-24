@@ -19,6 +19,7 @@ The module class is the same: it derives from `DigitalBrain.Modules.Module`, car
 | Folder | Module id | What it does |
 | --- | --- | --- |
 | `AI` | `ai` | Single `ModelCard` catalog (`KnownModels`), role-based model routing (`IModelCatalog`, `ILLM`), agents, memory and voice (dictation, read-aloud and voice mode on MEAI speech and realtime clients). Its contracts assembly (`IntoChat.OS.Modules.AI.Contracts`) lives in `src/Modules/AI/Contracts`. |
+| `Activity` | `activity` | The activity read model: the runs index of a brain (`IRuns`) and its synapse definitions (`ISynapseDefinitions`). Its contracts stay in `IntoChat.OS.Modules.Catalog.Contracts`. |
 | `ArtCraft` | `artcraft` | The PhotoCraft and FilmCraft apps: their MCP servers and web builds. Needs a container. |
 | `Azure` | `azure` | Azure as a connection: resource groups, storage, vaults and apps through Azure Resource Manager, and Pulumi stacks. |
 | `Catalog` | `apps` | App manifests, install, versions, approvals, flows and the studio that builds units. |

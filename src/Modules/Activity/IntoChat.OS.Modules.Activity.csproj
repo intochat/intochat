@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Activity read model: the runs index of a brain and its synapse definitions.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Host/IntoChat.OS.Host.csproj" />
+    <ProjectReference Include="../AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
+  </ItemGroup>
+</Project>

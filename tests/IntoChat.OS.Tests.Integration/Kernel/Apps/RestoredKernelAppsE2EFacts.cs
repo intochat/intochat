@@ -194,6 +194,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                     [
                         typeof(RestoredKernelAppsTestModule),
                         typeof(AppsModule),
+                        typeof(IntoChat.OS.Modules.Apps.Runs.ActivityModule),
                         typeof(IdentityModule),
                         typeof(AuthorityPlainNeurons),
                         typeof(AIModule),
