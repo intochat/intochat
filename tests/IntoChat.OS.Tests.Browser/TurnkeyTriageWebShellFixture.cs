@@ -98,7 +98,6 @@ public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
             var originPort = FreePort();
             var kernelPort = FreePort();
             var siloPort = FreePort();
-            var gatewayPort = FreePort();
 
             Origin = $"http://127.0.0.1:{originPort}";
             _kernelOrigin = $"http://127.0.0.1:{kernelPort}";
@@ -123,7 +122,6 @@ public sealed class TurnkeyTriageWebShellFixture : IAsyncLifetime
                 $"--{IntoChatOSNames.FrontEnabledKey}=false",
                 $"--{AspireAppState.ConfiguredUrlKey}={aspireDashboardUrl}",
                 $"--{TopologyContext.SiloPortKey}={siloPort.ToString(CultureInfo.InvariantCulture)}",
-                $"--{TopologyContext.GatewayPortKey}={gatewayPort.ToString(CultureInfo.InvariantCulture)}",
                 $"--urls={_kernelOrigin}",
             ];
             args.AddRange(DisabledModules.Select(module => $"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false"));

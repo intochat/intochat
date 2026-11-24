@@ -100,16 +100,20 @@ public static class IntoChatOSHostingExtensions
         {
             foreach (var key in context.EnvironmentVariables.Keys.Where(IsOrleansProviderKey).ToArray())
             { context.EnvironmentVariables.Remove(key); }
+            // No OS host is an Orleans cluster client: the kernel opens no gateway, whatever the Orleans reference allocates.
+            context.EnvironmentVariables.Remove(OrleansGatewayPortVariable);
         });
-        // Development clustering advertises localhost gateways. Local executables must bind
-        // that address too, rather than Orleans selecting a VPN/container adapter address.
+        // The Orleans reference gives every silo a gateway endpoint; an OS kernel keeps its silo endpoint only.
+        foreach (var gateway in builder.Resource.Annotations.OfType<EndpointAnnotation>().Where(static e => e.Name == OrleansGatewayEndpoint).ToArray())
+        { builder.Resource.Annotations.Remove(gateway); }
+        // Development clustering advertises localhost. Local executables must bind that address
+        // too, rather than Orleans selecting a VPN/container adapter address.
         if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource or global::Aspire.Hosting.Dotnet.DotnetProjectResource)
         {
             builder.WithEnvironment("Orleans__Endpoints__AdvertisedIPAddress", "127.0.0.1");
             // Orleans system-target addresses carry the real port; a TCP proxy port cannot
             // substitute for it when a static client requests the cluster manifest.
             builder.WithEndpoint("orleans-silo", endpoint => endpoint.IsProxied = false);
-            builder.WithEndpoint("orleans-gateway", endpoint => endpoint.IsProxied = false);
         }
         // Storage, clustering and reminders reach the silo only through the orleans integration; the platform's
         // keyed blob client comes from it too, so the silo takes no storage connection strings.
@@ -199,6 +203,9 @@ public static class IntoChatOSHostingExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(topology);
         return builder.WithEnvironment(ModuleConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), topology);
     }
+
+    private const string OrleansGatewayEndpoint = "orleans-gateway";
+    private const string OrleansGatewayPortVariable = "Orleans__Endpoints__GatewayPort";
 
     private static bool IsOrleansProviderKey(string key)
         => key.StartsWith("Orleans__Clustering__", StringComparison.Ordinal)

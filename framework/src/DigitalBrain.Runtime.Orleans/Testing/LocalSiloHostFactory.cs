@@ -60,14 +60,14 @@ public sealed class LocalSiloHostFactory : IInProcessHostFactory
 
     internal IHost Build(InProcessHostOptions options, string home, PortLease? lease = null)
     {
-        var (siloPort, gatewayPort) = lease ?? PortReservation.ReservePair();
+        // The pair keeps the second port free for a fact that opens a gateway itself (options.Configuration); by default none listens.
+        var (siloPort, _) = lease ?? PortReservation.ReservePair();
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             [_options.TopologyKey] = Topology.Local.ToConfigValue(),
             [_options.HomeKey] = home,
             [TopologyContext.SiloPortKey] = siloPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            [TopologyContext.GatewayPortKey] = gatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
         foreach (var (key, value) in options.Configuration) { values[key] = value; }
         builder.Configuration.AddInMemoryCollection(values);

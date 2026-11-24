@@ -73,7 +73,7 @@ public sealed class LocalProfile : ITopologyProfile, IRuntimeOptionsHolder
     private static Services Build(RuntimeOptions options)
         => new(
             [
-                new ServiceProcess("os", options.OsImage, [TopologyContext.DefaultSiloPort, TopologyContext.DefaultGatewayPort, HttpPort], ["<Home>"],
+                new ServiceProcess("os", options.OsImage, [TopologyContext.DefaultSiloPort, HttpPort], ["<Home>"],
                     [EnvironmentName(options.TopologyKey), EnvironmentName(options.HomeKey)]),
                 new ServiceProcess("os-sandbox", options.SandboxImage, [], [], []),
             ],
@@ -123,7 +123,8 @@ public sealed class LocalProfile : ITopologyProfile, IRuntimeOptionsHolder
     {
         ArgumentNullException.ThrowIfNull(silo);
         ArgumentNullException.ThrowIfNull(context);
-        // Loopback only; the bind key widens the HTTP listener (os BindPolicy), never the silo.
+        // Loopback only; the bind key widens the HTTP listener (os BindPolicy), never the silo. No gateway listener unless a gateway
+        // port is configured (TopologyContext.NoGateway).
         silo.UseLocalhostClustering(context.SiloPort, context.GatewayPort);
 
         var stores = new List<string> { _options.PlatformGrainStorage };

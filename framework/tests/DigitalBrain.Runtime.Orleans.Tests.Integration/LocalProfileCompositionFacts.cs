@@ -71,16 +71,66 @@ public sealed class LocalProfileCompositionFacts
     public void The_cluster_store_is_host_bound() => Assert.Equal(ClusterStoreBinding.HostBound, new LocalProfile().Bindings.ClusterStore);
 
     [Fact]
-    public void Services_describe_one_os_process_with_silo_and_gateway_ports_and_the_home_volume()
+    public void Services_describe_one_os_process_with_the_silo_port_no_gateway_and_the_home_volume()
     {
         var os = Assert.Single(new LocalProfile().Services.Processes, p => p.Name == "os");
         Assert.Contains(11111, os.Ports);
-        Assert.Contains(30000, os.Ports);
+        Assert.DoesNotContain(30000, os.Ports);
         Assert.Contains(LocalProfile.HttpPort, os.Ports);
         Assert.Equal(["<Home>"], os.Volumes);
         Assert.Contains("DigitalBrain__Topology", os.EnvironmentKeys);
         Assert.Contains("DigitalBrain__Home", os.EnvironmentKeys);
         Assert.Empty(new LocalProfile().Services.AzureResourceKinds);
+    }
+
+    // Orleans 10: EndpointOptions.GatewayPort 0 opens no gateway listener, and the silo's own co-hosted client still calls grains.
+    [Fact]
+    public async Task With_no_gateway_port_the_silo_opens_no_gateway_and_still_serves_its_own_calls()
+    {
+        using var home = new TempHome();
+        using var lease = PortReservation.ReservePair();
+        using var host = new LocalSiloHostFactory(new FakeClusterStore()).Build(Options(home.Path), home.Path, lease);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.Equal(TopologyContext.NoGateway, host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<OrleansSdk.Configuration.EndpointOptions>>().Value.GatewayPort);
+            Assert.Null(host.Services.GetRequiredService<ILocalSiloDetails>().GatewayAddress);
+            var management = host.Services.GetRequiredService<IGrainFactory>().GetGrain<IManagementGrain>(0);
+            var hosts = await management.GetHosts(true, TestContext.Current.CancellationToken);
+            Assert.NotEmpty(hosts);
+            Assert.True(Listens(lease.SiloPort), "The silo port listens.");
+            Assert.False(Listens(lease.GatewayPort), "Nothing listens where a gateway would.");
+        }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
+    }
+
+    [Fact]
+    public async Task A_configured_gateway_port_opens_the_gateway()
+    {
+        using var home = new TempHome();
+        using var lease = PortReservation.ReservePair();
+        var options = Options(home.Path);
+        options.Configuration = new Dictionary<string, string?> { [TopologyContext.GatewayPortKey] = lease.GatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+        using var host = new LocalSiloHostFactory(new FakeClusterStore()).Build(options, home.Path, lease);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.Equal(lease.GatewayPort, host.Services.GetRequiredService<ILocalSiloDetails>().GatewayAddress?.Endpoint.Port);
+            Assert.True(Listens(lease.GatewayPort), "The configured gateway listens.");
+        }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
+    }
+
+    // A loopback TCP connect to a port this fact reserved itself; nothing else on the machine is probed.
+    private static bool Listens(int port)
+    {
+        using var client = new System.Net.Sockets.TcpClient();
+        try
+        {
+            client.Connect(System.Net.IPAddress.Loopback, port);
+            return true;
+        }
+        catch (System.Net.Sockets.SocketException) { return false; }
     }
 
     [Fact]

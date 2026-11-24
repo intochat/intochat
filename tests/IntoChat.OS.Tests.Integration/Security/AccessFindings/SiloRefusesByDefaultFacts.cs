@@ -256,7 +256,8 @@ public sealed class SiloRefusesByDefaultFacts(SiloRefusesByDefaultFacts.Silo sil
 
         public async ValueTask InitializeAsync()
         {
-            Host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(CancellationToken.None);
+            // No OS host opens a gateway; this one does, so the facts can prove that nothing is admitted through one.
+            Host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(CancellationToken.None, openGateway: true);
             Client = new HostBuilder()
                 .UseOrleansClient(client =>
                 {

@@ -9,7 +9,7 @@ namespace DigitalBrain.Runtime.Orleans;
 /// <param name="Configuration">The host configuration.</param>
 /// <param name="Modules">The loaded module manifests.</param>
 /// <param name="SiloPort">The silo port.</param>
-/// <param name="GatewayPort">The gateway port.</param>
+/// <param name="GatewayPort">The gateway port, or <see cref="NoGateway"/> when the silo serves no cluster clients.</param>
 public sealed record TopologyContext(
     Topology Topology,
     StateHome Home,
@@ -27,8 +27,8 @@ public sealed record TopologyContext(
     /// <summary>The default silo port.</summary>
     public const int DefaultSiloPort = 11111;
 
-    /// <summary>The default gateway port.</summary>
-    public const int DefaultGatewayPort = 30000;
+    /// <summary>No gateway listener: the default. A host that serves out-of-process cluster clients configures a gateway port.</summary>
+    public const int NoGateway = 0;
 
     /// <summary>Builds a context, reading the ports from configuration.</summary>
     public static TopologyContext Create(Topology topology, StateHome home, IConfiguration configuration, IReadOnlyList<ModuleManifest> modules)
@@ -36,6 +36,6 @@ public sealed record TopologyContext(
         ArgumentNullException.ThrowIfNull(configuration);
         return new(topology, home, configuration, modules,
             configuration.GetValue(SiloPortKey, DefaultSiloPort),
-            configuration.GetValue(GatewayPortKey, DefaultGatewayPort));
+            configuration.GetValue(GatewayPortKey, NoGateway));
     }
 }

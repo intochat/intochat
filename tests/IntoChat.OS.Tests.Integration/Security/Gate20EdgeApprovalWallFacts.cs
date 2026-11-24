@@ -431,11 +431,13 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
         public string Scope { get; }
         public string PresenceToken { get; }
 
-        // The silo's own gateway on loopback: a fact that plays a cluster client connects here, to this harness only.
+        // The loopback port reserved for the silo's gateway. The gateway listens there only when the harness was started with
+        // openGateway (a fact that plays a cluster client connects here, to this harness only); otherwise nothing does, as on
+        // every OS host.
         public int GatewayPort { get; }
 
         // configure runs last on the host builder: a fact replaces a host service there (the model, for one).
-        public static async Task<EdgeKernelHarness> StartAsync(CancellationToken ct, Action<WebApplicationBuilder>? configure = null)
+        public static async Task<EdgeKernelHarness> StartAsync(CancellationToken ct, Action<WebApplicationBuilder>? configure = null, bool openGateway = false)
         {
             var homeDir = Path.Combine(Path.GetTempPath(), "intochat-gate20-it-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(homeDir, "run"));
@@ -464,8 +466,11 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
                     [IntoChatOSNames.FrontEnabledKey] = "false",
                     [AuthKeys.Posture] = "Open",
                     [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
-                    [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
                 });
+                if (openGateway)
+                {
+                    builder.Configuration[TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture);
+                }
 
                 LocalRunDefaults.Apply(builder.Configuration);
                 builder.AddIntoChatOSServer(server => server.AddOperatingSystem(OperatingSystemModules.InProcessModules));

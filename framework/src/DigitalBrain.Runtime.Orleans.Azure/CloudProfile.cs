@@ -79,7 +79,7 @@ public sealed class CloudProfile : ITopologyProfile, IRuntimeOptionsHolder
         ArgumentNullException.ThrowIfNull(options);
         return new(
             [
-                new ServiceProcess("os", options.OsImage, [TopologyContext.DefaultSiloPort, TopologyContext.DefaultGatewayPort, LocalProfile.HttpPort], [],
+                new ServiceProcess("os", options.OsImage, [TopologyContext.DefaultSiloPort, LocalProfile.HttpPort], [],
                     [EnvironmentName(options.TopologyKey), EnvironmentName(options.CloudStorageKey),
                      EnvironmentName(options.CloudKeyVaultKey), "AZURE_CLIENT_ID"]),
                 new ServiceProcess("os-sandbox", options.SandboxImage, [], [], []),
@@ -162,6 +162,7 @@ public sealed class CloudProfile : ITopologyProfile, IRuntimeOptionsHolder
         silo.Configure<EndpointOptions>(options =>
         {
             options.SiloPort = context.SiloPort;
+            // TopologyContext.NoGateway unless a gateway port is configured: no listener for cluster clients.
             options.GatewayPort = context.GatewayPort;
         });
 

@@ -685,7 +685,6 @@ public sealed class SandboxEndToEndIntegrationFacts
                     [IntoChatOSNames.FrontEnabledKey] = "false",
                     [AuthKeys.Posture] = "Open",
                     [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
-                    [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
                     [$"{sandboxOptionsPrefix}:EnrollKey"] = enrollKey,
                     [$"{sandboxOptionsPrefix}:TokenSigningMaterial"] = signingMaterial,
                 };
