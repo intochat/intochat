@@ -24,6 +24,7 @@ using IntoChat.OS.Modules.Identity.Codes;
 using IntoChat.OS.Modules.Identity.Contracts;
 using IntoChat.OS.Modules.Identity.Contracts.Codes;
 using IntoChat.OS.Runtime;
+using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -182,6 +183,24 @@ public sealed class FileSharesDoorFacts
         }
 
         using (As(Ada)) { Assert.Equal("from ben", await world.ReadAsOwner("/work/trip/day1/b.txt")); }
+    }
+
+    [Fact]
+    public async Task An_editor_cannot_write_more_than_a_share_reads_and_a_written_file_is_on_the_owners_disk()
+    {
+        await using var world = await World.Start();
+        var editor = await world.ShareTrip(ShareRole.Editor);
+
+        using (As(Ben))
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => world.Mine(Ben).Write(Ada, editor, "day1/big.bin", new byte[16 * 1024 * 1024 + 1]));
+            var written = await world.Mine(Ben).Write(Ada, editor, "day1/kept.txt", Encoding.UTF8.GetBytes("kept"));
+            Assert.Equal("kept.txt", written.Name);
+        }
+
+        // The friend's write is in the owner's workspace folder when the call returns, not in an overlay or a temp folder.
+        Assert.Equal("kept", await File.ReadAllTextAsync(world.OwnerFile("/work/trip/day1/kept.txt"), Ct));
+        Assert.False(File.Exists(world.OwnerFile("/work/trip/day1/big.bin")));
     }
 
     [Fact]
@@ -462,34 +481,33 @@ public sealed class FileSharesDoorFacts
         public Task<IReadOnlyList<FileShareServed>> Served()
             => runtime.Signals<FileShareServed>(FileSharesDefaults.Id(Ada), Ct);
 
-        public Task<string> ReadAsOwner(string path)
-            => WorkspaceFilesService.ForBrain(runtime.Services, Ada).WithVfs(vfs => vfs.ReadText(path), Ct);
+        // Ada's workspace folder on disk: the files the owner has, put there and read back as the owner's own files.
+        private string Workspace => runtime.Services.GetRequiredService<IntoChat.OS.Modules.LocalDisk.BrainWorkspaceRoots>().For(new BrainId(Ada));
+
+        public string OwnerFile(string path) => OnDisk(path);
+
+        private string OnDisk(string path) => Path.Combine(Workspace, SharePath.Normalize(path)[(SharePath.Mount.Length + 2)..].Replace('/', Path.DirectorySeparatorChar));
+
+        public async Task<string> ReadAsOwner(string path)
+        {
+            // A friend's write is a storage operation; it lands shortly after the call returns.
+            for (var attempt = 0; attempt < 100 && !File.Exists(OnDisk(path)); attempt++) { await Task.Delay(50, Ct); }
+            return await File.ReadAllTextAsync(OnDisk(path), Ct);
+        }
 
         public Task RenameOwnerFolder(string existingName, string newName)
-            => WorkspaceFilesService.ForBrain(runtime.Services, Ada).WithVfs(async vfs =>
-            {
-                var work = (await vfs.GetMounts(Ct)).Single(mount => mount.MountPoint == SharePath.Mount).Storage;
-                var folder = await work.ResolvePath(existingName, Ct) ?? throw new InvalidOperationException($"{existingName} was not found");
-                await work.Write(WritePlan.Rename(folder.Id, newName), Ct);
-                return true;
-            }, Ct);
+        {
+            Directory.Move(Path.Combine(Workspace, existingName), Path.Combine(Workspace, newName));
+            return Task.CompletedTask;
+        }
 
-        // /work/trip/day1/a.txt = "hello" and /work/private/secret.txt, by exact path in Ada's workspace.
+        // /work/trip/day1/a.txt = "hello" and /work/private/secret.txt, in Ada's workspace.
         private async Task Seed()
         {
-            using var ada = As(Ada);
-            await WorkspaceFilesService.ForBrain(runtime.Services, Ada).WithVfs(async vfs =>
-            {
-                var work = (await vfs.GetMounts(Ct)).Single(mount => mount.MountPoint == SharePath.Mount).Storage;
-                var root = (await work.Roots(Ct))[0];
-                await work.Write(WritePlan.CreateFolder(root.Id, "trip"), Ct);
-                await work.Write(WritePlan.CreateFolder(root.Id, "private"), Ct);
-                var trip = await work.ResolvePath("trip", Ct) ?? throw new InvalidOperationException("trip was not created");
-                await work.Write(WritePlan.CreateFolder(trip.Id, "day1"), Ct);
-                await vfs.Write("/work/trip/day1/a.txt", Encoding.UTF8.GetBytes("hello"), Ct);
-                await vfs.Write("/work/private/secret.txt", Encoding.UTF8.GetBytes("secret"), Ct);
-                return true;
-            }, Ct);
+            Directory.CreateDirectory(Path.Combine(Workspace, "trip", "day1"));
+            Directory.CreateDirectory(Path.Combine(Workspace, "private"));
+            await File.WriteAllTextAsync(Path.Combine(Workspace, "trip", "day1", "a.txt"), "hello", Ct);
+            await File.WriteAllTextAsync(Path.Combine(Workspace, "private", "secret.txt"), "secret", Ct);
         }
 
         public async ValueTask DisposeAsync()
@@ -505,13 +523,24 @@ public sealed class FileSharesDoorFacts
         public Task<string?> OwnerAccount(BrainId brain, CancellationToken cancellationToken = default) => Task.FromResult<string?>(brain.Value);
     }
 
-    private sealed class NoConnections : ICapabilityConnections
+    // Each brain's only connection is its workspace, bound as the kernel binds it.
+    private sealed class NoConnections(IServiceProvider services) : ICapabilityConnections
     {
-        public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<BrainConnection>>([]);
+        public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default)
+        {
+            var key = IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilityConnections.LocalCloudConnectionKey(brain);
+            return Task.FromResult<IReadOnlyList<BrainConnection>>([new BrainConnection(key, "Workspace", true, [Capability.Storage.V1], IntoChat.OS.Kernel.Composition.Capabilities.ConnectionStorage.Root(key))]);
+        }
 
         public Task<TCapability> Bind<TCapability>(BrainId brain, string connectionKey, string callerApp, CancellationToken ct = default)
             where TCapability : class
-            => throw new NotSupportedException();
+        {
+            var id = IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilityConnections.LocalCloudId(brain);
+            object bound = new IntoChat.OS.Kernel.Composition.Capabilities.ConnectionStorage(
+                SiloNeurons.Get<IStorage>(services, id), connectionKey, (IStorageUpload)SiloNeurons.Get(services, typeof(IStorageUpload), id),
+                edge: services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>());
+            return Task.FromResult((TCapability)bound);
+        }
 
         public Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct = default)
             => Task.CompletedTask;
@@ -551,6 +580,7 @@ public sealed class FileSharesDoorFacts
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
             services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);
             services.TryAddSingleton<ICapabilityConnections, NoConnections>();
+            services.AddTestWorkspace();
             services.TryAddSingleton(TimeProvider.System);
         }
     }

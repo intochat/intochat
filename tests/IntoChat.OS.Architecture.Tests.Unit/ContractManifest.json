@@ -285,6 +285,7 @@
     "IntoChat.OS.Modules.Flutter.Workspace.ProblemReported": "ProblemReported",
     "IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged": "WorkspaceChanged",
     "IntoChat.OS.Modules.Google.Gmail.MailReceived": "MailReceived",
+    "IntoChat.OS.Modules.LocalDisk.BrainWorkspaceChanged": "BrainWorkspaceChanged",
     "IntoChat.OS.Modules.LocalDisk.LocalDiskRootsChanged": "LocalDiskRootsChanged",
     "IntoChat.OS.Modules.Mcp.McpServerChanged": "McpServerChanged",
     "IntoChat.OS.Modules.Mcp.McpToolRan": "McpToolRan",

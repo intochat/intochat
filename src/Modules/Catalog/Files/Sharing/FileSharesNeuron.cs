@@ -75,7 +75,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
 
         if (!await Friends.IsFriend(new AccountId(account))) { throw new UnauthorizedAccessException("Share only with a confirmed friend."); }
         var canonical = SharePath.Normalize(path);
-        var item = await Files(vfs => vfs.Stat(canonical))
+        var item = await Files(files => files.Find(canonical))
             ?? throw new ArgumentException("There is no file or folder at that path.", nameof(path));
 
         var share = new WorkspaceShare(Guid.NewGuid().ToString("N"), account, canonical, item.Kind == ItemKind.Folder, role, Clock.GetUtcNow());
@@ -141,13 +141,13 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     public async Task<WorkspaceShare[]> Shares()
     {
         await Owner();
-        return await Files(async vfs =>
+        return await Files(async files =>
         {
             var shares = new WorkspaceShare[State.Shares.Length];
             for (var i = 0; i < State.Shares.Length; i++)
             {
                 var share = State.Shares[i];
-                var item = await vfs.Stat(share.Path);
+                var item = await files.Find(share.Path);
                 var isFolder = item?.Kind == ItemKind.Folder;
                 shares[i] = share with { Broken = item is null || isFolder != share.IsFolder };
             }
@@ -168,24 +168,20 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     {
         var (share, account) = await Admit(shareId);
         var path = SharePath.Resolve(share.Path, share.IsFolder, relativePath);
-        var entries = await Files<IReadOnlyList<VfsItem>>(async vfs =>
+        var entries = await Files<IReadOnlyList<(string Path, Item Item)>>(async files =>
         {
-            if (await vfs.Stat(path) is not { } item) { return []; }
-            return item.Kind == ItemKind.Folder ? await vfs.List(path) : [item];
+            if (await files.Find(path) is not { } item) { return []; }
+            return item.Kind == ItemKind.Folder ? [.. (await files.List(path)).Select(child => (path + "/" + child.Name, child))] : [(path, item)];
         });
         await Publish(new FileShareServed(share.Id, account, path, Write: false));
-        return [.. entries.Where(entry => SharePath.IsInside(share.Path, entry.Path)).Select(entry => Entry(share, entry))];
+        return [.. entries.Where(entry => SharePath.IsInside(share.Path, entry.Path)).Select(entry => Entry(share, entry.Path, entry.Item))];
     }
 
     public async Task<byte[]?> Read(string shareId, string? relativePath)
     {
         var (share, account) = await Admit(shareId);
         var path = SharePath.Resolve(share.Path, share.IsFolder, relativePath);
-        var bytes = await Files(async vfs =>
-        {
-            if (await vfs.Stat(path) is not { Kind: not ItemKind.Folder }) { return null; }
-            return (await vfs.Read(path, new ByteRange(0, WorkspaceFilesService.MaxReadBytes))).Bytes.ToArray();
-        });
+        var bytes = await Files(files => files.Read(path, BrainWorkspaceFiles.MaxReadBytes));
         await Publish(new FileShareServed(share.Id, account, path, Write: false));
         return bytes;
     }
@@ -196,20 +192,20 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         var (share, account) = await Admit(shareId);
         var path = SharePath.Resolve(share.Path, share.IsFolder, relativePath);
         if (share.Role != ShareRole.Editor) { throw PersonActs.Refused(); }
+        // A friend writes no more than a friend can read back.
+        if (content.LongLength > BrainWorkspaceFiles.MaxReadBytes) { throw new ArgumentException("The file is larger than a share takes.", nameof(content)); }
 
-        var written = await Files(async vfs =>
+        var written = await Files(async files =>
         {
-            if (await vfs.Stat(path) is { Kind: ItemKind.Folder }) { throw new ArgumentException("That path is a folder.", nameof(relativePath)); }
-            try { await vfs.Write(path, content); }
+            try { return await files.Write(path, content); }
             catch (DirectoryNotFoundException) { throw new ArgumentException("The folder of that path does not exist.", nameof(relativePath)); }
-            return await vfs.Stat(path) ?? throw new IOException("The file was not written.");
         });
 
         var save = new FileShareSave(path, account, Clock.GetUtcNow());
         var saves = State.Saves.Where(existing => existing.Path != path).TakeLast(KeptSaves - 1);
         var next = new FileSharesRecord { Shares = State.Shares, Saves = [.. saves, save] };
         await Save(next, new FileShareServed(share.Id, account, path, Write: true));
-        return Entry(share, written);
+        return Entry(share, path, written);
     }
 
     // The brain's owner, as a person, in this brain.
@@ -232,17 +228,18 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     private Task Commit(WorkspaceShare[] shares, FileShareSave[] saves)
         => Save(new FileSharesRecord { Shares = shares, Saves = saves }, new FileSharesChanged(shares.Length));
 
-    // Storage is reached as the files module of this brain, never as the person of another brain who asked.
-    private async Task<T> Files<T>(Func<IStorageVfs, Task<T>> work)
+    // The workspace is reached as the files module of this brain, never as the person of another brain who asked. A share
+    // path ("/work/trip/a.txt") is a workspace path with the old mount prefix.
+    private async Task<T> Files<T>(Func<BrainWorkspaceFiles, Task<T>> work)
     {
         using var module = PersonActs.AsFilesModule(services, Id.Brain);
-        return await WorkspaceFilesService.ForBrain(services, Id.Brain.Value).WithVfs(work);
+        return await work(new BrainWorkspaceFiles(services.GetRequiredService<DigitalBrain.Capabilities.ICapabilityBroker>(), Id.Brain));
     }
 
-    private SharedEntry Entry(WorkspaceShare share, VfsItem item)
+    private SharedEntry Entry(WorkspaceShare share, string path, Item item)
     {
-        var relative = item.Path.Length > share.Path.Length ? item.Path[(share.Path.Length + 1)..] : string.Empty;
-        var last = State.Saves.LastOrDefault(save => save.Path == item.Path);
+        var relative = path.Length > share.Path.Length ? path[(share.Path.Length + 1)..] : string.Empty;
+        var last = State.Saves.LastOrDefault(save => save.Path == path);
         return new SharedEntry(relative, item.Name, item.Kind == ItemKind.Folder, item.Size, last?.At ?? item.Modified, last?.Account ?? string.Empty);
     }
 }

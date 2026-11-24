@@ -9,17 +9,18 @@ using IntoChat.OS.Host.Primitives;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
-// Reusable in-memory + optional confined root directory implementation of DigitalBrain's IStorage.
+// The old in-memory storage. Its last users are WorkspaceFilesService's temp fallback and the kernel's sandbox double;
+// it goes with them (paper 60, step 5). The brain's workspace is LocalCloudNeuron on the confined disk engine.
 public sealed class LocalCloudStorage : IStorage
 {
-    public const string TypeName = LocalCloudNeuron.TypeName;
-    public const string RootIdValue = LocalCloudNeuron.RootIdValue;
-    public const long DefaultMaxStorageBytes = LocalCloudNeuron.DefaultMaxStorageBytes;
+    public const string TypeName = CloudModule.WorkspaceNeuronType;
+    public const string RootIdValue = "cloud";
+    public const long DefaultMaxStorageBytes = 1024L * 1024 * 1024;
 
-    private readonly Func<LocalCloudState> _state;
+    private readonly Func<LegacyCloudState> _state;
     private readonly Func<DateTimeOffset> _utcNow;
 
-    internal LocalCloudStorage(Func<LocalCloudState> state, Func<DateTimeOffset> utcNow)
+    internal LocalCloudStorage(Func<LegacyCloudState> state, Func<DateTimeOffset> utcNow)
     {
         _state = state;
         _utcNow = utcNow;
@@ -27,7 +28,7 @@ public sealed class LocalCloudStorage : IStorage
 
     public LocalCloudStorage(string? rootDirectory = null, TimeProvider? time = null)
     {
-        var ownedState = new LocalCloudState();
+        var ownedState = new LegacyCloudState();
         var clock = time ?? TimeProvider.System;
         _state = () => ownedState;
         _utcNow = clock.GetUtcNow;
@@ -40,10 +41,19 @@ public sealed class LocalCloudStorage : IStorage
         set => ActiveState.MaxStorageBytes = value;
     }
 
-    private LocalCloudState ActiveState => _state();
+    private LegacyCloudState ActiveState => _state();
     private DateTimeOffset UtcNow() => _utcNow();
-    private static string RootDisplayName => LocalCloudNeuron.StorageDisplayName;
-    private static ItemFlags Offered => LocalCloudNeuron.StorageOffered;
+    private const string RootDisplayName = "Local Cloud";
+    private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder
+        | ItemFlags.Copy | ItemFlags.Move | ItemFlags.Rename | ItemFlags.Delete;
+
+    private static bool IsFilteredPath(string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) { return false; }
+        var normalized = relativePath.Replace('\\', '/').Trim('/');
+        if (normalized.Length == 0 || string.Equals(normalized, RootIdValue, StringComparison.Ordinal)) { return false; }
+        return normalized.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(WorkspaceNames.IsHiddenOrSecretSegment);
+    }
 
     public void ConfigureRootDirectory(string? rootDirectory)
         => ActiveState.RootDirectory = !string.IsNullOrWhiteSpace(rootDirectory) ? Path.GetFullPath(rootDirectory) : null;
@@ -87,14 +97,14 @@ public sealed class LocalCloudStorage : IStorage
                 foreach (var dir in Directory.EnumerateDirectories(physicalFolder))
                 {
                     var name = Path.GetFileName(dir);
-                    if (LocalCloudNeuron.IsHiddenOrSecretSegment(name) || IsSystemHidden(dir)) { continue; }
+                    if (WorkspaceNames.IsHiddenOrSecretSegment(name) || IsSystemHidden(dir)) { continue; }
                     var childRel = JoinPath(rel, name);
                     items[name] = FolderItem(childRel, name);
                 }
                 foreach (var file in Directory.EnumerateFiles(physicalFolder))
                 {
                     var name = Path.GetFileName(file);
-                    if (LocalCloudNeuron.IsHiddenOrSecretSegment(name) || IsSystemHidden(file)) { continue; }
+                    if (WorkspaceNames.IsHiddenOrSecretSegment(name) || IsSystemHidden(file)) { continue; }
                     var info = new FileInfo(file);
                     var childRel = JoinPath(rel, name);
                     items[name] = FileItem(childRel, name, info.Length, info.LastWriteTimeUtc);
@@ -117,14 +127,14 @@ public sealed class LocalCloudStorage : IStorage
         var prefix = rel.Length == 0 ? "" : rel + "/";
         foreach (var entry in ActiveState.Entries.Values)
         {
-            if (LocalCloudNeuron.IsFilteredPath(entry.Path)) { continue; }
+            if (IsFilteredPath(entry.Path)) { continue; }
             if (prefix.Length > 0 && !entry.Path.StartsWith(prefix, StringComparison.Ordinal)) { continue; }
             var remainder = prefix.Length == 0 ? entry.Path : entry.Path[prefix.Length..];
             if (string.IsNullOrEmpty(remainder)) { continue; }
             var slash = remainder.IndexOf('/', StringComparison.Ordinal);
             if (slash < 0)
             {
-                if (LocalCloudNeuron.IsHiddenOrSecretSegment(entry.Name)) { continue; }
+                if (WorkspaceNames.IsHiddenOrSecretSegment(entry.Name)) { continue; }
                 items[entry.Name] = entry.Kind == ItemKind.Folder
                     ? FolderItem(entry.Path, entry.Name)
                     : FileItem(entry.Path, entry.Name, entry.Content.LongLength, entry.Modified);
@@ -132,7 +142,7 @@ public sealed class LocalCloudStorage : IStorage
             else
             {
                 var childFolder = remainder[..slash];
-                if (LocalCloudNeuron.IsHiddenOrSecretSegment(childFolder)) { continue; }
+                if (WorkspaceNames.IsHiddenOrSecretSegment(childFolder)) { continue; }
                 var childPath = JoinPath(rel, childFolder);
                 items.TryAdd(childFolder, FolderItem(childPath, childFolder));
             }
@@ -241,7 +251,7 @@ public sealed class LocalCloudStorage : IStorage
 
         foreach (var entry in ActiveState.Entries.Values)
         {
-            if (entry.Kind != ItemKind.File || LocalCloudNeuron.IsFilteredPath(entry.Path)) { continue; }
+            if (entry.Kind != ItemKind.File || IsFilteredPath(entry.Path)) { continue; }
             if (prefix.Length > 0 && !entry.Path.StartsWith(prefix, StringComparison.Ordinal)) { continue; }
             if (string.IsNullOrEmpty(query.Text) || entry.Name.Contains(query.Text, StringComparison.OrdinalIgnoreCase))
             {
@@ -303,7 +313,7 @@ public sealed class LocalCloudStorage : IStorage
                     var name = ValidateSafeName(plan.Name, plan.TargetFolder);
                     var dest = JoinPath(folder, name);
                     if (plan.Conflict != ConflictPolicy.Overwrite && EntryExists(dest)) { throw new Conflict(plan.TargetFolder); }
-                    await StoreEntryAsync(new LocalCloudEntry(dest, name, ItemKind.Folder, [], UtcNow()), ct).ConfigureAwait(false);
+                    await StoreEntryAsync(new LegacyCloudEntry(dest, name, ItemKind.Folder, [], UtcNow()), ct).ConfigureAwait(false);
                     break;
                 }
             case WriteKind.WriteFile:
@@ -313,7 +323,7 @@ public sealed class LocalCloudStorage : IStorage
                     var dest = JoinPath(folder, name);
                     if (plan.Conflict != ConflictPolicy.Overwrite && EntryExists(dest)) { throw new Conflict(plan.TargetFolder); }
                     var bytes = plan.Inline?.ToArray() ?? [];
-                    await StoreEntryAsync(new LocalCloudEntry(dest, name, ItemKind.File, bytes, UtcNow(), GuessContentType(name)), ct).ConfigureAwait(false);
+                    await StoreEntryAsync(new LegacyCloudEntry(dest, name, ItemKind.File, bytes, UtcNow(), GuessContentType(name)), ct).ConfigureAwait(false);
                     break;
                 }
             case WriteKind.Delete:
@@ -353,7 +363,7 @@ public sealed class LocalCloudStorage : IStorage
         }
     }
 
-    internal async Task StoreEntryAsync(LocalCloudEntry entry, CancellationToken ct)
+    internal async Task StoreEntryAsync(LegacyCloudEntry entry, CancellationToken ct)
     {
         var limit = ActiveState.MaxStorageBytes;
         if (limit > 0)
@@ -431,7 +441,7 @@ public sealed class LocalCloudStorage : IStorage
             ? raw[(RootIdValue.Length + 1)..]
             : raw;
 
-        if (IsTraversalOrInvalid(stripped) || LocalCloudNeuron.IsFilteredPath(stripped))
+        if (IsTraversalOrInvalid(stripped) || IsFilteredPath(stripped))
         {
             throw new Denied(id);
         }
@@ -445,7 +455,7 @@ public sealed class LocalCloudStorage : IStorage
             || name.Contains('/', StringComparison.Ordinal)
             || name.Contains('\\', StringComparison.Ordinal)
             || IsTraversalOrInvalid(name)
-            || LocalCloudNeuron.IsHiddenOrSecretSegment(name))
+            || WorkspaceNames.IsHiddenOrSecretSegment(name))
         {
             throw new Denied(contextId);
         }
@@ -471,11 +481,11 @@ public sealed class LocalCloudStorage : IStorage
         foreach (var file in Directory.EnumerateFiles(currentDir))
         {
             var name = Path.GetFileName(file);
-            if (LocalCloudNeuron.IsHiddenOrSecretSegment(name) || IsSystemHidden(file)) { continue; }
+            if (WorkspaceNames.IsHiddenOrSecretSegment(name) || IsSystemHidden(file)) { continue; }
             if (searchText.Length == 0 || name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
             {
                 var rel = Path.GetRelativePath(rootDir, file).Replace('\\', '/');
-                if (!LocalCloudNeuron.IsFilteredPath(rel))
+                if (!IsFilteredPath(rel))
                 {
                     var info = new FileInfo(file);
                     matches[rel] = FileItem(rel, name, info.Length, info.LastWriteTimeUtc);
@@ -485,7 +495,7 @@ public sealed class LocalCloudStorage : IStorage
         foreach (var subDir in Directory.EnumerateDirectories(currentDir))
         {
             var name = Path.GetFileName(subDir);
-            if (LocalCloudNeuron.IsHiddenOrSecretSegment(name) || IsSystemHidden(subDir)) { continue; }
+            if (WorkspaceNames.IsHiddenOrSecretSegment(name) || IsSystemHidden(subDir)) { continue; }
             SearchPhysicalDirectory(rootDir, subDir, searchText, matches);
         }
     }
@@ -564,7 +574,7 @@ public sealed class LocalCloudStorage : IStorage
         protected override async Task<ItemId> CommitCore(CancellationToken ct)
         {
             var bytes = ((MemoryStream)Content).ToArray();
-            var entry = new LocalCloudEntry(destination, name, ItemKind.File, bytes, owner.UtcNow(), GuessContentType(name));
+            var entry = new LegacyCloudEntry(destination, name, ItemKind.File, bytes, owner.UtcNow(), GuessContentType(name));
             await owner.StoreEntryAsync(entry, ct).ConfigureAwait(false);
             return new ItemId(destination);
         }
@@ -572,3 +582,18 @@ public sealed class LocalCloudStorage : IStorage
         protected override Task AbortCore(CancellationToken ct) => Task.CompletedTask;
     }
 }
+
+internal sealed class LegacyCloudState
+{
+    public string? RootDirectory { get; set; }
+    public long MaxStorageBytes { get; set; } = LocalCloudStorage.DefaultMaxStorageBytes;
+    public Dictionary<string, LegacyCloudEntry> Entries { get; set; } = new(StringComparer.Ordinal);
+}
+
+internal sealed record LegacyCloudEntry(
+    string Path,
+    string Name,
+    ItemKind Kind,
+    byte[] Content,
+    DateTimeOffset Modified,
+    string ContentType = "application/octet-stream");

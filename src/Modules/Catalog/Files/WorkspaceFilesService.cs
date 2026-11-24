@@ -127,7 +127,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
         }
 
-        var workStorage = ResolveMountStorage(connections, ["cloud", "work"], LocalCloudNeuron.TypeName, fallbackFirstConnection: false)
+        var workStorage = ResolveMountStorage(connections, ["cloud", "work"], CloudModule.WorkspaceNeuronType, fallbackFirstConnection: false)
             ?? _fallbackWorkStorage;
         var localStorage = ResolveMountStorage(connections, ["local-disk", "disk"], "local-disk", fallbackFirstConnection: false)
             ?? _fallbackLocalStorage;

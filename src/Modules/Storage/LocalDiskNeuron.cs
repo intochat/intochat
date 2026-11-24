@@ -27,11 +27,7 @@ internal sealed class LocalDiskNeuron(
     internal const string TypeName = "local-disk";
     internal const string KeyName = "main";
 
-    // A host without the module's coordinator (a test host) still serializes this activation's own writes.
-    private LocalDiskCoordinator? _own;
-    private LocalDiskCoordinator Coordinator => coordinator ?? (_own ??= new LocalDiskCoordinator());
-
-    private LocalDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance, Coordinator);
+    private LocalDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance, coordinator);
 
     public Task<string[]> Roots() => Task.FromResult(Paths());
 

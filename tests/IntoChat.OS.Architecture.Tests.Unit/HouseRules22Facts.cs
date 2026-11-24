@@ -929,7 +929,6 @@ public sealed class HouseRules22Facts
             "CreatorApp",
             "AggregateScreenBase",
             "IdentityDirectoryNeuron",
-            "LocalCloudNeuron",
         };
 
         var offenders = new List<string>();
@@ -1183,9 +1182,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudState",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudEntry",
-            "IntoChat.OS.Modules.LocalDisk.LocalCloudNeuron",
             "IntoChat.OS.Modules.LocalDisk.LocalCloudStorage",
         };
 
