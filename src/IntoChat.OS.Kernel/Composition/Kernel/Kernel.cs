@@ -86,13 +86,11 @@ public sealed class OsKernel(IGrainFactory grains, IBrainMembership? membership 
 
     public async Task<System.Text.Json.JsonElement?> State(NeuronId id, CancellationToken cancellationToken = default)
     {
-        var host = grains.GetGrain<DigitalBrain.Runtime.Orleans.Hosting.INeuronHost>(id.ToString());
-        if (host.GetType().GetMethod("InspectState", [typeof(CancellationToken)]) is { } inspectState)
-        {
-            var task = (Task<System.Text.Json.JsonElement?>)inspectState.Invoke(host, [cancellationToken])!;
-            return await task.ConfigureAwait(false);
-        }
-        return null;
+        // Three host grains implement INeuronHost, so the grain is named by the neuron's hosting policy, never by the interface
+        // alone. A type no loaded class has is a unit's generated neuron, which the brain-affine host runs.
+        var hostType = KernelInvocationSink.HostTypeOfLoaded(id.Type) ?? KernelTestHooks.BrainAffineHost;
+        var host = grains.GetGrain<DigitalBrain.Runtime.Orleans.Hosting.INeuronHost>(Orleans.Runtime.GrainId.Create(hostType, id.ToString()));
+        return await host.InspectState(cancellationToken).ConfigureAwait(false);
     }
 
     public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default)

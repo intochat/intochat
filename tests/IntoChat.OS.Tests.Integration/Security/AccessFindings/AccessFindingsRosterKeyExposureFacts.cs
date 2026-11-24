@@ -9,26 +9,20 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 
 // Finding 6 (54-friends-merge-design.md section 4) and Finding 1 row 4: INeuronHost.InspectState is exempt from the
-// access gate and serialises the WHOLE neuron state. gRPC NeuronsGrpcService.ReadState returns exactly that state to any
-// session admitted to the brain, with no per-field check. The friends roster neuron stores two PKCS#8 private keys in
-// its state record. This fact reads the roster neuron's inspected state the same way ReadState does internally
-// (IBrainObserver.State -> INeuronHost.InspectState) and asserts the property that SHOULD hold: private key material is
-// never present in inspected roster state. It FAILS today if the keys are exposed.
+// access gate and serialises the WHOLE neuron state, and gRPC NeuronsGrpcService.ReadState returns exactly that state to
+// any session admitted to the brain, with no per-field check. The roster once stored two PKCS#8 private keys in its state
+// record; they now live sealed in the identity module (IBrainKeys). This guard reads the roster neuron's inspected state
+// the way ReadState does on the silo (IBrainObserver.State -> INeuronHost.InspectState) and holds that no private key
+// material is ever in it.
 //
-// Who is admitted (established by reading code, not in-process): NeuronsGrpcService.ReadState calls
-// BrainCall.Enter, which admits only a Person or Guest session that also passes BrainAccessFilter.Decide for that brain
-// (Kernel/Platform/BrainCall.cs:33-43). So the readers are the brain's own owner person sessions and any guest the
-// brain admits -- not another brain, not by itself an app/agent HTTP session.
+// Who is admitted: NeuronsGrpcService.ReadState calls BrainCall.Enter, which admits only a Person or Guest session that
+// also passes BrainAccessFilter.Decide for that brain -- not another brain, not by itself an app/agent HTTP session.
 [Trait("Category", "AccessFindings")]
 public sealed class AccessFindingsRosterKeyExposureFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // Known open finding, kept out of the gate the repo's way (Explicit; run it with `-- --explicit only`). It cannot
-    // reach its assertion today: the kernel's state read fails on a silo before any state (OWED.md, "state read on a silo").
-    // The fix for that read is held back because it would hand these keys to every admitted session; both land with the
-    // move of the keys to the identity module. Then this fact goes back to a plain [Fact].
-    [Fact(Explicit = true)]
+    [Fact]
     public async Task InspectingTheFriendsRoster_DoesNotRevealPrivateSigningOrExchangeKeys()
     {
         await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
@@ -53,10 +47,16 @@ public sealed class AccessFindingsRosterKeyExposureFacts
         }
 
         Assert.NotNull(state);
-        var json = state!.Value.GetRawText();
+        Assert.Equal(JsonValueKind.Object, state!.Value.ValueKind);
 
-        // SHOULD hold: no private key bytes are ever present in inspected roster state.
-        Assert.DoesNotContain("SigningKeyPkcs8", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("ExchangeKeyPkcs8", json, StringComparison.OrdinalIgnoreCase);
+        // No private key bytes are ever present in inspected roster state. The record keeps the two legacy slots so an older
+        // roster can hand its pair over; a roster minted now leaves them empty.
+        foreach (var field in state.Value.EnumerateObject())
+        {
+            if (field.Name.Contains("Pkcs8", StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.Equal(JsonValueKind.Null, field.Value.ValueKind);
+            }
+        }
     }
 }
