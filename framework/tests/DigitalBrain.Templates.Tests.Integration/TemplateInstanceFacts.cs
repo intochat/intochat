@@ -138,6 +138,8 @@ public sealed class TemplateInstanceFacts
         var cache = Environment.GetEnvironmentVariable("NUGET_PACKAGES") is { Length: > 0 } set
             ? set
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+        // A machine that never restored has no cache folder; NuGet refuses a local source that does not exist (NU1301).
+        Directory.CreateDirectory(cache);
         return $"""
             <?xml version="1.0" encoding="utf-8"?>
             <configuration>

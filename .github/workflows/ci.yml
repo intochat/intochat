@@ -47,6 +47,11 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
+
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
 
@@ -82,6 +87,11 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
+
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
@@ -128,6 +138,11 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
+
       - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
@@ -160,6 +175,11 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
+
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
 
       - uses: actions/download-artifact@v8
         with:
@@ -213,6 +233,11 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
+
       - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
@@ -247,6 +272,11 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
+
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
 
       - uses: actions/download-artifact@v8
         with:
@@ -289,6 +319,11 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
+
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
 
       - uses: actions/download-artifact@v8
         with:
@@ -347,6 +382,11 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
+
       - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
@@ -401,6 +441,11 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
+
+      # Jobs that only run compiled tests never restore, so the cache folder is never created: without it
+      # setup-dotnet's post step fails and the template tests point a package source at a missing folder.
+      - name: Make sure the NuGet cache folder exists
+        run: mkdir -p ~/.nuget/packages
 
       - name: Dry-run the Windows release packaging
         shell: pwsh
