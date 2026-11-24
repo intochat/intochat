@@ -505,9 +505,9 @@ public sealed class ArmAzure : IAzureArm
         return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.Configuration?.Ingress?.Fqdn ?? "" };
     }
 
-    private sealed class ArmRevisions(ContainerAppResource app) : IAppRevisions
+    private sealed class ArmRevisions(ContainerAppResource app) : AppRevisions
     {
-        public async Task<IReadOnlyList<AppRevision>> List(CancellationToken ct)
+        public override async Task<IReadOnlyList<AppRevision>> List(CancellationToken ct)
         {
             List<AppRevision> revisions = [];
             await foreach (var revision in app.GetContainerAppRevisions().GetAllAsync(cancellationToken: ct))
@@ -517,13 +517,13 @@ public sealed class ArmAzure : IAzureArm
             return revisions;
         }
 
-        public async Task Deactivate(string name, CancellationToken ct)
+        public override async Task Deactivate(string name, CancellationToken ct)
             => await (await app.GetContainerAppRevisionAsync(name, ct)).Value.DeactivateRevisionAsync(ct);
 
-        public async Task Activate(string name, CancellationToken ct)
+        public override async Task Activate(string name, CancellationToken ct)
             => await (await app.GetContainerAppRevisionAsync(name, ct)).Value.ActivateRevisionAsync(ct);
 
-        public async Task<(string? Latest, string? LatestReady)> Heads(CancellationToken ct)
+        public override async Task<(string? Latest, string? LatestReady)> Heads(CancellationToken ct)
         {
             var data = (await app.GetAsync(ct)).Value.Data;
             return (data.LatestRevisionName, data.LatestReadyRevisionName);

@@ -81,7 +81,7 @@ public sealed class RevisionHandoverFacts
         Assert.Empty(running.Log);
     }
 
-    private sealed class FakeApp : IAppRevisions
+    private sealed class FakeApp : AppRevisions
     {
         public FakeApp(string running)
         {
@@ -114,18 +114,18 @@ public sealed class RevisionHandoverFacts
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<AppRevision>> List(CancellationToken ct) => Task.FromResult<IReadOnlyList<AppRevision>>([.. Revisions.Values]);
+        public override Task<IReadOnlyList<AppRevision>> List(CancellationToken ct) => Task.FromResult<IReadOnlyList<AppRevision>>([.. Revisions.Values]);
 
-        public Task<(string? Latest, string? LatestReady)> Heads(CancellationToken ct) => Task.FromResult<(string?, string?)>((Latest, LatestReady));
+        public override Task<(string? Latest, string? LatestReady)> Heads(CancellationToken ct) => Task.FromResult<(string?, string?)>((Latest, LatestReady));
 
-        public Task Deactivate(string name, CancellationToken ct)
+        public override Task Deactivate(string name, CancellationToken ct)
         {
             Log.Add("deactivate " + name);
             Revisions[name] = Revisions[name] with { Active = false, Replicas = Drains ? 0 : Revisions[name].Replicas };
             return Task.CompletedTask;
         }
 
-        public Task Activate(string name, CancellationToken ct)
+        public override Task Activate(string name, CancellationToken ct)
         {
             Log.Add("activate " + name);
             Revisions[name] = Revisions[name] with { Active = true, Replicas = 1 };
