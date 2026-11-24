@@ -44,6 +44,13 @@ public sealed class DesktopLifecycleFacts
             Assert.True(DesktopBootstrap.TryReadKernelPidRecord(plainPidPath, out var plainPid, out var plainPort));
             Assert.Equal(19840, plainPid);
             Assert.Equal(0, plainPort);
+
+            // A UTF-8 BOM before a JSON record is skipped without copying the buffer.
+            var bomPidPath = Path.Combine(layout.RunDirectory, "bom.pid");
+            File.WriteAllText(bomPidPath, "{\"pid\":31337,\"port\":6060}", new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            Assert.True(DesktopBootstrap.TryReadKernelPidRecord(bomPidPath, out var bomPid, out var bomPort));
+            Assert.Equal(31337, bomPid);
+            Assert.Equal(6060, bomPort);
         }
         finally
         {
