@@ -72,10 +72,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Free root disk in the background
+      - name: Free root disk
         run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
-          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -117,6 +117,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Free root disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -145,10 +150,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Free root disk in the background
+      - name: Free root disk
         run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
-          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -197,10 +202,10 @@ jobs:
       - name: Start Azurite
         run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
-      - name: Free root disk in the background
+      - name: Free root disk
         run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
-          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -231,6 +236,11 @@ jobs:
 
       - name: Start Azurite
         run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+
+      - name: Free root disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -269,10 +279,10 @@ jobs:
       - name: Start Azurite
         run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
-      - name: Free root disk in the background
+      - name: Free root disk
         run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
-          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -325,6 +335,11 @@ jobs:
 
       - name: Start Azurite
         run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+
+      - name: Free root disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - uses: actions/setup-dotnet@v6
         with:

@@ -17,6 +17,7 @@ using IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
+using IntoChat.OS.Tests.Integration.Modules.Roslyn;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -168,6 +169,7 @@ public sealed class SelfImprovementAcceptanceJourney
                     services.AddSingleton<IEngineeringHarness>(harness);
                     services.AddSingleton<IEngineerBuildVerifier>(buildVerifier);
                     services.AddSingleton<ILiveVerifier>(liveVerifier);
+                    services.AddRoslynWorkspace();
                     services.AddSingleton<IWorktreeRoslyn>(_ => new WorktreeRoslynAnalyzer());
                     services.AddSingleton<ICandidateHost>(candidateHost);
                     services.AddSingleton<IClusterHost>(clusterHost);

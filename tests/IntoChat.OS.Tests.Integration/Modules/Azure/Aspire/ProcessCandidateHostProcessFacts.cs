@@ -44,7 +44,7 @@ public sealed class ProcessCandidateHostProcessFacts : IDisposable
                 var port = new Uri(urls).Port;
 
                 // Spawn a real lightweight headless OS process serving HTTP 200 on /health on the allocated loopback port.
-                var realStart = new ProcessStartInfo("powershell")
+                var realStart = new ProcessStartInfo(OperatingSystem.IsWindows() ? "powershell" : "python3")
                 {
                     WorkingDirectory = candidateHome!,
                     CreateNoWindow = true,
@@ -52,20 +52,40 @@ public sealed class ProcessCandidateHostProcessFacts : IDisposable
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                 };
-                realStart.ArgumentList.Add("-NoProfile");
-                realStart.ArgumentList.Add("-NonInteractive");
-                realStart.ArgumentList.Add("-Command");
-                realStart.ArgumentList.Add(
-                    $"$l = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, {port}); " +
-                    "$l.Start(); " +
-                    "while ($true) { " +
-                    "  $c = $l.AcceptTcpClient(); " +
-                    "  $s = $c.GetStream(); " +
-                    "  $b = [System.Text.Encoding]::ASCII.GetBytes(\"HTTP/1.1 200 OK`r`nContent-Length: 2`r`nConnection: close`r`n`r`nOK\"); " +
-                    "  $s.Write($b, 0, $b.Length); " +
-                    "  $s.Flush(); " +
-                    "  $c.Close(); " +
-                    "}");
+                if (OperatingSystem.IsWindows())
+                {
+                    realStart.ArgumentList.Add("-NoProfile");
+                    realStart.ArgumentList.Add("-NonInteractive");
+                    realStart.ArgumentList.Add("-Command");
+                    realStart.ArgumentList.Add(
+                        $"$l = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, {port}); " +
+                        "$l.Start(); " +
+                        "while ($true) { " +
+                        "  $c = $l.AcceptTcpClient(); " +
+                        "  $s = $c.GetStream(); " +
+                        "  $b = [System.Text.Encoding]::ASCII.GetBytes(\"HTTP/1.1 200 OK`r`nContent-Length: 2`r`nConnection: close`r`n`r`nOK\"); " +
+                        "  $s.Write($b, 0, $b.Length); " +
+                        "  $s.Flush(); " +
+                        "  $c.Close(); " +
+                        "}");
+                }
+                else
+                {
+                    realStart.ArgumentList.Add("-c");
+                    realStart.ArgumentList.Add($"""
+                        import socket
+                        l = socket.socket()
+                        l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        l.bind(('127.0.0.1', {port}))
+                        l.listen()
+                        while True:
+                            c, _ = l.accept()
+                            c.recv(4096)
+                            c.sendall(b'HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK')
+                            c.close()
+                        """);
+                }
+
                 var proc = CandidateProcessHandle.Start(realStart);
                 spawnedPid = proc.Id;
                 return proc;

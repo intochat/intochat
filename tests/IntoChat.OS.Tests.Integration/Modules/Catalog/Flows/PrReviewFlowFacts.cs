@@ -8,6 +8,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Tests.Integration.Modules.Roslyn;
 using IntoChat.OS.Tests.Support.Fakes;
 using IntoChat.OS.Tests.Support.Fakes.GitHub;
 
@@ -97,7 +98,8 @@ public sealed class PrReviewFlowFacts
             f => f.GitHub(g => g
                 .WebhookSecret(WebhookSecret)
                 .Repository("intochat/os", repositoryId: 61001, installationId: 9101)
-                .PullRequest("intochat/os", 19, headSha, title: "Add clock helper", author: "bob", diff: diff)),
+                .PullRequest("intochat/os", 19, headSha, title: "Add clock helper", author: "bob", diff: diff))
+                .Configure(services => services.AddRoslynWorkspace()),
             ct);
 
         var ada = os.Person(os.Runtime.Brain.Value);
