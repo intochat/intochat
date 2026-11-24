@@ -103,6 +103,40 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         return AppInstallOutcome.Installed(name);
     }
 
+    // A bundle a person hands over directly (POST /apps/import), under the checks an install has: the stamped caller is a
+    // person, a root app is never replaced, and what the bundle asks for is consented to by its digest. No consent sent is
+    // consent to nothing, so a bundle that asks for nothing imports as it always did. A bundle that reads data imports only
+    // for the owner of the brain. Nothing is granted here: a grant stays an act of the install or of the person.
+    public async Task<AppInstallOutcome> Import(AppBundle bundle, string? consent, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bundle.Name);
+        if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
+        var scope = RequirePerson("Only you can import apps.");
+        if (ShippedApps.Roots.Contains(bundle.Name)) { throw new UnauthorizedAccessException($"{bundle.Name} is part of IntoChat and is not replaced."); }
+        var requires = bundle.Manifest.Requires ?? new AppRequirements();
+        if ((consent ?? AppConsent.Of(null)) != AppConsent.Of(requires)) { return AppInstallOutcome.NeedsConsent(requires); }
+        if (requires.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, Caller)) { return AppInstallOutcome.Refused(OwnerOnly); }
+        await SiloNeurons.Get<IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), bundle.Name).Key).Import(bundle).WaitAsync(ct);
+        return AppInstallOutcome.Installed(bundle.Name);
+    }
+
+    // The one uninstall path, for DELETE /apps/{name} and IAppStore.Remove alike: the stamped caller is a person, a root
+    // app stays, and the app exists.
+    public async Task Remove(string name, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var scope = RequirePerson("Only you can remove apps.");
+        if (ShippedApps.Roots.Contains(name)) { throw new UnauthorizedAccessException($"{name} is part of IntoChat and stays installed."); }
+        var app = SiloNeurons.Get<IApp>(plain, IntoChat.OS.Host.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key);
+        if ((await app.Read().WaitAsync(ct)).Manifest.Title.Length == 0) { throw new KeyNotFoundException($"No app named {name} exists in this brain."); }
+        await app.Delete().WaitAsync(ct);
+    }
+
+    // The brain of the stamped caller when that caller is a person; an app, an agent, a guest or no caller is refused.
+    private string RequirePerson(string refusal)
+        => Caller is { Actor: DigitalBrain.Access.Actor.Person } caller ? caller.Brain.Value : throw new UnauthorizedAccessException(refusal);
+
     // Every capability the app requires must be provided by a connected connection in this brain, before any state is
     // created. A requirement is a need, never a grant: this only reads connections and grants nothing.
     internal async Task CheckCapabilities(string scope, AppManifest manifest, CancellationToken ct)
