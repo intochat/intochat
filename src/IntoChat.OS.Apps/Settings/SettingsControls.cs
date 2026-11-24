@@ -44,16 +44,16 @@ internal static class SettingsControls
     public const string WebSearchProviderVariable = "web.search.provider";
     public const string WebSearxngUrlVariable = "web.search.searxng-url";
 
-    public static string RoleKey(Role role) => $"role-{role.ToString().ToLowerInvariant()}";
+    public static string RoleKey(ModelRole role) => $"role-{role.ToString().ToLowerInvariant()}";
 
-    public static Role? RoleOf(string? key)
+    public static ModelRole? RoleOf(string? key)
     {
         if (string.IsNullOrEmpty(key))
         {
             return null;
         }
 
-        foreach (var role in Enum.GetValues<Role>())
+        foreach (var role in Enum.GetValues<ModelRole>())
         {
             if (string.Equals(RoleKey(role), key, StringComparison.Ordinal))
             {
@@ -71,10 +71,10 @@ internal static class SettingsControls
         new(ThemeMode, s => s.ThemeMode),
         new(BarLayout, s => s.BarLayout),
         new(WebSearchProvider, ResolveWebSearchProvider),
-        .. Enum.GetValues<Role>().Select(role => new Combo(
+        .. Enum.GetValues<ModelRole>().Select(role => new Combo(
             RoleKey(role),
             s => s.Roles.FirstOrDefault(r => r.Role == role)?.Selected
-                ?? (role == Role.Chat ? s.DefaultModel : null))),
+                ?? (role == ModelRole.Chat ? s.DefaultModel : null))),
     ];
 
     public static string ResolveWebSearchProvider(SettingsAppState state)

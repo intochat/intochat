@@ -93,7 +93,7 @@ public sealed class RealModelCoderJourney(ITestOutputHelper output)
             Assert.True(probe.Reachable, $"Ollama at {OllamaEndpoint} is not reachable.");
 
             var catalog = provider.GetRequiredService<ModelCatalog>();
-            var resolved = await catalog.Decide(brainId: null, Role.Think, turn: null, requiresTools: true, Ct);
+            var resolved = await catalog.Decide(brainId: null, ModelRole.Think, turn: null, requiresTools: true, Ct);
             Assert.Equal(AiProvider.Ollama, resolved.Provider);
             Assert.Equal(ExpectedThinkModel, resolved.Model);
 

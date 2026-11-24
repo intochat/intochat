@@ -35,7 +35,7 @@ public sealed record Install(
     [property: Id(4)] long Bytes,
     [property: Id(5)] long TotalBytes,
     [property: Id(6)] string? Error,
-    [property: Id(7)] Role? SwitchWhenReady);
+    [property: Id(7)] ModelRole? SwitchWhenReady);
 
 [Signal("devices.install-changed")]
 public sealed record InstallChanged(ModelId Model, InstallState State, double Percent) : Signal;

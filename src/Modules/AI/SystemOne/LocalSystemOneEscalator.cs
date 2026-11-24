@@ -34,7 +34,7 @@ internal static class LocalSystemOneEscalator
         IChatClient client;
         try
         {
-            resolved = await catalog.Decide(brainId, Role.Chat, requiresTools: false, ct: ct).ConfigureAwait(false);
+            resolved = await catalog.Decide(brainId, ModelRole.Chat, requiresTools: false, ct: ct).ConfigureAwait(false);
             if (resolved.Provider == AiProvider.Device)
             {
                 return null;

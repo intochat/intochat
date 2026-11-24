@@ -57,10 +57,10 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
         {
             var normalized = KnownModels.Find(nextDefaultModel)?.Id ?? new ModelId(nextDefaultModel);
             var list = nextRoles.ToList();
-            var chatIndex = list.FindIndex(entry => entry.Role == Role.Chat);
+            var chatIndex = list.FindIndex(entry => entry.Role == ModelRole.Chat);
             if (chatIndex >= 0)
             {
-                list[chatIndex] = new RoleChoice(Role.Chat, normalized);
+                list[chatIndex] = new RoleChoice(ModelRole.Chat, normalized);
                 nextRoles = [.. list];
             }
         }
@@ -176,7 +176,7 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
         return next;
     }
 
-    public async Task<UserSettingsState> SetRole(Role role, ModelId model)
+    public async Task<UserSettingsState> SetRole(ModelRole role, ModelId model)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Value);
 
@@ -194,7 +194,7 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSetting
 
         var next = State with
         {
-            DefaultModel = role == Role.Chat ? normalized.Value : State.DefaultModel,
+            DefaultModel = role == ModelRole.Chat ? normalized.Value : State.DefaultModel,
             Roles = [.. roles],
         };
         await Save(next, new UserSettingsChanged(

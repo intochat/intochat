@@ -829,7 +829,7 @@ public sealed class SettingsAppFacts
         }
 
         public Task<DeviceView> Read() => Task.FromResult(_view);
-        public Task Use(Role role, ModelId model) => Task.CompletedTask;
+        public Task Use(ModelRole role, ModelId model) => Task.CompletedTask;
         public Task Install(ModelId model)
         {
             Installs.Add(model);

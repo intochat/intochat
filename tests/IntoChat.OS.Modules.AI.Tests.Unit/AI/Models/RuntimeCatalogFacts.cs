@@ -179,7 +179,7 @@ public sealed class RuntimeCatalogFacts
         var (sp, catalog) = CreateCatalog(runtime);
         await using var _ = sp;
 
-        var resolved = await catalog.Decide("local", Role.Chat, new ModelSelection(KnownModels.Qwen35.Id.Value), ct: Ct);
+        var resolved = await catalog.Decide("local", ModelRole.Chat, new ModelSelection(KnownModels.Qwen35.Id.Value), ct: Ct);
         using var client = await catalog.CreateClient("local", resolved, Ct);
         var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")], cancellationToken: Ct);
 
@@ -202,12 +202,12 @@ public sealed class RuntimeCatalogFacts
         var (sp, catalog) = CreateCatalog(foundry, compat);
         await using var scope = sp;
 
-        var r1 = await catalog.Decide("local", Role.Chat, new ModelSelection("phi-4-mini"), ct: Ct);
+        var r1 = await catalog.Decide("local", ModelRole.Chat, new ModelSelection("phi-4-mini"), ct: Ct);
         using var c1 = await catalog.CreateClient("local", r1, Ct);
         _ = await c1.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")], cancellationToken: Ct);
         Assert.Equal(new ModelId("phi-4-mini"), foundry.LastChat);
 
-        var r2 = await catalog.Decide("local", Role.Chat, new ModelSelection("mistral-7b"), ct: Ct);
+        var r2 = await catalog.Decide("local", ModelRole.Chat, new ModelSelection("mistral-7b"), ct: Ct);
         using var c2 = await catalog.CreateClient("local", r2, Ct);
         _ = await c2.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")], cancellationToken: Ct);
         Assert.Equal(new ModelId("mistral-7b"), compat.LastChat);
@@ -307,7 +307,7 @@ public sealed class RuntimeCatalogFacts
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(config);
-        services.AddOptions<AIOptions>().Configure(ai => ai.Roles.Device[Role.Embed] = KnownModels.EmbeddingGemma.Id.Value);
+        services.AddOptions<AIOptions>().Configure(ai => ai.Roles.Device[ModelRole.Embed] = KnownModels.EmbeddingGemma.Id.Value);
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
         services.AddSingleton<IPriceList, ModelPriceList>();
         services.AddSingleton<ILocalRuntime>(runtime);
@@ -317,7 +317,7 @@ public sealed class RuntimeCatalogFacts
         await using var sp = services.BuildServiceProvider();
         var catalog = sp.GetRequiredService<ModelCatalog>();
 
-        var picked = await catalog.Pick(brain: null, Role.Embed, turn: null, personSettingsReader: null, Ct);
+        var picked = await catalog.Pick(brain: null, ModelRole.Embed, turn: null, personSettingsReader: null, Ct);
         Assert.Equal(new ModelId("nomic-embed-text:latest"), picked);
     }
 }

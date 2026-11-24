@@ -39,8 +39,8 @@ public sealed class AIDeploymentFacts
     public void TopologyPicksTheSide(string topology, bool device, bool cloud, SearchProvider search)
     {
         var plan = Chain().Resolve(Profile(topology), Config());
-        Assert.Equal(device, plan.Ai.Roles.Device.ContainsKey(Role.Chat));
-        Assert.Equal(cloud, plan.Ai.Roles.Cloud.ContainsKey(Role.Chat));
+        Assert.Equal(device, plan.Ai.Roles.Device.ContainsKey(ModelRole.Chat));
+        Assert.Equal(cloud, plan.Ai.Roles.Cloud.ContainsKey(ModelRole.Chat));
         Assert.Equal(device, plan.Devices is not null);
         Assert.Equal(cloud, plan.Ai.Hosting.Llms.Contains(KnownModels.Gpt56Luna.Id.Value));
         Assert.Equal(search, plan.Web!.Provider);
@@ -62,7 +62,7 @@ public sealed class AIDeploymentFacts
     public void TheLauncherModelSetsDeviceChat()
     {
         var plan = Chain().Resolve(Profile("local"), Config((IntoChatOSHostingOptions.LocalModelKey, "qwen3:14b")));
-        Assert.Equal("qwen3:14b", plan.Ai.Roles.Device[Role.Chat]);
+        Assert.Equal("qwen3:14b", plan.Ai.Roles.Device[ModelRole.Chat]);
         Assert.Contains("qwen3:14b", plan.Devices!.Prefetch);
     }
 
@@ -96,6 +96,6 @@ public sealed class AIDeploymentFacts
         using var provider = services.BuildServiceProvider();
         var configured = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AIOptions>>().Value;
         Assert.Equal(IntoChatOSNames.LocalOllamaEndpoint, configured.Ollama.Endpoint);
-        Assert.Equal("gemma4:e2b", configured.Roles.Device[Role.Chat]);
+        Assert.Equal("gemma4:e2b", configured.Roles.Device[ModelRole.Chat]);
     }
 }

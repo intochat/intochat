@@ -159,13 +159,13 @@ public sealed class DeviceModelRoutingFacts
             var deviceCard = Assert.Single(cards, c => c.Id.Value == "device:vlad-pc/qwen2.5-coder:14b");
             Assert.Equal(Where.Device, deviceCard.Where);
 
-            await catalog.SetRole(Role.Chat, new ModelId("device:offline-pc/qwen2.5-coder:14b"));
-            var picked = await catalog.Pick(Role.Chat);
+            await catalog.SetRole(ModelRole.Chat, new ModelId("device:offline-pc/qwen2.5-coder:14b"));
+            var picked = await catalog.Pick(ModelRole.Chat);
             Assert.Equal("device:offline-pc/qwen2.5-coder:14b", picked.Value);
 
             var roles = await catalog.Roles();
-            Assert.Equal("device:offline-pc/qwen2.5-coder:14b", roles.Device[Role.Chat].Value);
-            Assert.Equal(DefaultCloudChat, roles.Cloud[Role.Chat].Value);
+            Assert.Equal("device:offline-pc/qwen2.5-coder:14b", roles.Device[ModelRole.Chat].Value);
+            Assert.Equal(DefaultCloudChat, roles.Cloud[ModelRole.Chat].Value);
         }
     }
 
@@ -261,7 +261,7 @@ public sealed class DeviceModelRoutingFacts
             services.AddSingleton<IConfiguration>(config);
             services.AddSingleton(TestEdge.Authority);
             services.AddLogging(b => b.AddProvider(new ListLoggerProvider(logs)));
-            services.AddOptions<AIOptions>().Configure(o => o.Roles.Cloud[Role.Chat] = cloudChat);
+            services.AddOptions<AIOptions>().Configure(o => o.Roles.Cloud[ModelRole.Chat] = cloudChat);
             services.AddSingleton<IAiCredentials>(new FixedAiCredentials());
             services.AddSingleton<IPriceList, ModelPriceList>();
             services.AddSingleton<IChatClient>(cloud);

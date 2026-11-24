@@ -144,7 +144,7 @@ public sealed class ModelVisualCatalogFacts
         Assert.Contains(resolvedAuto.Model, new[] { "qwen2.5-coder:14b", "qwen3:14b" });
         Assert.Equal("http://127.0.0.1:11434/", resolvedAuto.Endpoint);
 
-        var resolvedCode = await catalog.Decide("local", Role.Think, null, requiresTools: true, TestContext.Current.CancellationToken);
+        var resolvedCode = await catalog.Decide("local", ModelRole.Think, null, requiresTools: true, TestContext.Current.CancellationToken);
         Assert.Equal(AiProvider.Ollama, resolvedCode.Provider);
         Assert.Equal("qwen2.5-coder:14b", resolvedCode.Model);
     }

@@ -140,7 +140,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             else
             {
                 resolved = await catalog.ResolveCloudFallbackAsync(
-                    plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, unavailableReason ?? "offline", ct);
+                    plan.ScopeId, ModelRole.Chat, selection, allTools.Count > 0, resolved.Model, unavailableReason ?? "offline", ct);
             }
         }
 
@@ -231,7 +231,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                         client.Dispose();
                         client = null;
                         resolved = await catalog.ResolveCloudFallbackAsync(
-                            plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, deviceFallbackReason, ct);
+                            plan.ScopeId, ModelRole.Chat, selection, allTools.Count > 0, resolved.Model, deviceFallbackReason, ct);
                         (options, selectedDescriptor) = BuildTurnOptions(catalog, plan, selection, settings, resolved, activeTools);
                         yield return new AgentTurnEvent.ModelSelected(resolved, selectedDescriptor);
                         client = await catalog.CreateClient(plan.ScopeId, resolved, ct);
@@ -271,7 +271,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                         client.Dispose();
                         client = null;
                         resolved = await catalog.ResolveCloudFallbackAsync(
-                            plan.ScopeId, Role.Chat, selection, allTools.Count > 0, resolved.Model, deviceFallbackReason, ct);
+                            plan.ScopeId, ModelRole.Chat, selection, allTools.Count > 0, resolved.Model, deviceFallbackReason, ct);
                         (options, selectedDescriptor) = BuildTurnOptions(catalog, plan, selection, settings, resolved, activeTools);
                         yield return new AgentTurnEvent.ModelSelected(resolved, selectedDescriptor);
                         client = await catalog.CreateClient(plan.ScopeId, resolved, ct);

@@ -263,7 +263,7 @@ internal sealed class LocalLlmCoder : ICoder
 
         if (catalog is not null)
         {
-            var resolved = await catalog.Decide(brainId: null, Role.Think, explicitSelection, requiresTools: true, ct).ConfigureAwait(false);
+            var resolved = await catalog.Decide(brainId: null, ModelRole.Think, explicitSelection, requiresTools: true, ct).ConfigureAwait(false);
             if (resolved.Provider == AiProvider.Host && _services?.GetService<IChatClient>() is null)
             {
                 throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
@@ -273,7 +273,7 @@ internal sealed class LocalLlmCoder : ICoder
                 && resolved.Profile is null
                 && KnownModels.Find(resolved.Model) is { Tier: not Tier.Deep } downgraded)
             {
-                var expectedThink = KnownModels.Defaults.Device.TryGetValue(Role.Think, out var thinkId)
+                var expectedThink = KnownModels.Defaults.Device.TryGetValue(ModelRole.Think, out var thinkId)
                     ? thinkId.Value
                     : KnownModels.Qwen25Coder14B.Id.Value;
                 throw new NoProviderConfiguredException(

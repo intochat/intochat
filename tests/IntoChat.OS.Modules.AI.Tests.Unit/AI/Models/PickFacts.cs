@@ -118,7 +118,7 @@ public sealed class PickFacts
 
         var (os, sp, catalog, settings) = await StartHost(
             topology: IntoChatOSNames.TopologyCloud,
-            configureAi: ai => ai.Roles.Cloud[Role.Chat] = KnownModels.DeepSeekV41Flash.Id.Value,
+            configureAi: ai => ai.Roles.Cloud[ModelRole.Chat] = KnownModels.DeepSeekV41Flash.Id.Value,
             credentials: creds);
 
         await using var _os = os;
@@ -126,10 +126,10 @@ public sealed class PickFacts
 
         if (person is not null)
         {
-            await settings.SetRole(Role.Chat, new(person));
+            await settings.SetRole(ModelRole.Chat, new(person));
         }
 
-        var picked = await catalog.Pick(Role.Chat, turn is null ? null : new(turn));
+        var picked = await catalog.Pick(ModelRole.Chat, turn is null ? null : new(turn));
         Assert.Equal(expected, picked.Value);
     }
 
@@ -147,7 +147,7 @@ public sealed class PickFacts
         await using var _os = os;
         await using var _sp = sp;
 
-        var picked = await catalog.Pick(Role.Embed);
+        var picked = await catalog.Pick(ModelRole.Embed);
         var card = KnownModels.Find(picked.Value);
         Assert.NotNull(card);
         Assert.Equal(Where.Cloud, card.Where);
@@ -224,7 +224,7 @@ public sealed class PickFacts
         using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(
             IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("local", "local"), new BrainId("local")));
 
-        await Assert.ThrowsAsync<RuleViolationException>(() => catalog.SetRole(Role.Chat, KnownModels.Gpt54.Id));
+        await Assert.ThrowsAsync<RuleViolationException>(() => catalog.SetRole(ModelRole.Chat, KnownModels.Gpt54.Id));
     }
 
     [Fact]
@@ -239,19 +239,19 @@ public sealed class PickFacts
 
         var (os, sp, catalog, settings) = await StartHost(
             topology: IntoChatOSNames.TopologyCloud,
-            configureAi: ai => ai.Roles.Cloud[Role.Chat] = KnownModels.DeepSeekV41Flash.Id.Value,
+            configureAi: ai => ai.Roles.Cloud[ModelRole.Chat] = KnownModels.DeepSeekV41Flash.Id.Value,
             credentials: creds);
 
         await using var _os = os;
         await using var _sp = sp;
 
-        await catalog.SetRole(Role.Chat, KnownModels.Sonnet5.Id);
+        await catalog.SetRole(ModelRole.Chat, KnownModels.Sonnet5.Id);
 
         var roles = await catalog.Roles();
-        Assert.Equal(KnownModels.Sonnet5.Id, roles.Cloud[Role.Chat]);
-        Assert.Equal(KnownModels.Sonnet5.Id, (await settings.Read()).RoleOf(Role.Chat));
+        Assert.Equal(KnownModels.Sonnet5.Id, roles.Cloud[ModelRole.Chat]);
+        Assert.Equal(KnownModels.Sonnet5.Id, (await settings.Read()).RoleOf(ModelRole.Chat));
 
-        var resolved = await sp.GetRequiredService<ModelCatalog>().Decide("local", Role.Chat, ct: TestContext.Current.CancellationToken);
+        var resolved = await sp.GetRequiredService<ModelCatalog>().Decide("local", ModelRole.Chat, ct: TestContext.Current.CancellationToken);
         Assert.Equal((AiProvider.Anthropic, "claude-sonnet-5"), (resolved.Provider, resolved.Model));
     }
 

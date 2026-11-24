@@ -59,12 +59,12 @@ internal sealed class HttpSystemOne(
     private static string? ResolveFastSystemOneModel(AIOptions ai)
     {
         var map = ai.Roles.ToRoleMap();
-        if (map.Device.TryGetValue(Role.Fast, out var devId) && KnownModels.Find(devId.Value) is { } devCard && AIOptionsExtensions.IsSystemOne(devCard))
+        if (map.Device.TryGetValue(ModelRole.Fast, out var devId) && KnownModels.Find(devId.Value) is { } devCard && AIOptionsExtensions.IsSystemOne(devCard))
         {
             return devCard.Id.Value;
         }
 
-        if (map.Cloud.TryGetValue(Role.Fast, out var cloudId) && KnownModels.Find(cloudId.Value) is { } cloudCard && AIOptionsExtensions.IsSystemOne(cloudCard))
+        if (map.Cloud.TryGetValue(ModelRole.Fast, out var cloudId) && KnownModels.Find(cloudId.Value) is { } cloudCard && AIOptionsExtensions.IsSystemOne(cloudCard))
         {
             return cloudCard.Id.Value;
         }

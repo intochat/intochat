@@ -26,7 +26,7 @@ public interface IDevice
     [ReadOnlyCall, Interleaves]
     Task<DeviceView> Read();
 
-    Task Use(Role role, ModelId model);
+    Task Use(ModelRole role, ModelId model);
 
     Task Install(ModelId model);
 

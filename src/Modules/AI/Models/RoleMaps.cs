@@ -24,7 +24,7 @@ internal static class RoleMaps
         return new RoleMap(device.ToImmutable(), cloud.ToImmutable());
     }
 
-    internal static IEnumerable<ModelId> Deployment(RoleMap map, string? topology, Role role)
+    internal static IEnumerable<ModelId> Deployment(RoleMap map, string? topology, ModelRole role)
     {
         ArgumentNullException.ThrowIfNull(map);
         var canonical = IntoChatOSNames.CanonicalTopology(topology);
@@ -47,7 +47,7 @@ internal static class RoleMaps
 
     // When no topology is set in configuration, try Device first and then Cloud so tests or hosts
     // configuring only Roles.Cloud (or legacy Default:*) still resolve without setting Topology.
-    internal static IEnumerable<ModelId> Candidates(RoleMap map, string? topology, Role role)
+    internal static IEnumerable<ModelId> Candidates(RoleMap map, string? topology, ModelRole role)
     {
         if (string.IsNullOrWhiteSpace(topology))
         {
@@ -72,7 +72,7 @@ internal static class RoleMaps
 
     // Returns only explicitly configured role ids (not KnownModels.Defaults), useful for opt-in features
     // where an unconfigured role must remain off.
-    internal static ModelId? Explicit(AIOptions options, string? topology, Role role)
+    internal static ModelId? Explicit(AIOptions options, string? topology, ModelRole role)
     {
         ArgumentNullException.ThrowIfNull(options);
         var configured = options.Roles.ToRoleMap();

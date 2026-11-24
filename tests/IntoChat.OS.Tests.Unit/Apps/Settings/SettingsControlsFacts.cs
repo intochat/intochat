@@ -172,7 +172,7 @@ public sealed class SettingsControlsFacts
             })
             .ToArray();
 
-        Assert.Equal(Enum.GetValues<Role>().Select(SettingsControls.RoleKey), comboSlotKeys);
+        Assert.Equal(Enum.GetValues<ModelRole>().Select(SettingsControls.RoleKey), comboSlotKeys);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class SettingsControlsFacts
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
         var view = await settings.Screen.Read();
-        var hearKey = SettingsControls.RoleKey(Role.Hear);
+        var hearKey = SettingsControls.RoleKey(ModelRole.Hear);
         var hearSlot = Slots(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith($"/{hearKey}", StringComparison.Ordinal));
         var options = hearSlot.GetProperty("props").GetProperty("options").EnumerateArray()
             .Select(o => o.GetProperty("id").GetString()!)
@@ -204,10 +204,10 @@ public sealed class SettingsControlsFacts
                 .Register<RecordingSettingsModelCatalog>();
             var settings = await Settings(os, "models");
 
-            await Send(settings, SettingsControls.RoleKey(Role.Think), new DigitalBrain.UI.Commands.Select("claude-opus-5"));
+            await Send(settings, SettingsControls.RoleKey(ModelRole.Think), new DigitalBrain.UI.Commands.Select("claude-opus-5"));
 
             Assert.NotNull(RecordingSettingsModelCatalog.LastSetRole);
-            Assert.Equal((Role.Think, "claude-opus-5"), (RecordingSettingsModelCatalog.LastSetRole!.Value.Role, RecordingSettingsModelCatalog.LastSetRole.Value.Model.Value));
+            Assert.Equal((ModelRole.Think, "claude-opus-5"), (RecordingSettingsModelCatalog.LastSetRole!.Value.Role, RecordingSettingsModelCatalog.LastSetRole.Value.Model.Value));
         }
         finally
         {
@@ -243,17 +243,17 @@ public sealed class SettingsControlsFacts
     [Neuron("ai.models"), StatelessNeuron]
     private sealed class RecordingSettingsModelCatalog : Neuron, IModelCatalog
     {
-        public static (Role Role, ModelId Model)? LastSetRole { get; private set; }
+        public static (ModelRole Role, ModelId Model)? LastSetRole { get; private set; }
 
         public static void Reset() => LastSetRole = null;
 
         public Task<ModelCard[]> List(Abilities need = Abilities.None)
             => Task.FromResult(KnownModels.All.Where(c => need == Abilities.None || (c.Can & need) == need).ToArray());
 
-        public Task<ModelId> Pick(Role role, ModelId? turn = null)
+        public Task<ModelId> Pick(ModelRole role, ModelId? turn = null)
             => Task.FromResult(turn ?? KnownModels.Defaults.Device.GetValueOrDefault(role, KnownModels.Qwen35.Id));
 
-        public Task SetRole(Role role, ModelId model)
+        public Task SetRole(ModelRole role, ModelId model)
         {
             LastSetRole = (role, model);
             return Task.CompletedTask;

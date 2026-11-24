@@ -15,6 +15,6 @@ public static class AIKeys
     public static readonly string OllamaModels = Ollama + ":Models";
     public static readonly string TelemetryEnableSensitiveData = Options + ":Telemetry:EnableSensitiveData";
 
-    public static string Role(Where where, Models.Role role)
+    public static string Role(Where where, Models.ModelRole role)
         => $"{Roles}:{(where == Where.Device ? "Device" : "Cloud")}:{role}";
 }

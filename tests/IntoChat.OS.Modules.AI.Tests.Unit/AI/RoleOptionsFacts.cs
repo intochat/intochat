@@ -25,8 +25,8 @@ public sealed class RoleOptionsFacts
     public void LegacyDefaultModelBecomesTheChatRole()
     {
         var ai = Bind(("IntoChatOS:Modules:ai:Options:Default:Model", "IGpt56Luna"));
-        Assert.Equal("gpt-5.6-luna", ai.Roles.Device[Role.Chat]);
-        Assert.Equal("gpt-5.6-luna", ai.Roles.Cloud[Role.Chat]);
+        Assert.Equal("gpt-5.6-luna", ai.Roles.Device[ModelRole.Chat]);
+        Assert.Equal("gpt-5.6-luna", ai.Roles.Cloud[ModelRole.Chat]);
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public sealed class RoleOptionsFacts
         var ai = Bind(
             ("IntoChatOS:Modules:ai:Options:Default:Model", "IGpt56Luna"),
             ("IntoChatOS:Modules:ai:Options:Roles:Cloud:Chat", "claude-sonnet-5"));
-        Assert.Equal("claude-sonnet-5", ai.Roles.Cloud[Role.Chat]);
-        Assert.False(ai.Roles.Device.ContainsKey(Role.Chat));
+        Assert.Equal("claude-sonnet-5", ai.Roles.Cloud[ModelRole.Chat]);
+        Assert.False(ai.Roles.Device.ContainsKey(ModelRole.Chat));
     }
 
     [Fact]
@@ -49,25 +49,25 @@ public sealed class RoleOptionsFacts
             ("IntoChatOS:Modules:ai:Options:Default:Image", "IGptImage1"),
             ("IntoChatOS:Modules:ai:Options:Default:Model", "INonExistentModel"));
 
-        Assert.False(ai.Roles.Device.ContainsKey(Role.Chat));
-        Assert.False(ai.Roles.Cloud.ContainsKey(Role.Chat));
-        Assert.Equal("text-embedding-3-small", ai.Roles.Cloud[Role.Embed]);
-        Assert.Equal("whisper-large-v3-turbo", ai.Roles.Device[Role.Hear]);
-        Assert.Equal("jev-latest", ai.Roles.Cloud[Role.Fast]);
-        Assert.Equal("gpt-image-1", ai.Roles.Cloud[Role.Image]);
+        Assert.False(ai.Roles.Device.ContainsKey(ModelRole.Chat));
+        Assert.False(ai.Roles.Cloud.ContainsKey(ModelRole.Chat));
+        Assert.Equal("text-embedding-3-small", ai.Roles.Cloud[ModelRole.Embed]);
+        Assert.Equal("whisper-large-v3-turbo", ai.Roles.Device[ModelRole.Hear]);
+        Assert.Equal("jev-latest", ai.Roles.Cloud[ModelRole.Fast]);
+        Assert.Equal("gpt-image-1", ai.Roles.Cloud[ModelRole.Image]);
     }
 
     [Fact]
     public void WithRoleSetsTheMapAndHostsTheModel()
     {
-        var ai = new AIOptions().WithRole(Role.Chat, KnownModels.DeepSeekV41Flash);
-        Assert.Equal("deepseek/deepseek-v4.1-flash", ai.Roles.Cloud[Role.Chat]);
+        var ai = new AIOptions().WithRole(ModelRole.Chat, KnownModels.DeepSeekV41Flash);
+        Assert.Equal("deepseek/deepseek-v4.1-flash", ai.Roles.Cloud[ModelRole.Chat]);
         Assert.Contains("deepseek/deepseek-v4.1-flash", ai.Hosting.Llms);
     }
 
     [Fact]
     public void WithoutLocalModelsClearsDeviceRoles() =>
-        Assert.Empty(new AIOptions().WithRole(Role.Chat, KnownModels.Qwen35, Where.Device).WithoutLocalModels().Roles.Device);
+        Assert.Empty(new AIOptions().WithRole(ModelRole.Chat, KnownModels.Qwen35, Where.Device).WithoutLocalModels().Roles.Device);
 
     [Fact]
     public void OldHostingMarkerNamesStillBind() =>

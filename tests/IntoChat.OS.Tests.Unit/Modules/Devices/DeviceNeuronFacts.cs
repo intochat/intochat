@@ -151,7 +151,7 @@ public sealed class DeviceNeuronFacts
 
     private sealed class FakeCatalogState
     {
-        public ConcurrentQueue<(Role Role, ModelId Model)> SetRoles { get; } = new();
+        public ConcurrentQueue<(ModelRole Role, ModelId Model)> SetRoles { get; } = new();
         public RoleMap Roles { get; set; } = RoleMap.Empty;
     }
 
@@ -159,8 +159,8 @@ public sealed class DeviceNeuronFacts
     private sealed class FakeModelCatalogNeuron(FakeCatalogState state) : Neuron, IModelCatalog
     {
         public Task<ModelCard[]> List(Abilities need = Abilities.None) => Task.FromResult<ModelCard[]>([]);
-        public Task<ModelId> Pick(Role role, ModelId? turn = null) => Task.FromResult(ModelA);
-        public Task SetRole(Role role, ModelId model)
+        public Task<ModelId> Pick(ModelRole role, ModelId? turn = null) => Task.FromResult(ModelA);
+        public Task SetRole(ModelRole role, ModelId model)
         {
             state.SetRoles.Enqueue((role, model));
             return Task.CompletedTask;
@@ -303,11 +303,11 @@ public sealed class DeviceNeuronFacts
         using var asOwner = h.AsPerson();
         var device = h.Device();
 
-        await device.Use(Role.Chat, ModelA);
+        await device.Use(ModelRole.Chat, ModelA);
         Assert.Empty(h.Catalog.SetRoles);
 
         h.Runtime.Finish(ModelA);
-        await Eventually(() => Assert.Equal((Role.Chat, ModelA), Assert.Single(h.Catalog.SetRoles)));
+        await Eventually(() => Assert.Equal((ModelRole.Chat, ModelA), Assert.Single(h.Catalog.SetRoles)));
     }
 
     [Fact]
@@ -317,7 +317,7 @@ public sealed class DeviceNeuronFacts
         using var asOwner = h.AsPerson();
         var device = h.Device();
 
-        await device.Use(Role.Chat, ModelA);
+        await device.Use(ModelRole.Chat, ModelA);
         h.Runtime.Fail(ModelA, "disk full");
 
         await Eventually(async () =>
@@ -397,8 +397,8 @@ public sealed class DeviceNeuronFacts
         using var asOwner = h.AsPerson();
         h.Runtime.MarkInstalled(CardA);
         h.Catalog.Roles = new RoleMap(
-            ImmutableDictionary<Role, ModelId>.Empty.Add(Role.Chat, ModelA),
-            ImmutableDictionary<Role, ModelId>.Empty);
+            ImmutableDictionary<ModelRole, ModelId>.Empty.Add(ModelRole.Chat, ModelA),
+            ImmutableDictionary<ModelRole, ModelId>.Empty);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => h.Device().Remove(ModelA));
         Assert.Contains("Chat", error.Message, StringComparison.Ordinal);
@@ -409,7 +409,7 @@ public sealed class DeviceNeuronFacts
     {
         await using var h = new Harness();
         using var asOwner = h.AsPerson();
-        var error = await Assert.ThrowsAsync<ArgumentException>(() => h.Device().Use(Role.Hear, ModelA));
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => h.Device().Use(ModelRole.Hear, ModelA));
         Assert.Contains("Hear", error.Message, StringComparison.Ordinal);
     }
 

@@ -475,22 +475,22 @@ public sealed class ModelsGenerator : IIncrementalGenerator
 
         sb.AppendLine();
         sb.AppendLine("    public static RoleMap Defaults { get; } = new(");
-        sb.Append("        ImmutableDictionary<Role, ModelId>.Empty");
+        sb.Append("        ImmutableDictionary<ModelRole, ModelId>.Empty");
         foreach (var pair in deviceDefaults)
         {
             sb.AppendLine();
-            sb.Append("            .Add(Role.");
+            sb.Append("            .Add(ModelRole.");
             sb.Append(pair.Key);
             sb.Append(", new(");
             sb.Append(Quote(pair.Value));
             sb.Append("))");
         }
         sb.AppendLine(",");
-        sb.Append("        ImmutableDictionary<Role, ModelId>.Empty");
+        sb.Append("        ImmutableDictionary<ModelRole, ModelId>.Empty");
         foreach (var pair in cloudDefaults)
         {
             sb.AppendLine();
-            sb.Append("            .Add(Role.");
+            sb.Append("            .Add(ModelRole.");
             sb.Append(pair.Key);
             sb.Append(", new(");
             sb.Append(Quote(pair.Value));

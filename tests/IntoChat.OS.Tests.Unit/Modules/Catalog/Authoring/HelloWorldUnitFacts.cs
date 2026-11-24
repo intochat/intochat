@@ -148,10 +148,10 @@ public sealed class HelloWorldUnitFacts
         services.AddSingleton<IConfiguration>(config);
         services.Configure<AIOptions>(o =>
         {
-            o.Roles.Device[Role.Chat] = "profile:local-coder";
-            o.Roles.Device[Role.Think] = "profile:local-coder";
-            o.Roles.Cloud[Role.Chat] = "profile:local-coder";
-            o.Roles.Cloud[Role.Think] = "profile:local-coder";
+            o.Roles.Device[ModelRole.Chat] = "profile:local-coder";
+            o.Roles.Device[ModelRole.Think] = "profile:local-coder";
+            o.Roles.Cloud[ModelRole.Chat] = "profile:local-coder";
+            o.Roles.Cloud[ModelRole.Think] = "profile:local-coder";
             o.Ollama.Endpoint = "http://127.0.0.1:11434";
             o.ModelProfiles["local-coder"] = new AIModelProfileOptions
             {

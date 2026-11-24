@@ -26,7 +26,7 @@ public sealed record SettingsModelChoice(
     string? Reason = null);
 
 public sealed record SettingsRoleRow(
-    Role Role,
+    ModelRole Role,
     string? Selected,
     SettingsModelChoice[] Choices);
 
@@ -172,7 +172,7 @@ public sealed record SettingsAppState(
         "Settings",
         "User",
         "dark",
-        KnownModels.Defaults.Device[Role.Chat].Value,
+        KnownModels.Defaults.Device[ModelRole.Chat].Value,
         "general",
         null,
         null,
