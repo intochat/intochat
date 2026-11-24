@@ -22,7 +22,8 @@ namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 // the only thing a separate TCP client would add is the deployment fact that the gateway has no TLS or token, which is
 // established by reading the hosting configuration, not in-process.
 [Trait("Category", "AccessFindings")]
-public sealed class AccessFindingsUngatedGrainFacts
+public sealed class AccessFindingsUngatedGrainFacts(Gate20EdgeApprovalWallFacts.EdgeKernelFixture fixture)
+    : IClassFixture<Gate20EdgeApprovalWallFacts.EdgeKernelFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -31,7 +32,7 @@ public sealed class AccessFindingsUngatedGrainFacts
     [Fact]
     public async Task GatewayClientWithNoCaller_CannotReadAPrincipalCredentialHash()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var principal = "victim-" + Guid.NewGuid().ToString("N")[..8];
         await RegisterAsync(host, principal);
 
@@ -47,7 +48,7 @@ public sealed class AccessFindingsUngatedGrainFacts
     [Fact]
     public async Task GatewayClientWithNoCaller_CannotReplaceAPrincipalCredentialHash()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
         var principal = "victim-" + Guid.NewGuid().ToString("N")[..8];
         await RegisterAsync(host, principal);
 
@@ -63,7 +64,7 @@ public sealed class AccessFindingsUngatedGrainFacts
     [Fact]
     public async Task GatewayClientWithNoCaller_CannotAddItselfToAnyBrainAsOwner()
     {
-        await using var host = await Gate20EdgeApprovalWallFacts.EdgeKernelHarness.StartAsync(Ct);
+        var host = fixture.Host;
 
         var factory = host.Services.GetRequiredService<IGrainFactory>();
         Orleans.Runtime.RequestContext.Clear();

@@ -64,7 +64,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     private string? _failNextPublish;
     private TaskCompletionSource _quiet = Quiet();
     private readonly Lazy<DigitalBrain.Runtime.Synapses.SynapseCompiler> _compiler =
-        new(() => new DigitalBrain.Runtime.Synapses.SynapseCompiler(DigitalBrain.Runtime.Synapses.ReferenceSet.FromDefaultContext()));
+        new(static () => DigitalBrain.Runtime.Synapses.SynapseCompiler.Default);
     private readonly ConcurrentDictionary<string, ActionDescriptor> _actions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Assembly, byte> _scannedModules = new();
     private readonly ConcurrentDictionary<string, Type> _signalTypes = new(StringComparer.Ordinal);

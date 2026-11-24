@@ -112,4 +112,19 @@ public sealed class EdgeGrantsCacheFacts
 
         Assert.Equal(PrincipalSet.For(caller).Principals, (await cache.ExpandAsync("vlad", caller)).Principals);
     }
+
+    [Fact]
+    public async Task NonConnectionTargetsDoNotResolveGrantsNeuron()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+        var cache = new EdgeGrantsCache(
+            services: services,
+            resolveNeuron: (_, id) => throw new InvalidOperationException($"Must not resolve phantom neuron '{id}' for a non-connection target."));
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.App("owner/apps/notes", new Actor.Person("owner", "owner"), new BrainId("owner"));
+
+        Assert.False(await cache.IsConnectionBoundAsync(caller, "brain/owner/main"));
+        Assert.False(await cache.IsConnectionBoundAsync(caller, "grants.default/owner/grants/default"));
+        Assert.False(await cache.IsConnectionBoundAsync("owner", caller, "brain/owner/main", TestContext.Current.CancellationToken));
+        Assert.False(cache.IsConnectionBound(caller, "brain/owner/main"));
+    }
 }

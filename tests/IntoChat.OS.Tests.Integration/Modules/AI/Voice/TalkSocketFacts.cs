@@ -20,7 +20,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Voice;
 
-public sealed class TalkSocketFacts
+[Collection("VoiceHost")]
+public sealed class TalkSocketFacts(VoiceHostFixture fixture)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -57,10 +58,8 @@ public sealed class TalkSocketFacts
         var stub = new StubVoiceClients(
             talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, KnownModels.GptRealtime.Id, RecordsItself: false, InputRate: 24_000, Unavailable: null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var conversation = ConversationId.New();
         using var ws = await ConnectTalkAsync(host, conversation.Value, Ct);
@@ -120,10 +119,8 @@ public sealed class TalkSocketFacts
                 return Task.FromResult(new TalkVoice(realtime, KnownModels.GptRealtime.Id, RecordsItself: false, InputRate: 24_000, Unavailable: null));
             });
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var conversation = ConversationId.New();
         using var ws = await ConnectTalkAsync(host, conversation.Value, Ct);
@@ -174,10 +171,8 @@ public sealed class TalkSocketFacts
                 return Task.FromResult(new TalkVoice(realtime, Model: null, RecordsItself: true, InputRate: 16_000, Unavailable: null));
             });
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var conversation = ConversationId.New();
         using var ws = await ConnectTalkAsync(host, conversation.Value, Ct);
@@ -202,10 +197,8 @@ public sealed class TalkSocketFacts
         var stub = new StubVoiceClients(
             talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, Model: null, RecordsItself: true, InputRate: 16_000, Unavailable: null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var conversation = ConversationId.New();
         using var ws = await ConnectTalkAsync(host, conversation.Value, Ct);
@@ -224,10 +217,8 @@ public sealed class TalkSocketFacts
         var stub = new StubVoiceClients(
             talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, Model: null, RecordsItself: true, InputRate: 16_000, Unavailable: null)));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var conversation = ConversationId.New();
         using var ws = new ClientWebSocket();
@@ -247,31 +238,14 @@ public sealed class TalkSocketFacts
         var realtime = new ScriptedRealtimeClient();
         var stub = new StubVoiceClients(
             talk: (_, _, _) => Task.FromResult(new TalkVoice(realtime, Model: null, RecordsItself: true, InputRate: 16_000, Unavailable: null)));
-        OverrideCallerAmbient? callerOverride = null;
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-            var existing = builder.Services.LastOrDefault(d => d.ServiceType == typeof(ICallerAmbient));
-            if (existing is not null)
-            {
-                builder.Services.Remove(existing);
-                builder.Services.AddSingleton<ICallerAmbient>(sp =>
-                {
-                    var inner = existing.ImplementationInstance as ICallerAmbient
-                        ?? (existing.ImplementationFactory?.Invoke(sp) as ICallerAmbient)
-                        ?? (ICallerAmbient)ActivatorUtilities.CreateInstance(sp, existing.ImplementationType!);
-                    callerOverride = new OverrideCallerAmbient(inner);
-                    return callerOverride;
-                });
-            }
-        });
+        using var clients = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         var edge = IntoChat.OS.Tests.TestEdge.Authority;
         var owner = new Actor.Person("owner", "owner");
         var brain = new BrainId("owner");
-        Assert.NotNull(callerOverride);
-        callerOverride!.Override = edge.App("some-app", owner, brain);
+        using var callerScope = fixture.OverrideCaller(edge.App("some-app", owner, brain));
 
         using var ws = new ClientWebSocket();
         ws.Options.SetRequestHeader(PresenceProof.HeaderName, host.PresenceToken);
@@ -290,10 +264,8 @@ public sealed class TalkSocketFacts
             talk: (_, _, _) => Task.FromResult(new TalkVoice(null, null, RecordsItself: true, InputRate: 16_000,
                 "Talk needs Speak: Kokoro 82M is not installed.")));
 
-        await using var host = await VoiceHostHarness.StartAsync(Ct, builder =>
-        {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(stub));
-        });
+        using var _ = fixture.UseClients(stub);
+        var host = fixture.Host;
 
         using var ws = await ConnectTalkAsync(host, ConversationId.New().Value, Ct);
         var (frames, closeStatus) = await ReadUntilClosedAsync(ws, Ct);
