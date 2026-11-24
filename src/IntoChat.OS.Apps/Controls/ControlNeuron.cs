@@ -27,6 +27,10 @@ public abstract class ControlNeuron<TState, TProps> : Screen<TState>, IControl<T
             ? next == owned ? Task.CompletedTask : Publish(new Toggled(next))
             : next == current ? Task.CompletedTask : Show(store(next), new Toggled(next));
 
+    /// <summary>Flips an on/off value: the props' value when controlled, otherwise the stored one.</summary>
+    private protected Task ToggleOn(bool? controlled, bool current, Func<bool, TState> store)
+        => SetOn(controlled, current, !(controlled ?? current), store);
+
     /// <summary>Selects an id: controlled (<paramref name="controlled"/> set) it only signals a change; otherwise it stores and signals.</summary>
     private protected Task SelectId(string? controlled, string? current, string next, Func<string, TState> store)
         => controlled is not null

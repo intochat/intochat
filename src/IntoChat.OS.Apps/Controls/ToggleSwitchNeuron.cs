@@ -21,17 +21,17 @@ public sealed class ToggleSwitchNeuron : ControlNeuron<ToggleSwitchState, Toggle
     public Task Toggle(Toggle command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return Set(!(Props?.IsOn ?? State.IsOn));
+        return ToggleOn(Props?.IsOn, State.IsOn, Store);
     }
 
     [On]
     public Task SetChecked(SetChecked command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return Set(command.IsOn);
+        return SetOn(Props?.IsOn, State.IsOn, command.IsOn, Store);
     }
 
-    private Task Set(bool isOn) => SetOn(Props?.IsOn, State.IsOn, isOn, on => State with { IsOn = on });
+    private ToggleSwitchState Store(bool on) => State with { IsOn = on };
 
     protected override View Render(ToggleSwitchState state)
     {
