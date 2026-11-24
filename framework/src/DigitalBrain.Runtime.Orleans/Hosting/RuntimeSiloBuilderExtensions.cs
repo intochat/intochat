@@ -97,7 +97,7 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.TryAddSingleton<ISynapseCatalogSource>(sp => sp.GetRequiredService<SynapseCatalogSource>());
         silo.Services.TryAddSingleton<DigitalBrain.Units.IInstallHooks, OrleansInstallHooks>();
 
-        silo.Services.TryAddSingleton(_ => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+        silo.Services.TryAddSingleton(_ => SynapseCompiler.Default);
         silo.Services.TryAddSingleton(sp => new UnitResolver(
             sp.GetRequiredService<IUnitLoader>(),
             sp.GetRequiredService<ISynapseCatalogSource>(),

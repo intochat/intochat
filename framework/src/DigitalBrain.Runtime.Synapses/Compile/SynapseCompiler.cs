@@ -48,6 +48,11 @@ public sealed class SynapseCompiler
     private int emits;
 #pragma warning restore CS0649
 
+    private static readonly Lazy<SynapseCompiler> DefaultInstance = new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+
+    /// <summary>The shared process-wide compiler over <see cref="ReferenceSet.FromDefaultContext"/>.</summary>
+    public static SynapseCompiler Default => DefaultInstance.Value;
+
     /// <summary>Creates a compiler over the given references.</summary>
     /// <param name="references">The references the source compiles against.</param>
     public SynapseCompiler(ReferenceSet references)

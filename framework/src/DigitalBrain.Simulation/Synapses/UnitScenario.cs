@@ -15,7 +15,6 @@ namespace DigitalBrain.Testing.Synapses;
 public static class UnitScenario
 {
     private static readonly BrainId Brain = NeuronId.Parse("scenario/x/y").Brain;
-    private static readonly Lazy<SynapseCompiler> Compiler = new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
 
     /// <summary>
     /// Runs <paramref name="steps"/> against <paramref name="source"/>. Every install the source asks for is approved as the person would;
@@ -32,7 +31,7 @@ public static class UnitScenario
         ArgumentNullException.ThrowIfNull(fakes);
         ArgumentNullException.ThrowIfNull(steps);
 
-        var build = Compiler.Value.Compile(source);
+        var build = SynapseCompiler.Default.Compile(source);
         if (!build.Success)
         {
             return Failed([.. build.Diagnostics.Select(d => $"compile {d.File}({d.Line}) {d.Id}: {d.Message}")]);
