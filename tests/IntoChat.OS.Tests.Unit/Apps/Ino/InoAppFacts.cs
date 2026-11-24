@@ -366,8 +366,8 @@ public sealed class InoAppFacts
         var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
 
         await ino.Request("send", new InoSend("turn 1"));
-        Assert.Equal("qwen3.5:4b", BackgroundConversation.LastSeatedModel);
-        Assert.Equal("qwen3.5:4b", BackgroundConversation.LastSayModel);
+        Assert.Equal(KnownModels.Defaults.Device[ModelRole.Chat].Value, BackgroundConversation.LastSeatedModel);
+        Assert.Equal(KnownModels.Defaults.Device[ModelRole.Chat].Value, BackgroundConversation.LastSayModel);
         BackgroundConversation.Complete("main", "run-1", "turn 1", "reply 1");
         await Deliver(ino, new ConversationChanged(ConversationId.Parse("main"), BackgroundConversation.Revision));
 

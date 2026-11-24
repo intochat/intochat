@@ -211,7 +211,7 @@ internal sealed partial class InoNativeHarness
 
         if (brain is { } b && services?.GetService<INeuronProxies>() is { } proxies)
         {
-            return proxies.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(b));
+            return OptionalProxy(() => proxies.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(b)), "optional ui introspector is not hosted here");
         }
 
         return null;
@@ -231,10 +231,25 @@ internal sealed partial class InoNativeHarness
 
         if (brain is { } b && services?.GetService<INeuronProxies>() is { } proxies)
         {
-            return proxies.Get<IKnowledgeStore>(new NeuronId(b, "ai.knowledge-store", KnowledgeStoreKey));
+            return OptionalProxy(() => proxies.Get<IKnowledgeStore>(new NeuronId(b, "ai.knowledge-store", KnowledgeStoreKey)), "optional knowledge store is not hosted here");
         }
 
         return null;
+    }
+
+    // The introspector and knowledge store are optional brain context: a host that does not run their module
+    // (an in-process TestOS refuses an unregistered type at Get) leaves the harness without them.
+    private T? OptionalProxy<T>(Func<T> get, string what) where T : class
+    {
+        try
+        {
+            return get();
+        }
+        catch (InvalidOperationException error)
+        {
+            _logger.LogSwallowed(error, what);
+            return null;
+        }
     }
 
     internal static ContextBriefSummary? SelectMatchingProjectBrief(
