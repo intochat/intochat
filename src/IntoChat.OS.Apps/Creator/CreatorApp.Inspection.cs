@@ -355,7 +355,7 @@ public sealed partial class CreatorApp
     {
         Selection.Pulse => true,
         Selection.Edge => _topology.Edges.Any(e => BrainGraph.EdgeKey(e.SourceId, e.TargetId, BrainGraph.EdgeLabel(e.SignalType, e.Kind)) == selection.Id),
-        _ when selection.Id.StartsWith("draft:", StringComparison.Ordinal) => _flows.Any(f => f.Type == BuildFlow.Alias && f.Subject == selection.Id["draft:".Length..]),
+        _ when selection.Id.StartsWith("draft:", StringComparison.Ordinal) => _flows.Any(f => f.Type == BuildInner.Flow && f.Subject == selection.Id["draft:".Length..]),
         _ when selection.Id.StartsWith(Selection.SynapsePrefix, StringComparison.Ordinal) =>
             FindSynapseDefinition(selection.Id) is not null
             || (UnitAlias(selection.Id) is { } synAlias && FindDeployedUnit(synAlias) is not null),

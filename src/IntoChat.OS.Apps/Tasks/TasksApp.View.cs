@@ -289,7 +289,7 @@ public sealed partial class TasksApp
                 },
             ];
 
-            if (matchingFlow.Type == BuildFlow.Alias)
+            if (matchingFlow.Type == BuildInner.Flow)
             {
                 flowActions.Add(Button("Source", "code")
                     .Key("inspector:show-source")
@@ -561,7 +561,7 @@ public sealed partial class TasksApp
                     new Button("open-trace-details", "Open trace", Intent: OpenTrace(matchingFlow.TraceId)) { Small = true, Icon = "activity", AutomationName = "Open trace" },
                 ];
 
-                if (matchingFlow.Type == BuildFlow.Alias)
+                if (matchingFlow.Type == BuildInner.Flow)
                 {
                     flowActions.Add(Button("Show source", "code")
                         .Key("details:show-source")
@@ -689,7 +689,7 @@ public sealed partial class TasksApp
             children.Add(Banner("Waiting", $"{waiting} on {flow.WaitingStep}", "warning"));
         }
 
-        if (flow.Type == BuildFlow.Alias)
+        if (flow.Type == BuildInner.Flow)
         {
             children.AddRange(BuildNodes(flow, approvals));
         }
@@ -710,7 +710,7 @@ public sealed partial class TasksApp
             actions.Add(DangerButton("Cancel").Key("cancel").Small().Emits(AppSignals.Emit(AppName, "cancel", flow.FlowId)));
         }
 
-        if (flow.Type == BuildFlow.Alias)
+        if (flow.Type == BuildInner.Flow)
         {
             actions.Add(Button("Show source", "code").Key("show-source").Small().Emits(AppSignals.Emit(AppName, "show-source", flow.FlowId)));
             actions.Add(Button("Ask Ino to change", Icons.Sparkles).Key("ask-ino-to-change").Small().Emits(AppSignals.Emit(AppName, "ask-ino", flow.FlowId)));
@@ -776,7 +776,7 @@ public sealed partial class TasksApp
         return new JobStepNode($"○ {step}", "waiting", StepHint(flow.Type, step));
     }
 
-    private static string? StepHint(string type, string step) => type != BuildFlow.Alias ? null : step switch
+    private static string? StepHint(string type, string step) => type != BuildInner.Flow ? null : step switch
     {
         "author" => "Writes the spec, needs and scenarios",
         "draft" => "Writes the code",

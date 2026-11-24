@@ -80,13 +80,14 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     private readonly ILogger _logger;
     private readonly TimeProvider? _time;
 
-    public CreatorApp() : this(null, null) { }
+    public CreatorApp() : this(null, null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public CreatorApp(ILogger<CreatorApp>? logger = null, TimeProvider? time = null)
+    public CreatorApp(ILogger<CreatorApp>? logger = null, TimeProvider? time = null, IUnitVerifier? verifier = null)
     {
         _logger = (ILogger?)logger ?? ConsoleLogger;
         _time = time;
+        RunScenarios = verifier is null ? NoScenarioRuns : verifier.Transcript;
     }
 
     public async Task OnNavigatedTo(NavigationArrival<StudioNavArgs> arrival, CancellationToken cancellationToken = default)
@@ -307,7 +308,11 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
     public TimeSpan ScenarioBudget { get; set; } = TimeSpan.FromSeconds(30);
 
-    public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; } = ScenarioTranscripts.Run;
+    // The host's unit verifier runs the scenarios; a host without one says so.
+    public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; }
+
+    private static Task<string> NoScenarioRuns(string alias, IReadOnlyDictionary<string, string> files, string? scenario, CancellationToken ct)
+        => Task.FromResult("Scenario runs are not available in this brain.");
 
     public const string AppName = ShippedApps.Creator;
 

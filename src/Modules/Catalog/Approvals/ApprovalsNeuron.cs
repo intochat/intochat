@@ -29,7 +29,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
         var inbox = await inboxRead;
         var flows = await flowsRead;
         // A waiting build flow's own state names the needs it asks (install) or the connection it waits for (deploy).
-        var builds = await Task.WhenAll(flows.Where(flow => flow.Type == BuildFlow.Alias && flow.WaitingFor == WaitReason.External)
+        var builds = await Task.WhenAll(flows.Where(flow => flow.Type == BuildInner.Flow && flow.WaitingFor == WaitReason.External)
             .Select(async flow => (Flow: flow, Inner: await BuildOf(flow.FlowId))));
         var connect = builds.Where(build => build.Flow.WaitingStep == "deploy" && build.Inner?.Missing is not null)
             .Select(build => new Approval(build.Flow.FlowId, ApprovalKind.Other, build.Flow.FlowId, build.Inner!.Missing!,
@@ -48,7 +48,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
     private async Task<BuildInner?> BuildOf(string flowId)
     {
         if (!NeuronId.TryParse(flowId, out var id)) { return null; }
-        try { return JsonSerializer.Deserialize<BuildInner>((await Context.Get<IFlowStarter>(id).Head()).InnerJson, BuildFlow.Json); }
+        try { return JsonSerializer.Deserialize<BuildInner>((await Context.Get<IFlowStarter>(id).Head()).InnerJson, BuildInner.Json); }
         catch (Exception error) when (error is JsonException or InvalidOperationException)
         {
             OsConsoleLog.For<ApprovalsNeuron>().LogSwallowed(error, "reading optional build flow inner state");
@@ -70,7 +70,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
         // step, so it is checked before the FlowStep match. Its detail is the needs sentence and the hosts the slots read.
         if (flows.FirstOrDefault(flow => flow.ConfirmationPlanId == request.PlanId) is { } flow)
         {
-            if (flow is { Type: BuildFlow.Alias, WaitingStep: "install" })
+            if (flow is { Type: BuildInner.Flow, WaitingStep: "install" })
             {
                 var inner = builds.GetValueOrDefault(flow.FlowId);
                 return Of(ApprovalKind.SynapseStaged, inner?.Alias ?? plan.TargetLabel, plan.Title, inner is null ? plan.Body : NeedsDetail(inner, plan.Body), flow.TraceId);
@@ -121,7 +121,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
     {
         var sentence = string.IsNullOrWhiteSpace(inner.Sentence) ? body : inner.Sentence;
         string[] hosts;
-        try { hosts = [.. BuildFlow.UnitOf(inner).Needs.Slots.SelectMany(slot => slot.Hosts).Distinct(StringComparer.OrdinalIgnoreCase)]; }
+        try { hosts = [.. inner.Unit().Needs.Slots.SelectMany(slot => slot.Hosts).Distinct(StringComparer.OrdinalIgnoreCase)]; }
         catch (Exception error) when (error is JsonException or FlowFailed)
         {
             OsConsoleLog.For<ApprovalsNeuron>().LogSwallowed(error, "reading build unit needs hosts");

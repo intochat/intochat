@@ -65,7 +65,7 @@ public sealed class BuildFlowFacts
         {
             if (sources.Length == 0) { throw new InvalidOperationException("the drafter failed"); }
             lock (AuthorExisting) { AuthorExisting.Add(existing); }
-            var unit = Creator.Parse<AuthoredUnit>(request.Contains("every five minutes", StringComparison.Ordinal)
+            var unit = ModelReply.Parse<AuthoredUnit>(request.Contains("every five minutes", StringComparison.Ordinal)
                 ? Authored.Replace("\"schedule\": \"every 6m\"", "\"schedule\": \"every 5m\"", StringComparison.Ordinal) : Authored);
             if (request.Contains("count faster", StringComparison.Ordinal))
             {
@@ -159,7 +159,7 @@ public sealed class BuildFlowFacts
 
     private static IInstalls Installs(INeuronRuntime runtime) => runtime.Get<IInstalls>(runtime.Id("synapse.installs", "default"));
 
-    private static string Goal(string goal) => JsonSerializer.Serialize(new BuildInner { Goal = goal }, BuildFlow.Json);
+    private static string Goal(string goal) => JsonSerializer.Serialize(new BuildInner { Goal = goal }, BuildInner.Json);
 
     private static Task<string> Start(INeuronRuntime runtime, string goal = "watch elonmusk on X")
         => Flows(runtime).Start(BuildFlow.Alias, goal, null, Goal(goal), Ct);
@@ -185,7 +185,7 @@ public sealed class BuildFlowFacts
     private static async Task<BuildInner> Inner(INeuronRuntime runtime, string flowId)
     {
         var head = await runtime.Get<IFlowStarter>(Id(flowId)).Head();
-        return JsonSerializer.Deserialize<BuildInner>(head.InnerJson, BuildFlow.Json)!;
+        return JsonSerializer.Deserialize<BuildInner>(head.InnerJson, BuildInner.Json)!;
     }
 
     private static NeuronId Id(string flowId)
@@ -360,7 +360,7 @@ public sealed class BuildFlowFacts
         var again = await studio.DeployFiles("x.watch", inner.Files!, inner.Bindings!);
 
         Assert.True(again.Ok, again.Text);
-        var install = UnitDeploy.Install(again, "x.watch");
+        var install = again.InstallOf("x.watch");
         Assert.True(install.Status == DigitalBrain.Units.InstallStatus.Unchanged || (install.Status == DigitalBrain.Units.InstallStatus.Pending && install.Reason == inner.PlanId),
             $"{again.Status} {install.Status} {install.Reason} vs {inner.PlanId}");
         Assert.Equal(inner.PlanId, Assert.Single(await Installs(runtime).Pending(Ct)).PlanId);

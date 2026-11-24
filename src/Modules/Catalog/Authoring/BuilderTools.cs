@@ -40,9 +40,6 @@ internal static partial class BuilderTools
 
     internal sealed record CheckArguments(IReadOnlyDictionary<string, string>? Files);
 
-    // What check_unit found: compile diagnostics and scenario failures, one line each, together.
-    internal sealed record UnitCheck(bool Passed, IReadOnlyList<ScriptCompilationDiagnostic> Diagnostics, IReadOnlyList<string> Failures);
-
     public const string Contracts = """
         namespace DigitalBrain.Capabilities.Http;   // capability "http": GET against the slot's allowed hosts only
         public interface IHttpRead
@@ -165,14 +162,4 @@ internal static partial class BuilderTools
 
     [GeneratedRegex(@"Every\s*=\s*""([^""]*)""")]
     private static partial Regex EveryValue();
-}
-
-// A unit's source files: its C#, plus spec.md and scenarios.json that travel with it but do not compile.
-internal static class UnitFiles
-{
-    public const string Spec = "spec.md";
-    public const string Scenarios = "scenarios.json";
-
-    public static IReadOnlyDictionary<string, string> Code(IReadOnlyDictionary<string, string> files)
-        => files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
 }

@@ -50,7 +50,7 @@ public sealed class PlanFlow(AgentStepOptions? options = null) : AgentFlow<PlanI
 
     private static readonly string[] Names = ["draft", "approve", "start-subtasks"];
 
-    private static readonly string[] Types = [BuildFlow.Alias, NoteFlow.Alias];
+    private static readonly string[] Types = [BuildInner.Flow, NoteFlow.Alias];
 
     private static readonly TimeSpan ApprovalWindow = TimeSpan.FromDays(2);
 

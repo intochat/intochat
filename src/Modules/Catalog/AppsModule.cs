@@ -65,6 +65,8 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
         services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();
         services.TryAddSingleton<Creator>();
+        services.TryAddSingleton<ICreator>(sp => sp.GetRequiredService<Creator>());
+        services.TryAddSingleton<IUnitVerifier, UnitVerifier>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();
         services.TryAddSingleton<IWorktreeRoslyn>(UnavailableWorktreeRoslyn.Instance);

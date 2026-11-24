@@ -17,57 +17,6 @@ using IntoChat.OS.Host.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-// A build flow's own state. Goal is the person's sentence (an app's title, spec and instruction when AppKey/Attempt name the app
-// build it ends). Author fills UnitJson (the AuthoredUnit) under GoalHash; draft fills Files under UnitHash; deploy fills Bindings
-// (slot -> connection key), or Missing / the choice plans while it waits, then Deployed with Hash and the install outcome.
-public sealed class BuildInner
-{
-    public string Goal { get; set; } = "";
-
-    public string? AppKey { get; set; }
-
-    public Guid? Attempt { get; set; }
-
-    public string? GoalHash { get; set; }
-
-    public string? UnitJson { get; set; }
-
-    public string? Alias { get; set; }
-
-    public string? UnitHash { get; set; }
-
-    public Dictionary<string, string>? Existing { get; set; }
-
-    public Dictionary<string, string>? Files { get; set; }
-
-    public Dictionary<string, string>? Bindings { get; set; }
-
-    // A slot several connections satisfy: the candidates in the brain's Settings order. Each candidate is one plan the flow raised,
-    // ChoicePlans[planId] = [slot, connection key]; the one the person approves is Chosen[slot], and the slot's other plans are withdrawn.
-    public Dictionary<string, string[]>? Choices { get; set; }
-
-    public Dictionary<string, string[]>? ChoicePlans { get; set; }
-
-    public Dictionary<string, string>? Chosen { get; set; }
-
-    // What deploy waits for when no connection satisfies a slot, e.g. "connect http@1 for api.x.com".
-    public string? Missing { get; set; }
-
-    public bool Deployed { get; set; }
-
-    public string? Hash { get; set; }
-
-    public DigitalBrain.Units.InstallStatus? Install { get; set; }
-
-    // The installs neuron's confirmation plan while Install is Pending, and the needs sentence it asks.
-    public string? PlanId { get; set; }
-
-    public string? Sentence { get; set; }
-
-    // The needs hash the pending ask puts to the person: the install record must carry it before the wait ends.
-    public string? NeedsHash { get; set; }
-}
-
 // One sentence becomes one unit: author (the Creator's Author), draft (the Builder), verify (the unit's scenarios on fakes), deploy
 // (bind each slot to a connection, then the studio) and install (the host's install outcome; consent to new needs is the only
 // approval). Each step is idempotent on rerun: author by goal hash, draft by unit hash, deploy through the studio's step key.
@@ -78,11 +27,9 @@ public sealed class BuildInner
 [DigitalBrain.Neurons.Neuron(Alias)]
 public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
 {
-    public const string Alias = "flow.build";
+    public const string Alias = BuildInner.Flow;
 
     internal const string Recheck = "build-recheck";
-
-    internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private static readonly string[] Names = ["author", "draft", "verify", "deploy", "install"];
 
@@ -117,14 +64,10 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
 
     // The base Start saves and returns; the steps run after it, so the caller does not wait for the Author.
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
-        => Start(title, owner, parentFlowId, JsonSerializer.Deserialize<BuildInner>(innerJson, Json) ?? new BuildInner());
+        => Start(title, owner, parentFlowId, JsonSerializer.Deserialize<BuildInner>(innerJson, BuildInner.Json) ?? new BuildInner());
 
     public Task<FlowHead> Head() => Task.FromResult(new FlowHead([.. Names], State.Owner, State.TraceId, State.ParentFlowId, State.Started,
-        JsonSerializer.Serialize(State.Inner, Json), State.Title, State.Status, [.. State.Done], State.Ended, null));
-
-    internal static AuthoredUnit UnitOf(BuildInner inner)
-        => JsonSerializer.Deserialize<AuthoredUnit>(inner.UnitJson ?? throw new FlowFailed("draft", "the build has no authored unit"), Json)
-            ?? throw new FlowFailed("draft", "the authored unit is empty");
+        JsonSerializer.Serialize(State.Inner, BuildInner.Json), State.Title, State.Status, [.. State.Done], State.Ended, null));
 
     // The alias when the goal starts with "change <alias>:" and <alias> is a valid unit alias, else null.
     internal static string? ChangeAlias(string goal)
@@ -181,7 +124,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                         inner.Existing ??= await Current(unit.Alias, ct);
                         try { unit = unit with { Scenarios = [.. KeptScenarios.Merge(inner.Existing, unit.Scenarios, inner.Goal)] }; }
                         catch (InvalidDataException error) { throw new FlowFailed("author", error.Message); }
-                        inner.UnitJson = JsonSerializer.Serialize(unit, Json);
+                        inner.UnitJson = JsonSerializer.Serialize(unit, BuildInner.Json);
                         inner.GoalHash = goalHash;
                         inner.Alias = unit.Alias;
                     }
@@ -191,7 +134,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                 {
                     var unitHash = Sha(inner.UnitJson ?? "");
                     if (inner.Files is { Count: > 0 } && inner.UnitHash == unitHash) { return inner.Advance(); }
-                    var unit = UnitOf(inner);
+                    var unit = inner.Unit();
                     // "Change it": a unit already deployed under the alias is drafted over its current files.
                     inner.Existing ??= await Current(unit.Alias, ct);
                     var draft = await Task.Run(() => (drafter ?? throw new InvalidOperationException("No drafter configured.")).Draft(Id.Brain.Value, unit, inner.Existing, ct), ct);
@@ -205,7 +148,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
             case "deploy":
                 {
                     if (inner.Deployed) { return inner.Advance(); }
-                    var unit = UnitOf(inner);
+                    var unit = inner.Unit();
                     if (Bind(inner, await Resolve(unit.Needs, inner.Chosen, ct)))
                     {
                         // The answers come back through the mailbox, so after the base has saved this wait.
@@ -370,7 +313,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     private async Task Verify(BuildInner inner, CancellationToken ct)
     {
         var files = inner.Files is { Count: > 0 } drafted ? drafted : throw new FlowFailed("verify", "the draft has no files");
-        var unit = UnitOf(inner);
+        var unit = inner.Unit();
         var comp = compiler ?? throw new FlowFailed("verify", SynapseStudioNeuron.Unavailable);
         var check = await BuilderTools.Check(comp, unit.Alias, files, unit.Needs, unit.Scenarios, ct);
         if (check.Passed) { return; }
@@ -386,7 +329,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         foreach (var (slot, key) in inner.Chosen ?? []) { bindings[slot] = key; }
         var result = await Studio().DeployFiles(unit.Alias, inner.Files!, bindings);
         if (!result.Ok) { throw new FlowFailed("deploy", result.Text); }
-        var install = UnitDeploy.Install(result, unit.Alias);
+        var install = result.InstallOf(unit.Alias);
         inner.Bindings = bindings;
         inner.Choices = null;
         inner.Deployed = true;
@@ -401,7 +344,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     // the installs neuron's plan; the base saves no plan id for an External wait, so a second FlowWaiting names it for the index.
     private async Task<StepResult<BuildInner>> Install(BuildInner inner)
     {
-        if (!inner.Deployed) { await DeployUnit(inner, UnitOf(inner)); }
+        if (!inner.Deployed) { await DeployUnit(inner, inner.Unit()); }
         switch (inner.Install)
         {
             case DigitalBrain.Units.InstallStatus.Pending:
@@ -475,7 +418,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     {
         var before = State.Inner.ChoicePlans?.Keys.Order(StringComparer.Ordinal).ToArray() ?? [];
         var missing = State.Inner.Missing;
-        if (Bind(State.Inner, await Resolve(UnitOf(State.Inner).Needs, State.Inner.Chosen, CancellationToken.None)))
+        if (Bind(State.Inner, await Resolve(State.Inner.Unit().Needs, State.Inner.Chosen, CancellationToken.None)))
         {
             var after = State.Inner.ChoicePlans?.Keys.Order(StringComparer.Ordinal).ToArray() ?? [];
             if (!before.SequenceEqual(after) || missing != State.Inner.Missing) { await Save(State, [StillWaiting(), MissingNote(State.Inner)]); }

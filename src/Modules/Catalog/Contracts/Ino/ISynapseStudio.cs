@@ -63,7 +63,18 @@ public interface ISynapseStudio
 // One DeployFiles outcome: Ok with the host's status and build hash, else Text is why. Installs is the host's install outcome per
 // state alias (DigitalBrain.Units.InstallOutcome.Reason is the confirmation plan id while Pending).
 public sealed record UnitDeployResult(bool Ok, string Text, DigitalBrain.Units.DeployStatus Status, string? Hash,
-    IReadOnlyDictionary<string, DigitalBrain.Units.InstallOutcome> Installs);
+    IReadOnlyDictionary<string, DigitalBrain.Units.InstallOutcome> Installs)
+{
+    // A unit lands through the studio; its install outcome, not the deploy, says whether it is live. The install outcome of alias:
+    // its own entry, the only entry, or Unchanged when the host installed nothing (a unit with no state alias, or a brain with no
+    // installs neuron).
+    public DigitalBrain.Units.InstallOutcome InstallOf(string alias)
+        => Installs.TryGetValue(alias, out var own) ? own
+            : Installs.Count == 1 ? Installs.Values.Single()
+            : new DigitalBrain.Units.InstallOutcome(DigitalBrain.Units.InstallStatus.Unchanged, "", null);
+
+    public static bool IsLive(DigitalBrain.Units.InstallStatus status) => status is DigitalBrain.Units.InstallStatus.Installed or DigitalBrain.Units.InstallStatus.Updated or DigitalBrain.Units.InstallStatus.Unchanged;
+}
 
 // The step keys deployed so far, each with the build hash it produced.
 // Sidecars[alias][file] are the non-.cs files of alias's last deploy (added field; null in state saved before it).

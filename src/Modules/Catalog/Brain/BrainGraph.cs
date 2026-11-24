@@ -65,7 +65,7 @@ public static class BrainGraph
         }
         foreach (var flow in topology.Flows)
         {
-            if (flow.Type != BuildFlow.Alias || flow.Subject is not { Length: > 0 } alias || !flow.Done.Contains("author")) { continue; }
+            if (flow.Type != BuildInner.Flow || flow.Subject is not { Length: > 0 } alias || !flow.Done.Contains("author")) { continue; }
             if (flow.Status is FlowStatus.Failed or FlowStatus.Cancelled || units.Contains(alias)) { continue; }
             var id = DraftId(alias);
             if (seen.Add(id)) { members.Add((id, alias, Draft, flow.Current)); }

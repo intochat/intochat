@@ -1,15 +1,15 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Testing.Synapses;
 using DigitalBrain.Units;
-using IntoChat.OS.Modules.Apps.Trace;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;
 
 // Runs a unit's kept scenarios (its scenarios.json, in the grammar verify uses) through UnitScenario on fakes, and writes the
 // transcript a person reads: a line per scenario, its journaled signals and its failures. The caller bounds the time.
-public static class ScenarioTranscripts
+internal static class ScenarioTranscripts
 {
     // The most scenarios one run executes.
     public const int MaxScenarios = 32;
@@ -43,8 +43,9 @@ public static class ScenarioTranscripts
             text.Append($"{(transcript.Passed ? "✓" : "✗")} {each.Name}\n");
             foreach (var happened in transcript.Events)
             {
-                var entry = TraceReaderNeuron.Entry(happened.Signal);
-                text.Append($"  step {happened.Step}: {entry.Signal} by {entry.Publisher}\n");
+                // The signal's alias and its publisher, as a trace entry names them.
+                var signal = happened.Signal.Signal.GetType();
+                text.Append($"  step {happened.Step}: {signal.GetCustomAttribute<SignalAttribute>()?.Alias ?? signal.Name} by {happened.Signal.Publisher}\n");
             }
             foreach (var failure in transcript.Failures) { text.Append($"  failed: {failure}\n"); }
         }

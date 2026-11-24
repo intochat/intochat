@@ -1,5 +1,4 @@
 using DigitalBrain.Modules.Options;
-using IntoChat.OS.Host.Configuration;
 
 namespace IntoChat.OS.Modules.Apps;
 

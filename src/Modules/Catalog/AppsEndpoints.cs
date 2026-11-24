@@ -101,7 +101,7 @@ internal static class AppsEndpoints
         apps.MapPost("/units/import-zip", (
             HttpRequest httpRequest,
             INeuronProxies brain,
-            IServiceProvider services,
+            [FromServices] IUnitVerifier verifier,
             CancellationToken ct) => Respond(async () =>
         {
             if (!IsPerson(HttpCaller.Current(httpRequest.HttpContext))) { return Results.Json(new { error = "Only you can import app packages." }, statusCode: 403); }
@@ -111,9 +111,9 @@ internal static class AppsEndpoints
             var studio = brain.Get<ISynapseStudio>(ISynapseStudio.Key(BrainScope.CurrentId()).ToString());
             var result = await AppPackageArchive.ImportZipAsync(
                 ms.ToArray(),
+                verifier,
                 studio,
                 aliasOverride,
-                services: services,
                 ct: ct).ConfigureAwait(false);
             return result.Succeeded
                 ? Results.Ok(result)
@@ -237,19 +237,19 @@ internal static class AppsEndpoints
     // Authoring: create from a prompt, revise the definition, build.
     private static void MapAuthoring(IEndpointRouteBuilder apps)
     {
-        apps.MapPost("", (TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("", (TextRequest request, [FromServices] ICreator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
-        apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] ICreator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), name, request.Text, ct)));
         }));
 
-        apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] ICreator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var snapshot = await creator.Implement(brain, AppKey(name), request?.Text, ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));

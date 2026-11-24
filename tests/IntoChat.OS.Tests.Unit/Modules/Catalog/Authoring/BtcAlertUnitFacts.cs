@@ -118,7 +118,7 @@ public sealed class BtcAlertUnitFacts
             }
             """;
 
-        var unit = Creator.Parse<AuthoredUnit>(authoredJson);
+        var unit = ModelReply.Parse<AuthoredUnit>(authoredJson);
         Assert.Equal(3, unit.Needs.Slots.Count);
         var parsed = ScenarioSteps.Parse(unit.Scenarios[0]);
         Assert.Equal(["market", "notify", "vault"], parsed.Fakes.Slots);

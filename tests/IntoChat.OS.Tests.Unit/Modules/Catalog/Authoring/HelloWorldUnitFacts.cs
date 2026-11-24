@@ -122,7 +122,7 @@ public sealed class HelloWorldUnitFacts
     {
         const string goal = "Create a Hello World app where clicking a button makes 'Hello, IntoChat OS!' appear (or toggles visibility)";
         var unitJson = await OfflineUnitSynthesizer.CompleteAsync("", goal, Ct);
-        var authored = Creator.Parse<AuthoredUnit>(unitJson);
+        var authored = ModelReply.Parse<AuthoredUnit>(unitJson);
 
         Assert.Equal("hello.world", authored.Alias);
         Assert.Empty(authored.Needs.Slots);

@@ -27,7 +27,7 @@ internal sealed class Creator(
     IOptions<AppsOptions> options,
     ILogger<Creator> logger,
     ICreatorModel model,
-    SynapseCompiler? compiler = null) : IDrafter
+    SynapseCompiler? compiler = null) : IDrafter, ICreator
 {
     private readonly ICreatorModel models = model;
     private const int MaxAuthorRetries = 2;
@@ -107,7 +107,7 @@ internal sealed class Creator(
         var flowId = await app.BuildFlow().WaitAsync(cancellationToken) ?? throw new InvalidOperationException("BeginBuild named no build flow.");
         try
         {
-            await flows.Start(BuildFlow.Alias, snapshot.Manifest.Title, null, JsonSerializer.Serialize(inner, BuildFlow.Json), cancellationToken,
+            await flows.Start(BuildFlow.Alias, snapshot.Manifest.Title, null, JsonSerializer.Serialize(inner, BuildInner.Json), cancellationToken,
                 flowId[(flowId.LastIndexOf('/') + 1)..]);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -131,7 +131,7 @@ internal sealed class Creator(
             ct.ThrowIfCancellationRequested();
             try
             {
-                var unit = Parse<AuthoredUnit>(await Complete(brainId, AuthorModel, AgentPrompts.AuthorUnit, prompt, ct));
+                var unit = ModelReply.Parse<AuthoredUnit>(await Complete(brainId, AuthorModel, AgentPrompts.AuthorUnit, prompt, ct));
                 Validate(unit);
                 _ = KeptScenarios.Merge(existing, unit.Scenarios, request);
                 return unit;
@@ -191,7 +191,7 @@ internal sealed class Creator(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return Parse<AuthoredApp>(await Complete(brainId, AuthorModel, AgentPrompts.Author, prompt, cancellationToken));
+                return ModelReply.Parse<AuthoredApp>(await Complete(brainId, AuthorModel, AgentPrompts.Author, prompt, cancellationToken));
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException)
             {
@@ -229,7 +229,7 @@ internal sealed class Creator(
                 Dictionary<string, string>? files = null;
                 try
                 {
-                    files = new Dictionary<string, string>(Parse<BuiltUnit>(reply).Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
+                    files = new Dictionary<string, string>(ModelReply.Parse<BuiltUnit>(reply).Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
                     var check = await BuilderTools.Check(Compiler, alias, files, needs, scenarios, cancellationToken);
                     problem = check.Passed ? null : "check_unit on your final files is not green. Fix these and return the corrected files JSON:\n" + JsonSerializer.Serialize(check, Json);
                 }
@@ -266,7 +266,7 @@ internal sealed class Creator(
             {
                 BuilderTools.ReadContracts => BuilderTools.Contracts,
                 BuilderTools.CheckUnit => JsonSerializer.Serialize(await BuilderTools.Check(Compiler, alias,
-                    Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), needs, scenarios, cancellationToken), Json),
+                    ModelReply.Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), needs, scenarios, cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
             };
         }
@@ -319,16 +319,6 @@ internal sealed class Creator(
     {
         if (string.IsNullOrWhiteSpace(name) || name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
         { throw new InvalidDataException($"'{name}' is not a valid app name: lowercase letters, digits and dashes."); }
-    }
-
-    // Models sometimes wrap the JSON in a code fence or add prose around it; read the first complete object.
-    internal static T Parse<T>(string reply)
-    {
-        var start = reply.IndexOf('{', StringComparison.Ordinal);
-        if (start < 0) { throw new InvalidDataException("The reply contains no JSON object."); }
-        var reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(reply[start..]));
-        using var document = JsonDocument.ParseValue(ref reader);
-        return document.Deserialize<T>(Json) ?? throw new InvalidDataException("The reply's JSON object is empty.");
     }
 
     // A declared list plus what new slots bind; a list that was absent and gains nothing stays absent.

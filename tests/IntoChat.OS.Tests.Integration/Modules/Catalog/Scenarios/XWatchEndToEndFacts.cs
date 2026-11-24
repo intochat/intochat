@@ -55,7 +55,7 @@ public sealed class XWatchEndToEndFacts
     {
         private int _drafts;
 
-        public Task<AuthoredUnit> Author(string brainId, string request, IReadOnlyDictionary<string, string>? existing, CancellationToken ct) => Task.FromResult(Creator.Parse<AuthoredUnit>(Authored));
+        public Task<AuthoredUnit> Author(string brainId, string request, IReadOnlyDictionary<string, string>? existing, CancellationToken ct) => Task.FromResult(ModelReply.Parse<AuthoredUnit>(Authored));
 
         public Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
             => Task.FromResult(new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal)
@@ -148,7 +148,7 @@ public sealed class XWatchEndToEndFacts
     private static async Task<BuildInner> Inner(INeuronRuntime runtime, string flowId)
     {
         Assert.True(NeuronId.TryParse(flowId, out var id));
-        return JsonSerializer.Deserialize<BuildInner>((await runtime.Get<IFlowStarter>(id).Head()).InnerJson, BuildFlow.Json)!;
+        return JsonSerializer.Deserialize<BuildInner>((await runtime.Get<IFlowStarter>(id).Head()).InnerJson, BuildInner.Json)!;
     }
 
     private static async Task<JsonElement> Badge(INeuronRuntime runtime)

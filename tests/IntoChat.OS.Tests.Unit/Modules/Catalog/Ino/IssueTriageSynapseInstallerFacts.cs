@@ -275,6 +275,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         var minimalServices = new ServiceCollection()
             .AddOptions<AppsOptions>().Services
             .AddSingleton(TimeProvider.System)
+            .AddSingleton<IUnitVerifier, UnitVerifier>()
             .BuildServiceProvider();
         await using (var minimalOs = TestOS.Local(o => o.Services = minimalServices)
             .Register(typeof(AppsModule).Assembly))
@@ -331,6 +332,7 @@ public sealed class IssueTriageSynapseInstallerFacts
         var services = new ServiceCollection();
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IUnitVerifier, UnitVerifier>();
         GitHubModule.ConfigureServices(services, new ConfigurationBuilder().Build());
         services.AddSingleton<IModuleIntegrations<GitHubModule>>(new UnconfiguredGitHubIntegrations());
         services.AddSingleton<IGitHubRepositorySource>(source);
