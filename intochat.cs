@@ -43,7 +43,10 @@ switch (command.Kind)
 
 var start = new ProcessStartInfo("dotnet") { WorkingDirectory = Path.GetDirectoryName(appHost)!, UseShellExecute = false };
 start.Environment["CodeGraphRefresh"] = "false";
-foreach (var argument in (string[])["run", "--project", appHost, "--"]) { start.ArgumentList.Add(argument); }
+start.ArgumentList.Add("run");
+start.ArgumentList.Add("--project");
+start.ArgumentList.Add(appHost);
+start.ArgumentList.Add("--");
 foreach (var argument in appHostArguments) { start.ArgumentList.Add(argument); }
 
 using var appHostProcess = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {appHost}.");

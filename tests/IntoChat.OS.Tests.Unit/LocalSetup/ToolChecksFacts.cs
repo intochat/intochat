@@ -66,6 +66,19 @@ public sealed class ToolChecksFacts
     }
 
     [Theory]
+    [InlineData("\r\n  RTX A, 8 MiB  \r\nRTX B, 4 MiB\r\n", "NVIDIA GPU: RTX A, 8 MiB.")]
+    [InlineData("\n\nRTX C, 2 MiB", "NVIDIA GPU: RTX C, 2 MiB.")]
+    [InlineData(" \n \n", null)]
+    public async Task GpuNameIsTheFirstNonEmptyLine(string stdout, string? message)
+    {
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(Fixtures.PathOf("all-green"), TestContext.Current.CancellationToken))!;
+        json["commands"]!["nvidia-smi --query-gpu=name,memory.total --format=csv,noheader"]!["stdout"] = stdout;
+        var report = await Preflight.CollectAsync(FakeProbeEnvironment.FromJson(json.ToJsonString()), new PreflightOptions(new LocalModelOptions(), true, "repo"), TestContext.Current.CancellationToken);
+        Assert.Equal(message is not null, report.GpuDetected);
+        if (message is not null) { Assert.Equal(message, Fixtures.Result(report, "gpu").Message); }
+    }
+
+    [Theory]
     [InlineData("""{"models":[{"name":"qwen3.5:4b"}]}""", "qwen3.5:4b", true)]
     [InlineData("""{"models":[{"name":"qwen3.5:4b"}]}""", "qwen3.5:2b", false)]
     [InlineData("""{"models":[{"name":"tiny:latest"}]}""", "tiny", true)]
