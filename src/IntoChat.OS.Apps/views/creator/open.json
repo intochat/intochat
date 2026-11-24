@@ -432,6 +432,57 @@
             "mono": false
           },
           {
+            "kind": "heading",
+            "value": "Synapses",
+            "level": 6,
+            "subtitle": null
+          },
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "button",
+                "key": "synapse:workflow:approval-demo",
+                "label": "Run approval-demo",
+                "command": {
+                  "target": ".",
+                  "signal": "start-workflow",
+                  "args": "approval-demo"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "synapse:workflow:approval-demo",
+                "style": "secondary",
+                "icon": "play",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "inspect:workflow:approval-demo",
+                "label": "3D",
+                "command": {
+                  "target": ".",
+                  "signal": "select",
+                  "args": "synapse:workflow:approval-demo"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "tooltip": null,
+                "visible": true,
+                "automationName": "inspect:workflow:approval-demo",
+                "style": "ghost",
+                "icon": "git-branch",
+                "small": true
+              }
+            ],
+            "gap": 4,
+            "padding": 0
+          },
+          {
             "kind": "row",
             "children": [
               {

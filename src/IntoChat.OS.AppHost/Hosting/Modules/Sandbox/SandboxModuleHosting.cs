@@ -145,7 +145,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
                 var instance = sandbox.ApplicationBuilder.CreateResourceBuilder(kernelHttp.Resource);
                 sandbox.WithReference(kernelHttp)
                     .WaitFor(instance)
-                    .WithEnvironment("KERNEL_URL", kernelHttp);
+                    .WithEnvironment("SANDBOX_KERNEL_URL", kernelHttp);
             }
         }
     }

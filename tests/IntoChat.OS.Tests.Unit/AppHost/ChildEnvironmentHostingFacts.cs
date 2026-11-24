@@ -228,4 +228,32 @@ public sealed class ChildEnvironmentHostingFacts
             DigitalBrain.Testing.TempDirectory.DeleteIfPresent(tempRoot.FullName);
         }
     }
+
+    [Fact]
+    public async Task SandboxModuleHosting_WiresSandboxKernelUrlToKernelHttpEndpoint()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddIntoChatOSBrain("modules", new IntoChatOSHostingOptions())
+            .WithHosting<SandboxModuleHosting>();
+
+        var silo = builder.AddExecutable("OperatingSystem-a", "unused", ".")
+            .WithHttpEndpoint(name: "http", targetPort: 5080)
+            .WithReference(brain);
+
+        var sandbox = Assert.Single(builder.Resources.OfType<ContainerResource>(), r => r.Name == SandboxModuleHosting.ResourceName);
+        var sandboxEnv = new Dictionary<string, object>();
+        var sandboxCtx = new EnvironmentCallbackContext(builder.ExecutionContext, sandbox, sandboxEnv, TestContext.Current.CancellationToken);
+        foreach (var cb in sandbox.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            await cb.Callback(sandboxCtx);
+        }
+
+        Assert.True(sandboxEnv.TryGetValue("SANDBOX_KERNEL_URL", out var kernelUrl));
+        var endpointRef = Assert.IsType<EndpointReference>(kernelUrl);
+        Assert.Same(silo.Resource, endpointRef.Resource);
+        Assert.Equal("http", endpointRef.EndpointName);
+        Assert.False(sandboxEnv.ContainsKey("KERNEL_URL"));
+        Assert.True(sandboxEnv.TryGetValue("SANDBOX_ENROLL_KEY", out var enrollKey));
+        Assert.False(string.IsNullOrWhiteSpace(Assert.IsType<string>(enrollKey)));
+    }
 }
