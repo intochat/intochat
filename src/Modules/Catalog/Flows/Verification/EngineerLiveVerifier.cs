@@ -33,6 +33,7 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
         "field",
         "switch",
         "navItem",
+        "appTile",
         "webBrowser",
         "conversation",
         "approvalCard",

@@ -392,7 +392,7 @@ public sealed class SettingsAppFacts
         ];
 
         Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(IntoChat.OS.Apps.Desktop.DesktopApp.NativeCatalog, item => item.Id == "usage");
+        Assert.Contains(DigitalBrain.Components.ComponentManifests.All, m => m.Id.Value == "app.usage");
 
         string[] forbiddenDemoTokens = ["Nordlys", "Havbris", "Kari Holm", "$420,000", "42.80", "1,250,000"];
 

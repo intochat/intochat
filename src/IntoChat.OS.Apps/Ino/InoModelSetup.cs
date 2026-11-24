@@ -553,39 +553,31 @@ internal static class InoModelSetup
         return card.Id;
     }
 
-    public static AppBundle BuildBundle(Type compiledType) => new(
+    public static AppBundle BuildBundle(Type compiledType) => AppBundle.FromScreen<InoApp>(
         "ino",
         "3.6.0",
-        new AppManifest(
-            Title: "Ino",
-            Description: "Talk to your brain, use its capabilities, query databases, and create apps.",
-            Operations:
-            [
-                new("open", "Show Ino."),
-                new("send", "Send a message to Ino's conversation."),
-                new("retry", "Regenerate the last reply."),
-                new("stop", "Stop the running turn."),
-                new("smart", "Turn smart mode on or off."),
-                new("use-local", "Bind a locally detected Ollama model."),
-                new("choose-model", "Switch the conversation model, and optionally pin it as the Chat default."),
-                new("save-provider", "Save a cloud provider credential to the brain's Secure store."),
-                new("connect-db", "Connect a PostgreSQL database via connection string."),
-                new("query-db", "Execute a read-only SQL query against the connected database."),
-                new("new", "Start a new conversation."),
-                new("new-conversation", "Alias for new."),
-                new("switch-conversation", "Switch to an existing conversation."),
-                new("chats", "Show or hide the recent conversations list."),
-                new("toggle-devui", "Toggle DevUI flag."),
-                new("make", "Apply a sentence to the focused app, or Scratch."),
-                new("link", "Post a pasted workspace link: its app, opaque input and text."),
-                new(IntoChat.OS.UI.UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg",
-            Dock: 1),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
+        description: "Talk to your brain, use its capabilities, query databases, and create apps.",
+        operations:
+        [
+            new("open", "Show Ino."),
+            new("send", "Send a message to Ino's conversation."),
+            new("retry", "Regenerate the last reply."),
+            new("stop", "Stop the running turn."),
+            new("smart", "Turn smart mode on or off."),
+            new("use-local", "Bind a locally detected Ollama model."),
+            new("choose-model", "Switch the conversation model, and optionally pin it as the Chat default."),
+            new("save-provider", "Save a cloud provider credential to the brain's Secure store."),
+            new("connect-db", "Connect a PostgreSQL database via connection string."),
+            new("query-db", "Execute a read-only SQL query against the connected database."),
+            new("new", "Start a new conversation."),
+            new("new-conversation", "Alias for new."),
+            new("switch-conversation", "Switch to an existing conversation."),
+            new("chats", "Show or hide the recent conversations list."),
+            new("toggle-devui", "Toggle DevUI flag."),
+            new("make", "Apply a sentence to the focused app, or Scratch."),
+            new("link", "Post a pasted workspace link: its app, opaque input and text."),
+            new(IntoChat.OS.UI.UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
+        ]) with
     {
         CompiledType = compiledType.AssemblyQualifiedName,
     };

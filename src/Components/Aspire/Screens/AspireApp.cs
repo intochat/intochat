@@ -43,7 +43,7 @@ public sealed record AspireConnect(string? BaseUrl = null) : Signal;
 public sealed record AspireReload : Signal;
 
 [Neuron("app.aspire")]
-[Screen("app.aspire", Title = ".NET Aspire", Icon = "activity")]
+[Screen("app.aspire", Title = ".NET Aspire", Icon = "activity", Category = "Developer", Launch = AppLaunch.Maximized)]
 public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<BrowserNavArgs>, INavigatedFrom
 {
     public const string AppName = "aspire";
@@ -65,31 +65,21 @@ public sealed class AspireApp : AggregateScreen<AspireAppState>, INavigatedTo<Br
         InjectedLogger = logger;
     }
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<AspireApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: ".NET Aspire",
-            Description: "Built-in .NET Aspire operator dashboard for resources, distributed traces, structured logs, console logs, and metrics.",
-            Operations:
-            [
-                new("open", "Open the .NET Aspire Dashboard on a section or trace deep-link."),
-                new("select-section", "Switch between resources, traces, structuredlogs, consolelogs, and metrics."),
-                new("focus-trace", "Deep-link directly to a distributed trace span tree."),
-                new("connect", "Connect to a live http/https .NET Aspire Dashboard endpoint."),
-                new("reload", "Reload the active .NET Aspire Dashboard frame."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Aspire aggregate command."),
-                new(UiNavigateTo.SignalAlias, "Navigate into Aspire with typed BrowserNavArgs."),
-                new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Aspire."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "activity"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(AspireApp).AssemblyQualifiedName,
-    };
+        description: "Built-in .NET Aspire operator dashboard for resources, distributed traces, structured logs, console logs, and metrics.",
+        operations:
+        [
+            new("open", "Open the .NET Aspire Dashboard on a section or trace deep-link."),
+            new("select-section", "Switch between resources, traces, structuredlogs, consolelogs, and metrics."),
+            new("focus-trace", "Deep-link directly to a distributed trace span tree."),
+            new("connect", "Connect to a live http/https .NET Aspire Dashboard endpoint."),
+            new("reload", "Reload the active .NET Aspire Dashboard frame."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Aspire aggregate command."),
+            new(UiNavigateTo.SignalAlias, "Navigate into Aspire with typed BrowserNavArgs."),
+            new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Aspire."),
+        ]);
 
     public new AspireAppState State => base.State;
 

@@ -34,7 +34,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Apps.Ino;
 
 [Neuron("app.ino")]
-[Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles)]
+[Screen("app.ino", Title = "Ino", Icon = Icons.Sparkles, Category = "Intelligence", Dock = 1)]
 public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs, INavigatedTo<InoNavArgs>, INavigatedFrom
 {
     private const string ApprovalsKey = "approvals/index", DataKey = "ino/data", ModelsKey = "main";
@@ -88,7 +88,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, IWithFilesVfs
     public VoiceAbilities Voice { get; private set; } = VoiceAbilities.None;
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
-    public static AppBundle Bundle { get; } = InoModelSetup.BuildBundle(typeof(InoApp));
+    public static AppBundle Bundle => InoModelSetup.BuildBundle(typeof(InoApp));
 
     public new InoAppState State => base.State;
     public new Rejected? LastRejection => RecordedRejection ?? base.LastRejection;

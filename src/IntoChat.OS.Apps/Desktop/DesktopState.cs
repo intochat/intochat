@@ -26,7 +26,8 @@ public sealed record DesktopAppState(
     WorkspaceViewRef[] Pins,
     WorkspaceViewRef[] Favourites,
     string WidgetsText,
-    string[]? DeployedUnits = null)
+    string[]? DeployedUnits = null,
+    AppTile[]? Tiles = null)
 {
     public const int MaxWindows = 8;
     public const int MaxTabsPerWindow = 8;

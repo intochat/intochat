@@ -24,7 +24,7 @@ using static IntoChat.OS.UI.Kit;
 namespace IntoChat.Muncly.Screens;
 
 [Neuron("app.muncly")]
-[Screen("app.muncly", Title = "Muncly CRM", Icon = "muncly", Category = "Business")]
+[Screen("app.muncly", Title = "Muncly CRM", Icon = "muncly", Category = "Business", Launch = AppLaunch.Maximized)]
 public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<BrowserNavArgs>, INavigatedFrom
 {
     public const string AppName = "muncly";
@@ -49,29 +49,19 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
         InjectedLogger = logger;
     }
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<MunclyApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: "Muncly CRM",
-            Description: "Muncly CRM workspace with embedded web app and authenticated MCP access for agents.",
-            Operations:
-            [
-                new("open", "Open Muncly CRM at the root or a specific object/record deep-link."),
-                new("connect", "Connect to a Muncly CRM https endpoint."),
-                new("reload", "Reload the active Muncly CRM frame."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Muncly aggregate command."),
-                new(UiNavigateTo.SignalAlias, "Navigate into Muncly CRM with typed BrowserNavArgs."),
-                new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Muncly CRM."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "muncly"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(MunclyApp).AssemblyQualifiedName,
-    };
+        description: "Muncly CRM workspace with embedded web app and authenticated MCP access for agents.",
+        operations:
+        [
+            new("open", "Open Muncly CRM at the root or a specific object/record deep-link."),
+            new("connect", "Connect to a Muncly CRM https endpoint."),
+            new("reload", "Reload the active Muncly CRM frame."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Muncly aggregate command."),
+            new(UiNavigateTo.SignalAlias, "Navigate into Muncly CRM with typed BrowserNavArgs."),
+            new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Muncly CRM."),
+        ]);
 
     public new MunclyAppState State => base.State;
 

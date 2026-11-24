@@ -40,7 +40,8 @@ public sealed class OrleansAppFacts
             .ToArray();
         Assert.Empty(orleansFields);
 
-        Assert.Contains(DesktopApp.NativeCatalog, c => c.Id == "orleans" && c.Category == "Developer" && c.RuntimeMode == "orleans-grain");
+        var manifest = DigitalBrain.Components.ComponentManifests.All.Single(m => m.Id.Value == "app.orleans");
+        Assert.Equal("Developer", manifest.Face?.Category);
     }
 
     [Fact]

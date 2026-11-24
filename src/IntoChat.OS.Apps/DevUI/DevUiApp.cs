@@ -36,31 +36,21 @@ public sealed record DevUiAppState(
 }
 
 [Neuron("app.devui")]
-[Screen("app.devui", Title = "DevUI", Icon = "terminal")]
+[Screen("app.devui", Title = "DevUI", Icon = "terminal", Category = "Developer", Launch = AppLaunch.Maximized)]
 public sealed class DevUiApp : EmbeddedWebApp<DevUiAppState>
 {
     public const string AppName = "devui";
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<DevUiApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: "DevUI",
-            Description: "Built-in developer console and runtime inspector at /devui/.",
-            Operations:
-            [
-                new("open", "Open the co-hosted /devui/ developer console."),
-                new("reload", "Reload the active DevUI frame."),
-                new(UiCommand.SignalAlias, "Dispatch a typed DevUI command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "terminal"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(DevUiApp).AssemblyQualifiedName,
-    };
+        description: "Built-in developer console and runtime inspector at /devui/.",
+        operations:
+        [
+            new("open", "Open the co-hosted /devui/ developer console."),
+            new("reload", "Reload the active DevUI frame."),
+            new(UiCommand.SignalAlias, "Dispatch a typed DevUI command."),
+        ]);
 
     public new DevUiAppState State => base.State;
 

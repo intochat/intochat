@@ -52,6 +52,7 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
         ["errorLine"] = typeof(ErrorLineNode),
         ["emptyState"] = typeof(EmptyStateNode),
         ["metricTile"] = typeof(MetricTileNode),
+        ["appTile"] = typeof(AppTileNode),
         ["diffCard"] = typeof(DiffCardNode),
         ["checkBoxView"] = typeof(Controls.CheckBoxView),
         ["toggleSwitchView"] = typeof(Controls.ToggleSwitchView),
@@ -126,6 +127,7 @@ public sealed record View(string Title, Node Root)
 [JsonDerivedType(typeof(ErrorLineNode), "errorLine")]
 [JsonDerivedType(typeof(EmptyStateNode), "emptyState")]
 [JsonDerivedType(typeof(MetricTileNode), "metricTile")]
+[JsonDerivedType(typeof(AppTileNode), "appTile")]
 [JsonDerivedType(typeof(DiffCardNode), "diffCard")]
 [JsonDerivedType(typeof(Controls.CheckBoxView), "checkBoxView")]
 [JsonDerivedType(typeof(Controls.ToggleSwitchView), "toggleSwitchView")]

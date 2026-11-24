@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 class SmartAppTileSpec {
@@ -10,14 +11,62 @@ class SmartAppTileSpec {
     required this.neuronUri,
     this.accentHex,
     this.category = 'App',
+    this.launch = AppLaunch.windowed,
+    this.dock,
+    this.appKind = 'compiled',
+    this.description,
+    this.iconSlug,
   });
+
+  factory SmartAppTileSpec.fromNode(
+    AppTileNode node, {
+    String brain = 'local',
+  }) {
+    final spec = IcAppIcon.resolveSpec(node.appId);
+    final resolvedIcon =
+        (node.icon != null && node.icon!.isNotEmpty ? uiIcon(node.icon!) : null) ??
+        spec.icon;
+    final cleanTitle = node.title.trim().isNotEmpty
+        ? node.title.trim()
+        : IcAppIcon.humanizeAppTitle(node.appId);
+    final cleanCategory = (node.category != null && node.category!.trim().isNotEmpty)
+        ? node.category!.trim()
+        : spec.category;
+    final cleanBrain = brain.trim().isNotEmpty ? brain.trim() : 'local';
+    final uri = node.appKind == 'unit'
+        ? 'neuron://$cleanBrain/units/${node.appId}'
+        : 'neuron://$cleanBrain/apps/${node.appId}';
+    return SmartAppTileSpec(
+      id: node.appId,
+      name: cleanTitle,
+      icon: resolvedIcon,
+      color: spec.gradientTop,
+      accentHex: spec.accentHex,
+      category: cleanCategory,
+      neuronUri: uri,
+      launch: node.launch,
+      dock: node.dock,
+      appKind: node.appKind,
+      description: node.description,
+      iconSlug: node.icon,
+    );
+  }
 
   factory SmartAppTileSpec.fromIconSpec(
     String id, {
     String? titleOverride,
     String? categoryOverride,
+    AppLaunch launch = AppLaunch.windowed,
+    int? dock,
+    String appKind = 'compiled',
+    String? description,
+    String? iconSlug,
+    String brain = 'local',
   }) {
     final spec = IcAppIcon.resolveSpec(id);
+    final resolvedIcon =
+        (iconSlug != null && iconSlug.isNotEmpty ? uiIcon(iconSlug) : null) ??
+        spec.icon;
     final cleanTitle =
         (titleOverride != null && titleOverride.trim().isNotEmpty)
         ? titleOverride.trim()
@@ -26,14 +75,22 @@ class SmartAppTileSpec {
         (categoryOverride != null && categoryOverride.trim().isNotEmpty)
         ? categoryOverride.trim()
         : spec.category;
+    final cleanBrain = brain.trim().isNotEmpty ? brain.trim() : 'local';
     return SmartAppTileSpec(
       id: id,
       name: cleanTitle,
-      icon: spec.icon,
+      icon: resolvedIcon,
       color: spec.gradientTop,
       accentHex: spec.accentHex,
       category: cleanCategory,
-      neuronUri: 'neuron://local/apps/$id',
+      neuronUri: appKind == 'unit'
+          ? 'neuron://$cleanBrain/units/$id'
+          : 'neuron://$cleanBrain/apps/$id',
+      launch: launch,
+      dock: dock,
+      appKind: appKind,
+      description: description,
+      iconSlug: iconSlug,
     );
   }
 
@@ -44,118 +101,22 @@ class SmartAppTileSpec {
   final String neuronUri;
   final String? accentHex;
   final String category;
+  final AppLaunch launch;
+  final int? dock;
+  final String appKind;
+  final String? description;
+  final String? iconSlug;
 }
 
-const _defaultSmartAppIds = <String>[
-  'ino',
-  'muncly',
-  'files',
-  'photocraft',
-  'filmcraft',
-  'creator',
-  'engineer',
-  'gallery',
-  'friends',
-  'workspace',
-  'settings',
-];
-
-const _artCraftAppIds = <String>[
-  'artcraft',
-  'photocraft',
-  'filmcraft',
-  'vectorcraft',
-  'lightcraft',
-  'effectcraft',
-  'designcraft',
-  'pdfcraft',
-  'wordcraft',
-  'soundcraft',
-  'deckcraft',
-  'cadcraft',
-  'gridcraft',
-  'figcraft',
-  'texturecraft',
-  'materialcraft',
-  'solidcraft',
-];
-
-const _coreSmartAppIds = <String>[
-  'ino',
-  'workspace',
-  'files',
-  'tasks',
-  'customer-researcher',
-  'calculator',
-  'data',
-  'creator',
-  'engineer',
-  'gallery',
-  'markdraw',
-  'aspire',
-  'muncly',
-  'orleans',
-  'devui',
-  'widgetbook',
-  'trace',
-  'friends',
-];
-
-final List<SmartAppTileSpec> defaultSmartAppSpecs = List.unmodifiable([
-  for (final id in _defaultSmartAppIds) SmartAppTileSpec.fromIconSpec(id),
-]);
-
-final List<SmartAppTileSpec> artCraftSmartAppSpecs = List.unmodifiable([
-  for (final id in _artCraftAppIds)
-    SmartAppTileSpec.fromIconSpec(id, categoryOverride: 'ArtCraft Studio'),
-]);
-
-/// Complete catalog of all DigitalBrain OS & ArtCraft Studio apps for the
-/// All Apps Launcher and Command Palette (`⌘K`), derived directly from `IcAppIcon.builtInSpecs`.
-final List<SmartAppTileSpec> allSmartAppSpecs = List.unmodifiable([
-  for (final id in _coreSmartAppIds)
-    switch (id) {
-      'orleans' => SmartAppTileSpec.fromIconSpec(
-        id,
-        titleOverride: 'Orleans Dashboard',
-        categoryOverride: 'Developer',
-      ),
-      'muncly' => SmartAppTileSpec.fromIconSpec(
-        id,
-        titleOverride: 'Muncly CRM',
-        categoryOverride: 'Business',
-      ),
-      'devui' => SmartAppTileSpec.fromIconSpec(
-        id,
-        titleOverride: 'DevUI',
-        categoryOverride: 'Developer',
-      ),
-      'widgetbook' => SmartAppTileSpec.fromIconSpec(
-        id,
-        titleOverride: 'Widgetbook',
-        categoryOverride: 'Developer',
-      ),
-      'customer-researcher' => SmartAppTileSpec.fromIconSpec(
-        id,
-        titleOverride: 'Customer Researcher',
-        categoryOverride: 'Workspace',
-      ),
-      _ => SmartAppTileSpec.fromIconSpec(id),
-    },
-  ...artCraftSmartAppSpecs,
-  SmartAppTileSpec.fromIconSpec('settings'),
-]);
-
-/// Full-featured categorized "All Apps" Launcher modal displaying all apps
-/// (including all 17 `getartcraft.com` apps, `.NET Aspire`, `Ino`, etc.)
-/// with search, category filters, execution runtime badges, and custom brand icons.
+/// Categorized "All Apps" Launcher modal displaying all apps provided by the
+/// desktop view (`AppTileNode` catalog) with search and dynamic category filters.
 class AllAppsLauncherOverlay extends StatefulWidget {
-  AllAppsLauncherOverlay({
+  const AllAppsLauncherOverlay({
     super.key,
-    List<SmartAppTileSpec>? apps,
+    this.apps = const [],
     required this.onLaunchApp,
     required this.onClose,
-  }) : apps = apps ?? allSmartAppSpecs;
+  });
 
   final List<SmartAppTileSpec> apps;
   final ValueChanged<String> onLaunchApp;
@@ -169,21 +130,8 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
 
-  static const List<String> _defaultCategories = [
-    'All',
-    'ArtCraft Studio',
-    'Micro-Apps',
-    'Intelligence',
-    'Workspace',
-    'Studio',
-    'Developer',
-    'Analytics',
-    'Social',
-    'System',
-  ];
-
   List<String> _availableCategories() {
-    final categories = <String>[..._defaultCategories];
+    final categories = <String>['All'];
     for (final spec in widget.apps) {
       final cat = spec.category.trim();
       if (cat.isNotEmpty && !categories.contains(cat)) {

@@ -163,6 +163,7 @@ public sealed record PhotoCraftAppState(
 }
 
 [Neuron("app.photocraft")]
+[Screen("app.photocraft", Title = "PhotoCraft", Icon = "artcraft:photocraft", Category = "Studio", Dock = 5, Launch = AppLaunch.Maximized)]
 public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
 {
     public PhotoCraftApp() : this(null) { }
@@ -172,27 +173,21 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
 
     public const string AppName = ShippedApps.PhotoCraft;
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<PhotoCraftApp>(
         "photocraft", "1.1.0",
-        new AppManifest(
-            Title: "PhotoCraft",
-            Description: "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
-            Operations:
-            [
-                new("open", "Connect PhotoCraft studio and open or inspect a document."),
-                new("edit", "Edit an image from natural language (e.g. remove background, select subject, desaturate, gradient)."),
-                new("remove-background", "Run AI background removal (layer.removeBackground) on the active or specified image."),
-                new("run-command", "Execute a PhotoCraft engine command ID directly via Native Linux CLI or MCP."),
-                new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
-                new("toggle-layer", "Toggle visibility of a raster/adjustment layer by index or name."),
-                new("apply-preset", "Apply a local filter preset (warm, vivid, monochrome, cutout, gradient) with instant preview."),
-            ],
-            Settings: [], Slots: [], Icon: "image", Dock: 5, Studio: true,
-            Toolbar: [new("open", Icon: "link", Label: "Connect editor"), new("remove-background", Icon: "wand-sparkles", Label: "Remove Background")]),
-        "", new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(PhotoCraftApp).AssemblyQualifiedName,
-    };
+        description: "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
+        operations:
+        [
+            new("open", "Connect PhotoCraft studio and open or inspect a document."),
+            new("edit", "Edit an image from natural language (e.g. remove background, select subject, desaturate, gradient)."),
+            new("remove-background", "Run AI background removal (layer.removeBackground) on the active or specified image."),
+            new("run-command", "Execute a PhotoCraft engine command ID directly via Native Linux CLI or MCP."),
+            new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
+            new("toggle-layer", "Toggle visibility of a raster/adjustment layer by index or name."),
+            new("apply-preset", "Apply a local filter preset (warm, vivid, monochrome, cutout, gradient) with instant preview."),
+        ],
+        studio: true,
+        toolbar: [new("open", Icon: "link", Label: "Connect editor"), new("remove-background", Icon: "wand-sparkles", Label: "Remove Background")]);
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {

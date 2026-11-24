@@ -39,7 +39,7 @@ public sealed record OrleansFilterGrain(string? GrainFilter = null) : Signal;
 public sealed record OrleansReload : Signal;
 
 [Neuron("app.orleans")]
-[Screen("app.orleans", Title = "Orleans Dashboard", Icon = "cpu")]
+[Screen("app.orleans", Title = "Orleans Dashboard", Icon = "cpu", Category = "Developer", Launch = AppLaunch.Maximized)]
 public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<BrowserNavArgs>, INavigatedFrom
 {
     public const string AppName = "orleans";
@@ -56,30 +56,20 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
     public OrleansApp(ILogger<OrleansApp>? logger = null)
         => InjectedLogger = logger;
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<OrleansApp>(
         AppName,
         "1.0.0",
-        new AppManifest(
-            Title: "Orleans Dashboard",
-            Description: "Co-hosted Microsoft Orleans grain, silo, activation, method-profile, and reminder dashboard.",
-            Operations:
-            [
-                new("open", "Open the co-hosted /orleans Grain Dashboard on a section or grain filter."),
-                new("select-section", "Switch between overview, grains, silos, and reminders."),
-                new("filter-grain", "Focus the Grains view on a specific grain type or activation filter."),
-                new("reload", "Reload the active Orleans Grain Dashboard frame."),
-                new(UiCommand.SignalAlias, "Dispatch a typed Orleans aggregate command."),
-                new(UiNavigateTo.SignalAlias, "Navigate into Orleans with typed BrowserNavArgs."),
-                new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Orleans."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "cpu"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(OrleansApp).AssemblyQualifiedName,
-    };
+        description: "Co-hosted Microsoft Orleans grain, silo, activation, method-profile, and reminder dashboard.",
+        operations:
+        [
+            new("open", "Open the co-hosted /orleans Grain Dashboard on a section or grain filter."),
+            new("select-section", "Switch between overview, grains, silos, and reminders."),
+            new("filter-grain", "Focus the Grains view on a specific grain type or activation filter."),
+            new("reload", "Reload the active Orleans Grain Dashboard frame."),
+            new(UiCommand.SignalAlias, "Dispatch a typed Orleans aggregate command."),
+            new(UiNavigateTo.SignalAlias, "Navigate into Orleans with typed BrowserNavArgs."),
+            new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Orleans."),
+        ]);
 
     public new OrleansAppState State => base.State;
 

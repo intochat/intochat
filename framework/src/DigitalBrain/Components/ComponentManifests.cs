@@ -20,7 +20,9 @@ public sealed record ComponentFace(
     string Title,
     string Description = "",
     string? Icon = null,
-    string? Category = null);
+    string? Category = null,
+    int? Dock = null,
+    bool Maximized = false);
 
 /// <summary>Declared operation on a component, derived from an <c>[On]</c> handler.</summary>
 public sealed record OperationSpec(

@@ -76,33 +76,23 @@ public sealed record UsageAppState(
     }
 }
 
-[Neuron("app.usage"), Screen("app.usage", Title = "Usage")]
+[Neuron("app.usage"), Screen("app.usage", Title = "Usage", Icon = "wallet", Category = "System")]
 public sealed partial class UsageApp : AggregateScreen<UsageAppState>
 {
     public const string UsageSpendChartKey = "usage/charts/spend";
 
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
     [Slot(Key = UsageSpendChartKey, Required = false)] private partial IntoChat.OS.Modules.UI.Chart.IChart? SpendChart { get; }
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<UsageApp>(
         "usage",
         "1.0.0",
-        new AppManifest(
-            Title: "Usage",
-            Description: "This brain's compute spending over the last 30 days.",
-            Operations:
-            [
-                new("open", "Read current usage."),
-                new("refresh", "Refresh recorded usage."),
-                new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg"),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(UsageApp).AssemblyQualifiedName,
-    };
+        description: "This brain's compute spending over the last 30 days.",
+        operations:
+        [
+            new("open", "Read current usage."),
+            new("refresh", "Refresh recorded usage."),
+            new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
+        ]);
 
     public new UsageAppState State => base.State;
     public View Render() => PreviewView(State);

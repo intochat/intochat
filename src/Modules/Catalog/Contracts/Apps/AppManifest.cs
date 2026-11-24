@@ -1,7 +1,9 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Components;
 using DigitalBrain.Contracts;
+using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -124,7 +126,10 @@ public sealed record AppManifest(
     // A studio is an app Ino hands a routed prompt to and lists among its studios.
     bool Studio = false,
     // Optional catalog category for desktop and launcher grouping (e.g. "Workspace", "Studio").
-    string? Category = null)
+    string? Category = null,
+    // Initial window launch mode; omitted from JSON when default (Windowed) to preserve publication digests.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    AppLaunch Launch = AppLaunch.Windowed)
 {
     /// <summary>Projects a <see cref="ComponentManifest"/> into an <see cref="AppManifest"/> view.</summary>
     public static AppManifest From(ComponentManifest manifest)
@@ -169,7 +174,9 @@ public sealed record AppManifest(
             Slots: slots,
             Icon: manifest.Face?.Icon,
             Requires: requires,
-            Category: manifest.Face?.Category);
+            Dock: manifest.Face?.Dock,
+            Category: manifest.Face?.Category,
+            Launch: manifest.Face?.Maximized == true ? AppLaunch.Maximized : AppLaunch.Windowed);
     }
 
     private static string ContractIdOf(Type contract)

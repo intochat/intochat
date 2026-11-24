@@ -269,7 +269,7 @@ public sealed record GalleryAppState(
 }
 
 [Neuron("app.gallery")]
-[Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
+[Screen("app.gallery", Title = "UI Gallery", Icon = "layout-grid", Category = "Studio", Dock = 8)]
 public sealed partial class GalleryApp : AggregateScreen<GalleryAppState>
 {
     public const string AppName = "gallery";
@@ -382,35 +382,24 @@ public sealed partial class GalleryApp : AggregateScreen<GalleryAppState>
         _logger = (ILogger?)logger ?? ConsoleLogger;
     }
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<GalleryApp>(
         "gallery",
         "3.0.0",
-        new AppManifest(
-            Title: "UI Gallery",
-            Description: "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
-            Operations:
-            [
-                new("open", "Open the WinUI 3-style UI Gallery."),
-                new("filter", "Navigate to a Gallery page."),
-                new("select", "Execute a Gallery interactive demo action."),
-                new("switch-identity", "Switch the active StylePreset and BarLayout."),
-                new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "widgets",
-            Dock: 8,
-            SideWidth: 268d,
-            Toolbar:
-            [
-                new("open", Icon: "widgets", Label: "Home"),
-                new("switch-identity", Icon: "palette", Label: "Identity"),
-            ]),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(GalleryApp).AssemblyQualifiedName,
-    };
+        description: "WinUI 3-style IntoChat UI Kit Gallery powered by live Modules.UI neurons.",
+        operations:
+        [
+            new("open", "Open the WinUI 3-style UI Gallery."),
+            new("filter", "Navigate to a Gallery page."),
+            new("select", "Execute a Gallery interactive demo action."),
+            new("switch-identity", "Switch the active StylePreset and BarLayout."),
+            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
+        ],
+        sideWidth: 268d,
+        toolbar:
+        [
+            new("open", Icon: "widgets", Label: "Home"),
+            new("switch-identity", Icon: "palette", Label: "Identity"),
+        ]);
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {

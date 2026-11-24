@@ -17,6 +17,12 @@ void main() {
           categoryOverride: 'Workspace',
         );
 
+        final baseApps = [
+          SmartAppTileSpec.fromIconSpec('ino'),
+          SmartAppTileSpec.fromIconSpec('files'),
+          SmartAppTileSpec.fromIconSpec('settings'),
+        ];
+
         String? launched;
         await tester.pumpWidget(
           MaterialApp(
@@ -30,7 +36,7 @@ void main() {
             ),
             home: Scaffold(
               body: AllAppsLauncherOverlay(
-                apps: [...allSmartAppSpecs, dynamicEntry],
+                apps: [...baseApps, dynamicEntry],
                 onLaunchApp: (id) => launched = id,
                 onClose: () {},
               ),
@@ -72,6 +78,11 @@ void main() {
         await tester.binding.setSurfaceSize(const Size(1440, 900));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
+        final baseApps = [
+          SmartAppTileSpec.fromIconSpec('ino'),
+          SmartAppTileSpec.fromIconSpec('files'),
+        ];
+
         final customCategoryEntry = SmartAppTileSpec.fromIconSpec(
           'app.field-ops',
           titleOverride: 'Field Ops',
@@ -90,7 +101,7 @@ void main() {
             ),
             home: Scaffold(
               body: AllAppsLauncherOverlay(
-                apps: [...allSmartAppSpecs, customCategoryEntry],
+                apps: [...baseApps, customCategoryEntry],
                 onLaunchApp: (_) {},
                 onClose: () {},
               ),

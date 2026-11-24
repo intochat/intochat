@@ -264,7 +264,7 @@ void main() {
             colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
             child: child!,
           ),
-          home: Scaffold(body: SmartDesktop()),
+          home: const Scaffold(body: SmartDesktop()),
         ),
       );
       await tester.pump();
@@ -840,13 +840,10 @@ void main() {
   );
 
   testWidgets(
-    'All Apps Launcher lists all 17 ArtCraft apps and opens selected studio app window',
+    'All Apps Launcher lists server-supplied ArtCraft AppTileNodes and opens selected studio app window maximized',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-
-      expect(artCraftSmartAppSpecs.length, 17);
-      expect(allSmartAppSpecs.length, greaterThanOrEqualTo(31));
 
       final activations = <Map<String, dynamic>>[];
 
@@ -902,7 +899,7 @@ void main() {
         findsOneWidget,
       );
 
-      // Filter by ArtCraft Studio category
+      // Filter by ArtCraft Studio category (derived from server AppTileNode catalog)
       await tester.tap(
         find.byKey(const ValueKey('all-apps-cat-ArtCraft Studio')),
       );
@@ -932,6 +929,14 @@ void main() {
         ),
         isTrue,
       );
+
+      // Verify server-declared AppLaunch.maximized opened the window zoomed
+      final frames = tester
+          .widgetList<WindowFrame>(find.byType(WindowFrame))
+          .where((f) => f.window.appId == 'vectorcraft')
+          .toList();
+      expect(frames, hasLength(1));
+      expect(frames.single.window.zoomed, isTrue);
     },
   );
 }
@@ -966,6 +971,28 @@ Map<String, dynamic> _button(
   'style': 'secondary',
   'icon': ?icon,
   'small': icon != null,
+};
+
+Map<String, dynamic> _appTile(
+  String key,
+  String appId,
+  String title, {
+  String? icon,
+  String? category,
+  String launch = 'windowed',
+  int? dock,
+  String appKind = 'compiled',
+}) => {
+  'kind': 'appTile',
+  'key': key,
+  'appId': appId,
+  'title': title,
+  'icon': ?icon,
+  'category': ?category,
+  'launch': launch,
+  'dock': ?dock,
+  'appKind': appKind,
+  'command': {'owner': 'desktop', 'signal': 'open', 'args': appId},
 };
 
 /// The seeded desktop view (`{generation, view}`) with one frame per window id → title.
@@ -1052,9 +1079,30 @@ Map<String, dynamic> desktopViewJson({required Map<String, String> windows}) {
                 'gap': 4,
                 'padding': 0,
                 'children': [
-                  _button('dock-ino', 'Ino', 'open', 'ino', 'ino'),
-                  _button('dock-files', 'Files', 'open', 'files'),
-                  _button('dock-gallery', 'UI Gallery', 'open', 'gallery'),
+                  _appTile(
+                    'dock-ino',
+                    'ino',
+                    'Ino',
+                    icon: 'ino',
+                    category: 'Core',
+                    dock: 1,
+                  ),
+                  _appTile(
+                    'dock-files',
+                    'files',
+                    'Files',
+                    icon: 'files',
+                    category: 'Workspace',
+                    dock: 2,
+                  ),
+                  _appTile(
+                    'dock-gallery',
+                    'gallery',
+                    'UI Gallery',
+                    icon: 'gallery',
+                    category: 'System',
+                    dock: 8,
+                  ),
                   _button('newtab', 'New tab', 'newtab', null, 'plus'),
                 ],
               },
@@ -1069,6 +1117,85 @@ Map<String, dynamic> desktopViewJson({required Map<String, String> windows}) {
                   _button('more-settings', 'Settings', 'settings'),
                 ],
               },
+            ],
+          },
+          {
+            'kind': 'surface',
+            'name': 'app-catalog',
+            'padding': 0,
+            'children': [
+              _appTile(
+                'catalog-ino',
+                'ino',
+                'Ino',
+                icon: 'ino',
+                category: 'Core',
+                dock: 1,
+              ),
+              _appTile(
+                'catalog-files',
+                'files',
+                'Files',
+                icon: 'files',
+                category: 'Workspace',
+                dock: 2,
+              ),
+              _appTile(
+                'catalog-gallery',
+                'gallery',
+                'UI Gallery',
+                icon: 'gallery',
+                category: 'System',
+                dock: 8,
+              ),
+              _appTile(
+                'catalog-settings',
+                'settings',
+                'Settings',
+                icon: 'settings',
+                category: 'System',
+                dock: 10,
+              ),
+              _appTile(
+                'catalog-creator',
+                'creator',
+                'Creator',
+                icon: 'creator',
+                category: 'System',
+                dock: 7,
+              ),
+              _appTile(
+                'catalog-workspace',
+                'workspace',
+                'Workspace',
+                icon: 'workspace',
+                category: 'Workspace',
+              ),
+              _appTile(
+                'catalog-photocraft',
+                'photocraft',
+                'PhotoCraft',
+                icon: 'photocraft',
+                category: 'ArtCraft Studio',
+                launch: 'maximized',
+                dock: 5,
+              ),
+              _appTile(
+                'catalog-vectorcraft',
+                'vectorcraft',
+                'VectorCraft',
+                icon: 'vectorcraft',
+                category: 'ArtCraft Studio',
+                launch: 'maximized',
+              ),
+              _appTile(
+                'catalog-solidcraft',
+                'solidcraft',
+                'SolidCraft',
+                icon: 'solidcraft',
+                category: 'ArtCraft Studio',
+                launch: 'maximized',
+              ),
             ],
           },
         ],

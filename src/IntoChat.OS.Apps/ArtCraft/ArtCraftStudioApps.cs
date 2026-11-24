@@ -364,27 +364,20 @@ public abstract class ArtCraftStudioAppBase(string appId, ILogger? logger = null
         }
     }
 
-    protected static AppBundle CreateBundle(string appId, Type appType)
+    protected static AppBundle CreateBundle<TApp>(string appId)
     {
         var d = ArtCraftCatalog.Get(appId);
-        return new AppBundle(
+        return AppBundle.FromScreen<TApp>(
             d.Id, "1.1.0",
-            new AppManifest(
-                Title: d.Title,
-                Description: d.Description,
-                Operations:
-                [
-                    new("open", $"Connect {d.Title} studio and open or inspect a document."),
-                    new("edit", $"Edit a {d.Title} document from natural language or command instructions."),
-                    new("run-command", $"Execute a {d.Title} command ID directly via Native Linux CLI or MCP."),
-                    new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
-                ],
-                Settings: [], Slots: [], Icon: d.IconKey,
-                Toolbar: [new("open", Icon: "link", Label: "Connect studio"), new("run-command", Icon: d.Icon, Label: d.DefaultCommandTitle)]),
-            "", new Dictionary<string, string>(StringComparer.Ordinal))
-        {
-            CompiledType = appType.AssemblyQualifiedName,
-        };
+            description: d.Description,
+            operations:
+            [
+                new("open", $"Connect {d.Title} studio and open or inspect a document."),
+                new("edit", $"Edit a {d.Title} document from natural language or command instructions."),
+                new("run-command", $"Execute a {d.Title} command ID directly via Native Linux CLI or MCP."),
+                new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
+            ],
+            toolbar: [new("open", Icon: "link", Label: "Connect studio"), new("run-command", Icon: d.Icon, Label: d.DefaultCommandTitle)]);
     }
 
     [On]
@@ -443,136 +436,151 @@ public abstract class ArtCraftStudioAppBase(string appId, ILogger? logger = null
 }
 
 [Neuron("app.artcraft")]
+[Screen("app.artcraft", Title = "ArtCraft", Icon = "artcraft:artcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class ArtCraftApp : ArtCraftStudioAppBase
 {
     public ArtCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public ArtCraftApp(ILogger<ArtCraftApp>? logger = null) : base("artcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("artcraft", typeof(ArtCraftApp));
+    public static AppBundle Bundle => CreateBundle<ArtCraftApp>("artcraft");
 }
 
 [Neuron("app.vectorcraft")]
+[Screen("app.vectorcraft", Title = "VectorCraft", Icon = "artcraft:vectorcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class VectorCraftApp : ArtCraftStudioAppBase
 {
     public VectorCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public VectorCraftApp(ILogger<VectorCraftApp>? logger = null) : base("vectorcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("vectorcraft", typeof(VectorCraftApp));
+    public static AppBundle Bundle => CreateBundle<VectorCraftApp>("vectorcraft");
 }
 
 [Neuron("app.lightcraft")]
+[Screen("app.lightcraft", Title = "LightCraft", Icon = "artcraft:lightcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class LightCraftApp : ArtCraftStudioAppBase
 {
     public LightCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public LightCraftApp(ILogger<LightCraftApp>? logger = null) : base("lightcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("lightcraft", typeof(LightCraftApp));
+    public static AppBundle Bundle => CreateBundle<LightCraftApp>("lightcraft");
 }
 
 [Neuron("app.effectcraft")]
+[Screen("app.effectcraft", Title = "EffectCraft", Icon = "artcraft:effectcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class EffectCraftApp : ArtCraftStudioAppBase
 {
     public EffectCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public EffectCraftApp(ILogger<EffectCraftApp>? logger = null) : base("effectcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("effectcraft", typeof(EffectCraftApp));
+    public static AppBundle Bundle => CreateBundle<EffectCraftApp>("effectcraft");
 }
 
 [Neuron("app.designcraft")]
+[Screen("app.designcraft", Title = "DesignCraft", Icon = "artcraft:designcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class DesignCraftApp : ArtCraftStudioAppBase
 {
     public DesignCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public DesignCraftApp(ILogger<DesignCraftApp>? logger = null) : base("designcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("designcraft", typeof(DesignCraftApp));
+    public static AppBundle Bundle => CreateBundle<DesignCraftApp>("designcraft");
 }
 
 [Neuron("app.pdfcraft")]
+[Screen("app.pdfcraft", Title = "PdfCraft", Icon = "artcraft:pdfcraft", Category = "Workspace", Launch = AppLaunch.Maximized)]
 public sealed class PdfCraftApp : ArtCraftStudioAppBase
 {
     public PdfCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public PdfCraftApp(ILogger<PdfCraftApp>? logger = null) : base("pdfcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("pdfcraft", typeof(PdfCraftApp));
+    public static AppBundle Bundle => CreateBundle<PdfCraftApp>("pdfcraft");
 }
 
 [Neuron("app.wordcraft")]
+[Screen("app.wordcraft", Title = "WordCraft", Icon = "artcraft:wordcraft", Category = "Workspace", Launch = AppLaunch.Maximized)]
 public sealed class WordCraftApp : ArtCraftStudioAppBase
 {
     public WordCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public WordCraftApp(ILogger<WordCraftApp>? logger = null) : base("wordcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("wordcraft", typeof(WordCraftApp));
+    public static AppBundle Bundle => CreateBundle<WordCraftApp>("wordcraft");
 }
 
 [Neuron("app.soundcraft")]
+[Screen("app.soundcraft", Title = "SoundCraft", Icon = "artcraft:soundcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class SoundCraftApp : ArtCraftStudioAppBase
 {
     public SoundCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public SoundCraftApp(ILogger<SoundCraftApp>? logger = null) : base("soundcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("soundcraft", typeof(SoundCraftApp));
+    public static AppBundle Bundle => CreateBundle<SoundCraftApp>("soundcraft");
 }
 
 [Neuron("app.deckcraft")]
+[Screen("app.deckcraft", Title = "DeckCraft", Icon = "artcraft:deckcraft", Category = "Workspace", Launch = AppLaunch.Maximized)]
 public sealed class DeckCraftApp : ArtCraftStudioAppBase
 {
     public DeckCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public DeckCraftApp(ILogger<DeckCraftApp>? logger = null) : base("deckcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("deckcraft", typeof(DeckCraftApp));
+    public static AppBundle Bundle => CreateBundle<DeckCraftApp>("deckcraft");
 }
 
 [Neuron("app.cadcraft")]
+[Screen("app.cadcraft", Title = "CADCraft", Icon = "artcraft:cadcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class CadCraftApp : ArtCraftStudioAppBase
 {
     public CadCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public CadCraftApp(ILogger<CadCraftApp>? logger = null) : base("cadcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("cadcraft", typeof(CadCraftApp));
+    public static AppBundle Bundle => CreateBundle<CadCraftApp>("cadcraft");
 }
 
 [Neuron("app.gridcraft")]
+[Screen("app.gridcraft", Title = "GridCraft", Icon = "artcraft:gridcraft", Category = "Workspace", Launch = AppLaunch.Maximized)]
 public sealed class GridCraftApp : ArtCraftStudioAppBase
 {
     public GridCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public GridCraftApp(ILogger<GridCraftApp>? logger = null) : base("gridcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("gridcraft", typeof(GridCraftApp));
+    public static AppBundle Bundle => CreateBundle<GridCraftApp>("gridcraft");
 }
 
 [Neuron("app.figcraft")]
+[Screen("app.figcraft", Title = "FigCraft", Icon = "artcraft:figcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class FigCraftApp : ArtCraftStudioAppBase
 {
     public FigCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public FigCraftApp(ILogger<FigCraftApp>? logger = null) : base("figcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("figcraft", typeof(FigCraftApp));
+    public static AppBundle Bundle => CreateBundle<FigCraftApp>("figcraft");
 }
 
 [Neuron("app.texturecraft")]
+[Screen("app.texturecraft", Title = "TextureCraft", Icon = "artcraft:texturecraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class TextureCraftApp : ArtCraftStudioAppBase
 {
     public TextureCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public TextureCraftApp(ILogger<TextureCraftApp>? logger = null) : base("texturecraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("texturecraft", typeof(TextureCraftApp));
+    public static AppBundle Bundle => CreateBundle<TextureCraftApp>("texturecraft");
 }
 
 [Neuron("app.materialcraft")]
+[Screen("app.materialcraft", Title = "MaterialCraft", Icon = "artcraft:materialcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class MaterialCraftApp : ArtCraftStudioAppBase
 {
     public MaterialCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public MaterialCraftApp(ILogger<MaterialCraftApp>? logger = null) : base("materialcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("materialcraft", typeof(MaterialCraftApp));
+    public static AppBundle Bundle => CreateBundle<MaterialCraftApp>("materialcraft");
 }
 
 [Neuron("app.solidcraft")]
+[Screen("app.solidcraft", Title = "SolidCraft", Icon = "artcraft:solidcraft", Category = "Studio", Launch = AppLaunch.Maximized)]
 public sealed class SolidCraftApp : ArtCraftStudioAppBase
 {
     public SolidCraftApp() : this(null) { }
     [ActivatorUtilitiesConstructor]
     public SolidCraftApp(ILogger<SolidCraftApp>? logger = null) : base("solidcraft", logger) { }
-    public static AppBundle Bundle { get; } = CreateBundle("solidcraft", typeof(SolidCraftApp));
+    public static AppBundle Bundle => CreateBundle<SolidCraftApp>("solidcraft");
 }

@@ -158,7 +158,8 @@ public sealed class AspireAppFacts
             .Where(static f => !f.IsDefined(typeof(CompilerGeneratedAttribute), false))
             .ToArray();
         Assert.Empty(aspireFields);
-        Assert.Contains(DesktopApp.NativeCatalog, c => c.Id == "aspire" && c.Category == "Developer" && c.RuntimeMode == "orleans-grain");
+        var manifest = DigitalBrain.Components.ComponentManifests.All.Single(m => m.Id.Value == "app.aspire");
+        Assert.Equal("Developer", manifest.Face?.Category);
     }
 
     [Fact]

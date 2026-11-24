@@ -60,6 +60,7 @@ internal static class FilesRequests
             Settings: [], Slots: [],
             Icon: "folder",
             Dock: 2,
+            Category: "Workspace",
             Toolbar: [new("up", Icon: "arrow-up", Label: "Up"), new("open", Icon: "folder", Label: "Storages")],
             Requires: new(Capabilities: ["storage@1"])),
         "",

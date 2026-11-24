@@ -705,6 +705,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
         string? description = null;
         string? icon = null;
         string? category = null;
+        int? dock = null;
+        var maximized = false;
 
         foreach (var named in screenAttr.NamedArguments)
         {
@@ -724,13 +726,27 @@ public sealed class SlotGenerator : IIncrementalGenerator
             {
                 category = rawCat;
             }
+            else if (string.Equals(named.Key, "Dock", StringComparison.Ordinal) && named.Value.Value is int rawDock && rawDock >= 0)
+            {
+                dock = rawDock;
+            }
+            else if (string.Equals(named.Key, "Launch", StringComparison.Ordinal) && named.Value.Value is int rawLaunch)
+            {
+                maximized = rawLaunch == 1;
+            }
+            else if (string.Equals(named.Key, "Maximized", StringComparison.Ordinal) && named.Value.Value is bool rawMax)
+            {
+                maximized = rawMax;
+            }
         }
 
         return new ComponentFaceModel(
             string.IsNullOrWhiteSpace(title) ? type.Name : title!,
             description ?? classDescription ?? string.Empty,
             string.IsNullOrWhiteSpace(icon) ? null : icon,
-            string.IsNullOrWhiteSpace(category) ? null : category);
+            string.IsNullOrWhiteSpace(category) ? null : category,
+            dock,
+            maximized);
     }
 
     private static string? ScreenAliasOf(INamedTypeSymbol type)
@@ -1138,7 +1154,9 @@ public sealed class SlotGenerator : IIncrementalGenerator
                         + CSharpLiteral(face.Title) + ", "
                         + CSharpLiteral(face.Description) + ", "
                         + (face.Icon is null ? "null" : CSharpLiteral(face.Icon)) + ", "
-                        + (face.Category is null ? "null" : CSharpLiteral(face.Category)) + ")");
+                        + (face.Category is null ? "null" : CSharpLiteral(face.Category)) + ", "
+                        + (face.Dock is { } dockVal ? dockVal.ToString(System.Globalization.CultureInfo.InvariantCulture) : "null") + ", "
+                        + (face.Maximized ? "true" : "false") + ")");
                 }
 
                 if (comp.Operations.Count > 0)
@@ -1413,25 +1431,31 @@ public sealed class SlotGenerator : IIncrementalGenerator
 
     private sealed class ComponentFaceModel : IEquatable<ComponentFaceModel>
     {
-        public ComponentFaceModel(string title, string description, string? icon, string? category)
+        public ComponentFaceModel(string title, string description, string? icon, string? category, int? dock, bool maximized)
         {
             Title = title;
             Description = description;
             Icon = icon;
             Category = category;
+            Dock = dock;
+            Maximized = maximized;
         }
 
         public string Title { get; }
         public string Description { get; }
         public string? Icon { get; }
         public string? Category { get; }
+        public int? Dock { get; }
+        public bool Maximized { get; }
 
         public bool Equals(ComponentFaceModel? other)
             => other is not null
                && string.Equals(Title, other.Title, StringComparison.Ordinal)
                && string.Equals(Description, other.Description, StringComparison.Ordinal)
                && string.Equals(Icon, other.Icon, StringComparison.Ordinal)
-               && string.Equals(Category, other.Category, StringComparison.Ordinal);
+               && string.Equals(Category, other.Category, StringComparison.Ordinal)
+               && Dock == other.Dock
+               && Maximized == other.Maximized;
 
         public override bool Equals(object? obj) => Equals(obj as ComponentFaceModel);
 
@@ -1443,6 +1467,8 @@ public sealed class SlotGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(Description);
                 hash = (hash * 397) ^ (Icon is null ? 0 : StringComparer.Ordinal.GetHashCode(Icon));
                 hash = (hash * 397) ^ (Category is null ? 0 : StringComparer.Ordinal.GetHashCode(Category));
+                hash = (hash * 397) ^ (Dock?.GetHashCode() ?? 0);
+                hash = (hash * 397) ^ Maximized.GetHashCode();
                 return hash;
             }
         }

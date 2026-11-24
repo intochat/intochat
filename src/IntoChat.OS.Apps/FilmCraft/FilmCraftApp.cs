@@ -96,6 +96,7 @@ public sealed record FilmCraftAppState(
 }
 
 [Neuron("app.filmcraft")]
+[Screen("app.filmcraft", Title = "FilmCraft", Icon = "artcraft:filmcraft", Category = "Studio", Dock = 6, Launch = AppLaunch.Maximized)]
 public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
 {
     public FilmCraftApp() : this(null) { }
@@ -106,25 +107,19 @@ public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
     protected override string ActiveDocumentLabel => "Sequence";
     public const string AppName = ShippedApps.FilmCraft;
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<FilmCraftApp>(
         "filmcraft", "1.1.0",
-        new AppManifest(
-            Title: "FilmCraft",
-            Description: "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
-            Operations:
-            [
-                new("open", "Connect FilmCraft studio and load a sequence."),
-                new("edit", "Edit a video sequence from natural language (razor split, ripple trim, Lumetri color, export)."),
-                new("run-command", "Execute a FilmCraft timeline command ID via Native Linux CLI or MCP."),
-                new("export", "Render and export the active video sequence to H.264 MP4."),
-                new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
-            ],
-            Settings: [], Slots: [], Icon: "film", Dock: 6, Studio: true,
-            Toolbar: [new("open", Icon: "link", Label: "Connect editor"), new("export", Icon: "film", Label: "Export MP4")]),
-        "", new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(FilmCraftApp).AssemblyQualifiedName,
-    };
+        description: "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
+        operations:
+        [
+            new("open", "Connect FilmCraft studio and load a sequence."),
+            new("edit", "Edit a video sequence from natural language (razor split, ripple trim, Lumetri color, export)."),
+            new("run-command", "Execute a FilmCraft timeline command ID via Native Linux CLI or MCP."),
+            new("export", "Render and export the active video sequence to H.264 MP4."),
+            new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
+        ],
+        studio: true,
+        toolbar: [new("open", Icon: "link", Label: "Connect editor"), new("export", Icon: "film", Label: "Export MP4")]);
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {

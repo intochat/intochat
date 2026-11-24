@@ -103,7 +103,7 @@ public sealed record SettingsMcpAdd(string? Name = null, string? Url = null, str
 public sealed record SettingsMcpRemove(string? Name = null) : Signal;
 
 [Neuron("app.settings")]
-[Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
+[Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 10)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
 {
     public const string ApiKeysFormKey = "settings/forms/api-keys";
@@ -400,41 +400,30 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
 
     public const string AppName = ShippedApps.Settings;
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<SettingsApp>(
         "settings",
         "2.1.0",
-        new AppManifest(
-            Title: "Settings",
-            Description: "Your preferences, models, keys, connections and archived chats.",
-            Operations:
-            [
-                new("open", "Show Settings on the tab the input names (general when empty or unknown)."),
-                new("read", "Publish the current preferences to {app}/preferences."),
-                new("refresh-connections", "Show the brain's connections and the host's connector offers again."),
-                new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
-                new("reload-preferences", "Discard editable drafts and load the stored preferences."),
-                new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
-                new("navigate", "Open the settings section (and sub-page) named by Input."),
-                new("go-back", "Return to the previous settings page."),
-                new("export-brain", "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units."),
-                new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
-                new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
-                new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
-                new("set-github-triage-policy", "Adopt, update, or reset the github.issue.comment governance PolicyRule preset."),
-                new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IStudio."),
-                new("mcp-add", "Connect an MCP tool server to this brain."),
-                new("mcp-remove", "Disconnect an MCP tool server from this brain."),
-                new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "settings",
-            Dock: 10),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(SettingsApp).AssemblyQualifiedName,
-    };
+        description: "Your preferences, models, keys, connections and archived chats.",
+        operations:
+        [
+            new("open", "Show Settings on the tab the input names (general when empty or unknown)."),
+            new("read", "Publish the current preferences to {app}/preferences."),
+            new("refresh-connections", "Show the brain's connections and the host's connector offers again."),
+            new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
+            new("reload-preferences", "Discard editable drafts and load the stored preferences."),
+            new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
+            new("navigate", "Open the settings section (and sub-page) named by Input."),
+            new("go-back", "Return to the previous settings page."),
+            new("export-brain", "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units."),
+            new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
+            new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
+            new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
+            new("set-github-triage-policy", "Adopt, update, or reset the github.issue.comment governance PolicyRule preset."),
+            new("install-issue-triage-synapse", "Compile and deploy a deterministic GitHub Issue Triage Synapse unit via IStudio."),
+            new("mcp-add", "Connect an MCP tool server to this brain."),
+            new("mcp-remove", "Disconnect an MCP tool server from this brain."),
+            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
+        ]);
 
     public static string NormalizeSection(string? section) => SettingsAppState.NormalizeSection(section);
 

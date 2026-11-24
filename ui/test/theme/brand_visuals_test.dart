@@ -256,6 +256,26 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
+      const studioIds = [
+        'photocraft',
+        'vectorcraft',
+        'filmcraft',
+        'motioncraft',
+        'sculptcraft',
+        'soundcraft',
+        'paintcraft',
+        'typecraft',
+        'colorcraft',
+        'meshcraft',
+        'shadercraft',
+        'cadcraft',
+        'gridcraft',
+        'figcraft',
+        'texturecraft',
+        'materialcraft',
+        'solidcraft',
+      ];
+
       String? launched;
       await tester.pumpWidget(
         MaterialApp(
@@ -266,6 +286,9 @@ void main() {
           ),
           home: Scaffold(
             body: AllAppsLauncherOverlay(
+              apps: [
+                for (final id in studioIds) SmartAppTileSpec.fromIconSpec(id),
+              ],
               onLaunchApp: (id) => launched = id,
               onClose: () {},
             ),
@@ -481,7 +504,7 @@ void main() {
           ),
           home: Scaffold(
             body: CommandPalette(
-              apps: [...allSmartAppSpecs, ...dynamicExtras],
+              apps: dynamicExtras,
               onClose: () {},
               onLaunchApp: (id) => paletteLaunched = id,
             ),

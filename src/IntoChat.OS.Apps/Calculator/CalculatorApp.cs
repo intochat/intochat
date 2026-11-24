@@ -78,7 +78,7 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
     }
 }
 
-[Neuron("app.calculator"), Screen("app.calculator", Title = "Calculator")]
+[Neuron("app.calculator"), Screen("app.calculator", Title = "Calculator", Icon = "calculator", Category = "Workspace")]
 public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
 {
     protected override Task OnActivate(CancellationToken cancellationToken)
@@ -90,28 +90,18 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
     public static readonly string[] Keys = ["7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "C", "0", "=", "+"];
     public static readonly string[] Labels = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", "=", "+"];
 
-    public static AppBundle Bundle { get; } = new(
+    public static AppBundle Bundle => AppBundle.FromScreen<CalculatorApp>(
         "calculator",
         "2.0.0",
-        new AppManifest(
-            Title: "Calculator",
-            Description: "A keypad that evaluates arithmetic expressions.",
-            Operations:
-            [
-                new("open", "Open the calculator keypad."),
-                new("clear", "Empty the display."),
-                new("add", "Add numbers written as \"a+b\"; the sum is stored in LastSum, or \"Error\" when the input is not a sum."),
-                new("press", "Press a keypad button."),
-            ],
-            Settings: [],
-            Slots: [],
-            Icon: "icon.svg",
-            Toolbar: [new("clear", Icon: "backspace", Label: "Clear")]),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
-    {
-        CompiledType = typeof(CalculatorApp).AssemblyQualifiedName,
-    };
+        description: "A keypad that evaluates arithmetic expressions.",
+        operations:
+        [
+            new("open", "Open the calculator keypad."),
+            new("clear", "Empty the display."),
+            new("add", "Add numbers written as \"a+b\"; the sum is stored in LastSum, or \"Error\" when the input is not a sum."),
+            new("press", "Press a keypad button."),
+        ],
+        toolbar: [new("clear", Icon: "backspace", Label: "Clear")]);
 
     public new CalculatorAppState State => base.State;
     public View Render() => PreviewView(State);

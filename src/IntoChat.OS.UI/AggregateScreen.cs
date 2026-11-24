@@ -30,6 +30,12 @@ public sealed class ScreenAttribute(string? alias = null) : Attribute
 
     /// <summary>Optional catalog category for desktop and launcher grouping (e.g. "Workspace", "Studio").</summary>
     public string? Category { get; set; }
+
+    /// <summary>Optional dock order (ascending, non-negative). Negative (default) keeps the screen out of the default dock.</summary>
+    public int Dock { get; init; } = -1;
+
+    /// <summary>Initial window launch mode (<see cref="AppLaunch.Windowed"/> or <see cref="AppLaunch.Maximized"/>).</summary>
+    public AppLaunch Launch { get; init; } = AppLaunch.Windowed;
 }
 
 /// <summary>

@@ -73,19 +73,25 @@ public sealed class DesktopAppFacts
     [Fact]
     public async Task CatalogAndShippedManifestsCarryArtCraftIconsAndCalculator()
     {
+        var view = ScreenPreview.With<DesktopApp, View>(app => app.Render());
+        var tiles = new PresentedView("main", view).Nodes
+            .OfType<AppTileNode>()
+            .Where(t => t.Key.StartsWith("catalog-", StringComparison.Ordinal))
+            .ToArray();
+
         foreach (var studio in IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.All)
         {
-            var entry = Assert.Single(DesktopApp.Catalog, c => c.Id == studio.Id);
+            var entry = Assert.Single(tiles, c => c.AppId == studio.Id);
             Assert.Equal($"artcraft:{studio.Id}", entry.Icon);
+            Assert.Equal(AppLaunch.Maximized, entry.Launch);
         }
 
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "calculator" && c.Icon == "calculator");
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "photocraft" && c.Icon == "artcraft:photocraft");
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "filmcraft" && c.Icon == "artcraft:filmcraft");
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "markdraw");
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "creator");
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "files");
-        Assert.Contains(DesktopApp.Catalog, c => c.Id == "settings");
+        Assert.Contains(tiles, c => c.AppId == "calculator" && c.Icon == "calculator");
+        Assert.Contains(tiles, c => c.AppId == "photocraft" && c.Icon == "artcraft:photocraft");
+        Assert.Contains(tiles, c => c.AppId == "filmcraft" && c.Icon == "artcraft:filmcraft");
+        Assert.Contains(tiles, c => c.AppId == "markdraw");
+        Assert.Contains(tiles, c => c.AppId == "creator");
+        Assert.Contains(tiles, c => c.AppId == "settings");
 
         var catalog = new FeatureCatalog([typeof(AppsModule).Assembly, typeof(DesktopApp).Assembly]);
         var manifests = await ShippedManifests.Of(catalog);
@@ -109,12 +115,14 @@ public sealed class DesktopAppFacts
 
         Assert.NotNull(desktop.App.State.DeployedUnits);
         Assert.Equal(["btcalert", "helloworld"], desktop.App.State.DeployedUnits!);
-        var effective = desktop.App.EffectiveCatalog();
-        Assert.Contains(effective, item => item.Id == "helloworld" && item.RuntimeMode == "synapse-unit");
-        Assert.Contains(effective, item => item.Id == "btcalert" && item.RuntimeMode == "synapse-unit");
+
+        var view = desktop.App.Render();
+        var tiles = new PresentedView("main", view).Nodes.OfType<AppTileNode>().ToArray();
+        Assert.Contains(tiles, item => item.Key == "catalog-helloworld" && item.AppId == "helloworld" && item.AppKind == "unit");
+        Assert.Contains(tiles, item => item.Key == "catalog-btcalert" && item.AppId == "btcalert" && item.AppKind == "unit");
 
         var viewJson = System.Text.Json.JsonSerializer.Serialize(
-            desktop.App.Render(),
+            view,
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Contains("dock-photocraft", viewJson, StringComparison.Ordinal);
         Assert.Contains("dock-filmcraft", viewJson, StringComparison.Ordinal);
@@ -136,9 +144,9 @@ public sealed class DesktopAppFacts
             .BuildServiceProvider();
         var app = ActivatorUtilities.CreateInstance<DesktopApp>(services);
 
-        var catalog = app.EffectiveCatalog();
+        var view = app.Render();
 
-        Assert.NotEmpty(catalog);
+        Assert.NotNull(view);
         Assert.Contains(logger.Entries, e =>
             e.Level == LogLevel.Warning
             && e.Message.Contains("Id.Brain is unassigned in standalone tests", StringComparison.Ordinal));

@@ -280,6 +280,30 @@
     ]
   },
   {
+    "name": "appTile",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "appTile"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "appTile",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Ino",
+        "target": "."
+      }
+    ]
+  },
+  {
     "name": "approvalCard",
     "appId": "uikit",
     "steps": [

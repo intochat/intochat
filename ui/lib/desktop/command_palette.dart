@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
@@ -29,15 +29,15 @@ class CommandPaletteEntry {
 /// Keyboard-first Raycast-style Command Palette (`⌘K` / `/`) across apps,
 /// settings, UI identities, and Ino prompts.
 class CommandPalette extends StatefulWidget {
-  CommandPalette({
+  const CommandPalette({
     super.key,
     required this.onClose,
-    List<SmartAppTileSpec>? apps,
+    this.apps = const [],
     this.onLaunchApp,
     this.onAskIno,
     this.onSelectPreset,
     this.onCycleBarLayout,
-  }) : apps = apps ?? allSmartAppSpecs;
+  });
 
   final VoidCallback onClose;
   final List<SmartAppTileSpec> apps;

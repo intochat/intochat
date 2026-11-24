@@ -11,15 +11,35 @@ namespace IntoChat.OS.Modules.Apps;
 // shows and what the app store groups.
 internal static class InstalledApps
 {
-    public static async Task<IReadOnlyList<(string Name, AppSnapshot Snapshot)>> Read(INeuronProxies brain, IBrainObserver kernel, string scope, CancellationToken ct)
+    public static Task<IReadOnlyList<(string Name, AppSnapshot Snapshot)>> Read(INeuronProxies brain, IBrainObserver kernel, string scope, CancellationToken ct)
+        => Read(brain, kernel, scope, ct, skipNames: null);
+
+    public static async Task<IReadOnlyList<(string Name, AppSnapshot Snapshot)>> Read(
+        INeuronProxies brain,
+        IBrainObserver kernel,
+        string scope,
+        CancellationToken ct,
+        IReadOnlySet<string>? skipNames)
     {
         var brainId = new BrainId(scope);
         List<string> names = [];
-        await foreach (var instance in kernel.Instances<IApp>(ct)) { if (IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, instance.Key, out var app)) { names.Add(app.Name); } }
+        await foreach (var instance in kernel.Instances<IApp>(ct))
+        {
+            if (IntoChat.OS.Host.Primitives.AppRef.TryParse(brainId, instance.Key, out var app)
+                && (skipNames is null || !skipNames.Contains(app.Name)))
+            {
+                names.Add(app.Name);
+            }
+        }
         names.Sort(StringComparer.Ordinal);
-        var snapshots = new List<(string, AppSnapshot)>(names.Count);
-        foreach (var name in names) { snapshots.Add((name, await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(brainId, name).Key).Read().WaitAsync(ct))); }
-        return snapshots;
+        if (names.Count == 0)
+        {
+            return [];
+        }
+
+        var reads = names.Select(async name =>
+            (name, await brain.Get<IApp>(IntoChat.OS.Host.Primitives.AppRef.Of(brainId, name).Key).Read().WaitAsync(ct)));
+        return await Task.WhenAll(reads);
     }
 
     // The same rule as AppInstaller.Entry: an unedited copy whose publisher listed a newer version.

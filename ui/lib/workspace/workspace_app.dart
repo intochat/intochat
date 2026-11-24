@@ -106,16 +106,16 @@ class WorkspaceAppState extends State<WorkspaceApp>
   List<SmartAppTileSpec> _dynamicDesktopApps = const [];
 
   List<SmartAppTileSpec> _paletteApps() {
-    final seen = <String>{for (final s in allSmartAppSpecs) s.id};
-    final merged = <SmartAppTileSpec>[...allSmartAppSpecs];
+    final seen = <String>{};
+    final merged = <SmartAppTileSpec>[];
     for (final s in _dynamicDesktopApps) {
-      if (seen.add(s.id)) merged.add(s);
+      if (seen.add(s.id.toLowerCase())) merged.add(s);
     }
     for (final id in _knownApps) {
       final norm = id.trim().toLowerCase();
       if (norm.isNotEmpty && seen.add(norm)) {
         merged.add(
-          SmartAppTileSpec.fromIconSpec(norm, categoryOverride: 'Micro-Apps'),
+          SmartAppTileSpec.fromIconSpec(norm),
         );
       }
     }
@@ -127,14 +127,16 @@ class WorkspaceAppState extends State<WorkspaceApp>
       final installed = await widget.programmingClient!.listInstalledApps(
         brain,
       );
-      if (mounted && _brain == brain) {
+      if (mounted && (_brain == null || _brain == brain)) {
         setState(
-          () =>
-              _knownApps = knownAppsFor([for (final app in installed) app.id]),
+          () => _knownApps = knownAppsFor([
+            for (final app in installed) app.id,
+            for (final spec in _dynamicDesktopApps) spec.id,
+          ]),
         );
       }
     } catch (_) {
-      // The launcher's apps stay known; an installed app opens again after the next read.
+      // An installed app opens again after the next read.
     }
   }
 

@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,13 +10,14 @@ import 'app_catalog_launcher.dart';
 /// Interactive Whiteboard Home Desk with 3D `BrainScene3D` orbital neural graph
 /// and draggable, resizable sticky-note Smart Cards with Pinning and Auto-Arrange.
 class SmartDesktop extends StatefulWidget {
-  SmartDesktop({
+  const SmartDesktop({
     super.key,
     this.hasOpenWindows = false,
     this.stylePreset = IcStylePreset.fluentAcrylic,
     this.barLayout = BarLayout.floatingGlass,
     this.tokensToday = 14800,
-    List<SmartAppTileSpec>? apps,
+    this.apps = const [],
+    this.totalAppsCount,
     this.onLaunchApp,
     this.onOpenAllApps,
     this.onOpenPalette,
@@ -29,13 +30,14 @@ class SmartDesktop extends StatefulWidget {
     this.openCardIds,
     this.onOpenCard,
     this.onCloseCard,
-  }) : apps = apps ?? defaultSmartAppSpecs;
+  });
 
   final bool hasOpenWindows;
   final IcStylePreset stylePreset;
   final BarLayout barLayout;
   final int tokensToday;
   final List<SmartAppTileSpec> apps;
+  final int? totalAppsCount;
   final ValueChanged<String>? onLaunchApp;
   final VoidCallback? onOpenAllApps;
   final VoidCallback? onOpenPalette;
@@ -302,7 +304,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                         if (widget.onOpenAllApps != null) ...[
                           Btn(
                             key: const ValueKey('whiteboard-all-apps-btn'),
-                            label: 'All Apps (${allSmartAppSpecs.length})',
+                            label: 'All Apps (${widget.totalAppsCount ?? widget.apps.length})',
                             small: true,
                             primary: true,
                             icon: LucideIcons.layoutGrid,
@@ -698,7 +700,7 @@ class SmartDesktopState extends State<SmartDesktop> {
           const SizedBox(height: 12),
           Btn(
             key: const ValueKey('smart-apps-open-all-btn'),
-            label: 'Browse All ${allSmartAppSpecs.length} Apps',
+            label: 'Browse All ${widget.totalAppsCount ?? widget.apps.length} Apps',
             small: true,
             primary: true,
             icon: LucideIcons.layoutGrid,
