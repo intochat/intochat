@@ -93,7 +93,8 @@ internal sealed record EngineerRun
         string[]? requestedCleanupTargets = null,
         EngineerTaskSlice[]? requestedSlices = null,
         string? circleBrainId = null,
-        string? matchedProjectBriefKey = null)
+        string? matchedProjectBriefKey = null,
+        EngineerVerificationPolicy? verification = null)
     {
         RunId = runId ?? string.Empty;
         Repository = repository;
@@ -114,6 +115,7 @@ internal sealed record EngineerRun
         RequestedSlices = requestedSlices;
         CircleBrainId = string.IsNullOrWhiteSpace(circleBrainId) ? null : circleBrainId.Trim();
         MatchedProjectBriefKey = string.IsNullOrWhiteSpace(matchedProjectBriefKey) ? null : matchedProjectBriefKey.Trim();
+        Verification = verification ?? EngineerVerificationPolicy.Full;
     }
 
     public string RunId { get; private init; } = string.Empty;
@@ -154,6 +156,9 @@ internal sealed record EngineerRun
 
     public string? MatchedProjectBriefKey { get; private init; }
 
+    // The gates this run passes. A run stored before the policy existed has none recorded and passes every gate.
+    public EngineerVerificationPolicy Verification { get; private init; } = EngineerVerificationPolicy.Full;
+
     [JsonIgnore]
     public int SelectedCandidateIndex => SelectedInstanceIndex;
 
@@ -176,7 +181,8 @@ internal sealed record EngineerRun
         bool requirePlanRatification = false,
         string[]? cleanupTargets = null,
         EngineerTaskSlice[]? slices = null,
-        string? circleBrainId = null)
+        string? circleBrainId = null,
+        EngineerVerificationPolicy? verification = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
@@ -205,6 +211,7 @@ internal sealed record EngineerRun
             RequestedCleanupTargets = cleanupTargets,
             RequestedSlices = slices,
             CircleBrainId = string.IsNullOrWhiteSpace(circleBrainId) ? null : circleBrainId.Trim(),
+            Verification = verification ?? EngineerVerificationPolicy.Full,
         };
     }
 
@@ -234,7 +241,32 @@ internal sealed record EngineerRun
             untrusted.RequirePlanRatification ?? false,
             untrusted.CleanupTargets,
             untrusted.Slices,
-            untrusted.CircleBrainId);
+            untrusted.CircleBrainId,
+            // The payload chooses the gates; who switched one off is stamped by the flow from its caller.
+            new EngineerVerificationPolicy(
+                untrusted.Verification?.BuildAndTest ?? true,
+                untrusted.Verification?.LiveVerify ?? true));
+    }
+
+    // Records who switched a gate off. A run with every gate on records nobody.
+    public EngineerRun WithVerificationSkippedBy(string who)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(who);
+        return Verification.SkipsAny ? this with { Verification = Verification with { SkippedBy = who.Trim() } } : this;
+    }
+
+    // A gate is passed when it ran and succeeded, or when the policy switches it off and nothing ran. A result that is there
+    // counts: the policy never forgives a gate that ran and failed.
+    public bool BuildGatePassed(EngineerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        return instance.Build is { } build ? build.Succeeded : !Verification.BuildAndTest;
+    }
+
+    public bool LiveGatePassed(EngineerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        return instance.Live is { } live ? live.Succeeded : !Verification.LiveVerify;
     }
 
     public static IReadOnlyList<EngineerInstance> OrderByTournamentRank(IEnumerable<EngineerInstance> instances)
@@ -485,7 +517,7 @@ internal sealed record EngineerRun
     {
         var winner = SelectedInstance
             ?? throw new InvalidOperationException("Cannot enter approval-gate without a verified worktree instance.");
-        if (winner.Commit is null || winner.Build is not { Succeeded: true } || winner.Live is not { Succeeded: true })
+        if (winner.Commit is null || !BuildGatePassed(winner) || !LiveGatePassed(winner))
         {
             throw new InvalidOperationException("Cannot enter approval-gate before commit, build-and-test, and live-verify succeed.");
         }
@@ -529,12 +561,12 @@ internal sealed record EngineerRun
         var winner = SelectedInstance
             ?? throw new SecurityException("Refusing to publish: no verified candidate instance exists.");
 
-        if (winner.Build is not { Succeeded: true })
+        if (!BuildGatePassed(winner))
         {
             throw new SecurityException("Refusing to publish: build-and-test verification has not succeeded.");
         }
 
-        if (winner.Live is not { Succeeded: true })
+        if (!LiveGatePassed(winner))
         {
             throw new SecurityException("Refusing to publish: live behavioral verification has not succeeded.");
         }
@@ -620,5 +652,8 @@ internal sealed record EngineerRun
         EngineeringHarnessKind? Harness = null,
         string[]? CleanupTargets = null,
         EngineerTaskSlice[]? Slices = null,
-        string? CircleBrainId = null);
+        string? CircleBrainId = null,
+        VerificationPayload? Verification = null);
+
+    private sealed record VerificationPayload(bool? BuildAndTest = null, bool? LiveVerify = null);
 }

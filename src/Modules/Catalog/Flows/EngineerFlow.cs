@@ -6,6 +6,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.Apps.Flows.Rules;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.Configuration;
@@ -87,8 +88,19 @@ internal sealed class EngineerFlow(
         ?? services?.GetService(typeof(IConfirmationRequests)) as IConfirmationRequests
         ?? Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
 
-    public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
-        => Start(title, owner, parentFlowId, EngineerRun.FromUntrustedJson(innerJson, Json));
+    // Every gate is on unless the payload switches one off, and only a person or the kernel may do that: the run then records who.
+    public async Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
+    {
+        var run = EngineerRun.FromUntrustedJson(innerJson, Json);
+        var caller = Context.Caller;
+        await Check("Start", new PersonSwitchesVerificationOff(run.Verification, caller)).ConfigureAwait(true);
+        if (run.Verification.SkipsAny)
+        {
+            run = run.WithVerificationSkippedBy(DigitalBrain.Access.CallerRules.ActsFor(caller) ?? "kernel");
+        }
+
+        await Start(title, owner, parentFlowId, run).ConfigureAwait(true);
+    }
 
     public Task<FlowHead> Head() => Task.FromResult(EngineerPipelineStages.BuildHead(
         Names,
@@ -302,14 +314,26 @@ internal sealed class EngineerFlow(
             ? existing
             : BuildPlanId(EffectiveRunId(inner), verifiedCommit.Value);
 
-        return EngineerPipelineStages.BuildConfirmationPlan(
+        var plan = EngineerPipelineStages.BuildConfirmationPlan(
             planId,
             ConfirmationKind,
             "Discard Worktrees",
             ApprovalWindow,
             inner.ToSelectedChange(),
             verifiedCommit);
+
+        // The person who approves reads first what was not checked.
+        return inner.Verification.SkipsAny ? plan with { Body = inner.Verification.Describe() + "\n\n" + plan.Body } : plan;
     }
+
+    // A gate the run's policy switches off is done as a skipped step: journaled with the reason, never run.
+    private static StepResult<EngineerRun>? SkippedByPolicy(string gate, EngineerRun inner)
+        => inner.Verification.Runs(gate)
+            ? null
+            : new StepResult<EngineerRun>(
+                inner,
+                Disposition: StepDisposition.Skip,
+                Reason: $"{gate} switched off by {inner.Verification.SkippedBy ?? "the starter"} when the run was started; this gate did not run.");
 
     public static string BuildPlanId(string runId, string commitSha)
         => EngineerPipelineStages.BuildPlanId(PlanPrefix, runId, commitSha);
@@ -877,6 +901,11 @@ internal sealed class EngineerFlow(
 
     private async Task<StepResult<EngineerRun>> BuildAndTestStepAsync(EngineerRun inner, CancellationToken ct)
     {
+        if (SkippedByPolicy(EngineerVerificationPolicy.BuildAndTestGate, inner) is { } skipped)
+        {
+            return skipped;
+        }
+
         var verifier = BuildVerifier;
         var wt = WorkTree;
         var activeRoslyn = Roslyn;
@@ -1127,11 +1156,16 @@ internal sealed class EngineerFlow(
 
     private async Task<StepResult<EngineerRun>> LiveVerifyStepAsync(EngineerRun inner, CancellationToken ct)
     {
+        if (SkippedByPolicy(EngineerVerificationPolicy.LiveVerifyGate, inner) is { } skipped)
+        {
+            return skipped;
+        }
+
         var verifier = LiveVerifier;
         var liveContext = BuildLiveVerificationContext();
         var liveTasks = inner.Instances.Select(async instance =>
         {
-            if (instance.Build is not { Succeeded: true } || instance.Commit is null || instance.Lease is null)
+            if (!inner.BuildGatePassed(instance) || instance.Commit is null || instance.Lease is null)
             {
                 return instance.WithComputedScore();
             }
@@ -1157,7 +1191,7 @@ internal sealed class EngineerFlow(
 
         var results = await Task.WhenAll(liveTasks).ConfigureAwait(true);
         var verified = results
-            .Where(static i => i.Live is { Succeeded: true } && i.Build is { Succeeded: true } && i.Commit is not null)
+            .Where(i => i.Live is { Succeeded: true } && inner.BuildGatePassed(i) && i.Commit is not null)
             .ToArray();
 
         if (verified.Length == 0)
@@ -1278,7 +1312,7 @@ internal sealed class EngineerFlow(
             inner.Goal,
             winner.Edit?.Summary,
             winner.Edit?.ModelId,
-            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner, inner.RankCandidates()),
+            new EngineerPullRequestContext(inner.Plan, inner.Instances.Length, winner, inner.RankCandidates(), inner.Verification),
             ct).ConfigureAwait(true);
 
         return inner.WithPullRequest(prUrl).Advance();

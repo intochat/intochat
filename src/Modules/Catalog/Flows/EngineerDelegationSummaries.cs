@@ -185,6 +185,15 @@ internal static class EngineerDelegationSummaries
             engineerUri,
             view?.Detail);
 
+        // A switched-off gate is said wherever the run's status is: the text the model gets, the card and the diagnostics.
+        if (run.Verification.SkipsAny)
+        {
+            var skippedLine = run.Verification.Describe();
+            summaryText = summaryText + "\n" + skippedLine;
+            card = card with { Summary = card.Summary + " " + skippedLine };
+            traces = [skippedLine, .. traces];
+        }
+
         return new EngineerRunSummary(
             Ok: ok,
             FlowId: flowId,
@@ -215,7 +224,8 @@ internal static class EngineerDelegationSummaries
             RatifiedPlan: run.RatifiedPlan,
             CleanupTargets: effectiveCleanup,
             Slices: effectiveSlices,
-            Collaborators: collaborators);
+            Collaborators: collaborators,
+            Verification: run.Verification);
     }
 
     private static string[] CollectDiagnosticsAndTraces(

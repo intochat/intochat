@@ -49,3 +49,44 @@ public sealed record EngineerLiveReport(
 {
     public EngineerLiveReport() : this(false, false, false, false, 0, 0, 0, 0, [], [], "") { }
 }
+
+// Which verification gates an engineering run passes before it may ask a person to approve its commit. Every gate is on unless
+// the run was started with one switched off; the run keeps the policy and who switched a gate off (SkippedBy, stamped by the
+// flow from its caller, never read from the start payload). A skipped gate is journaled as a skipped step and named on the
+// run's summary, its approval card and its pull request.
+[GenerateSerializer, Alias("engineer.verification-policy")]
+public sealed record EngineerVerificationPolicy(
+    [property: Id(0)] bool BuildAndTest = true,
+    [property: Id(1)] bool LiveVerify = true,
+    [property: Id(2)] string? SkippedBy = null)
+{
+    public const string BuildAndTestGate = "build-and-test";
+    public const string LiveVerifyGate = "live-verify";
+
+    public EngineerVerificationPolicy() : this(true, true, null) { }
+
+    public static EngineerVerificationPolicy Full { get; } = new();
+
+    [JsonIgnore]
+    public bool SkipsAny => !BuildAndTest || !LiveVerify;
+
+    [JsonIgnore]
+    public string[] SkippedGates =>
+    [
+        .. BuildAndTest ? Array.Empty<string>() : [BuildAndTestGate],
+        .. LiveVerify ? Array.Empty<string>() : [LiveVerifyGate],
+    ];
+
+    public bool Runs(string gate) => gate switch
+    {
+        BuildAndTestGate => BuildAndTest,
+        LiveVerifyGate => LiveVerify,
+        _ => true,
+    };
+
+    // One line for a person: which gates ran and which were switched off, and by whom.
+    public string Describe()
+        => SkipsAny
+            ? $"Verification SKIPPED for {string.Join(" and ", SkippedGates)} by {(string.IsNullOrWhiteSpace(SkippedBy) ? "the starter" : SkippedBy)}: this commit was not checked by {(SkippedGates.Length == 1 ? "that gate" : "those gates")}."
+            : "Verification: build-and-test and live-verify are on.";
+}

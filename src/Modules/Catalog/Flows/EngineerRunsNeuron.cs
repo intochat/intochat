@@ -82,7 +82,8 @@ internal sealed partial class EngineerRunsNeuron(
             Harness: request.Harness,
             CleanupTargets: request.CleanupTargets,
             Slices: request.Slices,
-            CircleBrainId: request.CircleBrainId).ToStartJson();
+            CircleBrainId: request.CircleBrainId,
+            Verification: request.Verification).ToStartJson();
 
         string flowId;
         try
