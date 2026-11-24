@@ -15,6 +15,7 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -35,6 +36,23 @@ internal sealed partial class InoNativeHarness
             CultureInfo.InvariantCulture,
             $"{originalSlicePrompt}\n\n[Intra-Slice Roslyn Self-Repair — Attempt {attempt}/{MaxSelfRepairTurns}]\n{ownedPathsNote}\n{diagnosticContext}\nFix the reported C# compiler error(s) so semantic/syntax diagnostics reach 0 errors.");
     }
+
+    private static string BuildFrontierRepairPrompt(
+        string originalSlicePrompt,
+        EngineerTaskSlice slice,
+        string localModelId,
+        string diagnosticContext)
+    {
+        var ownedPathsNote = slice.OwnedPaths is { Length: > 0 }
+            ? $"Strictly confine repair edits to owned slice path(s): {string.Join(", ", slice.OwnedPaths)}."
+            : "Strictly confine repair edits within repository policy.";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{originalSlicePrompt}\n\n[Intra-Slice Frontier Escalation — local model '{localModelId}' failed {MaxSelfRepairTurns} repair attempt(s)]\n{ownedPathsNote}\n{diagnosticContext}\nFix the reported C# compiler error(s) so semantic/syntax diagnostics reach 0 errors.");
+    }
+
+    private bool EscalatesToFrontier()
+        => LocalLlmCoder.BindOptions(services?.GetService<IConfiguration>()).EscalateToFrontierOnRepeatedFailure;
 
     private static string BuildSlicePrompt(
         EngineeringHarnessRequest request,
@@ -73,9 +91,12 @@ internal sealed partial class InoNativeHarness
         string agentKey,
         string slicePrompt,
         string hydratedContext,
+        SliceInference? resolvedInference,
         CancellationToken ct)
     {
-        var (inference, selection, modelId, supportsTemp) = await ResolveSliceInferenceAsync(request.Brain, ct).ConfigureAwait(false);
+        var (inference, selection, modelId, supportsTemp) = resolvedInference
+            ?? await ResolveSliceInferenceAsync(request.Brain, escalateToFrontier: false, ct).ConfigureAwait(false)
+            ?? throw new NoProviderConfiguredException("No tool-capable model is configured for InoNativeHarness.");
         var slicePolicy = slice.OwnedPaths is { Length: > 0 } && slice.OwnedPaths.Length > _orchestrator.Policy.MaxChangedFiles
             ? new ChangePolicy(
                 maxChangedFiles: slice.OwnedPaths.Length,
@@ -238,13 +259,41 @@ internal sealed partial class InoNativeHarness
         return await sandbox.ExecuteToolAsync(call.Name, call.ArgumentsJson, ct).ConfigureAwait(false);
     }
 
-    private async Task<(IModelInference Inference, ModelSelection? Selection, string ModelId, bool SupportsTemp)> ResolveSliceInferenceAsync(
+    // The local (role default) model, or with escalateToFrontier a keyed cloud Think model; null only when
+    // escalating and no frontier model is available, so the caller keeps its local outcome.
+    private async Task<SliceInference?> ResolveSliceInferenceAsync(
         BrainId? brain,
+        bool escalateToFrontier,
         CancellationToken ct)
     {
         var inference = services?.GetService<IModelInference>()
             ?? throw new InvalidOperationException("IModelInference is not registered.");
         var catalog = services?.GetService<ModelCatalog>();
+
+        if (escalateToFrontier)
+        {
+            if (catalog is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                if (await catalog.DecideFrontier(brain, ModelRole.Think, requiresTools: true, ct).ConfigureAwait(false) is not { } frontier)
+                {
+                    return null;
+                }
+
+                var frontierSelection = LocalLlmCoder.ToSelection(frontier);
+                var frontierDesc = await inference.Describe(frontierSelection, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
+                return new SliceInference(inference, frontierSelection, frontier.Model, frontierDesc.Temperature == CapabilitySupport.Supported);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(ex, "frontier model resolution failed; keeping the local outcome");
+                return null;
+            }
+        }
 
         if (catalog is not null)
         {
@@ -254,17 +303,16 @@ internal sealed partial class InoNativeHarness
                 throw new NoProviderConfiguredException("No tool-capable model is configured for InoNativeHarness.");
             }
 
-            ModelSelection? sel = resolved.Provider == AiProvider.Host ? null
-                : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
-                : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
-                : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
+            var sel = LocalLlmCoder.ToSelection(resolved);
             var desc = await inference.Describe(sel, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
-            return (inference, sel, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
+            return new SliceInference(inference, sel, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
         }
 
         var defaultDesc = await inference.Describe(null, model: null, cancellationToken: ct, brainId: brain?.Value).ConfigureAwait(false);
-        return (inference, null, defaultDesc.Model, defaultDesc.Temperature == CapabilitySupport.Supported);
+        return new SliceInference(inference, null, defaultDesc.Model, defaultDesc.Temperature == CapabilitySupport.Supported);
     }
+
+    private sealed record SliceInference(IModelInference Inference, ModelSelection? Selection, string ModelId, bool SupportsTemp);
 
     private static IReadOnlyList<InferenceTool> BuildSliceTools(ChangePolicy policy)
     {
