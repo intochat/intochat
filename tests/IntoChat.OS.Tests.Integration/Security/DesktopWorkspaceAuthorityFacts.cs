@@ -16,14 +16,15 @@ using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Tests.Integration.Security;
 
-public sealed class DesktopWorkspaceAuthorityFacts
+public sealed class DesktopWorkspaceAuthorityFacts(Gate20EdgeApprovalWallFacts.EdgeKernelFixture fixture)
+    : IClassFixture<Gate20EdgeApprovalWallFacts.EdgeKernelFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task DesktopUiEventActivation_AppliesWorkspaceStateToRealWorkspaceNeuron()
     {
-        await using var harness = await EdgeKernelHarness.StartAsync(Ct);
+        var harness = fixture.Host;
 
         // Wait until shipped desktop app is installed and connect UI root.
         await EventuallyAsync(
@@ -168,7 +169,7 @@ public sealed class DesktopWorkspaceAuthorityFacts
     [Fact]
     public async Task DirectAndForeignAppWorkspaceApplyCalls_AreStillRefusedByRealWorkspaceNeuron()
     {
-        await using var harness = await EdgeKernelHarness.StartAsync(Ct);
+        var harness = fixture.Host;
 
         await EventuallyAsync(
             () => SendAsync(harness, HttpMethod.Get, "/apps/desktop"),
