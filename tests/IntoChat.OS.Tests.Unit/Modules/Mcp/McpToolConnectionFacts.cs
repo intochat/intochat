@@ -113,6 +113,27 @@ public sealed class McpToolConnectionFacts
     }
 
     [Fact]
+    public async Task McpToolConnectionRunWrapsNonJsonTextAsResult()
+    {
+        var tool1 = new ToolDescriptor("echo", "Echo", "Echoes text", "{}", true);
+        var server = new FakeServer
+        {
+            AvailableTools = [tool1],
+            OnRun = (t, args) => new ToolResult(false, "plain \"text\"", [])
+        };
+
+        var conn = await CreateToolConnectionAsync(server, DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/5"), new McpToolConnectionState
+        {
+            Title = "FakeServer",
+            Connected = true,
+            Tools = [tool1]
+        }, Ct);
+
+        var result = await conn.Run("echo", JsonDocument.Parse("{}").RootElement, Ct);
+        Assert.Equal("plain \"text\"", result.GetProperty("result").GetString());
+    }
+
+    [Fact]
     public async Task McpToolConnectionRunThrowsOnNotFoundOrError()
     {
         var tool1 = new ToolDescriptor("failing_tool", "Fail", "Always fails", "{}", true);
