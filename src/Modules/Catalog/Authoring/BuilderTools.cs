@@ -17,8 +17,6 @@ internal static partial class BuilderTools
 
     public static int MaxSidecarChars => SynapseCompiler.MaxSidecarChars;
 
-    private static readonly Lazy<SynapseCompiler> DefaultCompiler = new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
-
     public static Task<UnitCheck> VerifyPackageAsync(
         IServiceProvider? services,
         string alias,
@@ -26,7 +24,7 @@ internal static partial class BuilderTools
         IReadOnlyList<Scenario> scenarios,
         CancellationToken ct = default)
     {
-        var compiler = services?.GetService<SynapseCompiler>() ?? DefaultCompiler.Value;
+        var compiler = services?.GetService<SynapseCompiler>() ?? SynapseCompiler.Default;
         // Run Roslyn + TestOS scenario verification on TaskScheduler.Default so SynapseCompiler's synchronous
         // GetAllDiagnosticsAsync().GetAwaiter().GetResult() never deadlocks Orleans' ActivationTaskScheduler.
         return Task.Run(() => Check(compiler, alias, files, needs: null, scenarios, ct), ct);

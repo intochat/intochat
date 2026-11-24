@@ -170,7 +170,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     public async Task<bool> IsConnectionBoundAsync(string brain, Caller caller, string targetOrConnectionKey, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey) || !IsConnectionTarget(targetOrConnectionKey)) { return false; }
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }
 
@@ -207,7 +207,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     public async Task<bool> IsConnectionBoundAsync(Caller caller, string? targetOrConnectionKey)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey) || !IsConnectionTarget(targetOrConnectionKey)) { return false; }
         if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
         {
             if (await IsConnectionBoundAsync(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
@@ -222,7 +222,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     public bool IsConnectionBound(Caller caller, string? targetOrConnectionKey)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey) || !IsConnectionTarget(targetOrConnectionKey)) { return false; }
         if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
         {
             if (IsConnectionBoundInMemory(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
@@ -232,6 +232,17 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
 
         return !string.IsNullOrWhiteSpace(caller.Brain.Value)
             && IsConnectionBoundInMemory(caller.Brain.Value, caller, targetOrConnectionKey);
+    }
+
+    private static bool IsConnectionTarget(string targetOrConnectionKey)
+    {
+        var clean = StripNeuronPrefix(targetOrConnectionKey);
+        if (ConnectionKeys.Is(clean) || clean.StartsWith("connection/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        var slash = clean.IndexOf('/', StringComparison.Ordinal);
+        return slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]);
     }
 
     private bool IsConnectionBoundInMemory(string brain, Caller caller, string targetOrConnectionKey)

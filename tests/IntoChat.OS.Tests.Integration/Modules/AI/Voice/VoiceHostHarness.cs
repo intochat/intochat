@@ -283,3 +283,75 @@ internal sealed class OverrideCallerAmbient(ICallerAmbient inner) : ICallerAmbie
     public Caller? Override { get; set; }
     public Caller? Current => Override ?? inner.Current;
 }
+
+internal sealed class DelegatingVoiceClients : IVoiceClients
+{
+    private static readonly IVoiceClients Default = new StubVoiceClients();
+    public IVoiceClients Current { get; set; } = Default;
+
+    public Task<Voice<ISpeechToTextClient>> Hear(string brain, CancellationToken ct) => Current.Hear(brain, ct);
+    public Task<Voice<ITextToSpeechClient>> Speak(string brain, CancellationToken ct) => Current.Speak(brain, ct);
+    public Task<TalkVoice> Talk(string brain, ConversationId conversation, CancellationToken ct) => Current.Talk(brain, conversation, ct);
+
+    public void Reset() => Current = Default;
+}
+
+[CollectionDefinition("VoiceHost")]
+public sealed class VoiceHostCollection : ICollectionFixture<VoiceHostFixture>;
+
+public sealed class VoiceHostFixture : IAsyncLifetime
+{
+    private readonly DelegatingVoiceClients _clients = new();
+    private OverrideCallerAmbient? _callerOverride;
+
+    internal VoiceHostHarness Host { get; private set; } = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        Host = await VoiceHostHarness.StartAsync(CancellationToken.None, builder =>
+        {
+            builder.Services.Replace(ServiceDescriptor.Singleton<IVoiceClients>(_clients));
+            var existing = builder.Services.LastOrDefault(d => d.ServiceType == typeof(ICallerAmbient));
+            if (existing is not null)
+            {
+                builder.Services.Remove(existing);
+                builder.Services.AddSingleton<ICallerAmbient>(sp =>
+                {
+                    var inner = existing.ImplementationInstance as ICallerAmbient
+                        ?? (existing.ImplementationFactory?.Invoke(sp) as ICallerAmbient)
+                        ?? (ICallerAmbient)ActivatorUtilities.CreateInstance(sp, existing.ImplementationType!);
+                    _callerOverride = new OverrideCallerAmbient(inner);
+                    return _callerOverride;
+                });
+            }
+        });
+    }
+
+    internal IDisposable UseClients(IVoiceClients clients)
+    {
+        _clients.Current = clients;
+        return new ActionDisposable(_clients.Reset);
+    }
+
+    internal IDisposable OverrideCaller(Caller caller)
+    {
+        Assert.NotNull(_callerOverride);
+        _callerOverride!.Override = caller;
+        return new ActionDisposable(() => _callerOverride.Override = null);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _callerOverride?.Override = null;
+        _clients.Reset();
+        if (Host is not null)
+        {
+            await Host.DisposeAsync();
+        }
+    }
+
+    private sealed class ActionDisposable(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
+    }
+}

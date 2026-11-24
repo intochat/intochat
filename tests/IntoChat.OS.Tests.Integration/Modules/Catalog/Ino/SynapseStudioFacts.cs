@@ -16,7 +16,7 @@ using Xunit;
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 
 // The synapse studio on a real silo: the framework's synapse host compiles, analyzes, deploys and restores the units.
-public sealed class SynapseStudioFacts
+public sealed class SynapseStudioFacts(SynapseStudioFacts.StudioFixture sharedFixture) : IClassFixture<SynapseStudioFacts.StudioFixture>
 {
     // The first unit: every five minutes the tick reaction counts a poll and publishes when it ran. The framework's schedule text
     // for a five-minute interval is "every 5m" ("00:05:00" is not a schedule), and Every needs a reaction to DigitalBrain.Time.Tick.
@@ -80,7 +80,7 @@ public sealed class SynapseStudioFacts
         public Task<IReadOnlyList<DeployedSource>> List(BrainId brain, CancellationToken ct) => Task.FromResult<IReadOnlyList<DeployedSource>>([]);
     }
 
-    internal sealed class StudioFixture : BothRuntimesFixture
+    public sealed class StudioFixture : BothRuntimesFixture
     {
         protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule)];
 
@@ -103,8 +103,7 @@ public sealed class SynapseStudioFacts
     [Fact]
     public async Task CheckReportsAnalyzerDiagnostics()
     {
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
         using var person = runtime.As(Who.Person);
 
         var clean = await Studio(runtime).Check(TickPoller);
@@ -117,8 +116,7 @@ public sealed class SynapseStudioFacts
     [Fact]
     public async Task CheckReportsCompileFailure()
     {
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
         using var person = runtime.As(Who.Person);
 
         var clean = await Studio(runtime).Check(TickPoller);
@@ -132,8 +130,7 @@ public sealed class SynapseStudioFacts
     [Fact]
     public async Task CheckCsharpRunsSynapseAnalyzersOnSynapseSource()
     {
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var runtime = await sharedFixture.Runtime(NeuronRuntimeKind.Silo);
 
         var check = SynapseCheck.Compile(runtime.Services, new Dictionary<string, string> { ["poller.cs"] = WithStatus });
 

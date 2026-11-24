@@ -101,6 +101,14 @@ jobs:
           compression-level: 1
           retention-days: 1
 
+      - name: Prune non-Linux native runtimes from compiled artifacts
+        run: |
+          du -sh artifacts/bin
+          find artifacts/bin -mindepth 4 -maxdepth 4 -path '*/runtimes/*' -type d \
+            ! -name 'linux-x64' ! -name 'linux' ! -name 'unix' -exec rm -rf {} +
+          rm -rf artifacts/bin/*/*/.playwright/node/win* artifacts/bin/*/*/.playwright/node/darwin*
+          du -sh artifacts/bin
+
       - name: Upload compiled artifacts
         uses: actions/upload-artifact@v7
         with:
