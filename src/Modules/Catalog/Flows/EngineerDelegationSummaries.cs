@@ -438,6 +438,13 @@ internal static class EngineerDelegationSummaries
         var runningText = string.Create(
             CultureInfo.InvariantCulture,
             $"IntoChat-Engineer run `{flowId}` is {status.ToString().ToLowerInvariant()} at stage `{currentStage}` ({completedStages.Length}/{head.Steps.Length} stages complete across {parallelInstances} `{backend}` worktree(s)). Workbench: `{engineerUri}`.");
+        if (status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(viewDetail))
+        {
+            // A run that waits without asking for approval says what it waits for.
+            runningText = runningText + "\n" + viewDetail;
+            runningCard = runningCard with { Summary = runningCard.Summary + " " + viewDetail };
+        }
+
         return (true, runningText, runningCard);
     }
 }

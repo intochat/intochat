@@ -51,6 +51,13 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
     private const string PlaceboDisabledMessage =
         "live verification requires a candidate host or configured live endpoint; placebo verification is disabled";
 
+    // The probe a report carries when there was nothing to verify against: no candidate host and no configured live endpoint.
+    internal const string EnvironmentMissingProbe = "candidate-host-required";
+
+    // Whether the report says the change could not be checked at all, as opposed to checked and found wanting.
+    internal static bool EnvironmentMissing(EngineerLiveReport report)
+        => report is { Succeeded: false } && report.Probes.Any(static probe => !probe.Passed && string.Equals(probe.Name, EnvironmentMissingProbe, StringComparison.Ordinal));
+
     private readonly IServiceProvider? _services;
     private readonly IConfiguration? _configuration;
     private readonly IHttpClientFactory? _httpClientFactory;
@@ -369,7 +376,7 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, IDisposable
             hostHealthy = false;
             count5xx++;
             probes.Add(new EngineerLiveProbe(
-                "candidate-host-required",
+                EnvironmentMissingProbe,
                 "host",
                 false,
                 503,

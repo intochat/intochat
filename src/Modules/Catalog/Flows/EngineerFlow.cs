@@ -41,6 +41,9 @@ internal sealed class EngineerFlow(
 
     public static readonly TimeSpan ApprovalWindow = EngineerPipelineStages.DefaultApprovalWindow;
 
+    // How long a run waits at live-verify before it looks again for a live environment.
+    public static readonly TimeSpan LiveEnvironmentRecheck = TimeSpan.FromMinutes(30);
+
     public static readonly string[] Names =
     [
         "brainstorm-and-plan",
@@ -1163,6 +1166,7 @@ internal sealed class EngineerFlow(
 
         var verifier = LiveVerifier;
         var liveContext = BuildLiveVerificationContext();
+        var unchecked_ = 0;
         var liveTasks = inner.Instances.Select(async instance =>
         {
             if (!inner.BuildGatePassed(instance) || instance.Commit is null || instance.Lease is null)
@@ -1181,6 +1185,13 @@ internal sealed class EngineerFlow(
                 : await Task.Run(
                     () => verifier.VerifyLiveAsync(instance.Lease.TreePath, inner.Goal, changedPaths, ct),
                     ct).ConfigureAwait(true);
+            if (EngineerLiveVerifier.EnvironmentMissing(report))
+            {
+                // Not checked is not failed: the candidate keeps its state and is checked when there is something to check against.
+                Interlocked.Increment(ref unchecked_);
+                return instance.WithComputedScore();
+            }
+
             return (instance with
             {
                 Live = report,
@@ -1193,6 +1204,21 @@ internal sealed class EngineerFlow(
         var verified = results
             .Where(i => i.Live is { Succeeded: true } && inner.BuildGatePassed(i) && i.Commit is not null)
             .ToArray();
+
+        if (verified.Length == 0 && unchecked_ > 0)
+        {
+            // No live environment: the gate is neither passed nor failed. The run keeps its worktrees and waits here; a resume
+            // of this step, or the end of the wait, runs the check again.
+            var reason = string.Create(
+                CultureInfo.InvariantCulture,
+                $"live-verify waits: there is no live environment to check the change against (no candidate host and no configured live endpoint). The run checks again in {LiveEnvironmentRecheck.TotalMinutes:0} minutes or when this step is resumed; nothing was skipped.");
+            return new StepResult<EngineerRun>(
+                inner.WithUpdatedInstances(results, inner.SelectedInstanceIndex),
+                Emits: [new FlowStep(Id.ToString(), "live-verify", StepOutcome.Repeated, reason)],
+                Disposition: StepDisposition.Repeat,
+                Reason: reason,
+                Delay: LiveEnvironmentRecheck);
+        }
 
         if (verified.Length == 0)
         {

@@ -272,6 +272,15 @@ internal sealed class FlowsNeuron(
                 Current = entry.Current == step.Step ? null : entry.Current,
                 OperationId = entry.Current == step.Step ? null : entry.OperationId,
             }),
+            // A repeated step waits again: the wait it resolved before no longer answers for it, so its next wait is shown and
+            // can be resumed. Its detail is taken as any other step's.
+            StepOutcome.Repeated => Fold(step.FlowId, entry => entry.Finished
+                || (entry.Detail == step.Detail && entry.ResolvedStep != step.Step && !entry.ResolvedSteps.Contains(step.Step, StringComparer.Ordinal)) ? entry : entry with
+                {
+                    Detail = step.Detail,
+                    ResolvedStep = entry.ResolvedStep == step.Step ? null : entry.ResolvedStep,
+                    ResolvedSteps = [.. entry.ResolvedSteps.Where(resolved => !string.Equals(resolved, step.Step, StringComparison.Ordinal))],
+                }),
             _ => Fold(step.FlowId, entry => entry.Detail == step.Detail ? entry : entry with { Detail = step.Detail }),
         };
     }
