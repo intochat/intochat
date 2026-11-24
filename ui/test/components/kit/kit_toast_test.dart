@@ -26,9 +26,7 @@ void main() {
     final context = await host(tester);
     showKitToast(context, 'Saved');
     await tester.pump();
-    final box = tester.widget<Container>(
-      find.byKey(const ValueKey('ui_kit_toast')),
-    );
+    final box = mixBox(tester, find.byKey(const ValueKey('ui_kit_toast')));
     final decoration = box.decoration! as BoxDecoration;
     final c = UiColors.of(context);
     expect(decoration.color, c.strong);
@@ -106,3 +104,8 @@ void main() {
     expect(find.text('Again'), findsNothing);
   });
 }
+
+/// Mix `Box` renders its style through the first [Container] under its key.
+Container mixBox(WidgetTester tester, Finder box) => tester.widget<Container>(
+  find.descendant(of: box, matching: find.byType(Container)).first,
+);

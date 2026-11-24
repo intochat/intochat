@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:naked_ui/naked_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -713,11 +714,11 @@ void main() {
 
           // Tabs arrow key navigation: focus tab 0 and press ArrowRight -> activates tab_recent!
           final firstTabFocus = tester
-              .widget<FocusableActionDetector>(
+              .widget<NakedButton>(
                 find
                     .ancestor(
-                      of: find.byKey(const ValueKey('ui_kit_tab_0')),
-                      matching: find.byType(FocusableActionDetector),
+                      of: find.byKey(const ValueKey('ui_mix_tab_0')),
+                      matching: find.byType(NakedButton),
                     )
                     .first,
               )

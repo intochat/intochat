@@ -130,7 +130,7 @@ class _FormWidgetState extends State<FormWidget> {
                   style: TextStyle(fontSize: 13.5, color: c.textStrong),
                   decoration: InputDecoration(
                     hintText: hasSealed
-                        ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ (sealed â€” enter new value to rotate)'
+                        ? '•••••••• (sealed — enter new value to rotate)'
                         : placeholder,
                     hintStyle: TextStyle(fontSize: 13, color: c.textMuted),
                     isDense: true,
@@ -151,10 +151,7 @@ class _FormWidgetState extends State<FormWidget> {
                           unawaited(
                             invoke('SetSecretRef', [
                               id,
-                              {
-                                'vaultKey': 'vault://$id',
-                                'mask': 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
-                              },
+                              {'vaultKey': 'vault://$id', 'mask': '••••••••'},
                             ]),
                           );
                         }

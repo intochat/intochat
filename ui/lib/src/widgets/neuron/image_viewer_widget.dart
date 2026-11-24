@@ -60,7 +60,7 @@ class ImageViewerNeuronWidget extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${(zoom * 100).round()}% Â· $rotationÂ°',
+                    '${(zoom * 100).round()}% · $rotation°',
                     style: TextStyle(fontSize: 11, color: c.textMuted),
                   ),
                   UiMixIconButton(

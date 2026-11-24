@@ -52,7 +52,7 @@ class NotificationToastNeuronWidget extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   lastAction != null
-                      ? 'No active toasts Â· Last action: $lastAction'
+                      ? 'No active toasts · Last action: $lastAction'
                       : 'No active notifications',
                   style: TextStyle(fontSize: 12, color: c.textMuted),
                 ),

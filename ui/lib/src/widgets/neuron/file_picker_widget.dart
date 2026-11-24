@@ -144,7 +144,7 @@ class _FilePickerNeuronWidgetState extends State<FilePickerNeuronWidget> {
                   style: TextStyle(fontSize: 12, color: c.textStrong),
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: 'Filter files or extensionâ€¦',
+                    hintText: 'Filter files or extension…',
                     hintStyle: TextStyle(fontSize: 12, color: c.textMuted),
                     prefixIcon: Icon(
                       LucideIcons.search,

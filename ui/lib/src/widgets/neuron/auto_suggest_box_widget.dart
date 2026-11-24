@@ -44,7 +44,7 @@ class _AutoSuggestBoxWidgetState extends State<AutoSuggestBoxWidget> {
       watch: widget.watch,
       builder: (context, state, invoke) {
         final c = IcTheme.of(context);
-        final placeholder = '${state['placeholder'] ?? 'Searchâ€¦'}';
+        final placeholder = '${state['placeholder'] ?? 'Search…'}';
         final submitted = state['submittedText'] as String?;
         final suggestions = state['suggestions'] is List
             ? [for (final s in state['suggestions'] as List) '$s']
