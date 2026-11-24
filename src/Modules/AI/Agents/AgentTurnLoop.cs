@@ -305,21 +305,21 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 {
                     if (string.IsNullOrWhiteSpace(call.CallId) || !calls.Add(call.CallId)) { throw new InvalidOperationException("The model reused or omitted a tool call identity."); }
                     // The consumer persists the started call before pulling the next event, so the tool never runs unrecorded.
-                    yield return new AgentTurnEvent.ToolStarted(call.CallId, call.Name, JsonSerializer.Serialize(call.Arguments));
+                    yield return new AgentTurnEvent.ToolStarted(call.CallId, call.Name, ToolJson.Serialize(call.Arguments));
                     var tool = allTools.SingleOrDefault(item => item.Name == call.Name);
                     if (tool is null)
                     {
-                        var unavailable = new
+                        var unavailable = new Dictionary<string, object?>
                         {
-                            isError = true,
-                            code = "tool_unavailable",
-                            tool = call.Name,
-                            message = "This tool is not available in this turn.",
+                            ["isError"] = true,
+                            ["code"] = "tool_unavailable",
+                            ["tool"] = call.Name,
+                            ["message"] = "This tool is not available in this turn.",
                         };
                         var refusal = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, unavailable)]);
                         messages.Add(refusal);
                         generated.Add(refusal);
-                        yield return new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, JsonSerializer.Serialize(unavailable));
+                        yield return new AgentTurnEvent.ToolCompleted(call.CallId, call.Name, ToolJson.Serialize(unavailable));
                         continue;
                     }
                     currentCall = call.CallId;
@@ -332,7 +332,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                     {
                         result = await tool.InvokeAsync(new AIFunctionArguments(call.Arguments ?? new Dictionary<string, object?>()), ct);
                         ct.ThrowIfCancellationRequested();
-                        serialized = JsonSerializer.Serialize(result);
+                        serialized = ToolJson.Serialize(result);
                         AgentTelemetry.Result(toolSpan, serialized, sensitive);
                     }
                     catch (Exception error)

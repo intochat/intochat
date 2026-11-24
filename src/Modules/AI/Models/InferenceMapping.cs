@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using IntoChat.OS.Modules.AI.Inference;
 using Microsoft.Extensions.AI;
 
@@ -53,7 +54,7 @@ internal static class InferenceMapping
         AiImage image => Media(image.Uri, image.MediaType, "image/"),
         AiAudio audio => Media(audio.Uri, audio.MediaType, "audio/"),
         AiToolCall call => new FunctionCallContent(call.CallId, call.Name,
-            JsonSerializer.Deserialize<Dictionary<string, object?>>(call.ArgumentsJson)
+            (Dictionary<string, object?>?)JsonSerializer.Deserialize(call.ArgumentsJson, ToolJson.Type<Dictionary<string, object?>>())
                 ?? throw new ArgumentException("Tool arguments must be a JSON object.")),
         AiToolResult result => new FunctionResultContent(result.CallId, ParseToolResultJsonOrText(result.ResultJson)),
         _ => throw new NotSupportedException($"Unsupported inference content {content.GetType().Name}."),
@@ -84,8 +85,8 @@ internal static class InferenceMapping
         UriContent uri when uri.MediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) => new AiAudio(uri.Uri.ToString(), uri.MediaType),
         DataContent data when data.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) => new AiImage(data.Uri, data.MediaType),
         DataContent data when data.MediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) => new AiAudio(data.Uri, data.MediaType),
-        FunctionCallContent call => new AiToolCall(call.CallId, call.Name, JsonSerializer.Serialize(call.Arguments)),
-        FunctionResultContent result => new AiToolResult(result.CallId, JsonSerializer.Serialize(result.Result)),
+        FunctionCallContent call => new AiToolCall(call.CallId, call.Name, ToolJson.Serialize(call.Arguments)),
+        FunctionResultContent result => new AiToolResult(result.CallId, ToolJson.Serialize(result.Result)),
         _ => throw new NotSupportedException($"Unsupported provider content {content.GetType().Name}; it cannot be silently dropped."),
     };
 
@@ -214,5 +215,24 @@ internal sealed record InferenceOverride(string? Model, float? Temperature, floa
     {
         try { return JsonSerializer.Deserialize<InferenceOverride>(json, Json); }
         catch (JsonException) { return null; }
+    }
+}
+
+// One serializer for tool arguments, results and usage: MEAI's source-generated contracts, so no reflection path
+// (AOT/trim safe). MEAI's own options write indented JSON; tool strings stay compact. Values go through the object
+// contract, which resolves the runtime type against the same options and writes null as "null".
+internal static class ToolJson
+{
+    private static readonly JsonSerializerOptions Options = Compact();
+
+    public static JsonTypeInfo Type<T>() => Options.GetTypeInfo(typeof(T));
+
+    public static string Serialize(object? value) => JsonSerializer.Serialize(value, Type<object>());
+
+    private static JsonSerializerOptions Compact()
+    {
+        var options = new JsonSerializerOptions(AIJsonUtilities.DefaultOptions) { WriteIndented = false };
+        options.MakeReadOnly();
+        return options;
     }
 }
