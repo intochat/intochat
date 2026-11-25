@@ -40,9 +40,7 @@ internal sealed partial class ViewNeuron
             || ViewValidation.Find(ViewValidation.Parse(json), key) is not { } node
             || node.TryGetProperty("enabled", out var enabled) && enabled.ValueKind == JsonValueKind.False)
         { throw new StaleActionException("This action is no longer available. Read the view again."); }
-        // "." in a button's command is the view's own owner: the app (or neuron) whose view this is.
-        var self = FullKey.EndsWith("/view", StringComparison.Ordinal) ? FullKey[..^"/view".Length] : FullKey;
-        return Task.FromResult(ViewValidation.ActionOf(node, self) with { Value = fieldValue });
+        return Task.FromResult(ViewValidation.ActionOf(node) with { Value = fieldValue });
     }
 
     private void RequireWriter()
@@ -79,6 +77,9 @@ internal static class ViewValidation
     // The command target that names the view's own neuron (DigitalBrain.UI.Command).
     private const string SelfTarget = ".";
 
+    // Whether the command goes to the view's own neuron rather than a child address.
+    public static bool ToSelf(Command command) => string.Equals(command.Target, SelfTarget, StringComparison.Ordinal);
+
     public static string Serialize(View view)
     {
         ArgumentNullException.ThrowIfNull(view);
@@ -97,7 +98,7 @@ internal static class ViewValidation
                 {
                     if (++depth > 32 || ++count > 512) { throw new ArgumentException("A view is a tree of at most 512 nodes and depth 32."); }
                 }
-                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("command" or "close" or "onSubmit" or "emit" or "args"))) { Walk(property.Value, depth); }
+                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("command" or "close" or "onSubmit" or "args"))) { Walk(property.Value, depth); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -109,10 +110,11 @@ internal static class ViewValidation
     public static JsonElement Parse(string json)
     {
         using var document = JsonDocument.Parse(json, Document);
-        return document.RootElement.Clone();
+        // A view stored before every action was a command reads its legacy emits as commands.
+        return LegacyViewJson.Normalize(document.RootElement.Clone());
     }
 
-    // The first node, depth first, whose "key" is the key: an object with a "kind" or an action member; emit and args are data.
+    // The first node, depth first, whose "key" is the key: an object with a "kind" or an action member; commands and args are data.
     public static JsonElement? Find(JsonElement root, string key)
     {
         var pending = new Stack<JsonElement>([root]);
@@ -122,10 +124,10 @@ internal static class ViewValidation
             if (element.ValueKind == JsonValueKind.Object)
             {
                 if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
-                    && (Has(element, "kind", JsonValueKind.String) || Has(element, "command", JsonValueKind.Object) || Has(element, "close", JsonValueKind.Object) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object)
+                    && (Has(element, "kind", JsonValueKind.String) || Has(element, "command", JsonValueKind.Object) || Has(element, "close", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object)
                         || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object)))
                 { return element; }
-                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "close" or "onSubmit" or "emit" or "args"))) { pending.Push(property.Value); }
+                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "close" or "onSubmit" or "args"))) { pending.Push(property.Value); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -135,29 +137,24 @@ internal static class ViewValidation
         return null;
     }
 
-    // A node's action. A command to "." is an emit for <paramref name="self"/> (the view's owner); a command to a child address
-    // is left for the owning screen's Dispatch.
-    public static ViewActivation ActionOf(JsonElement node, string self)
+    // A node's action: its command (to "." for the view's own app, or to a child address, which a slotless view cannot reach) or its
+    // client-local intent. The view was normalized on parse (LegacyViewJson), so a stored emit reads as its command.
+    public static ViewActivation ActionOf(JsonElement node)
     {
-        // An info bar's command is its "close", a field's is its "onSubmit"; no other kind reads them.
-        var member = Text(node, "kind") switch { "infoBar" => "close", "field" => "onSubmit", _ => "command" };
+        // An info bar's command is its "close", a field's is its "onSubmit"; no other kind reads them. A kindless part (a chat composer,
+        // a model picker) sends its "command", or else its "onSubmit".
+        var member = Text(node, "kind") switch
+        {
+            "infoBar" => "close",
+            "field" => "onSubmit",
+            null => Has(node, "command", JsonValueKind.Object) ? "command" : "onSubmit",
+            _ => "command",
+        };
         if (node.TryGetProperty(member, out var command) && command.ValueKind == JsonValueKind.Object)
         {
             if (Text(command, "target") is not { Length: > 0 } target || Text(command, "signal") is not { Length: > 0 } sent) { return ViewActivation.None; }
             JsonElement? sentArgs = command.TryGetProperty("args", out var c) && c.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? c.Clone() : null;
-            return string.Equals(target, SelfTarget, StringComparison.Ordinal)
-                ? new(ViewActivationKind.Emit, Emit: new Emit(self, sent, sentArgs))
-                : new(ViewActivationKind.Command, Command: new Command(target, sent, sentArgs));
-        }
-        if (node.TryGetProperty("emit", out var emit) && emit.ValueKind == JsonValueKind.Object
-            || node.TryGetProperty("onSubmit", out emit) && emit.ValueKind == JsonValueKind.Object)
-        {
-            if (Text(emit, "owner") is { } owner && Text(emit, "signal") is { } signal)
-            {
-                JsonElement? args = emit.TryGetProperty("args", out var a) && a.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? a.Clone() : null;
-                return new(ViewActivationKind.Emit, Emit: new Emit(owner, signal, args));
-            }
-            return ViewActivation.None;
+            return new(ViewActivationKind.Command, Command: new Command(target, sent, sentArgs));
         }
         var intent = node.TryGetProperty("intent", out var i) && i.ValueKind == JsonValueKind.Object ? i
             : Text(node, "kind") == "intent" ? node : (JsonElement?)null;

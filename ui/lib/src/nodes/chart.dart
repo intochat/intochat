@@ -7,7 +7,7 @@ import 'node_common.dart';
 import 'node_context.dart';
 
 Widget renderChart(ChartNode node, NodeContext ctx) {
-  final actionKey = ctx.nodeKeys['chart:${node.title}'];
+  final select = node.select;
   return ChartCard(
     source: cardSource(node.from),
     kind: parseChartKind(node.chartKind),
@@ -24,10 +24,10 @@ Widget renderChart(ChartNode node, NodeContext ctx) {
       sourceNeuronUri: node.sourceNeuronUri,
     ),
     state: node.points.isEmpty ? ChartState.empty : ChartState.ready,
-    onSelectPoint: ctx.interactive && actionKey != null && actionKey.isNotEmpty
+    onSelectPoint: ctx.interactive && select != null
         ? (index) {
             if (index >= 0 && index < node.points.length) {
-              ctx.activate(actionKey, value: node.points[index].label);
+              sendPick(select, ctx, node.points[index].label);
             }
           }
         : null,

@@ -612,13 +612,6 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         return PublishEphemeral(rejection);
     }
 
-    private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-        return new Emit("app.desktop", alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, typeof(TSignal)));
-    }
-
     protected override Node Render(DesktopAppState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -667,15 +660,15 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
 
             Node[] chromeButtons =
             [
-                Button(title).Key($"focus-{winId}").Emits(Emits(new DesktopFocus(winId))),
-                Button("New tab", Icons.Plus).Key($"newtab-{winId}").Small().Emits(Emits(new DesktopNewTab(winId))),
-                Button(isFav ? "Remove from favourites" : "Add to favourites", "star").Key($"star-{winId}").Small().Emits(Emits(new DesktopFavourite(winId))),
+                Button(title).Key($"focus-{winId}").Sends(new DesktopFocus(winId)),
+                Button("New tab", Icons.Plus).Key($"newtab-{winId}").Small().Sends(new DesktopNewTab(winId)),
+                Button(isFav ? "Remove from favourites" : "Add to favourites", "star").Key($"star-{winId}").Small().Sends(new DesktopFavourite(winId)),
                 .. appId == "ino"
                     ? Array.Empty<Node>()
                     : [isPinned
-                        ? Button("Unpin", "pin-off").Key($"unpin-{winId}").Small().Emits(Emits(new DesktopUnpinApp(appId))).ToNode()
-                        : Button("Pin", "pin").Key($"pin-{winId}").Small().Emits(Emits(new DesktopPinApp(appId, true))).ToNode()],
-                Button("Close tab", "x").Key($"close-{winId}").Small().Emits(Emits(new DesktopClose($"{winId}/{activeIndex}"))),
+                        ? Button("Unpin", "pin-off").Key($"unpin-{winId}").Small().Sends(new DesktopUnpinApp(appId)).ToNode()
+                        : Button("Pin", "pin").Key($"pin-{winId}").Small().Sends(new DesktopPinApp(appId, true)).ToNode()],
+                Button("Close tab", "x").Key($"close-{winId}").Small().Sends(new DesktopClose($"{winId}/{activeIndex}")),
             ];
 
             TabStripItem[] tabItems = [.. window.Tabs.Select((tab, idx) => new TabStripItem($"{winId}/{idx}", TitleFor(tab.Id)))];
@@ -727,7 +720,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             }
         }
 
-        dockNodes.Add(Button("New tab", Icons.Plus).Key("newtab").Small().Emits(Emits(new DesktopNewTab())));
+        dockNodes.Add(Button("New tab", Icons.Plus).Key("newtab").Small().Sends(new DesktopNewTab()));
 
         var catalogNodes = new Node[tiles.Length];
         for (var i = 0; i < tiles.Length; i++)
@@ -740,8 +733,8 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
             HStack(4)[
                 StatusPill(StatusKind.Done, "Usage"),
                 Text(state.WidgetsText),
-                Button("You").Key("avatar").Emits(Emits(new DesktopOpen("friends"))),
-                Button("Settings").Key("more-settings").Emits(Emits(new DesktopSettings()))
+                Button("You").Key("avatar").Sends(new DesktopOpen("friends")),
+                Button("Settings").Key("more-settings").Sends(new DesktopSettings())
             ]
         ]).Extents(0, 360);
 

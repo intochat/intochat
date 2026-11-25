@@ -48,8 +48,8 @@ void main() {
         {
           'key': 's1',
           'label': 'Summarise my day',
-          'emit': {
-            'owner': 'app.ino',
+          'command': {
+            'target': '.',
             'signal': 'send',
             'args': 'Summarise my day',
           },

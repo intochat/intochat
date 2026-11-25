@@ -36,12 +36,12 @@
           "placeholder": "Search settings...",
           "onSubmit": {
             "target": ".",
-            "signal": "navigate",
-            "args": [
-              "general",
-              "",
-              ""
-            ]
+            "signal": "settings.navigate",
+            "args": {
+              "section": "general",
+              "subPage": "",
+              "sheet": ""
+            }
           },
           "automationName": "settings-search"
         },
@@ -637,14 +637,14 @@
                             "label": "Fluent Acrylic",
                             "command": {
                               "target": ".",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "gemma4:12b",
-                                "fluent-acrylic",
-                                "floating-glass"
-                              ]
+                              "signal": "settings.save-preferences",
+                              "args": {
+                                "displayName": "User",
+                                "theme": "dark",
+                                "defaultModel": "gemma4:12b",
+                                "stylePreset": "fluent-acrylic",
+                                "barLayout": "floating-glass"
+                              }
                             },
                             "intent": null,
                             "enabled": true,
@@ -661,14 +661,14 @@
                             "label": "Spatial Glass",
                             "command": {
                               "target": ".",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "gemma4:12b",
-                                "spatial-glass",
-                                "floating-glass"
-                              ]
+                              "signal": "settings.save-preferences",
+                              "args": {
+                                "displayName": "User",
+                                "theme": "dark",
+                                "defaultModel": "gemma4:12b",
+                                "stylePreset": "spatial-glass",
+                                "barLayout": "floating-glass"
+                              }
                             },
                             "intent": null,
                             "enabled": true,
@@ -685,14 +685,14 @@
                             "label": "Cyber Synaptic",
                             "command": {
                               "target": ".",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "gemma4:12b",
-                                "cyber-synaptic",
-                                "floating-glass"
-                              ]
+                              "signal": "settings.save-preferences",
+                              "args": {
+                                "displayName": "User",
+                                "theme": "dark",
+                                "defaultModel": "gemma4:12b",
+                                "stylePreset": "cyber-synaptic",
+                                "barLayout": "floating-glass"
+                              }
                             },
                             "intent": null,
                             "enabled": true,
@@ -709,14 +709,14 @@
                             "label": "Warm Paper",
                             "command": {
                               "target": ".",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "gemma4:12b",
-                                "warm-paper",
-                                "floating-glass"
-                              ]
+                              "signal": "settings.save-preferences",
+                              "args": {
+                                "displayName": "User",
+                                "theme": "dark",
+                                "defaultModel": "gemma4:12b",
+                                "stylePreset": "warm-paper",
+                                "barLayout": "floating-glass"
+                              }
                             },
                             "intent": null,
                             "enabled": true,
@@ -733,14 +733,14 @@
                             "label": "Midnight",
                             "command": {
                               "target": ".",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "gemma4:12b",
-                                "midnight",
-                                "floating-glass"
-                              ]
+                              "signal": "settings.save-preferences",
+                              "args": {
+                                "displayName": "User",
+                                "theme": "dark",
+                                "defaultModel": "gemma4:12b",
+                                "stylePreset": "midnight",
+                                "barLayout": "floating-glass"
+                              }
                             },
                             "intent": null,
                             "enabled": true,
@@ -757,14 +757,14 @@
                             "label": "Nordic",
                             "command": {
                               "target": ".",
-                              "signal": "save-preferences",
-                              "args": [
-                                "User",
-                                "dark",
-                                "gemma4:12b",
-                                "nordic",
-                                "floating-glass"
-                              ]
+                              "signal": "settings.save-preferences",
+                              "args": {
+                                "displayName": "User",
+                                "theme": "dark",
+                                "defaultModel": "gemma4:12b",
+                                "stylePreset": "nordic",
+                                "barLayout": "floating-glass"
+                              }
                             },
                             "intent": null,
                             "enabled": true,

@@ -20,7 +20,7 @@ The class is marked `[Neuron("app.<id>")]`. The neuron type is also the alias th
 
 A client reads the view through `IScreen`: `Open()` and `Read()` return the `PublishedView` (alias, generation, view JSON).
 `Act(action)` activates a node of the view the client saw. A stale generation is refused.
-A node carries an `Emit` built with `Emits(signal)`: activating it brings that signal back to the screen's own `[On]` reaction.
+A node carries a `Command` built with `Sends(signal)` (`ScreenCommands.Sends` outside a screen): sending it brings that typed signal back to the screen's own `[On]` reaction. A data node whose pick carries an item (`Chart`, `DataTable`, `BrainSceneNode`) has its own `Select` command, sent with the picked item as `value`. A view stored before every action was a command may still hold an `emit`; the host reads it as the command to `"."` it means when it loads the view (`LegacyViewJson`).
 `Follow<TSource, TSignal>(key)` makes a signal of another neuron reach the screen.
 
 ## Controls and child screens

@@ -280,6 +280,11 @@
         "name": "targetZoom",
         "type": "double",
         "default": null
+      },
+      {
+        "name": "select",
+        "type": "Map<String, Object?>",
+        "default": null
       }
     ],
     "state": [],
@@ -498,6 +503,11 @@
         "name": "prefix",
         "type": "String",
         "default": ""
+      },
+      {
+        "name": "select",
+        "type": "Map<String, Object?>",
+        "default": null
       }
     ],
     "state": [],
@@ -1191,6 +1201,11 @@
         "name": "from",
         "type": "String",
         "default": "DigitalBrain"
+      },
+      {
+        "name": "select",
+        "type": "Map<String, Object?>",
+        "default": null
       }
     ],
     "state": [],

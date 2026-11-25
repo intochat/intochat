@@ -24,7 +24,7 @@ public sealed class ConversationNodeFacts
                 Model: "gpt-5.4",
                 Retry: new Button("retry-u1", "Try again", new Command(".", "ino.asked", JsonSerializer.SerializeToElement(new { value = "hello" })))),
         ],
-        new ComposerNode("composer", new Emit("app.ino", "ino.asked"), "Ask Ino", Enabled: true),
+        new ComposerNode("composer", new Command(".", "ino.asked"), "Ask Ino", Enabled: true),
         Waiting: new Progress("Thinking", 0.5),
         Status: "working",
         Error: new ErrorLineNode("Ino could not answer.", "Timed out.", new Button("err-retry", "Try again", new Command(".", "ino.asked"))),
@@ -50,7 +50,7 @@ public sealed class ConversationNodeFacts
 
         var composer = ViewNodes.Find(wire, "composer");
         Assert.NotNull(composer);
-        Assert.Equal(("app.ino", "ino.asked", null), ViewNodes.EmitOf(composer.Value));
+        Assert.Equal(new Command(".", "ino.asked"), ViewNodes.CommandOf(composer.Value));
         Assert.Equal("hello", ViewNodes.Payload(null, "hello", "ada").GetProperty("value").GetString());
 
         Assert.NotNull(ViewNodes.Find(wire, "stop"));

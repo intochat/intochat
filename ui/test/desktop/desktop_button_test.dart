@@ -11,29 +11,6 @@ void main() {
       'command': {'target': '.', 'signal': 'focus', 'args': 'w1'},
     }) as ButtonNode;
 
-    expect(desktopButton(node, const {})['argument'], 'w1');
-  });
-
-  test('a stored view with a legacy emit still carries the argument', () {
-    final view = {
-      'title': 'Desktop',
-      'root': {
-        'kind': 'row',
-        'children': [
-          {
-            'kind': 'button',
-            'key': 'focus-w1',
-            'label': 'Notes',
-            'emit': {'owner': 'desktop', 'signal': 'focus', 'args': 'w1'},
-          },
-        ],
-      },
-    };
-    final node = Node.fromJson(
-      ((view['root'] as Map)['children'] as List).first as Map<String, dynamic>,
-    ) as ButtonNode;
-
-    expect(node.command, isNull);
-    expect(desktopButton(node, legacyEmitArgs(view))['argument'], 'w1');
+    expect(desktopButton(node)['argument'], 'w1');
   });
 }

@@ -40,14 +40,14 @@ public static class ViewBoardUnit
     [
         new Badge(b.Polls.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         new Button("refresh", "Refresh", new Command(".", "x.refresh", System.Text.Json.JsonSerializer.SerializeToElement(new { key = "hidden", kind = "button" }))),
-        new Conversation("foreign-thread", [], new ComposerNode("foreign", new Emit("other.alias", "x.refresh"))),
+        new Conversation("foreign-thread", [], new ComposerNode("foreign", new Command("other", "x.refresh"))),
         new Button("boom", "Boom", new Command(".", "x.boom")),
         new Button("plain", "Plain", Intent: new Intent(IntentKind.Copy, "x")),
         new Button("forge", "Forge", new Command(".", "unit.answered")),
     ]));
 }
 
-// A unit whose view declares the host-reserved "by" in an emit's args: the view is refused at publish.
+// A unit whose view declares the host-reserved "by" in a command's args: the view is refused at publish.
 [State("vwb")]
 public sealed record SpoofBoard(int Polls)
 {
@@ -139,7 +139,7 @@ public sealed class StateViewFacts
     }
 
     [Fact]
-    public async Task ActivateRefusesAForeignOwner()
+    public async Task ActivateRefusesACommandToAnotherAddress()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
@@ -150,7 +150,7 @@ public sealed class StateViewFacts
         var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation, "foreign", null, null));
         await os.Idle();
 
-        Assert.Equal(ActivationRefusedException.ForeignOwner, refused.Reason);
+        Assert.Equal(ActivationRefusedException.NoSlots, refused.Reason);
         Assert.Equal(journaled, os.Journal(Board.Brain).Signals(Board).Count);
     }
 
@@ -263,10 +263,10 @@ public sealed class StateViewFacts
         Assert.False(withHostBy.TryGetProperty("bY", out _));
         Assert.Equal(1, withHostBy.GetProperty("x").GetInt32());
 
-        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","emit":{"owner":"a","signal":"s","args":{"by":"x"}}}}""")));
-        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","emit":{"owner":"a","signal":"s","args":{"By":"x"}}}}""")));
-        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","emit":{"owner":"a","signal":"s","args":{"BY":"x"}}}}""")));
-        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","emit":{"owner":"a","signal":"s","args":{"bY":"x"}}}}""")));
+        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","command":{"target":".","signal":"s","args":{"by":"x"}}}}""")));
+        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","command":{"target":".","signal":"s","args":{"By":"x"}}}}""")));
+        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","command":{"target":".","signal":"s","args":{"BY":"x"}}}}""")));
+        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","command":{"target":".","signal":"s","args":{"bY":"x"}}}}""")));
     }
 
     [Fact]
@@ -284,12 +284,12 @@ public sealed class StateViewFacts
         Assert.Equal(1, (await os.Get<IStateReader>(spoof).Read("vwb")).GetProperty("polls").GetInt32());
         Assert.Null(await os.Get<IViewReader>(spoof).Read("vwb"));
         Assert.DoesNotContain(os.Journal(spoof.Brain).Signals(spoof), item => item.Signal is ViewChanged);
-        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","emit":{"owner":"a","signal":"s","args":{"by":"x"}}}}""")));
-        Assert.False(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","emit":{"owner":"a","signal":"s","args":{"who":"x"}}}}""")));
+        Assert.True(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","command":{"target":".","signal":"s","args":{"by":"x"}}}}""")));
+        Assert.False(ViewNodes.DeclaresBy(System.Text.Json.JsonElement.Parse("""{"root":{"kind":"button","command":{"target":".","signal":"s","args":{"who":"x"}}}}""")));
     }
 
     [Fact]
-    public async Task FindIgnoresKeysInsideEmitArgs()
+    public async Task FindIgnoresKeysInsideCommandArgs()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
@@ -300,7 +300,7 @@ public sealed class StateViewFacts
         var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation, "hidden", null, null));
 
         Assert.Equal(ActivationRefusedException.UnknownNode, refused.Reason);
-        Assert.Null(ViewNodes.Find(System.Text.Json.JsonElement.Parse("""{"kind":"row","children":[{"kind":"button","emit":{"owner":"a","signal":"s","args":{"kind":"x","key":"k"}}}]}"""), "k"));
+        Assert.Null(ViewNodes.Find(System.Text.Json.JsonElement.Parse("""{"kind":"row","children":[{"kind":"button","command":{"target":".","signal":"s","args":{"kind":"x","key":"k"}}}]}"""), "k"));
     }
 
     [Fact]

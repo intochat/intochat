@@ -37,8 +37,8 @@ class ConversationView extends StatefulWidget {
     this.onErrorAction,
     this.models,
     this.activeModelId,
-    this.selectModelKey,
-    this.pinModelKey,
+    this.selectModel,
+    this.pinModel,
     this.readAloud = false,
     this.talkConversation,
     this.deltas,
@@ -58,11 +58,11 @@ class ConversationView extends StatefulWidget {
   /// Wire id of the currently selected model for highlighting in the picker.
   final String? activeModelId;
 
-  /// Key activated with the chosen model id to switch this conversation.
-  final String? selectModelKey;
+  /// Sends its command with the chosen model id to switch this conversation.
+  final ModelSelectNode? selectModel;
 
-  /// Key activated with the chosen model id to pin it as the Chat default.
-  final String? pinModelKey;
+  /// Sends its command with the chosen model id to pin it as the Chat default.
+  final ModelSelectNode? pinModel;
 
   /// When true (and [NodeContext.speak] is available), completed assistant
   /// replies expose a read-aloud control beside the copy action.
@@ -343,10 +343,13 @@ class _ConversationViewState extends State<ConversationView> {
 
     setState(() => _submitting = true);
     try {
-      final first = await widget.ctx.activateReporting(
-        widget.node.composer.key,
+      final composer = widget.node.composer;
+      final first = await pressCommand(
+        composer.key,
+        composer.onSubmit,
+        widget.ctx,
+        mounted ? context : null,
         value: draft,
-        context: mounted ? context : null,
       );
       if (first == ActivationOutcome.accepted) {
         if (mounted && _controller.text == draft) {
@@ -365,10 +368,12 @@ class _ConversationViewState extends State<ConversationView> {
         WidgetsBinding.instance.scheduleFrame();
         await nextFrame.future;
         if (!mounted) return;
-        final second = await widget.ctx.activateReporting(
-          widget.node.composer.key,
+        final second = await pressCommand(
+          composer.key,
+          composer.onSubmit,
+          widget.ctx,
+          context,
           value: draft,
-          context: context,
         );
         if (second == ActivationOutcome.accepted &&
             mounted &&
@@ -386,7 +391,7 @@ class _ConversationViewState extends State<ConversationView> {
   void _activateStop() {
     final stop = widget.node.stop;
     if (stop == null || !stop.enabled || !widget.ctx.interactive) return;
-    unawaited(widget.ctx.activate(stop.key, context: context));
+    unawaited(pressCommand(stop.key, stop.command, widget.ctx, context));
   }
 
   Future<void> _stopReadAloud() async {
@@ -448,12 +453,16 @@ class _ConversationViewState extends State<ConversationView> {
     );
   }
 
-  Future<void> _selectModel(String key, String modelId) async {
+  // Sends the picker's command with the model id as its value; a stale view is
+  // read again and the pick sent once more.
+  Future<void> _selectModel(ModelSelectNode picker, String modelId) async {
     if (!widget.ctx.interactive || modelId.trim().isEmpty) return;
-    final first = await widget.ctx.activateReporting(
-      key,
+    final first = await pressCommand(
+      picker.key,
+      picker.onSubmit,
+      widget.ctx,
+      mounted ? context : null,
       value: modelId,
-      context: mounted ? context : null,
     );
     if (first == ActivationOutcome.stale) {
       if (widget.ctx.reload case final reload?) {
@@ -466,7 +475,13 @@ class _ConversationViewState extends State<ConversationView> {
       WidgetsBinding.instance.scheduleFrame();
       await nextFrame.future;
       if (!mounted) return;
-      await widget.ctx.activateReporting(key, value: modelId, context: context);
+      await pressCommand(
+        picker.key,
+        picker.onSubmit,
+        widget.ctx,
+        context,
+        value: modelId,
+      );
     }
   }
 
@@ -768,18 +783,15 @@ class _ConversationViewState extends State<ConversationView> {
                                   activeProviderIcon:
                                       composer.activeProviderIcon,
                                   enabled: widget.ctx.interactive,
-                                  onSelect: widget.selectModelKey == null
+                                  onSelect: widget.selectModel == null
                                       ? null
                                       : (id) => unawaited(
-                                          _selectModel(
-                                            widget.selectModelKey!,
-                                            id,
-                                          ),
+                                          _selectModel(widget.selectModel!, id),
                                         ),
-                                  onPin: widget.pinModelKey == null
+                                  onPin: widget.pinModel == null
                                       ? null
                                       : (id) => unawaited(
-                                          _selectModel(widget.pinModelKey!, id),
+                                          _selectModel(widget.pinModel!, id),
                                         ),
                                 ),
                               ),

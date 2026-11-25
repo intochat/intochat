@@ -25,13 +25,12 @@ public interface IView
     [DigitalBrain.Contracts.ReadOnlyCall] Task<ViewActivation> Activate(long generation, string key, string? fieldValue);
 }
 
-/// <summary>What an activated view node does.</summary>
-public enum ViewActivationKind { None = 0, Emit = 1, Intent = 2, Resolve = 3, Command = 4 }
+/// <summary>What an activated view node does. 1 was the retired emit and is never reused.</summary>
+public enum ViewActivationKind { None = 0, Intent = 2, Resolve = 3, Command = 4 }
 
-/// <summary>An activated node's action: an <see cref="DigitalBrain.UI.Emit"/> for its owner (a button's command to "." resolves
-/// to one for the view's own owner), a client-local <see cref="DigitalBrain.UI.Intent"/>, an approval's <see cref="DigitalBrain.UI.Resolve"/>,
-/// or a <see cref="DigitalBrain.UI.Command"/> to a child address the owning screen dispatches, with the field value when given.</summary>
-public sealed record ViewActivation(ViewActivationKind Kind, Emit? Emit = null, Intent? Intent = null, Resolve? Resolve = null, string? Value = null, Command? Command = null)
+/// <summary>An activated node's action: a client-local <see cref="DigitalBrain.UI.Intent"/>, an approval's <see cref="DigitalBrain.UI.Resolve"/>,
+/// or its <see cref="DigitalBrain.UI.Command"/> (to "." for the view's own app, or to a child address), with the field value when given.</summary>
+public sealed record ViewActivation(ViewActivationKind Kind, Intent? Intent = null, Resolve? Resolve = null, string? Value = null, Command? Command = null)
 {
     public static readonly ViewActivation None = new(ViewActivationKind.None);
 }

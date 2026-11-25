@@ -7,7 +7,7 @@ import 'node_common.dart';
 import 'node_context.dart';
 
 Widget renderDataTable(DataTableNode node, NodeContext ctx) {
-  final actionKey = ctx.nodeKeys['dataTable:${node.title}'];
+  final select = node.select;
   final isChatCard =
       ctx.view.contains('/apps/ino') &&
       node.from.trim().isNotEmpty &&
@@ -27,12 +27,12 @@ Widget renderDataTable(DataTableNode node, NodeContext ctx) {
       sourceNeuronUri: node.sourceNeuronUri,
     ),
     state: node.rows.isEmpty ? TableState.empty : TableState.ready,
-    onSelectRow: ctx.interactive && actionKey != null && actionKey.isNotEmpty
+    onSelectRow: ctx.interactive && select != null
         ? (rowIndex) {
             if (rowIndex >= 0 && rowIndex < node.rows.length) {
               final row = node.rows[rowIndex];
               final firstCell = row.isNotEmpty ? row.first : '$rowIndex';
-              ctx.activate(actionKey, value: firstCell);
+              sendPick(select, ctx, firstCell);
             }
           }
         : null,

@@ -43,7 +43,7 @@ public sealed class TestAuditedCounterScreen : Screen<TestAuditedCounterState>
                 new Text($"LastBy: {state.LastBy ?? "none"}"),
                 new Text($"MaintenancePerformed: {state.MaintenancePerformed}"),
                 new Button("btn-increment", "Increment", Sends(new TestCounterIncrement())),
-                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("app.alien_owner", "test-counter.increment", null)))
+                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Command("alien", "test-counter.increment", null)))
             ]));
     }
 
@@ -132,7 +132,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
     }
 
     [Fact]
-    public async Task T3_Screen_EdgeAuthority_ForeignOwnerEmitInView_ThrowsActivationRefusedExceptionForeignOwner()
+    public async Task T3_Screen_EdgeAuthority_CommandToAnUnshownChild_ThrowsActivationRefusedExceptionUnknownChild()
     {
         var os = _fixture.OS;
         os.Register<TestAuditedCounterScreen>();
@@ -146,11 +146,11 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         Assert.NotNull(initialView);
         Assert.Equal(1L, initialView.Generation);
 
-        // "btn-alien" specifies owner "app.alien_owner" which does not match "app.audited_counter"
+        // "btn-alien" commands the child "alien", which the view of "app.audited_counter" does not show
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("app.audited_counter", 1L, "btn-alien", fieldValue: null, by: "alice"));
 
-        Assert.Equal(ActivationRefusedException.ForeignOwner, ex.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
 
         // View remains unchanged
         var view = await screen.Read();

@@ -9,12 +9,15 @@ namespace DigitalBrain.Tests.Unit.UI;
 
 public sealed class ViewModelJsonFacts
 {
-    private static readonly string[] ActionMembers = ["Command", "Emit", "Intent", "Resolve", "OnSubmit"];
+    private static readonly string[] ActionMembers = ["Command", "Intent", "Resolve", "OnSubmit"];
 
     private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(InfoBar), typeof(Field), typeof(ApprovalCardNode), typeof(AppTileNode), typeof(NavItemNode), typeof(ComposerNode), typeof(ModelSelectNode)];
 
+    // Data nodes whose pick sends a command with the picked item (a point's label, a row's first cell, an edge's key) as its value:
+    // the command is a member of the node, not found by a key.
+    private static readonly Type[] PickCarriers = [typeof(Chart), typeof(DataTable), typeof(BrainSceneNode)];
+
     private static bool CarriesAction(Type type) => type.GetProperties().Any(p => ActionMembers.Contains(p.Name)
-        || p.PropertyType == typeof(Emit) || Nullable.GetUnderlyingType(p.PropertyType) == typeof(Emit)
         || p.PropertyType == typeof(Command) || p.PropertyType == typeof(Intent) || p.PropertyType == typeof(Resolve));
 
     [Fact]
@@ -30,13 +33,27 @@ public sealed class ViewModelJsonFacts
     [Fact]
     public void OnlyInteractiveTypesDeclareAnAction()
     {
-        var model = typeof(Node).Assembly.GetTypes().Where(t => t.Namespace == typeof(Node).Namespace && t.IsPublic && t != typeof(Emit) && t != typeof(Command) && t != typeof(Resolve) && t != typeof(Intent));
+        var model = typeof(Node).Assembly.GetTypes().Where(t => t.Namespace == typeof(Node).Namespace && t.IsPublic && t != typeof(Command) && t != typeof(Resolve) && t != typeof(Intent));
 
-        Assert.Equal(ActionCarriers.Select(t => t.Name).Order(StringComparer.Ordinal), model.Where(CarriesAction).Select(t => t.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(ActionCarriers.Concat(PickCarriers).Select(t => t.Name).Order(StringComparer.Ordinal), model.Where(CarriesAction).Select(t => t.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]
-    public void NoEmitTargetsTheConfirmationsResolve()
+    public void A_pick_carrier_sends_its_command_member()
+    {
+        var select = new Command(".", "studio.pick");
+        var options = RuntimeProtocol.OptionsFor(typeof(View));
+
+        foreach (var node in new Node[] { new Chart("columns", "Revenue", [new ChartPointNode("Q1", 1)]) { Select = select }, new DataTable("Deals", ["Name"], [["Acme"]]) { Select = select }, new BrainSceneNode([], []) { Select = select } })
+        {
+            var wire = JsonSerializer.SerializeToElement(node, options);
+            Assert.Equal("studio.pick", wire.GetProperty("select").GetProperty("signal").GetString());
+            Assert.Equal(node, JsonSerializer.Deserialize<Node>(wire.GetRawText(), options));
+        }
+    }
+
+    [Fact]
+    public void NoCommandTargetsTheConfirmationsResolve()
     {
         string? root = null;
         for (var dir = AppContext.BaseDirectory; dir is not null; dir = Path.GetDirectoryName(dir))
@@ -46,7 +63,7 @@ public sealed class ViewModelJsonFacts
             if (Directory.Exists(Path.Combine(framework, "src", "DigitalBrain.UI"))) { root = framework; break; }
         }
         Assert.NotNull(root);
-        var needle = "new Emit(\"" + "confirmations\"";
+        var needle = "new Command(\"" + "confirmations\"";
         var sep = Path.DirectorySeparatorChar;
         var offenders = new[] { "src" + sep + "DigitalBrain.UI", "src" + sep + "DigitalBrain.Testing", "tests" }
             .SelectMany(dir => Directory.EnumerateFiles(Path.Combine(root!, dir), "*.cs", SearchOption.AllDirectories))
@@ -136,7 +153,7 @@ public sealed class ViewModelJsonFacts
     }
 
     [Fact]
-    public void ButtonCarriesExactlyOneOfEmitOrIntent()
+    public void ButtonCarriesExactlyOneOfCommandOrIntent()
     {
         Assert.Throws<ArgumentException>(() => new Button("a", "A"));
         Assert.Throws<ArgumentException>(() => new Button("a", "A", new Command(".", "s"), new Intent(IntentKind.Copy, "x")));
@@ -162,11 +179,11 @@ public sealed class ViewModelJsonFacts
     }
 
     [Fact]
-    public void ApprovalCardResolvesByPlanIdNotByEmit()
+    public void ApprovalCardResolvesByPlanIdNotByCommand()
     {
         var card = new ApprovalCardNode("k", "p1", "t", "s", []) { Resolve = new Resolve("p1") };
 
-        Assert.DoesNotContain(typeof(ApprovalCardNode).GetProperties(), p => p.PropertyType == typeof(Emit) || Nullable.GetUnderlyingType(p.PropertyType) == typeof(Emit));
+        Assert.DoesNotContain(typeof(ApprovalCardNode).GetProperties(), p => p.PropertyType == typeof(Command));
         Assert.Equal("p1", Assert.IsType<ApprovalCardNode>(JsonSerializer.Deserialize<Node>(JsonSerializer.Serialize<Node>(card))).Resolve!.PlanId);
     }
 

@@ -108,7 +108,6 @@ class NodeContext {
     this.actNeuron,
     this.slotPath = '',
     this.buttonHints = const {},
-    this.nodeKeys = const {},
     this.transcribe,
     this.talk,
     this.speak,
@@ -176,10 +175,6 @@ class NodeContext {
   /// Optional per-button tooltip / `.Guard(rule)` disabled reasons extracted from view metadata.
   final Map<String, String> buttonHints;
 
-  /// Optional activation `key` strings extracted from raw view JSON for nodes
-  /// such as `chart` or `dataTable` (indexed by `'chart:<title>'` / `'dataTable:<title>'`).
-  final Map<String, String> nodeKeys;
-
   /// Transcribes recorded voice drafts into text without submitting them.
   final VoiceTranscriber? transcribe;
 
@@ -234,7 +229,6 @@ class NodeContext {
     actNeuron: actNeuron,
     slotPath: slotPath,
     buttonHints: buttonHints,
-    nodeKeys: nodeKeys,
     transcribe: transcribe,
     talk: talk,
     speak: speak,

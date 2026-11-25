@@ -247,7 +247,7 @@ void main() {
         stop: {
           'key': 'stop',
           'label': 'Stop',
-          'emit': {'owner': 'app.ino', 'signal': 'stop'},
+          'command': {'target': '.', 'signal': 'stop'},
         },
         messages: [
           _message('m1', 'user', 'hello'),
@@ -428,10 +428,7 @@ void main() {
                                 'pick': {
                                   'key': 'pick-approve',
                                   'label': 'Approve deploy',
-                                  'emit': {
-                                    'owner': 'app.ino',
-                                    'signal': 'pick',
-                                  },
+                                  'command': {'target': '.', 'signal': 'pick'},
                                 },
                               },
                               {
@@ -439,10 +436,7 @@ void main() {
                                 'pick': {
                                   'key': 'pick-cancel',
                                   'label': 'Cancel',
-                                  'emit': {
-                                    'owner': 'app.ino',
-                                    'signal': 'pick',
-                                  },
+                                  'command': {'target': '.', 'signal': 'pick'},
                                 },
                               },
                             ],

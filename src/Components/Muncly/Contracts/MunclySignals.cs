@@ -10,8 +10,9 @@ public sealed record MunclyOpen(
     string? BaseUrl = null,
     string? Input = null) : Signal;
 
+// The URL field sends it with the typed URL as Value; a caller may name BaseUrl instead.
 [Signal("muncly.connect")]
-public sealed record MunclyConnect(string? BaseUrl = null) : Signal;
+public sealed record MunclyConnect(string? BaseUrl = null, string? Value = null) : Signal;
 
 [Signal("muncly.reload")]
 public sealed record MunclyReload : Signal;

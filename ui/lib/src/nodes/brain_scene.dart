@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -40,10 +40,6 @@ const _tints = {
 
 /// A `*` edge (any publisher) is drawn as a stub this far above its target.
 const _stub = 90.0;
-
-/// The key of the view's button that selects an edge or a pulse: they are not nodes of the view, so the scene activates
-/// this key with theirs as the value (BrainGraph.SelectKey).
-const brainSelectKey = 'graph:select';
 
 /// A synapse labelled `replay:<index>:<seq>:<alias>:<traceId>` is a step of the open trace's replay, not an edge: from the
 /// publisher towards the node the alias reaches, active on the current step.
@@ -241,22 +237,24 @@ class BrainSceneViewState extends State<BrainSceneView> {
     if (_clock.parent == null) game.world.add(_clock);
     for (final pulse in added) {
       game.world.add(
-        SignalPulseComponent(
-          pulse,
-          onTap: (key) =>
-              unawaited(widget.ctx.activate(brainSelectKey, value: key)),
-          onArrived: pulses.arrived,
-        ),
+        SignalPulseComponent(pulse, onTap: _pick, onArrived: pulses.arrived),
       );
     }
     game.notifyLiveNode(added.last.edge.toId);
     game.wake();
   }
 
+  // An edge or a pulse is not a node of the view: the scene's own select command carries its key as the value.
+  void _pick(String key) {
+    final select = widget.node.select;
+    if (select == null || !widget.ctx.interactive) return;
+    unawaited(sendPick(select, widget.ctx, key));
+  }
+
   void _input(String id, String kind, double x, double y, String? payload) {
     if (!isTapBrainInput(kind)) return;
     if (isGraphEdgeId(id)) {
-      unawaited(widget.ctx.activate(brainSelectKey, value: id));
+      _pick(id);
       return;
     }
     pressOf(_nodes[id]?.select, widget.ctx)?.call();

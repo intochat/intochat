@@ -419,8 +419,8 @@ internal static class AppUiEndpoints
 
     // One UI event from the shell, under the caller the edge stamped on brain: a view activation. A field's text travels with its
     // command (POST /act or the activation's value); a person's confirmation answer and the embedded browser's reports have their own
-    // routes (ConfirmationEndpoints, WebBrowserEndpoints). An app view's own Emit becomes AppRequested at its app; an Intent goes back
-    // to the client, which performs it.
+    // routes (ConfirmationEndpoints, WebBrowserEndpoints). A node's command reaches the screen that drew it (an app view's command to "."
+    // becomes AppRequested at its app); an Intent goes back to the client, which performs it.
     internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null, IScreenTargetResolver? resolver = null)
     {
         if (input.Kind != UIVocabulary.ViewType) { throw new ArgumentException("Unknown UI event."); }
@@ -490,7 +490,7 @@ internal static class AppUiEndpoints
                 {
                     throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
                 }
-                var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode, effectiveAlias) : ViewActivation.None;
+                var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode) : ViewActivation.None;
 
                 switch (action.Kind)
                 {
@@ -500,24 +500,20 @@ internal static class AppUiEndpoints
                     case ViewActivationKind.Resolve:
                         throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
 
-                    case ViewActivationKind.Emit:
                     case ViewActivationKind.Command:
-                        ViewArgs.RequireValueUnreserved(action.Kind == ViewActivationKind.Emit ? action.Emit!.Args : action.Command!.Args, input.Value);
+                        ViewArgs.RequireValueUnreserved(action.Command!.Args, input.Value);
                         if (caller?.For?.Principal is not { Length: > 0 } personId)
                         {
                             throw new UnauthorizedAccessException("Only a signed-in person activates a screen view.");
                         }
                         try
                         {
-                            await ScreenAppEmitBridge.ActivateAsync(screen, published, effectiveAlias, generation, key, input.Value, personId, ct: ct, logger: log).WaitAsync(ct);
+                            // The screen resolves the key in its own current view and sends the node's command, hop by hop like POST /act.
+                            await screen.Activate(effectiveAlias, generation, key, input.Value, personId).WaitAsync(ct);
                         }
                         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
                         {
                             throw new StaleActionException("This action is no longer available. Read the view again.");
-                        }
-                        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
-                        {
-                            throw new UnauthorizedAccessException($"A view of {effectiveAlias} cannot emit to another owner.");
                         }
                         catch (ActivationRefusedException refused)
                         {
@@ -536,14 +532,12 @@ internal static class AppUiEndpoints
         var appKey = AppOf(scope, name);
         switch (activation.Kind)
         {
-            case ViewActivationKind.Emit:
-                var emit = activation.Emit!;
-                // A button's command to "." names the view's own key ({scope}/apps/{name}); a legacy emit names the app.
-                if (appKey is null || !BrainId.IsValid(scope) || (IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(scope), emit.Owner, out var owner)
-                    ? owner.Key : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(scope), emit.Owner).Key) != appKey)
-                { throw new UnauthorizedAccessException($"A view of {appKey ?? name} cannot emit to {emit.Owner}."); }
-                var args = input.Value is null ? emit.Args : ViewArgs.WithValue(emit.Args, input.Value);
-                await brain.Get<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "").WaitAsync(ct);
+            case ViewActivationKind.Command when ViewValidation.ToSelf(activation.Command!):
+                // A command to "." is the view's own app ({scope}/apps/{name}).
+                if (appKey is null || !BrainId.IsValid(scope)) { throw new UnauthorizedAccessException($"{name} is not an app view of this brain."); }
+                var command = activation.Command!;
+                var args = input.Value is null ? command.Args : ViewArgs.WithValue(command.Args, input.Value);
+                await brain.Get<IApp>(appKey).Emit(command.Signal, args?.GetRawText() ?? "").WaitAsync(ct);
                 return Results.Ok(new { delivered = true });
             case ViewActivationKind.Intent:
                 return IntentResult(activation.Intent!);
@@ -574,10 +568,10 @@ internal static class AppUiEndpoints
     {
         var log = logger ?? ConsoleLog;
         // A unit's view lives at its state neuron. IViewReader.Activate returns no typed result: it resolves the key itself and
-        // journals the emit, refusing a stale generation, an unknown key, a node with no emit and an emit to another owner. The
+        // journals the command's signal, refusing a stale generation, an unknown key and a node with no command. The
         // edge resolves once, from the one PublishedView whose generation it checks, only to answer an intent (client-local) and
         // to refuse a resolve (a unit view never reaches the confirmations). Race: the view may change between that Read and
-        // Activate; Activate re-resolves against its own current generation, so a changed view refuses the emit as stale.
+        // Activate; Activate re-resolves against its own current generation, so a changed view refuses the command as stale.
         var reader = brain.Get<IViewReader>(UnitState(scope, alias));
         var published = await reader.Read(alias).WaitAsync(ct);
         IScreen? screen = null;
@@ -599,15 +593,14 @@ internal static class AppUiEndpoints
         {
             throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
         }
-        var shownAction = unitNode is { } foundUnitNode ? ViewValidation.ActionOf(foundUnitNode, alias) : ViewActivation.None;
+        var shownAction = unitNode is { } foundUnitNode ? ViewValidation.ActionOf(foundUnitNode) : ViewActivation.None;
         switch (shownAction.Kind)
         {
             case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
             case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
-            case ViewActivationKind.Emit: ViewArgs.RequireValueUnreserved(shownAction.Emit!.Args, value); break;
             case ViewActivationKind.Command: ViewArgs.RequireValueUnreserved(shownAction.Command!.Args, value); break;
         }
-        // The state neuron writes "by" into the emit, overwriting whatever the payload says: the caller's stable person id, never
+        // The state neuron writes "by" into the payload, overwriting whatever the payload says: the caller's stable person id, never
         // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
         if (caller?.For?.Principal is not { Length: > 0 } personId)
         { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
@@ -616,8 +609,6 @@ internal static class AppUiEndpoints
             try { await screen.Activate(alias, generation, key, value, personId).WaitAsync(ct); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
             { throw new StaleActionException("This action is no longer available. Read the view again."); }
-            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
-            { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.NoSlots)
             { return NoSlots(alias, key); }
             catch (ActivationRefusedException refused)
@@ -627,8 +618,6 @@ internal static class AppUiEndpoints
         try { await reader.Activate(alias, generation, key, value, personId).WaitAsync(ct); }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
         { throw new StaleActionException("This action is no longer available. Read the view again."); }
-        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
-        { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.NoSlots)
         { return NoSlots(alias, key); }
         catch (ActivationRefusedException refused)
@@ -712,7 +701,7 @@ internal static class AppUiEndpoints
         long? Generation = null, string? Key = null);
 }
 
-// An activation's field value joins the emit's args as "value" (an object's member; other args become {args, value}).
+// An activation's field value joins the command's args as "value" (an object's member; other args become {args, value}).
 internal static class ViewArgs
 {
     // The members only the edge may set: "by" names who acted (no view may declare one), and "value" is the activated field's text
@@ -720,12 +709,12 @@ internal static class ViewArgs
     public const string By = "by";
     public const string Value = "value";
 
-    // A unit view's emit: "by" is the framework's (it refuses a view declaring one and stamps the host's), so only "value" is checked.
+    // A unit view's command: "by" is the framework's (it refuses a view declaring one and stamps the host's), so only "value" is checked.
     public static void RequireValueUnreserved(JsonElement? args, string? value)
     {
         if (value is null || args is not { ValueKind: JsonValueKind.Object } given) { return; }
         if (given.EnumerateObject().Any(member => member.Value.ValueKind != JsonValueKind.Null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase)))
-        { throw new ArgumentException("A view's emit already declares \"value\"; a field's text cannot replace it."); }
+        { throw new ArgumentException("A view's command already declares \"value\"; a field's text cannot replace it."); }
     }
 
     public static void RequireUnreserved(JsonElement? args, string? value)
@@ -734,9 +723,9 @@ internal static class ViewArgs
         foreach (var member in given.EnumerateObject())
         {
             if (string.Equals(member.Name, By, StringComparison.OrdinalIgnoreCase))
-            { throw new ArgumentException("A view's emit cannot declare \"by\": only the edge names who acted."); }
+            { throw new ArgumentException("A view's command cannot declare \"by\": only the edge names who acted."); }
             if (value is not null && member.Value.ValueKind != JsonValueKind.Null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase))
-            { throw new ArgumentException("A view's emit already declares \"value\"; a field's text cannot replace it."); }
+            { throw new ArgumentException("A view's command already declares \"value\"; a field's text cannot replace it."); }
         }
     }
 

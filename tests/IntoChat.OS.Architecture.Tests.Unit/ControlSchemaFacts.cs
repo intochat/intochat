@@ -4,8 +4,8 @@ using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// The control schema rules (model D): controls with state are control neurons (state, commands, Render); a view node carries no
-// Emit, an interactive node is addressable (Key + AutomationName), every non-structural node has a Kit factory, and text controls
+// The control schema rules (model D): controls with state are control neurons (state, commands, Render); a view record carries no
+// emit at any depth (its action is a Command), an interactive node is addressable (Key + AutomationName), every non-structural node has a Kit factory, and text controls
 // speak Submit, not Changed.
 public sealed class ControlSchemaFacts
 {
@@ -22,11 +22,40 @@ public sealed class ControlSchemaFacts
         "Column", // built by Kit.VStack (a StackBuilder), a name the kind match cannot see
     };
 
+    // Every record a view can hold, nested parts (a conversation's composer, a scene's graph node) included: none has a public Emit
+    // member or writes "emit", and the UI model has no Emit type. A stored emit is read as a command when a host loads the view.
     [Fact]
-    public void No_view_node_carries_an_Emit_except_LegacyEmitKinds()
-        => Assert.Empty(Nodes
-            .Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType)))
-            .Select(type => type.Name));
+    public void No_view_record_carries_an_Emit_at_any_depth()
+    {
+        var offenders = Reachable(Nodes)
+            .SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(property => property.Name == "Emit" || (Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType).Name == "Emit"
+                    || property.GetCustomAttribute<System.Text.Json.Serialization.JsonPropertyNameAttribute>()?.Name == "emit")
+                .Select(property => $"{type.Name}.{property.Name}"))
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, string.Join(", ", offenders));
+        Assert.Null(typeof(Node).Assembly.GetType("DigitalBrain.UI.Emit"));
+        Assert.Contains(typeof(ComposerNode), Reachable(Nodes));
+    }
+
+    // The UI model's types reachable from the view nodes through their public properties (element and nullable types unwrapped).
+    private static HashSet<Type> Reachable(IEnumerable<Type> roots)
+    {
+        var seen = new HashSet<Type>();
+        var pending = new Stack<Type>(roots);
+        while (pending.TryPop(out var type))
+        {
+            if (type.Assembly != typeof(Node).Assembly || !seen.Add(type)) { continue; }
+            foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+                pending.Push(propertyType.IsArray ? propertyType.GetElementType()! : propertyType);
+                foreach (var argument in propertyType.IsGenericType ? propertyType.GetGenericArguments() : []) { pending.Push(argument); }
+            }
+        }
+        return seen;
+    }
 
     // DartCommandsFacts' samples prove the check bites.
     [Fact]
@@ -47,7 +76,7 @@ public sealed class ControlSchemaFacts
     [Fact]
     public void Every_interactive_node_has_Key_and_AutomationName()
         => Assert.Empty(Nodes
-            .Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType) || IsCommand(parameter.ParameterType)))
+            .Where(type => ConstructorParameters(type).Any(parameter => IsCommand(parameter.ParameterType)))
             .SelectMany(type => new[] { ("Key", typeof(string)), ("AutomationName", typeof(string)) }
                 .Where(required => !ConstructorParameters(type).Any(parameter => parameter.Name == required.Item1 && parameter.ParameterType == required.Item2))
                 .Select(required => $"{type.Name}.{required.Item1}")));
@@ -79,8 +108,6 @@ public sealed class ControlSchemaFacts
 
     // A node in DigitalBrain.UI.Controls is what a control neuron draws: apps slot the neuron, they never build its node.
     private static bool IsDrawnByANeuron(Type node) => node.Namespace == typeof(DigitalBrain.UI.Controls.CheckBoxView).Namespace;
-
-    private static bool IsEmit(Type type) => (Nullable.GetUnderlyingType(type) ?? type) == typeof(Emit);
 
     private static bool IsCommand(Type type) => type == typeof(Command);
 

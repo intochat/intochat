@@ -53,7 +53,7 @@ public sealed class BoundaryTestScreen : Screen<BoundaryTestState>
             new Text($"Count: {state.Count}"),
             new Text($"LastBy: {state.LastBy ?? "none"}"),
             new Button("btn-inc", "Increment", Sends(new BoundaryInc("inc"))),
-            new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("app.foreign_owner", "boundary-test.inc", null))),
+            new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Command("alien", "boundary-test.inc", null))),
             new Button("btn-oversized", "Make Oversized", Sends(new BoundaryMakeOversized())),
             new Button("btn-inject-by", "Make Inject By", Sends(new BoundaryMakeInjectBy())),
             new Field("fld-no-emit", "Input", FieldKind.Text),
@@ -323,7 +323,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
     }
 
     [Fact]
-    public async Task T2_Screen_Activate_ForeignEmitOwner_ThrowsActivationRefusedForeignOwner()
+    public async Task T2_Screen_Activate_CommandToAnUnshownChild_ThrowsActivationRefusedUnknownChild()
     {
         var os = _fixture.OS;
         os.Register<BoundaryTestScreen>();
@@ -336,11 +336,11 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         var view = await screen.Read();
         Assert.NotNull(view);
 
-        // btn-alien specifies Owner = "app.foreign_owner" which does not match Alias "app.boundary_screen"
+        // btn-alien commands the child "alien", which the view of "app.boundary_screen" does not show
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("app.boundary_screen", 1L, "btn-alien"));
 
-        Assert.Equal(ActivationRefusedException.ForeignOwner, ex.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
 
     [Fact]

@@ -42,7 +42,7 @@ public static class AdvSynapses
         new("adv.counter", new Row(
             [
                 new Button("bump_btn", "Bump", new Command(".", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 5 }))),
-                new Conversation("foreign_btn-thread", [], new ComposerNode("foreign_btn", new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 })))),
+                new Conversation("foreign_btn-thread", [], new ComposerNode("foreign_btn", new Command("elsewhere", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 })))),
                 new Text($"Count is {c.Count}")
             ]));
 }
@@ -169,7 +169,7 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
-    public void ViewProjection_DeclaresByInEmit_IsRefusedAndNotStored()
+    public void ViewProjection_DeclaresByInCommand_IsRefusedAndNotStored()
     {
         var step = _machine.Start(new StoredUnit<AdvCounter>(new AdvCounter(1), null));
         var maliciousView = new View(StateAlias, new Button("btn", "Bump",
@@ -230,7 +230,7 @@ public sealed class UnitMachineAdversarialFacts
         {
             kind = "button",
             key = "btn",
-            emit = new { owner = StateAlias, signal = "adv.bump" }
+            command = new { target = ".", signal = "adv.bump" }
         });
         var published = new PublishedView(StateAlias, 5, wire);
 
@@ -286,7 +286,7 @@ public sealed class UnitMachineAdversarialFacts
         {
             kind = "button",
             key = "btn",
-            emit = new { owner = StateAlias, signal = "adv.bump" }
+            command = new { target = ".", signal = "adv.bump" }
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
@@ -302,7 +302,7 @@ public sealed class UnitMachineAdversarialFacts
         {
             kind = "button",
             key = "btn",
-            emit = new { owner = StateAlias, signal = "adv.bump" }
+            command = new { target = ".", signal = "adv.bump" }
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
@@ -312,7 +312,7 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
-    public void Press_NodeWithoutEmit_ThrowsActivationRefusedException()
+    public void Press_NodeWithoutCommand_ThrowsActivationRefusedException()
     {
         var wire = JsonSerializer.SerializeToElement(new
         {
@@ -328,19 +328,19 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
-    public void Press_ForeignOwner_ThrowsActivationRefusedException()
+    public void Press_CommandToAnotherAddress_ThrowsActivationRefusedException()
     {
         var wire = JsonSerializer.SerializeToElement(new
         {
             kind = "button",
             key = "btn",
-            emit = new { owner = "foreign.owner", signal = "adv.bump" }
+            command = new { target = "elsewhere", signal = "adv.bump" }
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
         var ex = Assert.Throws<ActivationRefusedException>(() =>
             _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
-        Assert.Equal(ActivationRefusedException.ForeignOwner, ex.Reason);
+        Assert.Equal(ActivationRefusedException.NoSlots, ex.Reason);
     }
 
     [Fact]
@@ -350,7 +350,7 @@ public sealed class UnitMachineAdversarialFacts
         {
             kind = "button",
             key = "btn",
-            emit = new { owner = StateAlias, signal = "adv.bump", args = new { by = "author_hack", count = 99 } }
+            command = new { target = ".", signal = "adv.bump", args = new { by = "author_hack", count = 99 } }
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
@@ -421,7 +421,7 @@ public sealed class UnitMachineAdversarialFacts
         {
             kind = "button",
             key = "noop_btn",
-            emit = new { owner = StateAlias, signal = "adv.noop" }
+            command = new { target = ".", signal = "adv.noop" }
         });
         var publishedView = new PublishedView(StateAlias, 1, viewWire);
         context.Store(JsonSerializer.SerializeToUtf8Bytes(new StoredUnit<AdvCounter>(new AdvCounter(10), publishedView), DigitalBrain.Invocation.RuntimeProtocol.Json));
@@ -448,7 +448,7 @@ public sealed class UnitMachineAdversarialFacts
         {
             kind = "button",
             key = "fail_btn",
-            emit = new { owner = StateAlias, signal = "adv.fail" }
+            command = new { target = ".", signal = "adv.fail" }
         });
         var publishedView = new PublishedView(StateAlias, 1, viewWire);
         context.Store(JsonSerializer.SerializeToUtf8Bytes(new StoredUnit<AdvCounter>(new AdvCounter(10), publishedView), DigitalBrain.Invocation.RuntimeProtocol.Json));

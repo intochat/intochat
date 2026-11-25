@@ -19,15 +19,15 @@ public interface IViewReader
 
     /// <summary>
     /// Activates the node whose <c>"key"</c> is <paramref name="nodeKey"/> in the view of <paramref name="generation"/>: journals its
-    /// <c>"emit"</c>'s signal (payload its <c>args</c>, plus <c>value</c> when <paramref name="fieldValue"/> is given) and runs the alias's
+    /// <c>"command"</c>'s signal (payload its <c>args</c>, plus <c>value</c> when <paramref name="fieldValue"/> is given) and runs the alias's
     /// reactions on it. The caller is the signal's cause.
     /// </summary>
     /// <remarks>
     /// The owner's reactions run inline, inside this call, after the signal is journaled: a state neuron never hears its own journal,
     /// so the call returns once the owner has reacted. Other neurons with an alias edge on the signal get it through the journal.
-    /// The owner's envelope carries the caller's trace and, as its cause, the address of the journaled emit entry.
-    /// Journaling and reacting are not one transaction: a reaction that fails after the emit is journaled behaves like any failing
-    /// reaction on a journaled signal, so the emit stands, the state is unchanged, <see cref="SynapseFinished"/> reports
+    /// The owner's envelope carries the caller's trace and, as its cause, the address of the journaled entry.
+    /// Journaling and reacting are not one transaction: a reaction that fails after the signal is journaled behaves like any failing
+    /// reaction on a journaled signal, so the signal stands, the state is unchanged, <see cref="SynapseFinished"/> reports
     /// <c>failed</c>, and the failure is thrown to the caller.
     /// </remarks>
     /// <param name="alias">The state alias that owns the view.</param>
@@ -36,10 +36,10 @@ public interface IViewReader
     /// <param name="fieldValue">The field value, if the node is a field.</param>
     /// <param name="by">
     /// Who activated the node (an opaque identity, e.g. a person id), set as the payload's reserved <c>"by"</c> member: stamped by the
-    /// host; a unit may trust it. Null leaves the payload without <c>"by"</c>. An author can never set it: a view whose emit args declare
+    /// host; a unit may trust it. Null leaves the payload without <c>"by"</c>. An author can never set it: a view whose command args declare
     /// <c>"by"</c> is refused at publish.
     /// </param>
-    /// <exception cref="ActivationRefusedException">The view is stale, the node is unknown or emits nothing, or its emit names another owner.</exception>
+    /// <exception cref="ActivationRefusedException">The view is stale, the node is unknown or sends no command, or its command names a child.</exception>
     Task Activate(string alias, long generation, string nodeKey, string? fieldValue, string? by);
 }
 
@@ -52,16 +52,13 @@ public sealed record PublishedView(string Alias, long Generation, JsonElement Vi
 /// <summary>An activation was refused; nothing was journaled.</summary>
 public sealed class ActivationRefusedException : InvalidOperationException
 {
-    /// <summary>The emit names another alias than the view's owner.</summary>
-    public const string ForeignOwner = "ForeignOwner";
-
     /// <summary>The generation is not the current view's (or there is no view yet).</summary>
     public const string Stale = "Stale";
 
     /// <summary>No node of the view has the key.</summary>
     public const string UnknownNode = "UnknownNode";
 
-    /// <summary>The keyed node emits nothing.</summary>
+    /// <summary>The keyed node sends no command.</summary>
     public const string NoEmit = "NoEmit";
 
     /// <summary>A command names a child key that no slot of the current view names.</summary>

@@ -267,7 +267,7 @@ public static partial class InoView
                     "switch-conversation",
                     selected: isCurrent,
                     badge: isCurrent ? "Current" : null,
-                    emit: AppSignals.Emits("ino", new InoSwitchConversation(session.Id)));
+                    command: Sends(new InoSwitchConversation(session.Id)));
             }),
         ];
 
@@ -287,7 +287,7 @@ public static partial class InoView
             VStack(Space.Xs)[
                 HStack(Space.Xs)[
                     Heading($"Chats ({items.Length})", 3),
-                    PrimaryButton("+ New", Icons.Plus).Small().Key(NewKey).Emits(AppSignals.Emit("ino", "new")).ToNode()
+                    PrimaryButton("+ New", Icons.Plus).Small().Key(NewKey).Sends(new InoNew()).ToNode()
                 ],
                 VStack(Space.Xs, navs),
                 collection
@@ -384,7 +384,7 @@ public static partial class InoView
                         .Small()
                         .Key(SendDraftKey)
                         .Disabled(!canSend)
-                        .Emits(AppSignals.Emits("ino", new InoSend(Message: s.DraftPrompt)))
+                        .Sends(new InoSend(Message: s.DraftPrompt))
                         .ToNode()
                     : null,
                 GhostButton("Dismiss")
@@ -590,7 +590,7 @@ public static partial class InoView
                 ? $"Local Ollama model {local} was detected on this machine, or paste a provider API key below."
                 : "Start local Ollama or paste an OpenAI, Anthropic, Google, or OpenRouter API key below.";
         Node? useLocal = preferredLocal is { Length: > 0 } preferred
-            ? PrimaryButton($"Use local model ({preferred})", "cpu").Key(UseLocalKey).Emits(AppSignals.Emits("ino", new InoUseLocalModel(Model: preferred))).ToNode()
+            ? PrimaryButton($"Use local model ({preferred})", "cpu").Key(UseLocalKey).Sends(new InoUseLocalModel(Model: preferred)).ToNode()
             : null;
 
         return
@@ -598,7 +598,7 @@ public static partial class InoView
             new ChoiceCardNode("model-setup-choice", "Choose a model source", options),
             Card("Connect a model", subtitle)[
                 useLocal,
-                SecretField(ProviderCredentialField, "Paste API key and press Enter to save").Key(ProviderCredentialKey).Emits(AppSignals.Emits("ino", new InoSaveProvider()))
+                SecretField(ProviderCredentialField, "Paste API key and press Enter to save").Key(ProviderCredentialKey).Sends(new InoSaveProvider())
             ],
         ];
     }

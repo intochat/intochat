@@ -62,7 +62,7 @@ internal sealed class UnitMachine<TState>(string alias, string neuron) where TSt
         return (step with { View = view, Signals = [.. step.Signals, new ViewChanged(alias, view.Generation)] }, ViewOutcome.Stored);
     }
 
-    /// <exception cref="ActivationRefusedException">The view is stale, the node is unknown or emits nothing, or its emit names another owner.</exception>
+    /// <exception cref="ActivationRefusedException">The view is stale, the node is unknown or sends no command, or its command names a child.</exception>
     public EmittedSignal Press(PublishedView? view, string claimed, long generation, string nodeKey, string? fieldValue, string? by)
     {
         if (view is null || !string.Equals(view.Alias, claimed, StringComparison.Ordinal) || view.Generation != generation)
@@ -78,13 +78,7 @@ internal sealed class UnitMachine<TState>(string alias, string neuron) where TSt
                 ? new EmittedSignal(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
                 : throw new ActivationRefusedException(ActivationRefusedException.NoSlots);
         }
-        var emit = ViewNodes.EmitOf(node) ?? throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
-        if (!string.Equals(emit.Owner, claimed, StringComparison.Ordinal))
-        {
-            throw new ActivationRefusedException(ActivationRefusedException.ForeignOwner);
-        }
-
-        return new EmittedSignal(emit.Signal, ViewNodes.Payload(emit.Args, fieldValue, by));
+        throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
     }
 
     private IReadOnlyList<Signal> Silent(UnitStep<TState> step, Signal cause)

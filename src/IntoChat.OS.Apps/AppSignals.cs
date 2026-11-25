@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalBrain;
@@ -7,32 +6,9 @@ using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps;
 
-// The signals and intents a compiled app's view offers: Emit(owner, signal, args) for the app's operations,
-// Emits<TSignal>(appName, signal) for strongly typed screen reactions, Intent for what the client does itself.
+// The intents a compiled app's view offers: what the client does itself. A button's command is a typed signal (Kit's Sends).
 public static class AppSignals
 {
-    public static Emit Emit(string owner, string signal, params string[] args)
-    {
-        var normalizedOwner = owner.StartsWith("app.", StringComparison.Ordinal) || owner.Contains('/') ? owner : "app." + owner;
-        return new(normalizedOwner, signal, args.Length switch
-        {
-            0 => null,
-            1 => DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args[0], typeof(string)),
-            _ => DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args, typeof(string[])),
-        });
-    }
-
-    public static string AliasOf(Type signalType)
-        => signalType.GetCustomAttribute<SignalAttribute>(false)?.Alias ?? signalType.Name;
-
-    public static Emit Emits<TSignal>(string appName, TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var owner = appName.StartsWith("app.", StringComparison.Ordinal) || appName.Contains('/') ? appName : "app." + appName;
-        var encoded = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, signal.GetType());
-        return new Emit(owner, AliasOf(typeof(TSignal)), StripNullProperties(encoded));
-    }
-
     private static JsonElement StripNullProperties(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object) { return element; }

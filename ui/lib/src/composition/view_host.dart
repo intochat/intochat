@@ -528,7 +528,6 @@ class _ViewHostState extends State<ViewHost> {
         }
         final normalizedView = _normalizeViewJson(rawView);
         final buttonHints = _extractButtonHints(normalizedView);
-        final nodeKeys = _extractNodeKeys(normalizedView);
         final activeSlotAncestors = {...widget.slotAncestors, widget.name};
         final ctx = NodeContext(
           view: widget.name,
@@ -555,7 +554,6 @@ class _ViewHostState extends State<ViewHost> {
           // The server marks a screen's view: its commands all go to /act.
           actsViaAct: rawView['acts'] == 'act',
           buttonHints: buttonHints,
-          nodeKeys: nodeKeys,
           transcribe: widget.transcribe,
           talk: widget.talk,
           speak: widget.speak,
@@ -760,34 +758,6 @@ Map<String, String> _extractButtonHints(Map<String, dynamic> viewJson) {
 
 /// Extracts optional activation `key` strings for `chart` and `dataTable` nodes
 /// from raw view JSON without altering `generated/node_models.dart`.
-Map<String, String> _extractNodeKeys(Map<String, dynamic> viewJson) {
-  final keys = <String, String>{};
-  void walk(Object? node) {
-    if (node is List) {
-      for (final item in node) {
-        walk(item);
-      }
-      return;
-    }
-    if (node is! Map) return;
-    final kind = node['kind'];
-    final key = node['key'];
-    final title = node['title'];
-    if ((kind == 'chart' || kind == 'dataTable') &&
-        key is String &&
-        key.trim().isNotEmpty &&
-        title is String) {
-      keys['$kind:$title'] = key.trim();
-    }
-    for (final value in node.values) {
-      walk(value);
-    }
-  }
-
-  walk(viewJson['root']);
-  return keys;
-}
-
 class _ReadState extends StatelessWidget {
   const _ReadState({
     required this.viewName,

@@ -55,7 +55,7 @@ internal sealed partial class ScreenDirectoryNeuron
         }
         foreach (var (name, value) in obj.ToArray())
         {
-            if (value is not null && name is not ("command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "props")) { await InlineAsync(value, prefix, depth); }
+            if (value is not null && name is not ("command" or "args" or "intent" or "resolve" or "onSubmit" or "props")) { await InlineAsync(value, prefix, depth); }
         }
     }
 
@@ -71,7 +71,7 @@ internal sealed partial class ScreenDirectoryNeuron
         if (obj["key"] is System.Text.Json.Nodes.JsonValue keyValue && keyValue.TryGetValue<string>(out var key)) { obj["key"] = path + key; }
         foreach (var (name, value) in obj.ToArray())
         {
-            if (value is not null && name is not ("command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "props")) { PrefixKeys(value, path); }
+            if (value is not null && name is not ("command" or "args" or "intent" or "resolve" or "onSubmit" or "props")) { PrefixKeys(value, path); }
         }
     }
 
@@ -164,7 +164,6 @@ internal sealed partial class ScreenDirectoryNeuron
 
                 var isInteractive = key is not null && (
                     kind is "button" or "field" or "tabItem" or "tab" or "action" or "approvalCard" or "confirmCard" or "navItem" or "appTile"
-                    || element.TryGetProperty("emit", out _)
                     || element.TryGetProperty("intent", out _)
                     || element.TryGetProperty("resolve", out _)
                     || element.TryGetProperty("onSubmit", out _)
@@ -175,7 +174,7 @@ internal sealed partial class ScreenDirectoryNeuron
                     results.Add(new ScreenControlItem(key, kind, label, value));
                 }
 
-                foreach (var prop in element.EnumerateObject().Where(p => p.Name is not ("emit" or "args" or "intent" or "resolve")))
+                foreach (var prop in element.EnumerateObject().Where(p => p.Name is not ("command" or "args" or "intent" or "resolve")))
                 {
                     pending.Push(prop.Value);
                 }
@@ -253,7 +252,7 @@ internal sealed partial class ScreenDirectoryNeuron
                             items.Add(new ScreenApprovalItem(planId, title, summary, appId, "pending"));
                         }
                     }
-                    foreach (var prop in el.EnumerateObject().Where(p => p.Name is not ("emit" or "args")))
+                    foreach (var prop in el.EnumerateObject().Where(p => p.Name is not ("command" or "args")))
                     {
                         pending.Push(prop.Value);
                     }

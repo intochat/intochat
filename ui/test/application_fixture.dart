@@ -75,7 +75,7 @@ Map<String, dynamic> desktopPublishedView(String brain) {
     'kind': 'button',
     'key': key,
     'label': label,
-    'emit': {'owner': 'desktop', 'signal': signal, 'args': arg},
+    'command': {'target': '.', 'signal': signal, 'args': arg},
     'enabled': true,
   };
   return {
@@ -141,7 +141,7 @@ Map<String, dynamic> assistantPublishedView(String root) {
     'kind': 'button',
     'key': key,
     'label': label,
-    'emit': {'owner': owner, 'signal': key},
+    'command': {'target': '.', 'signal': key},
     'enabled': true,
   };
   return {

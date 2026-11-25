@@ -3,14 +3,14 @@ using System.Text.Json.Nodes;
 
 namespace DigitalBrain.Units;
 
-// Walks a view's wire JSON: every object with a "key" and either a "kind" or an action member (command, emit, intent, resolve, onSubmit) is addressable;
-// its "command" ({target, signal, args}) or legacy "emit" ({owner, signal, args}) is what it sends.
+// Walks a view's wire JSON: every object with a "key" and either a "kind" or an action member (command, intent, resolve, onSubmit) is addressable;
+// its "command" ({target, signal, args}) is what it sends. A stored view's legacy emits are commands once it is loaded (LegacyViewJson).
 internal static class ViewNodes
 {
     // The full name of the view model's root record, which the core does not reference.
     public const string ViewType = "DigitalBrain.UI.View";
 
-    // The first node, depth first, whose "key" is the key; emit and args objects are not searched.
+    // The first node, depth first, whose "key" is the key; command and args objects are not searched.
     public static JsonElement? Find(JsonElement root, string key)
     {
         var pending = new Stack<JsonElement>([root]);
@@ -21,8 +21,8 @@ internal static class ViewNodes
             {
                 if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
                     && (Has(element, "kind", JsonValueKind.String) || CarriesAction(element))) { return element; }
-                // An emit (and its args) is data, not view: a "key" inside it names no node.
-                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "close" or "onSubmit" or "emit" or "args"))) { pending.Push(property.Value); }
+                // A command (and its args) is data, not view: a "key" inside it names no node.
+                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "close" or "onSubmit" or "args"))) { pending.Push(property.Value); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -35,28 +35,17 @@ internal static class ViewNodes
 
     // A tab item or select option has no "kind" (only base-typed slots write the discriminator), nor has a card's child button: an action member marks the object.
     private static bool CarriesAction(JsonElement element)
-        => Has(element, "command", JsonValueKind.Object) || Has(element, "close", JsonValueKind.Object) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object) || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object);
+        => Has(element, "command", JsonValueKind.Object) || Has(element, "close", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object) || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object);
 
     private static bool Has(JsonElement element, string name, JsonValueKind kind) => element.TryGetProperty(name, out var value) && value.ValueKind == kind;
 
-    // The node's emit: owner and signal are strings, args optional; null when it has none.
-    public static (string Owner, string Signal, JsonElement? Args)? EmitOf(JsonElement node)
-    {
-        // A field emits through onSubmit.
-        if (!(node.TryGetProperty("emit", out var emit) && emit.ValueKind == JsonValueKind.Object)
-            && !(node.TryGetProperty("onSubmit", out emit) && emit.ValueKind == JsonValueKind.Object)) { return null; }
-        if (!emit.TryGetProperty("owner", out var owner) || owner.ValueKind != JsonValueKind.String
-            || !emit.TryGetProperty("signal", out var signal) || signal.ValueKind != JsonValueKind.String) { return null; }
-        JsonElement? args = emit.TryGetProperty("args", out var a) && a.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? a : null;
-        return (owner.GetString()!, signal.GetString()!, args);
-    }
-
-    // The node's command (an info bar's is its "close", a field's is its "onSubmit"): target and signal are strings, args optional; null when it has none.
+    // The node's command (an info bar's is its "close", a field's is its "onSubmit", and a kindless part's, such as a chat composer
+    // or model picker, its "command" or else its "onSubmit"): target and signal are strings, args optional; null when it has none.
     public static DigitalBrain.UI.Command? CommandOf(JsonElement node)
     {
         var member = node.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String
             ? kind.GetString() switch { "infoBar" => "close", "field" => "onSubmit", _ => "command" }
-            : "command";
+            : Has(node, "command", JsonValueKind.Object) ? "command" : "onSubmit";
         if (!node.TryGetProperty(member, out var command) || command.ValueKind != JsonValueKind.Object) { return null; }
         if (!command.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.String
             || !command.TryGetProperty("signal", out var signal) || signal.ValueKind != JsonValueKind.String) { return null; }
@@ -70,7 +59,7 @@ internal static class ViewNodes
     private static bool HasBy(JsonElement element)
         => element.ValueKind == JsonValueKind.Object && element.EnumerateObject().Any(p => string.Equals(p.Name, By, StringComparison.OrdinalIgnoreCase));
 
-    // The emit's args (a JSON object, or none) with the field value added as "value" and the host-asserted activator as "by";
+    // The command's args (a JSON object, or none) with the field value added as "value" and the host-asserted activator as "by";
     // without one, an author-declared "by" is removed.
     public static JsonElement Payload(JsonElement? args, string? fieldValue, string? by)
     {
@@ -95,7 +84,7 @@ internal static class ViewNodes
         return doc.RootElement.Clone();
     }
 
-    // Whether any command, emit (or field onSubmit) in the view declares the host-reserved "by" in its args.
+    // Whether any command (or field onSubmit) in the view declares the host-reserved "by" in its args.
     public static bool DeclaresBy(JsonElement root)
     {
         var pending = new Stack<JsonElement>([root]);
@@ -106,7 +95,7 @@ internal static class ViewNodes
             {
                 foreach (var property in element.EnumerateObject())
                 {
-                    if (property.Name is "command" or "close" or "emit" or "onSubmit" && property.Value.ValueKind == JsonValueKind.Object
+                    if (property.Name is "command" or "close" or "onSubmit" && property.Value.ValueKind == JsonValueKind.Object
                         && property.Value.TryGetProperty("args", out var args) && HasBy(args)) { return true; }
                     pending.Push(property.Value);
                 }

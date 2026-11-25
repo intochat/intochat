@@ -56,7 +56,7 @@ void main() {
           {
             'key': 'reset-alert',
             'label': 'Reset alert',
-            'emit': {'owner': 'apps/btcalert', 'signal': 'reset'},
+            'command': {'target': '.', 'signal': 'reset'},
           },
         ],
       }, events: events);

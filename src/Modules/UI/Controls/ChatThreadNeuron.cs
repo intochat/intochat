@@ -134,11 +134,11 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
         return new ChatThreadView(
             key,
             [.. Shown(messages).Select(DrawMessage)],
-            new ComposerNode(ChatThreadProps.ComposerKey, new Emit("control.chatThread", "control.submitText")),
+            new ComposerNode(ChatThreadProps.ComposerKey, new Command(".", "control.submitText")),
             showsStop ? new Button(ChatThreadProps.StopKey, "Stop", new Command(".", "control.stop"), AutomationName: "Stop") : null,
             showsRetry ? new Button(ChatThreadProps.ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again") : null,
-            SelectModel: new ModelSelectNode(ChatThreadProps.SelectModelKey, new Emit("control.chatThread", "control.selectModel")),
-            PinModel: new ModelSelectNode(ChatThreadProps.PinModelKey, new Emit("control.chatThread", "control.selectModel", PinModelArgs)));
+            SelectModel: new ModelSelectNode(ChatThreadProps.SelectModelKey, new Command(".", "control.selectModel")),
+            PinModel: new ModelSelectNode(ChatThreadProps.PinModelKey, new Command(".", "control.selectModel", PinModelArgs)));
     }
 
     protected override View Render(ChatThreadState state)

@@ -342,8 +342,8 @@ public sealed class TasksAppFacts
         await Field(tasks, "title", "Ship docs");
         await Field(tasks, "description", "Write and publish the docs");
         var start = Assert.Single(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Label == "Start").Command!;
-        var startArgs = EmitArgs.Of(start);
-        await tasks.Request(start.Signal, new TasksNew(startArgs[0], startArgs[1]));
+        Assert.Equal("tasks.new", start.Signal);
+        await tasks.Request(start.Signal, CommandArgs.Of<TasksNew>(start));
 
         var started = Assert.Single(FakeFlows.Started);
         Assert.Equal("Ship docs", started.Title);
@@ -363,7 +363,7 @@ public sealed class TasksAppFacts
         Assert.Contains(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Key == $"open:{FakeFlows.Views[0].FlowId}");
 
         var cancel = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Button>(), b => b.Label == "Cancel").Command!;
-        await tasks.Request(cancel.Signal, new TasksCancel(EmitArgs.Of(cancel)[0]));
+        await tasks.Request(cancel.Signal, CommandArgs.Of<TasksCancel>(cancel));
 
         Assert.Equal(FakeFlows.Views[0].FlowId, Assert.Single(FakeFlows.Cancels));
     }

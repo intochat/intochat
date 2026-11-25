@@ -77,7 +77,7 @@ public sealed class CreatorSynapseProjectionFacts
         Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Synapses");
         var workflowBtn = leftCol.Children.OfType<Row>().SelectMany(r => r.Children).OfType<Button>()
             .Single(b => b.Key == "synapse:workflow:approval-demo");
-        Assert.Equal("start-workflow", workflowBtn.Command!.Signal);
+        Assert.Equal("creator.start-workflow", workflowBtn.Command!.Signal);
 
         var reactionNav = leftCol.Children.OfType<NavItemNode>()
             .Single(n => n.Key == "synapse:reaction:triage.github.issues");

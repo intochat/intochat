@@ -14,7 +14,7 @@ public sealed class ReservedCircleSignalsFacts
         Assert.Equal("circleroom", SynapseStudioNeuron.ReservedSignal("forge", forging));
         Assert.Null(SynapseStudioNeuron.ReservedSignal("circleroom", forging));
         Assert.Equal("circleroom", SynapseStudioNeuron.ReservedSignal("forge", new Dictionary<string, string> { ["Forge.cs"] = "[Synapse(\"circleroom.leave\", \"forge\")]" }));
-        Assert.Equal("circleroom", SynapseStudioNeuron.ReservedSignal("forge", new Dictionary<string, string> { ["Forge.cs"] = "new Emit(\"circleroom\", \"circleroom.message\", args)" }));
+        Assert.Equal("circleroom", SynapseStudioNeuron.ReservedSignal("forge", new Dictionary<string, string> { ["Forge.cs"] = "new Command(\".\", \"circleroom.message\", args)" }));
         Assert.Null(SynapseStudioNeuron.ReservedSignal("x.watch", new Dictionary<string, string> { ["XWatch.cs"] = "[Signal(\"x.polled\")]" }));
     }
 }

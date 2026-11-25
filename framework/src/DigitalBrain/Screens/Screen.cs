@@ -18,7 +18,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     private Dictionary<string, ChildEntry>? _rendering;
     private string _cause = "reaction";
 
-    /// <summary>The alias the view is stored under and the owner its emits name: the neuron type.</summary>
+    /// <summary>The alias the view is stored under: the neuron type.</summary>
     protected string Alias => Id.Type;
 
     /// <summary>The view of <paramref name="state"/>. It runs inside the save, so it cannot await: what it shows is in the state.</summary>
@@ -31,19 +31,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return Save(next, [new StateChanged(Id.ToString(), _cause), .. facts]);
     }
 
-    /// <summary>The emit that brings <paramref name="signal"/> back to this screen's <c>[On]</c> reaction.</summary>
-    protected Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        return new Emit(Alias, SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
-    }
-
     /// <summary>The command that brings <paramref name="signal"/> back to this screen's <c>[On]</c> reaction: a <see cref="Button"/> sends it to ".".</summary>
-    protected static Command Sends<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        return new Command(".", SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
-    }
+    protected static Command Sends<TSignal>(TSignal signal) where TSignal : Signal => ScreenCommands.Sends(signal);
 
     /// <summary>A neuron of this brain by its contract's neuron type and a brain-relative <paramref name="key"/>.</summary>
     protected T Get<T>(string key) where T : class => Get<T>(IdOf(typeof(T), key));
@@ -279,15 +268,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
                 ? Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
                 : Send(command);
         }
-        if (ViewNodes.EmitOf(node) is not { } emit)
-        {
-            throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
-        }
-        if (!string.Equals(emit.Owner, alias, StringComparison.Ordinal))
-        {
-            throw new ActivationRefusedException(ActivationRefusedException.ForeignOwner);
-        }
-        return Handle(emit.Signal, ViewNodes.Payload(emit.Args, fieldValue, by));
+        throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
     }
 
     /// <inheritdoc />
@@ -342,7 +323,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             if (IsLegacyStoredStateEnvelope(json))
             {
                 var legacy = (StoredState<TState>?)RuntimeProtocol.Deserialize(rawBytes, typeof(StoredState<TState>));
-                _view = legacy?.View;
+                _view = Normalized(legacy?.View);
                 if (legacy?.State is not null && legacy.View is not null) { _cause = LoadedMarker; }
                 return legacy?.State;
             }
@@ -356,10 +337,13 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             return direct;
         }
         var stored = await Seat.Load<StoredState<TState>>().ConfigureAwait(true);
-        _view = stored?.View;
+        _view = Normalized(stored?.View);
         if (stored?.State is not null && stored.View is not null) { _cause = LoadedMarker; }
         return stored?.State;
     }
+
+    // A stored legacy view keeps drawing until the next save; a legacy emit in it reads as the command it means.
+    private static PublishedView? Normalized(PublishedView? view) => view is null ? null : view with { View = LegacyViewJson.Normalize(view.View) };
 
     internal override Task StoreState(TState next, IReadOnlyList<Signal> signals)
     {
@@ -393,7 +377,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         }
         if (ViewNodes.DeclaresBy(wire))
         {
-            throw new InvalidOperationException($"The view of '{Alias}' declares the host-reserved 'by' in an emit's args.");
+            throw new InvalidOperationException($"The view of '{Alias}' declares the host-reserved 'by' in a command's args.");
         }
         return wire;
     }

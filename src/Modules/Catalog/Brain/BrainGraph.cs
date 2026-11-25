@@ -1,22 +1,18 @@
-using System.Text.Json;
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Creator's brain graph (its select buttons command the view's own neuron): a sphere per unit, compiled app and kernel neuron, a ghost per unit under construction, an edge per
+// The Creator's brain graph (its select commands go to the view's own neuron): a sphere per unit, compiled app and kernel neuron, a ghost per unit under construction, an edge per
 // reaction or gate labelled with its alias. The inspector reads three keys: `node:<id>` (a node's select button), `edge:<from>→<to>:<alias>`
-// and `pulse:<traceId>`. Edges and pulses are not nodes of the view: the renderer activates SelectKey with their key as the value.
+// and `pulse:<traceId>`. Edges and pulses are not nodes of the view: the renderer sends the scene's Select with their key as the value.
 public static class BrainGraph
 {
     public const string Unit = BrainTopologyNode.UnitRole, App = BrainTopologyNode.AppRole, Kernel = "kernel", Draft = "draft";
     private const double Radius = 320;
 
     public static string NodeKey(string id) => $"node:{id}";
-
-    // The key of the view's button that selects an edge or a pulse; the renderer sends their key as its value.
-    public const string SelectKey = "graph:select";
 
     // An edge key back into its parts: split on the arrow first (ids hold ':'), then on the last ':' (an alias holds none).
     public static (string From, string To, string Alias)? ParseEdge(string key)
@@ -50,9 +46,11 @@ public static class BrainGraph
 
     public static string DraftId(string alias) => $"draft:{alias}";
 
-    public static BrainSceneNode Build(BrainTopology topology, string? selection)
+    // select(key) is the command that selects the node of that key; select(null) the scene's, which carries the picked edge or pulse key as its value.
+    public static BrainSceneNode Build(BrainTopology topology, string? selection, Func<string?, Command> select)
     {
         ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(select);
         List<(string Id, string Label, string Kind, string? Subtitle)> members = [];
         HashSet<string> seen = new(StringComparer.Ordinal);
         HashSet<string> units = new(StringComparer.Ordinal);
@@ -79,13 +77,13 @@ public static class BrainGraph
             nodes[i] = new BrainGraphNode(id, label, $"neuron://{id}", kind,
                 Math.Round(radius * Math.Cos(angle), 2), Math.Round(radius * Math.Sin(angle), 2), 0,
                 Status: kind == Draft ? "building" : "idle", Subtitle: subtitle,
-                Select: new Button(NodeKey(id), label, new Command(".", "select", JsonSerializer.SerializeToElement(NodeKey(id)))));
+                Select: new Button(NodeKey(id), label, select(NodeKey(id))));
         }
         var synapses = topology.Edges
             .Where(edge => seen.Contains(edge.TargetId))
             .Select(edge => new BrainGraphSynapse(edge.SourceId, edge.TargetId, EdgeLabel(edge.SignalType, edge.Kind)))
             .Distinct()
             .ToArray();
-        return new BrainSceneNode(nodes, synapses, selection is not null && seen.Contains(selection) ? selection : null);
+        return new BrainSceneNode(nodes, synapses, selection is not null && seen.Contains(selection) ? selection : null) { Select = select(null) };
     }
 }

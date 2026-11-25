@@ -41,8 +41,8 @@
               "label": "+ New Session",
               "command": {
                 "target": ".",
-                "signal": "new",
-                "args": null
+                "signal": "ino.new",
+                "args": {}
               },
               "intent": null,
               "enabled": true,

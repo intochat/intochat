@@ -65,7 +65,7 @@ public static class ShowcaseScenarios
     {
         JsonValueKind.Object when json.TryGetProperty("visible", out var visible) && visible.ValueKind == JsonValueKind.False => [],
         JsonValueKind.Object => json.EnumerateObject()
-            .Where(property => property.Name is not ("kind" or "key" or "id" or "icon" or "tone" or "command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "automationName"))
+            .Where(property => property.Name is not ("kind" or "key" or "id" or "icon" or "tone" or "command" or "args" or "intent" or "resolve" or "onSubmit" or "automationName"))
             .SelectMany(property => Strings(property.Value, property.Name)),
         JsonValueKind.Array => json.EnumerateArray().SelectMany(item => Strings(item, name)),
         JsonValueKind.String when json.GetString() is { Length: > 0 } value => [(name, value)],

@@ -33,7 +33,7 @@ public sealed class SampleCounterScreen : Screen<SampleCounterState>
             Root: new Column([
                 new Heading($"Count: {state.Count}"),
                 new Button("btn-inc", "Add One", Sends(new Increment(1))),
-                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("alien.screen", "alien.signal"))),
+                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Command("alien", "alien.signal"))),
                 new Button("btn-no-emit", "No Emit Button", Intent: new Intent(IntentKind.Copy, "nothing")),
                 new Field("fld-input", "input-label", FieldKind.Text, state.LastBy, OnSubmit: new Command(".", "counter.set-caller", emptyObj.RootElement.Clone()))
             ])
@@ -48,7 +48,6 @@ public sealed class SampleCounterScreen : Screen<SampleCounterState>
 
     // Expose protected methods for testing
     public Task TestShow(SampleCounterState next, params Signal[] facts) => Show(next, facts);
-    public Emit TestEmits<TSignal>(TSignal signal) where TSignal : Signal => Emits(signal);
     public T TestGet<T>(string key) where T : class => Get<T>(key);
     public Task TestFollow<TSource, TSignal>(string key) where TSource : class where TSignal : Signal => Follow<TSource, TSignal>(key);
 }
@@ -224,7 +223,7 @@ public sealed class ScreenFacts
     }
 
     [Fact]
-    public async Task Activate_ForeignOwner_ThrowsActivationRefusedException()
+    public async Task Activate_CommandToAChildTheViewDoesNotShow_ThrowsActivationRefusedException()
     {
         var (screen, _) = await Attached<SampleCounterScreen>();
         var view = await screen.Read();
@@ -232,7 +231,7 @@ public sealed class ScreenFacts
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
             screen.Activate("app.sample-counter", view.Generation, "btn-alien"));
-        Assert.Equal(ActivationRefusedException.ForeignOwner, ex.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
 
     [Fact]

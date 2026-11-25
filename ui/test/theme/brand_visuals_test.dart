@@ -374,19 +374,15 @@ void main() {
                     'kind': 'button',
                     'key': 'dock-ino',
                     'label': 'Ino',
-                    'emit': {
-                      'owner': 'desktop',
-                      'signal': 'open',
-                      'args': 'ino',
-                    },
+                    'command': {'target': '.', 'signal': 'open', 'args': 'ino'},
                     'enabled': true,
                   },
                   {
                     'kind': 'button',
                     'key': 'dock-helloworld',
                     'label': 'Hello World',
-                    'emit': {
-                      'owner': 'desktop',
+                    'command': {
+                      'target': '.',
                       'signal': 'open',
                       'args': 'helloworld',
                     },

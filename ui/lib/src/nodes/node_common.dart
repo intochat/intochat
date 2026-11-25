@@ -68,6 +68,23 @@ VoidCallback? pressOf(ButtonNode? button, NodeContext ctx) =>
     ? null
     : () => pressCommand(button.key, button.command, ctx, null);
 
+/// A data node's pick (a chart point, a table row, a scene edge): sends the
+/// node's own [command] with the picked item as `value` over the act route.
+/// The node has no key: its command is a member of it, not found by one.
+Future<ActivationOutcome> sendPick(
+  Command command,
+  NodeContext ctx,
+  String value,
+) {
+  final args = command.args;
+  return ctx.act(
+    command.target,
+    command.signal,
+    args is Map ? args.cast<String, Object?>() : const <String, Object?>{},
+    value: value,
+  );
+}
+
 /// The children of a layout node, rendered one level deeper.
 List<Widget> renderAll(List<Node> nodes, NodeContext ctx) => [
   for (final node in nodes) NodeRenderer.render(node, ctx.deeper()),

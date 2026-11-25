@@ -74,7 +74,7 @@ public sealed class TasksCancelOnRealHostFacts
         Assert.Equal("Action refused: UnknownNode", pressed.GetProperty("message").GetString());
         await StillWaitsForThePerson(host, flowId, planId);
 
-        // What the button would send (ScreenAppEmitBridge: screen.Request("tasks.cancel")), stamped as McpCaller stamps an MCP
+        // What the button would send (its command, tasks.cancel, to the Tasks screen), stamped as McpCaller stamps an MCP
         // client. In process: no route gives an MCP client this request while the card is not published.
         using (Edge(host).EnterInProcess())
         using (Edge(host).Enter(McpCaller.AsAgent(Edge(host), Person(host))))

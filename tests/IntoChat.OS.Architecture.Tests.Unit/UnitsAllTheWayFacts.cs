@@ -104,7 +104,7 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.Empty(Violations("var k = AppRef.Of(brain, PhotoCraftApp.AppName);", "Mod/Hosting/Host.cs", keys));
         Assert.Empty(Violations("var k = AppRef.Of(brain, \"photocraft\");", "IntoChat.OS.Apps/PhotoCraft/PhotoCraftApp.cs", keys));
         Assert.Empty(Violations("var k = Open(\"desktop\", \"ino\");", "Mod/Hosting/Host.cs", keys));
-        var verbs = WithoutOperationPositions("DesktopButton(\"more\", \"Settings\", \"settings\", null); AppSignals.Emit(App, \"settings\"); X = Open(\"settings\");");
+        var verbs = WithoutOperationPositions("DesktopButton(\"more\", \"Settings\", \"settings\", null); X = Open(\"settings\");");
         Assert.Equal(["settings"], Violations(verbs, "Mod/Hosting/Host.cs", keys));
     }
 
@@ -149,7 +149,7 @@ public sealed partial class UnitsAllTheWayFacts
             .Where(literal => !ShellApps.Contains(literal, StringComparer.Ordinal))
             .Where(literal => !relativePath.Split('/').Contains(literal, StringComparer.OrdinalIgnoreCase))];
 
-    // The literal in a signal's or operation's position names a verb, not an app: AppSignals.Emit's second argument, the desktop's emit helpers
+    // The literal in a signal's or operation's position names a verb, not an app: the desktop's emit helpers
     // and its window-verb set.
     internal static string WithoutOperationPositions(string text)
     {
@@ -163,7 +163,6 @@ public sealed partial class UnitsAllTheWayFacts
 
     private static Regex[] OperationPositions() =>
     [
-        new(@"AppSignals\.Emit\(\s*[^,()]+,\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
         new(@"DesktopEmit\(\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
         new(@"DesktopButton\(\s*""[^""]*""\s*,\s*""[^""]*""\s*,\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
         new(@"DesktopIcon\(\s*""[^""]*""\s*,\s*""[^""]*""\s*,\s*""[^""]*""\s*,\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),

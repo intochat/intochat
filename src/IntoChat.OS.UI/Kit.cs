@@ -329,25 +329,8 @@ public static class Kit
         string automationName = "")
         => Ui.NavItem(key, label, icon, action, selected, badge, command, string.IsNullOrWhiteSpace(automationName) ? label : automationName);
 
-    /// <summary>Creates a sidebar navigation item converting a legacy <see cref="Emit"/> to a <see cref="Command"/> targeting <c>"."</c>.</summary>
-    public static NavItemNode NavItem(
-        string key,
-        string label,
-        string icon,
-        string action,
-        bool selected = false,
-        string? badge = null,
-        Emit? emit = null,
-        string automationName = "")
-        => Ui.NavItem(
-            key,
-            label,
-            icon,
-            action,
-            selected,
-            badge,
-            emit is null ? null : new Command(".", emit.Signal, emit.Args),
-            string.IsNullOrWhiteSpace(automationName) ? label : automationName);
+    /// <summary>The command that brings <paramref name="signal"/> to the <c>[On]</c> reaction of the view's own neuron ("."), for a node that takes a <see cref="Command"/>.</summary>
+    public static Command Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal => DigitalBrain.ScreenCommands.Sends(signal);
 
     /// <summary>Creates an installed-app launcher tile (forwards to <see cref="DigitalBrain.UI.Ui.AppTile"/>).</summary>
     public static AppTileNode AppTile(

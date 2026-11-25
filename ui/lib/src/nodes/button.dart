@@ -69,7 +69,7 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
 /// and map args); anything else goes through [NodeContext.act], which carries
 /// a field's [value] beside the args (the server adds it as `value` and the
 /// screen stamps who acted).
-Future<void> pressCommand(
+Future<ActivationOutcome> pressCommand(
   String key,
   Command? command,
   NodeContext ctx,
@@ -85,7 +85,7 @@ Future<void> pressCommand(
       command.target.isEmpty ||
       (ctx.isTopLevelSelf(command.target) &&
           (!ctx.actsViaAct || !isCanonicalAct))) {
-    return ctx.activate(key, value: value, context: context);
+    return ctx.activateReporting(key, value: value, context: context);
   }
   final args = command.args;
   final baseArgs = args is Map

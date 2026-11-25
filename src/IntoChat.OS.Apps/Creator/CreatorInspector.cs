@@ -33,9 +33,9 @@ public static class CreatorInspector
                 SectionHeader("Inspector"),
                 FlexSpacer(),
                 GhostButton("Clear selection", "x")
-                    .Key(BrainGraph.SelectKey)
+                    .Key("clear-selection")
                     .Small()
-                    .Emits(AppSignals.Emit(App, "select"))
+                    .Sends(new CreatorSelect())
             ],
             // Single canonical ITabs bar — zero duplicate static Tabs(...) bar!
             new NeuronRef("ui.tabs", CreatorView.InspectorTabsKey),
@@ -82,12 +82,12 @@ public static class CreatorInspector
                         Button("Preview Live", "eye")
                             .Key("preview-unit-live")
                             .Small()
-                            .Emits(AppSignals.Emit(App, "select", "mode:live")),
+                            .Sends(new CreatorSelect("mode:live")),
                         new Button("open-unit-window", $"Open {alias}", Intent: AppSignals.OpenApp(alias)) { Small = true, Icon = "external-link" },
                         Button("Share as App-Post", "share-2")
                             .Key("share-unit")
                             .Small()
-                            .Emits(AppSignals.Emit(App, "share", alias))
+                            .Sends(new CreatorShare(alias))
                     ];
                 }
 
@@ -115,7 +115,7 @@ public static class CreatorInspector
                         PrimaryButton($"Preview {app}", "eye")
                             .Key("preview-compiled-app")
                             .Small()
-                            .Emits(AppSignals.Emit(App, "select", "mode:live")),
+                            .Sends(new CreatorSelect("mode:live")),
                         new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app)) { Small = true, Icon = "external-link" }
                     ];
                 }
@@ -165,7 +165,7 @@ public static class CreatorInspector
                     : GhostButton(file))
                     .Key($"source-file:{file}")
                     .Small()
-                    .Emits(AppSignals.Emit(App, "select", $"file:{file}")))]);
+                    .Sends(new CreatorSelect($"file:{file}")))]);
         }
 
         yield return new NeuronRef("ui.code-editor", CreatorView.InspectorSourceKey);
@@ -202,7 +202,7 @@ public static class CreatorInspector
                 yield return Button($"Trace {traceId}", "activity")
                     .Key($"open-trace:{traceId}")
                     .Small()
-                    .Emits(AppSignals.Emit(App, "trace", traceId))
+                    .Sends(new CreatorTrace(traceId))
                     .ToNode();
             }
 
@@ -282,7 +282,7 @@ public static class CreatorInspector
                 .Key("run-scenario")
                 .Small()
                 .Guard(state.RequiresSelectedNode)
-                .Emits(AppSignals.Emit(App, "scenario", alias ?? "")),
+                .Sends(new CreatorScenario(alias ?? "")),
             MutedText(alias is { Length: > 0 } ? $"Unit: {alias}" : "Select an installed unit first.")
         ];
 
@@ -344,11 +344,11 @@ public static class CreatorInspector
                 PrimaryButton("Approve & Promote", Icons.Check)
                     .Key($"approve:{apprv.PlanId}")
                     .Small()
-                    .Emits(AppSignals.Emit(App, "approve", apprv.PlanId)),
+                    .Sends(new CreatorApprove(apprv.PlanId)),
                 Button("Reject & Abort", "x")
                     .Key($"reject:{apprv.PlanId}")
                     .Small()
-                    .Emits(AppSignals.Emit(App, "reject", apprv.PlanId))
+                    .Sends(new CreatorReject(apprv.PlanId))
             ]);
         }
     }
