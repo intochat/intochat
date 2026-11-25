@@ -7,8 +7,8 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.Tabs;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Capabilities.Secrets;
@@ -39,7 +39,8 @@ public sealed class AgentCompactionFacts
             options.Start = new DateTimeOffset(2026, 11, 19, 15, 0, 0, TimeSpan.Zero);
         });
         os.Register(typeof(AIModule).Assembly);
-        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(FlutterModule).Assembly);
+        os.Register<IntrospectDemoApp>().Register<IntrospectPanel>();
         return os;
     }
 
@@ -163,10 +164,9 @@ public sealed class AgentCompactionFacts
             OpenThreads = ["OPEN_THREAD_MARKER_PR"],
         });
 
-        var tabs = os.Get<ITabs>(new NeuronId(TestBrain, "ui.tabs", "workspace/tabs"));
-        await tabs.Configure([new UiTabItem("plan", "Plan"), new UiTabItem("diff", "Diff")], selectedId: "diff");
-        var introspector = os.Get<IUiIntrospector>(IUiIntrospector.NeuronIdOf(TestBrain));
-        await introspector.TrackNeuron("ui.tabs", "workspace/tabs");
+        // A screen open in the workspace, with a child: the turn's UI context names what both draw.
+        var workspace = os.Get<IWorkspace>(new NeuronId(TestBrain, IWorkspace.Type, "main"));
+        await workspace.Show($"{TestBrain.Value}/apps/introspectdemo", "op-open-1", 0);
 
         var agent = os.Get<IAgent>(new NeuronId(TestBrain, "agent", "conversations/hydrated"));
         await agent.Configure(new AgentDefinition
@@ -190,7 +190,8 @@ public sealed class AgentCompactionFacts
         // Active project brief referenced by returning journal IS lazy-loaded, while unreferenced brief is NOT dumped!
         Assert.Contains("LAZY_ALPHA_BRIEF_BODY", systemText, StringComparison.Ordinal);
         Assert.DoesNotContain("UNREFERENCED_BRIEF_MUST_NOT_DUMP", systemText, StringComparison.Ordinal);
-        Assert.Contains("workspace/tabs", systemText, StringComparison.Ordinal);
+        Assert.Contains("introspectdemo", systemText, StringComparison.Ordinal);
+        Assert.Contains("panel/save", systemText, StringComparison.Ordinal);
     }
 
     private sealed class RecordingChatClient(Func<string, string> responder) : IChatClient

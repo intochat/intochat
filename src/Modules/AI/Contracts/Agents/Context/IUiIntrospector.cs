@@ -4,44 +4,25 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 
-[GenerateSerializer, Alias("ui.introspector.method")]
-public sealed record UiContractMethod
+// A keyed node a screen draws, as the screen directory lists it: a child's node carries the child key path ("panel/save").
+[GenerateSerializer, Alias("ui.introspector.screen-node")]
+public sealed record UiScreenNode(
+    [property: Id(0)] string Key,
+    [property: Id(1)] string Kind,
+    [property: Id(2)] string Label,
+    [property: Id(3)] string? Value = null);
+
+// One screen as the screen directory reads it, its children drawn in place; ViewJson is bounded.
+[GenerateSerializer, Alias("ui.introspector.screen")]
+public sealed record UiScreenSnapshot
 {
-    [Id(0)] public string Name { get; init; } = "";
-    [Id(1)] public string[] Parameters { get; init; } = [];
-    [Id(2)] public string ReturnType { get; init; } = "";
-    [Id(3)] public bool IsReadOnly { get; init; }
-
-    public UiContractMethod() { }
-
-    public UiContractMethod(string name, string[] parameters, string returnType, bool isReadOnly)
-    {
-        Name = name;
-        Parameters = parameters ?? [];
-        ReturnType = returnType;
-        IsReadOnly = isReadOnly;
-    }
-}
-
-[GenerateSerializer, Alias("ui.introspector.contract")]
-public sealed record UiContractSchema
-{
-    [Id(0)] public string NeuronKind { get; init; } = "";
-    [Id(1)] public string ContractType { get; init; } = "";
-    [Id(2)] public string? StateType { get; init; }
-    [Id(3)] public UiContractMethod[] Methods { get; init; } = [];
-    [Id(4)] public string[] Signals { get; init; } = [];
-}
-
-[GenerateSerializer, Alias("ui.introspector.neuron")]
-public sealed record UiNeuronSnapshot
-{
-    [Id(0)] public string NeuronKey { get; init; } = "";
-    [Id(1)] public string NeuronKind { get; init; } = "";
-    [Id(2)] public string Key { get; init; } = "";
-    [Id(3)] public string ContractType { get; init; } = "";
-    [Id(4)] public string StateJson { get; init; } = "{}";
-    [Id(5)] public string Summary { get; init; } = "";
+    [Id(0)] public string AppId { get; init; } = "";
+    [Id(1)] public string Title { get; init; } = "";
+    [Id(2)] public string Kind { get; init; } = "";
+    [Id(3)] public long Generation { get; init; }
+    [Id(4)] public UiScreenNode[] Nodes { get; init; } = [];
+    [Id(5)] public string ViewJson { get; init; } = "";
+    [Id(6)] public string Summary { get; init; } = "";
 }
 
 [GenerateSerializer, Alias("ui.introspector.graph-node")]
@@ -90,21 +71,20 @@ public sealed record UiStateGraphSnapshot
 public sealed record UiIntrospectionReport
 {
     [Id(0)] public long Revision { get; init; }
-    [Id(1)] public UiContractSchema[] Contracts { get; init; } = [];
-    [Id(2)] public UiNeuronSnapshot[] LiveNeurons { get; init; } = [];
     [Id(3)] public UiStateGraphSnapshot[] StateGraphs { get; init; } = [];
     [Id(4)] public string ContextSummary { get; init; } = "";
+    [Id(5)] public UiScreenSnapshot[] Screens { get; init; } = [];
 }
 
 [DigitalBrain.Signal("ui.introspector.synced")]
 public sealed record UiIntrospectorSynced(
     string IntrospectorId,
     long Revision,
-    int LiveNeuronCount,
+    int ScreenCount,
     int StateGraphCount) : DigitalBrain.Signal;
 
 [NeuronAlias(NeuronType), DefaultNeuronType(NeuronType)]
-[Description("Introspects live Modules.UI neuron states, component contracts, and Accordant StateGraph state/transition graphs, projecting UI awareness into IAgentContext.")]
+[Description("Reads the screens of this brain through the screen directory, children included, and Accordant StateGraph state/transition graphs, projecting UI awareness into IAgentContext.")]
 public interface IUiIntrospector
 {
     const string NeuronType = "ui.introspector";
@@ -115,20 +95,13 @@ public interface IUiIntrospector
 
     static string Key(BrainId brain, string key = DefaultKey) => NeuronIdOf(brain, key).FullKey();
 
-    [Description("List compiled Modules.UI component contracts, state types, callable methods, and emitted signals.")]
+    [Description("Read one screen of this brain by app name (for example \"tasks\") through the screen directory: its title, generation, the keyed nodes it draws (a child's nodes under the child key path, \"panel/save\") and its view JSON. Null when no screen answers to the name.")]
     [ReadOnlyCall, Interleaves]
-    Task<UiContractSchema[]> Contracts(string? kindFilter = null);
+    Task<UiScreenSnapshot?> InspectScreen(string appId);
 
-    [Description("Inspect the live state JSON and summary of a specific Modules.UI neuron in this brain.")]
+    [Description("Read every screen open in this brain's workspace through the screen directory, children included.")]
     [ReadOnlyCall, Interleaves]
-    Task<UiNeuronSnapshot?> InspectNeuron(string neuronKind, string key);
-
-    [Description("Inspect all active or tracked Modules.UI neurons in this brain.")]
-    [ReadOnlyCall, Interleaves]
-    Task<UiNeuronSnapshot[]> InspectLiveNeurons(string? kindFilter = null);
-
-    [Description("Register a Modules.UI neuron instance (kind and key) for continuous UI context introspection.")]
-    Task TrackNeuron(string neuronKind, string key);
+    Task<UiScreenSnapshot[]> InspectOpenScreens();
 
     [Description("Explore an Aggregate state record or AggregateScreen type via Accordant AggregateExplorer, returning states, rule-checked transitions, violations, and Graphviz DOT.")]
     Task<UiStateGraphSnapshot> ExploreStateGraph(string stateOrScreenTypeName, int maxStates = 32);
@@ -139,6 +112,6 @@ public interface IUiIntrospector
     [ReadOnlyCall, Interleaves]
     Task<UiStateGraphSnapshot[]> ListStateGraphs();
 
-    [Description("Synchronize a compact summary of live Modules.UI states, contracts, and Accordant StateGraphs into an IAgentContext slice (defaults to context/ui.state).")]
+    [Description("Synchronize a compact summary of the open screens and Accordant StateGraphs into an IAgentContext slice (defaults to context/ui.state).")]
     Task<UiIntrospectionReport> SyncContext(string contextKey = DefaultContextKey);
 }
