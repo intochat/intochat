@@ -71,7 +71,6 @@ sealed class Node {
     'grid' => GridNode.fromJson(json),
     'splitPane' => SplitPaneNode.fromJson(json),
     'surface' => SurfaceNode.fromJson(json),
-    'tabs' => TabsNode.fromJson(json),
     'divider' => DividerNode.fromJson(json),
     'spacer' => SpacerNode.fromJson(json),
     'collection' => CollectionNode.fromJson(json),
@@ -82,8 +81,6 @@ sealed class Node {
     'tagPill' => TagPillNode.fromJson(json),
     'field' => FieldNode.fromJson(json),
     'intent' => IntentNode.fromJson(json),
-    'switch' => SwitchNode.fromJson(json),
-    'select' => SelectNode.fromJson(json),
     'progress' => ProgressNode.fromJson(json),
     'infoBar' => InfoBarNode.fromJson(json),
     'toast' => ToastNode.fromJson(json),
@@ -2201,51 +2198,6 @@ final class SecretCardNode extends Node {
   );
 }
 
-final class SelectNode extends Node {
-  const SelectNode({
-    required this.label,
-    required this.selected,
-    required this.options,
-  });
-
-  @override
-  String get kind => 'select';
-
-  final String label;
-  final String selected;
-  final List<SelectOption> options;
-
-  factory SelectNode.fromJson(Map<String, dynamic> json) => SelectNode(
-    label: _string(json['label']),
-    selected: _string(json['selected']),
-    options: [
-      for (final item in _list(json['options']))
-        SelectOption.fromJson(_map(item)),
-    ],
-  );
-}
-
-final class SelectOption {
-  const SelectOption({
-    required this.key,
-    required this.id,
-    required this.label,
-    required this.emit,
-  });
-
-  final String key;
-  final String id;
-  final String label;
-  final Emit? emit;
-
-  factory SelectOption.fromJson(Map<String, dynamic> json) => SelectOption(
-    key: _string(json['key']),
-    id: _string(json['id']),
-    label: _string(json['label']),
-    emit: json['emit'] is Map ? Emit.fromJson(_map(json['emit'])) : null,
-  );
-}
-
 final class SpacerNode extends Node {
   const SpacerNode({required this.size});
 
@@ -2344,62 +2296,6 @@ final class SurfaceNode extends Node {
   );
 }
 
-final class SwitchNode extends Node {
-  const SwitchNode({
-    required this.key,
-    required this.label,
-    required this.isOn,
-    required this.command,
-    required this.locked,
-    required this.automationName,
-  });
-
-  @override
-  String get kind => 'switch';
-
-  final String key;
-  final String label;
-  final bool isOn;
-  final Command? command;
-  final bool locked;
-  final String automationName;
-
-  factory SwitchNode.fromJson(Map<String, dynamic> json) => SwitchNode(
-    key: _string(json['key']),
-    label: _string(json['label']),
-    isOn: _bool(json['isOn']),
-    command: json['command'] is Map
-        ? Command.fromJson(_map(json['command']))
-        : null,
-    locked: _bool(json['locked']),
-    automationName: _string(json['automationName']),
-  );
-}
-
-final class TabItem {
-  const TabItem({
-    required this.key,
-    required this.id,
-    required this.label,
-    required this.emit,
-    required this.icon,
-  });
-
-  final String key;
-  final String id;
-  final String label;
-  final Emit emit;
-  final String? icon;
-
-  factory TabItem.fromJson(Map<String, dynamic> json) => TabItem(
-    key: _string(json['key']),
-    id: _string(json['id']),
-    label: _string(json['label']),
-    emit: Emit.fromJson(_map(json['emit'])),
-    icon: _stringOrNull(json['icon']),
-  );
-}
-
 final class TabStripItem {
   const TabStripItem({
     required this.id,
@@ -2456,23 +2352,6 @@ final class TabStripViewNode extends Node {
         key: _string(json['key']),
         selectedId: _stringOrNull(json['selectedId']),
       );
-}
-
-final class TabsNode extends Node {
-  const TabsNode({required this.items, required this.selectedId});
-
-  @override
-  String get kind => 'tabs';
-
-  final List<TabItem> items;
-  final String selectedId;
-
-  factory TabsNode.fromJson(Map<String, dynamic> json) => TabsNode(
-    items: [
-      for (final item in _list(json['items'])) TabItem.fromJson(_map(item)),
-    ],
-    selectedId: _string(json['selectedId']),
-  );
 }
 
 final class TagPillNode extends Node {

@@ -259,7 +259,7 @@ public sealed class InoAppFacts
         await using var checkOs = TestOS.Local(options => options.Services = WithRedactor());
         checkOs.Register<DesktopRecordsNeuron>();
         checkOs.RegisterCatalog();
-        checkOs.Register(typeof(InoApp).Assembly);
+        checkOs.Register(typeof(InoApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         checkOs.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         checkOs.Register(typeof(FlutterModule).Assembly);
 
@@ -278,7 +278,7 @@ public sealed class InoAppFacts
 
         await using var os = TestOS.Local();
         os.RegisterCatalog();
-        os.Register(typeof(CreatorApp).Assembly);
+        os.Register(typeof(CreatorApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         var settings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
         var updated = await settings.SetProfile("Vlad", "light", "gpt-5");
         Assert.Equal("Vlad", updated.DisplayName);

@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:naked_ui/naked_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -624,7 +623,7 @@ void main() {
       );
 
       testWidgets(
-        'InfoBar places action inline, EmptyState infers app icon, and Tabs rove via arrow keys',
+        'InfoBar places action inline and EmptyState infers app icon',
         (tester) async {
           String? lastKey;
           final ctx = NodeContext(
@@ -640,25 +639,6 @@ void main() {
             padding: 16,
             extents: null,
             children: [
-              TabsNode(
-                selectedId: 'all',
-                items: [
-                  TabItem(
-                    key: 'tab_all',
-                    id: 'all',
-                    label: 'All files',
-                    emit: Emit(owner: 'v', signal: 's', args: null),
-                    icon: null,
-                  ),
-                  TabItem(
-                    key: 'tab_recent',
-                    id: 'recent',
-                    label: 'Recent',
-                    emit: Emit(owner: 'v', signal: 's', args: null),
-                    icon: null,
-                  ),
-                ],
-              ),
               InfoBarNode(
                 title: 'Sync paused',
                 message: 'Reconnect storage to resume.',
@@ -711,23 +691,6 @@ void main() {
           await tester.tap(find.text('Reconnect'));
           await tester.pump();
           expect(lastKey, 'reconnect');
-
-          // Tabs arrow key navigation: focus tab 0 and press ArrowRight -> activates tab_recent!
-          final firstTabFocus = tester
-              .widget<NakedButton>(
-                find
-                    .ancestor(
-                      of: find.byKey(const ValueKey('ui_mix_tab_0')),
-                      matching: find.byType(NakedButton),
-                    )
-                    .first,
-              )
-              .focusNode!;
-          firstTabFocus.requestFocus();
-          await tester.pump();
-          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-          await tester.pump();
-          expect(lastKey, 'tab_recent');
         },
       );
 
@@ -875,15 +838,11 @@ void main() {
     );
 
     testWidgets(
-      'Field humanizes neuron paths and honours __label, __value, __helper, __error & Segmented/Surface kinds',
+      'Field humanizes neuron paths and honours __label, __value, __helper, __error & Surface kinds',
       (tester) async {
-        String? activatedKey;
         final ctx = NodeContext(
           view: 'local/apps/creator/view',
-          send: (e) async {
-            activatedKey = e['key'] as String?;
-            return null;
-          },
+          send: (e) async => null,
         );
 
         final node = Node.fromJson({
@@ -912,25 +871,6 @@ void main() {
                   'uiHelper': 'Compiled via Roslyn',
                 },
               },
-            },
-            {
-              'kind': 'select',
-              'label': 'segmented:',
-              'selected': 'live',
-              'options': [
-                {
-                  'key': 'seg-brain',
-                  'id': 'brain',
-                  'label': 'Brain Topology',
-                  'emit': {'target': 'creator', 'signal': 'select'},
-                },
-                {
-                  'key': 'seg-live',
-                  'id': 'live',
-                  'label': 'Live Studio',
-                  'emit': {'target': 'creator', 'signal': 'select'},
-                },
-              ],
             },
             {
               'kind': 'surface',
@@ -969,13 +909,6 @@ void main() {
         expect(find.text('Unit Goal'), findsOneWidget);
         expect(find.text('Pomodoro Sprint'), findsOneWidget);
         expect(find.text('Compiled via Roslyn'), findsOneWidget);
-
-        // 3. Segmented pill switcher renders options and dispatches on click
-        expect(find.text('Brain Topology'), findsOneWidget);
-        expect(find.text('Live Studio'), findsOneWidget);
-        await tester.tap(find.text('Brain Topology'));
-        await tester.pump();
-        expect(activatedKey, 'seg-brain');
 
         // 4. Code viewer renders title + line 1 + source
         expect(find.text('UnitApp.cs'), findsOneWidget);

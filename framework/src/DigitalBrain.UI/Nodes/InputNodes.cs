@@ -48,52 +48,6 @@ public sealed record Field(
     public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 }
 
-/// <summary>A 36x20px pill toggle switch.</summary>
-/// <param name="Key">The node's key within its view, by which an activation names it.</param>
-/// <param name="Label">The visible label beside the switch.</param>
-/// <param name="IsOn">True when toggled on.</param>
-/// <param name="Command">The command toggling sends, with the new boolean state added as <c>value</c>.</param>
-/// <param name="Locked">True when locked by policy or rule guard.</param>
-/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
-[ViewNode("switch")]
-public sealed record Switch(
-    string Key,
-    string Label,
-    bool IsOn,
-    Command? Command = null,
-    bool Locked = false,
-    string AutomationName = "") : Node
-{
-    // Reads stored views and fixtures written before switches carried commands.
-    [JsonConstructor]
-    private Switch(string key, string label, bool isOn, Command? command, bool locked, string automationName, Emit? emit)
-        : this(key, label, isOn, command ?? (emit is null ? null : new Command(".", emit.Signal, emit.Args)), locked, automationName ?? "")
-    {
-    }
-
-    [JsonInclude, JsonPropertyName("emit"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-#pragma warning disable CA1822
-    private Emit? Emit => null;
-#pragma warning restore CA1822
-
-    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
-    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
-}
-
-/// <summary>An option in a <see cref="Select"/> control.</summary>
-public sealed record SelectOption(string Key, string Id, string Label, Emit? Emit = null);
-
-/// <summary>A desktop dropdown / segmented selector.</summary>
-[ViewNode("select")]
-public sealed record Select(string Label, string Selected, IReadOnlyList<SelectOption> Options) : Node
-{
-    /// <inheritdoc />
-    public bool Equals(Select? other) => other is not null && Label == other.Label && Selected == other.Selected && Options.SequenceEqual(other.Options);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Label, Selected, Options.Count);
-}
-
 /// <summary>A progress bar or ring with a label: plain data, no state of its own.</summary>
 /// <param name="Label">What is progressing.</param>
 /// <param name="Value">The fraction done, 0 to 1 (a percentage above 1 is read as 0 to 100); ignored while <paramref name="IsIndeterminate"/>.</param>

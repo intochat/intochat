@@ -35,6 +35,7 @@ using IntoChat.OS.Modules.UI.Table.Signals;
 using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.Tabs.Signals;
 using IntoChat.OS.UI;
+using IntoChat.OS.Modules.UI.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AppRef = IntoChat.OS.Host.Primitives.AppRef;
@@ -132,6 +133,8 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
         await TryFollowOptionalAsync<ISlider, SliderChanged>(CreatorView.ReplaySliderKey);
         await TryFollowOptionalAsync<ICommandBar, CommandBarInvoked>(CreatorView.ReplayCommandBarKey);
         await TryFollowOptionalAsync<ITable, TableRowSelected>(CreatorView.InspectorSignalsKey);
+        await FollowChild<ITabStripControl, DigitalBrain.UI.Commands.SelectionChanged>(CreatorView.GraphModeKey);
+        await FollowChild<ITabStripControl, DigitalBrain.UI.Commands.SelectionChanged>(CreatorView.ViewportKey);
 
         await RefreshAsync();
         await SyncUiNeuronsAsync();
@@ -163,6 +166,23 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
 
         await ApplyDecisionAsync(State.SelectInspectorTab(normalized));
         await SyncUiNeuronsAsync(skipTabsConfigure: true);
+    }
+
+    // The graph mode and the preview width are tab strip children that own nothing: Creator holds both and draws them as props.
+    [DigitalBrain.Neurons.On]
+    public async Task OnSelectionChanged(DigitalBrain.UI.Commands.SelectionChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        switch (SignalChild)
+        {
+            case CreatorView.GraphModeKey:
+                await ApplyDecisionAsync(State.SwitchCanvasMode(changed.Id));
+                await SyncUiNeuronsAsync();
+                break;
+            case CreatorView.ViewportKey:
+                await Show(State.SetPreviewViewport(changed.Id));
+                break;
+        }
     }
 
     [DigitalBrain.Neurons.On]
@@ -650,7 +670,8 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
     public new CreatorWorkspaceState State => base.State;
     public View Render() => PreviewView(State);
     protected override Node Render(CreatorWorkspaceState state)
-        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses, ActiveTransition, _deployedUnits);
+        => CreatorView.RenderNode(state, _topology, _flows, _approvals, _inspection, ActiveTimelineHops, _synapses, ActiveTransition, _deployedUnits,
+            Child<ITabStripControl, TabStripProps>);
 
     private async Task RefreshAsync()
     {

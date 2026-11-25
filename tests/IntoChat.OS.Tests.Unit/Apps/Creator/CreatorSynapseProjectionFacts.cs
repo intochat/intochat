@@ -142,10 +142,10 @@ public sealed class CreatorSynapseProjectionFacts
         await creator.Request("open", new CreatorOpen());
         await os.Idle();
 
-        // Preserve Creator mode switcher keys (mode-brain, mode-state)
-        var switcher = Assert.Single(AllNodes(creator.App.Render()).OfType<Select>());
-        Assert.Contains(switcher.Options, o => o.Key == "mode-brain");
-        Assert.Contains(switcher.Options, o => o.Key == "mode-state");
+        // Creator's graph mode switcher is a control.tabStrip child offering both modes.
+        var switcher = Assert.Single(AllNodes(creator.App.Render()).OfType<NeuronRef>(), r => r.NeuronUri.EndsWith("/" + CreatorView.GraphModeKey, StringComparison.Ordinal));
+        var modes = switcher.Props!.Value.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetString()).ToArray();
+        Assert.Equal(["brain", "state"], modes);
 
         // 1. Select compiled app node -> projects IUiIntrospector.ExploreStateGraph snapshot with 100% ring & [refused: ...] guard
         await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey("local/apps/tasks")));

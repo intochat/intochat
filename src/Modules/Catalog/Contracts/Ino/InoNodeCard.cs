@@ -360,36 +360,6 @@ public static class InoNodeCard
                 refusal = "Field submit actions (onSubmit) are not allowed in chat cards.";
                 return true;
 
-            case Switch { Command: not null }:
-                refusal = "Switch actions (command or emit) are not allowed in chat cards.";
-                return true;
-
-            case Select sel:
-                if (sel.Options is null || sel.Options.Any(static o => o is null))
-                {
-                    refusal = "Node 'select' requires a non-null 'options' array.";
-                    return true;
-                }
-                if (sel.Options.Any(static o => o.Emit is not null))
-                {
-                    refusal = "Select emit actions are not allowed in chat cards.";
-                    return true;
-                }
-                break;
-
-            case Tabs tabs:
-                if (tabs.Items is null || tabs.Items.Any(static i => i is null))
-                {
-                    refusal = "Node 'tabs' requires a non-null 'items' array.";
-                    return true;
-                }
-                if (tabs.Items.Any(static i => i.Emit is not null))
-                {
-                    refusal = "Tabs emit actions are not allowed in chat cards.";
-                    return true;
-                }
-                break;
-
             case NavItemNode nav when nav.Command is not null || !string.IsNullOrWhiteSpace(nav.Action):
                 refusal = "NavItem actions are not allowed in chat cards.";
                 return true;

@@ -20,7 +20,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
 
@@ -57,7 +57,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
 
@@ -96,7 +96,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
 
@@ -127,7 +127,7 @@ public sealed class DesktopAndCalculatorAdversarialHardeningFacts
         os.Register<TestViewportNeuron>();
         os.Register<TestWorkspaceNeuron>();
         os.RegisterCatalog();
-        os.Register(typeof(DesktopApp).Assembly);
+        os.Register(typeof(DesktopApp).Assembly).Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
 
         var desktop = await os.Install<DesktopApp>();
 

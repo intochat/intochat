@@ -1,6 +1,6 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a toggle switch neuron (WinUI's ToggleSwitch; the legacy <see cref="Switch"/> data node is the old way): only what the user changes.</summary>
+/// <summary>The state of a toggle switch neuron (WinUI's ToggleSwitch): only what the user changes.</summary>
 public sealed record ToggleSwitchState
 {
     /// <summary>True when on.</summary>

@@ -72,7 +72,7 @@ List<String> _generatedKinds() {
 void main() {
   test('there is a sample for every generated kind', () {
     final kinds = _generatedKinds();
-    expect(kinds, hasLength(54));
+    expect(kinds, hasLength(51));
     expect(nodeSamples.keys.toSet(), kinds.toSet());
     for (final MapEntry(:key, :value) in nodeSamples.entries) {
       expect(Node.fromJson(value).kind, key);
@@ -111,17 +111,6 @@ void main() {
     expect(events, [
       {'kind': 'view', 'name': _view, 'generation': 3, 'key': 'go'},
     ]);
-  });
-
-  testWidgets('a tab and a select option activate by key alone', (
-    tester,
-  ) async {
-    final events = <Map<String, dynamic>>[];
-    await _host(tester, nodeSamples['tabs']!, events: events);
-    await tester.tap(find.text('A'));
-    await tester.pumpAndSettle();
-    expect(events.single['key'], 'tab-a');
-    expect(events.single['kind'], 'view');
   });
 
   testWidgets('field reads, then posts each edit to the field neuron', (

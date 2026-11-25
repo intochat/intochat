@@ -16,20 +16,21 @@ public sealed class ViewKeyResolutionFacts
         return ViewNodes.CommandOf(node.Value)?.Signal ?? ViewNodes.EmitOf(node.Value)!.Value.Signal;
     }
 
+    // Views stored before tabs and selects became control children still hold keyed items without a "kind"; they stay addressable.
     [Fact]
-    public void FindResolvesATabItemByKey()
+    public void FindResolvesAStoredTabItemByKey()
     {
-        var wire = Wire(new Tabs([new TabItem("tab-a", "a", "A", new Emit("app", "tab.a")), new TabItem("tab-b", "b", "B", new Emit("app", "tab.b"))], "a"));
+        using var stored = JsonDocument.Parse("""{"title":"v","root":{"kind":"tabs","selectedId":"a","items":[{"key":"tab-a","id":"a","label":"A","emit":{"owner":"app","signal":"tab.a"}},{"key":"tab-b","id":"b","label":"B","emit":{"owner":"app","signal":"tab.b"}}]}}""");
 
-        Assert.Equal("tab.b", SignalOf(wire, "tab-b"));
+        Assert.Equal("tab.b", SignalOf(stored.RootElement, "tab-b"));
     }
 
     [Fact]
-    public void FindResolvesASelectOptionByKey()
+    public void FindResolvesAStoredSelectOptionByKey()
     {
-        var wire = Wire(new Select("Sort", "name", [new SelectOption("opt-name", "name", "Name", new Emit("app", "sort.name")), new SelectOption("opt-date", "date", "Date", new Emit("app", "sort.date"))]));
+        using var stored = JsonDocument.Parse("""{"title":"v","root":{"kind":"select","label":"Sort","selected":"name","options":[{"key":"opt-name","id":"name","label":"Name","emit":{"owner":"app","signal":"sort.name"}},{"key":"opt-date","id":"date","label":"Date","emit":{"owner":"app","signal":"sort.date"}}]}}""");
 
-        Assert.Equal("sort.date", SignalOf(wire, "opt-date"));
+        Assert.Equal("sort.date", SignalOf(stored.RootElement, "opt-date"));
     }
 
     [Fact]

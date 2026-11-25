@@ -91,20 +91,6 @@ public sealed record Surface(
     public override int GetHashCode() => HashCode.Combine(Kind, Title, Children.Count);
 }
 
-/// <summary>A single tab item in a <see cref="Tabs"/> bar.</summary>
-public sealed record TabItem(string Key, string Id, string Label, Emit Emit, string? Icon = null);
-
-/// <summary>A horizontal tab bar.</summary>
-[ViewNode("tabs")]
-public sealed record Tabs(IReadOnlyList<TabItem> Items, string SelectedId) : Node
-{
-    /// <inheritdoc />
-    public bool Equals(Tabs? other) => other is not null && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(SelectedId, SequenceHash.Of(Items));
-}
-
 /// <summary>A hairline section divider with an optional label.</summary>
 [ViewNode("divider")]
 public sealed record Divider(string? Label = null) : Node;

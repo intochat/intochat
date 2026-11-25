@@ -24,22 +24,13 @@ internal static class NodeOwnerNormalizer
                 Header = card.Header is null ? null : Normalize(card.Header, owner),
                 Footer = card.Footer is null ? null : Normalize(card.Footer, owner),
             },
-            Tabs tabs => tabs with
-            {
-                Items = [.. tabs.Items.Select(item => item with { Emit = NormalizeEmit(item.Emit, owner)! })],
-            },
             Field field => field with { OnSubmit = NormalizeCommand(field.OnSubmit, owner) },
-            DigitalBrain.UI.Switch sw => sw with { Command = NormalizeCommand(sw.Command, owner) },
             DigitalBrain.UI.Button btn => btn with { Command = NormalizeCommand(btn.Command, owner) },
             DigitalBrain.UI.IconButton icon => icon with { Command = NormalizeCommand(icon.Command, owner) },
             InfoBar bar => bar with
             {
                 Close = NormalizeCommand(bar.Close, owner),
                 Action = bar.Action is null ? null : (DigitalBrain.UI.Button)Normalize(bar.Action, owner),
-            },
-            Select sel => sel with
-            {
-                Options = [.. sel.Options.Select(opt => opt with { Emit = NormalizeEmit(opt.Emit, owner) })],
             },
             AppShellNode shell => shell with
             {

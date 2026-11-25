@@ -1270,7 +1270,7 @@
             "label": "TextureCraft",
             "uri": "neuron://owner/apps/texturecraft",
             "kind": "app",
-            "x": -0,
+            "x": 0,
             "y": -320,
             "z": 0,
             "status": "idle",
@@ -1527,31 +1527,24 @@
         "kind": "row",
         "children": [
           {
-            "kind": "select",
-            "label": "segmented:",
-            "selected": "brain",
-            "options": [
-              {
-                "key": "mode-brain",
-                "id": "brain",
-                "label": "Brain Graph",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "select",
-                  "args": "mode:brain"
+            "kind": "neuronRef",
+            "refKind": "slot",
+            "neuronUri": "creator-graph-mode",
+            "props": {
+              "isEnabled": true,
+              "automationName": "Graph mode",
+              "items": [
+                {
+                  "id": "brain",
+                  "label": "Brain Graph"
+                },
+                {
+                  "id": "state",
+                  "label": "Accordant State Graph"
                 }
-              },
-              {
-                "key": "mode-state",
-                "id": "state",
-                "label": "Accordant State Graph",
-                "emit": {
-                  "owner": "app.creator",
-                  "signal": "select",
-                  "args": "mode:state"
-                }
-              }
-            ]
+              ],
+              "selectedId": "brain"
+            }
           },
           {
             "kind": "button",

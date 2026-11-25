@@ -42,7 +42,7 @@ public sealed class TestCounterScreen : Screen<TestCounterState>
                 new Text($"LastBy: {state.LastBy ?? "none"}"),
                 new Button("btn-press", "Press", Sends(new TestCounterPress("increment"))),
                 new Field("fld-no-emit", "Input", FieldKind.Text),
-                new Tabs([new TabItem("btn-alien", "alien", "Alien", new Emit("app.alien_owner", "test.alien", null))], "alien"),
+                new Conversation("btn-alien-thread", [], new ComposerNode("btn-alien", new Emit("app.alien_owner", "test.alien", null))),
                 new Text("static-text")
             ]));
     }

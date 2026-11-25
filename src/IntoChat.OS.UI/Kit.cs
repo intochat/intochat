@@ -154,21 +154,6 @@ public static class Kit
     public static Surface Breadcrumb(params Node?[] segments)
         => new(StackBuilder.FilterNulls(segments), "breadcrumb", Padding: 0);
 
-    /// <summary>Crisp desktop segmented pill switcher (<see cref="Select"/> with <c>segmented:</c> wire convention).</summary>
-    public static Select Segmented(string selectedId, params OptionBuilder[] options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        return new Select("segmented:", selectedId, [.. options.Select(o => o.ToSelectOption())]);
-    }
-
-    /// <summary>Crisp desktop segmented pill switcher with an inline caption label.</summary>
-    public static Select Segmented(string label, string selectedId, params OptionBuilder[] options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        var wireLabel = string.IsNullOrWhiteSpace(label) ? "segmented:" : $"segmented:{label}";
-        return new Select(wireLabel, selectedId, [.. options.Select(o => o.ToSelectOption())]);
-    }
-
     /// <summary>Raster/URL image canvas supporting both <c>data:image/*;base64,...</c> inline previews and remote URLs.</summary>
     public static Surface ImageView(string src, string caption = "", double height = 320, string fit = "contain")
         => new([], $"image:{fit}", caption, src, height);
@@ -196,17 +181,6 @@ public static class Kit
             : "studio-frame";
         return new Surface(StackBuilder.FilterNulls(children), kind, title, subtitle, 16);
     }
-
-    /// <summary>Horizontal tab bar (<see cref="DigitalBrain.UI.Tabs"/>).</summary>
-    public static Tabs Tabs(string selectedId, params TabBuilder[] items)
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        return new Tabs([.. items.Select(i => i.ToTabItem())], selectedId);
-    }
-
-    /// <summary>Defines a single tab item inside <see cref="Tabs(string, TabBuilder[])"/>.</summary>
-    public static TabBuilder Tab(string id, string label, string? icon = null)
-        => new(id, label, icon);
 
     /// <summary>Fixed spacer (<see cref="DigitalBrain.UI.Spacer"/>).</summary>
     public static Spacer Spacer(double size = Space.Md)
@@ -449,25 +423,6 @@ public static class Kit
     /// <summary>Masked secret/API-key field (<see cref="FieldKind.Secret"/>), never echoed back.</summary>
     public static FieldBuilder SecretField(string label, string? placeholder = null)
         => new(label, FieldKind.Secret, placeholder);
-
-    /// <summary>Dropdown / segmented selector (<see cref="Select"/>).</summary>
-    public static Select SelectBox(string label, string selectedId, params OptionBuilder[] options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        return new Select(label, selectedId, [.. options.Select(o => o.ToSelectOption())]);
-    }
-
-    /// <summary>Defines an option inside <see cref="SelectBox(string, string, OptionBuilder[])"/>.</summary>
-    public static OptionBuilder Option(string id, string label)
-        => new(id, label);
-
-    /// <summary>36x20px pill toggle switch (<see cref="DigitalBrain.UI.Switch"/>).</summary>
-    public static ToggleBuilder ToggleSwitch(string label, bool isOn, bool locked = false)
-        => new(label, isOn, locked);
-
-    /// <summary>36x20px pill toggle switch (<see cref="DigitalBrain.UI.Switch"/>).</summary>
-    public static ToggleBuilder Switch(string label, bool isOn, bool locked = false)
-        => new(label, isOn, locked);
 
     // ── Rich Cards & Conversation ────────────────────────────────────────────
 

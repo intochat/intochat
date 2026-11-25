@@ -15,7 +15,6 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
         ["grid"] = typeof(Grid),
         ["splitPane"] = typeof(SplitPane),
         ["surface"] = typeof(Surface),
-        ["tabs"] = typeof(Tabs),
         ["divider"] = typeof(Divider),
         ["spacer"] = typeof(Spacer),
         ["collection"] = typeof(Collection),
@@ -26,8 +25,6 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
         ["tagPill"] = typeof(TagPill),
         ["field"] = typeof(Field),
         ["intent"] = typeof(Intent),
-        ["switch"] = typeof(Switch),
-        ["select"] = typeof(Select),
         ["progress"] = typeof(Progress),
         ["infoBar"] = typeof(InfoBar),
         ["toast"] = typeof(Toast),
@@ -90,7 +87,6 @@ public sealed record View(string Title, Node Root)
 [JsonDerivedType(typeof(Grid), "grid")]
 [JsonDerivedType(typeof(SplitPane), "splitPane")]
 [JsonDerivedType(typeof(Surface), "surface")]
-[JsonDerivedType(typeof(Tabs), "tabs")]
 [JsonDerivedType(typeof(Divider), "divider")]
 [JsonDerivedType(typeof(Spacer), "spacer")]
 [JsonDerivedType(typeof(Collection), "collection")]
@@ -101,8 +97,6 @@ public sealed record View(string Title, Node Root)
 [JsonDerivedType(typeof(TagPill), "tagPill")]
 [JsonDerivedType(typeof(Field), "field")]
 [JsonDerivedType(typeof(Intent), "intent")]
-[JsonDerivedType(typeof(Switch), "switch")]
-[JsonDerivedType(typeof(Select), "select")]
 [JsonDerivedType(typeof(Progress), "progress")]
 [JsonDerivedType(typeof(InfoBar), "infoBar")]
 [JsonDerivedType(typeof(Toast), "toast")]

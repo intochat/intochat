@@ -22,6 +22,7 @@ using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 using IntoChat.OS.UI;
+using IntoChat.OS.Modules.UI.Controls;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
@@ -225,7 +226,32 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
         try { await Context.Wires.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved), typeof(AppChanged)]); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "Brain-wide signal subscriptions are optional when running in standalone mode."); }
+        // Every window's tab strip is a child keyed by the window id. Window ids are w-1 .. w-MaxWindows (the lowest free number,
+        // at most MaxWindows windows), so wiring those, and any other id the stored windows hold, covers every strip drawn.
+        var windowIds = Enumerable.Range(1, DesktopAppState.MaxWindows).Select(static n => $"w-{n}")
+            .Concat((State.Windows ?? []).Select(static w => w.Id).Where(HasTabStrip)).Distinct(StringComparer.Ordinal);
+        foreach (var windowId in windowIds)
+        {
+            await FollowChild<ITabStripControl, DigitalBrain.UI.Commands.SelectionChanged>(WindowTabsKey(windowId));
+        }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
+    }
+
+    /// <summary>The child key of window <paramref name="windowId"/>'s tab strip.</summary>
+    public static string WindowTabsKey(string windowId) => $"tabs-{windowId}";
+
+    // A child key is one path segment: a stored window id that is not (none is written today) draws its frame without a tab strip.
+    private static bool HasTabStrip(string? windowId) => windowId is { Length: > 0 } && !windowId.Contains('/', StringComparison.Ordinal);
+
+    // A window's tab strip owns nothing: a pick names the tab "{window}/{index}" and goes the way of the tab verb.
+    [On]
+    public Task OnSelectionChanged(DigitalBrain.UI.Commands.SelectionChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        return SignalChild is { } key && key.StartsWith("tabs-", StringComparison.Ordinal)
+            && changed.Id.StartsWith(key["tabs-".Length..] + "/", StringComparison.Ordinal)
+            ? Tab(new DesktopTab(changed.Id))
+            : Task.CompletedTask;
     }
 
     [On]
@@ -652,15 +678,13 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
                 Button("Close tab", "x").Key($"close-{winId}").Small().Emits(Emits(new DesktopClose($"{winId}/{activeIndex}"))),
             ];
 
-            var tabItems = window.Tabs.Select((tab, idx) => Kit.Tab(
-                $"{winId}/{idx}",
-                TitleFor(tab.Id))
-                .Key($"tab-{winId}-{idx}")
-                .Emits(Emits(new DesktopTab($"{winId}/{idx}")))).ToArray();
+            TabStripItem[] tabItems = [.. window.Tabs.Select((tab, idx) => new TabStripItem($"{winId}/{idx}", TitleFor(tab.Id)))];
 
             return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
-                Tabs($"{winId}/{activeIndex}", tabItems),
+                HasTabStrip(winId)
+                    ? Child<ITabStripControl, TabStripProps>(WindowTabsKey(winId), new TabStripProps(tabItems, AutomationName: $"{title} tabs", SelectedId: $"{winId}/{activeIndex}"))
+                    : new Spacer(0),
                 Kit.Slot(brain is { Length: > 0 } ? IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }

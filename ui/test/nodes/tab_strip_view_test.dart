@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:naked_ui/naked_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -55,6 +57,29 @@ void main() {
         'args': {'id': 'privacy'},
       },
     ]);
+  });
+
+  testWidgets('the arrow keys rove the tabs and pick the next one', (
+    tester,
+  ) async {
+    final sent = await _pump(tester, {'items': _items});
+
+    final firstTab = tester
+        .widget<NakedButton>(
+          find
+              .ancestor(
+                of: find.byKey(const ValueKey('ui_mix_tab_0')),
+                matching: find.byType(NakedButton),
+              )
+              .first,
+        )
+        .focusNode!;
+    firstTab.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+
+    expect(sent.last['args'], {'id': 'privacy'});
   });
 
   testWidgets('picking the selected tab sends nothing', (tester) async {

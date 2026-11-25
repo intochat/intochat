@@ -25,6 +25,10 @@ public static class CreatorView
     public const string InspectorSourceKey = "creator/inspector/source";
     public const string InspectorSignalsKey = "creator/inspector/signals";
 
+    // Child keys of Creator's control.tabStrip selectors: the graph mode in the toolbar and the live preview's viewport width.
+    public const string GraphModeKey = "creator-graph-mode";
+    public const string ViewportKey = "creator-viewport";
+
     public static View Render(
         CreatorWorkspaceState state,
         BrainTopology topology,
@@ -34,8 +38,12 @@ public static class CreatorView
         IReadOnlyList<TraceHop>? timelineHops = null,
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
         string transition = "",
-        DigitalBrain.Units.DeployedSource[]? deployedUnits = null)
-        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition, deployedUnits));
+        DigitalBrain.Units.DeployedSource[]? deployedUnits = null,
+        Func<string, TabStripProps, Node>? tabStrip = null)
+        => new("Creator", RenderNode(state, topology, flows, approvals, inspection, timelineHops ?? inspection.Hops, synapses, transition, deployedUnits, tabStrip));
+
+    // The selectors are tab strip children of the Creator screen, which passes its Child for tabStrip; a view drawn without the
+    // screen (a static render) has no children and leaves them out.
 
     public static Node RenderNode(
         CreatorWorkspaceState state,
@@ -46,7 +54,8 @@ public static class CreatorView
         IReadOnlyList<TraceHop> timelineHops,
         IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null,
         string transition = "",
-        DigitalBrain.Units.DeployedSource[]? deployedUnits = null)
+        DigitalBrain.Units.DeployedSource[]? deployedUnits = null,
+        Func<string, TabStripProps, Node>? tabStrip = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -55,9 +64,9 @@ public static class CreatorView
         ArgumentNullException.ThrowIfNull(inspection);
         ArgumentNullException.ThrowIfNull(timelineHops);
 
-        var toolbar = TopToolbar(state, timelineHops);
+        var toolbar = TopToolbar(state, timelineHops, tabStrip);
         var left = LeftPane(state, topology, flows, approvals, synapses, deployedUnits);
-        var center = CenterPane(state, topology, inspection, timelineHops, flows);
+        var center = CenterPane(state, topology, inspection, timelineHops, flows, tabStrip);
         var right = CreatorInspector.Render(state, inspection, timelineHops, flows, approvals);
 
         return AppShell(
@@ -70,16 +79,16 @@ public static class CreatorView
             transition: transition);
     }
 
-    public static Node TopToolbar(CreatorWorkspaceState state, IReadOnlyList<TraceHop> timelineHops)
+    public static Node TopToolbar(CreatorWorkspaceState state, IReadOnlyList<TraceHop> timelineHops, Func<string, TabStripProps, Node>? tabStrip = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(timelineHops);
 
         var activeGraphMode = state.ShowStateGraph || state.CanvasMode == "state" ? "state" : "brain";
-        var modeSwitcher = Segmented(
-            activeGraphMode,
-            Option("brain", "Brain Graph").Key("mode-brain").Emits(AppSignals.Emit(App, "select", "mode:brain")),
-            Option("state", "Accordant State Graph").Key("mode-state").Emits(AppSignals.Emit(App, "select", "mode:state")));
+        var modeSwitcher = tabStrip?.Invoke(GraphModeKey, new TabStripProps(
+            [new("brain", "Brain Graph"), new("state", "Accordant State Graph")],
+            AutomationName: "Graph mode",
+            SelectedId: activeGraphMode));
 
         var steps = ReplayScript.Steps(timelineHops);
         var hasEvents = steps.Length > 0;
@@ -89,7 +98,8 @@ public static class CreatorView
 
         Node[] items =
         [
-            modeSwitcher,
+            // A zero spacer keeps the slider's extent index when the view is drawn without the screen.
+            modeSwitcher ?? new Spacer(0),
             Button("First", "chevrons-left")
                 .Key("replay-first")
                 .Small()
@@ -329,7 +339,8 @@ public static class CreatorView
         BrainTopology topology,
         Inspection inspection,
         IReadOnlyList<TraceHop> timelineHops,
-        FlowView[]? flows = null)
+        FlowView[]? flows = null,
+        Func<string, TabStripProps, Node>? tabStrip = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
@@ -340,7 +351,7 @@ public static class CreatorView
 
         if (state.CanvasMode == "live")
         {
-            return RenderLiveStudioPreview(state, inspection);
+            return RenderLiveStudioPreview(state, inspection, tabStrip);
         }
 
         if (state.CanvasMode == "state" || state.ShowStateGraph)
@@ -428,7 +439,7 @@ public static class CreatorView
         return false;
     }
 
-    private static Node RenderLiveStudioPreview(CreatorWorkspaceState state, Inspection inspection)
+    private static Node RenderLiveStudioPreview(CreatorWorkspaceState state, Inspection inspection, Func<string, TabStripProps, Node>? tabStrip)
     {
         if (!TryResolveLivePreviewTarget(state, inspection, out var slotUri, out var slotKind, out var openAppId, out var title))
         {
@@ -449,11 +460,10 @@ public static class CreatorView
                 .Key("preview-back-graph")
                 .Small()
                 .Emits(AppSignals.Emit(App, "select", "mode:brain")),
-            Segmented(
-                state.PreviewViewport,
-                Option("fill", "Fill").Key("vp-fill").Emits(AppSignals.Emit(App, "select", "viewport:fill")),
-                Option("720", "720px").Key("vp-720").Emits(AppSignals.Emit(App, "select", "viewport:720")),
-                Option("390", "390px").Key("vp-390").Emits(AppSignals.Emit(App, "select", "viewport:390"))),
+            tabStrip?.Invoke(ViewportKey, new TabStripProps(
+                [new("fill", "Fill"), new("720", "720px"), new("390", "390px")],
+                AutomationName: "Preview width",
+                SelectedId: state.PreviewViewport)),
             openAppId is { Length: > 0 }
                 ? new Button("studio-open-window", $"Open {openAppId} ↗", Intent: AppSignals.OpenApp(openAppId)) { Small = true, Icon = "external-link" }
                 : null

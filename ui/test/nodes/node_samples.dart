@@ -54,14 +54,6 @@ const nodeSamples = <String, Map<String, dynamic>>{
       {'kind': 'text', 'value': 'Inside'},
     ],
   },
-  'tabs': {
-    'kind': 'tabs',
-    'selectedId': 'b',
-    'items': [
-      {'key': 'tab-a', 'id': 'a', 'label': 'A', 'emit': _emit},
-      {'key': 'tab-b', 'id': 'b', 'label': 'B', 'emit': _emit},
-    ],
-  },
   'divider': {'kind': 'divider', 'label': 'or'},
   'spacer': {'kind': 'spacer', 'size': 12},
   'collection': {
@@ -90,24 +82,6 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'automationName': 'Title',
   },
   'intent': {'kind': 'intent', 'intentKind': 'Copy', 'arg': 'x'},
-  'switch': {
-    'kind': 'switch',
-    'key': 'on',
-    'label': 'Enabled',
-    'isOn': true,
-    'command': _command,
-    'locked': false,
-    'automationName': 'Enabled',
-  },
-  'select': {
-    'kind': 'select',
-    'label': 'Pick',
-    'selected': 'a',
-    'options': [
-      {'key': 'opt-a', 'id': 'a', 'label': 'A', 'emit': _emit},
-      {'key': 'opt-b', 'id': 'b', 'label': 'B', 'emit': _emit},
-    ],
-  },
   'progress': {
     'kind': 'progress',
     'label': 'Upload',

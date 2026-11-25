@@ -223,9 +223,10 @@ void main() {
       tester,
     ) async {
       await _check(tester, {
-        'kind': 'switch',
+        'kind': 'field',
         'key': 'plain',
-        'label': 'x',
+        'name': 'apps/sample/plain',
+        'fieldKind': 'Text',
         'automationName': 'x',
       });
     });
