@@ -100,7 +100,9 @@ public sealed record EngineerWorkspaceState(
     [property: Id(31)] EngineerPrCheckItem[]? LivePrChecks = null,
     [property: Id(32)] EngineerPrReviewThread[]? LivePrReviewThreads = null,
     [property: Id(33)] string? LivePrReviewSummary = null,
-    [property: Id(34)] bool LiveRepositoryConnected = false)
+    [property: Id(34)] bool LiveRepositoryConnected = false,
+    [property: Id(35)] bool BrainstormImported = false,
+    [property: Id(36)] string[]? ClosedWorktreeFolders = null)
 {
     public static readonly string[] PipelineStageIds =
     [
@@ -249,6 +251,16 @@ public sealed record EngineerWorkspaceState(
             ActiveTab = mappedTab,
             StatusBanner = $"Stage focused: {StageTitle(normalized)}",
         };
+    }
+
+    // Every worktree folder of the tree is open unless the person closed it; Engineer keeps the closed ones.
+    internal EngineerWorkspaceState SetWorktreeFolderOpen(string folderId, bool open)
+    {
+        var closed = ClosedWorktreeFolders ?? [];
+        var next = open
+            ? closed.Where(id => !string.Equals(id, folderId, StringComparison.Ordinal)).ToArray()
+            : closed.Contains(folderId, StringComparer.Ordinal) ? closed : [.. closed, folderId];
+        return this with { ClosedWorktreeFolders = next };
     }
 
     public EngineerWorkspaceState ToggleViewportPeek()

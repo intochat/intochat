@@ -394,6 +394,8 @@ public sealed class NavigationLifecycleFacts
             IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.RegisterCatalog();
+        // Engineer mounts the UI module's control neurons as its children and follows their signals.
+        os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         os.Register(typeof(EngineerApp).Assembly);
         os.Register<NavSampleScreen>();
 

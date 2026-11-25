@@ -13,8 +13,6 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -181,13 +179,12 @@ public sealed class EngineerDogfoodJourneys
         // Nothing is pushed to bare origin before the human owner approves the SHA-bound plan.
         Assert.Equal(string.Empty, RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
 
-        // Sync EngineerApp with the live waiting flow and verify its UI neurons reflect the active pipeline.
+        // Sync EngineerApp with the live waiting flow: its tab strip follows the review stage and its worktree tree holds both candidates.
         await engineerScreen.Request(new EngineerOpen(FlowId: flowId));
         await os.Idle();
-        var engStepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
-        var engTree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
-        Assert.Equal("review-and-pr", (await engStepper.Read()).ActiveStepId);
-        Assert.True((await engTree.Read()).Nodes.Length >= 4);
+        var engineerView = (await engineerScreen.Read())!.View;
+        Assert.Equal("pr", ChildProps(engineerView, EngineerApp.TabsKey).GetProperty("selectedId").GetString());
+        Assert.True(ChildProps(engineerView, EngineerApp.WorktreesKey).GetProperty("nodes").GetArrayLength() >= 4);
 
         // 3. Open app.creator in the SAME brain, inspect the live flow & causal signal trace, and time-travel with CreatorReplay + its state tab!
         var creatorId = new NeuronId(brain, "app.creator", "default");
@@ -297,11 +294,11 @@ public sealed class EngineerDogfoodJourneys
         await engineerScreen.Request(new EngineerOpen(FlowId: flowId));
         await creatorScreen.Request(new CreatorOpen());
         await os.Idle();
-        Assert.All((await engStepper.Read()).Steps, static step => Assert.Equal(StepperStatuses.Done, step.Status));
+        Assert.Contains("Draft PR Published", (await engineerScreen.Read())!.View.GetRawText(), StringComparison.Ordinal);
         Assert.Empty(await inbox.Read() is var finalInbox ? finalInbox.Pending : []);
     }
 
-    // The props Creator drew on its child `key` in a published view.
+    // The props Creator or Engineer drew on its child `key` in a published view.
     private static JsonElement ChildProps(JsonElement view, string key)
         => Nodes(view).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
             && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))

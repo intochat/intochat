@@ -12,11 +12,6 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -184,37 +179,32 @@ public sealed class EngineerTournamentJourneys
         await engineerScreen.Request(new EngineerOpen(Tab: "pr", FlowId: flowId));
         await os.Idle();
 
-        var engStepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
-        var engTree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
-        var engTabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
-        var engEditor = os.Get<ICodeEditor>(new NeuronId(brain, "ui.code-editor", EngineerApp.CodeEditorKey));
-        var engTable = os.Get<ITable>(new NeuronId(brain, "ui.table", EngineerApp.TasksTableKey));
+        var opened = (await engineerScreen.Read())!;
+        Assert.Equal("pr", EngineerChild<TabStripProps>(opened, EngineerApp.TabsKey).SelectedId);
+        Assert.Equal(2, EngineerChild<TreeProps>(opened, EngineerApp.WorktreesKey).Nodes.Count(static n => n.IsFolder));
 
-        Assert.Equal("review-and-pr", (await engStepper.Read()).ActiveStepId);
-        Assert.Equal("pr", (await engTabs.Read()).SelectedId);
-        Assert.Equal(2, (await engTree.Read()).Nodes.Count(static n => n.IsFolder));
-
-        var editorBefore = (await engEditor.Read()).Content;
+        var editorBefore = EngineerCode(opened);
         Assert.Contains(shaW1, editorBefore, StringComparison.Ordinal);
         Assert.DoesNotContain("ClampNonNegative", editorBefore, StringComparison.Ordinal);
 
-        var scoreboardBefore = await engTable.Read();
-        Assert.Contains(scoreboardBefore.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
-        Assert.Contains(scoreboardBefore.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
+        var scoreboardBefore = EngineerChild<QueryTableProps>(opened, EngineerApp.TableKey).Rows!;
+        Assert.Contains(scoreboardBefore, static r => r.Id == "w1" && r.Cells[4].Contains("SELECTED", StringComparison.Ordinal));
+        Assert.Contains(scoreboardBefore, static r => r.Id == "w2" && r.Cells[4].Contains("STANDBY", StringComparison.Ordinal));
 
         // Promote Candidate w2 by clicking 'Select Candidate w2' ('engineer:candidate:select:2') on EngineerApp!
         var liveView = (await engineerScreen.Read())!;
         await engineerScreen.Click(EngineerApp.CandidateSelectKey(1));
         await os.Idle();
 
-        // Verify EngineerApp switched ICodeEditor to w2's diff and updated ITable scoreboard to mark w2 SELECTED!
-        var editorAfter = (await engEditor.Read()).Content;
+        // Verify EngineerApp switched its code block to w2's diff and its scoreboard table marks w2 SELECTED!
+        var promoted = (await engineerScreen.Read())!;
+        var editorAfter = EngineerCode(promoted);
         Assert.Contains(shaW2, editorAfter, StringComparison.Ordinal);
         Assert.Contains("ClampNonNegative", editorAfter, StringComparison.Ordinal);
 
-        var scoreboardAfter = await engTable.Read();
-        Assert.Contains(scoreboardAfter.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
-        Assert.Contains(scoreboardAfter.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
+        var scoreboardAfter = EngineerChild<QueryTableProps>(promoted, EngineerApp.TableKey).Rows!;
+        Assert.Contains(scoreboardAfter, static r => r.Id == "w2" && r.Cells[4].Contains("SELECTED", StringComparison.Ordinal));
+        Assert.Contains(scoreboardAfter, static r => r.Id == "w1" && r.Cells[4].Contains("STANDBY", StringComparison.Ordinal));
 
         // Verify flow.engineer re-bound its SHA-locked confirmation plan from shaW1 -> shaW2 and withdrew initialPlanId!
         var afterPromotion = await runs.InspectEngineerRun(flowId, Ct);
@@ -282,6 +272,24 @@ public sealed class EngineerTournamentJourneys
 
         Assert.Empty((await inbox.Read()).Pending);
     }
+
+    // The props Engineer drew on its child `key` in a published view.
+    private static T EngineerChild<T>(DigitalBrain.Units.PublishedView view, string key)
+        => EngineerNodes(view.View).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
+                && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+            .GetProperty("props").Deserialize<T>(JsonSerializerOptions.Web)!;
+
+    // The text of the code block Engineer's Changes & Diff and PR tabs draw.
+    private static string EngineerCode(DigitalBrain.Units.PublishedView view)
+        => EngineerNodes(view.View).Single(n => n.TryGetProperty("surfaceKind", out var kind) && kind.GetString()!.StartsWith("code:", StringComparison.Ordinal))
+            .GetProperty("subtitle").GetString()!;
+
+    private static IEnumerable<JsonElement> EngineerNodes(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Object => [element, .. element.EnumerateObject().SelectMany(property => EngineerNodes(property.Value))],
+        JsonValueKind.Array => element.EnumerateArray().SelectMany(EngineerNodes),
+        _ => [],
+    };
 
     private static (string BareOrigin, string SourceRepo, string WorkTreeHome, string VolumeRoot) SeedCompilableGitRepository(string baseDir)
     {
