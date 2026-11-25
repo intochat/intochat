@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
@@ -286,14 +285,8 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         Assert.Contains($"approval-{planId}", await stillPending.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
         using var personApprove = await host.Http.PostAsJsonAsync(
-            $"/brains/{host.Scope}/apps/event",
-            new
-            {
-                kind = "confirmation",
-                name = IConfirmationInbox.Key(host.Scope),
-                planId,
-                approve = true,
-            },
+            $"/brains/{host.Scope}/confirmations/{Uri.EscapeDataString(planId)}",
+            new { approve = true },
             Ct);
         Assert.Equal(HttpStatusCode.OK, personApprove.StatusCode);
 

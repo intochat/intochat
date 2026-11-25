@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -634,23 +633,26 @@ class _ViewHostState extends State<ViewHost> {
           connection: '${data['connection'] ?? ''}',
           error: '${data['error'] ?? ''}',
           actualUrl: '${data['actualUrl'] ?? ''}',
+          // Browser reports go to the brain's browser routes
+          // (IntoChatOSUiClient.webBrowser), not to the UI event route.
           onConnect: (port, sessionId) => send({
             'kind': 'webbrowser',
-            'name': widget.name,
             'action': 'connect',
-            'value': jsonEncode({'port': port, 'sessionId': sessionId}),
+            'name': widget.name,
+            'port': port,
+            'sessionId': sessionId,
           }),
           onDisconnect: (sessionId) => send({
             'kind': 'webbrowser',
-            'name': widget.name,
             'action': 'disconnect',
-            'value': jsonEncode({'sessionId': sessionId}),
+            'name': widget.name,
+            'sessionId': sessionId,
           }),
           onUnavailable: (reason) => send({
             'kind': 'webbrowser',
-            'name': widget.name,
             'action': 'unavailable',
-            'value': reason,
+            'name': widget.name,
+            'reason': reason,
           }),
         );
     }

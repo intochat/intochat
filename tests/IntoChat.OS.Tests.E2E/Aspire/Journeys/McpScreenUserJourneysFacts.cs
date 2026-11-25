@@ -144,15 +144,9 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         }
 
         // Approve the staged unit install through the human presence-proved HTTP edge.
-        using (var personApproveReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{McpScope}/apps/event")
+        using (var personApproveReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{McpScope}/confirmations/{Uri.EscapeDataString(installApprovalId!)}")
         {
-            Content = System.Net.Http.Json.JsonContent.Create(new
-            {
-                kind = "confirmation",
-                name = $"{McpScope}/{DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey}",
-                planId = installApprovalId!,
-                approve = true,
-            }),
+            Content = System.Net.Http.Json.JsonContent.Create(new { approve = true }),
         })
         {
             using var personApproveRes = await host.Os.SendAsync(personApproveReq, ct);

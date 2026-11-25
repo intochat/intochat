@@ -432,7 +432,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(events.single, {
       'kind': 'confirmation',
-      'name': 'local/confirmations',
       'planId': 'plan-1',
       'approve': true,
     });

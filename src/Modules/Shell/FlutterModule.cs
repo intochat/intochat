@@ -43,6 +43,8 @@ public sealed class FlutterModule : DigitalBrain.Modules.Module, IHttpModule
         BrainEventsEndpoints.Map(endpoints);
         Workspace.UnitReadEndpoints.Map(endpoints);
         AppUiEndpoints.Map(endpoints);
+        ConfirmationEndpoints.Map(endpoints);
+        WebBrowser.WebBrowserEndpoints.Map(endpoints);
         Settings.NotificationPreferenceEndpoints.Map(endpoints);
         Settings.WorkspacePreferenceEndpoints.Map(endpoints);
         Settings.ChatEndpoints.Map(endpoints);

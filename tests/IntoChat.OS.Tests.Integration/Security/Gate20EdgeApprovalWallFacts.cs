@@ -146,15 +146,9 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
         // -----------------------------------------------------------------------------------------
         // Attack 1: Forged X-IntoChat-Presence header -> rejected at HTTP edge with 401 Unauthorized
         // -----------------------------------------------------------------------------------------
-        using (var forgedReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
+        using (var forgedReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/confirmations/{Uri.EscapeDataString(planId)}")
         {
-            Content = JsonContent.Create(new
-            {
-                kind = "confirmation",
-                name = inboxKey,
-                planId,
-                approve = true,
-            }),
+            Content = JsonContent.Create(new { approve = true }),
         })
         {
             forgedReq.Headers.Add(PresenceProof.HeaderName, "forged-token-value-12345678901234567890");
@@ -166,17 +160,11 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
 
         // -----------------------------------------------------------------------------------------
         // Attack 2: Unproved loopback HTTP caller (no X-IntoChat-Presence -> rejected 401 at edge)
-        // Attempt via both /apps/event and /screens/approvals/{id}
+        // Attempt via both /confirmations/{planId} and /screens/approvals/{id}
         // -----------------------------------------------------------------------------------------
         using (var unprovedEventRes = await host.Client.PostAsJsonAsync(
-            $"/brains/{scope}/apps/event",
-            new
-            {
-                kind = "confirmation",
-                name = inboxKey,
-                planId,
-                approve = true,
-            },
+            $"/brains/{scope}/confirmations/{Uri.EscapeDataString(planId)}",
+            new { approve = true },
             Ct))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, unprovedEventRes.StatusCode);
@@ -280,15 +268,9 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
         // -----------------------------------------------------------------------------------------
         // Legitimate Person Approval: HTTP caller with valid X-IntoChat-Presence approves in 1 call!
         // -----------------------------------------------------------------------------------------
-        using (var personReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
+        using (var personReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/confirmations/{Uri.EscapeDataString(planId)}")
         {
-            Content = JsonContent.Create(new
-            {
-                kind = "confirmation",
-                name = inboxKey,
-                planId,
-                approve = true,
-            }),
+            Content = JsonContent.Create(new { approve = true }),
         })
         {
             personReq.Headers.Add(PresenceProof.HeaderName, host.PresenceToken);
@@ -346,9 +328,9 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
             cookiePair = setCookie.Split(';', 2)[0];
         }
 
-        using (var crossOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
+        using (var crossOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/confirmations/{Uri.EscapeDataString(webPlanId)}")
         {
-            Content = JsonContent.Create(new { kind = "confirmation", name = inboxKey, planId = webPlanId, approve = true }),
+            Content = JsonContent.Create(new { approve = true }),
         })
         {
             crossOriginCookieReq.Headers.Add("Cookie", cookiePair);
@@ -359,9 +341,9 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
 
         Assert.True(await IsPendingAsync(host.Services, scope, webPlanId));
 
-        using (var sameOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
+        using (var sameOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/confirmations/{Uri.EscapeDataString(webPlanId)}")
         {
-            Content = JsonContent.Create(new { kind = "confirmation", name = inboxKey, planId = webPlanId, approve = true }),
+            Content = JsonContent.Create(new { approve = true }),
         })
         {
             sameOriginCookieReq.Headers.Add("Cookie", cookiePair);

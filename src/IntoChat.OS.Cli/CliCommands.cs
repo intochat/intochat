@@ -93,9 +93,9 @@ public static class CliCommands
         if (options.Arguments is not [var plan, ..]) { return await Fail(error, $"{options.Verb}: which plan id?", 2); }
         using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
         http.BaseAddress = options.Base;
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/brains/{Uri.EscapeDataString(options.Brain)}/apps/event")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/brains/{Uri.EscapeDataString(options.Brain)}/confirmations/{string.Join('/', plan.Split('/').Select(Uri.EscapeDataString))}")
         {
-            Content = JsonContent.Create(new { kind = "confirmation", name = $"{options.Brain}/confirmations", planId = plan, approve }),
+            Content = JsonContent.Create(new { approve }),
         };
         foreach (var (name, value) in options.Proof?.Headers() ?? []) { request.Headers.TryAddWithoutValidation(name, value); }
         request.Headers.Add("Origin", options.Base.GetLeftPart(UriPartial.Authority));
