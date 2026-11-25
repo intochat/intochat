@@ -42,60 +42,48 @@ public sealed partial class CiWorkflowFacts
         var lint = Job(ci, "lint-and-security");
         Assert.Contains("gitleaks", lint, StringComparison.Ordinal);
 
-        // Single compilation in build job
-        var build = Job(ci, "build");
+        // Single compilation + architecture & unit tiers in build-and-unit job
+        var build = Job(ci, "build-and-unit");
         Assert.Contains("dotnet build Intochat.OS.slnx", build, StringComparison.Ordinal);
         Assert.Contains("upload-artifact", build, StringComparison.Ordinal);
+        Assert.Contains(".Architecture.Tests.Unit.dll", build, StringComparison.Ordinal);
+        Assert.Contains(".Tests.Unit.dll", build, StringComparison.Ordinal);
 
-        // Test jobs run directly on compiled artifacts via MTP --test-modules
-        var testUnit = Job(ci, "test-unit");
-        Assert.Contains("needs: [build]", testUnit, StringComparison.Ordinal);
-        Assert.Contains("--test-modules", testUnit, StringComparison.Ordinal);
-        Assert.Contains("download-artifact", testUnit, StringComparison.Ordinal);
-
-        var testArch = Job(ci, "test-architecture");
-        Assert.Contains("needs: [build]", testArch, StringComparison.Ordinal);
-        Assert.Contains("--test-modules", testArch, StringComparison.Ordinal);
-        Assert.Contains("download-artifact", testArch, StringComparison.Ordinal);
-
+        // Integration & E2E test jobs run directly on compiled artifacts via MTP --test-modules
         var testIntegrationOs = Job(ci, "test-integration-os");
-        Assert.Contains("needs: [build]", testIntegrationOs, StringComparison.Ordinal);
+        Assert.Contains("build-and-unit", Needs(testIntegrationOs));
         Assert.Contains("--test-modules", testIntegrationOs, StringComparison.Ordinal);
+        Assert.Contains("download-artifact", testIntegrationOs, StringComparison.Ordinal);
         Assert.Contains("azurite", testIntegrationOs, StringComparison.Ordinal);
         Assert.Contains("postgres:16", testIntegrationOs, StringComparison.Ordinal);
 
-        var testIntegrationFramework = Job(ci, "test-integration-framework");
-        Assert.Contains("needs: [build]", testIntegrationFramework, StringComparison.Ordinal);
-        Assert.Contains("--test-modules", testIntegrationFramework, StringComparison.Ordinal);
-        Assert.Contains("azurite", testIntegrationFramework, StringComparison.Ordinal);
+        var testFramework = Job(ci, "test-framework");
+        Assert.Contains("build-and-unit", Needs(testFramework));
+        Assert.Contains("--test-modules", testFramework, StringComparison.Ordinal);
+        Assert.Contains("download-artifact", testFramework, StringComparison.Ordinal);
+        Assert.Contains("azurite", testFramework, StringComparison.Ordinal);
+        Assert.Contains("DigitalBrain*.Tests.Integration.dll", testFramework, StringComparison.Ordinal);
+        Assert.Contains("DigitalBrain.Framework.Tests.E2E.dll", testFramework, StringComparison.Ordinal);
 
         var e2eOs = Job(ci, "e2e-os");
-        Assert.Contains("needs: [build]", e2eOs, StringComparison.Ordinal);
+        Assert.Contains("build-and-unit", Needs(e2eOs));
         Assert.Contains("--test-modules", e2eOs, StringComparison.Ordinal);
         Assert.Contains("IntoChat.OS.Tests.E2E.dll", e2eOs, StringComparison.Ordinal);
         Assert.DoesNotContain("--filter-trait \"needs=artcraft\"", e2eOs, StringComparison.Ordinal);
-
-        var e2eFramework = Job(ci, "e2e-framework");
-        Assert.Contains("needs: [build]", e2eFramework, StringComparison.Ordinal);
-        Assert.Contains("--test-modules", e2eFramework, StringComparison.Ordinal);
-        Assert.Contains("DigitalBrain.Framework.Tests.E2E.dll", e2eFramework, StringComparison.Ordinal);
 
         var flutter = Job(ci, "flutter");
         Assert.Contains("flutter test", flutter, StringComparison.Ordinal);
 
         // Gating ci job needs all parallel jobs
         var gatingCi = Job(ci, "ci");
-        var needsMatch = Regex.Match(gatingCi, @"(?m)^\s*needs:\s*\[(?<list>[^\]]*)\]");
-        Assert.True(needsMatch.Success, "ci job must list its needs inline");
-        var needs = needsMatch.Groups["list"].Value.Split(',').Select(n => n.Trim()).ToArray();
+        var needs = Needs(gatingCi);
+        Assert.NotEmpty(needs);
+        Assert.Contains("changes", needs);
         Assert.Contains("lint-and-security", needs);
-        Assert.Contains("build", needs);
-        Assert.Contains("test-architecture", needs);
-        Assert.Contains("test-unit", needs);
+        Assert.Contains("build-and-unit", needs);
         Assert.Contains("test-integration-os", needs);
-        Assert.Contains("test-integration-framework", needs);
+        Assert.Contains("test-framework", needs);
         Assert.Contains("e2e-os", needs);
-        Assert.Contains("e2e-framework", needs);
         Assert.Contains("flutter", needs);
     }
 
@@ -103,9 +91,8 @@ public sealed partial class CiWorkflowFacts
     // A service container cannot pass that argument, so every job that uses Azurite starts it with docker run.
     [Theory]
     [InlineData("test-integration-os")]
-    [InlineData("test-integration-framework")]
+    [InlineData("test-framework")]
     [InlineData("e2e-os")]
-    [InlineData("e2e-framework")]
     public void EveryJobThatUsesAzuriteStartsItWithTheApiVersionCheckSkipped(string jobName)
     {
         var job = Job(Workflow("ci.yml"), jobName);
