@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
@@ -13,11 +15,13 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Devices.Link;
 
-// Background service on the PC: advertises Ready local models, long-polls GET /circle/v1/compute/next,
-// executes text-only chat jobs on the local ILocalRuntime, and streams NDJSON chunks back.
+// Background service on the PC: advertises Ready local models and local sandbox compute capability + heartbeats,
+// long-polls GET /circle/v1/compute/next, executes text-only chat jobs on the local ILocalRuntime,
+// and executes scoped Plane 1 sandbox jobs on the local IntoChat.OS.Sandbox (--unit-host).
 internal sealed class DeviceWorker(
     CloudClient cloud,
     DeviceCredentials credentials,
@@ -26,7 +30,10 @@ internal sealed class DeviceWorker(
     ILogger<DeviceWorker> logger,
     TimeProvider? clock = null,
     Func<string>? deviceNameProvider = null,
-    IServiceProvider? services = null) : BackgroundService
+    IServiceProvider? services = null,
+    IOptionsMonitor<DevicesOptions>? options = null,
+    IConnectedComputeRouter? computeRouter = null,
+    ILocalSandboxExecutor? localSandbox = null) : BackgroundService
 {
     private static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Devices");
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
@@ -38,6 +45,10 @@ internal sealed class DeviceWorker(
 
     private volatile bool _modelsDirty = true;
     private bool _reportedOnce;
+    private bool _computeReportedOnce;
+    private bool _lastAdvertisedSandboxReady;
+    private ComputeConsentMode _lastAdvertisedConsentMode = ComputeConsentMode.AutoAll;
+    private DateTimeOffset _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
 
     internal void NotifyInstallChanged(InstallChanged signal)
     {
@@ -97,16 +108,28 @@ internal sealed class DeviceWorker(
         }
     }
 
-    // One deterministic cycle: ensure Ready models are reported, poll one job, and stream its answer if present.
+    // One deterministic cycle: ensure Ready models and compute capability heartbeat are reported,
+    // poll one chat job (and scoped sandbox job if a local sandbox executor is attached), and report answers.
     internal async Task Tick(CancellationToken ct = default)
     {
-        if (await credentials.Read(ct).ConfigureAwait(false) is null)
+        var secrets = await credentials.Read(ct).ConfigureAwait(false);
+        if (secrets is null)
         {
             ResetAdvertised();
             return;
         }
 
         await ReportReadyModelsIfNeededAsync(ct).ConfigureAwait(false);
+        await ReportComputeCapabilityIfNeededAsync(secrets, ct).ConfigureAwait(false);
+
+        if (localSandbox is not null)
+        {
+            var sandboxJob = await cloud.PollNextSandboxAsync(ct).ConfigureAwait(false);
+            if (sandboxJob is not null)
+            {
+                await ExecuteSandboxJobAsync(sandboxJob, ct).ConfigureAwait(false);
+            }
+        }
 
         var job = await cloud.PollNextAsync(ct).ConfigureAwait(false);
         if (job is null)
@@ -115,6 +138,113 @@ internal sealed class DeviceWorker(
         }
 
         await ExecuteJobAsync(job, ct).ConfigureAwait(false);
+    }
+
+    internal ComputeCapabilityAdvertisement BuildComputeCapabilityAdvertisement(LinkSecrets secrets)
+    {
+        var compute = CurrentComputeOptions();
+        var sandboxReady = compute.SandboxEnabled && compute.ConsentMode == ComputeConsentMode.AutoAll;
+        return new ComputeCapabilityAdvertisement(
+            MachineId: thisMachine.Value,
+            DeviceName: DeviceName(),
+            ConsentMode: compute.ConsentMode,
+            SandboxReady: sandboxReady,
+            SandboxRuntime: "unit-host",
+            OsDescription: RuntimeInformation.OSDescription,
+            MaxConcurrency: compute.MaxConcurrency,
+            HeartbeatAt: _clock.GetUtcNow(),
+            KeyThumbprint: ComputeKeyThumbprint(secrets.PrivateKeyPkcs8));
+    }
+
+    private async Task ReportComputeCapabilityIfNeededAsync(LinkSecrets secrets, CancellationToken ct)
+    {
+        var compute = CurrentComputeOptions();
+        var now = _clock.GetUtcNow();
+        var interval = TimeSpan.FromSeconds(Math.Clamp(compute.HeartbeatIntervalSeconds, 1, 300));
+        var sandboxReady = compute.SandboxEnabled && compute.ConsentMode == ComputeConsentMode.AutoAll;
+
+        var stateChanged = !_computeReportedOnce
+            || _lastAdvertisedSandboxReady != sandboxReady
+            || _lastAdvertisedConsentMode != compute.ConsentMode;
+        var heartbeatDue = now - _lastComputeHeartbeatAt >= interval;
+
+        if (!stateChanged && !heartbeatDue)
+        {
+            return;
+        }
+
+        // Only advertise ready capability when ConsentMode is AutoAll (or advertise readiness=false when transitioning off).
+        if (!sandboxReady && !_lastAdvertisedSandboxReady && _computeReportedOnce)
+        {
+            _lastComputeHeartbeatAt = now;
+            return;
+        }
+
+        var advertisement = BuildComputeCapabilityAdvertisement(secrets);
+        await cloud.ReportComputeCapabilityAsync(advertisement, ct).ConfigureAwait(false);
+
+        if (computeRouter is not null)
+        {
+            var ownerBrain = new BrainId(IntoChatOSNames.DefaultOwnerBrainId);
+            if (sandboxReady)
+            {
+                await computeRouter.RecordHeartbeatAsync(ownerBrain, advertisement, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                await computeRouter.MarkOfflineAsync(ownerBrain, thisMachine.Value, ct).ConfigureAwait(false);
+            }
+        }
+
+        _computeReportedOnce = true;
+        _lastAdvertisedSandboxReady = sandboxReady;
+        _lastAdvertisedConsentMode = compute.ConsentMode;
+        _lastComputeHeartbeatAt = now;
+    }
+
+    private async Task ExecuteSandboxJobAsync(ConnectedSandboxRequest job, CancellationToken ct)
+    {
+        var compute = CurrentComputeOptions();
+        if (!compute.SandboxEnabled || compute.ConsentMode != ComputeConsentMode.AutoAll)
+        {
+            logger.LogInformation("Refused connected sandbox job {JobId}: local compute consent mode is {ConsentMode}.", job.JobId, compute.ConsentMode);
+            await cloud.ReportSandboxResultAsync(
+                job.JobId,
+                new ConnectedSandboxResponse(
+                    Handled: false,
+                    ResultJson: null,
+                    UpdatedStateJson: null,
+                    Error: "consent-disabled",
+                    ExecutedByMachineId: thisMachine.Value),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        ConnectedSandboxResponse response;
+        try
+        {
+            response = await localSandbox!.ExecuteAsync(job, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(response.ExecutedByMachineId))
+            {
+                response = response with { ExecutedByMachineId = thisMachine.Value };
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            logger.LogWarning(error, "Local UnitHost sandbox job {JobId} failed with {ErrorType}.", job.JobId, error.GetType().Name);
+            response = new ConnectedSandboxResponse(
+                Handled: false,
+                ResultJson: null,
+                UpdatedStateJson: null,
+                Error: error.Message,
+                ExecutedByMachineId: thisMachine.Value);
+        }
+
+        await cloud.ReportSandboxResultAsync(job.JobId, response, ct).ConfigureAwait(false);
     }
 
     private async Task ReportReadyModelsIfNeededAsync(CancellationToken ct)
@@ -311,6 +441,24 @@ internal sealed class DeviceWorker(
         _advertised.Clear();
         _reportedOnce = false;
         _modelsDirty = true;
+        _computeReportedOnce = false;
+        _lastAdvertisedSandboxReady = false;
+        _lastComputeHeartbeatAt = DateTimeOffset.MinValue;
+    }
+
+    private ComputeCapabilityOptions CurrentComputeOptions()
+        => options?.CurrentValue.Compute ?? new ComputeCapabilityOptions();
+
+    private static string? ComputeKeyThumbprint(byte[]? pkcs8)
+    {
+        if (pkcs8 is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        using var key = ECDsa.Create();
+        key.ImportPkcs8PrivateKey(pkcs8, out _);
+        return DeviceKeys.Thumbprint(key.ExportSubjectPublicKeyInfo());
     }
 
     private async Task PersistRevokedStatusBestEffortAsync()

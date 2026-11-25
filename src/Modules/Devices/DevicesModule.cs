@@ -100,6 +100,18 @@ public sealed class DevicesModule : DigitalBrain.Modules.Module, IHttpModule
             sp.GetRequiredService<DeviceCredentials>(),
             sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
             sp.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<IConnectedComputeTransport>(static sp => new RelayConnectedComputeTransport(
+            sp.GetRequiredService<CloudClient>(),
+            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetService<IOptionsMonitor<DevicesOptions>>()));
+        services.TryAddSingleton<IConnectedComputeRouter>(static sp => new ConnectedComputeRouter(
+            sp.GetRequiredService<CloudClient>(),
+            sp.GetRequiredService<DeviceCredentials>(),
+            sp.GetRequiredService<DigitalBrain.Identity.Local.Machine.MachineId>(),
+            sp.GetService<IOptionsMonitor<DevicesOptions>>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetService<IConnectedComputeTransport>(),
+            sp.GetService<Microsoft.Extensions.Logging.ILogger<ConnectedComputeRouter>>()));
         services.TryAddSingleton<IHardwareProbe, HardwareProbe>();
         services.TryAddSingleton<DeviceInstaller>();
         services.AddHostedService(static sp => sp.GetRequiredService<DeviceInstaller>());

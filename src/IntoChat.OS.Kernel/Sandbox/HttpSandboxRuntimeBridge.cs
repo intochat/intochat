@@ -6,11 +6,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.Identity.Local.Machine;
 using DigitalBrain.Invocation;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -24,17 +26,20 @@ using IntoChat.OS.Host.Execution;
 namespace IntoChat.OS.Kernel.Sandbox;
 
 /// <summary>
-/// Runtime bridge between <see cref="AppNeuron"/> and the isolated <c>IntoChat.OS.Sandbox</c> worker.
-/// Routes to the remote Docker worker when <see cref="SandboxOptions.Url"/> is configured, and
-/// executes out-of-process in an environment-scrubbed <c>IntoChat.OS.Sandbox --unit-host</c> child
-/// process over NDJSON stdio pipes otherwise.
+/// Runtime bridge between <see cref="AppNeuron"/> / <c>CodeOrchestrationSynapse</c> and the isolated
+/// <c>IntoChat.OS.Sandbox</c> worker. For scoped single-shot code orchestration, prefers an owner's online
+/// <see cref="ComputeConsentMode.AutoAll"/> connected local client via <see cref="IConnectedComputeRouter"/>
+/// (&lt;500 ms unavailability detection), transparently falling back to the cloud Container App when
+/// <see cref="SandboxOptions.Url"/> is configured or an environment-scrubbed local
+/// <c>IntoChat.OS.Sandbox --unit-host</c> child process over NDJSON stdio pipes otherwise.
 /// </summary>
 internal sealed partial class HttpSandboxRuntimeBridge(
     IHttpClientFactory httpClientFactory,
     IOptions<SandboxOptions> options,
     AppTokenService tokens,
     IServiceProvider services,
-    ILogger<HttpSandboxRuntimeBridge> logger) : ISandboxRuntimeBridge, IAsyncDisposable
+    ILogger<HttpSandboxRuntimeBridge> logger,
+    IConnectedComputeRouter? connectedComputeRouter = null) : ISandboxRuntimeBridge, ILocalSandboxExecutor, IAsyncDisposable
 {
     private const int MaxWorkerAttempts = 20;
 
@@ -68,6 +73,192 @@ internal sealed partial class HttpSandboxRuntimeBridge(
     {
         ArgumentNullException.ThrowIfNull(allowedContracts);
         return DeployPackageCoreAsync(brainId, package, assemblyBytes, stateJson, settingsJson, allowedContracts, cancellationToken);
+    }
+
+    public async Task<SandboxDispatchResult> ExecuteScopedCommandAsync(
+        BrainId brainId,
+        AppPackage package,
+        byte[] assemblyBytes,
+        string command,
+        string? payloadJson,
+        IReadOnlyList<string> allowedContracts,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId.Value);
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(assemblyBytes);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command);
+        ArgumentNullException.ThrowIfNull(allowedContracts);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var normalizedScope = IntoChat.OS.Host.Surface.NeuronContractDiscovery.NormalizeScopeList(allowedContracts);
+        var router = connectedComputeRouter ?? services.GetService<IConnectedComputeRouter>();
+        if (router is not null)
+        {
+            var scopedToken = tokens.IssueScoped(brainId, package.Key, normalizedScope);
+            var kernelCallbackUrl = ResolveKernelCallbackUrl();
+            var remoteRequest = new ConnectedSandboxRequest(
+                JobId: NewFrameId(),
+                BrainId: brainId.Value,
+                AppKey: package.Key,
+                Version: package.Version,
+                Digest: package.Digest,
+                AssemblyBase64: Convert.ToBase64String(assemblyBytes),
+                Command: command,
+                PayloadJson: payloadJson,
+                StateJson: null,
+                SettingsJson: null,
+                KernelCallbackUrl: kernelCallbackUrl,
+                AppToken: scopedToken,
+                AllowedContracts: normalizedScope);
+
+            var remoteResponse = await router
+                .TryExecuteOnConnectedClientAsync(brainId, remoteRequest, cancellationToken)
+                .ConfigureAwait(false);
+            if (remoteResponse is not null)
+            {
+                logger.LogInformation(
+                    "Executed scoped sandbox command '{Command}' for '{BrainId}/{AppKey}' on connected client '{MachineId}'.",
+                    command,
+                    brainId.Value,
+                    package.Key,
+                    remoteResponse.ExecutedByMachineId ?? "unknown");
+                return new SandboxDispatchResult(
+                    remoteResponse.Handled,
+                    remoteResponse.ResultJson,
+                    remoteResponse.UpdatedStateJson,
+                    UpdatedView: null,
+                    remoteResponse.Error,
+                    ExecutionTarget: "connected-client",
+                    ExecutedByMachineId: remoteResponse.ExecutedByMachineId);
+            }
+
+            logger.LogDebug(
+                "No online AutoAll connected client answered within availability budget for '{BrainId}/{AppKey}'; falling back to {FallbackTarget}.",
+                brainId.Value,
+                package.Key,
+                string.IsNullOrWhiteSpace(options.Value.Url) ? "local-unit-host" : "cloud-sandbox");
+        }
+
+        await DeployScopedPackageAsync(
+            brainId,
+            package,
+            assemblyBytes,
+            stateJson: null,
+            settingsJson: null,
+            allowedContracts: normalizedScope,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var result = await DispatchCommandAsync(
+                brainId.Value,
+                package.Key,
+                command,
+                payloadJson,
+                cancellationToken).ConfigureAwait(false);
+            var fallbackTarget = string.IsNullOrWhiteSpace(options.Value.Url)
+                ? "local-unit-host"
+                : "cloud-sandbox";
+            return result with { ExecutionTarget = fallbackTarget, ExecutedByMachineId = null };
+        }
+        finally
+        {
+            await UnloadAsync(brainId.Value, package.Key, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    async Task<ConnectedSandboxResponse> ILocalSandboxExecutor.ExecuteAsync(
+        ConnectedSandboxRequest request,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.BrainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.AppKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Command);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.AppToken);
+        ct.ThrowIfCancellationRequested();
+
+        var machineId = services.GetService<MachineId>()?.Value;
+        var deployFrame = await SendToUnitHostAsync(
+            new UnitHostFrameRequest(
+                Id: NewFrameId(),
+                Op: "deploy",
+                Deploy: new DeployWorkerRequest(
+                    request.BrainId,
+                    request.AppKey,
+                    request.Version,
+                    request.Digest,
+                    request.AssemblyBase64,
+                    request.StateJson,
+                    request.SettingsJson,
+                    request.KernelCallbackUrl,
+                    request.AppToken)),
+            ct).ConfigureAwait(false);
+
+        if (!deployFrame.Ok || deployFrame.Deploy is null)
+        {
+            return new ConnectedSandboxResponse(
+                Handled: false,
+                ResultJson: null,
+                UpdatedStateJson: null,
+                Error: deployFrame.Error ?? "Local --unit-host deploy failed.",
+                ExecutedByMachineId: machineId);
+        }
+
+        try
+        {
+            var dispatchFrame = await SendToUnitHostAsync(
+                new UnitHostFrameRequest(
+                    Id: NewFrameId(),
+                    Op: "dispatch",
+                    Dispatch: new DispatchWorkerRequest(
+                        request.BrainId,
+                        request.AppKey,
+                        Kind: "command",
+                        Name: request.Command,
+                        PayloadJson: request.PayloadJson,
+                        StateJson: deployFrame.Deploy.StateJson ?? request.StateJson,
+                        SettingsJson: request.SettingsJson,
+                        KernelUrl: request.KernelCallbackUrl,
+                        AppToken: request.AppToken)),
+                ct).ConfigureAwait(false);
+
+            if (!dispatchFrame.Ok || dispatchFrame.Dispatch is null)
+            {
+                return new ConnectedSandboxResponse(
+                    Handled: false,
+                    ResultJson: null,
+                    UpdatedStateJson: null,
+                    Error: dispatchFrame.Error ?? "Local --unit-host dispatch failed.",
+                    ExecutedByMachineId: machineId);
+            }
+
+            return new ConnectedSandboxResponse(
+                Handled: dispatchFrame.Dispatch.Handled,
+                ResultJson: dispatchFrame.Dispatch.ResultJson,
+                UpdatedStateJson: dispatchFrame.Dispatch.UpdatedStateJson,
+                Error: dispatchFrame.Dispatch.Error,
+                ExecutedByMachineId: machineId);
+        }
+        finally
+        {
+            if (_unitHost is { } activeHost && !activeHost.HasExited)
+            {
+                try
+                {
+                    _ = await activeHost.SendAsync(
+                        new UnitHostFrameRequest(
+                            Id: NewFrameId(),
+                            Op: "unload",
+                            Unload: new UnloadWorkerRequest(request.BrainId, request.AppKey)),
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    logger.LogSwallowed(error, $"Local --unit-host unload failed for connected sandbox job '{request.JobId}'.");
+                }
+            }
+        }
     }
 
     private static BrainId ParseBrain(string value)

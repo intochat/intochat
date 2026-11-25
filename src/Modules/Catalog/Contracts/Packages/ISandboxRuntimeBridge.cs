@@ -15,7 +15,9 @@ public sealed record SandboxDispatchResult(
     string? ResultJson,
     string? UpdatedStateJson,
     DigitalBrain.UI.View? UpdatedView,
-    string? Error);
+    string? Error,
+    string? ExecutionTarget = null,
+    string? ExecutedByMachineId = null);
 
 /// <summary>Bridge between OS Catalog/Apps and the hardened container worker (<c>IntoChat.OS.Sandbox</c>).</summary>
 public interface ISandboxRuntimeBridge
@@ -41,6 +43,44 @@ public interface ISandboxRuntimeBridge
         IReadOnlyList<string> allowedContracts,
         CancellationToken cancellationToken = default)
         => DeployPackageAsync(brainId.Value, package, assemblyBytes, stateJson, settingsJson, cancellationToken);
+
+    /// <summary>
+    /// Executes a single-shot scoped command inside the sandbox runtime, preferring an owner's connected
+    /// auto-all local client when online and transparently falling back to the cloud sandbox Container App
+    /// or local out-of-process UnitHost when unavailable.
+    /// </summary>
+    async Task<SandboxDispatchResult> ExecuteScopedCommandAsync(
+        DigitalBrain.BrainId brainId,
+        AppPackage package,
+        byte[] assemblyBytes,
+        string command,
+        string? payloadJson,
+        IReadOnlyList<string> allowedContracts,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        await DeployScopedPackageAsync(
+            brainId,
+            package,
+            assemblyBytes,
+            stateJson: null,
+            settingsJson: null,
+            allowedContracts: allowedContracts,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await DispatchCommandAsync(
+                brainId.Value,
+                package.Key,
+                command,
+                payloadJson,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await UnloadAsync(brainId.Value, package.Key, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
 
     Task<SandboxDispatchResult> DispatchSignalAsync(
         string brainId,
