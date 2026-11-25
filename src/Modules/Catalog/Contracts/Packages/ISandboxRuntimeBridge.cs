@@ -28,6 +28,20 @@ public interface ISandboxRuntimeBridge
         string? settingsJson,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Deploys a compiled <see cref="AppPackage"/> into the sandbox with a least-privilege scoped <c>AppToken</c>
+    /// restricted strictly to <paramref name="allowedContracts"/>.
+    /// </summary>
+    Task<SandboxDeploymentResult> DeployScopedPackageAsync(
+        DigitalBrain.BrainId brainId,
+        AppPackage package,
+        byte[] assemblyBytes,
+        string? stateJson,
+        string? settingsJson,
+        IReadOnlyList<string> allowedContracts,
+        CancellationToken cancellationToken = default)
+        => DeployPackageAsync(brainId.Value, package, assemblyBytes, stateJson, settingsJson, cancellationToken);
+
     Task<SandboxDispatchResult> DispatchSignalAsync(
         string brainId,
         string appKey,

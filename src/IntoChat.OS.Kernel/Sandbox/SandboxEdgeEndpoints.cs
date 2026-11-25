@@ -141,6 +141,8 @@ internal static class SandboxEdgeEndpoints
     {
         try
         {
+            EnforceTokenScope(identity, request.Contract);
+
             var identityClient = services.GetService<IntoChat.OS.Modules.Identity.Contracts.Accounts.IIdentityClient>();
             var owner = identityClient is not null
                 ? await identityClient.OwnerOfBrain(identity.BrainId).ConfigureAwait(false)
@@ -178,6 +180,36 @@ internal static class SandboxEdgeEndpoints
         catch (Exception error) when (error is ArgumentException or JsonException or NotSupportedException)
         {
             return new EdgeInvokeOutcome(StatusCodes.Status422UnprocessableEntity, new EdgeInvokeResponse(null, error.Message));
+        }
+    }
+
+    internal static void EnforceTokenScope(VerifiedAppToken identity, string requestedContract)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        if (!identity.IsScoped)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(requestedContract))
+        {
+            throw new UnauthorizedAccessException("Scoped AppToken rejected empty contract invocation.");
+        }
+
+        var resolvedType = KernelInvocationSink.ContractOf(requestedContract);
+        if (IntoChat.OS.Host.Surface.NeuronContractDiscovery.IsAuthorityContract(requestedContract)
+            || (resolvedType is not null && IntoChat.OS.Host.Surface.NeuronContractDiscovery.IsAuthorityOrInternal(resolvedType)))
+        {
+            throw new UnauthorizedAccessException(
+                $"Contract '{requestedContract}' is restricted and cannot be invoked with a scoped AppToken.");
+        }
+
+        var allowed = identity.AllowedContracts ?? [];
+        if (!IntoChat.OS.Host.Surface.NeuronContractDiscovery.IsContractAllowed(requestedContract, resolvedType, allowed))
+        {
+            var granted = allowed.Length == 0 ? "<none>" : string.Join(", ", allowed);
+            throw new UnauthorizedAccessException(
+                $"Contract '{requestedContract}' is outside the scoped AppToken's granted contracts [{granted}].");
         }
     }
 
