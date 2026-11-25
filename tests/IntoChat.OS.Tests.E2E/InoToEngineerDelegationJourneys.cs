@@ -17,12 +17,6 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.Chat;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -237,32 +231,31 @@ public sealed class InoToEngineerDelegationJourneys
         await engineerScreen.Request(new EngineerOpen());
         await os.Idle();
 
-        var engStepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
-        var engTree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
-        var engKanban = os.Get<IKanbanBoard>(new NeuronId(brain, "ui.kanban", EngineerApp.KanbanKey));
-        var engTable = os.Get<ITable>(new NeuronId(brain, "ui.table", EngineerApp.TasksTableKey));
-        var engTabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
-        var engChat = os.Get<IChatThread>(new NeuronId(brain, "ui.chat", EngineerApp.BrainstormChatKey));
+        var opened = (await engineerScreen.Read())!;
+        Assert.Equal("pr", EngineerChild<TabStripProps>(opened, EngineerApp.TabsKey).SelectedId);
 
-        Assert.Equal("review-and-pr", (await engStepper.Read()).ActiveStepId);
-        Assert.Equal("pr", (await engTabs.Read()).SelectedId);
-
-        var treeNodes = (await engTree.Read()).Nodes;
+        var treeNodes = EngineerChild<TreeProps>(opened, EngineerApp.WorktreesKey).Nodes;
         Assert.Contains(treeNodes, static n => n.Id == "wt-0" && n.Label.Contains("ContainerVolume", StringComparison.Ordinal) && n.Label.Contains("verified", StringComparison.Ordinal));
         Assert.Contains(treeNodes, static n => n.Id == "wt-1" && n.Label.Contains("ContainerVolume", StringComparison.Ordinal) && n.Label.Contains("verified", StringComparison.Ordinal));
         Assert.Contains(treeNodes, static n => n.Label == "Calculator.cs");
 
-        var kanbanState = await engKanban.Read();
-        Assert.Equal(["t1-subtract", "t2-clamp"], kanbanState.Cards.Select(static c => c.Id));
-        Assert.All(kanbanState.Cards, static c => Assert.Equal("verified", c.ColumnId));
+        // The brainstorm thread holds the delegated run's User, Architect and Critic transcript.
+        var thread = Assert.IsType<DigitalBrain.UI.Controls.ChatThreadView>(
+            (await engineerScreen.ReadChild(EngineerApp.BrainstormKey))!.View.GetProperty("root").Deserialize<Node>(JsonSerializerOptions.Web));
+        Assert.True(thread.Messages.Count >= 3);
 
-        Assert.True((await engChat.Read()).Messages.Length >= 3);
+        // The Changes & Diff tab's table lists the plan's tasks, each checkpointed as verified.
+        await engineerScreen.Request(new EngineerSelectTab("code"));
+        await os.Idle();
+        var taskRows = EngineerChild<QueryTableProps>((await engineerScreen.Read())!, EngineerApp.TableKey).Rows!;
+        Assert.Equal(["t1-subtract", "t2-clamp"], taskRows.Select(static r => r.Id));
+        Assert.All(taskRows, static r => Assert.Equal("verified", r.Cells[3]));
 
-        // Switch EngineerApp to the Verification & Traces tab and verify real OTel/trace entries populate ITable!
+        // Switch EngineerApp to the Verification & Traces tab and verify real OTel/trace entries populate its table!
         await engineerScreen.Request(new EngineerSelectTab("verify"));
         await os.Idle();
-        var verifyTable = await engTable.Read();
-        Assert.True(verifyTable.Total >= 4);
+        var verifyTable = EngineerChild<QueryTableProps>((await engineerScreen.Read())!, EngineerApp.TableKey);
+        Assert.True(verifyTable.Rows!.Count >= 4);
 
         // 4. Approve via IConfirmationInbox as the human owner: push verified commit SHA to bare origin & clean up both worktrees!
         var inbox = os.Get<IConfirmationInbox>(new NeuronId(brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
@@ -312,12 +305,30 @@ public sealed class InoToEngineerDelegationJourneys
             }
         }
 
-        // Verify EngineerApp stepper reflects all 6 stages Done after completion.
+        // Verify EngineerApp shows the published draft PR after completion.
         await engineerScreen.Request(new EngineerOpen(FlowId: started.FlowId));
         await os.Idle();
-        Assert.All((await engStepper.Read()).Steps, static step => Assert.Equal(StepperStatuses.Done, step.Status));
+        Assert.Contains("Draft PR Published", (await engineerScreen.Read())!.View.GetRawText(), StringComparison.Ordinal);
         Assert.Empty((await inbox.Read()).Pending);
     }
+
+    // The props Engineer drew on its child `key` in a published view.
+    private static T EngineerChild<T>(DigitalBrain.Units.PublishedView view, string key)
+        => EngineerNodes(view.View).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
+                && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+            .GetProperty("props").Deserialize<T>(JsonSerializerOptions.Web)!;
+
+    // The text of the code block Engineer's Changes & Diff and PR tabs draw.
+    private static string EngineerCode(DigitalBrain.Units.PublishedView view)
+        => EngineerNodes(view.View).Single(n => n.TryGetProperty("surfaceKind", out var kind) && kind.GetString()!.StartsWith("code:", StringComparison.Ordinal))
+            .GetProperty("subtitle").GetString()!;
+
+    private static IEnumerable<JsonElement> EngineerNodes(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Object => [element, .. element.EnumerateObject().SelectMany(property => EngineerNodes(property.Value))],
+        JsonValueKind.Array => element.EnumerateArray().SelectMany(EngineerNodes),
+        _ => [],
+    };
 
     private static (string BareOrigin, string SourceRepo, string WorkTreeHome, string VolumeRoot) SeedCompilableGitRepository(string baseDir)
     {

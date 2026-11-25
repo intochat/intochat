@@ -13,16 +13,24 @@ internal static class EngineerViewRenderer
 {
     public const string AppOwner = "app.engineer";
 
-    public static Node RenderRoot(EngineerWorkspaceState state, Rejected? lastRejection, string transition = "", BrainId? brain = null)
+    // What the Engineer view needs from its screen to draw a control child: only the screen can render one. A view drawn without the
+    // screen (a static render) has no children and leaves them out.
+    public sealed record Children(
+        Func<string, TabStripProps, Node> TabStrip,
+        Func<string, TreeProps, Node> Tree,
+        Func<string, ChatThreadProps, Node> ChatThread,
+        Func<string, QueryTableProps, Node> Table);
+
+    public static Node RenderRoot(EngineerWorkspaceState state, Rejected? lastRejection, string transition = "", BrainId? brain = null, Children? children = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         var activeTab = EngineerWorkspaceState.NormalizeTab(state.ActiveTab);
-        var toolbar = RenderTopBar(state);
-        var sidebar = RenderLeftColumn(state, lastRejection);
+        var toolbar = RenderTopBar(state, children);
+        var sidebar = RenderLeftColumn(state, lastRejection, children);
         var body = activeTab == "plan"
             ? RenderFlowStage(state, brain)
             : RenderChangesAndDiffStage(state);
-        var inspector = RenderRightInspector(state, activeTab);
+        var inspector = RenderRightInspector(state, activeTab, children);
 
         return BindOwner(
             AppShell(
@@ -36,7 +44,7 @@ internal static class EngineerViewRenderer
             AppOwner);
     }
 
-    private static Node RenderTopBar(EngineerWorkspaceState state)
+    private static Node RenderTopBar(EngineerWorkspaceState state, Children? children)
     {
         var winner = state.Candidates.ElementAtOrDefault(state.SelectedInstanceIndex)
             ?? state.Candidates.FirstOrDefault();
@@ -69,12 +77,12 @@ internal static class EngineerViewRenderer
             })
             .ToArray();
 
-        List<Node> barItems =
+        List<Node?> barItems =
         [
             presencePill,
             repoBranchPill,
             .. candidatePills,
-            UiNeuron("ui.tabs", EngineerApp.WorkspaceTabsKey),
+            children?.TabStrip(EngineerApp.TabsKey, TabsOf(state)),
             new Button("engineer:open-aspire", "Aspire ↗", Intent: AppSignals.OpenApp("aspire", state.ActiveTraceId ?? state.ActiveFlowId ?? state.ActiveRunId))
             {
                 Small = true,
@@ -109,7 +117,7 @@ internal static class EngineerViewRenderer
         return HStack(Space.Xs, [.. barItems]);
     }
 
-    private static Node RenderLeftColumn(EngineerWorkspaceState state, Rejected? lastRejection)
+    private static Node RenderLeftColumn(EngineerWorkspaceState state, Rejected? lastRejection, Children? children)
     {
         var slices = state.EffectiveSlices;
         var cleanup = state.EffectiveCleanupTargets;
@@ -131,7 +139,7 @@ internal static class EngineerViewRenderer
                 ? Banner("Domain rule refused command", string.Join(" ", lastRejection.Messages), tone: "error")
                 : null,
             SectionHeader("Mission Thread", state.Goal),
-            UiNeuron("ui.chat", EngineerApp.BrainstormChatKey),
+            children?.ChatThread(EngineerApp.BrainstormKey, BrainstormOf()),
             SectionHeader(
                 "Ratified Plan & Ino Slices",
                 string.Create(CultureInfo.InvariantCulture, $"{slices.Length} parallel slice(s) · {cleanup.Length} cleanup target(s)")),
@@ -160,7 +168,7 @@ internal static class EngineerViewRenderer
                     .Small()
                     .OnClickAsync<EngineerApp>(app => app.SetInstancesCommand(state.InstanceCount, "ContainerVolume"))
             ],
-            UiNeuron("ui.tree-view", EngineerApp.WorktreeTreeKey),
+            children?.Tree(EngineerApp.WorktreesKey, WorktreesOf(state)),
         ];
 
         return VStack(Space.Sm, leftChildren);
@@ -371,15 +379,15 @@ internal static class EngineerViewRenderer
 
         var filesColumn = VStack(Space.Xs, [.. fileItems]);
 
-        // Pure GitHub Desktop 2-column split: slim Changed Files list + 100% full-height ICodeEditor!
+        // GitHub Desktop 2-column split: slim Changed Files list + the selected candidate's diff as a read-only code block.
         return Split(
             filesColumn,
-            UiNeuron("ui.code-editor", EngineerApp.CodeEditorKey),
+            CodeBlock(state.SelectedFilePath, CodePreviewOf(state), state.SelectedLanguage, maxHeight: CodePreviewHeight),
             leadingExtent: 232,
             gap: Space.Sm);
     }
 
-    private static Node RenderRightInspector(EngineerWorkspaceState state, string activeTab)
+    private static Node RenderRightInspector(EngineerWorkspaceState state, string activeTab, Children? children)
     {
         var winner = state.Candidates.ElementAtOrDefault(state.SelectedInstanceIndex)
             ?? state.Candidates.FirstOrDefault();
@@ -439,7 +447,7 @@ internal static class EngineerViewRenderer
                 }
             ],
             .. livePrNodes,
-            UiNeuron("ui.table", EngineerApp.TasksTableKey)
+            children?.Table(EngineerApp.TableKey, TableOf(state))
         ]);
     }
 
@@ -534,5 +542,223 @@ internal static class EngineerViewRenderer
         return (fileCount * 6, fileCount * 2);
     }
 
-    private static Node UiNeuron(string kind, string key) => new NeuronRef(kind, key);
+    // The code block of the Changes & Diff and PR tabs fills the pane beside the file list.
+    private const double CodePreviewHeight = 1200;
+
+    public static TabStripProps TabsOf(EngineerWorkspaceState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return new(
+        [
+            new TabStripItem("plan", "3D Flow & Plan"),
+            new TabStripItem("code", "Changes & Diff"),
+            new TabStripItem("verify", "Verification & Traces"),
+            new TabStripItem("pr", "PR Review"),
+        ],
+            AutomationName: "Engineer workspace tabs",
+            SelectedId: EngineerWorkspaceState.NormalizeTab(state.ActiveTab));
+    }
+
+    // One folder per candidate worktree ("wt-{n}") holding its changed files ("file-{n}:{path}"). Engineer owns the selection (the
+    // selected candidate's file) and the open folders (all but the ones the person closed), so it opens the tree to what it selected.
+    public static TreeProps WorktreesOf(EngineerWorkspaceState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var nodes = new List<TreeItem>();
+        foreach (var c in state.Candidates)
+        {
+            var folderId = string.Create(CultureInfo.InvariantCulture, $"wt-{c.InstanceIndex}");
+            var selectedTag = c.InstanceIndex == state.SelectedInstanceIndex ? " [SELECTED]" : string.Empty;
+            var scoreTag = c.TotalScore > 0
+                ? string.Create(CultureInfo.InvariantCulture, $" · {c.TotalScore} pts{selectedTag}")
+                : selectedTag;
+            nodes.Add(new TreeItem(
+                folderId,
+                string.Create(CultureInfo.InvariantCulture, $"w{c.InstanceIndex + 1} #{c.InstanceIndex} · {c.Backend} ({c.Status}){scoreTag}"),
+                IsFolder: true));
+            foreach (var file in c.ChangedFiles.Distinct(StringComparer.Ordinal))
+            {
+                nodes.Add(new TreeItem(
+                    string.Create(CultureInfo.InvariantCulture, $"file-{c.InstanceIndex}:{file}"),
+                    Path.GetFileName(file),
+                    ParentId: folderId));
+            }
+        }
+
+        var closed = state.ClosedWorktreeFolders ?? [];
+        var expanded = nodes
+            .Where(n => n.IsFolder && !closed.Contains(n.Id, StringComparer.Ordinal))
+            .Select(static n => n.Id)
+            .ToArray();
+        return new TreeProps(
+            nodes,
+            AutomationName: "Worktrees",
+            SelectedId: string.Create(CultureInfo.InvariantCulture, $"file-{state.SelectedInstanceIndex}:{state.SelectedFilePath}"),
+            ExpandedIds: expanded);
+    }
+
+    public static ChatThreadProps BrainstormOf()
+        => new(
+            Placeholder: "Ask the User, Architect and Critic to plan a goal",
+            EmptyText: "No brainstorm yet.",
+            AutomationName: "Brainstorm");
+
+    // The table follows the tab: the candidate tournament on PR Review, candidates and verification spans on Verification & Traces,
+    // and the task checkpoints otherwise. Row ids are the candidate, span or task; the table owns its query and selection.
+    public static QueryTableProps TableOf(EngineerWorkspaceState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var tab = EngineerWorkspaceState.NormalizeTab(state.ActiveTab);
+        if (tab == "pr")
+        {
+            return new QueryTableProps(
+                "Parallel Candidate Tournament Scoreboard",
+                [
+                    new QueryTableColumn("candidate", "Candidate"),
+                    new QueryTableColumn("strategy", "Strategy"),
+                    new QueryTableColumn("branch", "Branch & Commit"),
+                    new QueryTableColumn("gates", "Gates & Diff"),
+                    new QueryTableColumn("score", "Score / Promotion"),
+                ],
+                Rows: Unique(state.Candidates.Select(c =>
+                {
+                    var shortSha = ShortSha(c.CommitSha);
+                    var isSelected = c.InstanceIndex == state.SelectedInstanceIndex;
+                    var failed = IsFailed(c);
+                    var promotion = failed
+                        ? "FAILED"
+                        : string.Create(CultureInfo.InvariantCulture, $"{c.TotalScore} · {(isSelected ? "SELECTED" : "STANDBY")} (Rank #{c.Rank})");
+                    var gateDetail = c.TotalScore > 0 || failed
+                        ? string.Create(
+                            CultureInfo.InvariantCulture,
+                            $"Build={(c.BuildPassed ? "PASS" : "FAIL")} · Tests={(c.TestsPassed ? "PASS" : "FAIL")} · Live={(c.LiveVerifyPassed ? "PASS" : "FAIL")} · Δ{c.ChangedLines} lines")
+                        : string.Create(CultureInfo.InvariantCulture, $"{c.Status} · {c.ChangedFiles.Length} file(s)");
+                    return new QueryTableRow(
+                        string.Create(CultureInfo.InvariantCulture, $"w{c.InstanceIndex + 1}"),
+                        [
+                            string.Create(CultureInfo.InvariantCulture, $"w{c.InstanceIndex + 1} (#{c.InstanceIndex})"),
+                            c.StrategyLabel,
+                            $"{c.BranchName} @ {shortSha}",
+                            gateDetail,
+                            promotion,
+                        ]);
+                })),
+                AutomationName: "Candidate scoreboard");
+        }
+
+        if (tab == "verify")
+        {
+            var candidateRows = state.Candidates.Select(c =>
+            {
+                var isSelected = c.InstanceIndex == state.SelectedInstanceIndex;
+                var rowStatus = IsFailed(c)
+                    ? "FAIL"
+                    : state.VerificationPassed
+                        ? (isSelected ? "PASS · SELECTED" : "PASS")
+                        : (isSelected ? "READY · SELECTED" : "READY");
+                var step = string.Create(CultureInfo.InvariantCulture, $"candidate-w{c.InstanceIndex + 1}");
+                return new QueryTableRow(
+                    step,
+                    [
+                        step,
+                        string.Create(
+                            CultureInfo.InvariantCulture,
+                            $"w{c.InstanceIndex + 1} ({c.StrategyLabel}) · Score={c.TotalScore} · Δ={c.ChangedLines} lines · {c.BranchName}@{ShortSha(c.CommitSha)}"),
+                        rowStatus,
+                    ]);
+            });
+            var traceRows = state.DiagnosticsAndTraces.Select((line, idx) =>
+            {
+                var step = string.Create(CultureInfo.InvariantCulture, $"gate-{idx + 1}");
+                return new QueryTableRow(step, [step, line, state.VerificationPassed ? "PASS" : "READY"]);
+            });
+            return new QueryTableProps(
+                "Candidate Scoreboard & Verification Spans",
+                [
+                    new QueryTableColumn("step", "Candidate / Span"),
+                    new QueryTableColumn("detail", "Observed Outcome"),
+                    new QueryTableColumn("status", "Status"),
+                ],
+                Rows: Unique(candidateRows.Concat(traceRows)),
+                AutomationName: "Verification spans");
+        }
+
+        var checkpoint = state.VerificationPassed ? "verified" : state.PlanApproved ? "checkpointed" : "planned";
+        return new QueryTableProps(
+            "Task Checkpoints & Roslyn Diagnostics",
+            [
+                new QueryTableColumn("id", "Task"),
+                new QueryTableColumn("title", "Title"),
+                new QueryTableColumn("lang", "Language"),
+                new QueryTableColumn("status", "Checkpoint"),
+            ],
+            Rows: Unique(state.Tasks.Select(t => new QueryTableRow(t.Id, [t.Id, t.Title, t.Language, checkpoint]))),
+            AutomationName: "Task checkpoints");
+    }
+
+    // The selected candidate's diff, or a sample of the selected file when the candidate has none yet.
+    public static string CodePreviewOf(EngineerWorkspaceState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var active = state.Candidates.ElementAtOrDefault(state.SelectedInstanceIndex)
+            ?? state.Candidates.FirstOrDefault();
+        var candidateLabel = string.Create(CultureInfo.InvariantCulture, $"w{state.SelectedInstanceIndex + 1}");
+        var commitSha = active?.CommitSha ?? "pending";
+        var strategy = active?.StrategyLabel ?? "Minimal Surgical Patch";
+        var branch = active?.BranchName ?? "ino/feature";
+        var score = active?.TotalScore ?? 0;
+        var changedLines = active?.ChangedLines ?? 0;
+
+        if (!string.IsNullOrWhiteSpace(active?.UnifiedDiff))
+        {
+            return $$"""
+                // Candidate {{candidateLabel}} (#{{state.SelectedInstanceIndex}} · {{strategy}})
+                // Branch: {{branch}} · Commit: {{commitSha}} · Score: {{score}} (Δ{{changedLines}} lines) · File: {{state.SelectedFilePath}}
+                {{active.UnifiedDiff}}
+                """;
+        }
+
+        if (state.SelectedLanguage == "dart")
+        {
+            return $$"""
+                // Candidate {{candidateLabel}} ({{strategy}}) · {{branch}} · {{state.SelectedFilePath}}
+                class StepperStageBadge extends StatelessWidget {
+                  const StepperStageBadge({super.key, required this.stage, required this.status});
+
+                  final String stage;
+                  final String status;
+
+                  @override
+                  Widget build(BuildContext context) {
+                    return Semantics(
+                      identifier: 'engineer:stage-badge',
+                      container: true,
+                      child: Text('$stage · $status'),
+                    );
+                  }
+                }
+                """;
+        }
+
+        return $$"""
+            // Candidate {{candidateLabel}} (#{{state.SelectedInstanceIndex}} · {{strategy}}) · {{branch}} · {{state.SelectedFilePath}}
+            namespace IntoChat.OS.Modules.Apps.Flows;
+
+            [DigitalBrain.Neurons.Neuron(IEngineerRuns.EngineerFlow)]
+            internal sealed class EngineerFlow : Flow<EngineerRun>, IFlowStarter
+            {
+                // Goal: {{state.Goal}}
+                // Parallel worktrees: {{state.InstanceCount}} · Verified: {{state.VerificationPassed}} · Commit: {{commitSha}}
+            }
+            """;
+    }
+
+    private static bool IsFailed(EngineerCandidateSummary candidate) => candidate.Status is "failed" or "refused" or "error";
+
+    private static string ShortSha(string? sha) => sha is { Length: >= 8 } ? sha[..8] : "pending";
+
+    // A row id is unique within a table: a repeated id keeps its first row.
+    private static QueryTableRow[] Unique(IEnumerable<QueryTableRow> rows)
+        => [.. rows.DistinctBy(static row => row.Id, StringComparer.Ordinal)];
 }
+

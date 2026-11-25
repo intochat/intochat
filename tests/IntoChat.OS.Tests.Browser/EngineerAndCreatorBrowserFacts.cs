@@ -152,15 +152,14 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
 
         try
         {
-            // 1. Compact Studio header (zero ui.command-bar, zero ui.kanban, zero ui.stepper bloat) + InoNative presence & 3D Flow stage
-            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.command-bar:").CountAsync().WaitAsync(ct));
-            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.kanban:").CountAsync().WaitAsync(ct));
-            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.stepper:").CountAsync().WaitAsync(ct));
+            // 1. Compact Studio header with no ui.* neuron at all + InoNative presence & 3D Flow stage
+            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.").CountAsync().WaitAsync(ct));
 
-            await page.Neuron("ui.tabs", EngineerApp.WorkspaceTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.chat", EngineerApp.BrainstormChatKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.tree-view", EngineerApp.WorktreeTreeKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.table", EngineerApp.TasksTableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            // The tab strip, the brainstorm thread, the worktree tree and the table are control.* children of Engineer.
+            await page.SlotNode(EngineerApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(EngineerApp.BrainstormKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(EngineerApp.WorktreesKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(EngineerApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             await WaitForSemanticsTextContainsAsync(page, "Ino Native", ct);
             await WaitForSemanticsTextContainsAsync(page, "Ratified Plan & Ino Slices", ct);
@@ -171,46 +170,36 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
                 flowCanvasBox.HeightRatio(StudioViewportHeight) >= 0.65f && flowCanvasBox.Y <= 110f,
                 string.Create(CultureInfo.InvariantCulture, $"Engineer 3D Flow stage must be full-bleed (>= 65%h, Y <= 110px), measured: {flowCanvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
-            var chatText = await WaitForNeuronTextContainsAsync(page, "ui.chat", EngineerApp.BrainstormChatKey, "Architect", ct);
+            var chatText = await WaitForSlotTextContainsAsync(page, EngineerApp.BrainstormKey, "Architect", ct);
             Assert.Contains("Architect", chatText, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Critic", chatText, StringComparison.OrdinalIgnoreCase);
-            await SubmitBrainstormChatAndWaitAsync(page, EngineerApp.BrainstormChatKey, "Verify cloud sandbox lease isolation", ct);
+            await SubmitBrainstormAndWaitAsync(page, "Verify cloud sandbox lease isolation", ct);
             await WaitForSemanticsTextContainsAsync(page, "Verify cloud sandbox lease isolation", ct);
 
-            // 2. Ratify Plan -> transitions to GitHub Desktop Changes & Diff stage with full-height ui.code-editor (>= 60% of 900px = >= 540px)
+            // 2. Ratify Plan -> transitions to GitHub Desktop Changes & Diff stage: the changed files beside the candidate's code block
             await page.ClickButtonAsync("engineer:approve-plan", ct);
-            await page.CodeEditor(EngineerApp.CodeEditorKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.KeyedNode("code-highlight:csharp").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             await page.KeyedNode("engineer:diff-file:0").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-
-            var editorBox = await page.MeasureNeuronBoxAsync("ui.code-editor", EngineerApp.CodeEditorKey, minWidth: 300f, minHeight: 540f, ct);
-            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Engineer GitHub Desktop Diff CodeEditor: {editorBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
-            Assert.True(
-                editorBox.HeightRatio(StudioViewportHeight) >= 0.60f && editorBox.Height >= 540f,
-                string.Create(CultureInfo.InvariantCulture, $"Engineer GitHub Desktop diff ui.code-editor must occupy >= 60% of 900px viewport (>= 540px), measured: {editorBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
+            await WaitForSemanticsTextContainsAsync(page, "EngineerFlow.cs", ct);
 
             // Switch smoothly back to 3D Flow & Plan and back to Verification / PR Review
-            await page.SelectTabAsync(EngineerApp.WorkspaceTabsKey, "3D Flow & Plan", ct);
+            await SelectEngineerTabAsync(page, "3D Flow & Plan", ct);
             var returnedFlowBox = await page.MeasureSceneCanvasBoxAsync("brain", ct);
             Assert.True(returnedFlowBox.HeightRatio(StudioViewportHeight) >= 0.65f);
 
             await page.ClickButtonAsync("engineer:run-verify", ct);
-            var verifyTable = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "PASS", ct);
+            var verifyTable = await WaitForSlotTextContainsAsync(page, EngineerApp.TableKey, "PASS", ct);
             Assert.Contains("PASS", verifyTable, StringComparison.OrdinalIgnoreCase);
 
-            // 3. Switch ITabs to PR Review -> verify tournament scoreboard, candidate diff switching, tree selection & PR promotion
-            await page.SelectTabAsync(EngineerApp.WorkspaceTabsKey, "PR Review", ct);
+            // 3. Switch the tab strip to PR Review -> verify tournament scoreboard, candidate diff switching, tree selection & PR promotion
+            await SelectEngineerTabAsync(page, "PR Review", ct);
             await page.KeyedNode("engineer:pr:approve").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            var prEditorBox = await page.MeasureNeuronBoxAsync("ui.code-editor", EngineerApp.CodeEditorKey, minWidth: 300f, minHeight: 540f, ct);
-            Assert.True(prEditorBox.HeightRatio(StudioViewportHeight) >= 0.60f);
 
             // Default tournament winner is Candidate w1 (#0 · Minimal Surgical Patch · commit aaaaaaaa)
             await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w1", ct);
             await WaitForSemanticsTextContainsAsync(page, "Host-Rendered Unified Diff Preview · Candidate w1 (aaaaaaaa)", ct);
             await WaitForSemanticsTextContainsAsync(page, "app:engineer:eng-01:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ct);
-            var initialEditor = await WaitForNeuronTextContainsAsync(page, "ui.code-editor", EngineerApp.CodeEditorKey, "EngineerFlow.cs", ct);
-            Assert.Contains("EngineerFlow.cs", initialEditor, StringComparison.OrdinalIgnoreCase);
-            var initialScoreboard = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "998 · SELECTED (Rank #1)", ct);
+            await WaitForSemanticsTextContainsAsync(page, "EngineerFlow.cs", ct);
+            var initialScoreboard = await WaitForSlotTextContainsAsync(page, EngineerApp.TableKey, "998 · SELECTED (Rank #1)", ct);
             Assert.Contains("993 · STANDBY (Rank #2)", initialScoreboard, StringComparison.OrdinalIgnoreCase);
 
             // Promote Candidate w2 via rule-guarded w2 button -> switches diff card, scoreboard & SHA-bound gate to bbbbbbbb
@@ -219,18 +208,15 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w2", ct);
             await WaitForSemanticsTextContainsAsync(page, "Host-Rendered Unified Diff Preview · Candidate w2 (bbbbbbbb)", ct);
             await WaitForSemanticsTextContainsAsync(page, "app:engineer:eng-01:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", ct);
-            var promotedScoreboard = await WaitForNeuronTextContainsAsync(page, "ui.table", EngineerApp.TasksTableKey, "993 · SELECTED (Rank #2)", ct);
+            var promotedScoreboard = await WaitForSlotTextContainsAsync(page, EngineerApp.TableKey, "993 · SELECTED (Rank #2)", ct);
             Assert.Contains("998 · STANDBY (Rank #1)", promotedScoreboard, StringComparison.OrdinalIgnoreCase);
 
-            // Switch via ITreeView worktree file node back to w1 (WorktreeRoslynAnalyzer.cs), then select w2's Dart file & approve PR for w2
-            await page.SelectTreeNodeAsync(EngineerApp.WorktreeTreeKey, "WorktreeRoslynAnalyzer.cs", ct);
+            // Switch via the worktree tree's file node back to w1 (WorktreeRoslynAnalyzer.cs), then select w2's Dart file & approve PR for w2
+            await SelectWorktreeNodeAsync(page, "WorktreeRoslynAnalyzer.cs", ct);
             await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w1", ct);
-            await WaitForNeuronTextContainsAsync(page, "ui.code-editor", EngineerApp.CodeEditorKey, "WorktreeRoslynAnalyzer.cs", ct);
 
-            await page.SelectTreeNodeAsync(EngineerApp.WorktreeTreeKey, "stepper_widget.dart", ct);
+            await SelectWorktreeNodeAsync(page, "stepper_widget.dart", ct);
             await WaitForSemanticsTextContainsAsync(page, "Winning candidate: w2", ct);
-            await WaitForNeuronTextContainsAsync(page, "ui.code-editor", EngineerApp.CodeEditorKey, "stepper_widget.dart", ct);
-            await page.KeyedNode("code-highlight:dart").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             await page.ClickButtonAsync("engineer:pr:approve", ct);
             await WaitForSemanticsTextContainsAsync(page, "Pushed candidate w2", ct);
@@ -293,45 +279,60 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
         return await page.ReadSceneZoomTextAsync(ct);
     }
 
-    private static async Task<string> WaitForNeuronTextContainsAsync(IPage page, string kind, string key, string expectedSubstring, CancellationToken ct)
+    // The text a child of Engineer (a control.* slot) draws, once it holds `expectedSubstring`.
+    private static async Task<string> WaitForSlotTextContainsAsync(IPage page, string key, string expectedSubstring, CancellationToken ct)
     {
+        var slot = page.SlotNode(key).First;
+        var current = string.Empty;
         for (var i = 0; i < 80; i++)
         {
-            var current = await page.ReadNeuronTextAsync(kind, key, ct);
+            current = await slot.InnerTextAsync(new() { Timeout = 15_000 }).WaitAsync(ct);
             if (current.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
             {
                 return current;
             }
             await page.WaitForTimeoutAsync(150).WaitAsync(ct);
         }
-        return await page.ReadNeuronTextAsync(kind, key, ct);
+        return current;
     }
 
-    private static async Task SubmitBrainstormChatAndWaitAsync(IPage page, string chatKey, string message, CancellationToken ct)
+    // Types into the brainstorm thread's composer (control.chatThread) and sends it; Engineer starts a brainstorm from the text.
+    private static async Task SubmitBrainstormAndWaitAsync(IPage page, string message, CancellationToken ct)
     {
-        await page.SendChatMessageAsync(chatKey, message, ct);
-        await page.WaitForTimeoutAsync(150).WaitAsync(ct);
-
-        var chatHost = page.Neuron("ui.chat", chatKey).First;
-        var input = chatHost.Locator("input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])").Last;
-        if (await input.CountAsync().WaitAsync(ct) > 0)
+        var thread = page.SlotNode(EngineerApp.BrainstormKey).First;
+        await thread.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        var input = thread.Locator("input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])").Last;
+        await input.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+        await input.FillAsync(message, new() { Timeout = 15_000 }).WaitAsync(ct);
+        var send = thread.GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).First;
+        if (await send.CountAsync().WaitAsync(ct) > 0)
         {
-            var remaining = await input.InputValueAsync(new() { Timeout = 5_000 }).WaitAsync(ct);
-            if (!string.IsNullOrWhiteSpace(remaining))
-            {
-                var sendBtn = chatHost.GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).First;
-                if (await sendBtn.CountAsync().WaitAsync(ct) > 0)
-                {
-                    await sendBtn.ClickAsync(new() { Force = true, Timeout = 5_000 }).WaitAsync(ct);
-                }
-                else
-                {
-                    await input.PressAsync("Enter", new() { Timeout = 5_000 }).WaitAsync(ct);
-                }
-            }
+            await send.ClickAsync(new() { Force = true, Timeout = 5_000 }).WaitAsync(ct);
+        }
+        else
+        {
+            await input.PressAsync("Enter", new() { Timeout = 5_000 }).WaitAsync(ct);
         }
 
         await WaitForSemanticsTextContainsAsync(page, "Brainstorm complete", ct);
+    }
+
+    // A tab of Engineer's workspace tab strip child (control.tabStrip), which sends control.select through Engineer.
+    private static async Task SelectEngineerTabAsync(IPage page, string label, CancellationToken ct)
+    {
+        var strip = page.SlotNode(EngineerApp.TabsKey).First;
+        await strip.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        var byRole = strip.GetByRole(AriaRole.Tab, new() { Name = label, Exact = true }).First;
+        var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : strip.GetByText(label, new() { Exact = true }).First;
+        await target.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+    }
+
+    // A node of Engineer's worktree tree child (control.tree), which sends control.select through Engineer.
+    private static async Task SelectWorktreeNodeAsync(IPage page, string label, CancellationToken ct)
+    {
+        var tree = page.SlotNode(EngineerApp.WorktreesKey).First;
+        await tree.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        await tree.GetByText(label, new() { Exact = false }).First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
     }
 
     private static async Task SelectInspectorTabAndWaitAsync(IPage page, string tabLabel, ILocator expectedTarget, CancellationToken ct)

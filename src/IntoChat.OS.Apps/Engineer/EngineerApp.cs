@@ -22,19 +22,8 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
-using IntoChat.OS.Modules.UI.Chat;
-using IntoChat.OS.Modules.UI.Chat.Signals;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.CommandBar.Signals;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Stepper.Signals;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.Tabs.Signals;
-using IntoChat.OS.Modules.UI.TreeView;
-using IntoChat.OS.Modules.UI.TreeView.Signals;
+using DigitalBrain.UI.Commands;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -81,14 +70,13 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 {
     public const string AppName = "engineer";
 
-    public const string CommandBarKey = "engineer/command-bar";
-    public const string StepperKey = "engineer/stepper";
-    public const string WorktreeTreeKey = "engineer/tree/worktrees";
-    public const string WorkspaceTabsKey = "engineer/tabs";
-    public const string BrainstormChatKey = "engineer/chat/brainstorm";
-    public const string CodeEditorKey = "engineer/editor/code";
-    public const string TasksTableKey = "engineer/table/tasks";
-    public const string KanbanKey = "engineer/kanban/tasks";
+    // Child keys of Engineer's control.* children: the workspace tab strip (control.tabStrip), the worktree tree (control.tree), the
+    // brainstorm thread (control.chatThread) and the tab's table (control.queryTable). Engineer owns the tab, the selected file, the
+    // open folders and the rows; each child only signals the person's change. The thread owns its messages, which Engineer writes.
+    public const string TabsKey = "tabs";
+    public const string WorktreesKey = "worktrees";
+    public const string BrainstormKey = "brainstorm";
+    public const string TableKey = "table";
 
     private const string FlowsKey = "flows/index";
 
@@ -96,22 +84,11 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     [Slot(Key = IEngineerRuns.DefaultKey, Required = false)] private partial IEngineerRuns? EngineerRuns { get; }
     [Slot(Key = "connection/github/main", Required = false)] private partial IRepository? MainRepository { get; }
     [Slot(Required = false)] private partial SlotCollection<IRepository> Repositories { get; }
-    [Slot(Key = CommandBarKey, Required = false)] private partial ICommandBar? CommandBar { get; }
-    [Slot(Key = StepperKey, Required = false)] private partial IStepper? Stepper { get; }
-    [Slot(Key = WorkspaceTabsKey, Required = false)] private partial ITabs? WorkspaceTabs { get; }
-    [Slot(Key = WorktreeTreeKey, Required = false)] private partial ITreeView? WorktreeTree { get; }
-    [Slot(Key = CodeEditorKey, Required = false)] private partial ICodeEditor? CodeEditor { get; }
-    [Slot(Key = KanbanKey, Required = false)] private partial IKanbanBoard? Kanban { get; }
-    [Slot(Key = TasksTableKey, Required = false)] private partial ITable? TasksTable { get; }
-    [Slot(Key = BrainstormChatKey, Required = false)] private partial IChatThread? BrainstormChat { get; }
 
     private static readonly ILogger ConsoleLogger = OsConsoleLog.For<EngineerApp>();
     private readonly ILogger _logger;
     private readonly IServiceProvider? _services;
-    private string? _lastSyncedChatSignature;
-    private int _syncedStepperVersion;
-    private int _syncedTabsVersion;
-    private int _syncedTreeVersion;
+    private IReadOnlyList<ThreadMessage>? _pushedTranscript;
 
     public EngineerApp() : this(null, null) { }
 
@@ -156,7 +133,12 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     public View Render() => PreviewView(State);
 
     protected override Node Render(EngineerWorkspaceState state)
-        => EngineerViewRenderer.RenderRoot(state, LastRejection, ActiveTransition, TryBrainOrNull());
+        => EngineerViewRenderer.RenderRoot(state, LastRejection, ActiveTransition, TryBrainOrNull(),
+            new EngineerViewRenderer.Children(
+                Child<ITabStripControl, TabStripProps>,
+                Child<ITreeControl, TreeProps>,
+                Child<IChatThreadControl, ChatThreadProps>,
+                Child<IQueryTableControl, QueryTableProps>));
 
     public async Task OnNavigatedTo(NavigationArrival<StudioNavArgs> arrival, CancellationToken cancellationToken = default)
     {
@@ -167,7 +149,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 
         next = next.ApplyArrival(arrival.Args);
         next = await SyncLiveRepositoryReviewAsync(next);
-        await ShowAndSyncAsync(next);
+        await ShowAndPushAsync(next);
     }
 
     public Rule CanNavigateFrom(NavigationDeparture departure)
@@ -192,7 +174,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     {
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
-        await TryFollowUiNeuronsAsync();
+        await FollowAsync();
         var synced = await SyncLatestOrActiveFlowAsync(State);
         synced = await SyncLiveRepositoryReviewAsync(synced);
         if (synced != State)
@@ -200,7 +182,8 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             await Show(synced);
         }
 
-        await SyncUiNeuronsAsync(State);
+        await ImportLegacyBrainstormAsync();
+        await PushTranscriptAsync();
     }
 
     [On]
@@ -217,7 +200,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         }
 
         next = await SyncLiveRepositoryReviewAsync(next);
-        await ShowAndSyncAsync(next);
+        await ShowAndPushAsync(next);
     }
 
     [On]
@@ -239,7 +222,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         // Start a real durable flow.engineer instance when IFlows and registered repository are present on the brain.
         next = await TryStartDurableEngineerFlowAsync(next);
         next = await SyncLiveRepositoryReviewAsync(next);
-        await ShowAndSyncAsync(next);
+        await ShowAndPushAsync(next);
     }
 
     [On]
@@ -277,7 +260,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             BrainstormTurns = plan.Transcript,
             StatusBanner = $"Brainstorm complete · Compiled {plan.Tasks.Length} rule-checked task(s) with User, Architect, and Critic.",
         };
-        await ShowAndSyncAsync(next);
+        await ShowAndPushAsync(next);
     }
 
     [On]
@@ -297,7 +280,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
                 if (!string.IsNullOrWhiteSpace(ratified.FlowId))
                 {
                     var synced = ApplyLiveSummary(State, ratified, preserveActiveTab: false, preferredFilePath: null);
-                    await ShowAndSyncAsync(synced);
+                    await ShowAndPushAsync(synced);
                     return;
                 }
             }
@@ -310,7 +293,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         }
 
         await ApplyDecisionAsync(State.ApprovePlan());
-        await SyncUiNeuronsAsync(State);
+        await PushTranscriptAsync();
     }
 
     [On]
@@ -318,7 +301,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     {
         ArgumentNullException.ThrowIfNull(request);
         await ApplyDecisionAsync(State.CompleteVerification());
-        await SyncUiNeuronsAsync(State);
+        await PushTranscriptAsync();
     }
 
     [On]
@@ -336,7 +319,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             }
         }
 
-        await SyncUiNeuronsAsync(State);
+        await PushTranscriptAsync();
     }
 
     [On]
@@ -344,7 +327,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     {
         ArgumentNullException.ThrowIfNull(request);
         await ApplyDecisionAsync(State.CleanWorktrees());
-        await SyncUiNeuronsAsync(State);
+        await PushTranscriptAsync();
     }
 
     public Task NewRunCommand() => NewRun(new EngineerNewRun());
@@ -358,22 +341,22 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     public Task CleanWorktreeCommand() => CleanWorktree(new EngineerCleanWorktree());
 
     public Task SetInstancesCommand(int count, string backend)
-        => ShowAndSyncAsync(State.SetParallelInstances(count, backend));
+        => ShowAndPushAsync(State.SetParallelInstances(count, backend));
 
     public Task SelectCandidateCommand(int candidateIndex)
         => SelectCandidate(new EngineerSelectCandidate(candidateIndex));
 
     public Task SelectFileCommand(string filePath)
-        => ShowAndSyncAsync(State.SelectChangedFile(filePath));
+        => ShowAndPushAsync(State.SelectChangedFile(filePath));
 
     public Task SelectTabCommand(string tabId)
         => SelectTab(new EngineerSelectTab(tabId));
 
     public Task SelectStageCommand(string stageId)
-        => ShowAndSyncAsync(State.SelectStage(stageId));
+        => ShowAndPushAsync(State.SelectStage(stageId));
 
     public Task ToggleViewportPeekCommand()
-        => ShowAndSyncAsync(State.ToggleViewportPeek());
+        => ShowAndPushAsync(State.ToggleViewportPeek());
 
     public Task ReplyToReviewCommentCommand(long commentId, string body)
         => ReplyReview(new EngineerReplyReview(State.LivePullRequestNumber ?? 0, commentId, body));
@@ -405,7 +388,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             }
         }
 
-        await ShowAndSyncAsync(State.MarkReviewCommentReplied(request.CommentId, trimmedBody));
+        await ShowAndPushAsync(State.MarkReviewCommentReplied(request.CommentId, trimmedBody));
     }
 
     [On]
@@ -419,7 +402,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         var synced = await SyncLiveRepositoryReviewAsync(State, changed.Number, changed);
         if (synced != State)
         {
-            await ShowAndSyncAsync(synced);
+            await ShowAndPushAsync(synced);
         }
     }
 
@@ -438,7 +421,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             return;
         }
 
-        await ShowAndSyncAsync(State.ApplyOperationProgress(progressed));
+        await ShowAndPushAsync(State.ApplyOperationProgress(progressed));
     }
 
     [On]
@@ -451,7 +434,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             next = await SyncLiveRepositoryReviewAsync(next);
         }
 
-        await ShowAndSyncAsync(next);
+        await ShowAndPushAsync(next);
     }
 
     [On]
@@ -481,7 +464,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             }
         }
 
-        await SyncUiNeuronsAsync(State);
+        await PushTranscriptAsync();
     }
 
     [On]
@@ -497,7 +480,7 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
 
         var file = string.IsNullOrWhiteSpace(request.FilePath) ? State.SelectedFilePath : request.FilePath.Trim();
         var lang = file.EndsWith(".dart", StringComparison.OrdinalIgnoreCase) ? "dart" : "csharp";
-        await ShowAndSyncAsync(State with
+        await ShowAndPushAsync(State with
         {
             SelectedInstanceIndex = idx,
             SelectedFilePath = file,
@@ -507,62 +490,41 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
         });
     }
 
+    // The tab strip and the worktree tree are controlled children: Engineer holds the tab and the selected file and draws both as props.
     [On]
-    public Task OnCommandBarInvoked(CommandBarInvoked invoked)
+    public Task OnSelectionChanged(SelectionChanged changed)
     {
-        ArgumentNullException.ThrowIfNull(invoked);
-        return invoked.ItemId switch
+        ArgumentNullException.ThrowIfNull(changed);
+        return SignalChild switch
         {
-            "new-run" => NewRun(new EngineerNewRun()),
-            "brainstorm" => Brainstorm(new EngineerBrainstorm()),
-            "approve-plan" => ApprovePlan(new EngineerApprovePlan()),
-            "run-verify" => RunVerify(new EngineerRunVerify()),
-            "approve-pr" => ApprovePr(new EngineerApprovePr()),
-            "clean-worktree" => CleanWorktree(new EngineerCleanWorktree()),
+            TabsKey => SelectTab(new EngineerSelectTab(changed.Id)),
+            WorktreesKey => SelectWorktreeNode(changed.Id),
             _ => Task.CompletedTask,
         };
     }
 
+    // The tree's open folders are Engineer's too: every worktree folder is open until the person closes it.
     [On]
-    public Task OnStepperChanged(StepperChanged changed)
+    public Task OnNodeExpanded(NodeExpanded expanded)
     {
-        ArgumentNullException.ThrowIfNull(changed);
-        if ((changed.Version > 0 && changed.Version <= _syncedStepperVersion) || string.IsNullOrWhiteSpace(changed.ActiveStepId))
-        {
-            return Task.CompletedTask;
-        }
-
-        var normalized = EngineerWorkspaceState.NormalizeStage(changed.ActiveStepId);
-        return normalized == State.CurrentStage
-            ? Task.CompletedTask
-            : ShowAndSyncAsync(State.SelectStage(normalized));
+        ArgumentNullException.ThrowIfNull(expanded);
+        return SignalChild == WorktreesKey
+            ? ShowAndPushAsync(State.SetWorktreeFolderOpen(expanded.Id, expanded.IsExpanded))
+            : Task.CompletedTask;
     }
 
     [On]
-    public Task OnTabChanged(TabChanged changed)
+    public Task OnBrainstormSubmitted(Submitted submitted)
     {
-        ArgumentNullException.ThrowIfNull(changed);
-        if ((changed.Version > 0 && changed.Version <= _syncedTabsVersion) || string.IsNullOrWhiteSpace(changed.SelectedId))
-        {
-            return Task.CompletedTask;
-        }
-
-        var normalized = EngineerWorkspaceState.NormalizeTab(changed.SelectedId);
-        return normalized == State.ActiveTab
-            ? Task.CompletedTask
-            : ShowAndSyncAsync(State.SelectTab(normalized));
+        ArgumentNullException.ThrowIfNull(submitted);
+        return SignalChild == BrainstormKey && submitted.Values.TryGetValue("text", out var text) && !string.IsNullOrWhiteSpace(text)
+            ? Brainstorm(new EngineerBrainstorm(text))
+            : Task.CompletedTask;
     }
 
-    [On]
-    public Task OnTreeViewChanged(TreeViewChanged changed)
+    // A worktree folder ("wt-{n}") focuses that candidate on its first changed file; a file ("file-{n}:{path}") focuses that file.
+    private Task SelectWorktreeNode(string id)
     {
-        ArgumentNullException.ThrowIfNull(changed);
-        if ((changed.Version > 0 && changed.Version <= _syncedTreeVersion) || string.IsNullOrWhiteSpace(changed.SelectedId))
-        {
-            return Task.CompletedTask;
-        }
-
-        var id = changed.SelectedId;
         if (id.StartsWith("wt-", StringComparison.Ordinal)
             && int.TryParse(id["wt-".Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var wtIdx))
         {
@@ -586,15 +548,6 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
     }
 
     [On]
-    public Task OnChatSubmitted(ChatMessageSubmitted submitted)
-    {
-        ArgumentNullException.ThrowIfNull(submitted);
-        return string.IsNullOrWhiteSpace(submitted.Text)
-            ? Task.CompletedTask
-            : Brainstorm(new EngineerBrainstorm(submitted.Text));
-    }
-
-    [On]
     public async Task OnFlowsChanged(FlowsChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
@@ -610,24 +563,23 @@ public sealed partial class EngineerApp : AggregateScreen<EngineerWorkspaceState
             var synced = await SyncFromLiveFlowAsync(State, changed.FlowId);
             if (synced != State)
             {
-                await ShowAndSyncAsync(synced);
+                await ShowAndPushAsync(synced);
             }
         }
     }
 
-    private async Task ShowAndSyncAsync(EngineerWorkspaceState next)
+    private async Task ShowAndPushAsync(EngineerWorkspaceState next)
     {
         await Show(next);
-        await SyncUiNeuronsAsync(next);
+        await PushTranscriptAsync();
     }
 
-    private async Task TryFollowUiNeuronsAsync()
+    private async Task FollowAsync()
     {
-        await TryFollowOneAsync<ICommandBar, CommandBarInvoked>(CommandBarKey);
-        await TryFollowOneAsync<IStepper, StepperChanged>(StepperKey);
-        await TryFollowOneAsync<ITabs, TabChanged>(WorkspaceTabsKey);
-        await TryFollowOneAsync<ITreeView, TreeViewChanged>(WorktreeTreeKey);
-        await TryFollowOneAsync<IChatThread, ChatMessageSubmitted>(BrainstormChatKey);
+        await FollowChild<ITabStripControl, SelectionChanged>(TabsKey);
+        await FollowChild<ITreeControl, SelectionChanged>(WorktreesKey);
+        await FollowChild<ITreeControl, NodeExpanded>(WorktreesKey);
+        await FollowChild<IChatThreadControl, Submitted>(BrainstormKey);
         await TryFollowOneAsync<IFlows, FlowsChanged>(FlowsKey);
         await TryFollowOneAsync<IFlows, OperationProgressed>(FlowsKey);
         await FollowRepositoryNeuronsAsync(State.RepositoryId);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
@@ -6,13 +7,6 @@ using IntoChat.OS.Apps.Engineer;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Modules.UI.Chat;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.CommandBar;
-using IntoChat.OS.Modules.UI.KanbanBoard;
-using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Table;
-using IntoChat.OS.Modules.UI.Tabs;
-using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.Tests;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -101,7 +95,7 @@ public sealed class EngineerAppFacts
     }
 
     [Fact]
-    public async Task EngineerAppSynchronizesStepperTabsTreeEditorChatTableKanbanAndCommandBarOnTestOS()
+    public async Task EngineerDrawsItsTabsWorktreesBrainstormAndTableAsControlChildrenOnTestOS()
     {
         var brain = new BrainId("engtest");
         await using var os = TestOS.Local();
@@ -111,37 +105,32 @@ public sealed class EngineerAppFacts
         os.Register(typeof(EngineerApp).Assembly);
 
         var screen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
-        var initialView = await screen.Read();
-        Assert.NotNull(initialView);
+        var initialView = (await screen.Read())!;
 
-        var viewJson = System.Text.Json.JsonSerializer.Serialize(initialView);
-        Assert.DoesNotContain(EngineerApp.CommandBarKey, viewJson, StringComparison.Ordinal);
-        Assert.DoesNotContain(EngineerApp.KanbanKey, viewJson, StringComparison.Ordinal);
+        // No ui.* neuron is drawn: the tab strip, the worktree tree, the brainstorm thread and the table are control.* children.
+        var viewJson = initialView.View.GetRawText();
+        Assert.DoesNotContain("\"refKind\":\"ui.", viewJson, StringComparison.Ordinal);
         Assert.DoesNotContain("kpi-eng-build", viewJson, StringComparison.Ordinal);
-        Assert.Contains(EngineerApp.WorktreeTreeKey, viewJson, StringComparison.Ordinal);
-        Assert.Contains(EngineerApp.WorkspaceTabsKey, viewJson, StringComparison.Ordinal);
-        Assert.Contains(EngineerApp.BrainstormChatKey, viewJson, StringComparison.Ordinal);
         Assert.Contains("overlapping_file_slices", viewJson, StringComparison.Ordinal);
         Assert.Contains("requires_verified_sha", viewJson, StringComparison.Ordinal);
         Assert.Contains("engineer:open-aspire", viewJson, StringComparison.Ordinal);
         Assert.Contains("engineer:open-orleans", viewJson, StringComparison.Ordinal);
 
-        var stepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
-        var tabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
-        var tree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
-        var editor = os.Get<ICodeEditor>(new NeuronId(brain, "ui.code-editor", EngineerApp.CodeEditorKey));
-        var chat = os.Get<IChatThread>(new NeuronId(brain, "ui.chat", EngineerApp.BrainstormChatKey));
-        var table = os.Get<ITable>(new NeuronId(brain, "ui.table", EngineerApp.TasksTableKey));
-        var kanban = os.Get<IKanbanBoard>(new NeuronId(brain, "ui.kanban", EngineerApp.KanbanKey));
-        var cmdBar = os.Get<ICommandBar>(new NeuronId(brain, "ui.command-bar", EngineerApp.CommandBarKey));
+        var tabs = PropsOf<TabStripProps>(initialView, EngineerApp.TabsKey);
+        Assert.Equal(["plan", "code", "verify", "pr"], tabs.Items.Select(static t => t.Id));
+        Assert.Equal("plan", tabs.SelectedId);
+        var tree = PropsOf<TreeProps>(initialView, EngineerApp.WorktreesKey);
+        Assert.True(tree.Nodes.Count >= 4);
+        Assert.Equal(tree.Nodes.Where(static n => n.IsFolder).Select(static n => n.Id), tree.ExpandedIds!);
+        Assert.Equal("file-0:src/Modules/Catalog/Flows/EngineerFlow.cs", tree.SelectedId);
+        var table = PropsOf<QueryTableProps>(initialView, EngineerApp.TableKey);
+        Assert.Equal("Task Checkpoints & Roslyn Diagnostics", table.Title);
+        Assert.Equal(new EngineerWorkspaceState().Tasks.Select(static t => t.Id), table.Rows!.Select(static r => r.Id));
+        Assert.All(table.Rows!, static r => Assert.Equal("planned", r.Cells[3]));
+        Assert.Equal("Ask the User, Architect and Critic to plan a goal", PropsOf<ChatThreadProps>(initialView, EngineerApp.BrainstormKey).Placeholder);
 
-        Assert.Equal(6, (await stepper.Read()).Steps.Length);
-        Assert.Equal("brainstorm-and-plan", (await stepper.Read()).ActiveStepId);
-        Assert.Equal(4, (await tabs.Read()).Items.Length);
-        Assert.True((await tree.Read()).Nodes.Length >= 4);
-        Assert.True((await chat.Read()).Messages.Length >= 3);
-        Assert.Equal(3, (await kanban.Read()).Columns.Length);
-        Assert.Equal(6, (await cmdBar.Read()).Items.Length);
+        // The brainstorm thread holds the current transcript, written by Engineer.
+        Assert.Equal(EngineerApp.TranscriptOf(new EngineerWorkspaceState()).Select(static m => m.Id), await ThreadIds(screen));
 
         // Live UiNavigateTo, OperationProgressed (25% -> 85% circular progress ring), and UiNavigateFrom on TestOS!
         var navScreen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "nav-test"));
@@ -169,32 +158,142 @@ public sealed class EngineerAppFacts
         Assert.Contains("85%", progressedRaw, StringComparison.Ordinal);
 
         // UiNavigateFrom rule guard blocks departure during active live-verify unless Force=true
-        await navScreen.Request(new EngineerApprovePlan());
-        await os.Idle();
         var pureVerifyState = new EngineerWorkspaceState().ApprovePlan().Next!.SelectStage("live-verify");
         Assert.True(pureVerifyState.CanDepart(force: false).Broken);
         Assert.False(pureVerifyState.CanDepart(force: true).Broken);
 
-        // Invoke Approve Plan -> switches to pure GitHub Desktop SplitPane + full-height ICodeEditor!
-        await cmdBar.Invoke("approve-plan");
+        // Approve Plan -> GitHub Desktop split: the changed files beside the candidate's code block; the tab strip follows.
+        await screen.Request(new EngineerApprovePlan());
         await os.Idle();
-        Assert.Equal("implement-tasks", (await stepper.Read()).ActiveStepId);
-        Assert.Equal("code", (await tabs.Read()).SelectedId);
-        Assert.Contains("EngineerFlow", (await editor.Read()).Content, StringComparison.Ordinal);
-        var codeViewJson = (await screen.Read())!.View.GetRawText();
+        var codeView = (await screen.Read())!;
+        Assert.Equal("code", PropsOf<TabStripProps>(codeView, EngineerApp.TabsKey).SelectedId);
+        Assert.Contains("EngineerFlow", CodeOf(codeView), StringComparison.Ordinal);
+        Assert.All(PropsOf<QueryTableProps>(codeView, EngineerApp.TableKey).Rows!, static r => Assert.Equal("checkpointed", r.Cells[3]));
+        var codeViewJson = codeView.View.GetRawText();
         Assert.Contains("engineer:diff-file:0", codeViewJson, StringComparison.Ordinal);
         Assert.Contains("engineer:deleted-file:0", codeViewJson, StringComparison.Ordinal);
 
-        await cmdBar.Invoke("run-verify");
-        await os.Idle();
-        Assert.Equal("review-and-pr", (await stepper.Read()).ActiveStepId);
-        Assert.Equal("verify", (await tabs.Read()).SelectedId);
-        Assert.True((await table.Read()).Total >= 4);
+        // A tab the person picks reaches Engineer through the tab strip, and the table follows the tab.
+        await Send(os, brain, screen, EngineerApp.TabsKey, new DigitalBrain.UI.Commands.Select("verify"));
+        var verifyView = (await screen.Read())!;
+        Assert.Equal("verify", PropsOf<TabStripProps>(verifyView, EngineerApp.TabsKey).SelectedId);
+        var verifyTable = PropsOf<QueryTableProps>(verifyView, EngineerApp.TableKey);
+        Assert.Equal("Candidate Scoreboard & Verification Spans", verifyTable.Title);
+        Assert.True(verifyTable.Rows!.Count >= 4);
 
-        await cmdBar.Invoke("approve-pr");
+        // The tab strip's gate refuses a tab Engineer does not draw; nothing changes.
+        await Assert.ThrowsAsync<DigitalBrain.Units.ActivationRefusedException>(
+            () => Send(os, brain, screen, EngineerApp.TabsKey, new DigitalBrain.UI.Commands.Select("nope")));
+        Assert.Equal("verify", PropsOf<TabStripProps>((await screen.Read())!, EngineerApp.TabsKey).SelectedId);
+
+        await screen.Request(new EngineerRunVerify());
         await os.Idle();
-        Assert.Equal("pr", (await tabs.Read()).SelectedId);
-        Assert.All((await stepper.Read()).Steps, static s => Assert.Equal(StepperStatuses.Done, s.Status));
+        var verifiedView = (await screen.Read())!;
+        Assert.Equal("verify", PropsOf<TabStripProps>(verifiedView, EngineerApp.TabsKey).SelectedId);
+        Assert.Contains(PropsOf<QueryTableProps>(verifiedView, EngineerApp.TableKey).Rows!, static r => r.Cells[2].StartsWith("PASS", StringComparison.Ordinal));
+
+        await screen.Request(new EngineerApprovePr());
+        await os.Idle();
+        var prView = (await screen.Read())!;
+        Assert.Equal("pr", PropsOf<TabStripProps>(prView, EngineerApp.TabsKey).SelectedId);
+        Assert.Equal("Parallel Candidate Tournament Scoreboard", PropsOf<QueryTableProps>(prView, EngineerApp.TableKey).Title);
+    }
+
+    [Fact]
+    public async Task EngineerFollowsTheWorktreeTreeAndKeepsItsOpenFolders()
+    {
+        var brain = new BrainId("engtree");
+        await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        os.RegisterCatalog();
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+
+        var screen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
+        var tree = PropsOf<TreeProps>((await screen.Read())!, EngineerApp.WorktreesKey);
+        var w2File = tree.Nodes.First(static n => n.ParentId == "wt-1").Id;
+
+        // Choosing a file of w2 promotes w2 and selects that file: the tree draws it as selected and the code tab opens.
+        await Send(os, brain, screen, EngineerApp.WorktreesKey, new DigitalBrain.UI.Commands.Select(w2File));
+        var promoted = (await screen.Read())!;
+        Assert.Equal(w2File, PropsOf<TreeProps>(promoted, EngineerApp.WorktreesKey).SelectedId);
+        Assert.Contains("Winning candidate: w2", promoted.View.GetRawText(), StringComparison.Ordinal);
+
+        // A node the tree does not hold is refused by its gate.
+        await Assert.ThrowsAsync<DigitalBrain.Units.ActivationRefusedException>(
+            () => Send(os, brain, screen, EngineerApp.WorktreesKey, new DigitalBrain.UI.Commands.Select("file-9:nowhere.cs")));
+
+        // Closing a folder is Engineer's to keep; opening it again draws it open.
+        await Send(os, brain, screen, EngineerApp.WorktreesKey, new DigitalBrain.UI.Commands.ExpandNode("wt-0", IsExpanded: false));
+        Assert.DoesNotContain("wt-0", PropsOf<TreeProps>((await screen.Read())!, EngineerApp.WorktreesKey).ExpandedIds!);
+        await Send(os, brain, screen, EngineerApp.WorktreesKey, new DigitalBrain.UI.Commands.ExpandNode("wt-0", IsExpanded: true));
+        Assert.Contains("wt-0", PropsOf<TreeProps>((await screen.Read())!, EngineerApp.WorktreesKey).ExpandedIds!);
+    }
+
+    [Fact]
+    public async Task ATextSubmittedInTheBrainstormThreadStartsABrainstormWhoseTranscriptTheThreadShows()
+    {
+        var brain = new BrainId("engchat");
+        await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        os.RegisterCatalog();
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+
+        var screen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
+        _ = await screen.Read();
+
+        await Send(os, brain, screen, EngineerApp.BrainstormKey, new DigitalBrain.UI.Commands.SubmitText("Ship a dark mode toggle"));
+
+        var view = (await screen.Read())!.View.GetRawText();
+        Assert.Contains("Brainstorm complete", view, StringComparison.Ordinal);
+        var texts = await ThreadTexts(screen);
+        Assert.Contains(texts, static t => t.Contains("Ship a dark mode toggle", StringComparison.Ordinal) && t.Contains("[User · Goal & Scope]", StringComparison.Ordinal));
+        Assert.Contains(texts, static t => t.Contains("[Architect", StringComparison.Ordinal));
+        Assert.Contains(texts, static t => t.Contains("[Critic", StringComparison.Ordinal));
+    }
+
+    // Owner decision 11: the brainstorm messages of earlier runs lived only in the old ui.chat neuron. Engineer imports them into its
+    // brainstorm thread once, keeps them through later brainstorms, and never imports again.
+    [Fact]
+    public async Task EngineerImportsTheEarlierBrainstormHistoryOfTheOldChatNeuronOnce()
+    {
+        var brain = new BrainId("engimport");
+        await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        os.RegisterCatalog();
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+
+        var legacy = os.Get<IChatThread>(new NeuronId(brain, "ui.chat", EngineerApp.LegacyBrainstormChatKey));
+        await legacy.AppendMessage(new ChatMessage("old-run-turn-0", "user", "**[User · Goal & Scope]** Earlier goal"));
+        await legacy.AppendMessage(new ChatMessage("old-run-turn-1", "assistant", "**[Architect · Plan]** Earlier plan"));
+        await legacy.AppendMessage(new ChatMessage("old-run-turn-2", "assistant", "**[Critic · Audit]** Earlier audit"));
+
+        var engineerId = new NeuronId(brain, "app.engineer", "default");
+        var screen = os.Get<IScreen>(engineerId);
+        _ = await screen.Read();
+        await os.Idle();
+
+        var current = EngineerApp.TranscriptOf(new EngineerWorkspaceState()).Select(static m => m.Id).ToArray();
+        string[] imported = ["old-run-turn-0", "old-run-turn-1", "old-run-turn-2", .. current];
+        Assert.Equal(imported, await ThreadIds(screen));
+        Assert.Contains("**[Architect · Plan]** Earlier plan", await ThreadTexts(screen));
+
+        // A later brainstorm adds its run's transcript; the earlier history stays.
+        await Send(os, brain, screen, EngineerApp.BrainstormKey, new DigitalBrain.UI.Commands.SubmitText("Second goal"));
+        var afterBrainstorm = await ThreadIds(screen);
+        Assert.Equal(imported[..3], afterBrainstorm[..3]);
+
+        // The import ran once: a message the old neuron gains afterwards is not imported on the next activation.
+        await legacy.AppendMessage(new ChatMessage("late-turn-0", "user", "late"));
+        await os.Deactivate(engineerId);
+        await os.Idle();
+        _ = await screen.Read();
+        await os.Idle();
+        var reactivated = await ThreadIds(screen);
+        Assert.DoesNotContain("late-turn-0", reactivated);
+        Assert.Equal(afterBrainstorm, reactivated);
     }
 
     [Fact]
@@ -266,41 +365,33 @@ public sealed class EngineerAppFacts
                 await Task.Delay(40, Ct);
             }
 
-            // Open EngineerApp WITHOUT passing FlowId: it must auto-discover syncrun01 and populate all UI neurons!
+            // Open EngineerApp WITHOUT passing FlowId: it must auto-discover syncrun01 and draw it on its children!
             var screen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
             await screen.Request(new EngineerOpen());
             await os.Idle();
 
-            var stepper = os.Get<IStepper>(new NeuronId(brain, "ui.stepper", EngineerApp.StepperKey));
-            var tree = os.Get<ITreeView>(new NeuronId(brain, "ui.tree-view", EngineerApp.WorktreeTreeKey));
-            var kanban = os.Get<IKanbanBoard>(new NeuronId(brain, "ui.kanban", EngineerApp.KanbanKey));
-            var tabs = os.Get<ITabs>(new NeuronId(brain, "ui.tabs", EngineerApp.WorkspaceTabsKey));
-            var editor = os.Get<ICodeEditor>(new NeuronId(brain, "ui.code-editor", EngineerApp.CodeEditorKey));
-            var table = os.Get<ITable>(new NeuronId(brain, "ui.table", EngineerApp.TasksTableKey));
-
-            Assert.Equal("review-and-pr", (await stepper.Read()).ActiveStepId);
-            Assert.Equal("pr", (await tabs.Read()).SelectedId);
-            var treeNodes = (await tree.Read()).Nodes;
+            var opened = (await screen.Read())!;
+            Assert.Equal("pr", PropsOf<TabStripProps>(opened, EngineerApp.TabsKey).SelectedId);
+            var treeNodes = PropsOf<TreeProps>(opened, EngineerApp.WorktreesKey).Nodes;
             Assert.Contains(treeNodes, static n => n.Id == "wt-0" && n.Label.Contains("verified", StringComparison.Ordinal));
             Assert.Contains(treeNodes, static n => n.Id == "wt-1" && n.Label.Contains("verified", StringComparison.Ordinal));
-            Assert.All((await kanban.Read()).Cards, static c => Assert.Equal("verified", c.ColumnId));
 
-            // Candidate w1 (#0) is initially selected in ICodeEditor and ITable scoreboard!
+            // Candidate w1 (#0) is initially selected in the code block and the scoreboard table!
             var beforeSwitchSummary = await runs.InspectEngineerRun(delegated.FlowId, Ct);
             var sha0 = beforeSwitchSummary.Instances.Single(static i => i.InstanceIndex == 0).CommitSha!;
             var sha1 = beforeSwitchSummary.Instances.Single(static i => i.InstanceIndex == 1).CommitSha!;
-            Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
-            var initialPrTable = await table.Read();
-            Assert.Contains(initialPrTable.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
-            Assert.Contains(initialPrTable.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
+            Assert.Contains("Sub0", CodeOf(opened), StringComparison.Ordinal);
+            var initialPrTable = PropsOf<QueryTableProps>(opened, EngineerApp.TableKey).Rows!;
+            Assert.Contains(initialPrTable, static r => r.Id == "w1" && r.Cells[4].Contains("SELECTED", StringComparison.Ordinal));
+            Assert.Contains(initialPrTable, static r => r.Id == "w2" && r.Cells[4].Contains("STANDBY", StringComparison.Ordinal));
 
-            // Promote Candidate w2 via ITreeView ('wt-1') -> switches ICodeEditor diff, ITable scoreboard, and SHA-bound confirmation plan!
-            await tree.Select("wt-1");
-            await os.Idle();
-            Assert.Contains("Sub1", (await editor.Read()).Content, StringComparison.Ordinal);
-            var updatedPrTable = await table.Read();
-            Assert.Contains(updatedPrTable.Rows, static r => r[0].StartsWith("w2", StringComparison.Ordinal) && r[4].Contains("SELECTED", StringComparison.Ordinal));
-            Assert.Contains(updatedPrTable.Rows, static r => r[0].StartsWith("w1", StringComparison.Ordinal) && r[4].Contains("STANDBY", StringComparison.Ordinal));
+            // Promote Candidate w2 through the worktree tree ('wt-1') -> switches the diff, the scoreboard and the SHA-bound confirmation plan!
+            await Send(os, brain, screen, EngineerApp.WorktreesKey, new DigitalBrain.UI.Commands.Select("wt-1"));
+            var promoted = (await screen.Read())!;
+            Assert.Contains("Sub1", CodeOf(promoted), StringComparison.Ordinal);
+            var updatedPrTable = PropsOf<QueryTableProps>(promoted, EngineerApp.TableKey).Rows!;
+            Assert.Contains(updatedPrTable, static r => r.Id == "w2" && r.Cells[4].Contains("SELECTED", StringComparison.Ordinal));
+            Assert.Contains(updatedPrTable, static r => r.Id == "w1" && r.Cells[4].Contains("STANDBY", StringComparison.Ordinal));
 
             var afterTreePromote = await runs.InspectEngineerRun(delegated.FlowId, Ct);
             Assert.Equal(1, afterTreePromote.SelectedCandidateIndex);
@@ -311,7 +402,7 @@ public sealed class EngineerAppFacts
             var renderedView = (await screen.Read())!;
             await screen.Click(EngineerApp.CandidateSelectKey(0));
             await os.Idle();
-            Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
+            Assert.Contains("Sub0", CodeOf((await screen.Read())!), StringComparison.Ordinal);
             var afterBtnPromote = await runs.InspectEngineerRun(delegated.FlowId, Ct);
             Assert.Equal(0, afterBtnPromote.SelectedCandidateIndex);
             Assert.Equal(sha0, afterBtnPromote.WinningCommitSha);
@@ -430,6 +521,48 @@ public sealed class EngineerAppFacts
         var afterWebhookRaw = (await screen.Read())!.View.GetRawText();
         Assert.Contains("test-unit: failure [required]", afterWebhookRaw, StringComparison.Ordinal);
     }
+
+    // A command to Engineer's child `key`, sent through Engineer's gate as the person, as the client's /act does.
+    private static async Task Send(TestOS os, BrainId brain, IScreen screen, string key, Signal command)
+    {
+        var alias = command.GetType().GetCustomAttributes(typeof(SignalAttribute), false).Cast<SignalAttribute>().Single().Alias;
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", brain)))
+        {
+            await screen.Dispatch(new Command(key, alias, System.Text.Json.JsonSerializer.SerializeToElement(command, command.GetType(), System.Text.Json.JsonSerializerOptions.Web)));
+        }
+        await os.Idle();
+    }
+
+    // The props Engineer drew for its child `key`.
+    private static T PropsOf<T>(DigitalBrain.Units.PublishedView view, string key) where T : ControlProps
+        => Nodes(view.View).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
+                && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+            .GetProperty("props").Deserialize<T>(System.Text.Json.JsonSerializerOptions.Web)!;
+
+    // The text of the code block the Changes & Diff and PR tabs draw.
+    private static string CodeOf(DigitalBrain.Units.PublishedView view)
+        => Nodes(view.View).Single(n => n.TryGetProperty("surfaceKind", out var kind) && kind.GetString()!.StartsWith("code:", StringComparison.Ordinal))
+            .GetProperty("subtitle").GetString()!;
+
+    private static async Task<string[]> ThreadIds(IScreen screen) => [.. (await ThreadMessages(screen)).Select(static m => m.Id)];
+
+    private static async Task<string[]> ThreadTexts(IScreen screen) => [.. (await ThreadMessages(screen)).Select(static m => m.Text)];
+
+    // The messages the brainstorm thread draws, read through Engineer as the client reads a child.
+    private static async Task<IReadOnlyList<MessageNode>> ThreadMessages(IScreen screen)
+    {
+        var child = (await screen.ReadChild(EngineerApp.BrainstormKey))!;
+        var thread = Assert.IsType<DigitalBrain.UI.Controls.ChatThreadView>(
+            child.View.GetProperty("root").Deserialize<Node>(System.Text.Json.JsonSerializerOptions.Web));
+        return thread.Messages;
+    }
+
+    private static IEnumerable<System.Text.Json.JsonElement> Nodes(System.Text.Json.JsonElement element) => element.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.Object => [element, .. element.EnumerateObject().SelectMany(property => Nodes(property.Value))],
+        System.Text.Json.JsonValueKind.Array => element.EnumerateArray().SelectMany(Nodes),
+        _ => [],
+    };
 
     private sealed class DisconnectedIntegrations : DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule>
     {
