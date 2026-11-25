@@ -321,14 +321,16 @@ class NodeContext {
       slotPath.isEmpty && const {'.', './'}.contains(address);
 
   /// Acts on a neuron [address] relative to this view:
-  /// `{kind:"act", neuron, target, signal, args}`, posted to
-  /// `POST /brains/{brain}/act`. A refusal (`409` with its reason) or a
+  /// `{kind:"act", neuron, target, signal, args, value?}`, posted to
+  /// `POST /brains/{brain}/act`; [value] is a field's text, which the server
+  /// adds to the args as `value`. A refusal (`409` with its reason) or a
   /// handler failure (`422`) is shown by the host, which reads the view
   /// again; the outcome reports it to the caller.
   Future<ActivationOutcome> act(
     String address,
     String signal,
     Map<String, Object?> args, {
+    String? value,
     BuildContext? context,
   }) async {
     if (!interactive) return ActivationOutcome.refused;
@@ -339,6 +341,7 @@ class NodeContext {
         'target': actTarget(address),
         'signal': signal,
         'args': args,
+        'value': ?value,
       });
     } on UiRequestException catch (error) {
       return isStaleConflictError(error.statusCode, error.status ?? '')

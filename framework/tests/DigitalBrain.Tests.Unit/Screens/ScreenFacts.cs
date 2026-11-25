@@ -151,6 +151,29 @@ public sealed class ScreenFacts
     }
 
     [Fact]
+    public async Task Dispatch_to_itself_stamps_the_acting_person_as_by()
+    {
+        var (screen, context) = await Attached<SampleCounterScreen>();
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Person("alice-principal", "alice-account", new BrainId("alice"));
+
+        await screen.Dispatch(new Command(".", "counter.set-caller", JsonSerializer.SerializeToElement(new { value = "hi", by = "mallory" })));
+
+        Assert.Contains("alice-principal", (await screen.Read())!.View.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("mallory", (await screen.Read())!.View.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Dispatch_to_itself_without_a_person_drops_a_declared_by()
+    {
+        var (screen, context) = await Attached<SampleCounterScreen>();
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Scheduler(new BrainId("alice"));
+
+        await screen.Dispatch(new Command(".", "counter.set-caller", JsonSerializer.SerializeToElement(new { value = "hi", by = "mallory" })));
+
+        Assert.DoesNotContain("mallory", (await screen.Read())!.View.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Activate_WithHostAssertedBy_InjectsAuthenticatedCaller()
     {
         var (screen, _) = await Attached<SampleCounterScreen>();

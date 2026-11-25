@@ -67,6 +67,39 @@ public sealed class ActEndpointFacts
     }
 
     [Fact]
+    public async Task Act_carries_a_field_value_into_the_command_args()
+    {
+        using var _ = AsPerson();
+        var parent = new ParentScreen();
+        var args = JsonSerializer.SerializeToElement(new { draft = "d1" });
+
+        var result = await AppUiEndpoints.Act(new("owner/apps/settings", ".", "notes.save", args, "typed text"), new Brain(parent), Scope, Ct, Alice);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        var sent = Assert.Single(parent.Dispatched);
+        Assert.Equal("typed text", sent.Args!.Value.GetProperty("value").GetString());
+        Assert.Equal("d1", sent.Args!.Value.GetProperty("draft").GetString());
+    }
+
+    [Theory]
+    [InlineData("""{"by":"mallory"}""", null)]
+    [InlineData("""{"By":"mallory","on":true}""", null)]
+    [InlineData("""{"by":"mallory"}""", "typed")]
+    [InlineData("""{"value":"from the view"}""", "typed")]
+    public async Task Act_whose_args_name_by_or_clash_with_the_value_is_400_and_reaches_nothing(string args, string? value)
+    {
+        using var _ = AsPerson();
+        var parent = new ParentScreen();
+        var brain = new Brain(parent);
+
+        var result = await AppUiEndpoints.Act(new("owner/apps/settings", ".", "notes.save", JsonDocument.Parse(args).RootElement.Clone(), value), brain, Scope, Ct, Alice);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Empty(parent.Dispatched);
+        Assert.Empty(brain.Gets);
+    }
+
+    [Fact]
     public async Task Act_on_unknown_address_is_409_with_reason()
     {
         using var _ = AsPerson();

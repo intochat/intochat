@@ -63,7 +63,8 @@ internal static class AppUiEndpoints
     // POST /act: one command to a neuron address. The request names a top-level screen ({scope}/apps/{name}) and a target relative
     // to it ("." , "key" or a key path "a/b"); the parent owns its children, so a child is reached only through the parent's
     // Dispatch, each hop refusing a key its current view does not show. A raw child id is not a screen name and is refused here.
-    // Responses: 200 delivered; 400 a missing or malformed field (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded);
+    // Value is a field's text: it joins the args as "value". Args never name "by": the screen that handles the command stamps the person.
+    // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded);
     // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
     internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
         IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null)
@@ -75,6 +76,17 @@ internal static class AppUiEndpoints
             return Results.BadRequest(new { error = "An act names its neuron, target and signal." });
         }
         var alias = ScreenAlias(scope, input.Neuron) ?? throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+        JsonElement? args;
+        try
+        {
+            // Only the kernel names who acted (the handling screen stamps "by"), and a field's value never replaces one the command declares.
+            ViewArgs.RequireUnreserved(input.Args, input.Value);
+            args = input.Value is null ? input.Args : ViewArgs.WithValue(input.Args, input.Value);
+        }
+        catch (ArgumentException error)
+        {
+            return Results.BadRequest(new { error = error.Message });
+        }
         var appKey = AppOf(scope, input.Neuron.EndsWith("/view", StringComparison.Ordinal) ? input.Neuron[..^5] : input.Neuron);
         var resolvedTarget = appKey is not null ? await ResolveScreenTargetAsync(resolver, scope, appKey, ct) : null;
         NeuronId screenId;
@@ -93,7 +105,7 @@ internal static class AppUiEndpoints
         var screen = brain.Get<IScreen>(screenId);
         try
         {
-            await screen.Dispatch(new DigitalBrain.UI.Command(input.Target, input.Signal, input.Args)).WaitAsync(ct);
+            await screen.Dispatch(new DigitalBrain.UI.Command(input.Target, input.Signal, args)).WaitAsync(ct);
         }
         catch (ActivationRefusedException refused)
         {
@@ -166,7 +178,7 @@ internal static class AppUiEndpoints
     }
 
     // Dart mirror: NodeContext.act in ui/lib/src/nodes/node_context.dart.
-    internal sealed record ActRequest(string? Neuron, string? Target, string? Signal, JsonElement? Args = null);
+    internal sealed record ActRequest(string? Neuron, string? Target, string? Signal, JsonElement? Args = null, string? Value = null);
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
     internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null, IScreenTargetResolver? resolver = null)

@@ -31,7 +31,7 @@ A child ref names its child by key, never by id. A command to a child goes throu
 
 `FollowChild<TChild, TSignal>(key)` makes a signal of a child reach the parent's `[On]` reaction, where `SignalChild` names the key it came from. `RenderDetached(state)` draws a preview without saving anything.
 
-On the OS edge, a screen's commands go to `POST /brains/{id}/act` and its child views to `GET /brains/{id}/apps/{name}/slots/{path}` (wire `refKind` remains `"slot"` for client compatibility). The host marks a screen's view with `"acts": "act"` (`View.ActRoute`) when it serves it; a view has no such property, so an app cannot set the mark. The act route answers 400 for a malformed request, 409 with a reason for a refusal, and 422 `HandlerFailed` when the handler throws.
+On the OS edge, a screen's commands go to `POST /brains/{id}/act` and its child views to `GET /brains/{id}/apps/{name}/slots/{path}` (wire `refKind` remains `"slot"` for client compatibility). The host marks a screen's view with `"acts": "act"` (`View.ActRoute`) when it serves it; a view has no such property, so an app cannot set the mark. A request may carry a field's text as `value`, which joins the command's args as `value`. Only the kernel names who acted: the route refuses args that name `by`, and the screen that handles a command (itself, or a child after the parent's hop) finds the caller's person principal under `by`. The act route answers 400 for a malformed request (args naming `by` or a `value` the args already declare included), 409 with a reason for a refusal, and 422 `HandlerFailed` when the handler throws.
 
 ## Example
 
