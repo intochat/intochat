@@ -117,7 +117,8 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
     public Task Clear(CalculatorClear request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return State.Expression.Length == 0 ? Show(State) : ApplyDecisionAsync(State.ClearDisplay());
+        // An empty display is refused by the rule the Clear button's guard shows.
+        return ApplyDecisionAsync(State.ClearDisplay());
     }
 
     [On]

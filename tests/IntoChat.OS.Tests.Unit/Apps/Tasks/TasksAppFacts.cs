@@ -230,7 +230,8 @@ public sealed class TasksAppFacts
         var tasks = await os.Install<TasksApp>();
 
         var before = tasks.App.State.Tasks.Length;
-        // Each press is the button's typed command, sent as /act sends it.
+        // Each press is the button's typed command, sent as /act sends it, by the person.
+        using var person = tasks.OS.Edge.Enter(tasks.OS.Edge.Person("local", "local", LocalBrain));
         await tasks.Screen.Click("tasks:add");
         Assert.Equal(before + 1, tasks.App.State.Tasks.Length);
         var added = tasks.App.State.SelectedTaskId!;
