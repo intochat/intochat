@@ -67,21 +67,35 @@ public sealed class AspireHttpSessionDriver : IAppSessionDriver
     }
 
     /// <inheritdoc />
-    public async Task<PublishedView> ActivateAsync(string key, CancellationToken ct = default)
+    public Task<PublishedView> ActivateAsync(string key, CancellationToken ct = default) => PressAsync(key, value: null, ct);
+
+    /// <inheritdoc />
+    public Task<PublishedView> TypeAsync(string key, string text, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return PressAsync(key, text, ct);
+    }
+
+    // What the shell does: it sends the keyed node's command (a field's onSubmit, an info bar's close) from the view it read to
+    // POST /act for this app's screen, with a field's text as the value.
+    private async Task<PublishedView> PressAsync(string key, string? value, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ct.ThrowIfCancellationRequested();
 
         var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
+        var command = CommandOf(current.View, key)
+            ?? throw new InvalidOperationException($"The view of '{_app}' has no node '{key}' that sends a command.");
         using var response = await _host.Os.PostAsJsonAsync(
-            $"/brains/{_scope}/apps/event",
+            $"/brains/{_scope}/act",
             new
             {
-                kind = "view",
-                name = ViewNodeName,
-                key,
-                generation = current.Generation,
+                neuron = $"{_scope}/apps/{_app}",
+                target = command.GetProperty("target").GetString(),
+                signal = command.GetProperty("signal").GetString(),
+                args = command.TryGetProperty("args", out var args) ? args.Clone() : (JsonElement?)null,
+                value,
             },
             ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -90,30 +104,30 @@ public sealed class AspireHttpSessionDriver : IAppSessionDriver
         return await ReadViewAsync(ct).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
-    public async Task<PublishedView> TypeAsync(string key, string text, CancellationToken ct = default)
+    private static JsonElement? CommandOf(JsonElement element, string key)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        ArgumentNullException.ThrowIfNull(text);
-        ct.ThrowIfCancellationRequested();
-
-        var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
-        using var response = await _host.Os.PostAsJsonAsync(
-            $"/brains/{_scope}/apps/event",
-            new
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key)
             {
-                kind = "view",
-                name = ViewNodeName,
-                key,
-                generation = current.Generation,
-                value = text,
-            },
-            ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        await WaitForSettledViewAsync(current.Generation, ct).ConfigureAwait(false);
-        return await ReadViewAsync(ct).ConfigureAwait(false);
+                foreach (var member in new[] { "command", "onSubmit", "close" })
+                {
+                    if (element.TryGetProperty(member, out var command) && command.ValueKind == JsonValueKind.Object) { return command.Clone(); }
+                }
+            }
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.Name is not ("command" or "onSubmit" or "close" or "args") && CommandOf(property.Value, key) is { } found) { return found; }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (CommandOf(item, key) is { } found) { return found; }
+            }
+        }
+        return null;
     }
 
     /// <inheritdoc />

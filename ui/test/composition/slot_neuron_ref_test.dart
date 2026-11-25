@@ -214,7 +214,7 @@ void main() {
   );
 
   testWidgets(
-    'clicking a button inside a nested Slot targets the slot neuron and its own generation, and reacts to watch signals',
+    'clicking a button inside a nested Slot sends its command to the slot neuron, and reacts to watch signals',
     (tester) async {
       final events = <Map<String, dynamic>>[];
       final childWatch = StreamController<void>.broadcast();
@@ -233,8 +233,8 @@ void main() {
                 : const Stream.empty(),
             onAction: (event) async {
               events.add(event);
-              if (event['name'] == 'local/units/counter' &&
-                  event['key'] == 'cmd:Increment') {
+              if (event['neuron'] == 'local/units/counter' &&
+                  event['signal'] == 'counter.increment') {
                 counter++;
                 slotGen++;
               }
@@ -273,6 +273,10 @@ void main() {
                           'kind': 'button',
                           'key': 'cmd:Increment',
                           'label': 'Increment',
+                          'command': {
+                            'target': '.',
+                            'signal': 'counter.increment',
+                          },
                           'style': 'primary',
                           'enabled': true,
                         },
@@ -296,10 +300,11 @@ void main() {
 
       expect(events, hasLength(1));
       expect(events.single, {
-        'kind': 'view',
-        'name': 'local/units/counter',
-        'generation': 42,
-        'key': 'cmd:Increment',
+        'kind': 'act',
+        'neuron': 'local/units/counter',
+        'target': '.',
+        'signal': 'counter.increment',
+        'args': <String, Object?>{},
       });
       expect(find.text('Count: 11'), findsOneWidget);
 
@@ -474,6 +479,11 @@ void main() {
                           'kind': 'button',
                           'key': 'cmd:Deposit:50',
                           'label': 'Deposit €50',
+                          'command': {
+                            'target': '.',
+                            'signal': 'bank.deposit',
+                            'args': {'amount': 50},
+                          },
                           'style': 'primary',
                           'enabled': true,
                         },
@@ -498,10 +508,11 @@ void main() {
 
       expect(events, [
         {
-          'kind': 'view',
-          'name': 'local/units/bank',
-          'generation': 12,
-          'key': 'cmd:Deposit:50',
+          'kind': 'act',
+          'neuron': 'local/units/bank',
+          'target': '.',
+          'signal': 'bank.deposit',
+          'args': {'amount': 50},
         },
       ]);
     },

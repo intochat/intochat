@@ -212,21 +212,34 @@ void main() {
                             'kind': 'button',
                             'key': 'engineer:open-aspire-input',
                             'label': 'Aspire Trace Input',
-                            'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                            'intent': {
+                              'intentKind': 'OpenWindow',
+                              'arg': 'os://window/open?app=aspire&input=4bf92f3577b34da6a3ce929d0e0e4736',
+                            },
                             'enabled': true,
                           },
                           {
                             'kind': 'button',
                             'key': 'engineer:open-aspire-args',
                             'label': 'Aspire Typed Args',
-                            'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                            'intent': {
+                              'intentKind': 'OpenWindow',
+                              'arg':
+                                  'os://window/open?app=aspire'
+                                  '&args=${Uri.encodeQueryComponent(typedArgsJson)}'
+                                  '&transition=shared-axis-z'
+                                  '&from=app.engineer',
+                            },
                             'enabled': true,
                           },
                           {
                             'kind': 'button',
                             'key': 'engineer:open-orleans',
                             'label': 'Orleans Grain',
-                            'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                            'intent': {
+                              'intentKind': 'OpenWindow',
+                              'arg': 'os://window/open?app=orleans&input=EngineerFlow',
+                            },
                             'enabled': true,
                           },
                         ],
@@ -286,31 +299,7 @@ void main() {
                   }
                   return {'delivered': true};
                 }
-                return switch (event['key']) {
-                  'engineer:open-aspire-input' => {
-                    'intent': {
-                      'intentKind': 'OpenWindow',
-                      'arg': 'os://window/open?app=aspire&input=4bf92f3577b34da6a3ce929d0e0e4736',
-                    },
-                  },
-                  'engineer:open-aspire-args' => {
-                    'intent': {
-                      'intentKind': 'OpenWindow',
-                      'arg':
-                          'os://window/open?app=aspire'
-                          '&args=${Uri.encodeQueryComponent(typedArgsJson)}'
-                          '&transition=shared-axis-z'
-                          '&from=app.engineer',
-                    },
-                  },
-                  'engineer:open-orleans' => {
-                    'intent': {
-                      'intentKind': 'OpenWindow',
-                      'arg': 'os://window/open?app=orleans&input=EngineerFlow',
-                    },
-                  },
-                  _ => {'delivered': true},
-                };
+                return {'delivered': true};
               },
               onActivate: activations.add,
               stylePreset: IcStylePreset.fluentAcrylic,
@@ -520,7 +509,7 @@ void main() {
       );
       expect(find.text('Settings Hub: connections/github'), findsOneWidget);
 
-      // 2. Tap Ask Ino from Settings -> preserves stashed argsJson across EventQueue microtask hops into brain-1/apps/ino
+      // 2. Tap Ask Ino from Settings -> carries the intent's argsJson into brain-1/apps/ino
       await tester.tap(find.text('Ask Ino From Settings'));
       await tester.pumpAndSettle();
 
@@ -567,48 +556,6 @@ class _SingleSurfaceCrossNavServer extends ApplicationServer {
       return json({
         'root': {'kind': 'view', 'name': '$brainId/apps/engineer/view'},
       });
-    }
-
-    if (path.endsWith('/apps/event')) {
-      requests.add(RecordedAppRequest(path, reqBody));
-      if (reqBody['key'] == 'engineer:open-aspire') {
-        final argsJson = jsonEncode({
-          'traceId': '4bf92f3577b34da6a3ce929d0e0e4736',
-        });
-        return json({
-          'intent': {
-            'kind': 'OpenWindow',
-            'arg':
-                'os://window/open?app=aspire'
-                '&args=${Uri.encodeQueryComponent(argsJson)}'
-                '&transition=shared-axis-x',
-          },
-        });
-      }
-      if (reqBody['key'] == 'engineer:open-github-settings') {
-        return json({
-          'intent': {
-            'intentKind': 'OpenWindow',
-            'arg': 'os://window/open?app=settings&input=connections%2Fgithub',
-          },
-        });
-      }
-      if (reqBody['key'] == 'settings:ask-ino') {
-        final argsJson = jsonEncode({
-          'prompt': 'Audit GitHub webhook rules',
-          'focusTarget': 'focus:github/main',
-        });
-        return json({
-          'intent': {
-            'intentKind': 'OpenWindow',
-            'arg':
-                'os://window/open?app=ino'
-                '&args=${Uri.encodeQueryComponent(argsJson)}'
-                '&from=app.settings',
-          },
-        });
-      }
-      return json({'delivered': true});
     }
 
     if (path == '/brains/$brainId/act') {
@@ -670,14 +617,23 @@ class _SingleSurfaceCrossNavServer extends ApplicationServer {
                   'kind': 'button',
                   'key': 'engineer:open-aspire',
                   'label': 'Open Aspire Trace',
-                  'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                  'intent': {
+                    'intentKind': 'OpenWindow',
+                    'arg':
+                        'os://window/open?app=aspire'
+                        '&args=${Uri.encodeQueryComponent(jsonEncode({'traceId': '4bf92f3577b34da6a3ce929d0e0e4736'}))}'
+                        '&transition=shared-axis-x',
+                  },
                   'enabled': true,
                 },
                 {
                   'kind': 'button',
                   'key': 'engineer:open-github-settings',
                   'label': 'Configure GitHub',
-                  'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                  'intent': {
+                    'intentKind': 'OpenWindow',
+                    'arg': 'os://window/open?app=settings&input=connections%2Fgithub',
+                  },
                   'enabled': true,
                 },
               ],
@@ -699,7 +655,13 @@ class _SingleSurfaceCrossNavServer extends ApplicationServer {
                   'kind': 'button',
                   'key': 'settings:ask-ino',
                   'label': 'Ask Ino From Settings',
-                  'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                  'intent': {
+                    'intentKind': 'OpenWindow',
+                    'arg':
+                        'os://window/open?app=ino'
+                        '&args=${Uri.encodeQueryComponent(jsonEncode({'prompt': 'Audit GitHub webhook rules', 'focusTarget': 'focus:github/main'}))}'
+                        '&from=app.settings',
+                  },
                   'enabled': true,
                 },
               ],

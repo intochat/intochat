@@ -50,8 +50,6 @@ internal static class AppUiEndpoints
         });
         apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault()));
-        apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
-            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger, resolver: resolvers.FirstOrDefault()));
         apps.MapGet("/{name}/slots/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
         OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
@@ -59,11 +57,14 @@ internal static class AppUiEndpoints
 
     }
 
-    // POST /act: one command to a neuron address. The request names a top-level screen ({scope}/apps/{name}) and a target relative
-    // to it ("." , "key" or a key path "a/b"); the parent owns its children, so a child is reached only through the parent's
-    // Dispatch, each hop refusing a key its current view does not show. A raw child id is not a screen name and is refused here.
+    // POST /act: one command to a neuron address, the only route a person's action takes onto a screen. The request names a
+    // top-level screen: an app ({scope}/apps/{name}: a compiled screen, an agent app, a sandboxed app's view neuron, or the unit of
+    // that alias) or a unit ({scope}/{alias}, {scope}/units/{alias}), resolved by IScreenTargetResolver; and a target relative to it
+    // ("." , "key" or a key path "a/b"). The parent owns its children, so a child is reached only through the parent's Dispatch,
+    // each hop refusing a key its current view does not show. A raw child id is not a screen name and is refused here.
     // Value is a field's text: it joins the args as "value". Args never name "by": the screen that handles the command stamps the person.
-    // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded);
+    // A node's client-local intent never comes here: the client performs it from the node.
+    // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded, NoSlots);
     // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
     internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
         IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null)
@@ -74,7 +75,8 @@ internal static class AppUiEndpoints
         {
             return Results.BadRequest(new { error = "An act names its neuron, target and signal." });
         }
-        var alias = ScreenAlias(scope, input.Neuron) ?? throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+        var unit = UnitAlias(scope, input.Neuron);
+        var alias = unit is null ? ScreenAlias(scope, input.Neuron) ?? throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.") : null;
         JsonElement? args;
         try
         {
@@ -86,20 +88,28 @@ internal static class AppUiEndpoints
         {
             return Results.BadRequest(new { error = error.Message });
         }
-        var appKey = AppOf(scope, input.Neuron.EndsWith("/view", StringComparison.Ordinal) ? input.Neuron[..^5] : input.Neuron);
-        var resolvedTarget = appKey is not null ? await ResolveScreenTargetAsync(resolver, scope, appKey, ct) : null;
+        var resolvedTarget = await ResolveScreenTargetAsync(resolver, scope, input.Neuron, ct);
         NeuronId screenId;
-        if (resolvedTarget is { Kind: IScreenTargetResolver.CompiledScreenKind or IScreenTargetResolver.AgentAppKind })
+        if (resolvedTarget is { Kind: IScreenTargetResolver.ConfirmationsKind })
+        {
+            throw new UnauthorizedAccessException("A confirmation is answered on its own route, not by a command.");
+        }
+        else if (resolvedTarget is not null)
         {
             screenId = resolvedTarget.ScreenId;
         }
-        else if (appKey is not null && !(hosted?.IsHostLoaded(appKey) ?? true))
+        else if (unit is not null)
+        {
+            screenId = UnitState(scope, unit);
+        }
+        else if (AppOf(scope, input.Neuron.EndsWith("/view", StringComparison.Ordinal) ? input.Neuron[..^5] : input.Neuron) is { } appKey
+            && !(hosted?.IsHostLoaded(appKey) ?? true))
         {
             return Results.Conflict(new { error = $"{input.Neuron} is not loaded.", reason = "NotLoaded" });
         }
         else
         {
-            screenId = new NeuronId(new BrainId(scope), alias, "default");
+            screenId = new NeuronId(new BrainId(scope), alias!, "default");
         }
         var screen = brain.Get<IScreen>(screenId);
         try
@@ -417,16 +427,6 @@ internal static class AppUiEndpoints
         };
     }
 
-    // One UI event from the shell, under the caller the edge stamped on brain: a view activation. A field's text travels with its
-    // command (POST /act or the activation's value); a person's confirmation answer and the embedded browser's reports have their own
-    // routes (ConfirmationEndpoints, WebBrowserEndpoints). A node's command reaches the screen that drew it (an app view's command to "."
-    // becomes AppRequested at its app); an Intent goes back to the client, which performs it.
-    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null, IScreenTargetResolver? resolver = null)
-    {
-        if (input.Kind != UIVocabulary.ViewType) { throw new ArgumentException("Unknown UI event."); }
-        return await DeliverView(input, brain, scope, ct, caller, logger, resolver);
-    }
-
     private static Task<ScreenTarget?> ResolveScreenTargetAsync(
         IScreenTargetResolver? resolver,
         string scope,
@@ -435,198 +435,6 @@ internal static class AppUiEndpoints
         => resolver is not null && BrainId.IsValid(scope)
             ? resolver.ResolveAsync(new BrainId(scope), appName, ct)
             : Task.FromResult<ScreenTarget?>(null);
-
-    // A view event: the view neuron resolves the keyed node of the generation the client saw; the edge routes what it does.
-    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null, IScreenTargetResolver? resolver = null)
-    {
-        var log = logger ?? ConsoleLog;
-        var key = input.Key ?? throw new ArgumentException("A view event names the activated node's key.");
-        var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
-        if (UnitAlias(scope, input.Name) is { } alias)
-        {
-            return await ActivateUnitViewAsync(brain, scope, alias, generation, key, input.Value, ct, caller, log);
-        }
-        if (ScreenAlias(scope, input.Name) is { } screenAlias)
-        {
-            var eventAppKey = AppOf(scope, input.Name);
-            var resolvedTarget = eventAppKey is not null ? await ResolveScreenTargetAsync(resolver, scope, eventAppKey, ct) : null;
-            var screenId = resolvedTarget is { Kind: IScreenTargetResolver.CompiledScreenKind or IScreenTargetResolver.AgentAppKind }
-                ? resolvedTarget.ScreenId
-                : new NeuronId(new BrainId(scope), screenAlias, "default");
-            var effectiveAlias = screenId.Type;
-            PublishedView? published = null;
-            IScreen? screen = null;
-            try
-            {
-                screen = brain.Get<IScreen>(screenId);
-                published = await screen.Read().WaitAsync(ct);
-            }
-            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
-            {
-                log.LogSwallowed(error, "Screen view could not be read for action finding.");
-            }
-
-            if (published is null)
-            {
-                var candidateUnit = screenAlias["app.".Length..];
-                try
-                {
-                    var unitPublished = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
-                    if (unitPublished is not null)
-                    {
-                        return await ActivateUnitViewAsync(brain, scope, candidateUnit, generation, key, input.Value, ct, caller, log);
-                    }
-                }
-                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
-                {
-                    log.LogSwallowed(error, "Unit view fallback could not be read for action finding.");
-                }
-            }
-
-            if (published is not null && screen is not null)
-            {
-                var node = ViewValidation.Find(published.View, key);
-                if (node is { } found && found.TryGetProperty("resolve", out var res) && res.ValueKind == JsonValueKind.Object)
-                {
-                    throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
-                }
-                var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode) : ViewActivation.None;
-
-                switch (action.Kind)
-                {
-                    case ViewActivationKind.Intent:
-                        return IntentResult(action.Intent!);
-
-                    case ViewActivationKind.Resolve:
-                        throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
-
-                    case ViewActivationKind.Command:
-                        ViewArgs.RequireValueUnreserved(action.Command!.Args, input.Value);
-                        if (caller?.For?.Principal is not { Length: > 0 } personId)
-                        {
-                            throw new UnauthorizedAccessException("Only a signed-in person activates a screen view.");
-                        }
-                        try
-                        {
-                            // The screen resolves the key in its own current view and sends the node's command, hop by hop like POST /act.
-                            await screen.Activate(effectiveAlias, generation, key, input.Value, personId).WaitAsync(ct);
-                        }
-                        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
-                        {
-                            throw new StaleActionException("This action is no longer available. Read the view again.");
-                        }
-                        catch (ActivationRefusedException refused)
-                        {
-                            throw new ArgumentException($"This view node does nothing ({refused.Reason}).");
-                        }
-                        return Results.Ok(new { delivered = true });
-
-                    default:
-                        throw new ArgumentException("This view node does nothing.");
-                }
-            }
-        }
-        if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
-        var name = input.Name;
-        var activation = await brain.Get<IView>(name).Activate(generation, key, input.Value).WaitAsync(ct);
-        var appKey = AppOf(scope, name);
-        switch (activation.Kind)
-        {
-            case ViewActivationKind.Command when ViewValidation.ToSelf(activation.Command!):
-                // A command to "." is the view's own app ({scope}/apps/{name}).
-                if (appKey is null || !BrainId.IsValid(scope)) { throw new UnauthorizedAccessException($"{name} is not an app view of this brain."); }
-                var command = activation.Command!;
-                var args = input.Value is null ? command.Args : ViewArgs.WithValue(command.Args, input.Value);
-                await brain.Get<IApp>(appKey).Emit(command.Signal, args?.GetRawText() ?? "").WaitAsync(ct);
-                return Results.Ok(new { delivered = true });
-            case ViewActivationKind.Intent:
-                return IntentResult(activation.Intent!);
-            case ViewActivationKind.Resolve:
-                throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {name} cannot.");
-            case ViewActivationKind.Command:
-                // A slotless app: a command to a child address has nowhere to go.
-                return NoSlots(name, activation.Command!.Target);
-            default:
-                throw new ArgumentException("This view node does nothing.");
-        }
-    }
-
-    // 409 {error, reason: NoSlots}: the client's refusal snackbar shows it.
-    private static IResult NoSlots(string name, string target)
-        => Results.Conflict(new { error = $"{name} has no child slots, so the command to '{target}' has nowhere to go.", reason = ActivationRefusedException.NoSlots });
-
-    private static async Task<IResult> ActivateUnitViewAsync(
-        INeuronProxies brain,
-        string scope,
-        string alias,
-        long generation,
-        string key,
-        string? value,
-        CancellationToken ct,
-        DigitalBrain.Access.Caller? caller,
-        ILogger? logger = null)
-    {
-        var log = logger ?? ConsoleLog;
-        // A unit's view lives at its state neuron. IViewReader.Activate returns no typed result: it resolves the key itself and
-        // journals the command's signal, refusing a stale generation, an unknown key and a node with no command. The
-        // edge resolves once, from the one PublishedView whose generation it checks, only to answer an intent (client-local) and
-        // to refuse a resolve (a unit view never reaches the confirmations). Race: the view may change between that Read and
-        // Activate; Activate re-resolves against its own current generation, so a changed view refuses the command as stale.
-        var reader = brain.Get<IViewReader>(UnitState(scope, alias));
-        var published = await reader.Read(alias).WaitAsync(ct);
-        IScreen? screen = null;
-        if (published is null)
-        {
-            try
-            {
-                var screenId = new NeuronId(new BrainId(scope), alias, "default");
-                screen = brain.Get<IScreen>(screenId);
-                published = await screen.Read().WaitAsync(ct);
-            }
-            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
-            {
-                log.LogSwallowed(error, "Screen for unit could not be read.");
-            }
-        }
-        var unitNode = published is { } shown && shown.Generation == generation ? ViewValidation.Find(shown.View, key) : null;
-        if (unitNode is { } resolvedNode && resolvedNode.TryGetProperty("resolve", out var unitResolve) && unitResolve.ValueKind == JsonValueKind.Object)
-        {
-            throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
-        }
-        var shownAction = unitNode is { } foundUnitNode ? ViewValidation.ActionOf(foundUnitNode) : ViewActivation.None;
-        switch (shownAction.Kind)
-        {
-            case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
-            case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
-            case ViewActivationKind.Command: ViewArgs.RequireValueUnreserved(shownAction.Command!.Args, value); break;
-        }
-        // The state neuron writes "by" into the payload, overwriting whatever the payload says: the caller's stable person id, never
-        // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
-        if (caller?.For?.Principal is not { Length: > 0 } personId)
-        { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
-        if (screen is not null)
-        {
-            try { await screen.Activate(alias, generation, key, value, personId).WaitAsync(ct); }
-            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
-            { throw new StaleActionException("This action is no longer available. Read the view again."); }
-            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.NoSlots)
-            { return NoSlots(alias, key); }
-            catch (ActivationRefusedException refused)
-            { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
-            return Results.Ok(new { delivered = true });
-        }
-        try { await reader.Activate(alias, generation, key, value, personId).WaitAsync(ct); }
-        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
-        { throw new StaleActionException("This action is no longer available. Read the view again."); }
-        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.NoSlots)
-        { return NoSlots(alias, key); }
-        catch (ActivationRefusedException refused)
-        { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
-        return Results.Ok(new { delivered = true });
-    }
-
-    private static IResult IntentResult(DigitalBrain.UI.Intent intent)
-        => Results.Json(new { intent = new { kind = intent.Kind.ToString(), arg = intent.Arg } }, ViewJson);
 
     // The view's owning app, {scope}/apps/{name}.
     private static string? AppOf(string scope, string view)
@@ -695,10 +503,6 @@ internal static class AppUiEndpoints
         (name.StartsWith(scope + "/", StringComparison.Ordinal)
          && name.Split('/') is [_, "apps" or "images" or "applications" or "units", ..])
         || UnitAlias(scope, name) is not null;
-
-    // The client's one UI event; Dart mirror: NodeContext (activate, input) in ui/lib/src/nodes/node_context.dart.
-    internal sealed record UiEvent(string Kind, string Name, string? Value = null, long Revision = 0, string? Field = null,
-        long? Generation = null, string? Key = null);
 }
 
 // An activation's field value joins the command's args as "value" (an object's member; other args become {args, value}).
@@ -708,14 +512,6 @@ internal static class ViewArgs
     // (a view that declares one beside a field would be overwritten silently, so it is refused).
     public const string By = "by";
     public const string Value = "value";
-
-    // A unit view's command: "by" is the framework's (it refuses a view declaring one and stamps the host's), so only "value" is checked.
-    public static void RequireValueUnreserved(JsonElement? args, string? value)
-    {
-        if (value is null || args is not { ValueKind: JsonValueKind.Object } given) { return; }
-        if (given.EnumerateObject().Any(member => member.Value.ValueKind != JsonValueKind.Null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase)))
-        { throw new ArgumentException("A view's command already declares \"value\"; a field's text cannot replace it."); }
-    }
 
     public static void RequireUnreserved(JsonElement? args, string? value)
     {
@@ -727,6 +523,22 @@ internal static class ViewArgs
             if (value is not null && member.Value.ValueKind != JsonValueKind.Null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("A view's command already declares \"value\"; a field's text cannot replace it."); }
         }
+    }
+
+    // The args a view neuron sends its app: the field value joined (WithValue) and, when the args are an object or none, the acting
+    // person under "by" in place of any declared one. A positional array or a scalar has no member to carry the person.
+    public static JsonElement Stamped(JsonElement? args, string? value, string? by)
+    {
+        var joined = value is null ? args : WithValue(args, value);
+        if (joined is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null or JsonValueKind.Undefined) } positional) { return positional; }
+        var payload = joined is { ValueKind: JsonValueKind.Object } given ? System.Text.Json.Nodes.JsonObject.Create(given) ?? [] : new System.Text.Json.Nodes.JsonObject();
+        foreach (var declared in payload.Select(kv => kv.Key).Where(k => string.Equals(k, By, StringComparison.OrdinalIgnoreCase)).ToArray())
+        {
+            payload.Remove(declared);
+        }
+        if (by is not null) { payload[By] = by; }
+        using var doc = JsonDocument.Parse(payload.ToJsonString());
+        return doc.RootElement.Clone();
     }
 
     // An object gets a "value" member; an array gets the value appended (a positional last argument); a scalar or no args

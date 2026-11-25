@@ -1018,9 +1018,10 @@ final class IntoChatOSUiClient {
   }
 
   /// Posts one UI event from a [NodeContext]: an `act` goes to
-  /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), a
-  /// `confirmation` answer to [answerConfirmation], a `webbrowser` report to
-  /// [webBrowser], every other kind to `POST /brains/{workspace}/apps/event`.
+  /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), the one route
+  /// of a person's action; a `confirmation` answer to [answerConfirmation]; a
+  /// `webbrowser` report to [webBrowser]. Any other kind is refused here, never
+  /// guessed onto a route.
   Future<Map<String, dynamic>> uiEvent(
     String workspace,
     Map<String, Object?> event,
@@ -1037,7 +1038,7 @@ final class IntoChatOSUiClient {
       case 'webbrowser':
         return webBrowser(workspace, event);
       default:
-        return appRequest(workspace, 'event', body: event);
+        throw ArgumentError.value(event['kind'], 'kind', 'Unknown UI event');
     }
     final response = await _request(
       'POST',

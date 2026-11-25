@@ -1,5 +1,5 @@
 /// One sample per generated node kind, as `DigitalBrain.UI` serialises it.
-const _emit = {'owner': 'apps/sample', 'signal': 'picked'};
+const _emit = {'target': '.', 'signal': 'picked'};
 const _command = {'target': '.', 'signal': 'picked'};
 const _button = {
   'key': 'go',
@@ -382,10 +382,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'messages': [],
     'composer': {
       'key': 'composer',
-      'onSubmit': {
-        'owner': 'control.chatThread',
-        'signal': 'control.submitText',
-      },
+      'onSubmit': {'target': '.', 'signal': 'control.submitText'},
     },
     'stop': {'kind': 'button', 'key': 'stop', 'label': 'Stop'},
     'retry': {'kind': 'button', 'key': 'error-action', 'label': 'Try again'},

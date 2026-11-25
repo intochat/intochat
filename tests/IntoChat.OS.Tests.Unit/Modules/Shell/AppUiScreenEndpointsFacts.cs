@@ -19,9 +19,6 @@ public sealed class AppUiScreenEndpointsFacts
     private const string Scope = "owner";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static IDisposable AsPerson(string principal = "alice")
-        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person(principal, principal, new BrainId(Scope)));
-
     private static PublishedView CreateTestView(string alias, long generation, string key, string emitSignal)
     {
         var view = new View(
@@ -109,11 +106,6 @@ public sealed class AppUiScreenEndpointsFacts
         }
     }
 
-    private sealed class EmptyHostedTypes : IHostedAppTypes
-    {
-        public bool IsHostLoaded(string appKey) => true;
-    }
-
     [Fact]
     public async Task Viewport_Reading_For_Screen_Returns_Direct_ViewRef()
     {
@@ -153,81 +145,5 @@ public sealed class AppUiScreenEndpointsFacts
         var brain = new ScreenBrain();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             AppUiEndpoints.ReadNode("view", "foreign/apps/calculator/view", brain, Scope, Ct));
-    }
-
-    [Fact]
-    public async Task Mismatched_View_Generation_Throws_StaleActionException()
-    {
-        var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 2L, "btn-0", "calc.press");
-        var fakeScreen = new FakeScreen(published);
-        brain.RegisterScreen("app.calculator", fakeScreen);
-
-        // Client saw generation 1, but screen is at generation 2
-        var uiEvent = new AppUiEndpoints.UiEvent("view", "owner/apps/calculator/view", Generation: 1L, Key: "btn-0");
-
-        using (AsPerson("alice"))
-        {
-            var ex = await Assert.ThrowsAsync<StaleActionException>(() =>
-                AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
-            Assert.Contains("This action is no longer available", ex.Message);
-        }
-    }
-
-    [Fact]
-    public async Task A_command_to_a_child_the_view_does_not_show_is_refused()
-    {
-        var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-alien", "test.alien");
-        var fakeScreen = new FakeScreen(published);
-        brain.RegisterScreen("app.calculator", fakeScreen);
-
-        var uiEvent = new AppUiEndpoints.UiEvent("view", "owner/apps/calculator/view", Generation: 1L, Key: "btn-alien");
-
-        using (AsPerson("alice"))
-        {
-            var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-                AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
-            Assert.Contains(ActivationRefusedException.UnknownChild, ex.Message);
-        }
-    }
-
-    [Fact]
-    public async Task Node_Activation_By_Unsigned_Caller_Throws_UnauthorizedAccessException()
-    {
-        var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-0", "calc.press");
-        var fakeScreen = new FakeScreen(published);
-        brain.RegisterScreen("app.calculator", fakeScreen);
-
-        // No AsPerson() call — unsigned caller
-        var uiEvent = new AppUiEndpoints.UiEvent("view", "owner/apps/calculator/view", Generation: 1L, Key: "btn-0");
-
-        // REQUIREMENT: unsigned callers MUST be rejected with UnauthorizedAccessException
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
-    }
-
-    [Fact]
-    public async Task Node_Activation_By_Signed_Caller_Succeeds_And_Records_PersonId()
-    {
-        var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-0", "calc.press");
-        var fakeScreen = new FakeScreen(published);
-        brain.RegisterScreen("app.calculator", fakeScreen);
-
-        var uiEvent = new AppUiEndpoints.UiEvent("view", "owner/apps/calculator/view", Generation: 1L, Key: "btn-0");
-
-        using (AsPerson("alice"))
-        {
-            var result = await AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
-            Assert.NotNull(result);
-        }
-
-        var activation = Assert.Single(fakeScreen.Activations);
-        Assert.Equal("app.calculator", activation.Alias);
-        Assert.Equal(1L, activation.Generation);
-        Assert.Equal("btn-0", activation.Key);
-        Assert.Equal("alice", activation.By);
     }
 }

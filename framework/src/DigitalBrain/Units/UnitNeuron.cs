@@ -179,13 +179,15 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
         await Turn(pressed, Context.TraceId, null, said: pressed, CancellationToken.None).ConfigureAwait(true);
     }
 
-    // A unit has no UI children: only "." reaches it.
+    // A unit has no UI children: only "." reaches it. The reaction hears who acted from the kernel-stamped caller, never from the
+    // args, as a screen's does (Screen.Send): a declared "by" is replaced or dropped.
     public Task Dispatch(DigitalBrain.UI.Command command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return command.Target == "."
-            ? Request(command.Signal, command.Args)
-            : Task.FromException(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+        if (command.Target != ".") { return Task.FromException(new ActivationRefusedException(ActivationRefusedException.UnknownChild)); }
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
+        var emitted = new EmittedSignal(command.Signal, ViewNodes.Payload(command.Args, fieldValue: null, by: Context.Caller?.For?.Principal));
+        return Turn(emitted, Context.TraceId, null, said: emitted, CancellationToken.None);
     }
 
     // A unit has no UI children: no key path reaches a child.

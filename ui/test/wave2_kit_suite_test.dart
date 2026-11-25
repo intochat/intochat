@@ -209,7 +209,12 @@ void main() {
                   action: 'vault',
                   selected: false,
                   badge: null,
-                  command: null,
+                  command: Command(
+                    target: '.',
+                    signal: 'nav.vault',
+                    args: null,
+                    props: null,
+                  ),
                   automationName: 'Vault',
                 ),
               ],
@@ -225,7 +230,7 @@ void main() {
           final ctx = NodeContext(
             view: 'local/apps/files/view',
             send: (event) async {
-              activatedKey = event['key'] as String?;
+              activatedKey = event['signal'] as String?;
               return null;
             },
           );
@@ -256,7 +261,7 @@ void main() {
           expect(focusable.enabled, isTrue);
           await tester.tap(vaultFinder);
           await tester.pump();
-          expect(activatedKey, 'nav_vault');
+          expect(activatedKey, 'nav.vault');
 
           // Compact 480px: collapses leading sidebar into toggleable drawer without overflow!
           await pumpSurface(
@@ -626,7 +631,7 @@ void main() {
           final ctx = NodeContext(
             view: 'local/apps/files/view',
             send: (event) async {
-              lastKey = event['key'] as String?;
+              lastKey = event['signal'] as String?;
               return null;
             },
           );
@@ -646,7 +651,12 @@ void main() {
                 action: ButtonNode(
                   key: 'reconnect',
                   label: 'Reconnect',
-                  command: null,
+                  command: Command(
+                    target: '.',
+                    signal: 'storage.reconnect',
+                    args: null,
+                    props: null,
+                  ),
                   intent: null,
                   enabled: true,
                   tone: 'neutral',
@@ -687,7 +697,7 @@ void main() {
           );
           await tester.tap(find.text('Reconnect'));
           await tester.pump();
-          expect(lastKey, 'reconnect');
+          expect(lastKey, 'storage.reconnect');
         },
       );
 

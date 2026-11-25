@@ -175,16 +175,11 @@ Future<void> _check(WidgetTester tester, Map<String, dynamic> example) async {
     if (emit == null) continue;
     sent.clear();
     await _trigger(tester, find.byKey(Key(key)));
-    // A control activates by its key; a button whose command names another
-    // target acts through /act with that command's signal, and only that.
-    final command = node['command'];
-    final signal = command is Map ? command['signal'] : null;
+    // Every control sends its own command (a button's command, an info bar's
+    // close, a field's onSubmit) through /act, with that command's signal.
+    final signal = emit['signal'];
     final hit = sent
-        .where(
-          (e) =>
-              e['key'] == key ||
-              (e['kind'] == 'act' && signal != null && e['signal'] == signal),
-        )
+        .where((e) => e['kind'] == 'act' && e['signal'] == signal)
         .toList();
     expect(hit, isNotEmpty, reason: 'no activation recorded for $key');
   }
@@ -256,7 +251,7 @@ void main() {
           'messages': const <Map<String, dynamic>>[],
           'composer': {
             'key': 'composer-main',
-            'onSubmit': {'owner': '.', 'signal': 'Send'},
+            'onSubmit': {'target': '.', 'signal': 'Send'},
           },
         });
         await _check(tester, {

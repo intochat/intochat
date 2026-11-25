@@ -106,11 +106,6 @@ public sealed class TasksCancelOnRealHostFacts
         await using var host = await Host();
         var (flowId, planId) = await PlanWaitingForApproval(host);
 
-        // The shell's route cannot carry the press: the published view has no node with the Cancel button's key.
-        var press = await Send(host, "/apps/event", new { kind = "view", name = $"{host.Scope}/apps/tasks/view", key = "cancel", generation = 1 }, presence: true);
-        Assert.True(press.Status == HttpStatusCode.BadRequest, $"{press.Status}: {press.Body}");
-        await StillWaitsForThePerson(host, flowId, planId);
-
         // The person's cancel, with the presence proof, by the route that reaches the screen's Request today.
         Accepted(await Send(host, "/apps/tasks/request", new { operation = "cancel", input = JsonSerializer.Serialize(new { flowId }) }, presence: true));
 

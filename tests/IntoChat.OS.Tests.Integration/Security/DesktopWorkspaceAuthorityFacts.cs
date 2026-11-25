@@ -22,7 +22,7 @@ public sealed class DesktopWorkspaceAuthorityFacts(Gate20EdgeApprovalWallFacts.E
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task DesktopUiEventActivation_AppliesWorkspaceStateToRealWorkspaceNeuron()
+    public async Task DesktopPressesOverAct_ApplyWorkspaceStateToRealWorkspaceNeuron()
     {
         var harness = fixture.Host;
 
@@ -41,24 +41,12 @@ public sealed class DesktopWorkspaceAuthorityFacts(Gate20EdgeApprovalWallFacts.E
             $"/apps/node?kind=view&name={Uri.EscapeDataString(IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ViewKey)}");
         Assert.Equal(HttpStatusCode.OK, desktopViewResponse.Status);
 
-        using var initialViewDoc = JsonDocument.Parse(desktopViewResponse.Body);
-        var initialGen = initialViewDoc.RootElement.GetProperty("generation").GetInt64();
         Assert.Contains("dock-ino", desktopViewResponse.Body, StringComparison.Ordinal);
         Assert.Contains("dock-files", desktopViewResponse.Body, StringComparison.Ordinal);
 
-        // 1. Activate "dock-ino" -> opens Ino in real WorkspaceNeuron AND populates real ViewportNeuron.
+        // 1. Press "dock-ino" -> opens Ino in real WorkspaceNeuron AND populates real ViewportNeuron.
         var desktopViewKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").ViewKey;
-        var inoEventResponse = await SendAsync(
-            harness,
-            HttpMethod.Post,
-            "/apps/event",
-            new
-            {
-                kind = "view",
-                name = desktopViewKey,
-                key = "dock-ino",
-                generation = initialGen,
-            });
+        var inoEventResponse = await PressAsync(harness, desktopViewResponse.Body, "dock-ino");
         Assert.Equal(HttpStatusCode.OK, inoEventResponse.Status);
 
         var inoAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "ino").Key;
@@ -85,26 +73,14 @@ public sealed class DesktopWorkspaceAuthorityFacts(Gate20EdgeApprovalWallFacts.E
                 rootElem.GetProperty("name").GetString());
         }
 
-        // 2. Read updated desktop view generation and activate "dock-files" via real AppUiEndpoints -> DesktopApp -> real WorkspaceNeuron + ViewportNeuron.
+        // 2. Read the updated desktop view and press "dock-files" via real AppUiEndpoints -> DesktopApp -> real WorkspaceNeuron + ViewportNeuron.
         var refreshedDesktopView = await SendAsync(
             harness,
             HttpMethod.Get,
             $"/apps/node?kind=view&name={Uri.EscapeDataString(desktopViewKey)}");
         Assert.Equal(HttpStatusCode.OK, refreshedDesktopView.Status);
-        using var refreshedDoc = JsonDocument.Parse(refreshedDesktopView.Body);
-        var refreshedGen = refreshedDoc.RootElement.GetProperty("generation").GetInt64();
 
-        var eventResponse = await SendAsync(
-            harness,
-            HttpMethod.Post,
-            "/apps/event",
-            new
-            {
-                kind = "view",
-                name = desktopViewKey,
-                key = "dock-files",
-                generation = refreshedGen,
-            });
+        var eventResponse = await PressAsync(harness, refreshedDesktopView.Body, "dock-files");
         Assert.Equal(HttpStatusCode.OK, eventResponse.Status);
 
         var filesAppKey = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "files").Key;
@@ -140,19 +116,7 @@ public sealed class DesktopWorkspaceAuthorityFacts(Gate20EdgeApprovalWallFacts.E
             HttpMethod.Get,
             $"/apps/node?kind=view&name={Uri.EscapeDataString(desktopViewKey)}");
         Assert.Equal(HttpStatusCode.OK, postFilesDesktopView.Status);
-        using var postFilesDoc = JsonDocument.Parse(postFilesDesktopView.Body);
-        var closeGen = postFilesDoc.RootElement.GetProperty("generation").GetInt64();
-        var closeResponse = await SendAsync(
-            harness,
-            HttpMethod.Post,
-            "/apps/event",
-            new
-            {
-                kind = "view",
-                name = desktopViewKey,
-                key = $"close-{filesWindow.Id}",
-                generation = closeGen,
-            });
+        var closeResponse = await PressAsync(harness, postFilesDesktopView.Body, $"close-{filesWindow.Id}");
         Assert.Equal(HttpStatusCode.OK, closeResponse.Status);
 
         var closedViewportResponse = await SendAsync(
@@ -222,6 +186,44 @@ public sealed class DesktopWorkspaceAuthorityFacts(Gate20EdgeApprovalWallFacts.E
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
                 desktopViewport.Set(new WorkspaceViewRef("hijack", foreignAppKey, "full", ""), currentVp.Revision));
         }
+    }
+
+    // What the client does on a press: it sends the pressed node's command, from the view it read, to POST /act for the desktop screen.
+    private static Task<(HttpStatusCode Status, string Body)> PressAsync(EdgeKernelHarness harness, string viewBody, string key)
+    {
+        using var view = JsonDocument.Parse(viewBody);
+        var command = CommandOf(view.RootElement, key) ?? throw new Xunit.Sdk.XunitException($"The desktop view has no node '{key}' with a command.");
+        return SendAsync(harness, HttpMethod.Post, "/act", new
+        {
+            neuron = IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(harness.Scope), "desktop").Key,
+            target = command.GetProperty("target").GetString(),
+            signal = command.GetProperty("signal").GetString(),
+            args = command.TryGetProperty("args", out var args) ? args.Clone() : (JsonElement?)null,
+        });
+    }
+
+    private static JsonElement? CommandOf(JsonElement element, string key)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
+                && element.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object)
+            {
+                return command.Clone();
+            }
+            foreach (var property in element.EnumerateObject())
+            {
+                if (CommandOf(property.Value, key) is { } found) { return found; }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (CommandOf(item, key) is { } found) { return found; }
+            }
+        }
+        return null;
     }
 
     private static async Task<(HttpStatusCode Status, string Body)> SendAsync(

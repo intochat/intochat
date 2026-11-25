@@ -36,10 +36,7 @@ Map<String, dynamic> _chatThreadViewJson({
       ],
       'composer': {
         'key': 'composer',
-        'onSubmit': {
-          'owner': 'control.chatThread',
-          'signal': 'control.submitText',
-        },
+        'onSubmit': {'target': '.', 'signal': 'control.submitText'},
       },
     },
   },

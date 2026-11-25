@@ -48,10 +48,7 @@ void main() {
       ],
       'composer': {
         'key': 'composer',
-        'onSubmit': {
-          'owner': 'control.chatThread',
-          'signal': 'control.submitText',
-        },
+        'onSubmit': {'target': '.', 'signal': 'control.submitText'},
       },
     });
 

@@ -395,9 +395,6 @@ String inferAppIdFromViewPath(String view) {
   return 'ino';
 }
 
-bool isStaleConflictError(int statusCode, String status) =>
-    statusCode == 409 && status.trim().toLowerCase() == 'stale';
-
 IntentKind? parseIntentKind(Object? value) {
   final name = '$value'.toLowerCase();
   for (final kind in IntentKind.values) {

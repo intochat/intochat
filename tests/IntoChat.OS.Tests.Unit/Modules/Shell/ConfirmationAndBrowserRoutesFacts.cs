@@ -6,8 +6,7 @@ using IntoChat.OS.Tests.Unit;
 
 namespace IntoChat.OS.Modules.Flutter;
 
-// A person's confirmation answer and the embedded browser's connector reports have their own routes; neither is a UI action,
-// and POST /apps/event no longer carries either.
+// A person's confirmation answer and the embedded browser's connector reports have their own routes; neither is a UI action.
 public sealed class ConfirmationAndBrowserRoutesFacts
 {
     private const string Scope = "owner";
@@ -83,19 +82,6 @@ public sealed class ConfirmationAndBrowserRoutesFacts
         Assert.Empty(brain.Inbox.Resolved);
     }
 
-    // The old way is gone: a confirmation sent as a UI event is an unknown event, and nothing is resolved.
-    [Fact]
-    public async Task AConfirmationIsNoLongerAUiEvent()
-    {
-        var brain = new RecordingBrain();
-        using var person = AsPerson();
-
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(
-            new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope)), brain, Scope, null, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
-
-        Assert.Empty(brain.Inbox.Resolved);
-    }
-
     [Fact]
     public async Task TheBrowserRoutesReachTheNamedBrowser()
     {
@@ -130,19 +116,6 @@ public sealed class ConfirmationAndBrowserRoutesFacts
         await Assert.ThrowsAsync<ArgumentException>(() => WebBrowserEndpoints.Connect(new("owner/apps/researcher/browser", null, "s"), brain, Scope, Ct));
         await Assert.ThrowsAsync<ArgumentException>(() => WebBrowserEndpoints.Connect(new("owner/apps/researcher/browser", 9222, null), brain, Scope, Ct));
         await Assert.ThrowsAsync<ArgumentException>(() => WebBrowserEndpoints.Disconnect(new("owner/apps/researcher/browser", ""), brain, Scope, Ct));
-
-        Assert.Empty(brain.Browser.Calls);
-    }
-
-    // The old way is gone: a browser report sent as a UI event is an unknown event.
-    [Fact]
-    public async Task ABrowserReportIsNoLongerAUiEvent()
-    {
-        var brain = new RecordingBrain();
-
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(
-            new AppUiEndpoints.UiEvent(UIVocabulary.WebBrowserType, "owner/apps/researcher/browser", Value: """{"port":9222,"sessionId":"s"}"""),
-            brain, Scope, null, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
 
         Assert.Empty(brain.Browser.Calls);
     }

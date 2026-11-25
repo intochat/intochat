@@ -139,7 +139,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
   }
 
   final _navigator = GlobalKey<NavigatorState>();
-  final _intentTracker = PendingOpenWindowIntentTracker();
   String? _rootName;
   String? _activationApp;
   String _renderKind = 'layout';
@@ -404,8 +403,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
         _rootName ?? _focusedNeuron,
         brain: _brain,
       );
-      final openRoute = _intentTracker.consumeUri(
+      final openRoute = openWindowRouteOf(
         uriStr,
+        intent: action['intent'] as String?,
         fallbackFromNeuron: currentScreen,
       );
       if (openRoute != null) {
@@ -1067,17 +1067,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                       method,
                                       args,
                                     ),
-                                onAction: (event) => _intentTracker.wrapAction(
-                                  event,
-                                  (e) => widget.programmingClient!.uiEvent(
-                                    _brain!,
-                                    e,
-                                  ),
-                                  fallbackFromNeuron: screenNeuronFromViewName(
-                                    _rootName,
-                                    brain: _brain,
-                                  ),
-                                ),
+                                onAction: (event) => widget.programmingClient!
+                                    .uiEvent(_brain!, event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 transcribe:

@@ -55,6 +55,6 @@ void main() {
     expect(find.text('Model provider timed out after 60s.'), findsOneWidget);
     await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
-    expect(events.single['key'], 'retry');
+    expect(events.single['signal'], 'retry');
   });
 }

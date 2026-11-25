@@ -25,7 +25,7 @@ Map<String, dynamic> _chat(List<(String, String)> entries) => {
       'name': 'apps/ino/composer',
       'fieldKind': 'Text',
       'placeholder': 'Message Ino',
-      'onSubmit': {'owner': 'apps/ino', 'signal': 'send'},
+      'onSubmit': {'target': '.', 'signal': 'send'},
     },
   ],
 };
@@ -75,10 +75,11 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(events.last, {
-      'kind': 'view',
-      'name': _view,
-      'generation': 2,
-      'key': 'composer',
+      'kind': 'act',
+      'neuron': 'local/apps/ino',
+      'target': '.',
+      'signal': 'send',
+      'args': <String, Object?>{},
       'value': 'What is new?',
     });
   });

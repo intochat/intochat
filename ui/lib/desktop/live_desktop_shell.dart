@@ -167,8 +167,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   final Set<String> _clientClosedWindowIds = {};
   final Set<String> _clientOpenedWidgets = {};
   final Set<String> _clientClosedWidgets = {};
-  final PendingOpenWindowIntentTracker _intentTracker =
-      PendingOpenWindowIntentTracker();
   Set<String> _dynamicAppIds = const {};
   String _lastDynamicSignature = '';
   bool _showDesktopOnly = false;
@@ -720,13 +718,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
   }
 
-  int get _generation => (_data?['generation'] as num?)?.toInt() ?? 0;
-
-  // The keys of the desktop view as last read; only these activate on the view.
+  // The keys of the desktop view as last read; only these nodes send their command.
   Set<String> _viewKeys = const {};
 
   void _dispatchViewNode(Map<String, dynamic>? node) {
-    final event = desktopViewEvent(node, _viewKeys, widget.name, _generation);
+    final event = desktopNodeAct(node, _viewKeys, widget.name);
     if (event == null) return;
     unawaited(
       widget.onAction(event).then((_) => _reload()).catchError(_refused),
@@ -1212,8 +1208,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       final fallbackFrom = sourceAppId != null && sourceAppId.isNotEmpty
           ? '${widget.brain}/apps/$sourceAppId'
           : null;
-      final route = _intentTracker.consumeUri(
+      final route = openWindowRouteOf(
         uriStr,
+        intent: activation['intent'] as String?,
         fallbackFromNeuron: fallbackFrom,
       );
       if (route != null) {
@@ -1566,11 +1563,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       watch: widget.watch,
       watchSignal: _watchSignal,
       callNeuron: widget.callNeuron,
-      onAction: (event) => _intentTracker.wrapAction(
-        event,
-        widget.onAction,
-        fallbackFromNeuron: '${widget.brain}/apps/${topWindow.appId}',
-      ),
+      onAction: widget.onAction,
       knowsApp: _knowsDesktopApp,
       transcribe: widget.transcribe,
       talk: widget.talk,
@@ -2043,7 +2036,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         watch: widget.watch,
         watchSignal: _watchSignal,
         callNeuron: widget.callNeuron,
-        onAction: (event) => _intentTracker.wrapAction(event, widget.onAction),
+        onAction: widget.onAction,
         knowsApp: widget.knowsApp,
         transcribe: widget.transcribe,
         talk: widget.talk,
@@ -2471,13 +2464,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         watch: widget.watch,
                                         watchSignal: _watchSignal,
                                         callNeuron: widget.callNeuron,
-                                        onAction: (event) =>
-                                            _intentTracker.wrapAction(
-                                              event,
-                                              widget.onAction,
-                                              fallbackFromNeuron:
-                                                  '${widget.brain}/apps/${w.appId}',
-                                            ),
+                                        onAction: widget.onAction,
                                         knowsApp: _knowsDesktopApp,
                                         transcribe: widget.transcribe,
                                         talk: widget.talk,
@@ -2506,12 +2493,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 watch: widget.watch,
                                 watchSignal: _watchSignal,
                                 callNeuron: widget.callNeuron,
-                                onAction: (event) => _intentTracker.wrapAction(
-                                  event,
-                                  widget.onAction,
-                                  fallbackFromNeuron:
-                                      '${widget.brain}/apps/${spec.appId}',
-                                ),
+                                onAction: widget.onAction,
                                 knowsApp: _knowsDesktopApp,
                                 transcribe: widget.transcribe,
                                 talk: widget.talk,
@@ -2902,18 +2884,32 @@ Map<String, dynamic>? desktopTabSelectEvent(
   };
 }
 
-/// The view event a desktop node sends: only a node the published view holds activates, only by its key; any
+/// What a desktop node sends: only a node the published view holds, by its
+/// key, sends its own command to the desktop screen through `POST /act`; any
 /// other data on the node (an old `action`) is never sent anywhere.
-Map<String, dynamic>? desktopViewEvent(
+Map<String, dynamic>? desktopNodeAct(
   Map<String, dynamic>? node,
   Set<String> viewKeys,
   String name,
-  int generation,
 ) {
   if (node == null || node['enabled'] == false) return null;
   final key = node['key'] as String?;
   if (key == null || !viewKeys.contains(key)) return null;
-  return {'kind': 'view', 'name': name, 'generation': generation, 'key': key};
+  final command = node['command'];
+  if (command is! Map) return null;
+  final target = command['target'];
+  final signal = command['signal'];
+  if (target is! String || target.isEmpty) return null;
+  if (signal is! String || signal.isEmpty) return null;
+  return {
+    'kind': 'act',
+    'neuron': name.endsWith('/view')
+        ? name.substring(0, name.length - 5)
+        : name,
+    'target': target,
+    'signal': signal,
+    'args': command['args'],
+  };
 }
 
 // The shell's own desktop gestures that no view node carries. Task 22 debt: each becomes a node of the desktop

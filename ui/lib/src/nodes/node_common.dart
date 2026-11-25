@@ -62,11 +62,17 @@ CardSource cardSource(
   );
 }
 
-/// A child-button callback: sends the button's command (see [pressCommand]) when it is enabled and the view is live.
+/// A child-button callback: sends the button's command, or performs its intent (see [pressCommand]), when it is enabled and the view is live.
 VoidCallback? pressOf(ButtonNode? button, NodeContext ctx) =>
     button == null || !button.enabled || !ctx.interactive
     ? null
-    : () => pressCommand(button.key, button.command, ctx, null);
+    : () => pressCommand(
+        button.key,
+        button.command,
+        ctx,
+        null,
+        intent: button.intent,
+      );
 
 /// A data node's pick (a chart point, a table row, a scene edge): sends the
 /// node's own [command] with the picked item as `value` over the act route.
