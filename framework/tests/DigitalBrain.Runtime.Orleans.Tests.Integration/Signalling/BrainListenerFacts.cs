@@ -165,7 +165,7 @@ public sealed class BrainListenerTtlFacts(SessionTtlSilo silo) : IClassFixture<S
 }
 
 // The placement rule: in a cluster the listener neuron of a brain runs on that brain's affine silo, so delivery goes to the
-// handlers registered there. Two silos, six brains: the listener and a neuron of the same brain always share a silo.
+// handlers registered there. Two silos, brains affine to each: the listener and a neuron of the same brain share that silo.
 public sealed class BrainListenerPlacementFacts
 {
     [Fact]
@@ -173,53 +173,21 @@ public sealed class BrainListenerPlacementFacts
     {
         using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
-        var primaryPort = FreePort();
-        var primary = new IPEndPoint(IPAddress.Loopback, primaryPort);
-        using var first = TwoSilo(primaryPort, primary);
-        await first.StartAsync(ct);
-        using var second = TwoSilo(FreePort(), primary);
-        await second.StartAsync(ct);
-        try
-        {
-            var management = first.Services.GetRequiredService<IGrainFactory>().GetGrain<IManagementGrain>(0);
-            await ProbeLog.Until(() => management.GetHosts(onlyActive: true).GetAwaiter().GetResult().Count == 2, ct);
-            await Task.Delay(1000, ct);
-
-            HashSet<string> silos = [];
-            foreach (var brain in Enumerable.Range(0, 6).Select(i => "lbrain" + i))
+        await using var cluster = await TwoSiloCluster.Start(
+            "db-listener-facts",
+            orleans =>
             {
-                var neuron = await NeuronHosting.Get<IProbe>(first.Services, NeuronId.Parse($"{brain}/probe/one")).Silo();
-                var listener = await NeuronHosting.Get<IBrainListenerHost>(second.Services, NeuronId.Parse($"{brain}/runtime.listener/{brain}")).Silo();
-                Assert.Equal(neuron, listener);
-                silos.Add(listener);
-            }
-            Assert.Equal(2, silos.Count);
-        }
-        finally
+                orleans.AddNeuronHosting(typeof(ProbeNeuron).Assembly);
+                orleans.Services.AddJournalPayloads(typeof(ProbeNeuron).Assembly);
+                orleans.AddRuntimeServices();
+            },
+            ct);
+        foreach (var brain in cluster.BrainsOnBothSilos("lbrain", perSilo: 3))
         {
-            await second.StopAsync(CancellationToken.None);
-            await first.StopAsync(CancellationToken.None);
+            var neuron = await NeuronHosting.Get<IProbe>(cluster.First.Services, NeuronId.Parse($"{brain}/probe/one")).Silo();
+            var listener = await NeuronHosting.Get<IBrainListenerHost>(cluster.Second.Services, NeuronId.Parse($"{brain}/runtime.listener/{brain}")).Silo();
+            Assert.Equal(cluster.SiloOf(brain), listener);
+            Assert.Equal(neuron, listener);
         }
-    }
-
-    private static IHost TwoSilo(int siloPort, IPEndPoint primary)
-    {
-        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.UseOrleans(orleans =>
-        {
-            orleans.UseLocalhostClustering(siloPort, FreePort(), primary, "db-listener-facts", "db-listener-facts");
-            orleans.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
-            orleans.AddNeuronHosting(typeof(ProbeNeuron).Assembly);
-            orleans.Services.AddJournalPayloads(typeof(ProbeNeuron).Assembly);
-            orleans.AddRuntimeServices();
-        });
-        return builder.Build();
-    }
-
-    private static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 }

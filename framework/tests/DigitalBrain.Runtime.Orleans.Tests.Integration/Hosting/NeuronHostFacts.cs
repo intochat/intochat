@@ -134,32 +134,13 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
             Assert.Equal(nameof(BrainAffinePlacement), strategy);
         }
 
-        var primaryPort = FreePort();
-        var primary = new IPEndPoint(IPAddress.Loopback, primaryPort);
-        using var first = TwoSilo(primaryPort, primary);
-        await first.StartAsync(ct);
-        using var second = TwoSilo(FreePort(), primary);
-        await second.StartAsync(ct);
-        try
+        await using var cluster = await TwoSiloCluster.Start("db-host-facts", orleans => orleans.AddNeuronHosting(typeof(ProbeNeuron).Assembly), ct);
+        foreach (var brain in cluster.BrainsOnBothSilos("brain", perSilo: 3))
         {
-            var management = first.Services.GetRequiredService<IGrainFactory>().GetGrain<IManagementGrain>(0);
-            await ProbeLog.Until(() => management.GetHosts(onlyActive: true).GetAwaiter().GetResult().Count == 2, ct);
-            await Task.Delay(1000, ct); // both membership views settle
-
-            HashSet<string> silos = [];
-            foreach (var brain in Enumerable.Range(0, 6).Select(i => "brain" + i))
-            {
-                var one = await NeuronHosting.Get<IProbe>(first.Services, NeuronId.Parse($"{brain}/probe/one")).Silo();
-                var two = await NeuronHosting.Get<IProbe>(second.Services, NeuronId.Parse($"{brain}/probe/two")).Silo();
-                Assert.Equal(one, two);
-                silos.Add(one);
-            }
-            Assert.Equal(2, silos.Count);
-        }
-        finally
-        {
-            await second.StopAsync(CancellationToken.None);
-            await first.StopAsync(CancellationToken.None);
+            var one = await NeuronHosting.Get<IProbe>(cluster.First.Services, NeuronId.Parse($"{brain}/probe/one")).Silo();
+            var two = await NeuronHosting.Get<IProbe>(cluster.Second.Services, NeuronId.Parse($"{brain}/probe/two")).Silo();
+            Assert.Equal(cluster.SiloOf(brain), one);
+            Assert.Equal(one, two);
         }
     }
 
@@ -187,24 +168,5 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
         Assert.Equal("", await silo.Get<IProbe>($"{Brain}/probe/target").Caller());
         Assert.Equal($"{Brain}/probe/asker", await silo.Get<IProbe>($"{Brain}/probe/asker").AskCaller("target"));
         Assert.Equal("", await silo.Get<IProbe>($"{Brain}/probe/target").Caller());
-    }
-
-    private static IHost TwoSilo(int siloPort, IPEndPoint primary)
-    {
-        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-        builder.UseOrleans(orleans =>
-        {
-            orleans.UseLocalhostClustering(siloPort, FreePort(), primary, "db-host-facts", "db-host-facts");
-            orleans.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
-            orleans.AddNeuronHosting(typeof(ProbeNeuron).Assembly);
-        });
-        return builder.Build();
-    }
-
-    private static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 }

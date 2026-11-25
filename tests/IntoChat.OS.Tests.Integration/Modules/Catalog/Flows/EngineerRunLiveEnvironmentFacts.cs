@@ -109,6 +109,9 @@ public sealed class EngineerRunLiveEnvironmentFacts : IDisposable
         Assert.Equal(1, live.Calls);
 
         live.Answer = EngineerRunsKit.ScriptedLiveVerifier.Green;
+        // The index shows the wait before the flow's turn has finished its own calls; the clock jumps past the TestOS call
+        // timeout, so let that turn end first or its in-flight call times out and fails the run.
+        await runtime.Idle();
         await runtime.Elapse(EngineerFlow.LiveEnvironmentRecheck + TimeSpan.FromMinutes(1), Ct);
 
         var atGate = await FlowTypeFacts.Eventually(

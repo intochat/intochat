@@ -37,6 +37,10 @@ internal sealed class FlowsNeuron(
 
     private readonly SecurityInterrupts _interrupts = new();
 
+    // Start interleaves with the signal turns, and both save the index. A save carries the version the last finished save
+    // left; two in flight at once would carry the same one and the later would be refused as stale. One save at a time.
+    private readonly SemaphoreSlim _saving = new(1, 1);
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Context.Wires.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated), typeof(FlowSubject),
@@ -372,7 +376,9 @@ internal sealed class FlowsNeuron(
         var wantsHead = !skipHead && (next.Finished ? readFinished && !next.HeadKnown : readHead || !next.HeadKnown);
         if (wantsHead && next.HeadAttempts < FlowEntry.MaxHeadAttempts) { next = await WithHead(next); }
         if (known && ReferenceEquals(next, existing)) { return; }
-        await Save(State.With(next), new FlowsChanged(flowId));
+        await _saving.WaitAsync();
+        try { await Save(State.With(next), new FlowsChanged(flowId)); }
+        finally { _saving.Release(); }
     }
 
     private FlowEntry Placeholder(string flowId)
