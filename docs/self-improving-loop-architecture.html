@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntoChat Two-Plane Architecture: CodeOrchestrationSynapse &amp; Leased Devcontainer Slots RFC</title>
+<style>
+  :root {
+    --bg: #0f0e0d;
+    --surface: #1a1816;
+    --surface-2: #24211e;
+    --surface-3: #2d2925;
+    --border: #332e2a;
+    --border-light: #48413b;
+    --text: #f3efe9;
+    --muted: #a69d94;
+    --accent: #e87a48;
+    --accent-soft: rgba(232, 122, 72, 0.14);
+    --accent-glow: rgba(232, 122, 72, 0.28);
+    --green: #4ade80;
+    --green-soft: rgba(74, 222, 128, 0.12);
+    --red: #f87171;
+    --red-soft: rgba(248, 113, 113, 0.12);
+    --blue: #60a5fa;
+    --blue-soft: rgba(96, 165, 250, 0.12);
+    --purple: #c084fc;
+    --purple-soft: rgba(192, 132, 252, 0.12);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.12);
+    --cyan: #22d3ee;
+    --cyan-soft: rgba(34, 211, 238, 0.12);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    padding: 0 0 100px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Navigation Bar */
+  .nav-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(15, 14, 13, 0.94);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .nav-brand .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .nav-links {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 999px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .nav-links a:hover, .nav-links a.active {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Container */
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 36px 24px 0;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .badge-accent { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(232, 122, 72, 0.3); }
+  .badge-purple { background: var(--purple-soft); color: var(--purple); border: 1px solid rgba(192, 132, 252, 0.3); }
+  .badge-blue { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(96, 165, 250, 0.3); }
+  .badge-green { background: var(--green-soft); color: var(--green); border: 1px solid rgba(74, 222, 128, 0.3); }
+  .badge-amber { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+  .badge-cyan { background: var(--cyan-soft); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.3); }
+
+  h1 {
+    margin: 0 0 14px;
+    font-size: 34px;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 17px;
+    margin: 0 0 20px;
+    max-width: 960px;
+    line-height: 1.6;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .meta-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .meta-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Section Styles */
+  section {
+    margin-bottom: 64px;
+    scroll-margin-top: 80px;
+  }
+  .section-header {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .section-tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  h2 {
+    margin: 0;
+    font-size: 24px;
+    letter-spacing: -0.015em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-desc {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 950px;
+  }
+
+  /* Cards & Grids */
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .card:hover {
+    border-color: var(--border-light);
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  .card-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .card p {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* Callouts & Alerts */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 18px 22px;
+    margin: 20px 0;
+    font-size: 14px;
+  }
+  .callout-amber {
+    border-left-color: var(--amber);
+    background: rgba(251, 191, 36, 0.05);
+  }
+  .callout-green {
+    border-left-color: var(--green);
+    background: rgba(74, 222, 128, 0.05);
+  }
+  .callout-blue {
+    border-left-color: var(--blue);
+    background: rgba(96, 165, 250, 0.05);
+  }
+  .callout-purple {
+    border-left-color: var(--purple);
+    background: rgba(192, 132, 252, 0.05);
+  }
+  .callout-title {
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Tables */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    margin: 20px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+  th {
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255, 255, 255, 0.015); }
+
+  /* SVG Diagrams */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin: 24px 0;
+    overflow-x: auto;
+  }
+  .diagram-caption {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 14px;
+    font-family: var(--mono);
+  }
+
+  /* Code & Mono */
+  code, pre { font-family: var(--mono); }
+  code {
+    background: var(--surface-2);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  pre {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  /* Interactive Tabs */
+  .tab-bar {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tab-btn:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .tab-btn.active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: rgba(232, 122, 72, 0.3);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Decision Panel */
+  .decision-panel {
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+  }
+  .decision-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .decision-item:hover { border-color: var(--accent); }
+  .decision-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .decision-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .decision-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .option-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .option-label:hover { border-color: var(--muted); }
+  .option-label input[type="radio"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .option-label.recommended {
+    border-color: rgba(74, 222, 128, 0.4);
+    background: rgba(74, 222, 128, 0.05);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 10px var(--accent-glow);
+  }
+  .btn-accent:hover {
+    background: #f18c5e;
+  }
+
+  /* Status Pill */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .status-live { background: var(--green-soft); color: var(--green); }
+  .status-gap { background: var(--amber-soft); color: var(--amber); }
+  .status-proposed { background: var(--blue-soft); color: var(--blue); }
+
+  /* Feature Checklist */
+  .check-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    font-size: 13px;
+  }
+  .check-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    color: var(--muted);
+  }
+  .check-list li strong { color: var(--text); }
+  .check-list li::before {
+    content: "âœ“";
+    color: var(--green);
+    font-weight: 700;
+  }
+  .check-list li.warn::before {
+    content: "âš ";
+    color: var(--amber);
+  }
+
+  /* Comparison Diff Boxes */
+  .diff-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .diff-col {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    font-size: 13px;
+  }
+  .diff-col.iaw { border-top: 3px solid var(--amber); }
+  .diff-col.intochat { border-top: 3px solid var(--green); }
+  .diff-header {
+    font-weight: 700;
+    font-size: 13.5px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 20px 16px 0; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 20px; }
+    .grid-2, .grid-3, .grid-4, .diff-box { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sticky Header Nav -->
+<nav class="nav-bar">
+  <div class="nav-brand">
+    <div class="dot"></div>
+    <span>IntoChat Two-Plane Architecture</span>
+  </div>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#section-1">1. Current Reality &amp; IAW</a>
+    <a href="#section-2">2. Dual-Plane Lifecycle</a>
+    <a href="#section-3">3. Two Planes Deep Dive</a>
+    <a href="#section-4">4. CodeOrchestrationSynapse</a>
+    <a href="#section-5">5. Rollout &amp; Decisions</a>
+  </div>
+  <div class="nav-status">
+    <span class="badge badge-accent">v0.24.0 / cloud v0.2.0</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Document Header -->
+  <header id="overview">
+    <div class="badge-row">
+      <span class="badge badge-accent">Owner Architecture Direction</span>
+      <span class="badge badge-purple">Two-Plane Synthesis</span>
+      <span class="badge badge-blue">Milestones: intochat v0.24.0 + cloud v0.2.0</span>
+      <span class="badge badge-green">Zero Runtime Code Changes</span>
+    </div>
+
+    <h1>Two-Plane Architecture: CodeOrchestrationSynapse &amp; Leased Devcontainer Slots</h1>
+    <p class="subtitle">
+      A unified architectural blueprint reconciling two essential, non-competing execution requirements: 
+      <strong>Plane 1 (Code Mode)</strong> via an IAW-inspired <code>CodeOrchestrationSynapse</code> executing typed C# Neuron interactions in the native client/cloud sandbox, and 
+      <strong>Plane 2 (Dev Mode)</strong> via leased Docker Compose devcontainer slots (<code>agent-dev-slots</code>) for full-stack repo engineering and live .NET Aspire verification.
+    </p>
+
+    <div class="meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">Primary Author</span>
+        <span class="meta-value">Architecture &amp; Refactoring Lead</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Key Reference</span>
+        <span class="meta-value">IAW <code>CodeOrchestratorAgent</code> + <code>agent-dev-slots</code></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Status</span>
+        <span class="meta-value" style="color: var(--green);">Revised per Owner Feedback (PR #450)</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Guardrail Policy</span>
+        <span class="meta-value" style="color: var(--accent);">Strict: RFC &amp; Docs Only (No code implementation)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Executive Direction Callout -->
+  <div class="callout callout-green">
+    <div class="callout-title">
+      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Owner Architectural Direction: Both Planes Are Indispensable
+    </div>
+    <p style="margin: 0; font-size: 14px; line-height: 1.65;">
+      In reviewing the initial RFC, the owner directed that <strong>Option A</strong> (IntoChat Native Sandbox + Connected Client Nodes) and <strong>Option C</strong> (Leased Devcontainer Slots via <code>agent-dev-slots</code> + Aspire) are not competing alternatives. They serve two entirely different, complementary planes:
+      <br/><br/>
+      <strong>Plane 1 &mdash; "Code Mode" (Programmable Neuron &amp; Client Orchestration):</strong> When Ino or a user needs to orchestrate multiple cluster Neurons, aggregate data across apps, or automate local client files/tools, an LLM step-by-step tool loop is slow and wasteful. Instead, an agent writes and runs a standalone typed C# script (as pioneered in IAW's <code>CodeOrchestratorAgent.cs</code>) running directly in <strong>IntoChat Native Sandbox</strong> (on a connected Windows/Linux/Android client or cloud worker) calling cluster Neurons over the closed edge bridge. <em>Orchestrating neurons via compiled C# code is one of IntoChat's most powerful superpowers.</em>
+      <br/><br/>
+      <strong>Plane 2 &mdash; "Dev Mode" (Full-Stack Repo Engineering &amp; Aspire Self-Improving Loop):</strong> When Ino needs to clone a repo, branch worktrees, compile heavy .NET SDK/Flutter solutions, run multi-slice parallel coding (<code>InoNativeHarness</code>), and spin up live candidate Aspire hosts (Postgres, ClickHouse, Redis, Orleans silos), it leases an isolated slot from <strong><code>hanzhad/agent-dev-slots</code></strong> with dynamic port mapping, ephemeral home (no <code>~/.ssh</code> leaks), and UID 1000 security.
+    </p>
+  </div>
+
+  <!-- SECTION 1: WHAT WE HAVE TODAY & IAW AUDIT -->
+  <section id="section-1">
+    <div class="section-header">
+      <span class="section-tag">Section 1</span>
+      <h2>Code-Verified Inventory &amp; The IAW Reference Architecture</h2>
+      <p class="section-desc">
+        Auditing current IntoChat master primitives against the real implementation of IAW's <code>CodeOrchestratorAgent.cs</code>, demonstrating how IntoChat OS elevates the code-orchestration pattern to enterprise security and client sovereignty.
+      </p>
+    </div>
+
+    <!-- IAW vs IntoChat Architectural Comparison -->
+    <div class="diff-box">
+      <div class="diff-col iaw">
+        <div class="diff-header">
+          <span>IAW Reference Architecture</span>
+          <span class="badge badge-amber">Direct Orleans Socket</span>
+        </div>
+        <p><strong>Source:</strong> <code>E:\projects\Projects\IAW\src\Agents\Orchestration\CodeOrchestratorAgent.cs</code></p>
+        <ul class="check-list">
+          <li><strong>Mechanism:</strong> LLM generates a standalone C# console project (<code>net11.0</code>) with <code>using var iaw = await IAWCluster.Connect(args);</code> and <code>iaw.Get&lt;T&gt;(taskId)</code>.</li>
+          <li><strong>Compilation:</strong> Pre-sanitizes usings via <code>CodeValidator</code>, runs <code>dotnet build</code>, feeds compiler diagnostics back to LLM in a 2-attempt repair loop.</li>
+          <li><strong>Execution:</strong> Spawns an unconfined child process on the developer machine; writes structured output to <code>result.json</code>.</li>
+          <li class="warn"><strong>Vulnerability:</strong> Connects directly as a member of the Orleans cluster; exposes cluster storage, secrets, and database ports. Cannot run safely on remote client devices or untrusted networks.</li>
+        </ul>
+      </div>
+
+      <div class="diff-col intochat">
+        <div class="diff-header">
+          <span>IntoChat OS Two-Plane Architecture</span>
+          <span class="badge badge-green">Closed Edge Proxy + Sandbox</span>
+        </div>
+        <p><strong>Source:</strong> <code>IntoChat.OS.Kernel/Sandbox</code> + <code>#414 Closed Orleans Gateway</code></p>
+        <ul class="check-list">
+          <li><strong>Mechanism:</strong> <code>CodeOrchestrationSynapse</code> generates typed C# script against real contracts (<code>net11.0</code>), resolving proxies via <code>os.Get&lt;T&gt;(key)</code>.</li>
+          <li><strong>Edge Crossing:</strong> Dispatches calls over <code>/edge/sandbox/invoke</code> using a short-lived, least-privilege <code>AppToken</code> minted by <code>AppTokenService</code>.</li>
+          <li><strong>Sovereign Execution:</strong> Runs inside <strong>IntoChat Native Sandbox</strong> on a <strong>Connected Client Node</strong> (Windows, Linux, Android) or Cloud Sandbox.</li>
+          <li><strong>Security Boundary:</strong> Zero Orleans socket access, zero secrets in environment variables, automatic durable suspension on <code>[PersonOnly]</code> confirmation cards.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Master Inventory Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Module / Building Block</th>
+            <th>Location in Master Codebase</th>
+            <th>Plane 1 Role (Code Mode)</th>
+            <th>Plane 2 Role (Dev Mode)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>Ino &amp; Synapse Engine</strong><br/>
+              <code>src/Modules/Catalog</code><br/>
+              <code>DigitalBrain.Runtime.Synapses</code>
+            </td>
+            <td>
+              Ino detects query/automation intent &rarr; triggers <code>CodeOrchestrationSynapse</code>. Compiles unit with Roslyn analyzers.
+            </td>
+            <td>
+              Ino detects refactoring/bugfix intent &rarr; launches <code>EngineerFlow</code> durable pipeline.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>Sandbox Edge &amp; AppToken</strong><br/>
+              <code>src/IntoChat.OS.Kernel/Sandbox</code><br/>
+              <code>SandboxEdgeEndpoints.cs</code>
+            </td>
+            <td>
+              <strong>Core Bridge:</strong> Mediates <code>/edge/sandbox/invoke</code>, <code>/signals</code>, <code>/logs</code>. Validates <code>AppToken</code> bound to brain + task.
+            </td>
+            <td>
+              Supplies black-box token and edge callback for candidate host verification.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>Devices Module &amp; Relays</strong><br/>
+              <code>src/Modules/Devices</code><br/>
+              <code>HardwareProbe.cs</code>, <code>DeviceLinkNeuron.cs</code>
+            </td>
+            <td>
+              <strong>Execution Target:</strong> Dispatches the sandboxed C# script to an enrolled user PC or Android device over P-256 edge relay.
+            </td>
+            <td>
+              Discovers local GPU capacity for running Ollama/DeepSeek repair models in <code>InoNativeHarness</code>.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>Candidate Hosts</strong><br/>
+              <code>src/Components/Aspire/Neurons/Candidates</code><br/>
+              <code>ProcessCandidateHost.cs</code>
+            </td>
+            <td>
+              <em>Not used</em> (Plane 1 executes scripts, not whole OS instances).
+            </td>
+            <td>
+              <strong>Verification Spine:</strong> Ephemeral loopback ports &amp; temp homes; easily plugs into <code>agent-dev-slots</code> Docker Compose leases.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>EngineerLiveVerifier</strong><br/>
+              <code>src/Modules/Catalog/Flows/Live</code>
+            </td>
+            <td>
+              <em>Not used</em> (Plane 1 checks <code>result.json</code> and exception traces).
+            </td>
+            <td>
+              <strong>Gatekeeper:</strong> Probes candidate HTTP <code>/health</code>, MCP <code>tools/list</code>, and zero error telemetry spans.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 2: DUAL-PLANE LIFECYCLE & COLLABORATION -->
+  <section id="section-2">
+    <div class="section-header">
+      <span class="section-tag">Section 2</span>
+      <h2>End-to-End Dual-Plane Lifecycle: How Both Planes Work and Collaborate</h2>
+      <p class="section-desc">
+        Visualizing how Ino routes incoming requests to Plane 1 or Plane 2 &mdash; and how the two planes collaborate dynamically.
+      </p>
+    </div>
+
+    <!-- Dual-Plane SVG Diagram -->
+    <div class="diagram-box">
+      <svg width="100%" height="460" viewBox="0 0 1120 460" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="plane1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4ade80" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#4ade80" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="plane2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c084fc" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#c084fc" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="router-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#e87a48" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#e87a48" stop-opacity="0.08"/>
+          </linearGradient>
+        </defs>
+
+        <!-- User Request / Chat (Left) -->
+        <rect x="20" y="160" width="160" height="120" rx="10" fill="url(#router-grad)" stroke="#e87a48" stroke-width="1.5" />
+        <text x="35" y="188" fill="#e87a48" font-family="var(--sans)" font-size="12" font-weight="700">USER / INO CHAT</text>
+        <text x="35" y="210" fill="#f3efe9" font-family="var(--sans)" font-size="14" font-weight="700">Intent Classifier</text>
+        <text x="35" y="232" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Data / Query / Action</text>
+        <text x="35" y="250" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Codebase Engineering</text>
+
+        <!-- Branching Arrows -->
+        <path d="M180 200 L240 110" stroke="#4ade80" stroke-width="2" marker-end="url(#arrow)" />
+        <polygon points="237,105 246,108 241,116" fill="#4ade80" />
+
+        <path d="M180 240 L240 330" stroke="#c084fc" stroke-width="2" />
+        <polygon points="241,324 246,332 237,335" fill="#c084fc" />
+
+        <!-- ================= PLANE 1: CODE MODE (TOP) ================= -->
+        <rect x="250" y="30" width="840" height="180" rx="12" fill="url(#plane1-grad)" stroke="#4ade80" stroke-width="1.5" />
+        <text x="270" y="58" fill="#4ade80" font-family="var(--sans)" font-size="14" font-weight="800">PLANE 1 &mdash; CODE MODE (Programmable Neuron &amp; Client Orchestration)</text>
+        <text x="270" y="78" fill="#a69d94" font-family="var(--sans)" font-size="11">Zero LLM roundtrips per tool &bull; Sub-second compile &bull; Typed C# contracts &bull; Native Client/Cloud Sandbox</text>
+
+        <!-- Step 1.1: CodeOrchestrationSynapse -->
+        <rect x="270" y="95" width="230" height="95" rx="8" fill="#1a1816" stroke="#332e2a" />
+        <text x="282" y="118" fill="#4ade80" font-family="var(--mono)" font-size="11" font-weight="700">CodeOrchestrationSynapse</text>
+        <text x="282" y="136" fill="#f3efe9" font-family="var(--sans)" font-size="12">1. Mint scoped AppToken</text>
+        <text x="282" y="154" fill="#f3efe9" font-family="var(--sans)" font-size="12">2. Generate C# (net11.0)</text>
+        <text x="282" y="172" fill="#a69d94" font-family="var(--sans)" font-size="11">Roslyn AST sanitize &amp; repair</text>
+
+        <!-- Arrow 1.1 -> 1.2 -->
+        <path d="M500 142 L530 142" stroke="#332e2a" stroke-width="2" />
+        <polygon points="530,138 538,142 530,146" fill="#4ade80" />
+
+        <!-- Step 1.2: Execution Target -->
+        <rect x="540" y="95" width="240" height="95" rx="8" fill="#1a1816" stroke="#332e2a" />
+        <text x="552" y="118" fill="#60a5fa" font-family="var(--mono)" font-size="11" font-weight="700">Sovereign Client Sandbox</text>
+        <text x="552" y="136" fill="#f3efe9" font-family="var(--sans)" font-size="12">Connected PC / Android / Cloud</text>
+        <text x="552" y="154" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Run in JobObject / Process</text>
+        <text x="552" y="172" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Direct file/tool automation</text>
+
+        <!-- Arrow 1.2 -> 1.3 -->
+        <path d="M780 142 L810 142" stroke="#332e2a" stroke-width="2" />
+        <polygon points="810,138 818,142 810,146" fill="#4ade80" />
+
+        <!-- Step 1.3: Closed Edge Invocation -->
+        <rect x="820" y="95" width="250" height="95" rx="8" fill="#1a1816" stroke="#332e2a" />
+        <text x="832" y="118" fill="#fbbf24" font-family="var(--mono)" font-size="11" font-weight="700">Closed Orleans Gateway</text>
+        <text x="832" y="136" fill="#f3efe9" font-family="var(--sans)" font-size="12">POST /edge/sandbox/invoke</text>
+        <text x="832" y="154" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Typed os.Get&lt;TNeuron&gt;(key)</text>
+        <text x="832" y="172" fill="#4ade80" font-family="var(--sans)" font-size="11">&bull; Fast result.json to user</text>
+
+        <!-- ================= PLANE 2: DEV MODE (BOTTOM) ================= -->
+        <rect x="250" y="240" width="840" height="190" rx="12" fill="url(#plane2-grad)" stroke="#c084fc" stroke-width="1.5" />
+        <text x="270" y="268" fill="#c084fc" font-family="var(--sans)" font-size="14" font-weight="800">PLANE 2 &mdash; DEV MODE (Full-Stack Repo Engineering &amp; Aspire Self-Improving Loop)</text>
+        <text x="270" y="288" fill="#a69d94" font-family="var(--sans)" font-size="11">Heavy Git worktrees &bull; Full .NET SDK &bull; InoNativeHarness 2x2 &bull; Leased devcontainer slots &bull; Live Aspire tests</text>
+
+        <!-- Step 2.1: EngineerFlow Orchestrator -->
+        <rect x="270" y="305" width="230" height="105" rx="8" fill="#1a1816" stroke="#332e2a" />
+        <text x="282" y="328" fill="#c084fc" font-family="var(--mono)" font-size="11" font-weight="700">EngineerFlow (9 Stages)</text>
+        <text x="282" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">1. Brainstorm &amp; IssueSpec</text>
+        <text x="282" y="364" fill="#f3efe9" font-family="var(--sans)" font-size="12">2. InoNativeHarness (2x2)</text>
+        <text x="282" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">Local Ollama &rarr; Frontier escalation</text>
+
+        <!-- Arrow 2.1 -> 2.2 -->
+        <path d="M500 357 L530 357" stroke="#332e2a" stroke-width="2" />
+        <polygon points="530,353 538,357 530,361" fill="#c084fc" />
+
+        <!-- Step 2.2: Leased Devcontainer Slot -->
+        <rect x="540" y="305" width="240" height="105" rx="8" fill="#1a1816" stroke="#332e2a" />
+        <text x="552" y="328" fill="#e87a48" font-family="var(--mono)" font-size="11" font-weight="700">agent-dev-slots (Lease)</text>
+        <text x="552" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">Docker Compose / Aspire</text>
+        <text x="552" y="364" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Unprivileged UID 1000</text>
+        <text x="552" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Ephemeral home (no ~/.ssh)</text>
+        <text x="552" y="400" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Dynamic port allocation</text>
+
+        <!-- Arrow 2.2 -> 2.3 -->
+        <path d="M780 357 L810 357" stroke="#332e2a" stroke-width="2" />
+        <polygon points="810,353 818,357 810,361" fill="#c084fc" />
+
+        <!-- Step 2.3: Aspire Verification & PR -->
+        <rect x="820" y="305" width="250" height="105" rx="8" fill="#1a1816" stroke="#332e2a" />
+        <text x="832" y="328" fill="#4ade80" font-family="var(--mono)" font-size="11" font-weight="700">EngineerLiveVerifier</text>
+        <text x="832" y="346" fill="#f3efe9" font-family="var(--sans)" font-size="12">Candidate Aspire Host</text>
+        <text x="832" y="364" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Black-box /health + MCP</text>
+        <text x="832" y="382" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; ChangeCard human gate</text>
+        <text x="832" y="400" fill="#4ade80" font-family="var(--sans)" font-size="11">&bull; Green PR Merge</text>
+
+        <!-- Cross-Plane Collaboration Arrow (Plane 1 triggers Plane 2) -->
+        <path d="M385 190 L385 305" stroke="#e87a48" stroke-dasharray="4 4" stroke-width="2" />
+        <polygon points="381,305 385,313 389,305" fill="#e87a48" />
+        <text x="395" y="240" fill="#e87a48" font-family="var(--mono)" font-size="10" font-weight="700">Cross-Plane: Script triggers PR loop</text>
+      </svg>
+      <div class="diagram-caption">Figure 2: The Two-Plane Architecture &mdash; Programmable Code Mode (Top) &amp; Aspire Dev Mode (Bottom)</div>
+    </div>
+
+    <!-- Concrete Collaboration Scenario Card -->
+    <div class="card" style="border-color: rgba(232, 122, 72, 0.4); background: linear-gradient(180deg, var(--surface) 0%, rgba(232, 122, 72, 0.04) 100%);">
+      <div class="card-header">
+        <span class="card-title" style="color:var(--accent);">&#9889; How Plane 1 and Plane 2 Collaborate in Practice</span>
+        <span class="badge badge-accent">Real-World Flow</span>
+      </div>
+      <p style="font-size:13.5px; line-height:1.65; color:var(--text);">
+        <strong>Scenario:</strong> The user notices in chat that candidate verification builds fail intermittently on Aspire port allocation.
+        <br/>
+        1. <strong>Plane 1 Invocation:</strong> Ino triggers a <code>CodeOrchestrationSynapse</code>. In &lt;1 second, a generated C# script calls <code>os.Get&lt;IGitHub&gt;(key)</code> and <code>os.Get&lt;ILoggerStream&gt;(key)</code> over the closed edge bridge, aggregates 50 build logs, discovers the exact port clash, and outputs a formatted table into chat.
+        <br/>
+        2. <strong>Handshake to Plane 2:</strong> Ino asks: <em>"Would you like me to fix this in <code>ProcessCandidateHost.cs</code> and verify live?"</em> The user approves.
+        <br/>
+        3. <strong>Plane 2 Invocation:</strong> Ino launches <code>EngineerFlow</code>. It leases a pre-warmed slot from <code>agent-dev-slots</code>, runs <code>InoNativeHarness</code> (implementing the fix via local Ollama coder), boots candidate Aspire on a dynamic leased port, and verifies <code>/health</code> and MCP probes.
+        <br/>
+        4. <strong>Completion:</strong> Plane 2 opens a clean PR, while Plane 1 posts the interactive <code>ChangeCard</code> with diff and verification metrics back into chat.
+      </p>
+    </div>
+  </section>
+
+  <!-- SECTION 3: THE TWO PLANES DEEP DIVE -->
+  <section id="section-3">
+    <div class="section-header">
+      <span class="section-tag">Section 3</span>
+      <h2>The Two Complementary Planes: Deep Dive &amp; Comparative Analysis</h2>
+      <p class="section-desc">
+        Rather than competing for the same workload, Plane 1 and Plane 2 address fundamentally different computational requirements.
+      </p>
+    </div>
+
+    <!-- Plane 1 vs Plane 2 Comparison Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>Plane 1: Programmable Orchestration ("Code Mode")</th>
+            <th>Plane 2: Full-Stack Dev Loop ("Dev Mode")</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Primary Technology</strong></td>
+            <td><strong>IntoChat Native Sandbox + Connected Client Nodes</strong></td>
+            <td><strong>Leased Devcontainer Slots (<code>agent-dev-slots</code> + Aspire)</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Inspiration / Lineage</strong></td>
+            <td>IAW <code>CodeOrchestratorAgent.cs</code> + <code>#414 Closed Edge Proxy</code></td>
+            <td><code>hanzhad/agent-dev-slots</code> + .NET Aspire <code>AppHost</code></td>
+          </tr>
+          <tr>
+            <td><strong>What It Executes</strong></td>
+            <td>Standalone typed C# scripts orchestrating Neurons &amp; local tools</td>
+            <td>Full repository checkouts, compiler toolchains, multi-service containers</td>
+          </tr>
+          <tr>
+            <td><strong>Cold-Start Latency</strong></td>
+            <td><span style="color:var(--green); font-weight:700;">&lt; 50ms</span> (Instant script compilation)</td>
+            <td><span style="color:var(--blue); font-weight:700;">1.5s &ndash; 3.0s</span> (Pre-warmed slot acquisition)</td>
+          </tr>
+          <tr>
+            <td><strong>Toolchain Required</strong></td>
+            <td>Roslyn compiler in memory (no Docker required)</td>
+            <td>Docker / Podman daemon + full .NET SDK + OCI images</td>
+          </tr>
+          <tr>
+            <td><strong>Isolation Mechanism</strong></td>
+            <td>Windows JobObject / AppContainer or Linux cgroups</td>
+            <td>Docker Compose, unprivileged UID 1000, ephemeral home (no <code>~/.ssh</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>Neuron Access Method</strong></td>
+            <td><code>IntoChatClient</code> over <code>POST /edge/sandbox/invoke</code></td>
+            <td>Black-box external HTTP probe (<code>/health</code>, MCP <code>tools/list</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>Execution Location</strong></td>
+            <td>User PC, Linux workstation, Android client, or Cloud Sandbox</td>
+            <td>Local Docker host, team build server, or Cloud ACA host</td>
+          </tr>
+          <tr>
+            <td><strong>Infrastructure Cost</strong></td>
+            <td><span style="color:var(--green); font-weight:700;">$0 / Sovereign</span> (Runs locally on user machine)</td>
+            <td>$0 local / fractional cloud runner host fee</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- The Role of MXC and Cloud ACA -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--blue);">&#128737; Where Microsoft MXC Fits In</span>
+          <span class="badge badge-blue">Hardening for Plane 1</span>
+        </div>
+        <p>
+          Microsoft's <code>Microsoft.Mxc.Sdk</code> is not a standalone orchestrator. Instead, it serves as an <strong>optional, ultra-fast OS containment engine for Plane 1 on desktop workstations</strong>. On Windows and Linux, <code>IntoChat.OS.Sandbox</code> can wrap generated C# scripts in an MXC <code>ProcessContainer</code> to enforce folder read/write boundaries and scrub environment variables without needing Docker.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--purple);">&#9729; Where Cloud ACA Dynamic Sessions Fits In</span>
+          <span class="badge badge-purple">Headless Fallback for Plane 2</span>
+        </div>
+        <p>
+          When the user is away from their workstation and all connected client machines are asleep, Azure Container Apps (ACA) Dynamic Sessions provides an on-demand, scale-to-zero Kata microVM environment. It acts as the <strong>cloud runner host for Plane 2's <code>agent-dev-slots</code></strong>, executing background refactoring tournaments without draining user battery.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4: DEEP DIVE ON CODE ORCHESTRATION SYNAPSE -->
+  <section id="section-4">
+    <div class="section-header">
+      <span class="section-tag">Section 4</span>
+      <h2>Deep Dive: Should CodeOrchestrator Be a Synapse?</h2>
+      <p class="section-desc">
+        A rigorous architectural answer to the owner's design question: Yes &mdash; <code>CodeOrchestrationSynapse</code> (a durable DigitalBrain Synapse/Flow) combined with the <code>ICodeSandbox</code> capability is the exact right design.
+      </p>
+    </div>
+
+    <!-- 5 Reasons Synapse is the Right Fit -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-header">
+        <span class="card-title" style="font-size:18px; color:var(--green);">&#10004; The 5 Architectural Pillars of CodeOrchestrationSynapse</span>
+        <span class="badge badge-green">Architectural Verdict</span>
+      </div>
+      <p style="font-size:14px; color:var(--text); line-height:1.65;">
+        In IntoChat OS, an ad-hoc agent is merely a prompt loop. A <strong>Synapse</strong>, by contrast, is a first-class, durable, reactive reactive unit of code governed by DigitalBrain analyzers, capable of holding state, subscribing to signals, and interacting with cluster capabilities. Implementing Code Orchestration as a Synapse provides five critical superpowers:
+      </p>
+
+      <div class="grid-2" style="margin-top:16px;">
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--accent); font-size:13.5px; margin-bottom:6px;">1. Scoped Grant &amp; AppToken Minting</div>
+          <div style="font-size:13px; color:var(--muted);">
+            The Synapse inspects the user intent, queries <code>CodeGraph</code> for only the required <code>[NeuronContract]</code> interfaces (e.g. <code>INotifications</code>, <code>ITables</code>), and mints a short-lived, least-privilege <code>AppToken</code> authorizing only those contracts. The script cannot reach unauthorized Neurons.
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--blue); font-size:13.5px; margin-bottom:6px;">2. Roslyn Compile &amp; Repair Loop</div>
+          <div style="font-size:13px; color:var(--muted);">
+            Employs an in-memory Roslyn compiler with AST sanitization (stripping reflection, unmanaged calls, or raw sockets) and a deterministic repair loop (feeding compiler diagnostics back to the LLM) before any code ever touches execution.
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--purple); font-size:13.5px; margin-bottom:6px;">3. Sovereign Dispatch (Client or Cloud)</div>
+          <div style="font-size:13px; color:var(--muted);">
+            Via the <code>ICodeSandbox</code> slot, the Synapse dispatches the compiled script to run where it makes the most sense: on the user's connected desktop PC (to access local files), an Android device, or the cloud <code>IntoChat.OS.Sandbox</code> worker.
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--amber); font-size:13.5px; margin-bottom:6px;">4. Durable Suspension on Confirmation Cards</div>
+          <div style="font-size:13px; color:var(--muted);">
+            If the orchestrated script invokes a <code>[PersonOnly]</code> or destructive Neuron operation (e.g., deleting a database table or sending an email), the edge bridge returns an approval request. The Synapse <em>durably suspends</em>, displays a Confirmation Card in chat, and resumes cleanly when approved!
+          </div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border); margin-top:14px;">
+        <div style="font-weight:700; color:var(--green); font-size:13.5px; margin-bottom:6px;">5. Crystallization into Permanent Apps-as-Data</div>
+        <div style="font-size:13px; color:var(--muted);">
+          When a generated C# script proves useful (e.g. daily PR summary or Linear triage), the user can click <strong>"Save as App"</strong>. IntoChat crystallizes the script into a permanent <strong>App-as-Data</strong> package with <code>[OnSignal]</code> and <code>[Every]</code> handlers, running in the sandbox forever without re-generation costs.
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Example: IAW vs IntoChat Script Comparison -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">&#128196; Code Comparison: IAW Script vs. IntoChat OS Sandboxed Script</span>
+        <span class="badge badge-accent">C# net11.0 Syntax</span>
+      </div>
+      <p style="font-size:13px; color:var(--muted);">
+        Notice how IntoChat OS provides identical developer ergonomics to IAW, but executes over the secure <code>IntoChatClient</code> reverse proxy instead of joining the Orleans cluster.
+      </p>
+
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase;">IAW Style (Direct Orleans Cluster)</span>
+          <pre><code>// IAW: Direct Orleans Cluster Connect
+using Aspire.IAW;
+using IAW.Agents.Coding;
+
+using var iaw = await IAWCluster.Connect(args);
+var taskId = iaw.TaskId;
+
+// Direct Grain Call (Vulnerable to socket leaks)
+var shell = iaw.Get&lt;IShell&gt;(taskId);
+var dotnet = iaw.Get&lt;IDotNet&gt;(taskId);
+
+var build = await dotnet.BuildAsync("App.csproj");
+File.WriteAllText("result.json", ...);</code></pre>
+        </div>
+
+        <div>
+          <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">IntoChat OS Style (Closed Edge Proxy)</span>
+          <pre><code>// IntoChat OS: Sovereign Sandboxed Execution
+using IntoChat.OS.Client;
+using IntoChat.OS.Modules.GitHub.Contracts;
+using IntoChat.OS.Modules.Catalog.Contracts;
+
+using var os = await IntoChatClient.ConnectAsync(args);
+
+// Proxied over /edge/sandbox/invoke with AppToken
+var github = os.Get&lt;IGitHub&gt;("repo:intochat");
+var notify = os.Get&lt;INotifications&gt;();
+
+var prs = await github.ListActivePRsAsync();
+await notify.PublishAsync("PRs audited: " + prs.Count);</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5: PHASED ROLLOUT & OWNER DECISION PANEL -->
+  <section id="section-5">
+    <div class="section-header">
+      <span class="section-tag">Section 5</span>
+      <h2>Phased Rollout Plan &amp; Owner Decisions</h2>
+      <p class="section-desc">
+        Structured vertical slices implementing the Two-Plane Architecture, accompanied by the interactive decision panel for owner sign-off.
+      </p>
+    </div>
+
+    <!-- 4 Rollout Slices -->
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-1: CodeOrchestrationSynapse &amp; Scoped AppToken</span>
+          <span class="badge badge-accent">Plane 1 Core</span>
+        </div>
+        <p>
+          Implement <code>CodeOrchestrationSynapse</code> in <code>src/Modules/Catalog</code>. Implements Roslyn in-memory compilation of generated C# scripts, contract extraction from <code>CodeGraph</code>, least-privilege <code>AppToken</code> minting, and execution in <code>IntoChat.OS.Sandbox</code>.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-2: Connected Client Compute in Devices</span>
+          <span class="badge badge-blue">Plane 1 Sovereign</span>
+        </div>
+        <p>
+          Extend <code>IntoChat.OS.Modules.Devices</code> to advertise <code>ICodeSandbox</code> capability over the paired P-256 edge relay. Allows <code>CodeOrchestrationSynapse</code> to dispatch scripts to run locally on the user's Windows, Linux, or Android machine.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-3: Leased Devcontainer Slot Provider</span>
+          <span class="badge badge-purple">Plane 2 Core</span>
+        </div>
+        <p>
+          Implement <code>AgentDevSlotsCandidateHost</code> implementing <code>ICandidateHost</code> for <code>EngineerFlow</code>. Leases Docker Compose slots with dynamic port allocation, unprivileged UID 1000, and ephemeral homes for full Aspire multi-service verification.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-4: Cloud ACA Sessions &amp; Android Edge Worker</span>
+          <span class="badge badge-amber">Plane 2 Cloud</span>
+        </div>
+        <p>
+          Implement the headless cloud fallback via Azure Container Apps Dynamic Sessions for off-hours Plane 2 runs, plus the Android client background worker for local small-model drafting and test output streaming.
+        </p>
+      </div>
+    </div>
+
+    <!-- Interactive Decision Panel -->
+    <div class="decision-panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:18px; color:var(--text);">&#9997; Owner Sign-Off: Two-Plane Architectural Confirmation</h3>
+        <span class="badge badge-accent">Interactive Decision Card</span>
+      </div>
+      <p style="margin:0 0 20px; font-size:13.5px; color:var(--muted);">
+        Please confirm your preferred configuration for the Two-Plane Architecture. Click "Copy Approved Decision Config" to output the decisions into chat.
+      </p>
+
+      <!-- Decision 1 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">1. Plane 1 Orchestration Engine Format</span>
+          <span class="badge badge-green">Recommended: Synapse</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d1" value="synapse" checked />
+            <strong>(Recommended) CodeOrchestrationSynapse (Durable DigitalBrain Synapse + ICodeSandbox)</strong>
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d1" value="adhoc-agent" />
+            <strong>Ad-hoc Orleans Grain Agent (IAW style)</strong> &mdash; Lacks native durable suspension and crystallization into Apps.
+          </label>
+        </div>
+      </div>
+
+      <!-- Decision 2 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">2. Plane 2 Dev Loop Containment Standard</span>
+          <span class="badge badge-green">Recommended: agent-dev-slots</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d2" value="agent-dev-slots" checked />
+            <strong>(Recommended) Leased Devcontainer Slots (hanzhad/agent-dev-slots + Aspire)</strong> &mdash; Full multi-service fidelity, UID 1000, port leasing.
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d2" value="process-only" />
+            <strong>Keep ProcessCandidateHost only</strong> &mdash; Faster unit tests, but risks port collisions and lack of container isolation.
+          </label>
+        </div>
+      </div>
+
+      <!-- Decision 3 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">3. Connected Client Compute Consent</span>
+          <span class="badge badge-green">Recommended: Explicit Device Toggle</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d3" value="client-toggle" checked />
+            <strong>(Recommended) Explicit Device Toggle in Client Settings</strong> &mdash; Default ON for desktop, OFF for battery mobile.
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d3" value="auto-all" />
+            <strong>Automatic for all enrolled devices</strong>
+          </label>
+        </div>
+      </div>
+
+      <!-- Decision 4 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">4. Headless Cloud Fallback Provider</span>
+          <span class="badge badge-green">Recommended: ACA Sessions</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d4" value="aca" checked />
+            <strong>(Recommended) Azure Container Apps Dynamic Sessions (Kata MicroVMs)</strong> &mdash; Scale-to-zero, microVM isolation.
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d4" value="codespaces" />
+            <strong>GitHub Codespaces API</strong> &mdash; Dedicated hosted VMs for OSS contributors.
+          </label>
+        </div>
+      </div>
+
+      <!-- Export / Copy Action -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; flex-wrap:wrap; gap:12px;">
+        <div id="decision-status" style="font-size:13px; color:var(--green); font-weight:600;">
+          All 4 recommended options selected.
+        </div>
+        <button class="btn btn-accent" onclick="copyDecisions()">
+          &#128203; Copy Approved Decision Config
+        </button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Interactive Scripts -->
+<script>
+  function copyDecisions() {
+    const d1 = document.querySelector('input[name="d1"]:checked').value;
+    const d2 = document.querySelector('input[name="d2"]:checked').value;
+    const d3 = document.querySelector('input[name="d3"]:checked').value;
+    const d4 = document.querySelector('input[name="d4"]:checked').value;
+
+    const payload = {
+      rfc: "intochat-two-plane-architecture-v0.24.0",
+      status: "APPROVED_BY_OWNER",
+      two_plane_design: {
+        plane_1_code_mode: "CodeOrchestrationSynapse + Client/Cloud Native Sandbox (/edge/sandbox/invoke)",
+        plane_2_dev_mode: "Leased Devcontainer Slots (agent-dev-slots + Aspire AppHost)",
+        desktop_hardening: "Microsoft.Mxc.Sdk (optional OS-level process containment)",
+        cloud_fallback: "Azure Container Apps Dynamic Sessions"
+      },
+      decisions: {
+        plane_1_engine: d1,
+        plane_2_containment: d2,
+        client_compute_consent: d3,
+        cloud_fallback_provider: d4
+      },
+      next_action: "Dispatch worker for Slice RFC-1 (CodeOrchestrationSynapse & Scoped AppToken)"
+    };
+
+    const text = JSON.stringify(payload, null, 2);
+    navigator.clipboard.writeText(text).then(() => {
+      const status = document.getElementById('decision-status');
+      status.innerText = "Copied to clipboard! Ready to paste into chat.";
+      setTimeout(() => {
+        status.innerText = "All 4 options selected.";
+      }, 4000);
+    });
+  }
+</script>
+</body>
+</html>
