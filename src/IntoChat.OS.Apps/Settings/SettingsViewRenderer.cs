@@ -49,7 +49,7 @@ internal static class SettingsViewRenderer
                 ? GhostButton("Clear search", "x")
                     .Key("settings:clear-search")
                     .Small()
-                    .OnClick<SettingsAppState>(s => s.Filter(""))
+                    .Sends(new SettingsClearSearch())
                     .ToNode()
                 : null,
         };
@@ -61,7 +61,7 @@ internal static class SettingsViewRenderer
                 $"Nothing matched '{state.SearchQuery}'.",
                 PrimaryButton("Show all sections")
                     .Key("settings:empty-reset")
-                    .OnClick<SettingsAppState>(s => s.Filter(""))));
+                    .Sends(new SettingsClearSearch())));
             return VStack(Space.Sm, nodes.ToArray());
         }
 
@@ -115,7 +115,7 @@ internal static class SettingsViewRenderer
                     .Key("settings:header-back")
                     .Small()
                     .Guard(state.CanReturnRule)
-                    .OnClick<SettingsAppState>(s => s.ReturnPrevious())
+                    .Sends(new SettingsGoBack())
                     .ToNode()
                 : null,
             StatusPill(StatusKind.Idle, sectionEntry.Group),
@@ -148,7 +148,7 @@ internal static class SettingsViewRenderer
                     Button("Close sheet", "x")
                         .Key("settings:close-sheet")
                         .Small()
-                        .OnClick<SettingsAppState>(s => s.Navigate(state.Section, state.SubPage, ""))
+                        .Sends(new SettingsNavigate(state.Section, state.SubPage, ""))
                 ]
             ]
         ];
@@ -1068,17 +1068,17 @@ internal static class SettingsViewRenderer
                         .Key("billing-cap-10")
                         .Small()
                         .Guard(SettingsAppState.ValidateBudget(10_000_000L))
-                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(10_000_000L)),
+                        .Sends(new SettingsSetBudget(10_000_000L)),
                     (state.MonthlyBudgetMicros == 50_000_000L ? PrimaryButton("Set $50 cap", "gauge") : Button("Set $50 cap", "gauge"))
                         .Key("billing-cap-50")
                         .Small()
                         .Guard(SettingsAppState.ValidateBudget(50_000_000L))
-                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(50_000_000L)),
+                        .Sends(new SettingsSetBudget(50_000_000L)),
                     (state.MonthlyBudgetMicros == 200_000_000L ? PrimaryButton("Set $200 cap", "gauge") : Button("Set $200 cap", "gauge"))
                         .Key("billing-cap-200")
                         .Small()
                         .Guard(SettingsAppState.ValidateBudget(200_000_000L))
-                        .OnClick<SettingsAppState>(s => s.ApplyBudgetCap(200_000_000L))
+                        .Sends(new SettingsSetBudget(200_000_000L))
                 ]
             ]
         ];

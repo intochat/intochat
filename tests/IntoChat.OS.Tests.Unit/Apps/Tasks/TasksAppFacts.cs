@@ -230,14 +230,15 @@ public sealed class TasksAppFacts
         var tasks = await os.Install<TasksApp>();
 
         var before = tasks.App.State.Tasks.Length;
-        await tasks.App.AddTaskCommand();
+        // Each press is the button's typed command, sent as /act sends it.
+        await tasks.Screen.Click("tasks:add");
         Assert.Equal(before + 1, tasks.App.State.Tasks.Length);
         var added = tasks.App.State.SelectedTaskId!;
-        await tasks.App.AdvanceStageCommand();
+        await tasks.Screen.Click("tasks:advance");
         Assert.Equal("in-progress", tasks.App.State.SelectedTask?.Stage);
-        await tasks.App.CompleteTaskCommand();
+        await tasks.Screen.Click("tasks:complete");
         Assert.Equal("done", tasks.App.State.SelectedTask?.Stage);
-        await tasks.App.ClearDoneCommand();
+        await tasks.Screen.Click("tasks:clear-done");
 
         Assert.DoesNotContain(tasks.App.State.Tasks, t => t.Stage == "done");
         Assert.DoesNotContain(PropsOf<KanbanProps>(tasks.App.Render(), TasksApp.KanbanKey).Cards, c => c.Id == added);

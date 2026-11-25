@@ -576,7 +576,6 @@ internal static class InoModelSetup
             new("toggle-devui", "Toggle DevUI flag."),
             new("make", "Apply a sentence to the focused app, or Scratch."),
             new("link", "Post a pasted workspace link: its app, opaque input and text."),
-            new(IntoChat.OS.UI.UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
         ]) with
     {
         CompiledType = compiledType.AssemblyQualifiedName,

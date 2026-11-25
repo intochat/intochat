@@ -2,7 +2,7 @@
 # Orleans Grain Dashboard
 Role: Operator
 Shipped: true
-Operations: open, select-section, filter-grain, reload, ui.command, ui.navigate-to, ui.navigate-from
+Operations: open, select-section, filter-grain, reload, ui.navigate-to, ui.navigate-from
 
 Built-in full-bleed WebBrowser operator surface (`app.orleans`) targeting IntoChat OS's co-hosted `/orleans`
 Grain Dashboard (`Overview`, `Grains`, `Silos`, `Reminders`, and grain-type deep-links).
@@ -35,6 +35,9 @@ public sealed record OrleansSelectSection(string? Section = null) : Signal;
 [Signal("orleans.filter-grain")]
 public sealed record OrleansFilterGrain(string? GrainFilter = null) : Signal;
 
+[Signal("orleans.clear-filter")]
+public sealed record OrleansClearFilter : Signal;
+
 [Signal("orleans.reload")]
 public sealed record OrleansReload : Signal;
 
@@ -66,7 +69,6 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
             new("select-section", "Switch between overview, grains, silos, and reminders."),
             new("filter-grain", "Focus the Grains view on a specific grain type or activation filter."),
             new("reload", "Reload the active Orleans Grain Dashboard frame."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Orleans aggregate command."),
             new(UiNavigateTo.SignalAlias, "Navigate into Orleans with typed BrowserNavArgs."),
             new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Orleans."),
         ]);
@@ -138,6 +140,13 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
     }
 
     [On]
+    public Task ClearFilter(OrleansClearFilter request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Store(State.ClearGrainFilter());
+    }
+
+    [On]
     public Task Reload(OrleansReload request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -161,7 +170,7 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
                 ? GhostButton("Clear")
                     .Key("orleans:clear-filter")
                     .Small()
-                    .OnClick<OrleansAppState>(s => s.ClearGrainFilter())
+                    .Sends(new OrleansClearFilter())
                     .ToNode()
                 : null,
             FlexSpacer(),
@@ -172,7 +181,7 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
             Button("Reload", Icons.RefreshCw)
                 .Key("orleans:reload")
                 .Small()
-                .OnClick<OrleansAppState>(s => s.Reload()));
+                .Sends(new OrleansReload()));
 
         var browser = WebBrowser(
             state.CurrentUrl,
@@ -200,7 +209,7 @@ public sealed class OrleansApp : AggregateScreen<OrleansAppState>, INavigatedTo<
         return builder
             .Key($"orleans:section:{sectionId}")
             .Small()
-            .OnClick<OrleansAppState>(s => s.SelectSection(sectionId));
+            .Sends(new OrleansSelectSection(sectionId));
     }
 
     private string SafeScreenLabel()

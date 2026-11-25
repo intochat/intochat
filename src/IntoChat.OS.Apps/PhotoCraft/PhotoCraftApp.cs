@@ -279,8 +279,6 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
         return ApplyEngineExecutionAsync(command, null, NormalizeTextOrCurrent(request.Document, State.ActiveDocument), NormalizeModeOrCurrent(request.Mode, State.ExecutionMode), preset);
     }
 
-    public Task RemoveBackgroundDefaultAsync() => RemoveBackground(new PhotoCraftRemoveBackground(State.ActiveDocument, State.ExecutionMode));
-    public Task ApplyQuickPresetAsync(string preset) => ApplyPreset(new PhotoCraftApplyPreset(preset, State.ActiveDocument, State.ExecutionMode));
 
     protected override Node Render(PhotoCraftAppState state)
     {
@@ -290,10 +288,10 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
 
         var presetBar = Toolbar(
             SectionHeader("Quick Presets"),
-            (state.ActivePreset == "warm" ? PrimaryButton("Warm Cinema") : Button("Warm Cinema")).Key("preset-warm").Small().OnClick(() => ApplyQuickPresetAsync("warm")),
-            (state.ActivePreset == "vivid" ? PrimaryButton("Vivid Pop") : Button("Vivid Pop")).Key("preset-vivid").Small().OnClick(() => ApplyQuickPresetAsync("vivid")),
-            (state.ActivePreset == "monochrome" ? PrimaryButton("Monochrome") : Button("Monochrome")).Key("preset-mono").Small().OnClick(() => ApplyQuickPresetAsync("monochrome")),
-            (state.ActivePreset == "gradient" ? PrimaryButton("Gradient Canvas") : Button("Gradient Canvas")).Key("preset-gradient").Small().OnClick(() => ApplyQuickPresetAsync("gradient"))
+            (state.ActivePreset == "warm" ? PrimaryButton("Warm Cinema") : Button("Warm Cinema")).Key("preset-warm").Small().Sends(new PhotoCraftApplyPreset("warm", state.ActiveDocument, state.ExecutionMode)),
+            (state.ActivePreset == "vivid" ? PrimaryButton("Vivid Pop") : Button("Vivid Pop")).Key("preset-vivid").Small().Sends(new PhotoCraftApplyPreset("vivid", state.ActiveDocument, state.ExecutionMode)),
+            (state.ActivePreset == "monochrome" ? PrimaryButton("Monochrome") : Button("Monochrome")).Key("preset-mono").Small().Sends(new PhotoCraftApplyPreset("monochrome", state.ActiveDocument, state.ExecutionMode)),
+            (state.ActivePreset == "gradient" ? PrimaryButton("Gradient Canvas") : Button("Gradient Canvas")).Key("preset-gradient").Small().Sends(new PhotoCraftApplyPreset("gradient", state.ActiveDocument, state.ExecutionMode))
         );
 
         var studioCanvas = VStack(Space.Md)[
@@ -322,10 +320,10 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
             "Layer Stack", [],
             headerActions:
             [
-                (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("mcp")),
-                (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
-                (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
-                PrimaryButton("Remove Background", "wand-sparkles").Key("preset-cutout").Small().OnClick(() => RemoveBackgroundDefaultAsync()),
+                (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().Sends(new PhotoCraftSwitchMode("mcp")),
+                (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().Sends(new PhotoCraftSwitchMode("native-linux")),
+                (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().Sends(new PhotoCraftSwitchMode("wasm-ui")),
+                PrimaryButton("Remove Background", "wand-sparkles").Key("preset-cutout").Small().Sends(new PhotoCraftRemoveBackground(state.ActiveDocument, state.ExecutionMode)),
             ],
             inspectorExtras:
             [
@@ -341,7 +339,7 @@ public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
                             hidden.Contains(idx) ? "eye-off" : "eye")
                         .Key($"toggle-layer-{idx}")
                         .Small()
-                        .OnClick<PhotoCraftAppState>(x => x.ToggleLayerByIndex(idx))
+                        .Sends(new PhotoCraftToggleLayer(idx))
                         .ToNode();
                 })]),
             ],

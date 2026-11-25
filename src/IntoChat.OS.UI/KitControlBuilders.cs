@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 
@@ -32,15 +31,6 @@ public sealed class IconButtonBuilder
     /// <summary>Disables the button while <paramref name="rule"/> is broken (see <see cref="ButtonBuilder.Guard(Rule)"/>).</summary>
     public IconButtonBuilder Guard(Rule rule) { _button.Guard(rule); return this; }
 
-    /// <summary>Binds a pure <c>TState -&gt; TState</c> aggregate command expression.</summary>
-    public IconButtonBuilder OnClick<TState>(Expression<Func<TState, TState>> command) where TState : class { _button.OnClick(command); return this; }
-
-    /// <summary>Binds a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> aggregate command expression.</summary>
-    public IconButtonBuilder OnClick<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class { _button.OnClick(command); return this; }
-
-    /// <summary>Binds an async screen orchestration method (<c>screen =&gt; screen.SyncAsync()</c>).</summary>
-    public IconButtonBuilder OnClickAsync<TScreen>(Expression<Func<TScreen, Task>> command) where TScreen : class { _button.OnClickAsync(command); return this; }
-
     /// <summary>Binds a typed signal a click sends to the <c>[On]</c> reaction of the view's own neuron (".").</summary>
     public IconButtonBuilder Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal { _button.Sends(signal); return this; }
 
@@ -68,13 +58,11 @@ public sealed class IconButtonBuilder
 }
 
 /// <summary>
-/// Fluent interactive button builder supporting typed expression-tree command binding (<c>.OnClick(x =&gt; x.Withdraw(30m))</c>),
-/// domain rule guards (<c>.Guard(rule)</c>), client-local intents, and visual styles.
+/// Fluent interactive button builder: a typed signal a press sends (<c>.Sends(new TasksAdvance())</c>), domain rule guards (<c>.Guard(rule)</c>), client-local intents, and visual styles.
 /// </summary>
 public sealed class ButtonBuilder
 {
     private string? _explicitKey;
-    private string? _derivedKey;
     private readonly string _label;
     private readonly string _style;
     private readonly string _tone;
@@ -156,46 +144,6 @@ public sealed class ButtonBuilder
         return this;
     }
 
-    /// <summary>Binds a pure <c>TState -&gt; TState</c> aggregate command expression.</summary>
-    public ButtonBuilder OnClick<TState>(Expression<Func<TState, TState>> command) where TState : class
-    {
-        var bound = CommandBinding.FromState(command);
-        _derivedKey = bound.CanonicalKey;
-        _command = bound.ToCommand();
-        _intent = null;
-        return this;
-    }
-
-    /// <summary>Binds a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> aggregate command expression.</summary>
-    public ButtonBuilder OnClick<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class
-    {
-        var bound = CommandBinding.FromDecision(command);
-        _derivedKey = bound.CanonicalKey;
-        _command = bound.ToCommand();
-        _intent = null;
-        return this;
-    }
-
-    /// <summary>Binds an async screen orchestration method (<c>screen =&gt; screen.SyncAsync()</c>).</summary>
-    public ButtonBuilder OnClickAsync<TScreen>(Expression<Func<TScreen, Task>> command) where TScreen : class
-    {
-        var bound = CommandBinding.FromScreen(command);
-        _derivedKey = bound.CanonicalKey;
-        _command = bound.ToCommand();
-        _intent = null;
-        return this;
-    }
-
-    /// <summary>Binds an async screen orchestration method invoked on <c>this</c> (<c>() =&gt; SyncAsync()</c>).</summary>
-    public ButtonBuilder OnClick(Expression<Func<Task>> command)
-    {
-        var bound = CommandBinding.FromScreen(command);
-        _derivedKey = bound.CanonicalKey;
-        _command = bound.ToCommand();
-        _intent = null;
-        return this;
-    }
-
     /// <summary>Binds a typed signal a click sends to the <c>[On]</c> reaction of the view's own neuron (".").</summary>
     public ButtonBuilder Sends<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal => Sends(DigitalBrain.ScreenCommands.Sends(signal));
 
@@ -227,18 +175,18 @@ public sealed class ButtonBuilder
     /// <summary>Materializes this builder directly as a typed <see cref="Button"/> record.</summary>
     public Button ToButton()
     {
-        var key = _explicitKey ?? _derivedKey ?? SlugifyKey("btn", _label.Length > 0 ? _label : (_icon ?? "action"));
+        var key = _explicitKey ?? SlugifyKey("btn", _label.Length > 0 ? _label : (_icon ?? "action"));
         var command = _command;
         var intent = _intent;
         if (command is null && intent is null)
         {
-            // DigitalBrain.UI.Button requires either Command or Intent; provide a safe inert no-op UiCommand when unbound.
-            command = new Command(".", UiCommand.SignalAlias);
+            // DigitalBrain.UI.Button requires either Command or Intent; an unbound button sends the inert signal.
+            command = CommandMetadata.Inert();
         }
 
         if (command is not null && _guardMessage is not null)
         {
-            command = BoundCommand.AttachHintMetadata(command, _guardMessage, tooltip: null);
+            command = CommandMetadata.WithHint(command, _guardMessage, tooltip: null);
         }
 
         return new Button(key, _label, command, intent, _enabled, _tone, _automationName ?? "", _tooltip)
@@ -288,12 +236,11 @@ public sealed class ButtonBuilder
 }
 
 /// <summary>
-/// Fluent editable field builder supporting typed <see cref="Arg.Text"/> command binding via <c>.OnSubmit(...)</c> and <c>.OnChange(...)</c>.
+/// Fluent editable field builder: the typed signal a submit sends, or sends after each pause in typing, with the text as <c>value</c>.
 /// </summary>
 public sealed class FieldBuilder : KitNode
 {
     private string? _explicitKey;
-    private string? _derivedKey;
     private readonly string _name;
     private bool _hasExplicitLabel;
     private string? _explicitLabel;
@@ -370,26 +317,6 @@ public sealed class FieldBuilder : KitNode
         return this;
     }
 
-    /// <summary>Binds field submission (<c>fieldValue</c>) to a pure <c>TState -&gt; TState</c> command (e.g. <c>.OnSubmit(x =&gt; x.SetQuery(Arg.Text))</c>).</summary>
-    public FieldBuilder OnSubmit<TState>(Expression<Func<TState, TState>> command) where TState : class
-        => Bind(CommandBinding.FromState(command), live: false);
-
-    /// <summary>Binds field submission (<c>fieldValue</c>) to a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> command.</summary>
-    public FieldBuilder OnSubmit<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class
-        => Bind(CommandBinding.FromDecision(command), live: false);
-
-    /// <summary>Binds field submission (<c>fieldValue</c>) to an async screen orchestration method.</summary>
-    public FieldBuilder OnSubmit(Expression<Func<Task>> command)
-        => Bind(CommandBinding.FromScreen(command), live: false);
-
-    /// <summary>Binds debounced live typing changes (<c>fieldValue</c>) to a pure <c>TState -&gt; TState</c> command.</summary>
-    public FieldBuilder OnChange<TState>(Expression<Func<TState, TState>> command) where TState : class
-        => Bind(CommandBinding.FromState(command), live: true);
-
-    /// <summary>Binds debounced live typing changes (<c>fieldValue</c>) to a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> command.</summary>
-    public FieldBuilder OnChange<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class
-        => Bind(CommandBinding.FromDecision(command), live: true);
-
     /// <summary>Sets the accessible name; defaults cleanly from label, name, or placeholder when omitted.</summary>
     public FieldBuilder AutomationName(string automationName)
     {
@@ -411,24 +338,20 @@ public sealed class FieldBuilder : KitNode
 
     /// <summary>Binds the <see cref="Command"/> the field sends, with the typed text as <c>value</c>, after each pause in typing
     /// and on submit: the way a screen keeps what a person types in its state.</summary>
+    public FieldBuilder SendsOnChange<TSignal>(TSignal signal) where TSignal : DigitalBrain.Signal => SendsOnChange(DigitalBrain.ScreenCommands.Sends(signal));
+
+    /// <summary>Binds the <see cref="Command"/> the field sends, with the typed text as <c>value</c>, after each pause in typing
+    /// and on submit: the way a screen keeps what a person types in its state.</summary>
     public FieldBuilder SendsOnChange(Command command)
     {
         _liveChange = true;
         return Sends(command);
     }
 
-    private FieldBuilder Bind(BoundCommand bound, bool live)
-    {
-        _derivedKey = bound.CanonicalKey;
-        _liveChange = _liveChange || live;
-        _onSubmit = bound.ToCommand();
-        return this;
-    }
-
     public override Node ToNode()
     {
-        var key = _explicitKey ?? _derivedKey ?? ButtonBuilder.SlugifyKey("field", _name);
-        var command = BoundCommand.AttachFieldMetadata(
+        var key = _explicitKey ?? ButtonBuilder.SlugifyKey("field", _name);
+        var command = CommandMetadata.WithField(
             _onSubmit,
             _hasExplicitLabel,
             _explicitLabel,

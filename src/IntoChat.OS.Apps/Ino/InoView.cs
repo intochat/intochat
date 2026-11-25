@@ -390,7 +390,7 @@ public static partial class InoView
                 GhostButton("Dismiss")
                     .Small()
                     .Key(DismissDraftKey)
-                    .OnClick<InoAppState>(x => x.DismissNavigationSeed())
+                    .Sends(new InoDismissDraft())
                     .ToNode(),
             ];
 

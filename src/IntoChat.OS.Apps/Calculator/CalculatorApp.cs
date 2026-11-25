@@ -182,12 +182,12 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
                 "Calculator",
                 "Arithmetic & sum evaluator",
                 StatusPill(isError ? StatusKind.Error : StatusKind.Done, isError ? "Error" : "Ready"),
-                GhostButton("Clear", Icons.Trash2).Key("clear-display").Small().OnClick<CalculatorAppState>(x => x.ClearDisplay()).Guard(state.HasClearableDisplay())),
+                GhostButton("Clear", Icons.Trash2).Key("clear-display").Small().Sends(new CalculatorClear()).Guard(state.HasClearableDisplay())),
             Grid(2, Space.Sm)[
                 StatCard("kpi-calc-display", "Display", display, state.Expression.Length == 0 ? "Idle" : "Active expression", isError ? BadgeTone.Error : BadgeTone.Accent, "calculator"),
                 StatCard("kpi-calc-sum", "Last Sum", state.LastSum, $"{history.Length}/8 history", BadgeTone.Done, Icons.Plus)
             ],
-            Grid(4, Space.Sm, [.. Keys.Select((key, i) => (key == "=" ? PrimaryButton(Labels[i]) : Button(Labels[i])).Key($"key-{i}").OnClick<CalculatorAppState>(x => x.PressKey(key)).ToNode())]),
+            Grid(4, Space.Sm, [.. Keys.Select((key, i) => (key == "=" ? PrimaryButton(Labels[i]) : Button(Labels[i])).Key($"key-{i}").Sends(new CalculatorPress(key)).ToNode())]),
             history.Length > 0
                 ? Table("Recent Calculations", ["#", "Expression"], history.Select((entry, i) => (IReadOnlyList<string>)[$"{i + 1}", entry]).ToArray())
                 : null

@@ -299,22 +299,10 @@ public sealed class AspireAppFacts
         Assert.Equal("traces", installed.App.State.Section);
         Assert.Equal("00f067aa0ba902b7", installed.App.State.TraceId);
 
-        var lockCmd = RuntimeProtocol.SerializeToElement(
-            new UiCommand("state", nameof(AspireAppState.SetNavigationLock), [JsonSerializer.SerializeToElement(true)]),
-            typeof(UiCommand));
-        await screen.Request(UiCommand.SignalAlias, lockCmd);
-        await os.Idle();
-
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Dispatch(new Command(
-                ".",
-                UiNavigateFrom.SignalAlias,
-                RuntimeProtocol.SerializeToElement(
-                    new UiNavigateFrom(ToNeuron: "app.engineer", Force: false),
-                    typeof(UiNavigateFrom)))));
-        Assert.Contains("Rule:navigation_locked:", refused.Reason, StringComparison.Ordinal);
-        await os.Idle();
-        Assert.Contains("navigation_locked", (await screen.Open())!.View.GetRawText(), StringComparison.Ordinal);
+        // No command pins the view (the method-name back door that reached SetNavigationLock is deleted), so the departure rule is judged on the state.
+        var pinned = new AspireAppState().SetNavigationLock(true);
+        Assert.True(pinned.CanDepartRule(new NavigationDeparture("app.engineer")).Broken);
+        Assert.False(pinned.CanDepartRule(new NavigationDeparture("app.engineer", Force: true)).Broken);
 
         await screen.Dispatch(new Command(
             ".",

@@ -721,7 +721,7 @@ public static partial class CreatorStateSpaceInspector
         {
             new(
                 Id: triggerId,
-                Label: synapse.Form == SynapseForm.App ? "UiCommand / Tick" : "Signal Trigger",
+                Label: synapse.Form == SynapseForm.App ? "Command / Tick" : "Signal Trigger",
                 Uri: $"signal://{synapse.Name}/trigger",
                 Kind: "unit",
                 X: -240,

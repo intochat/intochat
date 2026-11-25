@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
@@ -45,13 +43,12 @@ public sealed class ScreenAttribute(string? alias = null) : Attribute
 /// </summary>
 public abstract class AggregateScreenBase<TState> : Screen<TState> where TState : class, new()
 {
-    private static readonly ConditionalWeakTable<Type, CommandDispatchTable> DispatchTables = new();
     private static readonly ConditionalWeakTable<Type, NavigationDispatchTable> NavigationTables = new();
 
     /// <summary>Frozen signal aliases handled natively by every <see cref="AggregateScreenBase{TState}"/>.</summary>
     public static IReadOnlyList<string> BuiltInSignalAliases { get; } =
     [
-        UiCommand.SignalAlias,
+        UiInert.SignalAlias,
         UiNavigateTo.SignalAlias,
         UiNavigateFrom.SignalAlias,
     ];
@@ -76,7 +73,6 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
     {
         ArgumentNullException.ThrowIfNull(state);
         var owner = SafeOwnerAlias();
-        using var scope = CommandBinding.PushOwner(owner);
         var root = RenderNodeCore(state);
         var normalized = NodeOwnerNormalizer.Normalize(root, owner);
         if (normalized is AppShellNode { Transition.Length: 0 } shell && !string.IsNullOrEmpty(ActiveTransition))
@@ -99,88 +95,12 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
 
     private protected abstract Node RenderNodeCore(TState state);
 
-    /// <summary>
-    /// Built-in <c>[On]</c> command dispatcher invoked automatically when an interactive <see cref="Kit"/> control
-    /// bound via <c>.OnClick(...)</c>, <c>.OnSubmit(...)</c>, <c>.OnChange(...)</c>, or <c>.OnToggle(...)</c> is activated.
-    /// </summary>
+    /// <summary>Built-in <c>[On]</c> reaction to <see cref="UiInert"/>: a control with no action of its own was pressed; nothing happens.</summary>
     [On]
-    internal async Task HandleUiCommand(UiCommand command, CancellationToken cancellationToken)
+    internal Task HandleUiInert(UiInert signal)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        if (string.Equals(command.Target, "navigate-to", StringComparison.OrdinalIgnoreCase))
-        {
-            var args = command.Args ?? [];
-            var argsJson = args.Length > 0 && args[0].ValueKind == JsonValueKind.String ? args[0].GetString() : (args.Length > 0 && args[0].ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? args[0].GetRawText() : command.Value);
-            var fromNeuron = args.Length > 1 && args[1].ValueKind == JsonValueKind.String ? args[1].GetString() : null;
-            var transition = args.Length > 2 && args[2].ValueKind == JsonValueKind.String ? args[2].GetString() ?? ViewTransition.FadeThrough : ViewTransition.FadeThrough;
-            var correlationId = args.Length > 3 && args[3].ValueKind == JsonValueKind.String ? args[3].GetString() : null;
-            var input = args.Length > 4 && args[4].ValueKind == JsonValueKind.String ? args[4].GetString() : null;
-            await HandleUiNavigateTo(new UiNavigateTo(argsJson, fromNeuron, transition, correlationId, input), cancellationToken).ConfigureAwait(true);
-            return;
-        }
-
-        if (string.Equals(command.Target, "navigate-from", StringComparison.OrdinalIgnoreCase))
-        {
-            var args = command.Args ?? [];
-            var toNeuron = args.Length > 0 && args[0].ValueKind == JsonValueKind.String ? args[0].GetString() : null;
-            var route = args.Length > 1 && args[1].ValueKind == JsonValueKind.String ? args[1].GetString() : null;
-            var force = args.Length > 2 && args[2].ValueKind is JsonValueKind.True or JsonValueKind.False && args[2].GetBoolean();
-            _ = await TryNavigateFromAsync(new NavigationDeparture(toNeuron, route, force), cancellationToken).ConfigureAwait(true);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(command.Method))
-        {
-            return;
-        }
-
-        var table = DispatchTables.GetValue(GetType(), static screenType => CommandDispatchTable.Build(screenType, typeof(TState)));
-
-        if (string.Equals(command.Target, "screen", StringComparison.OrdinalIgnoreCase))
-        {
-            var method = table.ResolveScreenMethod(command);
-            var callArgs = BindArguments(method, command, cancellationToken);
-            var result = method.Invoke(this, callArgs);
-            if (result is Task task)
-            {
-                await task.ConfigureAwait(true);
-            }
-            else if (result is ValueTask valueTask)
-            {
-                await valueTask.ConfigureAwait(true);
-            }
-
-            return;
-        }
-
-        var stateMethod = table.ResolveStateMethod(command);
-        var stateArgs = BindArguments(stateMethod, command, cancellationToken);
-        object? rawOutcome;
-        try
-        {
-            rawOutcome = stateMethod.Invoke(State, stateArgs);
-        }
-        catch (TargetInvocationException tie) when (tie.InnerException is not null)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
-            throw;
-        }
-
-        switch (rawOutcome)
-        {
-            case Decision<TState> decision:
-                await ApplyDecisionAsync(decision).ConfigureAwait(true);
-                break;
-
-            case TState nextState:
-                LastRejection = null;
-                await Store(nextState).ConfigureAwait(true);
-                break;
-
-            default:
-                throw new InvalidOperationException(
-                    $"Aggregate command '{typeof(TState).Name}.{stateMethod.Name}' returned unsupported type '{rawOutcome?.GetType().Name ?? "null"}'.");
-        }
+        ArgumentNullException.ThrowIfNull(signal);
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -413,109 +333,6 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
         return new string(chars[..len]);
     }
 
-    internal static object?[] BindArguments(MethodInfo method, UiCommand command, CancellationToken cancellationToken)
-    {
-        var parameters = method.GetParameters();
-        if (parameters.Length == 0)
-        {
-            return [];
-        }
-
-        var result = new object?[parameters.Length];
-        var provided = command.Args ?? [];
-        var argCursor = 0;
-
-        for (var i = 0; i < parameters.Length; i++)
-        {
-            var param = parameters[i];
-            if (param.ParameterType == typeof(CancellationToken))
-            {
-                result[i] = cancellationToken;
-                continue;
-            }
-
-            if (command.ValueIndex == argCursor)
-            {
-                result[i] = CoerceFieldValue(command.Value, param);
-                argCursor++;
-                continue;
-            }
-
-            result[i] = argCursor < provided.Length
-                ? DeserializeArg(provided[argCursor], param)
-                : param.HasDefaultValue
-                    ? param.DefaultValue
-                    : (param.ParameterType.IsValueType ? Activator.CreateInstance(param.ParameterType) : null);
-
-            argCursor++;
-        }
-
-        return result;
-    }
-
-    private static object? CoerceFieldValue(string? rawValue, ParameterInfo param)
-    {
-        var targetType = Nullable.GetUnderlyingType(param.ParameterType) ?? param.ParameterType;
-        if (targetType == typeof(string))
-        {
-            return rawValue ?? (param.HasDefaultValue ? param.DefaultValue as string : string.Empty);
-        }
-
-        if (string.IsNullOrWhiteSpace(rawValue))
-        {
-            return param.HasDefaultValue
-                ? param.DefaultValue
-                : (param.ParameterType.IsValueType ? Activator.CreateInstance(param.ParameterType) : null);
-        }
-
-        if (targetType == typeof(bool) && bool.TryParse(rawValue, out var parsedBool))
-        {
-            return parsedBool;
-        }
-
-        if (targetType == typeof(int) && int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt))
-        {
-            return parsedInt;
-        }
-
-        if (targetType == typeof(long) && long.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLong))
-        {
-            return parsedLong;
-        }
-
-        if (targetType == typeof(decimal) && decimal.TryParse(rawValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedDecimal))
-        {
-            return parsedDecimal;
-        }
-
-        if (targetType == typeof(double) && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedDouble))
-        {
-            return parsedDouble;
-        }
-
-        if (targetType.IsEnum && Enum.TryParse(targetType, rawValue, ignoreCase: true, out var parsedEnum))
-        {
-            return parsedEnum;
-        }
-
-        return Convert.ChangeType(rawValue, targetType, CultureInfo.InvariantCulture);
-    }
-
-    private static object? DeserializeArg(JsonElement element, ParameterInfo param)
-    {
-        if (element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-        {
-            if (!param.ParameterType.IsValueType || Nullable.GetUnderlyingType(param.ParameterType) is not null)
-            {
-                return null;
-            }
-
-            return param.HasDefaultValue ? param.DefaultValue : Activator.CreateInstance(param.ParameterType);
-        }
-
-        return element.Deserialize(param.ParameterType, RuntimeProtocol.OptionsFor(param.ParameterType));
-    }
-
     /// <summary>Resolves an optional collaborator neuron, returning <c>null</c> in minimal test hosts where the service is unavailable.</summary>
     protected T? GetOptional<T>(string key, ILogger logger) where T : class
     {
@@ -588,80 +405,11 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
         => !string.IsNullOrEmpty(sourceId)
             && (string.Equals(sourceId, expectedKey, StringComparison.Ordinal)
                 || sourceId.EndsWith("/" + expectedKey, StringComparison.Ordinal));
-
-    private sealed class CommandDispatchTable(MethodInfo[] stateMethods, MethodInfo[] screenMethods)
-    {
-        public static CommandDispatchTable Build(Type screenType, Type stateType)
-        {
-            var stateMethods = stateType
-                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .Where(m => !m.IsSpecialName && m.DeclaringType != typeof(object)
-                    && (m.ReturnType == stateType || m.ReturnType == typeof(Decision<TState>)))
-                .ToArray();
-
-            var screenMethods = screenType
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .Where(m => !m.IsSpecialName
-                    && m.DeclaringType is not null
-                    && m.DeclaringType != typeof(object)
-                    && m.DeclaringType != typeof(Neuron)
-                    && m.DeclaringType != typeof(Neuron<TState>)
-                    && m.DeclaringType != typeof(Screen<TState>)
-                    && m.DeclaringType != typeof(AggregateScreenBase<TState>)
-                    && m.DeclaringType != typeof(AggregateScreen<TState>)
-                    && m.Name != nameof(HandleUiCommand)
-                    && m.Name != nameof(HandleUiNavigateTo)
-                    && m.Name != nameof(HandleUiNavigateFrom)
-                    && (m.ReturnType == typeof(Task) || m.ReturnType == typeof(ValueTask)))
-                .ToArray();
-
-            return new CommandDispatchTable(stateMethods, screenMethods);
-        }
-
-        public MethodInfo ResolveStateMethod(UiCommand command)
-            => SelectBestOverload(stateMethods, command, typeof(TState).Name);
-
-        public MethodInfo ResolveScreenMethod(UiCommand command)
-            => SelectBestOverload(screenMethods, command, "Screen");
-
-        private static MethodInfo SelectBestOverload(MethodInfo[] candidates, UiCommand command, string ownerLabel)
-        {
-            var matches = candidates.Where(m => string.Equals(m.Name, command.Method, StringComparison.Ordinal)).ToArray();
-            if (matches.Length == 0)
-            {
-                throw new InvalidOperationException($"Unknown command '{ownerLabel}.{command.Method}'.");
-            }
-
-            if (matches.Length == 1)
-            {
-                return matches[0];
-            }
-
-            var argCount = command.Args?.Length ?? (command.ValueIndex is not null ? 1 : 0);
-            var exact = matches.FirstOrDefault(m => NonCancellationCount(m) == argCount);
-            if (exact is not null)
-            {
-                return exact;
-            }
-
-            var compatible = matches.FirstOrDefault(m =>
-            {
-                var parameters = m.GetParameters().Where(p => p.ParameterType != typeof(CancellationToken)).ToArray();
-                var required = parameters.Count(p => !p.HasDefaultValue);
-                return argCount >= required && argCount <= parameters.Length;
-            });
-
-            return compatible ?? matches[0];
-        }
-
-        private static int NonCancellationCount(MethodInfo method)
-            => method.GetParameters().Count(p => p.ParameterType != typeof(CancellationToken));
-    }
 }
 
 /// <summary>
 /// DDD Aggregate-first reactive screen base class. Subclasses implement <see cref="Render(TState)"/> returning a <see cref="Node"/>
-/// built with <c>using static IntoChat.OS.UI.Kit;</c> and bind buttons/fields directly to <typeparamref name="TState"/> commands.
+/// built with <c>using static IntoChat.OS.UI.Kit;</c>; its buttons and fields send typed signals to its <c>[On]</c> reactions.
 /// </summary>
 public abstract class AggregateScreen<TState> : AggregateScreenBase<TState> where TState : class, new()
 {

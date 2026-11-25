@@ -2,7 +2,7 @@
 # Muncly CRM
 Role: Operator
 Shipped: true
-Operations: open, connect, reload, ui.command, ui.navigate-to, ui.navigate-from
+Operations: open, connect, reload, ui.navigate-to, ui.navigate-from
 
 Built-in full-bleed WebBrowser app (`app.muncly`) targeting Muncly CRM with stored web credentials
 and paired MCP server access (`muncly-crm`) for AI agents.
@@ -58,7 +58,6 @@ public sealed class MunclyApp : EmbeddedWebApp<MunclyAppState>, INavigatedTo<Bro
             new("open", "Open Muncly CRM at the root or a specific object/record deep-link."),
             new("connect", "Connect to a Muncly CRM https endpoint."),
             new("reload", "Reload the active Muncly CRM frame."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Muncly aggregate command."),
             new(UiNavigateTo.SignalAlias, "Navigate into Muncly CRM with typed BrowserNavArgs."),
             new(UiNavigateFrom.SignalAlias, "Evaluate departure rules before leaving Muncly CRM."),
         ]);

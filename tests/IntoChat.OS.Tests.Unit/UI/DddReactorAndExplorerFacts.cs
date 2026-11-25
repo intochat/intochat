@@ -6,7 +6,8 @@ Shipped: false
 Reference aggregates and AggregateScreen<TState> implementations proving Phase 0 C# Core:
 1. HelloScreen (~20 lines, Hello aggregate + Toggle)
 2. BankAccount + BankScreen (~30 lines, Accordant-style Empty -> Open -> Deposit -> Withdraw state graph + SufficientFunds rule guard)
-3. SearchableCatalogScreen (Arg.Text typed field binding + pure TState transitions + async screen orchestration)
+3. WorkspaceFilterScreen (a field that sends its text + pure TState transitions + async screen orchestration)
+Every press is a typed signal sent as a Command and handled by an [On] reaction.
 */
 using System.Text.Json;
 using DigitalBrain;
@@ -30,6 +31,9 @@ namespace IntoChat.OS.Tests.Unit.UI;
 [Signal("hello.toggled")]
 public sealed record HelloToggled(bool Shown) : Signal;
 
+[Signal("hello.toggle")]
+public sealed record HelloToggle : Signal;
+
 public sealed record Hello(bool Shown = false)
 {
     public Hello() : this(false) { }
@@ -42,12 +46,20 @@ public sealed record Hello(bool Shown = false)
 [Screen("app.test.hello", Title = "Hello World", Icon = Icons.Sparkles)]
 public sealed class HelloScreen : AggregateScreen<Hello>
 {
+    [On]
+    public Task Toggle(HelloToggle request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyDecisionAsync(State.Toggle());
+    }
+
     protected override Node Render(Hello s) =>
         Card("Hello World")[
             VStack(Space.Sm)[
                 s.Shown ? Text("Hello, IntoChat OS!") : MutedText("Click below to greet."),
                 PrimaryButton(s.Shown ? "Hide" : "Say Hello")
-                    .OnClick<Hello>(x => x.Toggle())
+                    .Key("hello:toggle")
+                    .Sends(new HelloToggle())
             ]
         ];
 }
@@ -62,6 +74,15 @@ public sealed record Deposited(decimal Amount, decimal Balance) : Signal;
 
 [Signal("bank.withdrawn")]
 public sealed record Withdrawn(decimal Amount, decimal Balance) : Signal;
+
+[Signal("bank.open")]
+public sealed record BankOpen(string Holder = "") : Signal;
+
+[Signal("bank.deposit")]
+public sealed record BankDeposit(decimal Amount = 0m) : Signal;
+
+[Signal("bank.withdraw")]
+public sealed record BankWithdraw(decimal Amount = 0m) : Signal;
 
 public sealed record BankAccount(bool IsOpen = false, string Holder = "", decimal Balance = 0m)
 {
@@ -105,6 +126,15 @@ public sealed record BankAccount(bool IsOpen = false, string Holder = "", decima
 [Screen("app.test.bank", Title = "Bank Account", Icon = Icons.Landmark)]
 public sealed class BankScreen : AggregateScreen<BankAccount>
 {
+    [On]
+    public Task Open(BankOpen request) => ApplyDecisionAsync(State.Open(request.Holder));
+
+    [On]
+    public Task Deposit(BankDeposit request) => ApplyDecisionAsync(State.Deposit(request.Amount));
+
+    [On]
+    public Task Withdraw(BankWithdraw request) => ApplyDecisionAsync(State.Withdraw(request.Amount));
+
     protected override Node Render(BankAccount a) =>
         Card("Bank Account", a.IsOpen ? a.Holder : "Closed")[
             VStack(Space.Md)[
@@ -116,11 +146,11 @@ public sealed class BankScreen : AggregateScreen<BankAccount>
                     ? Banner("Refused", string.Join(" ", r.Messages), tone: "error")
                     : null,
                 !a.IsOpen
-                    ? PrimaryButton("Open for Alice").OnClick<BankAccount>(x => x.Open("alice"))
+                    ? PrimaryButton("Open for Alice").Key("bank:open").Sends(new BankOpen("alice"))
                     : HStack(Space.Sm)[
-                        PrimaryButton("+$50").OnClick<BankAccount>(x => x.Deposit(50m)),
-                        Button("-$30").OnClick<BankAccount>(x => x.Withdraw(30m)).Guard(a.SufficientFunds(30m)),
-                        DangerButton("-$70").OnClick<BankAccount>(x => x.Withdraw(70m)).Guard(a.SufficientFunds(70m))
+                        PrimaryButton("+$50").Key("bank:deposit:50").Sends(new BankDeposit(50m)),
+                        Button("-$30").Key("bank:withdraw:30").Sends(new BankWithdraw(30m)).Guard(a.SufficientFunds(30m)),
+                        DangerButton("-$70").Key("bank:withdraw:70").Sends(new BankWithdraw(70m)).Guard(a.SufficientFunds(70m))
                     ]
             ]
         ];
@@ -142,6 +172,18 @@ public sealed class FxOracleNeuron : DigitalBrain.Neurons.Neuron, IFxOracle
 
 [Signal("workspace.rate.synced")]
 public sealed record RateSynced(decimal Rate) : Signal;
+
+[Signal("workspace.toggle-sidebar")]
+public sealed record WorkspaceToggleSidebar : Signal;
+
+[Signal("workspace.select-tab")]
+public sealed record WorkspaceSelectTab(string Tab = "overview") : Signal;
+
+[Signal("workspace.set-query")]
+public sealed record WorkspaceSetQuery(string? Value = null) : Signal;
+
+[Signal("workspace.sync-rate")]
+public sealed record WorkspaceSyncRate : Signal;
 
 public sealed record WorkspaceFilterState(
     string Query = "",
@@ -166,8 +208,23 @@ public sealed record WorkspaceFilterState(
 [Screen("app.test.workspace-filter", Title = "Workspace Filter")]
 public sealed class WorkspaceFilterScreen : AggregateScreen<WorkspaceFilterState>
 {
-    public async Task SyncExchangeRateAsync()
+    [On]
+    public Task ToggleSidebar(WorkspaceToggleSidebar request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        return Store(State.ToggleSidebar());
+    }
+
+    [On]
+    public Task SelectTab(WorkspaceSelectTab request) => Store(State.SelectTab(request.Tab));
+
+    [On]
+    public Task SetQuery(WorkspaceSetQuery request) => Store(State.SetQuery(request.Value ?? ""));
+
+    [On]
+    public async Task SyncRate(WorkspaceSyncRate request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
         var rate = await Get<IFxOracle>("default").GetRate();
         await ApplyDecisionAsync(State.ApplyRate(rate));
     }
@@ -177,14 +234,14 @@ public sealed class WorkspaceFilterScreen : AggregateScreen<WorkspaceFilterState
             HeaderBar(
                 "Workspace",
                 $"Rate {s.SyncedRate:0.00} · {(s.SidebarOpen ? "Expanded" : "Compact")}",
-                IconButton(Icons.PanelLeft, tooltip: "Toggle Sidebar").OnClick<WorkspaceFilterState>(x => x.ToggleSidebar()),
-                GhostButton("Sync Rate", Icons.RefreshCw).OnClick(() => SyncExchangeRateAsync())),
+                IconButton(Icons.PanelLeft, tooltip: "Toggle Sidebar").Key("workspace:toggle-sidebar").Sends(new WorkspaceToggleSidebar()),
+                GhostButton("Sync Rate", Icons.RefreshCw).Key("workspace:sync-rate").Sends(new WorkspaceSyncRate())),
             HStack(Space.Sm)[
-                Button("Overview").OnClick<WorkspaceFilterState>(x => x.SelectTab("overview")),
-                Button("Graph").OnClick<WorkspaceFilterState>(x => x.SelectTab("graph"))],
+                Button("Overview").Key("tab:overview").Sends(new WorkspaceSelectTab("overview")),
+                Button("Graph").Key("tab:graph").Sends(new WorkspaceSelectTab("graph"))],
             SearchField("Filter items…")
                 .Key("search-box")
-                .OnChange<WorkspaceFilterState>(x => x.SetQuery(Arg.Text)),
+                .SendsOnChange(new WorkspaceSetQuery()),
             MutedText($"Query: {s.Query}"),
             Kit.Slot("neuron://local/app.test.hello/default")
         ];
@@ -215,7 +272,7 @@ public sealed class DddReactorAndExplorerFacts
         Assert.NotNull(initial);
 
         using var emptyDoc = JsonDocument.Parse("{}");
-        await screen.Request(UiCommand.SignalAlias, emptyDoc.RootElement);
+        await screen.Request(UiInert.SignalAlias, emptyDoc.RootElement);
         await os.Idle();
         Assert.Empty(os.Failures);
 
@@ -240,8 +297,8 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Equal(1, initial!.Generation);
         Assert.Contains("Click below to greet.", initial.View.GetRawText(), StringComparison.Ordinal);
 
-        // Activate via deterministic expression-derived key cmd:Toggle
-        await screen.Click("cmd:Toggle");
+        // The button's command is the typed HelloToggle signal, handled by [On] Toggle.
+        await screen.Click("hello:toggle");
         await os.Idle();
 
         var toggled = await screen.Open();
@@ -319,12 +376,12 @@ public sealed class DddReactorAndExplorerFacts
 
         // 1. Open account -> alice: $0
         var v1 = (await screen.Open())!;
-        await screen.Click("cmd:Open:alice");
+        await screen.Click("bank:open");
         await os.Idle();
 
         // 2. Deposit $50 -> alice: $50
         var v2 = (await screen.Open())!;
-        await screen.Click("cmd:Deposit:50");
+        await screen.Click("bank:deposit:50");
         await os.Idle();
 
         var v3 = (await screen.Open())!;
@@ -332,8 +389,8 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Contains("$50.00", v3Json, StringComparison.Ordinal);
 
         // Inspect button states at $50: -$30 is enabled, -$70 is disabled by .Guard(a.SufficientFunds(70m)) AND carries wire guardReason tooltip!
-        var btn30 = FindNodeByKey(v3.View, "cmd:Withdraw:30");
-        var btn70 = FindNodeByKey(v3.View, "cmd:Withdraw:70");
+        var btn30 = FindNodeByKey(v3.View, "bank:withdraw:30");
+        var btn70 = FindNodeByKey(v3.View, "bank:withdraw:70");
         Assert.True(btn30.GetProperty("enabled").GetBoolean());
         Assert.False(btn70.GetProperty("enabled").GetBoolean());
         Assert.Contains(
@@ -341,8 +398,8 @@ public sealed class DddReactorAndExplorerFacts
             btn70.GetProperty("command").GetProperty("args").GetProperty("guardReason").GetString(),
             StringComparison.Ordinal);
 
-        // 3. Bypass UI disabled flag via direct Screen.Activate / MCP on cmd:Withdraw:70 -> server enforces exact same Rule!
-        await screen.Click("cmd:Withdraw:70");
+        // 3. Bypass the disabled flag by sending bank:withdraw:70's command anyway -> the server enforces the same Rule.
+        await screen.Click("bank:withdraw:70");
         await os.Idle();
 
         // Ephemeral Rejected signal published to cluster listeners
@@ -362,17 +419,17 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Contains("\"kind\":\"infoBar\"", v4.View.GetRawText(), StringComparison.Ordinal);
 
         // 4. Valid -$30 withdrawal succeeds, clears LastRejection banner, and journals Withdrawn(30, 20)
-        await screen.Click("cmd:Withdraw:30");
+        await screen.Click("bank:withdraw:30");
         await os.Idle();
 
         var v5 = (await screen.Open())!;
         Assert.Contains("$20.00", v5.View.GetRawText(), StringComparison.Ordinal);
         Assert.DoesNotContain("\"kind\":\"infoBar\"", v5.View.GetRawText(), StringComparison.Ordinal);
         // And at $20, BOTH -$30 and -$70 buttons are now disabled with guardReason tooltips!
-        Assert.False(FindNodeByKey(v5.View, "cmd:Withdraw:30").GetProperty("enabled").GetBoolean());
+        Assert.False(FindNodeByKey(v5.View, "bank:withdraw:30").GetProperty("enabled").GetBoolean());
         Assert.Contains(
             "Insufficient funds",
-            FindNodeByKey(v5.View, "cmd:Withdraw:30").GetProperty("command").GetProperty("args").GetProperty("guardReason").GetString(),
+            FindNodeByKey(v5.View, "bank:withdraw:30").GetProperty("command").GetProperty("args").GetProperty("guardReason").GetString(),
             StringComparison.Ordinal);
         Assert.Contains(os.Journal(brain).Signals(id), s => s.Signal is Withdrawn { Amount: 30m, Balance: 20m });
     }
@@ -393,7 +450,7 @@ public sealed class DddReactorAndExplorerFacts
         var savesAfterOpen = os.Journal(brain).Signals(id).Count;
 
         // 1. Pure TState transition (ToggleSidebar) updates state + view with zero domain events
-        await screen.Click("cmd:ToggleSidebar");
+        await screen.Click("workspace:toggle-sidebar");
         await os.Idle();
 
         var v2 = (await screen.Open())!;
@@ -404,7 +461,7 @@ public sealed class DddReactorAndExplorerFacts
         // Only ViewChanged was appended, no domain signal
         Assert.Equal(savesAfterOpen + 1, os.Journal(brain).Signals(id).Count);
 
-        // 2. Typed field binding: Arg.Text injects fieldValue straight into SetQuery(string query)
+        // 2. The field sends WorkspaceSetQuery with the typed text as its value
         await screen.Click("search-box", "  quarterly invoices  ");
         await os.Idle();
 
@@ -412,9 +469,9 @@ public sealed class DddReactorAndExplorerFacts
             .Deserialize<WorkspaceFilterState>(RuntimeProtocol.OptionsFor(typeof(WorkspaceFilterState)))!;
         Assert.Equal("quarterly invoices", stateAfterSearch.Query);
 
-        // 3. Async screen orchestration method (() => SyncExchangeRateAsync()) calls IFxOracle neuron and saves RateSynced
+        // 3. The async [On] reaction to WorkspaceSyncRate calls the IFxOracle neuron and saves RateSynced
         var v3 = (await screen.Open())!;
-        await screen.Click("cmd:SyncExchangeRateAsync");
+        await screen.Click("workspace:sync-rate");
         await os.Idle();
 
         var v4 = (await screen.Open())!;
@@ -428,8 +485,8 @@ public sealed class DddReactorAndExplorerFacts
         // Duplicate interactive keys in Render(s) are flagged immediately
         var dupGraph = AggregateExplorer<Hello>.Explore(
             render: _ => VStack(
-                PrimaryButton("One").Key("dup-key").OnClick<Hello>(x => x.Toggle()),
-                Button("Two").Key("dup-key").OnClick<Hello>(x => x.Toggle())));
+                PrimaryButton("One").Key("dup-key").Sends(new HelloToggle()),
+                Button("Two").Key("dup-key").Sends(new HelloToggle())));
 
         Assert.False(dupGraph.IsHealthy);
         Assert.Contains(dupGraph.Violations, v => v.Kind == "DuplicateKey" && v.Name == "dup-key");
@@ -514,15 +571,22 @@ public sealed class DddReactorAndExplorerFacts
 
                 public sealed record CounterSettings;
 
+                [DigitalBrain.Signal("counter.increment")]
+                public sealed record CounterIncrement(int Step = 0) : DigitalBrain.Signal;
+
                 [App("reactor-counter", Title = "Reactor Counter", Summary = "Runtime Roslyn Reactor parity")]
                 public sealed class ReactorCounterApp : BrainApp<CounterState, CounterSettings>
                 {
+                    [OnSignal("counter.increment")]
+                    public Decision<CounterState> Increment(CounterIncrement request) => State.Increment(request.Step);
+
                     public override View Render() => new(
                         "Reactor Counter",
                         Card("Counter", $"Value: {State.Value}")[
                             HStack(Space.Sm)[
                                 PrimaryButton("+2")
-                                    .OnClick<CounterState>(x => x.Increment(2))
+                                    .Key("counter:increment")
+                                    .Sends(new CounterIncrement(2))
                                     .Guard(State.MaxFive),
                                 Slot("neuron://local/app.usage/default")
                             ]
@@ -558,24 +622,24 @@ public sealed class DddReactorAndExplorerFacts
 
         Assert.NotNull(deployed.InitialViewJson);
         using var initialDoc = JsonDocument.Parse(deployed.InitialViewJson!);
-        var btn = FindNodeByKey(initialDoc.RootElement, "cmd:Increment:2");
+        var btn = FindNodeByKey(initialDoc.RootElement, "counter:increment");
         Assert.Equal(".", btn.GetProperty("command").GetProperty("target").GetString());
         var cmdArgsJson = btn.GetProperty("command").GetProperty("args").GetRawText();
 
-        // Dispatch ui.command three times: 0 -> 2 -> 4 -> refused at 6? Wait: at Value=4, MaxFive (Value >= 5) is false, so 4+2=6; next call at Value=6 is refused!
-        var r1 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", UiCommand.SignalAlias, cmdArgsJson), Ct);
+        // Send the button's typed signal three times: 0 -> 2 -> 4 -> 6 (MaxFive is false at 4); the next send, at 6, is refused.
+        var r1 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", "counter.increment", cmdArgsJson), Ct);
         Assert.True(r1.Handled);
         Assert.Contains("\"value\":2", r1.UpdatedStateJson!, StringComparison.OrdinalIgnoreCase);
 
-        var r2 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", UiCommand.SignalAlias, cmdArgsJson), Ct);
-        var r3 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", UiCommand.SignalAlias, cmdArgsJson), Ct);
+        var r2 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", "counter.increment", cmdArgsJson), Ct);
+        var r3 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", "counter.increment", cmdArgsJson), Ct);
         Assert.Contains("\"value\":6", r3.UpdatedStateJson!, StringComparison.OrdinalIgnoreCase);
 
         // Now Value >= 5 -> MaxFive rule is broken -> refused, state stays 6 (SameState), and button is disabled in UpdatedViewJson!
         using var v3Doc = JsonDocument.Parse(r3.UpdatedViewJson!);
-        Assert.False(FindNodeByKey(v3Doc.RootElement, "cmd:Increment:2").GetProperty("enabled").GetBoolean());
+        Assert.False(FindNodeByKey(v3Doc.RootElement, "counter:increment").GetProperty("enabled").GetBoolean());
 
-        var refused = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", UiCommand.SignalAlias, cmdArgsJson), Ct);
+        var refused = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", "counter.increment", cmdArgsJson), Ct);
         Assert.True(refused.Handled);
         Assert.Contains("\"value\":6", refused.UpdatedStateJson!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("max_five", refused.ResultJson!, StringComparison.Ordinal);

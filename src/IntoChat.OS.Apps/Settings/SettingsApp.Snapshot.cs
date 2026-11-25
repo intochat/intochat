@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse, ui.command
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, set-github-triage-policy, install-issue-triage-synapse
 
 Declarative macOS Sonoma-style System Settings application for IntoChat OS (`UK-16` / `INT-1364`).
 Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, `ConnectionPage`,
@@ -593,6 +593,13 @@ public sealed partial class SettingsApp
     {
         ArgumentNullException.ThrowIfNull(request);
         return UpdateAsync(State.GoBack());
+    }
+
+    [On]
+    public Task ClearSearch(SettingsClearSearch request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return UpdateAsync(State.Filter(""));
     }
 
     [On]

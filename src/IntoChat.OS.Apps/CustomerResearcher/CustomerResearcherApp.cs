@@ -88,6 +88,15 @@ public sealed record ConnectSharedCustomers(string OwnerBrain = "") : Signal;
 [Signal("customer-researcher.use-own-customers")]
 public sealed record UseOwnCustomers() : Signal;
 
+/// <summary>Keeps what a person types into one of the screen's fields (one of the constants below); the text is the value.</summary>
+[Signal("customer-researcher.edit-draft")]
+public sealed record EditCustomerDraft(string? Field = null, string? Value = null) : Signal
+{
+    public const string Company = "company";
+    public const string ShareFriend = "share-friend";
+    public const string ConnectOwner = "connect-owner";
+}
+
 [Neuron("app.customer-researcher")]
 [Screen("app.customer-researcher", Title = "Customer Researcher", Icon = Icons.Search, Category = "Workspace")]
 [Description("Researches target companies, scores ICP fit, and maintains a structured table of customer profiles.")]
@@ -253,6 +262,20 @@ public sealed partial class CustomerResearcherApp : AggregateScreen<CustomerRese
                 LastMessage = $"Could not save profile: {ex.Message}",
             }).ConfigureAwait(true);
         }
+    }
+
+    [On, Description("Keep what the person types into a field.")]
+    public async Task EditDraft(EditCustomerDraft request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        CustomerResearcherState? next = request.Field switch
+        {
+            EditCustomerDraft.Company => State.SetDraft(request.Value),
+            EditCustomerDraft.ShareFriend => State.SetShareDraft(request.Value),
+            EditCustomerDraft.ConnectOwner => State.SetConnectOwnerDraft(request.Value),
+            _ => null,
+        };
+        if (next is not null) { await Store(next).ConfigureAwait(true); }
     }
 
     [On, Description("Remove every saved profile.")]
@@ -603,7 +626,7 @@ public sealed partial class CustomerResearcherApp : AggregateScreen<CustomerRese
                 TextField("Company Name", "Enter a company name")
                     .Key("input:company")
                     .Value(state.Draft)
-                    .OnChange<CustomerResearcherState>(s => s.SetDraft(Arg.Text)),
+                    .SendsOnChange(new EditCustomerDraft(EditCustomerDraft.Company)),
                 PrimaryButton("Research Company", Icons.Search)
                     .Key("btn:research")
                     .Disabled(state.ReadOnly)
@@ -614,7 +637,7 @@ public sealed partial class CustomerResearcherApp : AggregateScreen<CustomerRese
                     TextField("Share with friend", "Enter friend account")
                         .Key("input:share-friend")
                         .Value(state.ShareDraft)
-                        .OnChange<CustomerResearcherState>(s => s.SetShareDraft(Arg.Text)),
+                        .SendsOnChange(new EditCustomerDraft(EditCustomerDraft.ShareFriend)),
                     Button("Share (Viewer)", "users")
                         .Key("btn:share-viewer")
                         .Sends(Sends(new ShareCustomers(state.ShareDraft, Role.Viewer)))
@@ -633,7 +656,7 @@ public sealed partial class CustomerResearcherApp : AggregateScreen<CustomerRese
                 TextField("Friend's Brain", "Enter owner brain ID")
                     .Key("input:connect-owner")
                     .Value(state.ConnectOwnerDraft)
-                    .OnChange<CustomerResearcherState>(s => s.SetConnectOwnerDraft(Arg.Text)),
+                    .SendsOnChange(new EditCustomerDraft(EditCustomerDraft.ConnectOwner)),
                 Button("Connect to Friend's Table", "link")
                     .Key("btn:connect-shared")
                     .Sends(Sends(new ConnectSharedCustomers(state.ConnectOwnerDraft))),

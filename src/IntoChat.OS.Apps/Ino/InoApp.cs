@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link, ui.command
+Operations: open, send, retry, stop, smart, use-local, choose-model, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, chats, toggle-devui, make, link
 */
 using IntoChat.OS.Host.Apps;
 using System.Text.Json;
@@ -360,6 +360,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
 
     [On] public Task ToggleDevUi(InoToggleDevUi request) { ArgumentNullException.ThrowIfNull(request); return Commit(State.ToggleDevUi()); }
     [On] public async Task OnGrantsChanged(GrantsChanged? changed) { if (changed is not null) { await Commit(State with { GrantSummaries = await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries) }); } }
+    [On] public Task DismissDraft(InoDismissDraft request) { ArgumentNullException.ThrowIfNull(request); return Commit(State.DismissNavigationSeed()); }
     [On] public Task New(InoNew request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
     [On] public Task NewConversation(InoNewConversation request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
     [On] public Task SwitchConversation(InoSwitchConversation request) { ArgumentNullException.ThrowIfNull(request); return SwitchConversationAsync(request.ConversationId); }

@@ -21,12 +21,12 @@ internal static class DataStudioViewRenderer
                 Button("Export CSV", "download")
                     .Key("export-csv")
                     .Small()
-                    .OnClickAsync<DataStudioApp>(s => s.ExportCsvDefaultAsync())
+                    .Sends(new DataStudioExportCsv())
                     .Guard(state.HasDatasetRows()),
                 PrimaryButton("Diagram in Markdraw", "pen-tool")
                     .Key("diagram-in-markdraw")
                     .Small()
-                    .OnClickAsync<DataStudioApp>(s => s.DiagramInMarkdrawDefaultAsync())
+                    .Sends(new DataStudioToMarkdraw("/work/data-lineage.markdraw"))
                     .Guard(state.HasDatasetRows())),
             Grid(4, Space.Sm)[
                 StatCard("kpi-data-total", "Total", $"€{state.Total:N0}", hasRows ? $"{state.Rows.Length} rows" : "Idle", BadgeTone.Accent, "bar-chart-2"),
@@ -41,14 +41,14 @@ internal static class DataStudioViewRenderer
                         : Text(state.ActiveQuery).Muted().Tabular(),
                     HStack(Space.Sm,
                     [
-                        Button("Bar", "bar-chart-2").Key("bar").Small().OnClick<DataStudioAppState>(x => x.SwitchChart("bar")),
-                        Button("Line", "trending-up").Key("line").Small().OnClick<DataStudioAppState>(x => x.SwitchChart("line")),
-                        Button("Pie", "pie-chart").Key("pie").Small().OnClick<DataStudioAppState>(x => x.SwitchChart("pie")),
+                        Button("Bar", "bar-chart-2").Key("bar").Small().Sends(new DataStudioSwitchChart("bar")),
+                        Button("Line", "trending-up").Key("line").Small().Sends(new DataStudioSwitchChart("line")),
+                        Button("Pie", "pie-chart").Key("pie").Small().Sends(new DataStudioSwitchChart("pie")),
                         .. distinctColumns.Select(col =>
                             GhostButton($"Group by {col}", "layers")
                                 .Key($"group-by-{col}")
                                 .Small()
-                                .OnClickAsync<DataStudioApp>(s => s.GroupByColumnAsync(col))
+                                .Sends(new DataStudioGroupBy(col, "SUM"))
                                 .ToNode()),
                     ])
                 ]

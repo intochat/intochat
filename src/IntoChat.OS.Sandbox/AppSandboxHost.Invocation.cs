@@ -311,49 +311,22 @@ public sealed partial class AppSandboxHost
         return false;
     }
 
-    private object? DispatchReactorUiCommand(LoadedApp loaded, string? payloadJson)
+    // A signal handler that returns the app's next state, or a Decision on it, has that state bound; a refused Decision is the result.
+    private object? ApplyStateOutcome(LoadedApp loaded, object? outcome)
     {
-        if (string.IsNullOrWhiteSpace(payloadJson))
+        if (outcome is null || loaded.IsSynapseUnit || loaded.Instance is null || loaded.SettingsProperty is null || loaded.BindMethod is null)
         {
-            return null;
-        }
-
-        var uiCommand = JsonSerializer.Deserialize<IntoChat.OS.UI.UiCommand>(
-            payloadJson,
-            DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(IntoChat.OS.UI.UiCommand)));
-        if (uiCommand is null || string.IsNullOrWhiteSpace(uiCommand.Method))
-        {
-            return null;
-        }
-
-        if (loaded.IsSynapseUnit || loaded.Instance is null || loaded.StateProperty is null || loaded.SettingsProperty is null || loaded.BindMethod is null)
-        {
-            return null;
-        }
-
-        var currentState = loaded.StateProperty.GetValue(loaded.Instance)
-            ?? Activator.CreateInstance(loaded.StateType)!;
-        var method = loaded.StateType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(m => string.Equals(m.Name, uiCommand.Method, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"Unknown aggregate command '{loaded.StateType.Name}.{uiCommand.Method}'.");
-
-        var callArgs = BindReactorArguments(method, uiCommand);
-        var outcome = method.Invoke(currentState, callArgs);
-        if (outcome is null)
-        {
-            return null;
+            return outcome;
         }
 
         var outcomeType = outcome.GetType();
+        object? next;
         if (loaded.StateType.IsInstanceOfType(outcome))
         {
-            var client = new IntoChatClient(loaded.BrainId, loaded.AppKey, loaded.KernelUri, loaded.AppToken, _httpClient, _logger);
-            var settings = loaded.SettingsProperty.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.SettingsType)!;
-            loaded.BindMethod.Invoke(loaded.Instance, [client, outcome, settings]);
-            return null;
+            next = outcome;
         }
-
-        if (outcomeType.IsGenericType && outcomeType.GetGenericTypeDefinition() == typeof(IntoChat.OS.UI.Decision<>))
+        else if (outcomeType.IsGenericType && outcomeType.GetGenericTypeDefinition() == typeof(IntoChat.OS.UI.Decision<>)
+            && outcomeType.GetGenericArguments()[0] == loaded.StateType)
         {
             var isAccepted = (bool)(outcomeType.GetProperty(nameof(IntoChat.OS.UI.Decision<object>.IsAccepted))?.GetValue(outcome) ?? false);
             if (!isAccepted)
@@ -361,56 +334,21 @@ public sealed partial class AppSandboxHost
                 return outcomeType.GetProperty(nameof(IntoChat.OS.UI.Decision<object>.Rejection))?.GetValue(outcome);
             }
 
-            var next = outcomeType.GetProperty(nameof(IntoChat.OS.UI.Decision<object>.Next))?.GetValue(outcome);
-            if (next is not null)
-            {
-                var client = new IntoChatClient(loaded.BrainId, loaded.AppKey, loaded.KernelUri, loaded.AppToken, _httpClient, _logger);
-                var settings = loaded.SettingsProperty.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.SettingsType)!;
-                loaded.BindMethod.Invoke(loaded.Instance, [client, next, settings]);
-            }
-
-            return null;
+            next = outcomeType.GetProperty(nameof(IntoChat.OS.UI.Decision<object>.Next))?.GetValue(outcome);
         }
-
-        return outcome;
-    }
-
-    private static object?[] BindReactorArguments(MethodInfo method, IntoChat.OS.UI.UiCommand command)
-    {
-        var parameters = method.GetParameters();
-        if (parameters.Length == 0)
+        else
         {
-            return [];
+            return outcome;
         }
 
-        var args = new object?[parameters.Length];
-        var provided = command.Args ?? [];
-        var cursor = 0;
-
-        for (var i = 0; i < parameters.Length; i++)
+        if (next is not null)
         {
-            var param = parameters[i];
-            if (param.ParameterType == typeof(CancellationToken))
-            {
-                args[i] = CancellationToken.None;
-                continue;
-            }
-
-            if (command.ValueIndex == cursor)
-            {
-                args[i] = command.Value ?? (param.HasDefaultValue ? param.DefaultValue : string.Empty);
-                cursor++;
-                continue;
-            }
-
-            args[i] = cursor < provided.Length
-                ? provided[cursor].Deserialize(param.ParameterType, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(param.ParameterType))
-                : FallbackValue(param);
-
-            cursor++;
+            var client = new IntoChatClient(loaded.BrainId, loaded.AppKey, loaded.KernelUri, loaded.AppToken, _httpClient, _logger);
+            var settings = loaded.SettingsProperty.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.SettingsType)!;
+            loaded.BindMethod.Invoke(loaded.Instance, [client, next, settings]);
         }
 
-        return args;
+        return null;
     }
 
     private static string? RenderViewJson(LoadedApp loaded)
@@ -420,7 +358,6 @@ public sealed partial class AppSandboxHost
             return null;
         }
 
-        using var scope = IntoChat.OS.UI.CommandBinding.PushOwner(loaded.AppKey);
         var view = loaded.IsSynapseUnit
             ? (View?)loaded.RenderMethod.Invoke(null, [loaded.SynapseState ?? DeserializeOrCreate(null, loaded.StateType)])
             : (View?)loaded.RenderMethod.Invoke(loaded.Instance, null);

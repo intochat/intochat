@@ -60,11 +60,11 @@ public static class AggregateExplorer<TState> where TState : class, new()
             // 1. Check domain [Invariant] properties and methods on current state.
             CheckInvariants(current, invariants, violations);
 
-            // 2. Render UI (if provided), verify zero exceptions & zero duplicate keys, and harvest concrete UI commands.
-            var renderedCommands = VerifyRenderAndExtractCommands(current, render, violations);
+            // 2. Render UI (if provided) and verify zero exceptions and zero duplicate keys.
+            VerifyRender(current, render, violations);
 
-            // 3. Build candidate invocations: UI-emitted commands first (exact parameters shown on screen), then ChoiceSet combinations.
-            var invocations = BuildCandidateInvocations(commandMethods, renderedCommands, choiceSet);
+            // 3. Build candidate invocations from ChoiceSet combinations.
+            var invocations = BuildCandidateInvocations(commandMethods, choiceSet);
 
             foreach (var invocation in invocations)
             {
@@ -250,21 +250,19 @@ public static class AggregateExplorer<TState> where TState : class, new()
         }
     }
 
-    private static List<UiCommand> VerifyRenderAndExtractCommands(
+    private static void VerifyRender(
         StateGraphState<TState> current,
         Func<TState, Node>? render,
         List<ExplorerViolation> violations)
     {
-        var extracted = new List<UiCommand>();
         if (render is null)
         {
-            return extracted;
+            return;
         }
 
         Node root;
         try
         {
-            using var scope = CommandBinding.PushOwner("explorer");
             root = render(current.State);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -276,7 +274,7 @@ public static class AggregateExplorer<TState> where TState : class, new()
                 "RenderException",
                 "Render",
                 $"{ex.GetType().Name}: {ex.Message}"));
-            return extracted;
+            return;
         }
 
         JsonElement wire;
@@ -294,19 +292,17 @@ public static class AggregateExplorer<TState> where TState : class, new()
                 "WireSerialization",
                 "View",
                 $"{ex.GetType().Name}: {ex.Message}"));
-            return extracted;
+            return;
         }
 
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
-        InspectWireTree(wire, current, seenKeys, extracted, violations);
-        return extracted;
+        InspectWireTree(wire, current, seenKeys, violations);
     }
 
     private static void InspectWireTree(
         JsonElement element,
         StateGraphState<TState> current,
         HashSet<string> seenKeys,
-        List<UiCommand> extracted,
         List<ExplorerViolation> violations)
     {
         if (element.ValueKind == JsonValueKind.Object)
@@ -327,10 +323,6 @@ public static class AggregateExplorer<TState> where TState : class, new()
                 }
             }
 
-            TryExtractUiCommand(element, "command", extracted);
-            TryExtractUiCommand(element, "close", extracted);
-            TryExtractUiCommand(element, "onSubmit", extracted);
-
             foreach (var prop in element.EnumerateObject())
             {
                 if (prop.Name is "command" or "close" or "onSubmit" or "args")
@@ -338,14 +330,14 @@ public static class AggregateExplorer<TState> where TState : class, new()
                     continue;
                 }
 
-                InspectWireTree(prop.Value, current, seenKeys, extracted, violations);
+                InspectWireTree(prop.Value, current, seenKeys, violations);
             }
         }
         else if (element.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in element.EnumerateArray())
             {
-                InspectWireTree(item, current, seenKeys, extracted, violations);
+                InspectWireTree(item, current, seenKeys, violations);
             }
         }
     }
@@ -358,59 +350,14 @@ public static class AggregateExplorer<TState> where TState : class, new()
             || (obj.TryGetProperty("resolve", out var r) && r.ValueKind == JsonValueKind.Object)
             || (obj.TryGetProperty("onSubmit", out var s) && s.ValueKind == JsonValueKind.Object);
 
-    private static void TryExtractUiCommand(JsonElement node, string propName, List<UiCommand> target)
-    {
-        if (!node.TryGetProperty(propName, out var commandObj) || commandObj.ValueKind != JsonValueKind.Object)
-        {
-            return;
-        }
-
-        if (!commandObj.TryGetProperty("signal", out var sig) || sig.GetString() != UiCommand.SignalAlias)
-        {
-            return;
-        }
-
-        if (!commandObj.TryGetProperty("args", out var argsObj) || argsObj.ValueKind != JsonValueKind.Object)
-        {
-            return;
-        }
-
-        var cmd = argsObj.Deserialize<UiCommand>(RuntimeProtocol.OptionsFor(typeof(UiCommand)));
-        if (cmd is not null && !string.IsNullOrWhiteSpace(cmd.Method) && string.Equals(cmd.Target, "state", StringComparison.OrdinalIgnoreCase))
-        {
-            target.Add(cmd);
-        }
-    }
-
     private static List<CandidateInvocation> BuildCandidateInvocations(
         MethodInfo[] methods,
-        List<UiCommand> renderedCommands,
         ChoiceSet choices)
     {
         var list = new List<CandidateInvocation>();
         var seenLabels = new HashSet<string>(StringComparer.Ordinal);
 
-        // 1. Commands discovered directly on rendered UI buttons/switches/tabs (including disabled buttons, to prove server rules refuse them!).
-        foreach (var cmd in renderedCommands)
-        {
-            var method = methods.FirstOrDefault(m => string.Equals(m.Name, cmd.Method, StringComparison.Ordinal));
-            if (method is null)
-            {
-                continue;
-            }
-
-            var effectiveCmd = cmd.ValueIndex is not null && cmd.Value is null
-                ? cmd with { Value = "sample" }
-                : cmd;
-            var args = AggregateScreenBase<TState>.BindArguments(method, effectiveCmd, CancellationToken.None);
-            var label = FormatInvocation(method.Name, args);
-            if (seenLabels.Add(label))
-            {
-                list.Add(new CandidateInvocation(method, args, label));
-            }
-        }
-
-        // 2. Method-level parameter combinations from [Sample] / ChoiceSet.
+        // Method-level parameter combinations from [Sample] / ChoiceSet.
         foreach (var method in methods)
         {
             var parameters = method.GetParameters();

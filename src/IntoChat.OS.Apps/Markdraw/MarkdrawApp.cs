@@ -2,7 +2,7 @@
 # Markdraw
 Role: Default
 Shipped: true
-Operations: open, read-canvas, sync-scene, patch-elements, from-data, save, export, ui.command
+Operations: open, read-canvas, sync-scene, patch-elements, from-data, save, export
 
 Excalidraw-inspired interactive diagram, architecture, and data-flow canvas studio powered by the Flutter markdraw package.
 Keeps the active .markdraw scene in its own state and saves and exports it as workspace files (/work/*, through
@@ -44,6 +44,18 @@ public sealed record MarkdrawSave(string? Document = null, string? Content = nul
 
 [Signal("markdraw.export")]
 public sealed record MarkdrawExport(string? Format = null, string? TargetPath = null) : Signal;
+
+[Signal("markdraw.select-tool")]
+public sealed record MarkdrawSelectTool(string? Tool = null) : Signal;
+
+[Signal("markdraw.set-zoom")]
+public sealed record MarkdrawSetZoom(int Percent = 100) : Signal;
+
+[Signal("markdraw.select-layer")]
+public sealed record MarkdrawSelectLayer(int Layer = 1) : Signal;
+
+[Signal("markdraw.switch-template")]
+public sealed record MarkdrawSwitchTemplate(string? Template = null) : Signal;
 
 [Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw", Icon = "pen-tool", Category = "Studio", Dock = 4)]
 public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
@@ -110,7 +122,6 @@ public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
             new("from-data", "Generate or update an interactive data-flow or schema diagram on the canvas from a dataset or SQL table."),
             new("save", "Save the active .markdraw or .excalidraw document to the workspace (/work/*)."),
             new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format in the workspace."),
-            new(UiCommand.SignalAlias, "Dispatch a typed Markdraw aggregate command."),
         ],
         studio: true,
         toolbar: [new("open", Icon: "pen-tool", Label: "Open Canvas"), new("save", Icon: "save", Label: "Save to Files"), new("export", Icon: "download", Label: "Export .excalidraw")]);
@@ -285,9 +296,33 @@ public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
         });
     }
 
-    public Task SaveActiveSceneAsync() => Save(new MarkdrawSave(State.ActiveDocument));
-    public Task ExportSceneAsync(string format) => Export(new MarkdrawExport(format));
-    public Task DiagramCrmDataAsync() => FromData(new MarkdrawFromData("Pipeline Opportunities by Amount"));
+    [On]
+    public Task SelectTool(MarkdrawSelectTool request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyDecisionAsync(State.SelectTool(request.Tool));
+    }
+
+    [On]
+    public Task SetZoom(MarkdrawSetZoom request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyDecisionAsync(State.SetZoom(request.Percent));
+    }
+
+    [On]
+    public Task SelectLayer(MarkdrawSelectLayer request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyDecisionAsync(State.SelectLayer(request.Layer));
+    }
+
+    [On]
+    public Task SwitchTemplate(MarkdrawSwitchTemplate request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyDecisionAsync(State.SwitchTemplate(request.Template ?? string.Empty));
+    }
 
     protected override Node Render(MarkdrawAppState state)
     {
@@ -306,10 +341,10 @@ public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
                 $"Markdraw · {Path.GetFileName(state.ActiveDocument)}",
                 state.Status,
                 StatusPill(StatusKind.Done, $"{state.Format} · rev {state.Revision}"),
-                Button("Export .excalidraw", "file-json").Key("export-excalidraw").Small().OnClick(() => ExportSceneAsync("excalidraw")).Guard(state.HasCanvasElements()),
-                Button("Export .svg", "image").Key("export-svg").Small().OnClick(() => ExportSceneAsync("svg")).Guard(state.HasCanvasElements()),
-                Button("Diagram CRM Data", "bar-chart-2").Key("diagram-crm-data").Small().OnClick(() => DiagramCrmDataAsync()),
-                PrimaryButton("Save to Files", "save").Key("save-to-files").Small().OnClick(() => SaveActiveSceneAsync())),
+                Button("Export .excalidraw", "file-json").Key("export-excalidraw").Small().Sends(new MarkdrawExport("excalidraw")).Guard(state.HasCanvasElements()),
+                Button("Export .svg", "image").Key("export-svg").Small().Sends(new MarkdrawExport("svg")).Guard(state.HasCanvasElements()),
+                Button("Diagram CRM Data", "bar-chart-2").Key("diagram-crm-data").Small().Sends(new MarkdrawFromData("Pipeline Opportunities by Amount")),
+                PrimaryButton("Save to Files", "save").Key("save-to-files").Small().Sends(new MarkdrawSave(state.ActiveDocument))),
             ResponsiveSplit(
                 leading: VStack(Space.Sm)[
                     Grid(2, Space.Sm)[
@@ -320,29 +355,29 @@ public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
                         VStack(Space.Xs)[
                             HStack(Space.Xs)[
                                 (state.ActiveTool == "select" ? PrimaryButton("Select") : GhostButton("Select"))
-                                    .Key("markdraw-tool:select").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("select")),
+                                    .Key("markdraw-tool:select").Small().Sends(new MarkdrawSelectTool("select")),
                                 (state.ActiveTool == "rect" ? PrimaryButton("Rect") : GhostButton("Rect"))
-                                    .Key("markdraw-tool:rect").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("rect")),
+                                    .Key("markdraw-tool:rect").Small().Sends(new MarkdrawSelectTool("rect")),
                                 (state.ActiveTool == "diamond" ? PrimaryButton("Diamond") : GhostButton("Diamond"))
-                                    .Key("markdraw-tool:diamond").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("diamond")),
+                                    .Key("markdraw-tool:diamond").Small().Sends(new MarkdrawSelectTool("diamond")),
                                 (state.ActiveTool == "arrow" ? PrimaryButton("Arrow") : GhostButton("Arrow"))
-                                    .Key("markdraw-tool:arrow").Small().OnClick<MarkdrawAppState>(x => x.SelectTool("arrow"))
+                                    .Key("markdraw-tool:arrow").Small().Sends(new MarkdrawSelectTool("arrow"))
                             ],
                             HStack(Space.Xs)[
                                 GhostButton("Zoom -").Key("markdraw-zoom:out").Small()
                                     .Guard(MarkdrawAppState.ValidZoomRule(zoomOutTarget))
-                                    .OnClick<MarkdrawAppState>(x => x.SetZoom(zoomOutTarget)),
+                                    .Sends(new MarkdrawSetZoom(zoomOutTarget)),
                                 GhostButton(string.Create(CultureInfo.InvariantCulture, $"{state.ZoomPercent}%")).Key("markdraw-zoom:reset").Small()
-                                    .OnClick<MarkdrawAppState>(x => x.SetZoom(100)),
+                                    .Sends(new MarkdrawSetZoom(100)),
                                 GhostButton("Zoom +").Key("markdraw-zoom:in").Small()
                                     .Guard(MarkdrawAppState.ValidZoomRule(zoomInTarget))
-                                    .OnClick<MarkdrawAppState>(x => x.SetZoom(zoomInTarget)),
+                                    .Sends(new MarkdrawSetZoom(zoomInTarget)),
                                 GhostButton("L-").Key("markdraw-layer:prev").Small()
                                     .Guard(MarkdrawAppState.ValidLayerRule(prevLayerTarget))
-                                    .OnClick<MarkdrawAppState>(x => x.SelectLayer(prevLayerTarget)),
+                                    .Sends(new MarkdrawSelectLayer(prevLayerTarget)),
                                 GhostButton("L+").Key("markdraw-layer:next").Small()
                                     .Guard(MarkdrawAppState.ValidLayerRule(nextLayerTarget))
-                                    .OnClick<MarkdrawAppState>(x => x.SelectLayer(nextLayerTarget))
+                                    .Sends(new MarkdrawSelectLayer(nextLayerTarget))
                             ]
                         ]
                     ],
@@ -350,8 +385,8 @@ public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
                         VStack(Space.Xs,
                         [
                             HStack(Space.Xs)[
-                                GhostButton("Architecture").Key("tpl-architecture").Small().OnClick<MarkdrawAppState>(x => x.SwitchTemplate("architecture")),
-                                GhostButton("Pipeline").Key("tpl-pipeline").Small().OnClick<MarkdrawAppState>(x => x.SwitchTemplate("pipeline"))
+                                GhostButton("Architecture").Key("tpl-architecture").Small().Sends(new MarkdrawSwitchTemplate("architecture")),
+                                GhostButton("Pipeline").Key("tpl-pipeline").Small().Sends(new MarkdrawSwitchTemplate("pipeline"))
                             ],
                             .. state.WorkspaceDrawings.Select(path => MutedText(path).Tabular().ToNode()),
                         ])

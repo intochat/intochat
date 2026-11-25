@@ -15,6 +15,7 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.toggle-devui")] public sealed record InoToggleDevUi : Signal;
 [Signal("ino.make")] public sealed record InoMake(string? Sentence = null, string[]? Focus = null) : Signal;
 [Signal("ino.stop")] public sealed record InoStop : Signal;
+[Signal("ino.dismiss-draft")] public sealed record InoDismissDraft : Signal;
 [Signal("ino.smart")] public sealed record InoSmart(bool On = true) : Signal;
 [Signal("ino.connect-db")] public sealed record InoConnectDb(string? ConnectionString = null, string? Alias = null) : Signal;
 [Signal("ino.query-db")] public sealed record InoQueryDb(string? Sql = null) : Signal;

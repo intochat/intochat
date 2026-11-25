@@ -413,17 +413,15 @@ public abstract class ArtCraftStudioAppBase(string appId, ILogger? logger = null
         return Show(State with { ExecutionMode = nextMode, Status = $"Switched {Descriptor.Title} execution backend to {FormatModeLabel(nextMode)}" });
     }
 
-    public Task RunDefaultCommandAsync() => RunCommand(new ArtCraftStudioAppRunCommand(Descriptor.DefaultCommandId, Descriptor.DefaultParametersJson, State.ActiveDocument, State.ExecutionMode));
-
     protected override Node Render(ArtCraftStudioAppState state) => RenderStudioShell(
         state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl, state.ExecutionMode,
         "Layers & Channels", state.LayersOrTracks ?? [],
         headerActions:
         [
-            (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("mcp")),
-            (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("native-linux")),
-            (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("wasm-ui")),
-            PrimaryButton(Descriptor.DefaultCommandTitle, Icons.Play).Key("run-default").Small().OnClick(() => RunDefaultCommandAsync()),
+            (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().Sends(new ArtCraftStudioAppSwitchMode("mcp")),
+            (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().Sends(new ArtCraftStudioAppSwitchMode("native-linux")),
+            (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().Sends(new ArtCraftStudioAppSwitchMode("wasm-ui")),
+            PrimaryButton(Descriptor.DefaultCommandTitle, Icons.Play).Key("run-default").Small().Sends(new ArtCraftStudioAppRunCommand(Descriptor.DefaultCommandId, Descriptor.DefaultParametersJson, state.ActiveDocument, state.ExecutionMode)),
         ],
         inspectorExtras: [Text(state.LastCommandTitle).Muted()],
         cliInvocation: state.LastCliInvocation,

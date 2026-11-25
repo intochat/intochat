@@ -150,17 +150,9 @@
               "label": "Export .excalidraw",
               "command": {
                 "target": ".",
-                "signal": "ui.command",
+                "signal": "markdraw.export",
                 "args": {
-                  "target": "screen",
-                  "method": "ExportSceneAsync",
-                  "args": [
-                    "excalidraw"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
+                  "format": "excalidraw"
                 }
               },
               "intent": null,
@@ -179,17 +171,9 @@
               "label": "Export .svg",
               "command": {
                 "target": ".",
-                "signal": "ui.command",
+                "signal": "markdraw.export",
                 "args": {
-                  "target": "screen",
-                  "method": "ExportSceneAsync",
-                  "args": [
-                    "svg"
-                  ],
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
+                  "format": "svg"
                 }
               },
               "intent": null,
@@ -208,15 +192,9 @@
               "label": "Diagram CRM Data",
               "command": {
                 "target": ".",
-                "signal": "ui.command",
+                "signal": "markdraw.from-data",
                 "args": {
-                  "target": "screen",
-                  "method": "DiagramCrmDataAsync",
-                  "args": null,
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
+                  "title": "Pipeline Opportunities by Amount"
                 }
               },
               "intent": null,
@@ -235,15 +213,9 @@
               "label": "Save to Files",
               "command": {
                 "target": ".",
-                "signal": "ui.command",
+                "signal": "markdraw.save",
                 "args": {
-                  "target": "screen",
-                  "method": "SaveActiveSceneAsync",
-                  "args": null,
-                  "valueIndex": null,
-                  "value": null,
-                  "guardReason": null,
-                  "tooltip": null
+                  "document": "/work/architecture.markdraw"
                 }
               },
               "intent": null,
@@ -307,17 +279,9 @@
                             "label": "Select",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.select-tool",
                               "args": {
-                                "target": "state",
-                                "method": "SelectTool",
-                                "args": [
-                                  "select"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "tool": "select"
                               }
                             },
                             "intent": null,
@@ -335,17 +299,9 @@
                             "label": "Rect",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.select-tool",
                               "args": {
-                                "target": "state",
-                                "method": "SelectTool",
-                                "args": [
-                                  "rect"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "tool": "rect"
                               }
                             },
                             "intent": null,
@@ -363,17 +319,9 @@
                             "label": "Diamond",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.select-tool",
                               "args": {
-                                "target": "state",
-                                "method": "SelectTool",
-                                "args": [
-                                  "diamond"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "tool": "diamond"
                               }
                             },
                             "intent": null,
@@ -391,17 +339,9 @@
                             "label": "Arrow",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.select-tool",
                               "args": {
-                                "target": "state",
-                                "method": "SelectTool",
-                                "args": [
-                                  "arrow"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "tool": "arrow"
                               }
                             },
                             "intent": null,
@@ -426,17 +366,9 @@
                             "label": "Zoom -",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.set-zoom",
                               "args": {
-                                "target": "state",
-                                "method": "SetZoom",
-                                "args": [
-                                  75
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "percent": 75
                               }
                             },
                             "intent": null,
@@ -454,17 +386,9 @@
                             "label": "100%",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.set-zoom",
                               "args": {
-                                "target": "state",
-                                "method": "SetZoom",
-                                "args": [
-                                  100
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "percent": 100
                               }
                             },
                             "intent": null,
@@ -482,17 +406,9 @@
                             "label": "Zoom +",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.set-zoom",
                               "args": {
-                                "target": "state",
-                                "method": "SetZoom",
-                                "args": [
-                                  125
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "percent": 125
                               }
                             },
                             "intent": null,
@@ -510,17 +426,10 @@
                             "label": "L-",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.select-layer",
                               "args": {
-                                "target": "state",
-                                "method": "SelectLayer",
-                                "args": [
-                                  0
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": "Canvas layer must stay between 1 and 8 (received 0).",
-                                "tooltip": null
+                                "layer": 0,
+                                "guardReason": "Canvas layer must stay between 1 and 8 (received 0)."
                               }
                             },
                             "intent": null,
@@ -538,17 +447,9 @@
                             "label": "L+",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.select-layer",
                               "args": {
-                                "target": "state",
-                                "method": "SelectLayer",
-                                "args": [
-                                  2
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "layer": 2
                               }
                             },
                             "intent": null,
@@ -589,17 +490,9 @@
                             "label": "Architecture",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.switch-template",
                               "args": {
-                                "target": "state",
-                                "method": "SwitchTemplate",
-                                "args": [
-                                  "architecture"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "template": "architecture"
                               }
                             },
                             "intent": null,
@@ -617,17 +510,9 @@
                             "label": "Pipeline",
                             "command": {
                               "target": ".",
-                              "signal": "ui.command",
+                              "signal": "markdraw.switch-template",
                               "args": {
-                                "target": "state",
-                                "method": "SwitchTemplate",
-                                "args": [
-                                  "pipeline"
-                                ],
-                                "valueIndex": null,
-                                "value": null,
-                                "guardReason": null,
-                                "tooltip": null
+                                "template": "pipeline"
                               }
                             },
                             "intent": null,

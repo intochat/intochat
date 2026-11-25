@@ -44,17 +44,9 @@
             "label": "MCP",
             "command": {
               "target": ".",
-              "signal": "ui.command",
+              "signal": "filmcraft.switch-mode",
               "args": {
-                "target": "state",
-                "method": "SwitchExecutionMode",
-                "args": [
-                  "mcp"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
+                "mode": "mcp"
               }
             },
             "intent": null,
@@ -72,17 +64,9 @@
             "label": "CLI",
             "command": {
               "target": ".",
-              "signal": "ui.command",
+              "signal": "filmcraft.switch-mode",
               "args": {
-                "target": "state",
-                "method": "SwitchExecutionMode",
-                "args": [
-                  "native-linux"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
+                "mode": "native-linux"
               }
             },
             "intent": null,
@@ -100,17 +84,9 @@
             "label": "WASM",
             "command": {
               "target": ".",
-              "signal": "ui.command",
+              "signal": "filmcraft.switch-mode",
               "args": {
-                "target": "state",
-                "method": "SwitchExecutionMode",
-                "args": [
-                  "wasm-ui"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
+                "mode": "wasm-ui"
               }
             },
             "intent": null,
@@ -128,15 +104,11 @@
             "label": "Razor Split",
             "command": {
               "target": ".",
-              "signal": "ui.command",
+              "signal": "filmcraft.run-command",
               "args": {
-                "target": "screen",
-                "method": "RazorSplitDefaultAsync",
-                "args": null,
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
+                "commandId": "timeline.razor",
+                "sequence": "/work/launch-trailer.fcproj",
+                "mode": "wasm-ui"
               }
             },
             "intent": null,
@@ -155,15 +127,10 @@
             "label": "Export MP4",
             "command": {
               "target": ".",
-              "signal": "ui.command",
+              "signal": "filmcraft.export",
               "args": {
-                "target": "screen",
-                "method": "ExportMp4DefaultAsync",
-                "args": null,
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
+                "sequence": "/work/launch-trailer.fcproj",
+                "mode": "wasm-ui"
               }
             },
             "intent": null,

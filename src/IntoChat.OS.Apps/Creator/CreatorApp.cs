@@ -2,7 +2,7 @@
 # Creator
 Role: Default
 Shipped: true
-Operations: open, select, trace, replay, scenario, share, run, approve, reject, ui.command
+Operations: open, select, trace, replay, scenario, share, run, approve, reject
 
 Topology, Accordant state-space, scenario & 1-event-at-a-time time-travel debugger for the DigitalBrain OS.
 Left: catalog units, installed apps, active build/engineer flows, and studio launchers.
@@ -271,7 +271,6 @@ public sealed partial class CreatorApp : AggregateScreen<CreatorWorkspaceState>,
             new("run", "Inspect an active change run pipeline and unified diff."),
             new("approve", "Approve and promote a pending change run."),
             new("reject", "Reject and abort a pending change run."),
-            new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
         ],
         sideWidth: 340d);
 
