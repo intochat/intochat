@@ -399,11 +399,6 @@
           "footer": null
         },
         {
-          "kind": "neuronRef",
-          "refKind": "ui.chart",
-          "neuronUri": "data/charts/primary"
-        },
-        {
           "kind": "dataTable",
           "title": "No Data () (0 row(s))",
           "columns": [],

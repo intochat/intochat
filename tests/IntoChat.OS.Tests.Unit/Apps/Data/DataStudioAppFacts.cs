@@ -66,6 +66,47 @@ public sealed class DataStudioAppFacts
         Assert.Equal("Data Studio", rendered.Title);
     }
 
+    // The chart is a `chart` data node drawn from the app's own state; no ui.chart neuron is mounted (step P-Data/Usage).
+    [Theory]
+    [InlineData("bar", "columns")]
+    [InlineData("line", "line")]
+    [InlineData("pie", "pie")]
+    public void DataStudioDrawsItsChartFromState(string kind, string drawnKind)
+    {
+        var points = new[] { new InoChartPoint("p1", "Proposal", 271200), new InoChartPoint("p2", "Contract", 96000) };
+        var result = new DataQueryResult("Pipeline", ["Stage", "Amount"], [["Proposal", "271200"], ["Contract", "96000"]], kind, points, "Summary", "neuron://local/postgres/main#query-result", 367200, 183600, 96000, 271200);
+        var state = DataStudioDecisions.DecideQueryResult(new DataStudioAppState(), "/work/q4.csv", "SELECT Stage, Amount FROM /work/q4.csv", kind, result, ["/work/q4.csv"], "local");
+
+        var root = DataStudioViewRenderer.Render(state).Root;
+
+        var chart = Assert.Single(Find<Chart>(root));
+        Assert.Equal(drawnKind, chart.Kind);
+        Assert.Equal("Pipeline", chart.Title);
+        Assert.Equal([new ChartPointNode("Proposal", 271200), new ChartPointNode("Contract", 96000)], chart.Points);
+        Assert.Equal("€", chart.Prefix);
+        Assert.Equal("/work/q4.csv", chart.From);
+        Assert.Equal("neuron://local/postgres/main#query-result", chart.SourceNeuronUri);
+        Assert.DoesNotContain(Find<NeuronRef>(root), static mount => mount.Kind.StartsWith("ui.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DataStudioWithoutAQueryDrawsNoChart()
+    {
+        var root = DataStudioViewRenderer.Render(new DataStudioAppState()).Root;
+
+        Assert.Empty(Find<Chart>(root));
+        Assert.Empty(Find<NeuronRef>(root));
+    }
+
+    private static IEnumerable<T> Find<T>(object? value) where T : Node => value switch
+    {
+        null or string => [],
+        T match => [match, .. match.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => Find<T>(p.GetValue(match)))],
+        System.Collections.IEnumerable items => items.Cast<object?>().SelectMany(Find<T>),
+        Node or View => value.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => Find<T>(p.GetValue(value))),
+        _ => [],
+    };
+
     private static IEnumerable<Button> ExtractButtons(object? value) => value switch
     {
         null => [],

@@ -8,7 +8,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed partial class UiControlRatchetFacts
 {
     private const int UiNeuronTypes = 20;
-    private const int UiNeuronMounts = 36;
+    private const int UiNeuronMounts = 34;
     private const int DartInvokeCalls = 43;
 
     [GeneratedRegex(@"\[Neuron\(""ui\.", RegexOptions.CultureInvariant)]
