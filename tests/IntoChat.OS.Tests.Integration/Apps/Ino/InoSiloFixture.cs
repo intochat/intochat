@@ -216,8 +216,9 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public IScreen ThreadScreen(string brain) => SiloNeurons.Get<IScreen>(Services, ThreadOf(brain));
 
-    // Sends the command of a node of the conversation thread (the composer, a message's retry, the stop, the error line's retry) on its current view.
-    public Task ActOnThreadAsync(string brain, string key, string? value = null) => ThreadScreen(brain).Click(key, value);
+    // Sends the command of a node of the conversation thread (the composer, a message's retry, the stop, the error line's retry) on its
+    // current view through Ino, as a client does: the thread takes commands only from its parent.
+    public Task ActOnThreadAsync(string brain, string key, string? value = null) => InoScreen(brain).ClickChild(InoView.ConversationKey, key, value);
 
     public async Task<PublishedView?> ReadComposedAsync(IScreen screen)
     {

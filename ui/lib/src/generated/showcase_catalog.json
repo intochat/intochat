@@ -862,11 +862,6 @@
         "args": {
           "isOn": "bool"
         }
-      },
-      {
-        "name": "Toggle",
-        "signal": "control.toggle",
-        "args": {}
       }
     ],
     "signals": [
@@ -3708,11 +3703,6 @@
         "args": {
           "isOn": "bool"
         }
-      },
-      {
-        "name": "Toggle",
-        "signal": "control.toggle",
-        "args": {}
       }
     ],
     "signals": [

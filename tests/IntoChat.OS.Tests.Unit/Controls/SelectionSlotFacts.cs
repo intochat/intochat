@@ -162,7 +162,7 @@ public sealed class SelectionSlotFacts : IAsyncDisposable
 
     [Fact]
     public void A_gate_passes_every_other_command()
-        => Assert.Null(new ListBoxProps([], ListSelectionMode.None).RefusalOf("control.toggle", null));
+        => Assert.Null(new ListBoxProps([], ListSelectionMode.None).RefusalOf("control.setChecked", null));
 
     public async ValueTask DisposeAsync()
     {

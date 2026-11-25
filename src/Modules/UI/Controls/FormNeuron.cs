@@ -18,7 +18,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A form: it keeps the last submitted values and signals <see cref="Submitted"/>.</summary>
-[Neuron("control.form"), Emits(typeof(Submitted))]
+[Neuron("control.form"), Publishes(typeof(Submitted))]
 public sealed class FormNeuron : ControlNeuron<FormState, FormProps>, IFormControl
 {
     [On]

@@ -20,7 +20,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A chat thread: it owns the messages and signals what the user asks of them.</summary>
-[Neuron("control.chatThread"), Emits(typeof(MessageAppended)), Emits(typeof(MessageUpdated)), Emits(typeof(RetryRequested)), Emits(typeof(Submitted)), Emits(typeof(StopRequested)), Emits(typeof(ChatModelSelected))]
+[Neuron("control.chatThread"), Publishes(typeof(MessageAppended)), Publishes(typeof(MessageUpdated)), Publishes(typeof(RetryRequested)), Publishes(typeof(Submitted)), Publishes(typeof(StopRequested)), Publishes(typeof(ChatModelSelected))]
 public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>, IChatThreadControl
 {
     [JsonSerializable(typeof(Dictionary<string, bool>))]
@@ -64,7 +64,7 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
         ArgumentNullException.ThrowIfNull(command);
         var next = Merge(command.Replace ? [] : State.Messages, command.Messages ?? []);
         // The stop and the error's retry show what the props routed with the parent's last write say (kept, so a redraw without
-        // props still shows them); a write without props (not from the parent) leaves them.
+        // props still shows them); a write without props (a parent that mounts the thread without props) leaves them.
         var (stop, retry) = Props is { } routed ? Shows(routed) : (State.ShowsStop, State.ShowsRetry);
         var accepts = Props is { } given ? given.CanSend && given.IsEnabled : State.AcceptsText;
         var updated = State with { Messages = next, ShowsStop = stop, ShowsRetry = retry, AcceptsText = accepts };

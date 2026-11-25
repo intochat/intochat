@@ -19,7 +19,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A kanban board: it owns the selected card and signals <see cref="SelectionChanged"/> and <see cref="CardMoved"/>.</summary>
-[Neuron("control.kanban"), Emits(typeof(SelectionChanged)), Emits(typeof(CardMoved))]
+[Neuron("control.kanban"), Publishes(typeof(SelectionChanged)), Publishes(typeof(CardMoved))]
 public sealed class KanbanNeuron : ControlNeuron<KanbanState, KanbanProps>, IKanbanControl
 {
     [On]

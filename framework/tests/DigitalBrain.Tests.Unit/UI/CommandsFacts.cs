@@ -10,7 +10,7 @@ public sealed class CommandsFacts
     [Fact]
     public void Command_target_dot_means_self()
     {
-        var command = new Command(".", "control.toggle");
+        var command = new Command(".", "control.setChecked");
 
         Assert.Equal(".", command.Target);
         Assert.Null(command.Args);
@@ -35,7 +35,7 @@ public sealed class CommandsFacts
     [Fact]
     public void Every_control_command_has_a_signal_alias()
     {
-        Type[] commands = [typeof(Toggle), typeof(SetChecked), typeof(DigitalBrain.UI.Commands.Select), typeof(Expand), typeof(Submit), typeof(Close)];
+        Type[] commands = [typeof(SetChecked), typeof(DigitalBrain.UI.Commands.Select), typeof(Expand), typeof(Submit), typeof(Close)];
 
         var aliases = commands.Select(type => type.GetCustomAttribute<SignalAttribute>()?.Alias).ToArray();
 

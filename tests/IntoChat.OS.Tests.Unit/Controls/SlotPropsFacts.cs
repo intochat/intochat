@@ -105,6 +105,8 @@ public sealed class SlotPropsFacts : IAsyncDisposable
         return slot.GetProperty("props").Deserialize<CheckBoxProps>(JsonSerializerOptions.Web)!;
     }
 
+    private static readonly JsonElement On = JsonSerializer.SerializeToElement(new SetChecked(true), JsonSerializerOptions.Web);
+
     private Signal[] ChildSignals() => [.. _os.Journal(Brain).Signals(ChildId).Select(entry => entry.Signal)
         .Where(signal => signal is not StateChanged && signal is not ViewChanged)];
 
@@ -121,7 +123,7 @@ public sealed class SlotPropsFacts : IAsyncDisposable
     [Fact]
     public async Task An_enabled_slot_passes_the_command_to_the_child()
     {
-        await Parent.Dispatch(new Command("terms", "control.toggle"));
+        await Parent.Dispatch(new Command("terms", "control.setChecked", On));
 
         Assert.Equal([new Toggled(true)], ChildSignals());
     }
@@ -131,7 +133,7 @@ public sealed class SlotPropsFacts : IAsyncDisposable
     {
         await Tell(new EnableTerms(false));
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Parent.Dispatch(new Command("terms", "control.toggle")));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Parent.Dispatch(new Command("terms", "control.setChecked", On)));
 
         Assert.Equal(ControlProps.Disabled, refused.Reason);
         Assert.False(_os.IsActive(ChildId));
@@ -141,7 +143,7 @@ public sealed class SlotPropsFacts : IAsyncDisposable
     [Fact]
     public async Task Changing_props_rerenders_the_label_without_touching_the_child()
     {
-        await Parent.Dispatch(new Command("terms", "control.toggle"));
+        await Parent.Dispatch(new Command("terms", "control.setChecked", On));
         var before = await ChildView();
 
         await Tell(new Relabel("Renamed"));
@@ -154,7 +156,7 @@ public sealed class SlotPropsFacts : IAsyncDisposable
     [Fact]
     public async Task The_child_state_survives_the_parent_changing_props()
     {
-        await Parent.Dispatch(new Command("terms", "control.toggle"));
+        await Parent.Dispatch(new Command("terms", "control.setChecked", On));
 
         await Tell(new EnableTerms(false));
         await Tell(new Relabel("Renamed"));
@@ -165,13 +167,14 @@ public sealed class SlotPropsFacts : IAsyncDisposable
     }
 
     [Fact]
-    public async Task A_direct_call_to_the_child_is_not_gated_by_the_parent_props()
+    public async Task A_direct_call_to_the_child_is_refused_so_the_parent_props_cannot_be_bypassed()
     {
         await Tell(new EnableTerms(false));
 
-        await _os.Get<IScreen>(ChildId).Dispatch(new Command(".", "control.toggle"));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => _os.Get<IScreen>(ChildId).Dispatch(new Command(".", "control.setChecked", On)));
 
-        Assert.Equal([new Toggled(true)], ChildSignals());
+        Assert.Equal(ControlProps.NotFromParent, refused.Reason);
+        Assert.Empty(ChildSignals());
     }
 
     [Fact]

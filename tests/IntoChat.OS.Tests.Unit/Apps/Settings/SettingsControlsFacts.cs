@@ -44,10 +44,10 @@ public sealed class SettingsControlsFacts
         var settings = await Settings(os, "desktop");
         Assert.True(settings.App.State.ShowOsBarClock);
 
-        await Send(settings, "bar-clock", new Toggle());
+        await Send(settings, "bar-clock", new SetChecked(false));
 
         Assert.False(settings.App.State.ShowOsBarClock);
-        await Send(settings, "bar-clock", new Toggle());
+        await Send(settings, "bar-clock", new SetChecked(true));
         Assert.True(settings.App.State.ShowOsBarClock);
     }
 
@@ -70,7 +70,7 @@ public sealed class SettingsControlsFacts
         await using var os = TestOS.Local().RegisterCatalog();
         var settings = await Settings(os, "notifications");
 
-        await Send(settings, "notify-jobs", new Toggle());
+        await Send(settings, "notify-jobs", new SetChecked(false));
 
         Assert.False(settings.App.State.NotifyBackgroundJobs);
         var signals = os.Journal(Brain).Signals(Control("control.toggleSwitch", "notify-jobs")).Select(entry => entry.Signal)
@@ -136,7 +136,7 @@ public sealed class SettingsControlsFacts
         await settings.Request("set-variable", new SettingsSetVariable(SettingsControls.ManagedVariable, "quiet-hours"));
         await settings.Request("navigate", new SettingsNavigate("notifications"));
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(settings, "quiet-hours", new Toggle()));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Send(settings, "quiet-hours", new SetChecked(true)));
 
         Assert.Equal(ControlProps.Disabled, refused.Reason);
         Assert.False(settings.App.State.QuietHoursEnabled);

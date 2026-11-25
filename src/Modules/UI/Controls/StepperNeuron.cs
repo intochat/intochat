@@ -14,7 +14,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A stepper: it owns the active step and signals <see cref="SelectionChanged"/>.</summary>
-[Neuron("control.stepper"), Emits(typeof(SelectionChanged))]
+[Neuron("control.stepper"), Publishes(typeof(SelectionChanged))]
 public sealed class StepperNeuron : ControlNeuron<StepperControlState, StepperProps>, IStepperControl
 {
     [On]

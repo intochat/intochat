@@ -74,13 +74,14 @@ public sealed class Meddler : Screen<ControlledParentState>
     public Task Meddle(Meddle meddle)
     {
         ArgumentNullException.ThrowIfNull(meddle);
-        return Get<IScreen>(NeuronId.Parse(meddle.Child)).Dispatch(new Command(".", "control.toggle",
+        return Get<IScreen>(NeuronId.Parse(meddle.Child)).Dispatch(new Command(".", "control.setChecked", JsonSerializer.SerializeToElement(new SetChecked(false), JsonSerializerOptions.Web),
             Props: JsonSerializer.SerializeToElement(new ToggleSwitchProps("Forged", IsOn: true), JsonSerializerOptions.Web)));
     }
 }
 
-// A controlled control (the parent passes its value as a prop) only signals the person's change; the parent stores it and re-renders.
-// Without a value prop the control keeps today's behaviour and stores the value itself.
+// A controlled control (the parent passes its value as a prop) only signals the person's change, as the absolute value the command
+// asked for and every time; the parent stores it and re-renders. Without a value prop the control stores the value itself. A child
+// takes commands only from its parent: anything else sending one straight to it is refused.
 public sealed class ControlledSlotFacts : IAsyncDisposable
 {
     private static readonly BrainId Brain = new("local");
@@ -114,10 +115,13 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
     private async Task<T> Drawn<T>(NeuronId id) where T : Node
         => Assert.IsType<T>((await _os.Get<IScreen>(id).Read())!.View.GetProperty("root").Deserialize<Node>(JsonSerializerOptions.Web));
 
+    private static Command Command(string target, Signal command)
+        => new(target, command.GetType().GetCustomAttributes(typeof(SignalAttribute), false).Cast<SignalAttribute>().Single().Alias,
+            JsonSerializer.SerializeToElement(command, command.GetType(), JsonSerializerOptions.Web));
+
     private async Task Send(string key, Signal command)
     {
-        var alias = command.GetType().GetCustomAttributes(typeof(SignalAttribute), false).Cast<SignalAttribute>().Single().Alias;
-        await Parent.Dispatch(new Command(key, alias, JsonSerializer.SerializeToElement(command, command.GetType(), JsonSerializerOptions.Web)));
+        await Parent.Dispatch(Command(key, command));
         await _os.Idle();
     }
 
@@ -126,17 +130,43 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
     {
         await Parent.Read();
 
-        await Send("dark", new Toggle());
+        await Send("dark", new SetChecked(false));
 
         var dark = Child("control.toggleSwitch", "dark");
         Assert.Equal([new Toggled(false)], Signals(dark));
         Assert.False((await Drawn<ToggleSwitchView>(dark)).IsOn);
         Assert.False((await SlotProps("dark")).GetProperty("isOn").GetBoolean());
 
-        await Send("dark", new Toggle());
+        await Send("dark", new SetChecked(true));
 
         Assert.Equal([new Toggled(false), new Toggled(true)], Signals(dark));
         Assert.True((await SlotProps("dark")).GetProperty("isOn").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Two_fast_commands_on_a_controlled_toggle_reach_the_parent_as_two_absolute_values()
+    {
+        await Parent.Read();
+
+        // Sent back to back: the second arrives before the parent has re-rendered the first, so the props still say on.
+        await Parent.Dispatch(Command("dark", new SetChecked(false)));
+        await Parent.Dispatch(Command("dark", new SetChecked(true)));
+        await _os.Idle();
+
+        Assert.Equal([new Toggled(false), new Toggled(true)], Signals(Child("control.toggleSwitch", "dark")));
+        Assert.True((await SlotProps("dark")).GetProperty("isOn").GetBoolean());
+    }
+
+    [Fact]
+    public async Task A_controlled_value_equal_to_the_drawn_one_is_still_published()
+    {
+        await Parent.Read();
+
+        await Send("dark", new SetChecked(true));
+        await Send("theme", new DigitalBrain.UI.Commands.Select("light"));
+
+        Assert.Equal([new Toggled(true)], Signals(Child("control.toggleSwitch", "dark")));
+        Assert.Equal([new SelectionChanged("light")], Signals(Child("control.comboBox", "theme")));
     }
 
     [Fact]
@@ -157,7 +187,7 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
     {
         await Parent.Read();
 
-        await Send("free", new Toggle());
+        await Send("free", new SetChecked(true));
 
         var free = Child("control.toggleSwitch", "free");
         Assert.Equal([new Toggled(true)], Signals(free));
@@ -165,23 +195,33 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Props_from_a_caller_other_than_the_parent_are_dropped_and_logged()
+    public async Task A_command_from_a_neuron_that_is_not_the_parent_is_refused()
     {
+        await Parent.Read();
         var free = Child("control.toggleSwitch", "free");
-        var warnings = new WarningListener();
-        System.Diagnostics.Trace.Listeners.Add(warnings);
-        try
-        {
-            await _os.Get<IScreen>(new NeuronId(Brain, "test.meddler", "m")).Dispatch(new Command(".", "test.meddle",
-                JsonSerializer.SerializeToElement(new Meddle(free.ToString()), JsonSerializerOptions.Web)));
-            await _os.Idle();
-        }
-        finally { System.Diagnostics.Trace.Listeners.Remove(warnings); }
 
-        // Forged IsOn=true would have made it signal Toggled(false) without storing; dropped, it acts uncontrolled and stores true.
-        Assert.Equal([new Toggled(true)], Signals(free));
-        Assert.True((await Drawn<ToggleSwitchView>(free)).IsOn);
-        Assert.Contains(warnings.Lines, line => line.Contains("Dropped the props on control.toggle", StringComparison.Ordinal));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => _os.Get<IScreen>(new NeuronId(Brain, "test.meddler", "m"))
+            .Dispatch(new Command(".", "test.meddle", JsonSerializer.SerializeToElement(new Meddle(free.ToString()), JsonSerializerOptions.Web))));
+        await _os.Idle();
+
+        Assert.Equal(ControlProps.NotFromParent, refused.Reason);
+        Assert.Empty(Signals(free));
+    }
+
+    [Fact]
+    public async Task A_command_sent_straight_to_a_child_from_outside_is_refused()
+    {
+        await Parent.Read();
+        var dark = Child("control.toggleSwitch", "dark");
+
+        var dispatched = await Assert.ThrowsAsync<ActivationRefusedException>(() => _os.Get<IScreen>(dark).Dispatch(Command(".", new SetChecked(false))));
+        // A request is one-way, so its refusal reaches no caller: the control publishes nothing.
+        await _os.Get<IScreen>(dark).Request("control.setChecked", JsonSerializer.SerializeToElement(new SetChecked(false), JsonSerializerOptions.Web));
+        await _os.Idle();
+
+        Assert.Equal(ControlProps.NotFromParent, dispatched.Reason);
+        Assert.Empty(Signals(dark));
+        Assert.True((await SlotProps("dark")).GetProperty("isOn").GetBoolean());
     }
 
     [Fact]
@@ -191,21 +231,12 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
         var forged = JsonSerializer.SerializeToElement(new ToggleSwitchProps("Forged", IsOn: true), JsonSerializerOptions.Web);
 
         // Through the parent the parent's own props for the slot replace them (uncontrolled "free" has none): the control stores.
-        await Parent.Dispatch(new Command("free", "control.toggle", Props: forged));
+        await Parent.Dispatch(Command("free", new SetChecked(true)) with { Props = forged });
         await _os.Idle();
 
         var free = Child("control.toggleSwitch", "free");
         Assert.True((await Drawn<ToggleSwitchView>(free)).IsOn);
         Assert.Equal([new Toggled(true)], Signals(free));
-    }
-
-    private sealed class WarningListener : System.Diagnostics.TraceListener
-    {
-        public System.Collections.Concurrent.ConcurrentQueue<string> Lines { get; } = new();
-
-        public override void Write(string? message) { if (message is not null) { Lines.Enqueue(message); } }
-
-        public override void WriteLine(string? message) => Write(message);
     }
 
     public async ValueTask DisposeAsync()

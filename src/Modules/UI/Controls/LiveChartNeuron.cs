@@ -16,7 +16,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A live chart: it owns the points and signals <see cref="ChartChanged"/>.</summary>
-[Neuron("control.liveChart"), Emits(typeof(ChartChanged))]
+[Neuron("control.liveChart"), Publishes(typeof(ChartChanged))]
 public sealed class LiveChartNeuron : ControlNeuron<LiveChartState, LiveChartProps>, ILiveChartControl
 {
     [On]

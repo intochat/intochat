@@ -18,7 +18,7 @@ using TreeViewNode = DigitalBrain.UI.Controls.TreeView;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A tree: it owns the selected node and the expanded folders and signals <see cref="SelectionChanged"/> and <see cref="NodeExpanded"/>.</summary>
-[Neuron("control.tree"), Emits(typeof(SelectionChanged)), Emits(typeof(NodeExpanded))]
+[Neuron("control.tree"), Publishes(typeof(SelectionChanged)), Publishes(typeof(NodeExpanded))]
 public sealed class TreeNeuron : ControlNeuron<TreeState, TreeProps>, ITreeControl
 {
     [On]

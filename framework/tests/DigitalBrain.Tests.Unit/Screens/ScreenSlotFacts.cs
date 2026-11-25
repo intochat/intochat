@@ -70,7 +70,8 @@ public sealed class ScreenSlotFacts
     private static async Task<SlotChildScreen> Child(RecordingContext context)
     {
         var child = new SlotChildScreen();
-        NeuronAttachment.Attach(child, new RecordingContext(ChildId));
+        // The runtime stamps the hop: the child is called from inside the cluster, through its parent's proxy.
+        NeuronAttachment.Attach(child, new RecordingContext(ChildId) { Caller = DigitalBrain.Access.Caller.OfKernel(ChildId.Brain, via: ParentId) });
         await NeuronAttachment.Activate(child, CancellationToken.None);
         context.Neurons[ChildId] = child;
         return child;
@@ -137,12 +138,12 @@ public sealed class ScreenSlotFacts
         NeuronAttachment.Attach(grand, grandContext);
         await NeuronAttachment.Activate(grand, CancellationToken.None);
         var mid = new SlotParentScreen();
-        var midContext = new RecordingContext(midId);
+        var midContext = new RecordingContext(midId) { Caller = DigitalBrain.Access.Caller.OfKernel(midId.Brain, via: grandId) };
         NeuronAttachment.Attach(mid, midContext);
         await NeuronAttachment.Activate(mid, CancellationToken.None);
         grandContext.Neurons[midId] = mid;
         var leaf = new SlotChildScreen();
-        NeuronAttachment.Attach(leaf, new RecordingContext(leafId));
+        NeuronAttachment.Attach(leaf, new RecordingContext(leafId) { Caller = DigitalBrain.Access.Caller.OfKernel(leafId.Brain, via: midId) });
         await NeuronAttachment.Activate(leaf, CancellationToken.None);
         midContext.Neurons[leafId] = leaf;
 
@@ -155,6 +156,24 @@ public sealed class ScreenSlotFacts
         Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
         Assert.Equal([midId, midId], grandContext.Gets);
         Assert.Equal([leafId], midContext.Gets);
+    }
+
+    [Fact]
+    public async Task A_child_refuses_a_command_or_request_whose_caller_is_not_its_parent()
+    {
+        var stranger = new NeuronId(new BrainId("alice"), "app.slot-parent", "other");
+        foreach (var caller in new DigitalBrain.Access.Caller?[] { null, DigitalBrain.Access.Caller.OfKernel(ChildId.Brain), DigitalBrain.Access.Caller.OfKernel(ChildId.Brain, via: stranger) })
+        {
+            var child = new SlotChildScreen();
+            NeuronAttachment.Attach(child, new RecordingContext(ChildId) { Caller = caller });
+            await NeuronAttachment.Activate(child, CancellationToken.None);
+
+            var dispatched = await Assert.ThrowsAsync<ActivationRefusedException>(() => child.Dispatch(new Command(".", "slot.ping")));
+            var requested = await Assert.ThrowsAsync<ActivationRefusedException>(() => child.Request("slot.ping"));
+
+            Assert.Equal((ControlProps.NotFromParent, ControlProps.NotFromParent), (dispatched.Reason, requested.Reason));
+            Assert.Equal(0, child.Current.Count);
+        }
     }
 
     [Fact]

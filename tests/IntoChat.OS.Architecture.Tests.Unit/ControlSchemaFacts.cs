@@ -5,8 +5,8 @@ using IntoChat.OS.UI;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // The control schema rules (model D): controls with state are control neurons (state, commands, Render); a view record carries no
-// emit at any depth (its action is a Command), an interactive node is addressable (Key + AutomationName), every non-structural node has a Kit factory, and text controls
-// speak Submit, not Changed.
+// emit at any depth (its action is a Command), an interactive node is addressable (Key + AutomationName), every non-structural node has a Kit factory, text controls
+// speak Submit, not Changed, and a control's commands are imperative while what it publishes is past tense.
 public sealed class ControlSchemaFacts
 {
     private static readonly Type[] Nodes = [.. ViewNodeAttribute.DiscoverAll().Values.OrderBy(type => type.Name, StringComparer.Ordinal)];
@@ -72,6 +72,44 @@ public sealed class ControlSchemaFacts
         Assert.Contains(ControlNeuronProblems(typeof(DartCommandsFacts.SampleWithoutCommands)), problem => problem.Contains("no command", StringComparison.Ordinal));
         Assert.Contains(ControlNeuronProblems(typeof(DartCommandsFacts.StatelessSample)), problem => problem.Contains("no state", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void A_control_command_is_imperative_and_what_it_publishes_is_past_tense()
+    {
+        var problems = NodeSchema.ControlNeurons().SelectMany(neuron => NamingProblems(neuron, NodeSchema.Commands(neuron), NodeSchema.Signals(neuron))).ToArray();
+        Assert.True(problems.Length == 0, string.Join("; ", problems));
+    }
+
+    [Fact]
+    public void The_naming_rule_bites_on_a_past_tense_command_an_imperative_fact_and_a_record_that_is_both()
+    {
+        Assert.Empty(NamingProblems(typeof(DartCommandsFacts.SampleCheckBox), [typeof(DigitalBrain.UI.Commands.SetChecked)], [typeof(DigitalBrain.UI.Commands.Toggled)]));
+        Assert.Contains(NamingProblems(typeof(DartCommandsFacts.SampleCheckBox), [typeof(DigitalBrain.UI.Commands.Toggled)], []), problem => problem.Contains("not imperative", StringComparison.Ordinal));
+        Assert.Contains(NamingProblems(typeof(DartCommandsFacts.SampleCheckBox), [], [typeof(DigitalBrain.UI.Commands.Expand)]), problem => problem.Contains("not past tense", StringComparison.Ordinal));
+        Assert.Contains(NamingProblems(typeof(DartCommandsFacts.SampleCheckBox), [typeof(DigitalBrain.UI.Commands.Expanded)], [typeof(DigitalBrain.UI.Commands.Expanded)]),
+            problem => problem.Contains("both", StringComparison.Ordinal));
+    }
+
+    // A command ([On]) starts with a verb in the imperative and does not end in a past participle, except a "Set" of one (SetChecked);
+    // a fact ([Publishes]) ends in a past participle (Toggled, SelectionChanged); no record is both.
+    internal static IEnumerable<string> NamingProblems(Type neuron, IEnumerable<Type> commands, IEnumerable<Type> facts)
+    {
+        var commandSet = commands.ToHashSet();
+        foreach (var command in commandSet)
+        {
+            var words = Words(command.Name);
+            if (IsPast(words[0]) || (IsPast(words[^1]) && words[0] != "Set")) { yield return $"{neuron.Name} command {command.Name} is not imperative"; }
+        }
+        foreach (var fact in facts)
+        {
+            if (!IsPast(Words(fact.Name)[^1])) { yield return $"{neuron.Name} publishes {fact.Name}, which is not past tense"; }
+            if (commandSet.Contains(fact)) { yield return $"{neuron.Name} both takes and publishes {fact.Name}"; }
+        }
+    }
+
+    private static string[] Words(string name) => System.Text.RegularExpressions.Regex.Split(name, "(?<!^)(?=[A-Z])");
+
+    private static bool IsPast(string word) => word.EndsWith("ed", StringComparison.Ordinal);
 
     [Fact]
     public void Every_interactive_node_has_Key_and_AutomationName()

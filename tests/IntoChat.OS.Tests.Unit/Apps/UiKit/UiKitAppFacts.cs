@@ -63,7 +63,7 @@ public sealed class UiKitAppFacts
         await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, "checkBox");
 
-        await Send(uikit, "checkBox", new Toggle());
+        await Send(uikit, "checkBox", new SetChecked(true));
 
         var entry = uikit.App.State.Log[^1];
         Assert.Equal(("checkBox", "control.toggled"), (entry.Control, entry.Signal));
@@ -76,10 +76,10 @@ public sealed class UiKitAppFacts
         await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, "checkBox");
 
-        for (var i = 0; i < UiKitState.MaxLog + 5; i++) { await Send(uikit, "checkBox", new Toggle()); }
+        for (var i = 0; i < UiKitState.MaxLog + 5; i++) { await Send(uikit, "checkBox", new SetChecked(i % 2 == 0)); }
 
         Assert.Equal(UiKitState.MaxLog, uikit.App.State.Log.Length);
-        Assert.Equal("""{"isOn":true}""", uikit.App.State.Log[^1].ArgsJson); // 55 toggles end on
+        Assert.Equal("""{"isOn":true}""", uikit.App.State.Log[^1].ArgsJson); // 55 values, alternating from on, end on
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class UiKitAppFacts
         await using var os = TestOS.Local().RegisterCatalog();
         var uikit = await UiKit(os, "toggleSwitch");
 
-        await Send(uikit, UiKitPages.ControlledSwitch, new Toggle());
+        await Send(uikit, UiKitPages.ControlledSwitch, new SetChecked(true));
 
         Assert.True(uikit.App.State.ControlledOn);
     }

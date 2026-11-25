@@ -112,7 +112,7 @@ public sealed class InoConversationThreadFacts
         var thread = os.Get<IScreen>(ThreadId);
         var view = await thread.Read();
 
-        await thread.Click(ChatThreadProps.ComposerKey, "hello there");
+        await os.Get<IScreen>(InoId).ClickChild(InoView.ConversationKey, ChatThreadProps.ComposerKey, "hello there");
         await os.Idle();
 
         var conv = os.Get<IConversation>(new NeuronId(Brain, IConversation.Type, InoModel.ConversationKeyOf(ino.App.State.ConversationId)));

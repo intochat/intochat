@@ -23,7 +23,8 @@ public interface IScreen
     Task<PublishedView?> Read(string? alias = null);
 
     /// <summary>
-    /// Dispatches an external signal request to this screen one-way without waiting for reaction completion.
+    /// Dispatches an external signal request to this screen one-way without waiting for reaction completion. A child screen (its key is
+    /// a child address) refuses a request from anything but its parent (<c>control.notFromParent</c>).
     /// </summary>
     /// <param name="signal">The journal alias of the signal.</param>
     /// <param name="args">Optional JSON payload for the signal constructor/properties.</param>
@@ -33,9 +34,11 @@ public interface IScreen
     /// <summary>
     /// Routes <paramref name="command"/> through this screen and awaits its handling: "." is the screen itself, any other target a
     /// child key its current view shows, or a key path "a/b" that each child's own Dispatch resolves one hop further. The parent
-    /// owns its children, so a client acts on a child only through this call; a handler's failure reaches the caller.
+    /// owns its children, so a client acts on a child only through this call; a handler's failure reaches the caller. A child screen
+    /// takes a command only from its parent, which applied the child's gates on the way.
     /// </summary>
-    /// <exception cref="ActivationRefusedException">The current view names no child with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    /// <exception cref="ActivationRefusedException">The current view names no child with that key (<see cref="ActivationRefusedException.UnknownChild"/>),
+    /// or this screen is a child and the caller is not its parent (<c>control.notFromParent</c>).</exception>
     Task Dispatch(DigitalBrain.UI.Command command);
 
     /// <summary>

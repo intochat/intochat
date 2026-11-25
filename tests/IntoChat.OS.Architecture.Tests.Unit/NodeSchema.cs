@@ -10,7 +10,7 @@ using DigitalBrain.UI;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // The reflection over the C# UI model that the Dart generators share: node kinds, wire names, Dart types, control neurons with
-// their commands ([On] reactions) and signals ([Emits]), and showcase examples ([Showcase]). It writes node_commands.dart and showcase_catalog.json.
+// their commands ([On] reactions) and facts ([Publishes]), and showcase examples ([Showcase]). It writes node_commands.dart and showcase_catalog.json.
 internal static class NodeSchema
 {
     internal static (Type Type, string Kind)[] DerivedKinds() => [.. typeof(Node).GetCustomAttributes<JsonDerivedTypeAttribute>()
@@ -94,7 +94,7 @@ internal static class NodeSchema
     // The catalog kind of a control neuron: its class name without "Neuron", camel-cased (CheckBox -> checkBox).
     internal static string NeuronKind(Type type) => JsonNamingPolicy.CamelCase.ConvertName(ControlName(type));
 
-    internal static readonly string CommandsNamespace = typeof(DigitalBrain.UI.Commands.Toggle).Namespace!;
+    internal static readonly string CommandsNamespace = typeof(DigitalBrain.UI.Commands.SetChecked).Namespace!;
 
     // A control's commands: the [On] reactions it declares whose one parameter is a DigitalBrain.UI.Commands record.
     internal static Type[] Commands(Type type) => [.. type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -104,8 +104,8 @@ internal static class NodeSchema
         .Select(parameters => parameters[0].ParameterType)
         .Distinct().OrderBy(command => command.Name, StringComparer.Ordinal)];
 
-    // A control's signals: its [Emits] attributes (what it passes to Show(next, facts) is not visible to reflection).
-    internal static Type[] Signals(Type type) => [.. type.GetCustomAttributes<EmitsAttribute>().Select(emits => emits.Signal)
+    // A control's facts: its [Publishes] attributes (what it passes to Show(next, facts) is not visible to reflection).
+    internal static Type[] Signals(Type type) => [.. type.GetCustomAttributes<PublishesAttribute>().Select(emits => emits.Signal)
         .Distinct().OrderBy(signal => signal.Name, StringComparer.Ordinal)];
 
     internal static string Alias(Type signal) => signal.GetCustomAttribute<SignalAttribute>(false)?.Alias ?? signal.Name;

@@ -31,7 +31,7 @@ namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A query table: it owns the query and the selected row, reads one page from its source unless its rows are inline, and signals
 /// <see cref="TableChanged"/> and <see cref="RowSelected"/>.</summary>
-[Neuron("control.queryTable"), Emits(typeof(TableChanged)), Emits(typeof(RowSelected))]
+[Neuron("control.queryTable"), Publishes(typeof(TableChanged)), Publishes(typeof(RowSelected))]
 public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, QueryTableProps>, IQueryTableControl
 {
     [Slot(Required = false)]
