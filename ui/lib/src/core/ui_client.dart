@@ -1018,14 +1018,26 @@ final class IntoChatOSUiClient {
   }
 
   /// Posts one UI event from a [NodeContext]: an `act` goes to
-  /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), every other
-  /// kind to `POST /brains/{workspace}/apps/event`.
+  /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), a
+  /// `confirmation` answer to [answerConfirmation], a `webbrowser` report to
+  /// [webBrowser], every other kind to `POST /brains/{workspace}/apps/event`.
   Future<Map<String, dynamic>> uiEvent(
     String workspace,
     Map<String, Object?> event,
   ) async {
-    if (event['kind'] != 'act') {
-      return appRequest(workspace, 'event', body: event);
+    switch (event['kind']) {
+      case 'act':
+        break;
+      case 'confirmation':
+        return answerConfirmation(
+          workspace,
+          event['planId'] as String,
+          approve: event['approve'] as bool,
+        );
+      case 'webbrowser':
+        return webBrowser(workspace, event);
+      default:
+        return appRequest(workspace, 'event', body: event);
     }
     final response = await _request(
       'POST',
@@ -1040,6 +1052,54 @@ final class IntoChatOSUiClient {
     );
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
+
+  /// Answers one plan of the brain's confirmation inbox as the person:
+  /// `POST /brains/{workspace}/confirmations/{planId}` `{approve}`
+  /// (ConfirmationEndpoints). A plan id may hold `/`; each segment is escaped.
+  Future<Map<String, dynamic>> answerConfirmation(
+    String workspace,
+    String planId, {
+    required bool approve,
+  }) async {
+    final response = await _request(
+      'POST',
+      '/brains/${Uri.encodeComponent(workspace)}/confirmations/'
+          '${planId.split('/').map(Uri.encodeComponent).join('/')}',
+      body: {'approve': approve},
+      timeout: const Duration(seconds: 30),
+    );
+    return _bodyMap(response.body);
+  }
+
+  /// Reports the embedded browser's attachment to its browser neuron:
+  /// `POST /brains/{workspace}/browsers/{connect|disconnect|unavailable}`
+  /// with `{name, port, sessionId}`, `{name, sessionId}` or `{name, reason}`
+  /// (WebBrowserEndpoints).
+  Future<Map<String, dynamic>> webBrowser(
+    String workspace,
+    Map<String, Object?> report,
+  ) async {
+    final action = report['action'];
+    if (action is! String ||
+        !const {'connect', 'disconnect', 'unavailable'}.contains(action)) {
+      throw ArgumentError.value(action, 'action', 'Unknown browser action.');
+    }
+    final response = await _request(
+      'POST',
+      '/brains/${Uri.encodeComponent(workspace)}/browsers/$action',
+      body: {
+        for (final entry in report.entries)
+          if (entry.key != 'kind' && entry.key != 'action')
+            entry.key: entry.value,
+      },
+      timeout: const Duration(seconds: 30),
+    );
+    return _bodyMap(response.body);
+  }
+
+  static Map<String, dynamic> _bodyMap(String body) => body.isEmpty
+      ? <String, dynamic>{}
+      : Map<String, dynamic>.from(jsonDecode(body) as Map);
 
   Future<Map<String, dynamic>> storeSecret(
     String name,

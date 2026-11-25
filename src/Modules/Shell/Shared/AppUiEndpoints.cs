@@ -407,37 +407,15 @@ internal static class AppUiEndpoints
         };
     }
 
-    // One UI event from the shell, under the caller the edge stamped on brain.
-    // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
+    // One UI event from the shell, under the caller the edge stamped on brain: a view activation or a field's typing. A person's
+    // confirmation answer and the embedded browser's reports have their own routes (ConfirmationEndpoints, WebBrowserEndpoints).
     // An app view's own Emit becomes AppRequested at its app; an Intent goes back to the client, which performs it.
     internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null, IScreenTargetResolver? resolver = null)
     {
-        if (input.Kind == UIVocabulary.ConfirmationType)
-        {
-            if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
-            var (planId, approve) = ConfirmationAnswer(input);
-            ShellPresenceGate.RequireDirectPerson(caller);
-            await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
-            return Results.Ok(new { delivered = true });
-        }
         if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct, caller, logger, resolver); }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         switch (input.Kind)
         {
-            case UIVocabulary.WebBrowserType:
-                var browser = brain.Get<IWebBrowserConnector>(input.Name);
-                if (input.Action == "unavailable")
-                {
-                    await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);
-                    break;
-                }
-                BrowserConnect connection;
-                try { connection = JsonSerializer.Deserialize<BrowserConnect>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
-                catch (JsonException) { throw new ArgumentException("Invalid browser connection."); }
-                if (input.Action == "connect") { await browser.Connect(connection.Port, connection.SessionId).WaitAsync(ct); }
-                else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
-                else { throw new ArgumentException("Unknown browser action."); }
-                break;
             case "field": await brain.Get<IField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
             default: throw new ArgumentException("Unknown UI event.");
         }
@@ -653,14 +631,6 @@ internal static class AppUiEndpoints
         return Results.Ok(new { delivered = true });
     }
 
-    // The inbox surface's typed answer: a plan id of at most 128 characters and approve true or false; no action string.
-    private static (string PlanId, bool Approve) ConfirmationAnswer(UiEvent input)
-    {
-        if (input.PlanId is not { Length: > 0 and <= 128 } planId || input.Approve is not { } approve || input.Action is not null)
-        { throw new ArgumentException("A confirmation answer names its planId and approve."); }
-        return (planId, approve);
-    }
-
     private static IResult IntentResult(DigitalBrain.UI.Intent intent)
         => Results.Json(new { intent = new { kind = intent.Kind.ToString(), arg = intent.Arg } }, ViewJson);
 
@@ -732,11 +702,9 @@ internal static class AppUiEndpoints
          && name.Split('/') is [_, "apps" or "images" or "applications" or "units", ..])
         || UnitAlias(scope, name) is not null;
 
-    // The client's one UI event; Dart mirror: NodeContext (activate, resolve, input) in ui/ui. A confirmation answer carries PlanId
-    // and Approve.
-    internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null,
-        long? Generation = null, string? Key = null, string? PlanId = null, bool? Approve = null);
-    private sealed record BrowserConnect(int Port, string SessionId);
+    // The client's one UI event; Dart mirror: NodeContext (activate, input) in ui/lib/src/nodes/node_context.dart.
+    internal sealed record UiEvent(string Kind, string Name, string? Value = null, long Revision = 0, string? Field = null,
+        long? Generation = null, string? Key = null);
 }
 
 // An activation's field value joins the emit's args as "value" (an object's member; other args become {args, value}).

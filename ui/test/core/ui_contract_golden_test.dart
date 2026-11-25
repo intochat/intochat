@@ -103,12 +103,14 @@ void main() {
     expect((root.children.last as ButtonNode).enabled, isTrue);
   });
 
-  test('the posted UI event carries its kind, name and action', () {
+  test('the posted UI event carries its kind and name', () {
     final event =
         states['IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent'] as Map;
-    for (final field in ['kind', 'name', 'action']) {
+    for (final field in ['kind', 'name']) {
       expect(event[field], isA<String>(), reason: 'UiEvent.$field');
     }
+    // A confirmation answer and a browser report have their own routes.
+    expect(event.containsKey('action'), isFalse);
   });
 
   test('the live envelope golden decodes through LiveEnvelope', () {

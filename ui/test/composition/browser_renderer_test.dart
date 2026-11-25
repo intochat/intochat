@@ -118,7 +118,7 @@ void main() {
         .where((event) => event['action'] == 'unavailable')
         .toList();
     expect(unavailable, isNotEmpty);
-    expect(unavailable.last['value'] as String, contains('WebView2 missing'));
+    expect(unavailable.last['reason'] as String, contains('WebView2 missing'));
     debugDefaultTargetPlatformOverride = null;
   });
 

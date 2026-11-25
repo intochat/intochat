@@ -2,7 +2,6 @@
   "IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent": {
     "kind": "Kind",
     "name": "Name",
-    "action": "Action",
     "value": "Value",
     "revision": 8000,
     "field": "Field",

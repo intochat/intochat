@@ -26,7 +26,9 @@ typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String name,
 );
 
-/// Posts one UI event (`POST /apps/event`) and returns the response body, if any.
+/// Sends one action of a view (an act, a key activation, a field's typing, a
+/// confirmation answer or a browser report; `IntoChatOSUiClient.uiEvent` picks
+/// the route) and returns the response body, if any.
 typedef NeuronAction = Future<Object?> Function(Map<String, dynamic> event);
 
 /// Transcribes recorded audio bytes and returns the recognized text.
@@ -348,16 +350,12 @@ class NodeContext {
     return ActivationOutcome.accepted;
   }
 
-  /// Resolves a confirmation plan: `{kind:"confirmation", name, planId, approve}`
-  /// (AppUiEndpoints.UiEvent).
+  /// Answers a confirmation plan as the person: `{kind:"confirmation",
+  /// planId, approve}`, which the client posts to the brain's confirmation
+  /// route (`IntoChatOSUiClient.answerConfirmation`), not as a UI event.
   Future<void> resolve(String planId, {required bool approve}) async {
     if (!interactive) return;
-    await _send({
-      'kind': 'confirmation',
-      'name': confirmation ? view : '$scope/confirmations',
-      'planId': planId,
-      'approve': approve,
-    });
+    await _send({'kind': 'confirmation', 'planId': planId, 'approve': approve});
   }
 
   /// Posts a field's typed value to its field neuron.
