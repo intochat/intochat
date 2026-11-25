@@ -14,19 +14,16 @@ final _thread = <String, dynamic>{
   ],
   'composer': {
     'key': 'composer',
-    'onSubmit': {'owner': 'control.chatThread', 'signal': 'control.submitText'},
+    'onSubmit': {'target': '.', 'signal': 'control.submitText'},
   },
   'selectModel': {
     'key': 'composer-model',
-    'onSubmit': {
-      'owner': 'control.chatThread',
-      'signal': 'control.selectModel',
-    },
+    'onSubmit': {'target': '.', 'signal': 'control.selectModel'},
   },
   'pinModel': {
     'key': 'composer-model-default',
     'onSubmit': {
-      'owner': 'control.chatThread',
+      'target': '.',
       'signal': 'control.selectModel',
       'args': {'default': true},
     },
@@ -232,8 +229,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sent, hasLength(1));
-    expect(sent.single['kind'], 'view');
-    expect(sent.single['key'], 'composer-model');
+    expect(sent.single['kind'], 'act');
+    expect(sent.single['signal'], 'control.selectModel');
     expect(sent.single['value'], 'gpt-5.4');
   });
 
@@ -244,8 +241,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sent, hasLength(1));
-    expect(sent.single['kind'], 'view');
-    expect(sent.single['key'], 'composer-model-default');
+    expect(sent.single['kind'], 'act');
+    expect(sent.single['signal'], 'control.selectModel');
+    expect(sent.single['args'], {'default': true});
     expect(sent.single['value'], 'gpt-5.4');
   });
 
@@ -280,7 +278,7 @@ void main() {
   });
 
   testWidgets(
-    'an installable row shows an install button that activates composer-model',
+    'an installable row shows an install button that sends selectModel',
     (tester) async {
       final sent = await _openPicker(tester);
 
@@ -292,8 +290,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(sent, hasLength(1));
-      expect(sent.single['kind'], 'view');
-      expect(sent.single['key'], 'composer-model');
+      expect(sent.single['kind'], 'act');
+      expect(sent.single['signal'], 'control.selectModel');
       expect(sent.single['value'], 'gemma4:e2b');
     },
   );

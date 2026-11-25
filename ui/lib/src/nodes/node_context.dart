@@ -26,9 +26,9 @@ typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String name,
 );
 
-/// Sends one action of a view (an act, a key activation, a field's typing, a
-/// confirmation answer or a browser report; `IntoChatOSUiClient.uiEvent` picks
-/// the route) and returns the response body, if any.
+/// Sends one action of a view (a command on `POST /act`, a confirmation answer
+/// or a browser report; `IntoChatOSUiClient.uiEvent` picks the route) and
+/// returns the response body, if any.
 typedef NeuronAction = Future<Object?> Function(Map<String, dynamic> event);
 
 /// Stores a typed secret in the signed-in person's vault
@@ -81,8 +81,8 @@ class NeuronEventQueue extends ChangeNotifier {
   }
 }
 
-/// What happened when [NodeContext.activateReporting] posted a view activation.
-enum ActivationOutcome { accepted, stale, refused }
+/// What happened when [NodeContext.act] posted a command.
+enum ActivationOutcome { accepted, refused }
 
 /// What the renderer needs from its host to draw one published view.
 @immutable
@@ -115,13 +115,12 @@ class NodeContext {
     this.createAudioOut,
     this.createMicStream,
     this.slotProps = const {},
-    this.actsViaAct = false,
   });
 
   /// The view neuron's name, which every activation names.
   final String view;
 
-  /// The generation of the view as read; the server refuses an activation of a stale one.
+  /// The generation of the view as read.
   final int generation;
 
   final NeuronAction? send;
@@ -200,12 +199,6 @@ class NodeContext {
   /// only the slot view's root reads them.
   final Map<String, dynamic> slotProps;
 
-  /// True when the server marked this view's commands for the act route
-  /// (`acts: "act"` on a screen's view): every command, a top-level button's
-  /// included, goes to `POST /brains/{brain}/act`; otherwise a top-level
-  /// button activates by key.
-  final bool actsViaAct;
-
   bool get interactive => enabled && send != null;
 
   NodeContext deeper() => NodeContext(
@@ -235,7 +228,6 @@ class NodeContext {
     storeSecret: storeSecret,
     createAudioOut: createAudioOut,
     createMicStream: createMicStream,
-    actsViaAct: actsViaAct,
     // Props belong to the slot's root control only; nested nodes (an
     // expander's content) never read them.
   );
@@ -255,56 +247,6 @@ class NodeContext {
     return queue == null ? send(event) : queue.dispatch(send, event);
   }
 
-  /// Activates the keyed node of this view: `{kind:"view", name, generation, key, value?}`.
-  /// A returned client-local intent is performed through [IntentGate].
-  Future<void> activate(
-    String key, {
-    String? value,
-    BuildContext? context,
-  }) async {
-    await activateReporting(key, value: value, context: context);
-  }
-
-  /// Activates the keyed node of this view and reports whether the server
-  /// accepted it, refused it as stale (`409` with `status: "stale"`), or refused it.
-  Future<ActivationOutcome> activateReporting(
-    String key, {
-    String? value,
-    BuildContext? context,
-  }) async {
-    if (!interactive) return ActivationOutcome.refused;
-    final Object? response;
-    try {
-      response = await _send({
-        'kind': 'view',
-        'name': view,
-        'generation': generation,
-        'key': key,
-        'value': ?value,
-      });
-    } on UiRequestException catch (error) {
-      if (isStaleConflictError(error.statusCode, error.status ?? '')) {
-        return ActivationOutcome.stale;
-      }
-      return ActivationOutcome.refused;
-    } catch (_) {
-      // The host has shown the refusal and reads the view again.
-      return ActivationOutcome.refused;
-    }
-    if (response is Map && response['intent'] is Map) {
-      final intent = Map<String, dynamic>.from(response['intent'] as Map);
-      // An intent kind this client does not know is refused, never guessed.
-      final kind = intentKindOf(intent['intentKind'] ?? intent['kind']);
-      if (kind != null) {
-        await perform(
-          IntentNode(intentKind: kind, arg: intent['arg'] as String?),
-          context: context != null && context.mounted ? context : null,
-        );
-      }
-    }
-    return ActivationOutcome.accepted;
-  }
-
   /// The top-level neuron this view belongs to: [actNeuron], or the view
   /// name without `/view`.
   String get neuron =>
@@ -320,21 +262,19 @@ class NodeContext {
     return '$slotPath/$key';
   }
 
-  /// Whether [address] names this view's own neuron on a top-level view
-  /// (not a slot), where activating a node's key reaches it for any app kind.
-  bool isTopLevelSelf(String address) =>
-      slotPath.isEmpty && const {'.', './'}.contains(address);
-
   /// Acts on a neuron [address] relative to this view:
   /// `{kind:"act", neuron, target, signal, args, value?}`, posted to
-  /// `POST /brains/{brain}/act`; [value] is a field's text, which the server
-  /// adds to the args as `value`. A refusal (`409` with its reason) or a
+  /// `POST /brains/{brain}/act`, the one route of a person's action, whatever
+  /// kind of screen drew the view (a compiled or agent app's screen, a
+  /// sandboxed app's view, a unit); [args] are the command's JSON args as the
+  /// node carries them, and [value] is a field's text, which the server adds
+  /// to the args as `value`. A refusal (`409` with its reason) or a
   /// handler failure (`422`) is shown by the host, which reads the view
   /// again; the outcome reports it to the caller.
   Future<ActivationOutcome> act(
     String address,
     String signal,
-    Map<String, Object?> args, {
+    Object? args, {
     String? value,
     BuildContext? context,
   }) async {
@@ -348,10 +288,8 @@ class NodeContext {
         'args': args,
         'value': ?value,
       });
-    } on UiRequestException catch (error) {
-      return isStaleConflictError(error.statusCode, error.status ?? '')
-          ? ActivationOutcome.stale
-          : ActivationOutcome.refused;
+    } on UiRequestException {
+      return ActivationOutcome.refused;
     } on StateError {
       return ActivationOutcome.refused;
     }
@@ -443,7 +381,15 @@ abstract final class IntentGate {
           path: '/open',
           queryParameters: {'app': app, 'input': ?input},
         );
-        return {'kind': 'os_uri', 'uri': rebuilt.toString(), 'host': 'window'};
+        // The node's own argument rides along so the shell can read its
+        // arrival metadata (args, transition, from) for this same app
+        // (`openWindowRouteOf`); the shell never follows it as a URL.
+        return {
+          'kind': 'os_uri',
+          'uri': rebuilt.toString(),
+          'host': 'window',
+          'intent': intent.arg,
+        };
     }
   }
 }

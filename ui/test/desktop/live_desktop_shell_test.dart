@@ -799,18 +799,16 @@ void main() {
                       'kind': 'button',
                       'key': 'open-${name.split('/')[2]}',
                       'label': 'Open ${name.split('/')[2]}',
-                      'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                      'intent': {
+                        'intentKind': 'OpenWindow',
+                        'arg': 'os://window/open?app=files&input=javascript:alert(1)&url=https://evil.example',
+                      },
                     },
                   },
                 },
               },
               watch: (kind, name) => const Stream.empty(),
-              onAction: (event) async => {
-                'intent': {
-                  'intentKind': 'OpenWindow',
-                  'arg': 'os://window/open?app=files&input=javascript:alert(1)&url=https://evil.example',
-                },
-              },
+              onAction: (event) async => {'delivered': true},
               onActivate: activations.add,
               stylePreset: IcStylePreset.fluentAcrylic,
               barLayout: BarLayout.floatingGlass,
@@ -992,7 +990,7 @@ Map<String, dynamic> _appTile(
   'launch': launch,
   'dock': ?dock,
   'appKind': appKind,
-  'command': {'owner': 'desktop', 'signal': 'open', 'args': appId},
+  'command': {'target': '.', 'signal': 'open', 'args': appId},
 };
 
 /// The seeded desktop view (`{generation, view}`) with one frame per window id → title.

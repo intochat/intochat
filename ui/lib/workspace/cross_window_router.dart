@@ -126,71 +126,32 @@ final class OpenWindowRoute {
   }
 }
 
-/// Captures rich `OpenWindow` query metadata (`args`, `transition`, `from`)
-/// from a `ViewHost` `onAction` response so `onActivate` receives the typed
-/// arrival payload after `IntentGate` validates the target app.
-final class PendingOpenWindowIntentTracker {
-  OpenWindowRoute? _pending;
-  int _seq = 0;
-
-  void _clearAfterMicrotasks(int seq, int remainingHops) {
-    if (remainingHops <= 0) {
-      if (_seq == seq) _pending = null;
-      return;
-    }
-    scheduleMicrotask(() => _clearAfterMicrotasks(seq, remainingHops - 1));
+/// The route of an `os_uri` window activation: the gated [uriString]
+/// (`IntentGate` keeps only the app and its input), merged with the rich
+/// `OpenWindow` metadata (`args`, `transition`, `from`) of the node's own
+/// [intent] argument when it opens the same app with the same input. The
+/// source screen falls back to [fallbackFromNeuron].
+OpenWindowRoute? openWindowRouteOf(
+  String? uriString, {
+  String? intent,
+  String? fallbackFromNeuron,
+}) {
+  final parsed = OpenWindowRoute.tryParse(uriString);
+  if (parsed == null) return null;
+  final merged = parsed.mergePending(
+    OpenWindowRoute.tryParse(intent, fallbackFromNeuron: fallbackFromNeuron),
+  );
+  if (merged.fromNeuron != null || fallbackFromNeuron == null) {
+    return merged;
   }
-
-  Future<Object?> wrapAction(
-    Map<String, dynamic> event,
-    Future<Object?> Function(Map<String, dynamic> event) inner, {
-    String? fallbackFromNeuron,
-  }) async {
-    _pending = null;
-    final sourceFromEvent =
-        screenNeuronFromViewName(event['name'] as String?) ??
-        fallbackFromNeuron;
-    final response = await inner(event);
-    if (response is Map && response['intent'] is Map) {
-      final intent = response['intent'] as Map;
-      final kindRaw = '${intent['intentKind'] ?? intent['kind'] ?? ''}'
-          .trim()
-          .toLowerCase();
-      if (kindRaw == 'openwindow') {
-        final parsed = OpenWindowRoute.tryParse(
-          intent['arg'] as String?,
-          fallbackFromNeuron: sourceFromEvent,
-        );
-        if (parsed != null) {
-          final seq = ++_seq;
-          _pending = parsed;
-          // Outlive EventQueue.dispatch -> NodeContext.activateReporting ->
-          // perform -> onActivate microtask hops without creating FakeAsync Timers.
-          _clearAfterMicrotasks(seq, 4);
-        }
-      }
-    }
-    return response;
-  }
-
-  OpenWindowRoute? consumeUri(String? uriString, {String? fallbackFromNeuron}) {
-    final parsed = OpenWindowRoute.tryParse(uriString);
-    final stashed = _pending;
-    _pending = null;
-    if (parsed == null) return null;
-    final merged = parsed.mergePending(stashed);
-    if (merged.fromNeuron != null || fallbackFromNeuron == null) {
-      return merged;
-    }
-    return OpenWindowRoute(
-      app: merged.app,
-      input: merged.input,
-      argsJson: merged.argsJson,
-      rawTransition: merged.rawTransition,
-      fromNeuron: _nonEmptyOrNull(fallbackFromNeuron),
-      section: merged.section,
-    );
-  }
+  return OpenWindowRoute(
+    app: merged.app,
+    input: merged.input,
+    argsJson: merged.argsJson,
+    rawTransition: merged.rawTransition,
+    fromNeuron: _nonEmptyOrNull(fallbackFromNeuron),
+    section: merged.section,
+  );
 }
 
 Map<String, dynamic> buildNavigateFromActEvent({

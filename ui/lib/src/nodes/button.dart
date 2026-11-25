@@ -37,13 +37,10 @@ String? _resolveButtonHint(ButtonNode node, NodeContext ctx) {
   return null;
 }
 
-/// A button sends its command. On a top-level view a command to `.` is
-/// sent by activating the button's key, so the server routes it to the
-/// view's own neuron whatever kind of app owns it (and returns an intent
-/// for a button that has one); a command inside a slot, or to a child
-/// address, goes through [NodeContext.act] with the slot-aware target. A
-/// refusal is shown by the host. When guarded (`.Guard(rule)`) or carrying a
-/// tooltip, hint or reason, renders a `DESIGN.md` §10.8 [Tooltip].
+/// A button sends its command through [pressCommand], or performs its
+/// client-local intent. A refusal is shown by the host. When guarded
+/// (`.Guard(rule)`) or carrying a tooltip, hint or reason, renders a
+/// `DESIGN.md` §10.8 [Tooltip].
 Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
     ? const SizedBox.shrink()
     : Builder(
@@ -58,43 +55,44 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
             tooltip: _resolveButtonHint(node, ctx),
             style: parseButtonStyle(node.style, node.tone),
             onPressed: node.enabled && ctx.interactive
-                ? () => pressCommand(node.key, node.command, ctx, context)
+                ? () => pressCommand(
+                    node.key,
+                    node.command,
+                    ctx,
+                    context,
+                    intent: node.intent,
+                  )
                 : null,
           ),
         ),
       );
 
-/// Sends a control's [command]: on a top-level view a command to `.` activates
-/// the [key] (unless the view acts via `/act` with a canonical dotted signal
-/// and map args); anything else goes through [NodeContext.act], which carries
-/// a field's [value] beside the args (the server adds it as `value` and the
-/// screen stamps who acted).
+/// Sends a control's [command] through [NodeContext.act] (`POST /act`), the
+/// one route of a person's action, with the slot-aware target and a field's
+/// [value] beside the args (the server adds it as `value` and the screen
+/// stamps who acted). A node with no command performs its client-local
+/// [intent] itself; the server never sees it. [key] names the node for the
+/// host's refusal message only.
 Future<ActivationOutcome> pressCommand(
   String key,
   Command? command,
   NodeContext ctx,
   BuildContext? context, {
   String? value,
-}) {
-  final isCanonicalAct =
-      command != null &&
-      command.target.isNotEmpty &&
-      command.signal.contains('.') &&
-      (command.args == null || command.args is Map);
-  if (command == null ||
-      command.target.isEmpty ||
-      (ctx.isTopLevelSelf(command.target) &&
-          (!ctx.actsViaAct || !isCanonicalAct))) {
-    return ctx.activateReporting(key, value: value, context: context);
+  IntentNode? intent,
+}) async {
+  if (command == null || command.target.isEmpty || command.signal.isEmpty) {
+    if (intent == null || !ctx.interactive) return ActivationOutcome.refused;
+    final performed = await ctx.perform(
+      intent,
+      context: context != null && context.mounted ? context : null,
+    );
+    return performed ? ActivationOutcome.accepted : ActivationOutcome.refused;
   }
-  final args = command.args;
-  final baseArgs = args is Map
-      ? args.cast<String, Object?>()
-      : const <String, Object?>{};
   return ctx.act(
     command.target,
     command.signal,
-    baseArgs,
+    command.args ?? const <String, Object?>{},
     value: value,
     context: context,
   );

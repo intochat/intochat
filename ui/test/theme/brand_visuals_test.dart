@@ -119,7 +119,7 @@ void main() {
         'status': 'ready',
         'composer': {
           'key': 'composer',
-          'onSubmit': {'owner': 'app.ino', 'signal': 'send'},
+          'onSubmit': {'target': '.', 'signal': 'send'},
           'placeholder': 'Ask Ino…',
           'enabled': true,
           'activeModelLabel': 'Sonnet 4.6',

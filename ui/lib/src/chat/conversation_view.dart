@@ -48,7 +48,7 @@ class ConversationView extends StatefulWidget {
   final ConversationNode node;
   final NodeContext ctx;
 
-  /// Runs the error line's action instead of activating its key (an action
+  /// Runs the error line's action instead of sending its command (an action
   /// the slot's parent decided, which the thread's view does not hold).
   final VoidCallback? onErrorAction;
 
@@ -344,42 +344,18 @@ class _ConversationViewState extends State<ConversationView> {
     setState(() => _submitting = true);
     try {
       final composer = widget.node.composer;
-      final first = await pressCommand(
+      final sent = await pressCommand(
         composer.key,
         composer.onSubmit,
         widget.ctx,
         mounted ? context : null,
         value: draft,
       );
-      if (first == ActivationOutcome.accepted) {
-        if (mounted && _controller.text == draft) {
-          _controller.clear();
-        }
-        return;
-      }
-      if (first == ActivationOutcome.stale) {
-        if (widget.ctx.reload case final reload?) {
-          await reload();
-        }
-        final nextFrame = Completer<void>();
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!nextFrame.isCompleted) nextFrame.complete();
-        });
-        WidgetsBinding.instance.scheduleFrame();
-        await nextFrame.future;
-        if (!mounted) return;
-        final second = await pressCommand(
-          composer.key,
-          composer.onSubmit,
-          widget.ctx,
-          context,
-          value: draft,
-        );
-        if (second == ActivationOutcome.accepted &&
-            mounted &&
-            _controller.text == draft) {
-          _controller.clear();
-        }
+      // A refused send keeps the draft; the host shows the refusal.
+      if (sent == ActivationOutcome.accepted &&
+          mounted &&
+          _controller.text == draft) {
+        _controller.clear();
       }
     } finally {
       if (mounted) {
@@ -453,36 +429,16 @@ class _ConversationViewState extends State<ConversationView> {
     );
   }
 
-  // Sends the picker's command with the model id as its value; a stale view is
-  // read again and the pick sent once more.
+  // Sends the picker's command with the model id as its value.
   Future<void> _selectModel(ModelSelectNode picker, String modelId) async {
     if (!widget.ctx.interactive || modelId.trim().isEmpty) return;
-    final first = await pressCommand(
+    await pressCommand(
       picker.key,
       picker.onSubmit,
       widget.ctx,
       mounted ? context : null,
       value: modelId,
     );
-    if (first == ActivationOutcome.stale) {
-      if (widget.ctx.reload case final reload?) {
-        await reload();
-      }
-      final nextFrame = Completer<void>();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!nextFrame.isCompleted) nextFrame.complete();
-      });
-      WidgetsBinding.instance.scheduleFrame();
-      await nextFrame.future;
-      if (!mounted) return;
-      await pressCommand(
-        picker.key,
-        picker.onSubmit,
-        widget.ctx,
-        context,
-        value: modelId,
-      );
-    }
   }
 
   KeyEventResult _handleConversationKey(FocusNode node, KeyEvent event) {

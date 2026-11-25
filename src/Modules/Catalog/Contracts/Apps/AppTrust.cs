@@ -2,8 +2,8 @@ namespace IntoChat.OS.Modules.Apps;
 
 // Confirmations buttons are an OS-surface privilege, decided in two steps. (1) Formatting hint: AppPresentation formats a
 // confirmations button only for an app whose settings name a compiled type (IsOsTrusted here); any other app's is inert.
-// (2) Authority: AppUiEndpoints.Deliver resolves a confirmation only when IHostedAppTypes says the host itself loaded the
-// app's type from a registered compiled-app assembly. A setting is never authority on its own. The stored assembly-qualified name
+// (2) Authority: a person answers a confirmation only on its own route (ConfirmationEndpoints), never through an app's view or a
+// command on POST /act. A setting is never authority on its own. The stored assembly-qualified name
 // need not resolve for the unedited shipped copy of a host-loaded app (AppNeuron.VerifyCompiledProgramType); other records must resolve it.
 public static class AppTrust
 {

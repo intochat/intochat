@@ -45,5 +45,16 @@ public sealed partial class UiControlRatchetFacts
         Assert.True(count == DartInvokeCalls, $"invoke('…') calls fell to {count}: lower {nameof(DartInvokeCalls)} from {DartInvokeCalls} in the same commit.");
     }
 
+    // POST /apps/event is deleted: every action is a command on POST /brains/{id}/act. Nothing may name the old route again.
+    [Fact]
+    public void NothingNamesTheDeletedEventRoute()
+    {
+        var files = NoProgramLanesFacts.ProductionSources()
+            .Concat(Repository.SourceFiles(Repository.FrameworkRoot, "*.cs"))
+            .Concat(Repository.SourceFiles(Path.Combine(Repository.Root, "ui", "lib"), "*.dart"));
+        var naming = files.Where(path => File.ReadAllText(path).Contains("apps/event", StringComparison.Ordinal)).ToArray();
+        Assert.True(naming.Length == 0, $"Sources still name apps/event: {string.Join(", ", naming)}.");
+    }
+
     private static int Count(IEnumerable<string> files, Regex pattern) => files.Sum(path => pattern.Count(File.ReadAllText(path)));
 }

@@ -77,7 +77,7 @@ void main() {
 
       await tester.tap(find.text('Reset alert'));
       await tester.pumpAndSettle();
-      expect(events.single['key'], 'reset-alert');
+      expect(events.single['signal'], 'reset');
     },
   );
 }

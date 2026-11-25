@@ -23,8 +23,8 @@ class ErrorLineView extends StatelessWidget {
   final ErrorLineNode node;
   final NodeContext ctx;
 
-  /// Runs the action instead of activating its key on [ctx]'s view: an action
-  /// a parent decided, whose node is not in this view.
+  /// Runs the action instead of sending its command on [ctx]'s view: an action
+  /// a parent or the host decided, whose node is not in this view.
   final VoidCallback? onAction;
 
   @override

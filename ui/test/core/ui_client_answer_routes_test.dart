@@ -5,8 +5,8 @@ import 'package:http/testing.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:test/test.dart';
 
-// A confirmation answer and a browser report are not UI events: the client
-// posts them to their own routes and never to `/apps/event`.
+// A person's action is a command on `POST /act`; a confirmation answer and a
+// browser report have their own routes; there is no other UI event route.
 void main() {
   late List<http.Request> sent;
   late IntoChatOSUiClient client;
@@ -82,6 +82,40 @@ void main() {
         'reason': 'No WebView2 runtime.',
       },
     ]);
+  });
+
+  test('an act posts its command to the brain act route', () async {
+    await client.uiEvent('owner', {
+      'kind': 'act',
+      'neuron': 'owner/units/bank',
+      'target': '.',
+      'signal': 'bank.deposit',
+      'args': {'amount': 5},
+      'value': '5',
+    });
+
+    final request = sent.single;
+    expect(request.url.path, '/brains/owner/act');
+    expect(jsonDecode(request.body), {
+      'neuron': 'owner/units/bank',
+      'target': '.',
+      'signal': 'bank.deposit',
+      'args': {'amount': 5},
+      'value': '5',
+    });
+  });
+
+  test('a key activation is refused before anything is sent', () async {
+    await expectLater(
+      () => client.uiEvent('owner', {
+        'kind': 'view',
+        'name': 'owner/apps/tasks/view',
+        'generation': 1,
+        'key': 'cancel',
+      }),
+      throwsArgumentError,
+    );
+    expect(sent, isEmpty);
   });
 
   test(

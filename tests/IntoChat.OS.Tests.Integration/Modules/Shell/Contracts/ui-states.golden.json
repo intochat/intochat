@@ -1,21 +1,4 @@
 {
-  "IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent": {
-    "kind": "Kind",
-    "name": "Name",
-    "value": "Value",
-    "revision": 8000,
-    "field": "Field",
-    "mimeType": "MimeType",
-    "context": "Context",
-    "operationId": "869360d5-a6e2-ce70-ac53-2d5694d72005",
-    "read": {
-      "version": 7000,
-      "messageIds": [
-        "MessageIds"
-      ]
-    },
-    "selectionRevision": 17000
-  },
   "IntoChat.OS.Modules.Flutter.Button.ButtonState": {
     "name": "Name",
     "version": 7,

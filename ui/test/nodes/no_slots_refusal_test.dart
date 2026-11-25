@@ -16,10 +16,10 @@ void main() {
             watch: (_, _) => const Stream.empty(),
             onAction: (_) async => throw UiRequestException(
               'POST',
-              '/apps/event',
+              '/act',
               409,
-              '{"error":"local/apps/notes/view has no child slots, so the '
-                  'command to \'child\' has nowhere to go.","reason":"NoSlots"}',
+              '{"error":"child of local/apps/notes refused the command.",'
+                  '"reason":"NoSlots"}',
             ),
             load: (_, _) async => {
               'generation': 1,
@@ -43,6 +43,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('NoSlots'), findsOneWidget);
-    expect(find.textContaining('has no child slots'), findsOneWidget);
+    expect(find.textContaining('refused the command'), findsOneWidget);
   });
 }

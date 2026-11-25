@@ -63,6 +63,7 @@ void main() {
 
     await tester.tap(find.text('Summarise my day'));
     await tester.pumpAndSettle();
-    expect(events.single['key'], 's1');
+    expect(events.single['signal'], 'send');
+    expect(events.single['args'], 'Summarise my day');
   });
 }

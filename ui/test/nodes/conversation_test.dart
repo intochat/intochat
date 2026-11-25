@@ -23,7 +23,6 @@ Future<void> _host(
   Map<String, dynamic> root, {
   List<Map<String, dynamic>>? events,
   Object? Function(Map<String, dynamic> event)? answer,
-  int Function()? generationOf,
   VoiceTranscriber? transcribe,
 }) async {
   await tester.pumpWidget(
@@ -34,8 +33,7 @@ Future<void> _host(
           knowsApp: (_) => false,
           kind: 'view',
           name: _view,
-          load: (kind, name) async =>
-              _published(root, generation: generationOf?.call() ?? 3),
+          load: (kind, name) async => _published(root),
           watch: (kind, name) => const Stream.empty(),
           transcribe: transcribe,
           onAction: (event) async {
@@ -64,7 +62,7 @@ Map<String, dynamic> _conversation({
   'messages': messages,
   'composer': {
     'key': 'composer',
-    'onSubmit': {'owner': 'app.ino', 'signal': 'send'},
+    'onSubmit': {'target': '.', 'signal': 'send'},
     'placeholder': 'Ask anything.',
     'enabled': enabled,
     'dictation': ?dictation,
@@ -124,7 +122,8 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(events.single, containsPair('key', 'composer'));
+    expect(events.single, containsPair('kind', 'act'));
+    expect(events.single, containsPair('signal', 'send'));
     expect(events.single, containsPair('value', 'What is new?'));
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -157,86 +156,37 @@ void main() {
     expect(events, isEmpty);
   });
 
-  testWidgets(
-    'a send refused once as stale retries with reloaded generation and clears',
-    (tester) async {
-      final events = <Map<String, dynamic>>[];
-      var gen = 3;
-      var firstAttempt = true;
-      await _host(
-        tester,
-        _conversation(),
-        events: events,
-        generationOf: () => gen,
-        answer: (event) {
-          if (firstAttempt) {
-            firstAttempt = false;
-            gen = 4;
-            throw UiRequestException(
-              'POST',
-              '/apps/event',
-              409,
-              '{"status":"stale"}',
-            );
-          }
-          return null;
-        },
-      );
+  // POST /act has no generation to be stale against: a refused send is sent
+  // once, keeps the draft, and the host shows the refusal.
+  testWidgets('a refused send is not repeated and the draft survives', (
+    tester,
+  ) async {
+    final events = <Map<String, dynamic>>[];
+    await _host(
+      tester,
+      _conversation(),
+      events: events,
+      answer: (event) => throw UiRequestException(
+        'POST',
+        '/act',
+        409,
+        '{"reason":"UnknownChild"}',
+      ),
+    );
 
-      await tester.tap(find.byType(TextField));
-      await tester.pump();
-      await tester.enterText(find.byType(TextField), 'hello');
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
 
-      expect(events, hasLength(2));
-      expect(events[0]['generation'], 3);
-      expect(events[1]['generation'], 4);
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        isEmpty,
-      );
-      expect(find.byType(SnackBar), findsNothing);
-    },
-  );
-
-  testWidgets(
-    'a send refused as stale is sent once more and the draft survives a second refusal',
-    (tester) async {
-      final events = <Map<String, dynamic>>[];
-      var refusals = 2;
-      await _host(
-        tester,
-        _conversation(),
-        events: events,
-        answer: (event) {
-          if (refusals > 0) {
-            refusals--;
-            throw UiRequestException(
-              'POST',
-              '/apps/event',
-              409,
-              '{"status":"stale"}',
-            );
-          }
-          return null;
-        },
-      );
-
-      await tester.tap(find.byType(TextField));
-      await tester.pump();
-      await tester.enterText(find.byType(TextField), 'hello');
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
-
-      expect(events, hasLength(2));
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        'hello',
-      );
-      expect(find.byType(SnackBar), findsNothing);
-    },
-  );
+    expect(events, hasLength(1));
+    expect(events.single['kind'], 'act');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'hello',
+    );
+  });
 
   testWidgets('Escape stops a running reply', (tester) async {
     final events = <Map<String, dynamic>>[];
@@ -260,7 +210,7 @@ void main() {
     expect(find.text('Esc to stop'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(events.single, containsPair('key', 'stop'));
+    expect(events.single, containsPair('signal', 'stop'));
   });
 
   testWidgets('a waiting card takes the place of the composer', (tester) async {
@@ -623,7 +573,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await pumpUntil(tester, () => events.isNotEmpty);
 
-    expect(events.single, containsPair('key', 'composer'));
+    expect(events.single, containsPair('signal', 'send'));
     expect(
       events.single,
       containsPair('value', 'check the release status please'),

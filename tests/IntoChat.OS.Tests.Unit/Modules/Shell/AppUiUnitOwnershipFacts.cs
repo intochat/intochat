@@ -16,9 +16,6 @@ public sealed class AppUiUnitOwnershipFacts
     private const string Scope = "owner";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static IDisposable AsPerson(string principal = "alice")
-        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person(principal, principal, new BrainId(Scope)));
-
     [Theory]
     [InlineData("owner/units/counter", true)]
     [InlineData("owner/units/counter/view", true)]
@@ -98,11 +95,6 @@ public sealed class AppUiUnitOwnershipFacts
         public Task Dispatch(DigitalBrain.UI.Command command) => Task.CompletedTask;
     }
 
-    private sealed class FakeHostedTypes : IHostedAppTypes
-    {
-        public bool IsHostLoaded(string appKey) => true;
-    }
-
     [Fact]
     public async Task ReadNode_RuntimeUnit_ViaScreen_ReturnsPublishedView()
     {
@@ -124,28 +116,4 @@ public sealed class AppUiUnitOwnershipFacts
         Assert.Contains("\"generation\":1", resJson);
     }
 
-    [Fact]
-    public async Task DeliverView_RuntimeUnit_ActivatesScreen()
-    {
-        var brain = new MockBrain();
-        var view = new View("Counter", new Column([new Button("btn-bump", "Bump", new Command(".", "bump", null))]));
-        var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
-        var published = new PublishedView("counter", 1L, json);
-
-        var screen = new FakeUnitScreen(published);
-        brain.Register<IScreen>(new NeuronId(new BrainId(Scope), "counter", "default"), screen);
-
-        var uiEvent = new AppUiEndpoints.UiEvent("view", "owner/units/counter", Generation: 1L, Key: "btn-bump");
-
-        using (AsPerson("bob"))
-        {
-            var result = await AppUiEndpoints.Deliver(uiEvent, brain, Scope, new FakeHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
-            Assert.NotNull(result);
-        }
-
-        var act = Assert.Single(screen.Activations);
-        Assert.Equal("counter", act.Alias);
-        Assert.Equal("btn-bump", act.Key);
-        Assert.Equal("bob", act.By);
-    }
 }

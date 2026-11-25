@@ -469,13 +469,15 @@ void main() {
 
   group('BrainScene & StateGraphView camera + replay shortcut inheritance', () {
     testWidgets(
-      'BrainSceneView stretches full-bleed in bounded boxes, inherits HUD + Minimap, and dispatches replay keys',
+      'BrainSceneView stretches full-bleed in bounded boxes, inherits HUD + Minimap, and sends replay keys as commands',
       (tester) async {
         final activations = <String>[];
         final ctx = NodeContext(
           view: 'local/apps/creator/view',
           send: (event) async {
-            activations.add('${event['key']}:${event['value']}');
+            activations.add(
+              '${event['signal']}:${(event['args'] as Map)['cursor']}',
+            );
             return null;
           },
         );
@@ -560,17 +562,16 @@ void main() {
         await tester.pump();
 
         expect(activations, [
-          'replay-next:null',
-          'replay-prev:null',
-          'replay-toggle:null',
-          'replay-first:null',
-          'replay-last:null',
+          'creator.replay:next',
+          'creator.replay:prev',
+          'creator.replay:toggle',
+          'creator.replay:first',
+          'creator.replay:last',
         ]);
 
         final actEvents = <Map<String, dynamic>>[];
         final actCtx = NodeContext(
           view: 'local/apps/creator/view',
-          actsViaAct: true,
           send: (event) async {
             actEvents.add(event);
             return null;

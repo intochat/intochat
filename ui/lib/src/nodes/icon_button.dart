@@ -19,7 +19,13 @@ Widget renderIconButton(IconButtonNode node, NodeContext ctx) => !node.visible
             icon: uiIcon(node.icon) ?? Icons.circle_outlined,
             label: node.tooltip,
             onPressed: node.enabled && ctx.interactive
-                ? () => pressCommand(node.key, node.command, ctx, context)
+                ? () => pressCommand(
+                    node.key,
+                    node.command,
+                    ctx,
+                    context,
+                    intent: node.intent,
+                  )
                 : null,
           ),
         ),

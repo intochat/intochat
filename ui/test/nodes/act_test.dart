@@ -107,79 +107,136 @@ void main() {
     ]);
   });
 
-  testWidgets('a root button of a Kit app (unmarked) activates by key', (
+  // There is no key activation: every view's button sends its command to
+  // POST /act, for the neuron that drew the view, whatever kind it is.
+  for (final (view, neuron) in [
+    ('local/apps/creator/view', 'local/apps/creator'),
+    ('local/apps/sandboxed/view', 'local/apps/sandboxed'),
+    ('local/units/bank', 'local/units/bank'),
+    ('local/bank', 'local/bank'),
+  ]) {
+    testWidgets('a root button of $view sends its command over /act', (
+      tester,
+    ) async {
+      final sent = await pressRoot(tester, view);
+
+      expect(sent, [
+        {
+          'kind': 'act',
+          'neuron': neuron,
+          'target': '.',
+          'signal': 'uikit.append',
+          'args': <String, Object?>{},
+        },
+      ]);
+    });
+  }
+
+  testWidgets('a button with an intent performs it and sends nothing', (
     tester,
   ) async {
-    final sent = await pressRoot(tester, 'local/apps/creator/view');
+    final sent = <Map<String, dynamic>>[];
+    final performed = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: ViewHost(
+            knowsApp: (app) => app == 'trace',
+            kind: 'view',
+            name: 'local/units/bank',
+            watch: (_, _) => const Stream.empty(),
+            onAction: (event) async {
+              sent.add(event);
+              return {'delivered': true};
+            },
+            onActivate: performed.add,
+            load: (kind, name) async => {
+              'generation': 4,
+              'view': {
+                'title': 'Root',
+                'root': {
+                  'kind': 'button',
+                  'key': 'open',
+                  'label': 'Open trace',
+                  'intent': {
+                    'intentKind': 'OpenWindow',
+                    'arg':
+                        'os://window/open?app=trace&input=t-1&transition=fade',
+                  },
+                },
+              },
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open trace'));
+    await tester.pumpAndSettle();
 
-    expect(sent.single['kind'], 'view');
-    expect(sent.single['name'], 'local/apps/creator/view');
-    expect(sent.single['key'], 'append');
+    expect(sent, isEmpty);
+    expect(performed, [
+      {
+        'kind': 'os_uri',
+        'uri': 'os://window/open?app=trace&input=t-1',
+        'host': 'window',
+        'intent': 'os://window/open?app=trace&input=t-1&transition=fade',
+      },
+    ]);
   });
 
-  testWidgets('a root button of a unit activates by key', (tester) async {
-    final sent = await pressRoot(tester, 'local/units/bank');
-
-    expect(sent.single['kind'], 'view');
-    expect(sent.single['name'], 'local/units/bank');
-    expect(sent.single['key'], 'append');
-  });
-
-  testWidgets(
-    'a root field of a view marked for /act submits its text over /act',
-    (tester) async {
-      final sent = <Map<String, dynamic>>[];
-      final ctx = NodeContext(
-        view: 'local/apps/notes/view',
-        generation: 2,
-        actsViaAct: true,
-        send: (event) async {
-          sent.add(event);
-          return {'delivered': true};
-        },
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: UiTheme.intochat(Brightness.light),
-          home: Scaffold(
-            body: Builder(
-              builder: (_) => NodeRenderer.render(
-                const FieldNode(
-                  key: 'note',
-                  name: 'apps/notes/note',
-                  fieldKind: FieldKind.text,
-                  placeholder: null,
-                  onSubmit: Command(
-                    target: '.',
-                    signal: 'notes.save',
-                    args: {'draft': 'd1'},
-                    props: null,
-                  ),
-                  automationName: 'Note',
+  testWidgets('a root field submits its text over /act', (tester) async {
+    final sent = <Map<String, dynamic>>[];
+    final ctx = NodeContext(
+      view: 'local/apps/notes/view',
+      generation: 2,
+      send: (event) async {
+        sent.add(event);
+        return {'delivered': true};
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: Builder(
+            builder: (_) => NodeRenderer.render(
+              const FieldNode(
+                key: 'note',
+                name: 'apps/notes/note',
+                fieldKind: FieldKind.text,
+                placeholder: null,
+                onSubmit: Command(
+                  target: '.',
+                  signal: 'notes.save',
+                  args: {'draft': 'd1'},
+                  props: null,
                 ),
-                ctx,
+                automationName: 'Note',
               ),
+              ctx,
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField), 'hello');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
 
-      expect(sent.where((event) => event['kind'] == 'view'), isEmpty);
-      expect(sent.last, {
-        'kind': 'act',
-        'neuron': 'local/apps/notes',
-        'target': '.',
-        'signal': 'notes.save',
-        'args': {'draft': 'd1'},
-        'value': 'hello',
-      });
-    },
-  );
+    expect(sent.where((event) => event['kind'] == 'view'), isEmpty);
+    expect(sent.last, {
+      'kind': 'act',
+      'neuron': 'local/apps/notes',
+      'target': '.',
+      'signal': 'notes.save',
+      'args': {'draft': 'd1'},
+      'value': 'hello',
+    });
+  });
 
   test('act on a non-interactive context sends nothing', () async {
     const ctx = NodeContext(view: 'local/apps/settings/view');
@@ -193,7 +250,6 @@ void main() {
     final ctx = NodeContext(
       view: 'local/apps/uikit/view',
       generation: 2,
-      actsViaAct: true,
       send: (event) async {
         sent.add(event);
         return {'delivered': true};

@@ -40,7 +40,7 @@ final _thread = {
   ],
   'composer': {
     'key': 'composer',
-    'onSubmit': {'owner': 'control.chatThread', 'signal': 'control.submitText'},
+    'onSubmit': {'target': '.', 'signal': 'control.submitText'},
   },
   'stop': _button('stop', 'Stop', 'control.stop'),
   'retry': _button('error-action', 'Try again', 'control.retry', {'id': ''}),

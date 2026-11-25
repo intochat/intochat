@@ -19,6 +19,14 @@ Map<String, dynamic> _published(
   'view': {'title': 'Sample', 'root': root},
 };
 
+/// A button that carries a client-local intent and no command.
+Map<String, dynamic> _intentButton(Map<String, dynamic> intent) => {
+  'kind': 'button',
+  'key': 'go',
+  'label': 'Go',
+  'intent': intent,
+};
+
 Future<void> _host(
   WidgetTester tester,
   Map<String, dynamic> root, {
@@ -98,7 +106,7 @@ void main() {
     expect(find.text('This component cannot be displayed.'), findsOneWidget);
   });
 
-  testWidgets('button emits {kind:view,key} with the generation it saw', (
+  testWidgets('a button sends its command over /act for the view neuron', (
     tester,
   ) async {
     final events = <Map<String, dynamic>>[];
@@ -106,7 +114,13 @@ void main() {
     await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
     await tester.pumpAndSettle();
     expect(events, [
-      {'kind': 'view', 'name': _view, 'generation': 3, 'key': 'go'},
+      {
+        'kind': 'act',
+        'neuron': 'local/apps/sample',
+        'target': '.',
+        'signal': 'picked',
+        'args': <String, Object?>{},
+      },
     ]);
   });
 
@@ -124,10 +138,11 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(events.single, {
-      'kind': 'view',
-      'name': _view,
-      'generation': 3,
-      'key': 'title',
+      'kind': 'act',
+      'neuron': 'local/apps/sample',
+      'target': '.',
+      'signal': 'save',
+      'args': <String, Object?>{},
       'value': 'Final',
     });
   });
@@ -193,27 +208,27 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(events.last, {
-      'kind': 'view',
-      'name': _view,
-      'generation': 3,
-      'key': 'title',
+      'kind': 'act',
+      'neuron': 'local/apps/sample',
+      'target': '.',
+      'signal': 'search',
+      'args': <String, Object?>{},
       'value': 'query',
     });
   });
 
-  testWidgets('a returned OpenWindow intent opens an app the shell knows', (
+  testWidgets('a button OpenWindow intent opens an app the shell knows', (
     tester,
   ) async {
     final opened = <Map<String, dynamic>>[];
+    final events = <Map<String, dynamic>>[];
     await _host(
       tester,
-      nodeSamples['button']!,
-      answer: (_) => {
-        'intent': {
-          'intentKind': 'OpenWindow',
-          'arg': 'os://window/open?app=trace&input=run-1',
-        },
-      },
+      _intentButton({
+        'intentKind': 'OpenWindow',
+        'arg': 'os://window/open?app=trace&input=run-1',
+      }),
+      events: events,
       onActivate: opened.add,
       knowsApp: (app) => app == 'trace',
     );
@@ -221,6 +236,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened.single['kind'], 'os_uri');
     expect(opened.single['uri'], 'os://window/open?app=trace&input=run-1');
+    expect(events, isEmpty, reason: 'an intent never reaches the server');
   });
 
   group('intent gate', () {
@@ -310,45 +326,14 @@ void main() {
     expect(opened, isEmpty);
   });
 
-  testWidgets('an unknown intent kind performs nothing', (tester) async {
-    final opened = <Map<String, dynamic>>[];
-    var copied = false;
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        if (call.method == 'Clipboard.setData') copied = true;
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
-    await _host(
-      tester,
-      nodeSamples['button']!,
-      answer: (_) => {
-        'intent': {'intentKind': 'Explode', 'arg': 'x'},
-      },
-      onActivate: opened.add,
-      knowsApp: (_) => true,
-    );
-    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
-    await tester.pumpAndSettle();
-    expect(opened, isEmpty);
-    expect(copied, isFalse);
-  });
-
   testWidgets('a refused intent is not performed', (tester) async {
     final opened = <Map<String, dynamic>>[];
     await _host(
       tester,
-      nodeSamples['button']!,
-      answer: (_) => {
-        'intent': {'intentKind': 'OpenWindow', 'arg': 'https://evil.example'},
-      },
+      _intentButton({
+        'intentKind': 'OpenWindow',
+        'arg': 'https://evil.example',
+      }),
       onActivate: opened.add,
     );
     await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
@@ -373,13 +358,7 @@ void main() {
         null,
       ),
     );
-    await _host(
-      tester,
-      nodeSamples['button']!,
-      answer: (_) => {
-        'intent': {'kind': 'Copy', 'arg': 'hello'},
-      },
-    );
+    await _host(tester, _intentButton({'intentKind': 'Copy', 'arg': 'hello'}));
     await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
     await tester.pump();
     expect(copied, 'hello');
@@ -756,7 +735,7 @@ void main() {
       expect(tester.widget<Text>(find.text('H5')).style?.fontSize, 13);
     });
 
-    testWidgets('navItem renders 32px pill and dispatches key on tap', (
+    testWidgets('navItem renders 32px pill and sends its command on tap', (
       tester,
     ) async {
       final events = <Map<String, dynamic>>[];
@@ -765,7 +744,7 @@ void main() {
         'key': 'nav-settings',
         'label': 'Settings',
         'icon': 'settings',
-        'action': 'settings',
+        'command': {'target': '.', 'signal': 'nav.settings'},
         'selected': true,
         'badge': '2',
       }, events: events);
@@ -774,7 +753,7 @@ void main() {
       expect(tester.getSize(pill).height, 32);
       await tester.tap(pill);
       await tester.pumpAndSettle();
-      expect(events.single['key'], 'nav-settings');
+      expect(events.single['signal'], 'nav.settings');
     });
 
     testWidgets(

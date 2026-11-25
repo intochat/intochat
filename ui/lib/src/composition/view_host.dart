@@ -551,8 +551,6 @@ class _ViewHostState extends State<ViewHost> {
           actNeuron: widget.actNeuron,
           slotPath: widget.slotPath,
           slotProps: widget.slotProps,
-          // The server marks a screen's view: its commands all go to /act.
-          actsViaAct: rawView['acts'] == 'act',
           buttonHints: buttonHints,
           transcribe: widget.transcribe,
           talk: widget.talk,
@@ -807,16 +805,17 @@ class _ReadState extends StatelessWidget {
               small: true,
             ),
     );
+    // The retry is the host's own action, not a command of any view: the line
+    // runs it directly, and its context sends nothing.
     final retryCtx = NodeContext(
       view: viewName,
-      send: onRetry == null
-          ? null
-          : (_) async {
-              onRetry!();
-              return null;
-            },
+      send: onRetry == null ? null : (_) async => null,
     );
-    final line = ErrorLineView(node: errorNode, ctx: retryCtx);
+    final line = ErrorLineView(
+      node: errorNode,
+      ctx: retryCtx,
+      onAction: onRetry,
+    );
     return inlineSlot ? line : Center(child: line);
   }
 }

@@ -99,8 +99,8 @@ void main() {
     pulse.onTap!(pulse.pulse.key);
     await tester.pump();
     // An edge or a pulse is not a node of the view: the scene's own select command carries its key as the value.
-    expect(events.map((e) => [e['key'] ?? e['signal'], e['value']]), [
-      ['node:ada/notes/default', null],
+    expect(events.map((e) => [e['signal'], e['value']]), [
+      ['creator.select', null],
       ['creator.select', 'edge:*→ada/notes/default:note.added'],
       ['creator.select', 'pulse:tr'],
     ]);

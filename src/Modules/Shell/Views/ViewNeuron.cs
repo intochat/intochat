@@ -10,13 +10,15 @@ using DigitalBrain.State;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Host.Configuration;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 
-// Stores an app's View as its wire JSON, verbatim; resolves an activation by key and hands the typed action to the edge.
+// Stores an app's View as its wire JSON, verbatim; resolves an activation by key and hands the typed action to the edge. It is the
+// screen of a sandboxed app: POST /act reaches it through IScreen.Dispatch, and a command to "." becomes the owning app's request.
 [Neuron(UIVocabulary.ViewType)]
 internal sealed partial class ViewNeuron
-    : UiNeuron<ViewState>, IView
+    : UiNeuron<ViewState>, IView, IScreen
 {
     public async Task Publish(long generation, View view)
     {
@@ -42,6 +44,59 @@ internal sealed partial class ViewNeuron
         { throw new StaleActionException("This action is no longer available. Read the view again."); }
         return Task.FromResult(ViewValidation.ActionOf(node) with { Value = fieldValue });
     }
+
+    public Task<PublishedView?> Open() => Read();
+
+    public Task<PublishedView?> Read(string? alias) => Read();
+
+    // A view neuron has no children: no key path reaches one.
+    public Task<PublishedView?> ReadChild(string path)
+        => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+
+    // A command to "." is the owning app's request ({brain}/apps/{name}), only for a signal the current view sends to ".", and with
+    // the acting person stamped under "by" when the args are an object (a positional array has no member to carry it). A command
+    // to any other target has nowhere to go: the app has no child slots.
+    public async Task Dispatch(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        RequireSameBrain();
+        if (!ViewValidation.ToSelf(command)) { throw new ActivationRefusedException(ActivationRefusedException.NoSlots); }
+        if (Snapshot.Json is not { } json || !ViewValidation.SendsToSelf(ViewValidation.Parse(json), command.Signal))
+        {
+            throw new ActivationRefusedException(ActivationRefusedException.NoEmit, $"The view of {FullKey} sends no '{command.Signal}'.");
+        }
+        await Emit(command.Signal, command.Args, fieldValue: null, Context.Caller?.For?.Principal);
+    }
+
+    public Task Request(string signal, JsonElement? args = null) => Dispatch(new Command(".", signal, args));
+
+    public Task Act(ScreenAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        return Activate(action.Alias ?? FullKey, action.Generation, action.NodeKey, action.FieldValue, Context.Caller?.For?.Principal);
+    }
+
+    // Key activation, as IScreen still offers it to agents: the node's command to "." goes to the owning app.
+    public async Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)
+    {
+        RequireSameBrain();
+        var action = await Activate(generation, nodeKey, fieldValue);
+        if (action is not { Kind: ViewActivationKind.Command, Command: { } command }) { throw new ActivationRefusedException(ActivationRefusedException.NoEmit); }
+        if (!ViewValidation.ToSelf(command)) { throw new ActivationRefusedException(ActivationRefusedException.NoSlots); }
+        await Emit(command.Signal, command.Args, fieldValue, by);
+    }
+
+    private Task Emit(string signal, JsonElement? args, string? fieldValue, string? by)
+    {
+        if (OwningApp() is not { } app) { throw new UnauthorizedAccessException($"{FullKey} is not an app's view."); }
+        return Get<IApp>(app).Emit(signal, ViewArgs.Stamped(args, fieldValue, by).GetRawText());
+    }
+
+    // The app whose view this is: apps/{name}/view in this brain.
+    private NeuronId? OwningApp()
+        => Id.Key.Split('/') is ["apps", var name, ..] && IntoChat.OS.Host.Primitives.AppRef.TryOf(Id.Brain, name, out var app)
+            ? DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), app.Key)
+            : null;
 
     private void RequireWriter()
     {
@@ -135,6 +190,31 @@ internal static class ViewValidation
             }
         }
         return null;
+    }
+
+    // Whether any node of the view sends signal to "." (a button's command, an info bar's close, a field's onSubmit).
+    public static bool SendsToSelf(JsonElement root, string signal)
+    {
+        var pending = new Stack<JsonElement>([root]);
+        while (pending.Count > 0)
+        {
+            var element = pending.Pop();
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (property.Name is "command" or "close" or "onSubmit" && property.Value.ValueKind == JsonValueKind.Object
+                        && Text(property.Value, "target") == SelfTarget && Text(property.Value, "signal") == signal)
+                    { return true; }
+                    if (property.Name is not "args") { pending.Push(property.Value); }
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray()) { pending.Push(item); }
+            }
+        }
+        return false;
     }
 
     // A node's action: its command (to "." for the view's own app, or to a child address, which a slotless view cannot reach) or its
