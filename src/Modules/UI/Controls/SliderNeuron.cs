@@ -15,7 +15,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A slider: it owns its value and signals <see cref="ValueChanged"/>.</summary>
-[Neuron("control.slider"), Emits(typeof(ValueChanged))]
+[Neuron("control.slider"), Publishes(typeof(ValueChanged))]
 public sealed class SliderNeuron : ControlNeuron<SliderControlState, SliderProps>, ISliderControl
 {
     [On]

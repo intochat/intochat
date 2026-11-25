@@ -14,16 +14,9 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A toggle switch: it owns whether it is on and signals <see cref="Toggled"/>.</summary>
-[Neuron("control.toggleSwitch"), Emits(typeof(Toggled))]
+[Neuron("control.toggleSwitch"), Publishes(typeof(Toggled))]
 public sealed class ToggleSwitchNeuron : ControlNeuron<ToggleSwitchState, ToggleSwitchProps>, IToggleSwitchControl
 {
-    [On]
-    public Task Toggle(Toggle command)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        return ToggleOn(Props?.IsOn, State.IsOn, Store);
-    }
-
     [On]
     public Task SetChecked(SetChecked command)
     {

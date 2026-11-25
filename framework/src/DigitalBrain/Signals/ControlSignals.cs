@@ -1,11 +1,7 @@
 // Lives in the DigitalBrain assembly (DigitalBrain.UI cannot reference it) but in the UI.Commands namespace, beside the control records.
 namespace DigitalBrain.UI.Commands;
 
-/// <summary>Flips a control between on and off.</summary>
-[Signal("control.toggle")]
-public sealed record Toggle : Signal;
-
-/// <summary>Sets a control's checked state.</summary>
+/// <summary>Sets a control's checked state: the absolute value, never a flip of what the sender last saw.</summary>
 /// <param name="IsOn">True when on.</param>
 [Signal("control.setChecked")]
 public sealed record SetChecked(bool IsOn) : Signal;

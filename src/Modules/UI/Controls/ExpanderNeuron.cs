@@ -13,7 +13,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>An expander: it owns whether its content is shown and signals <see cref="Expanded"/>.</summary>
-[Neuron("control.expander"), Emits(typeof(Expanded))]
+[Neuron("control.expander"), Publishes(typeof(Expanded))]
 public sealed class ExpanderNeuron : ControlNeuron<ExpanderState, ExpanderProps>, IExpanderControl
 {
     [On]

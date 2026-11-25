@@ -7,19 +7,19 @@ namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 public sealed class ToggleSwitchNeuronFacts
 {
     [Fact]
-    public async Task Toggle_flips_and_signals_Toggled()
+    public async Task SetChecked_sets_the_value_it_names_and_signals_Toggled()
     {
         await using var toggle = new ControlHarness(typeof(ToggleSwitchNeuron));
 
-        await toggle.Send(new Toggle());
-        await toggle.Send(new Toggle());
+        await toggle.Send(new SetChecked(true));
+        await toggle.Send(new SetChecked(false));
 
         Assert.Equal([new Toggled(true), new Toggled(false)], toggle.Published());
         Assert.False((await toggle.Drawn<ToggleSwitchView>()).IsOn);
     }
 
     [Fact]
-    public async Task SetChecked_signals_only_a_change()
+    public async Task An_uncontrolled_SetChecked_signals_only_a_change()
     {
         await using var toggle = new ControlHarness(typeof(ToggleSwitchNeuron), state: new ToggleSwitchState { IsOn = true });
 

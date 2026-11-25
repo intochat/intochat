@@ -6,7 +6,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain;
 
@@ -135,7 +134,9 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             {
                 // The handler hears who acted from the kernel-stamped caller, never from the args: a declared "by" is replaced or dropped.
                 var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: Context.Caller?.For?.Principal);
-                return command.Props is { } props && PropsFromParent(command.Signal) ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
+                // Props are a child's only, and a child hears commands only from its parent (Dispatch refuses any other caller), which
+                // applied its gates before routing; a screen that is no child never reads props from a command.
+                return command.Props is { } props && ParentId is not null ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
             }
             var slot = Hop(command.Target, out var rest);
             // The parent decides whether a slot is enabled: its props in the current view gate every command routed to the child.
@@ -191,23 +192,23 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     /// <summary>
     /// The props the parent gave this screen's slot, as JSON, while a reaction runs for a command the parent routed to it; null for a
-    /// command sent any other way (props from a caller other than the direct parent are dropped and logged), a delivered signal, or a call. Scoped to that command's async flow, not stored.
+    /// screen that is no child, a delivered signal, or a call. Scoped to that command's async flow, not stored.
     /// </summary>
     protected JsonElement? CommandProps => CommandScope.PropsFor(this);
 
-    // Props are trusted only from this screen's direct parent (its address is this one's key up to the last '/'), which applied its gates
-    // before routing; props from any other caller are dropped, so the control acts uncontrolled, and the drop is logged.
-    private bool PropsFromParent(string signal)
+    // The parent of a screen whose key is a child address ({parent}/{key}), or null for a screen that is no child.
+    private NeuronId? ParentId
     {
-        var slash = Id.Key.LastIndexOf('/');
-        if (slash > 0 && NeuronId.TryParse(Id.Key[..slash], out var parent)
-            && Context.Caller is { Inside: true, Via: { } via } && via == parent)
+        get
         {
-            return true;
+            var slash = Id.Key.LastIndexOf('/');
+            return slash > 0 && NeuronId.TryParse(Id.Key[..slash], out var parent) ? parent : null;
         }
-        ScreenLog.PropsDropped(GetLogger(), signal, Id.ToString(), Context.Caller?.Via?.ToString() ?? "outside");
-        return false;
     }
+
+    // A child takes commands only from its parent, the one caller that applied the child's gates (its props, ICommandGate) before
+    // routing: a person, an agent or another neuron sending straight to the child is refused, so no caller bypasses those gates.
+    private bool NotFromParent() => ParentId is { } parent && !(Context.Caller is { Inside: true, Via: { } via } && via == parent);
 
     private async Task HandleWithProps(string alias, JsonElement payload, JsonElement props)
     {
@@ -244,13 +245,18 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         => Task.FromResult(_view is { } view && (alias is null || string.Equals(view.Alias, alias, StringComparison.Ordinal)) ? view : null);
 
     /// <inheritdoc />
-    public Task Dispatch(Command command) => Send(command);
+    /// <exception cref="ActivationRefusedException">This screen is a child and the caller is not its parent (<see cref="ControlProps.NotFromParent"/>).</exception>
+    public Task Dispatch(Command command)
+        => NotFromParent() ? Task.FromException(new ActivationRefusedException(ControlProps.NotFromParent)) : Send(command);
 
     /// <inheritdoc />
+    /// <exception cref="ActivationRefusedException">This screen is a child and the caller is not its parent (<see cref="ControlProps.NotFromParent"/>).</exception>
     public Task Request(string signal, JsonElement? args = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);
-        return Handle(signal, ViewNodes.Payload(args, fieldValue: null, by: null));
+        return NotFromParent()
+            ? Task.FromException(new ActivationRefusedException(ControlProps.NotFromParent))
+            : Handle(signal, ViewNodes.Payload(args, fieldValue: null, by: null));
     }
 
     private Task Handle(string alias, JsonElement payload)
@@ -416,8 +422,3 @@ internal static class CommandScope
     }
 }
 
-internal static partial class ScreenLog
-{
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Dropped the props on {Signal} to {Neuron}: they came from {Via}, not its parent")]
-    public static partial void PropsDropped(ILogger logger, string signal, string neuron, string via);
-}

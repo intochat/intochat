@@ -7,8 +7,9 @@ import 'node_context.dart';
 
 /// What a check box neuron draws: its value from the neuron's view, its label,
 /// enabled and accessible name from the props its parent wrote on the slot.
-/// A tap sends `Toggle` to the neuron itself (`.`); the neuron owns the value
-/// and redraws, so nothing is kept here. Disabled props send nothing.
+/// A tap sends `SetChecked` with the opposite of the drawn value to the neuron
+/// itself (`.`): an absolute value, never a flip of a value the server may
+/// have moved on from. Nothing is kept here. Disabled props send nothing.
 Widget renderCheckBoxView(CheckBoxViewNode node, NodeContext ctx) {
   final props = CheckBoxProps.fromJson(ctx.slotProps);
   final enabled = props.isEnabled && ctx.interactive;
@@ -23,7 +24,9 @@ Widget renderCheckBoxView(CheckBoxViewNode node, NodeContext ctx) {
         value: isOn,
         label: props.label,
         enabled: enabled,
-        onChanged: enabled ? (_) => actCheckBoxToggle(ctx, '.') : null,
+        onChanged: enabled
+            ? (_) => actCheckBoxSetChecked(ctx, '.', isOn: !isOn)
+            : null,
       ),
     ),
   );

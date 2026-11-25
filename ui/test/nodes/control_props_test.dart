@@ -44,7 +44,8 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('terms')));
     await tester.pumpAndSettle();
-    expect(sent.single['signal'], 'control.toggle');
+    expect(sent.single['signal'], 'control.setChecked');
+    expect(sent.single['args'], {'isOn': true});
   });
 
   testWidgets('a toggle switch without props is enabled with no texts', (

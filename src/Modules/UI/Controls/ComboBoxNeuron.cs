@@ -14,7 +14,7 @@ using DigitalBrain.UI.Controls;
 namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A combo box: it owns the selected option and signals <see cref="SelectionChanged"/>.</summary>
-[Neuron("control.comboBox"), Emits(typeof(SelectionChanged))]
+[Neuron("control.comboBox"), Publishes(typeof(SelectionChanged))]
 public sealed class ComboBoxNeuron : ControlNeuron<ComboBoxState, ComboBoxProps>, IComboBoxControl
 {
     [On]

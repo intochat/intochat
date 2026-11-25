@@ -81,7 +81,6 @@ void main() {
     final sent = <Map<String, dynamic>>[];
     final ctx = _ctx(sent, slotPath: 'terms');
 
-    expect(await actCheckBoxToggle(ctx, '.'), ActivationOutcome.accepted);
     expect(
       await actCheckBoxSetChecked(ctx, '.', isOn: true),
       ActivationOutcome.accepted,
@@ -92,20 +91,15 @@ void main() {
         'kind': 'act',
         'neuron': 'local/apps/settings',
         'target': 'terms',
-        'signal': 'control.toggle',
-        'args': <String, Object?>{},
-      },
-      {
-        'kind': 'act',
-        'neuron': 'local/apps/settings',
-        'target': 'terms',
         'signal': 'control.setChecked',
         'args': {'isOn': true},
       },
     ]);
   });
 
-  testWidgets('a tap sends Toggle to the check box neuron', (tester) async {
+  testWidgets('a tap sends the opposite of the drawn value as SetChecked', (
+    tester,
+  ) async {
     final sent = <Map<String, dynamic>>[];
     await _pump(
       tester,
@@ -121,7 +115,8 @@ void main() {
     await tester.tap(find.byKey(const Key('terms')));
     await tester.pumpAndSettle();
 
-    expect(sent.single['signal'], 'control.toggle');
+    expect(sent.single['signal'], 'control.setChecked');
+    expect(sent.single['args'], {'isOn': true});
     expect(sent.single['target'], 'terms');
   });
 
@@ -158,7 +153,9 @@ void main() {
     await tester.tap(find.byKey(const Key('terms')));
     await tester.pumpAndSettle();
     expect(sent.single['target'], 'terms');
-    expect(sent.single['signal'], 'control.toggle');
+    // The child draws it checked, so the tap asks for unchecked.
+    expect(sent.single['signal'], 'control.setChecked');
+    expect(sent.single['args'], {'isOn': false});
   });
 
   testWidgets(

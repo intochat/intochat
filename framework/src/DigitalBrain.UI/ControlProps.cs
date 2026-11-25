@@ -20,6 +20,9 @@ public abstract record ControlProps(bool IsEnabled = true, string? AutomationNam
 {
     /// <summary>The refusal reason of a command to a slot whose props are disabled.</summary>
     public const string Disabled = "control.disabled";
+
+    /// <summary>The refusal reason of a command sent to a screen's child by anything but its parent: a child takes commands only through its parent's gates.</summary>
+    public const string NotFromParent = "control.notFromParent";
 }
 
 /// <summary>The props of a check box: what its parent decides.</summary>
@@ -27,7 +30,7 @@ public abstract record ControlProps(bool IsEnabled = true, string? AutomationNam
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the label.</param>
 /// <param name="IsOn">Set when the parent owns the value (a controlled control): drawn instead of the child's state, and a command
-/// only signals Toggled with the requested value; the child stores nothing. Null leaves the value to the child.</param>
+/// signals Toggled with the value it asks for, every time; the child stores nothing. Null leaves the value to the child.</param>
 public sealed record CheckBoxProps(string Label, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) : ControlProps(IsEnabled, AutomationName);
 
 /// <summary>The props of a toggle switch: what its parent decides.</summary>
@@ -37,7 +40,7 @@ public sealed record CheckBoxProps(string Label, bool IsEnabled = true, string? 
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the label.</param>
 /// <param name="IsOn">Set when the parent owns the value (a controlled control): drawn instead of the child's state, and a command
-/// only signals Toggled with the requested value; the child stores nothing. Null leaves the value to the child.</param>
+/// signals Toggled with the value it asks for, every time; the child stores nothing. Null leaves the value to the child.</param>
 public sealed record ToggleSwitchProps(string Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null)
     : ControlProps(IsEnabled, AutomationName);
 

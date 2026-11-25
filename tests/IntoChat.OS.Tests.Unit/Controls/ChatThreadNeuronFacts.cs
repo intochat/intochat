@@ -170,10 +170,10 @@ public sealed class ChatThreadNeuronFacts
     {
         await using var thread = new ControlHarness(typeof(ChatThreadNeuron));
         await thread.Send(new ImportMessages([User("m1", "hi"), Failed("m2")]));
-        var view = await thread.Screen.Read();
+        var view = await thread.Read();
 
-        await thread.Screen.Click(ChatThreadProps.ComposerKey, "typed text");
-        await thread.Screen.Click(ChatThreadProps.RetryKeyOf("m2"));
+        await thread.Click(ChatThreadProps.ComposerKey, "typed text");
+        await thread.Click(ChatThreadProps.RetryKeyOf("m2"));
 
         var published = thread.Published();
         Assert.Equal("typed text", Assert.IsType<Submitted>(published[0]).Values["text"]);
@@ -240,10 +240,10 @@ public sealed class ChatThreadNeuronFacts
     {
         await using var thread = new ControlHarness(typeof(ChatThreadNeuron));
         await thread.Send(new ImportMessages([]));
-        var view = await thread.Screen.Read();
+        var view = await thread.Read();
 
-        await thread.Screen.Click(ChatThreadProps.SelectModelKey, "gpt-5.4");
-        await thread.Screen.Click(ChatThreadProps.PinModelKey, "claude-sonnet-5");
+        await thread.Click(ChatThreadProps.SelectModelKey, "gpt-5.4");
+        await thread.Click(ChatThreadProps.PinModelKey, "claude-sonnet-5");
 
         var published = thread.Published();
         var switched = Assert.IsType<ChatModelSelected>(published[0]);

@@ -31,7 +31,6 @@ public sealed class DartCommandsFacts
     public void A_sample_control_neuron_gets_typed_senders_and_a_catalog_entry()
     {
         var dart = NodeSchema.GenerateCommands([typeof(SampleCheckBox)]);
-        Assert.Contains("Future<ActivationOutcome> actSampleCheckBoxToggle(NodeContext ctx, String address) =>\n    ctx.act(address, 'control.toggle', {});", dart, StringComparison.Ordinal);
         Assert.Contains("actSampleCheckBoxSetChecked(NodeContext ctx, String address, {required bool isOn}) =>\n    ctx.act(address, 'control.setChecked', {'isOn': isOn});", dart, StringComparison.Ordinal);
         Assert.DoesNotContain("Unrelated", dart, StringComparison.Ordinal);
 
@@ -47,12 +46,9 @@ public sealed class DartCommandsFacts
 
     internal sealed record Unrelated : Signal;
 
-    [Emits(typeof(Toggled))]
+    [Publishes(typeof(Toggled))]
     internal sealed class SampleCheckBox : Screen<SampleCheckBoxState>
     {
-        [On]
-        public Task Toggle(Toggle _) => Show(new SampleCheckBoxState { IsOn = !State.IsOn }, new Toggled(!State.IsOn));
-
         [On]
         public Task SetChecked(SetChecked command) => Show(new SampleCheckBoxState { IsOn = command.IsOn }, new Toggled(command.IsOn));
 
@@ -72,7 +68,7 @@ public sealed class DartCommandsFacts
         internal sealed class Empty;
 
         [On]
-        public Task Toggle(Toggle _) => Task.CompletedTask;
+        public Task SetChecked(SetChecked _) => Task.CompletedTask;
 
         protected override View Render(Empty state) => throw new NotSupportedException();
     }

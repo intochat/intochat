@@ -6,11 +6,11 @@ using IntoChat.OS.Modules.UI.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 
-// A control neuron's [Emits] is what the generator and the showcase catalog tell clients it publishes; reflection cannot see
-// what it passes to Show, so this runs every command (sent to the neuron directly; the parent's props gate is SlotPropsFacts') of every control neuron and holds [Emits] to what was really published.
-public sealed class ControlEmitsFacts
+// A control neuron's [Publishes] is what the generator and the showcase catalog tell clients it publishes; reflection cannot see
+// what it passes to Show, so this runs every command (through a harness parent without props; the props gate is SlotPropsFacts') of every control neuron and holds [Publishes] to what was really published.
+public sealed class ControlPublishesFacts
 {
-    private static readonly string CommandsNamespace = typeof(DigitalBrain.UI.Commands.Toggle).Namespace!;
+    private static readonly string CommandsNamespace = typeof(DigitalBrain.UI.Commands.SetChecked).Namespace!;
 
     public static TheoryData<string> Neurons()
         => [.. typeof(CheckBoxNeuron).Assembly.GetTypes()
@@ -18,7 +18,7 @@ public sealed class ControlEmitsFacts
             .Select(type => type.FullName!).Order(StringComparer.Ordinal)];
 
     [Theory, MemberData(nameof(Neurons))]
-    public async Task Emits_lists_exactly_what_its_commands_publish(string neuronName)
+    public async Task Publishes_lists_exactly_what_its_commands_publish(string neuronName)
     {
         var neuron = typeof(CheckBoxNeuron).Assembly.GetType(neuronName)!;
         Assert.True(ControlSamples.All.TryGetValue(neuron, out var sample), $"{neuron.Name} has no row in ControlSamples.");
@@ -45,9 +45,9 @@ public sealed class ControlEmitsFacts
         Assert.True(neverAccepted.Length == 0, $"Every {neuron.Name} sample of {string.Join(", ", neverAccepted)} was refused.");
 
         var published = control.Published().Select(signal => signal.GetType()).Distinct().ToHashSet();
-        var declared = neuron.GetCustomAttributes<EmitsAttribute>().Select(emits => emits.Signal).ToHashSet();
-        Assert.True(published.IsSubsetOf(declared), $"{neuron.Name} publishes {string.Join(", ", published.Except(declared).Select(t => t.Name))} without [Emits].");
-        Assert.True(declared.IsSubsetOf(published), $"{neuron.Name} declares [Emits] {string.Join(", ", declared.Except(published).Select(t => t.Name))} that no command published.");
+        var declared = neuron.GetCustomAttributes<PublishesAttribute>().Select(emits => emits.Signal).ToHashSet();
+        Assert.True(published.IsSubsetOf(declared), $"{neuron.Name} publishes {string.Join(", ", published.Except(declared).Select(t => t.Name))} without [Publishes].");
+        Assert.True(declared.IsSubsetOf(published), $"{neuron.Name} declares [Publishes] {string.Join(", ", declared.Except(published).Select(t => t.Name))} that no command published.");
     }
 
     [Fact]
