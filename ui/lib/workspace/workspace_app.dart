@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import '../connections/connect_window.dart';
 import '../desktop/command_palette.dart';
+import '../desktop/guest_status_pill.dart';
 import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
 import 'apps/app_activations.dart';
@@ -66,6 +67,10 @@ class WorkspaceApp extends StatefulWidget {
     this.kernelBaseUri,
     this.statusMessage,
     this.programmingClient,
+    this.isGuest,
+    this.isEphemeral,
+    this.guestRemaining,
+    this.onSaveGuestBrain,
   });
   final WorkspaceStore? store;
   final Future<void> Function()? onSwitchAccount;
@@ -74,6 +79,10 @@ class WorkspaceApp extends StatefulWidget {
   final OpenUrl? onOpenUrl;
   final String? statusMessage;
   final IntoChatOSUiClient? programmingClient;
+  final bool? isGuest;
+  final bool? isEphemeral;
+  final Duration? guestRemaining;
+  final VoidCallback? onSaveGuestBrain;
   @override
   State<WorkspaceApp> createState() => WorkspaceAppState();
 }
@@ -100,6 +109,31 @@ class WorkspaceAppState extends State<WorkspaceApp>
             preferences.writePreferences(widget.persistenceKey, value),
       );
   late final _localPreferences = WorkspaceLocalPreferences(store);
+  bool _guestDownloadModalOpen = false;
+
+  bool get _isGuestSession =>
+      widget.isGuest ??
+      widget.isEphemeral ??
+      ((widget.programmingClient?.isGuestSession ?? false) ||
+          (_brain?.startsWith('try-') ?? false));
+
+  Duration? get _guestRemaining =>
+      widget.guestRemaining ?? widget.programmingClient?.guestRemaining;
+
+  Uri? get _downloadHubUri =>
+      (widget.kernelBaseUri ?? widget.programmingClient?.baseUri)?.resolve(
+        '/download',
+      );
+
+  void _triggerSaveGuestBrain() {
+    if (widget.onSaveGuestBrain != null) {
+      widget.onSaveGuestBrain!();
+      return;
+    }
+    if (widget.onSwitchAccount != null) {
+      unawaited(widget.onSwitchAccount!());
+    }
+  }
 
   // The apps an OpenWindow intent may open: the launcher's and the brain's installed apps.
   Set<String> _knownApps = knownAppsFor(const []);
@@ -1028,6 +1062,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                       method,
                                       args,
                                     ),
+                                isGuest: _isGuestSession,
+                                guestRemaining: _guestRemaining,
+                                onSaveBrain: _triggerSaveGuestBrain,
+                                onOpenUrl: widget.onOpenUrl == null
+                                    ? null
+                                    : (uri) =>
+                                          unawaited(widget.onOpenUrl!(uri)),
+                                downloadHubUri: _downloadHubUri,
                               )
                             : ViewHost(
                                 key: ValueKey(
@@ -1190,6 +1232,36 @@ class WorkspaceAppState extends State<WorkspaceApp>
                               BarLayout.values.length];
                     });
                   },
+                ),
+              if (_isGuestSession &&
+                  !_isDesktopRoot &&
+                  widget.programmingClient?.chromeless != true)
+                Positioned(
+                  top: 10,
+                  left: 16,
+                  right: 16,
+                  child: SafeArea(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: GuestStatusPill(
+                        remaining: _guestRemaining,
+                        onSaveBrain: _triggerSaveGuestBrain,
+                        onDownloadApp: () =>
+                            setState(() => _guestDownloadModalOpen = true),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_guestDownloadModalOpen)
+                Positioned.fill(
+                  child: DownloadAppModal(
+                    onClose: () =>
+                        setState(() => _guestDownloadModalOpen = false),
+                    onOpenUrl: widget.onOpenUrl == null
+                        ? null
+                        : (uri) => unawaited(widget.onOpenUrl!(uri)),
+                    downloadHubUri: _downloadHubUri,
+                  ),
                 ),
             ],
           ),
