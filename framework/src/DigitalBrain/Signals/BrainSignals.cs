@@ -26,6 +26,14 @@ public sealed record Created(Owner Owner) : Signal;
 [Signal("brain.activated")]
 public sealed record Activated(Owner Owner) : Signal;
 
+/// <summary>
+/// Published once when an ephemeral brain is promoted in-place into durable persistent storage via <see cref="IBrain.Claim"/>.
+/// </summary>
+/// <param name="Owner">The durable owner bound to the claimed brain.</param>
+/// <param name="OwnerPrincipalId">The durable principal identifier that claimed this brain.</param>
+[Signal("brain.claimed")]
+public sealed record Claimed(Owner Owner, string OwnerPrincipalId) : Signal;
+
 /// <summary>A neuron of this brain wrote its state for the first time. Published by the brain's <see cref="IBrain"/>.</summary>
 /// <param name="Type">The neuron's grain type.</param>
 /// <param name="Key">The neuron's key.</param>

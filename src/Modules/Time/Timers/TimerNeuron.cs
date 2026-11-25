@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Time.Timers.Signals;
@@ -9,7 +10,7 @@ namespace IntoChat.OS.Modules.Time.Timers;
 // A plain neuron (06-03): the schedule is an activation timer of the runtime host, so it dies with the activation and a new
 // activation needs another Start. Each tick is a turn (Neuron.OnReminder) that publishes TimerTick.
 [Neuron("timer")]
-internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) : DigitalBrain.Neurons.Neuron, ITimer
+internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null, IBrainCapabilityPolicy? capabilityPolicy = null) : DigitalBrain.Neurons.Neuron, ITimer
 {
     private const string Schedule = "schedule";
     internal const int MaxConsecutiveFailures = 3;
@@ -19,8 +20,17 @@ internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) :
     private bool _once;
     private int _failures;
 
-    public Task Start(TimeSpan dueTime, TimeSpan? period = null)
+    public async Task Start(TimeSpan dueTime, TimeSpan? period = null)
     {
+        if (capabilityPolicy is not null)
+        {
+            var decision = await capabilityPolicy.EvaluateAsync(Id.Brain.Value, BrainCapability.BackgroundAutomation, Id.ToString());
+            if (!decision.Allowed)
+            {
+                throw new ClaimRequiredException(decision);
+            }
+        }
+
         if (dueTime < TimeSpan.Zero || dueTime > MaximumDelay)
         { throw new ArgumentOutOfRangeException(nameof(dueTime)); }
         if (period is { } interval)
@@ -43,7 +53,6 @@ internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) :
         _running = true;
         _once = period is null;
         _failures = 0;
-        return Task.CompletedTask;
     }
 
     public Task Stop()

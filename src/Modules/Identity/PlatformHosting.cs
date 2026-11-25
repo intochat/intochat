@@ -49,6 +49,7 @@ public static class PlatformHosting
         services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<IBrainBirths>(provider => provider.GetRequiredService<BrainBirths>());
+        services.TryAddSingleton<BrainClaimService>();
         services.TryAddSingleton<PrincipalPasswords>();
         silo.AddStartupTask<IntoChat.OS.Modules.Identity.Accounts.OwnerBootstrap>(ServiceLifecycleStage.Active + 1);
         services.TryAddSingleton(provider => new IntoChat.OS.Modules.Identity.External.PrincipalLinks(provider.GetRequiredService<AuthorityNeurons>(),

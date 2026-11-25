@@ -12,4 +12,5 @@ public static class AuthKeys
     public const string TrustedIssuers = SectionName + ":TrustedIssuers";
     public const string PrincipalLinks = SectionName + ":PrincipalLinks";
     public const string ExternalReturnOrigins = SectionName + ":ExternalReturnOrigins";
+    public const string Day0EphemeralTry = SectionName + ":Day0EphemeralTry";
 }

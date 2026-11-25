@@ -150,6 +150,9 @@ internal static class OrleansRuntimeAot
         AddClassSurrogate<ReleasedIntegration, ReleasedIntegrationSurrogate, ReleasedIntegrationSurrogateConverter>(services);
         AddClassSurrogate<Trace, TraceSurrogate, TraceSurrogateConverter>(services);
         AddClassSurrogate<Owner, OwnerSurrogate, OwnerSurrogateConverter>(services);
+        AddClassSurrogate<BrainResidency, BrainResidencySurrogate, BrainResidencySurrogateConverter>(services);
+        AddClassSurrogate<BrainResidency.Ephemeral, BrainResidencySurrogate, EphemeralBrainResidencySurrogateConverter>(services);
+        AddClassSurrogate<BrainResidency.Persistent, BrainResidencySurrogate, PersistentBrainResidencySurrogateConverter>(services);
         AddClassSurrogate<BrainState, BrainStateSurrogate, BrainStateSurrogateConverter>(services);
         AddClassSurrogate<SealedSecret, SealedSecretSurrogate, SealedSecretSurrogateConverter>(services);
         AddClassSurrogate<SecretRef, SecretRefSurrogate, SecretRefSurrogateConverter>(services);
@@ -368,9 +371,17 @@ internal static class OrleansRuntimeAot
 
         public TField DeepCopy(TField input, CopyContext context)
         {
-            if (!typeof(TField).IsValueType && input is not null && context.TryGetCopy<object>(input, out var existing))
+            if (!typeof(TField).IsValueType)
             {
-                return (TField)existing;
+                if (input is null)
+                {
+                    return default!;
+                }
+
+                if (context.TryGetCopy<object>(input, out var existing))
+                {
+                    return (TField)existing;
+                }
             }
 
             var surrogate = _converter.ConvertToSurrogate(in input);

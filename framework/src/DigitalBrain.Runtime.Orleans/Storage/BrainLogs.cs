@@ -1,11 +1,13 @@
+using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using Microsoft.Extensions.Options;
 using Orleans.Serialization;
 
 namespace DigitalBrain.Runtime.Orleans;
 
-// The open brain logs of this silo, one per brain, each claimed through the configured ownership.
-internal sealed class BrainLogs : IAsyncDisposable
+// The open brain logs of this silo, one per brain, each claimed through the configured ownership
+// (or kept purely in RAM while registered as ephemeral until promoted in-place via IBrainResidencyStorage.PromoteAsync).
+internal sealed class BrainLogs : IAsyncDisposable, IBrainResidencyStorage
 {
     private readonly BrainStorageKeys keys;
     private readonly Serializer serializer;
@@ -17,12 +19,13 @@ internal sealed class BrainLogs : IAsyncDisposable
     private readonly IBrainLogFiles? files;
     private readonly IBrainLogOwnership ownership;
     private readonly BrainStoreOptions storeOptions;
+    private readonly IBrainResidencyRegistry? residencyRegistry;
     private bool disposed;
 
     internal Action<BrainLog>? OnLogCreated { get; set; }
 
     public BrainLogs(BrainStorageKeys keys, Serializer serializer, JournalPayloads payloads, TimeProvider time, IRetentionPolicy retention,
-        IOptions<BrainStoreOptions> options, IBrainLogOwnership ownership, IBrainLogFiles? files = null)
+        IOptions<BrainStoreOptions> options, IBrainLogOwnership ownership, IBrainLogFiles? files = null, IBrainResidencyRegistry? residencyRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         this.ownership = ownership;
@@ -33,6 +36,7 @@ internal sealed class BrainLogs : IAsyncDisposable
         this.time = time;
         this.retention = retention;
         this.storeOptions = options.Value;
+        this.residencyRegistry = residencyRegistry;
         Directory.CreateDirectory(options.Value.Directory);
     }
 
@@ -70,6 +74,55 @@ internal sealed class BrainLogs : IAsyncDisposable
         }
     }
 
+    public async Task PromoteAsync(string brainId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        var log = await For(brainId).WaitAsync(ct).ConfigureAwait(false);
+        if (!log.IsEphemeral) { return; }
+
+        var directory = keys.DirectoryOf(brainId);
+        var lease = await ownership.ClaimAsync(directory, brainId, ct).ConfigureAwait(false);
+        try
+        {
+            var key = await keys.GetOrCreate(brainId, ct).ConfigureAwait(false);
+            await log.PromoteToDurableAsync(directory, key, lease, ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            await lease.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    public async Task EvictAsync(string brainId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        Task<BrainLog>? removed = null;
+        lock (gate)
+        {
+            if (disposed) { return; }
+            if (logs.TryGetValue(brainId, out var existing))
+            {
+                // Never evict a brain that has already been promoted to durable storage.
+                if (existing.IsCompletedSuccessfully && !existing.Result.IsEphemeral) { return; }
+                logs.Remove(brainId);
+                removed = existing;
+            }
+        }
+
+        if (removed is null) { return; }
+        BrainLog log;
+        try { log = await removed.WaitAsync(ct).ConfigureAwait(false); }
+        catch { return; }
+        if (log.IsEphemeral)
+        {
+            await log.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    public long GetMemoryUsedBytes(string brainId)
+        => TryOpen(brainId)?.MemoryUsedBytes ?? 0;
+
     private (Task<BrainLog> Log, BrainLog? Evicted) Lookup(string brainId)
     {
         lock (gate)
@@ -90,10 +143,18 @@ internal sealed class BrainLogs : IAsyncDisposable
     }
 
     // Claims the brain's ownership before touching its key, so a silo that does not own the brain creates nothing.
+    // Ephemeral brains bypass disk/lease/key creation completely and live strictly in RAM until PromoteAsync.
     private async Task<BrainLog> Open(string brainId)
     {
         try
         {
+            if (residencyRegistry is not null && residencyRegistry.TryGetEphemeral(brainId, out var ephemeral))
+            {
+                var ramLog = BrainLog.CreateEphemeral(brainId, ephemeral.MaxMemoryBytes, serializer, payloads, time, retention, files, storeOptions);
+                OnLogCreated?.Invoke(ramLog);
+                return ramLog;
+            }
+
             var directory = keys.DirectoryOf(brainId);
             var lease = await ownership.ClaimAsync(directory, brainId, CancellationToken.None);
             try

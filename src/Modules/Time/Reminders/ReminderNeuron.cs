@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
@@ -9,20 +10,29 @@ namespace IntoChat.OS.Modules.Time.Reminders;
 // A plain neuron (06-03): one durable reminder named "tick" on the runtime host, which reactivates the neuron; each tick is a
 // turn (Neuron.OnReminder) that publishes ReminderTick. A reminder registered on the retired grain type is not migrated.
 [Neuron("reminder")]
-internal sealed class ReminderNeuron : DigitalBrain.Neurons.Neuron, IReminder
+internal sealed class ReminderNeuron(IBrainCapabilityPolicy? capabilityPolicy = null) : DigitalBrain.Neurons.Neuron, IReminder
 {
     private const string Name = "tick";
     // Left by the removed automation job runner; retired when it fires.
     private const string RetiredJob = "job";
 
-    public Task Start(TimeSpan dueTime, TimeSpan period)
+    public async Task Start(TimeSpan dueTime, TimeSpan period)
     {
+        if (capabilityPolicy is not null)
+        {
+            var decision = await capabilityPolicy.EvaluateAsync(Id.Brain.Value, BrainCapability.BackgroundAutomation, Id.ToString());
+            if (!decision.Allowed)
+            {
+                throw new ClaimRequiredException(decision);
+            }
+        }
+
         // The host also refuses a period under its configured minimum before writing the registration.
         if (dueTime < TimeSpan.Zero || dueTime > TimerNeuron.MaximumDelay)
         { throw new ArgumentOutOfRangeException(nameof(dueTime)); }
         if (period <= TimeSpan.Zero || period > TimerNeuron.MaximumDelay)
         { throw new ArgumentOutOfRangeException(nameof(period)); }
-        return Context.Reminders.Start(Name, dueTime, period);
+        await Context.Reminders.Start(Name, dueTime, period);
     }
 
     public Task Stop() => Context.Reminders.Stop(Name);

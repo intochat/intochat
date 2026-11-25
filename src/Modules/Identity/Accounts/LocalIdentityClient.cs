@@ -8,8 +8,12 @@ using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Identity.Accounts;
 
-// The in-module directory facade. State lives on DirectoryNeuron; product callers use ICapabilityBroker.
-internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthority? edge = null, IntoChat.OS.Modules.Identity.Grants.IEdgeGrantsCache? edgeCache = null) : IIdentityClient
+// The in-module directory facade. State lives on DirectoryNeuron; active ephemeral brains live purely in RAM in EphemeralBrainRegistry.
+internal sealed class LocalIdentityClient(
+    AuthorityNeurons neurons,
+    EdgeAuthority? edge = null,
+    IntoChat.OS.Modules.Identity.Grants.IEdgeGrantsCache? edgeCache = null,
+    EphemeralBrainRegistry? ephemeral = null) : IIdentityClient
 {
     private IDirectoryStore Directory => neurons.Directory();
 
@@ -25,8 +29,16 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthorit
         await call();
     }
 
-    public Task<Account?> ReadAccount(string accountId) => SystemCall(() => Directory.ReadAccount(accountId));
-    public Task<Account?> OwnerOfBrain(string brainId) => SystemCall(() => Directory.OwnerOfBrain(brainId));
+    public Task<Account?> ReadAccount(string accountId)
+        => ephemeral is not null && ephemeral.TryGet(accountId, out var rec)
+            ? Task.FromResult<Account?>(rec.Account)
+            : SystemCall(() => Directory.ReadAccount(accountId));
+
+    public Task<Account?> OwnerOfBrain(string brainId)
+        => ephemeral is not null && ephemeral.TryGet(brainId, out var rec)
+            ? Task.FromResult<Account?>(rec.Account)
+            : SystemCall(() => Directory.OwnerOfBrain(brainId));
+
     public Task EnsureAccount(Account account) => SystemCall(() => Directory.EnsureAccount(account));
     public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind)
         => SystemCall(() => Directory.CreateBrain(accountId, principalId, operationId, displayName, kind));
@@ -35,28 +47,63 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthorit
     public Task<bool> IsRegistered(string principalId) => SystemCall(() => Directory.IsRegistered(principalId));
     public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => SystemCall(() => Directory.RegisterPrincipal(principalId, displayName));
     public Task<BrainProvision?> CompleteRegistration(string principalId) => SystemCall(() => Directory.CompleteRegistration(principalId));
-    public Task<BrainEntry[]> BrainsOf(string principalId) => SystemCall(() => Directory.BrainsOf(principalId));
-    public Task<BrainKind> KindOf(string brainScopeId) => SystemCall(() => Directory.KindOf(brainScopeId));
-    public Task<bool> BrainExists(string brainScopeId) => SystemCall(() => Directory.BrainExists(brainScopeId));
-    public Task<Member?> Membership(string brainScopeId, string principalId) => SystemCall(() => Directory.Membership(brainScopeId, principalId));
+
+    public Task<BrainEntry[]> BrainsOf(string principalId)
+        => ephemeral is not null && ephemeral.TryGet(principalId, out var rec)
+            ? Task.FromResult<BrainEntry[]>([new BrainEntry(rec.BrainId, BrainKind.Personal)])
+            : SystemCall(() => Directory.BrainsOf(principalId));
+
+    public Task<BrainKind> KindOf(string brainScopeId)
+        => ephemeral is not null && ephemeral.Contains(brainScopeId)
+            ? Task.FromResult(BrainKind.Personal)
+            : SystemCall(() => Directory.KindOf(brainScopeId));
+
+    public Task<bool> BrainExists(string brainScopeId)
+        => ephemeral is not null && ephemeral.Contains(brainScopeId)
+            ? Task.FromResult(true)
+            : SystemCall(() => Directory.BrainExists(brainScopeId));
+
+    public Task<Member?> Membership(string brainScopeId, string principalId)
+        => ephemeral is not null && ephemeral.TryGet(brainScopeId, out var rec)
+            ? Task.FromResult<Member?>(string.Equals(rec.Owner.PrincipalId, principalId, StringComparison.Ordinal) ? rec.Owner : null)
+            : SystemCall(() => Directory.Membership(brainScopeId, principalId));
+
     public Task<Member?> EnsureMember(Member member) => SystemCall(() => Directory.EnsureMember(member));
     public Task RemoveMember(string brainScopeId, string accountId) => SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
     public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
-    // Decided here, from the caller value, over the directory's state. A one-time grant the decision consumes is spent on the
-    // directory in one turn; when another call spent it first, this call is refused.
+
+    // Decided here, from the caller value, over the directory's state (or RAM registry for active ephemeral brains).
     public Task<CallDecision?> Authorize(Caller? caller, CallRequest request)
-        => BrainAuthorityDecisions.Authorize(caller, request,
+    {
+        if (caller is not null && ephemeral is not null && ephemeral.TryGetAuthorityRow(caller.Brain.Value, out var row))
+        {
+            return BrainAuthorityDecisions.Decide(row, caller, request, edgeCache);
+        }
+        return BrainAuthorityDecisions.Authorize(caller, request,
             (brain, grantsBrain) => SystemCall(() => Directory.AuthorityOf(brain, grantsBrain)),
             (brain, grantsBrain, ids) => SystemCall(() => Directory.SpendOnce(brain, grantsBrain, ids)),
             edgeCache);
-    public Task<Grant[]> ListGrants(string brainScopeId) => SystemCall(() => Directory.ListGrants(brainScopeId));
+    }
+
+    public Task<Grant[]> ListGrants(string brainScopeId)
+        => ephemeral is not null && ephemeral.TryGet(brainScopeId, out var rec)
+            ? Task.FromResult(rec.ToAuthorityRow().Grants)
+            : SystemCall(() => Directory.ListGrants(brainScopeId));
+
     // The owner methods keep the stamped owner: no module stamp replaces it.
     public Task<Grant> GrantAsOwner(string brainId, Grant grant) => Directory.GrantAsOwner(brainId, grant);
-    public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => SystemCall(() => Directory.GrantShipped(brainScopeId, grants));
+
+    public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants)
+        => ephemeral is not null && ephemeral.TryAddShippedGrants(brainScopeId, grants, out var added)
+            ? Task.FromResult(added)
+            : SystemCall(() => Directory.GrantShipped(brainScopeId, grants));
+
     public Task RevokeAsOwner(string brainId, string grantId) => Directory.RevokeAsOwner(brainId, grantId);
     [Obsolete("Use RevokeAsOwner with grantId")]
     public Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode)
         => Directory.RevokeAsOwner(brainId, appId, semanticTypeId, mode);
     public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
         => SystemCall(() => Directory.RedeemExternalTicket(issuer, email, displayName));
+    public Task<BrainProvision> ClaimEphemeralBrain(string brainScopeId, string principalId, string displayName, Grant[]? carriedGrants = null)
+        => SystemCall(() => Directory.ClaimEphemeralBrain(brainScopeId, principalId, displayName, carriedGrants));
 }

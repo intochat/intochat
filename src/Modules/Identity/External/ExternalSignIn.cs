@@ -75,21 +75,34 @@ internal static class ExternalSignIn
         var email = ExternalSignInTicket.NormalizeEmail(claims.Email)!;
         var principalId = PrincipalOf(claims.Issuer, email);
         var displayName = string.IsNullOrWhiteSpace(claims.Name) ? email : claims.Name.Trim();
-        var provisioning = http.RequestServices.GetRequiredService<IIdentityClient>();
-        // Idempotent: a returning principal completes to its existing membership and brain; a new one registers once.
-        BrainProvision provision;
-        try
+        var claimService = http.RequestServices.GetService<BrainClaimService>();
+        Member member;
+        bool claimedInPlace = false;
+        bool newBrain = false;
+        if (claimService is not null && await claimService.TryClaimFromSessionAsync(http, principalId, displayName, http.RequestAborted) is { } claimed)
         {
-            provision = await provisioning.CompleteRegistration(principalId).WaitAsync(http.RequestAborted)
-                ?? await provisioning.RegisterPrincipal(principalId, displayName).WaitAsync(http.RequestAborted);
+            member = claimed;
+            claimedInPlace = true;
         }
-        catch (InvalidOperationException)
+        else
         {
-            // A concurrent first sign-in registered the principal between the two calls; complete to its membership.
-            provision = await provisioning.CompleteRegistration(principalId).WaitAsync(http.RequestAborted)
-                ?? throw new InvalidOperationException("External principal registration did not complete.");
+            var provisioning = http.RequestServices.GetRequiredService<IIdentityClient>();
+            // Idempotent: a returning principal completes to its existing membership and brain; a new one registers once.
+            BrainProvision provision;
+            try
+            {
+                provision = await provisioning.CompleteRegistration(principalId).WaitAsync(http.RequestAborted)
+                    ?? await provisioning.RegisterPrincipal(principalId, displayName).WaitAsync(http.RequestAborted);
+            }
+            catch (InvalidOperationException)
+            {
+                // A concurrent first sign-in registered the principal between the two calls; complete to its membership.
+                provision = await provisioning.CompleteRegistration(principalId).WaitAsync(http.RequestAborted)
+                    ?? throw new InvalidOperationException("External principal registration did not complete.");
+            }
+            newBrain = provision.NewBrain;
+            member = await births.Born(provision).WaitAsync(http.RequestAborted);
         }
-        var member = await births.Born(provision).WaitAsync(http.RequestAborted);
         Claim[] session =
         [
             new(AmrClaim, claims.Amr),
@@ -102,7 +115,8 @@ internal static class ExternalSignIn
                 Member = member,
                 Claims = session.ToDictionary(claim => claim.Type, claim => claim.Value, StringComparer.Ordinal),
             }, http.RequestAborted);
-        log.LogInformation("External sign-in from {Issuer} for {Principal} ({NewBrain})", claims.Issuer, principalId, provision.NewBrain ? "new brain" : "existing brain");
+        log.LogInformation("External sign-in from {Issuer} for {Principal} ({Outcome})", claims.Issuer, principalId,
+            claimedInPlace ? "claimed ephemeral brain in-place" : (newBrain ? "new brain" : "existing brain"));
         return Results.Redirect(returnUrl);
     }
 }

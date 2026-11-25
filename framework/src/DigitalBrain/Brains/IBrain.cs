@@ -26,6 +26,20 @@ public interface IBrain
     /// </summary>
     Task Create(Owner owner);
 
+    /// <summary>
+    /// Brings an ephemeral brain into existence purely in RAM under <paramref name="residency"/>.
+    /// Publishes <see cref="Signals.Created"/> once and awaits its handlers, so the visitor lands in a provisioned desktop.
+    /// Calling it on an already-created brain changes nothing.
+    /// </summary>
+    Task CreateEphemeral(Owner owner, BrainResidency.Ephemeral residency);
+
+    /// <summary>
+    /// Promotes an ephemeral brain in-place into durable persistent storage owned by <paramref name="ownerPrincipalId"/>,
+    /// preserving all in-memory state and conversation history without reloading or recreating the brain.
+    /// Idempotent when already claimed by the same <paramref name="ownerPrincipalId"/>.
+    /// </summary>
+    Task<BrainState> Claim(string ownerPrincipalId, string? accountId = null);
+
     /// <summary>The brain's state as persisted.</summary>
     /// <exception cref="InvalidOperationException">The brain has not been created.</exception>
     [ReadOnlyCall] Task<BrainState> Read();

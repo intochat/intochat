@@ -61,6 +61,9 @@ internal interface IDirectoryStore
     // The one-time mapping step of the cloud/OS split: linkedPrincipalId (a trusted issuer's principal, ExternalSignIn.PrincipalOf)
     // signs in to principalId's default membership and joins every brain principalId is a member of, with the same role.
     Task<PrincipalLinkResult> LinkPrincipal(string principalId, string linkedPrincipalId);
+
+    // Promotes an ephemeral in-memory brainScopeId into the durable directory under principalId, preserving the exact BrainId.
+    Task<BrainProvision> ClaimEphemeralBrain(string brainScopeId, string principalId, string displayName, Grant[]? carriedGrants = null);
 }
 
 internal enum PrincipalLinkResult
@@ -244,6 +247,101 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         next = UpsertPrincipal(next, linked with { DefaultMembership = membership with { PrincipalId = linkedPrincipalId }, RegistrationComplete = true });
         await Commit(next, membership.BrainId);
         return PrincipalLinkResult.Linked;
+    }
+
+    public async Task<BrainProvision> ClaimEphemeralBrain(string brainScopeId, string principalId, string displayName, Grant[]? carriedGrants = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainScopeId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        if (principalId.StartsWith(IntoChat.OS.Modules.Identity.Contracts.Accounts.GuestSurface.BrainPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("An ephemeral try identity cannot claim a brain.", nameof(principalId));
+        }
+
+        if (BrainOf(State, brainScopeId) is { OwnerProvisioned: true } existingBrain)
+        {
+            var existingOwner = existingBrain.Members.FirstOrDefault(member => member.Role == MemberRole.Owner);
+            if (existingOwner is not null && !string.Equals(existingOwner.PrincipalId, principalId, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("This brain is already claimed by another principal.");
+            }
+            if (existingOwner is not null)
+            {
+                return new BrainProvision(existingOwner, false);
+            }
+        }
+
+        var now = clock.GetUtcNow();
+        var effectiveDisplayName = string.IsNullOrWhiteSpace(displayName) ? principalId : displayName.Trim();
+        var existingPrincipal = PrincipalOf(State, principalId);
+        string accountId;
+        var next = State;
+
+        if (existingPrincipal?.DefaultMembership is { } existingDefault)
+        {
+            accountId = existingDefault.AccountId;
+            if (AccountOf(next, accountId) is null)
+            {
+                next = next with
+                {
+                    Accounts = [.. next.Accounts, new Account { AccountId = accountId, OwnerPrincipalId = principalId, Name = existingDefault.DisplayName, CreatedAt = existingDefault.JoinedAt }],
+                };
+            }
+        }
+        else
+        {
+            await Check("ClaimEphemeralBrain", new PrincipalIdIsValid(principalId));
+            accountId = Guid.NewGuid().ToString("N");
+            next = next with
+            {
+                Accounts = [.. next.Accounts, new Account { AccountId = accountId, OwnerPrincipalId = principalId, Name = effectiveDisplayName, CreatedAt = now }],
+            };
+        }
+
+        var member = new Member
+        {
+            PrincipalId = principalId,
+            AccountId = accountId,
+            BrainId = brainScopeId,
+            DisplayName = effectiveDisplayName,
+            Role = MemberRole.Owner,
+            JoinedAt = now,
+        };
+
+        var (provisioned, created) = await Provision("ClaimEphemeralBrain", next, member);
+        if (carriedGrants is { Length: > 0 } && BrainOf(provisioned, brainScopeId) is { } brainRow)
+        {
+            var merged = brainRow.Grants.ToList();
+            foreach (var grant in carriedGrants)
+            {
+                var normalized = Grant.Normalize(grant);
+                if (string.Equals(normalized.Grantee, "app:" + IntoChat.OS.Modules.Identity.Contracts.Accounts.GuestSurface.AppId, StringComparison.Ordinal))
+                { continue; }
+                if (merged.Select(Grant.Normalize).Any(held => !held.Revoked
+                    && string.Equals(held.Grantee, normalized.Grantee, StringComparison.Ordinal)
+                    && string.Equals(held.Target, normalized.Target, StringComparison.Ordinal)
+                    && string.Equals(held.Scope, normalized.Scope, StringComparison.Ordinal)))
+                { continue; }
+                merged.Add(normalized with { Owner = $"brain:{brainScopeId}", WorkspaceId = brainScopeId, GrantedAt = now });
+            }
+            provisioned = ReplaceBrain(provisioned, brainRow with { Grants = [.. merged] });
+        }
+
+        var row = PrincipalOf(provisioned, principalId) ?? new PrincipalRow { PrincipalId = principalId };
+        provisioned = UpsertPrincipal(provisioned, row with
+        {
+            DefaultMembership = row.DefaultMembership ?? member,
+            RegistrationComplete = true,
+        });
+        await Commit(provisioned, brainScopeId);
+        if (BrainOf(provisioned, brainScopeId) is { } finalBrain)
+        {
+            foreach (var grant in finalBrain.Grants)
+            {
+                await WriteGrant(brainScopeId, grant);
+            }
+        }
+        return new BrainProvision(member, created);
     }
 
     internal const string DirectoryModuleId = "identity.directory";

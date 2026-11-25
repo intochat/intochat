@@ -63,6 +63,11 @@ public static class AccountSession
                 return;
             }
 
+            if (GuestSurface.Is(principal))
+            {
+                context.RequestServices.GetService<DigitalBrain.Brains.IBrainResidencyRegistry>()?.Touch(principal.Brain.Value);
+            }
+
             using var entered = Edge(context).Enter(principal);
             // The framework's session surfaces (the journal tail among them) ask for an authenticated user with the principal
             // claim, as a cookie session carries. The Basic operator and the Open owner have no cookie, so those routes alone are
@@ -132,13 +137,17 @@ public static class AccountSession
 
     private static Caller? ResolvePrincipal(HttpContext context, IdentityPosture? posture, BasicCredential? credential)
     {
-        if (context.User.Identity?.IsAuthenticated == true)
+        var user = context.Items.TryGetValue(Day0EphemeralBootstrap.MintedPrincipalItemKey, out var minted) && minted is ClaimsPrincipal mintedPrincipal
+            ? mintedPrincipal
+            : context.User;
+
+        if (user.Identity?.IsAuthenticated == true)
         {
-            var principalId = DigitalBrain.Runtime.Http.SessionPrincipal.PrincipalId(context.User);
+            var principalId = DigitalBrain.Runtime.Http.SessionPrincipal.PrincipalId(user);
             if (!string.IsNullOrWhiteSpace(principalId))
             {
-                var accountId = context.User.FindFirst(DigitalBrain.Capabilities.Identity.SessionClaims.Account)?.Value ?? principalId;
-                var claimBrain = context.User.FindFirst(DigitalBrain.Capabilities.Identity.SessionClaims.Brain)?.Value;
+                var accountId = user.FindFirst(DigitalBrain.Capabilities.Identity.SessionClaims.Account)?.Value ?? principalId;
+                var claimBrain = user.FindFirst(DigitalBrain.Capabilities.Identity.SessionClaims.Brain)?.Value;
                 return Build(principalId, accountId, context, claimBrain);
             }
         }
@@ -209,9 +218,9 @@ public static class AccountSession
             return true;
         }
 
-        // The login and session endpoints exist to establish the session the gate would require.
+        // The login, session, and residency endpoints exist to establish or inspect the session the gate would require.
         var requested = request.Path.Value?.ToLowerInvariant();
-        if (requested is "/identity/session" or "/identity/logout" or PresenceProof.ExchangePath)
+        if (requested is "/identity/session" or "/identity/residency" or "/identity/logout" or PresenceProof.ExchangePath)
         {
             return true;
         }

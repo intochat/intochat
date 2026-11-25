@@ -1,3 +1,4 @@
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Modules.Identity.Contracts.Accounts;
@@ -6,4 +7,7 @@ namespace IntoChat.OS.Modules.Identity.Contracts.Accounts;
 public interface IBrainBirths
 {
     Task<Member> Born(BrainProvision provision);
+
+    Task<Member> BornEphemeral(Member owner, BrainResidency.Ephemeral residency)
+        => throw new NotSupportedException("Implementations must explicitly provide BornEphemeral.");
 }

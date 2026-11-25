@@ -10,6 +10,7 @@
       "admit",
       "brain.affine-placement",
       "brain.owner",
+      "brain.residency",
       "brain.state",
       "brain.trace",
       "catch-up",
@@ -66,6 +67,7 @@
     ],
     "signals": [
       "brain.activated",
+      "brain.claimed",
       "brain.created",
       "kernel.instance-created",
       "kernel.instance-retired",

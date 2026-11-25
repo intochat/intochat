@@ -20,6 +20,12 @@ internal sealed class AuthorityMirror(IEdgeGrantsCache? edgeCache = null)
         _states[brainScopeId] = state;
     }
 
+    public void Remove(string brainScopeId)
+    {
+        if (string.IsNullOrWhiteSpace(brainScopeId)) { return; }
+        _states.TryRemove(brainScopeId, out _);
+    }
+
     public async Task<(bool Decided, CallDecision? Decision)> TryDecide(Caller? caller, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

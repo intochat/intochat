@@ -101,7 +101,7 @@ internal static class LiveSignalEndpoints
     }
 
     public static void Map(IEndpointRouteBuilder endpoints)
-        => OsBrainRoutes.Group(endpoints).MapGet("/live", Live);
+        => OsBrainRoutes.Group(endpoints).MapGet("/live", Live).WithMetadata(IntoChat.OS.Modules.Identity.Contracts.Accounts.GuestSurface.Door.Instance);
 
     private static async Task<IResult> Live(HttpContext http, ILoggerFactory logs, CancellationToken ct)
     {

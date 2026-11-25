@@ -43,6 +43,12 @@ public sealed class AuthOptions
     // Absolute return URLs external sign-in may redirect to (https origins); local paths are always allowed.
     //   IntoChatOS:Auth:ExternalReturnOrigins:n
     public string[] ExternalReturnOrigins { get; set; } = [];
+
+    // When true, unauthenticated visitors arriving at GET / (or /auth/check, /identity/session) are automatically
+    // issued an HttpOnly, SameSite=Lax ephemeral session bound to an in-memory Ephemeral brain so they land directly
+    // inside the real OS desktop with zero login wall.
+    //   IntoChatOS:Auth:Day0EphemeralTry
+    public bool Day0EphemeralTry { get; set; }
 }
 
 public sealed class TrustedIssuer

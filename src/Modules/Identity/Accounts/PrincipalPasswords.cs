@@ -15,14 +15,7 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
 
     public async Task<Member> Register(string principalId, string password, string displayName)
     {
-        if (principalId is null || principalId.Length is 0 or > 80 || !Username().IsMatch(principalId))
-        { throw new ArgumentException("Use a lowercase username containing letters, numbers and hyphens."); }
-        if (password is null || password.Length is < 12 or > 256)
-        { throw new ArgumentException("Use a password between 12 and 256 characters."); }
-        // External sign-in names its principals under its prefix (IntoChat.OS.Modules.Identity.External.ExternalSignIn.PrincipalOf); the guest prefix marks a /try guest.
-        if (principalId is "owner" or "integrations" || principalId.StartsWith(IntoChat.OS.Modules.Identity.External.ExternalSignIn.PrincipalPrefix, StringComparison.Ordinal)
-            || principalId.StartsWith(GuestSurface.BrainPrefix, StringComparison.Ordinal))
-        { throw new InvalidOperationException("That username is unavailable."); }
+        ValidateRegistration(principalId, password);
         var credential = Credential(principalId);
         if (await Own(credential.Hash) is { } existing)
         {
@@ -43,6 +36,48 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
             throw;
         }
         return await births.Born(registered);
+    }
+
+    public async Task<Member> RegisterAndClaim(string principalId, string password, string displayName, string ephemeralBrainId, BrainClaimService claimService, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(claimService);
+        ValidateRegistration(principalId, password);
+        if (!string.IsNullOrWhiteSpace(principalId) && await identity.IsRegistered(principalId).WaitAsync(ct))
+        {
+            throw new InvalidOperationException("That username is unavailable.");
+        }
+
+        var credential = Credential(principalId);
+        if (await Own(credential.Hash) is { } existing)
+        {
+            // Only an interrupted, incomplete registration may resume with the same password; an already-registered principal is rejected above.
+            if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed)
+            { throw new InvalidOperationException("That username is unavailable."); }
+            return await claimService.ClaimAsync(ephemeralBrainId, principalId, displayName, ct);
+        }
+        var hash = Passwords.HashPassword(principalId, password);
+        if (!await Own(() => credential.TryCreate(hash))) { throw new InvalidOperationException("That username is unavailable."); }
+        try
+        {
+            return await claimService.ClaimAsync(ephemeralBrainId, principalId, displayName, ct);
+        }
+        catch (Exception refused) when (refused is InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            await Own(async () => { await credential.Remove(hash); return true; });
+            throw;
+        }
+    }
+
+    private static void ValidateRegistration(string principalId, string password)
+    {
+        if (principalId is null || principalId.Length is 0 or > 80 || !Username().IsMatch(principalId))
+        { throw new ArgumentException("Use a lowercase username containing letters, numbers and hyphens."); }
+        if (password is null || password.Length is < 12 or > 256)
+        { throw new ArgumentException("Use a password between 12 and 256 characters."); }
+        // External sign-in names its principals under its prefix (IntoChat.OS.Modules.Identity.External.ExternalSignIn.PrincipalOf); the guest prefix marks a /try guest.
+        if (principalId is "owner" or "integrations" || principalId.StartsWith(IntoChat.OS.Modules.Identity.External.ExternalSignIn.PrincipalPrefix, StringComparison.Ordinal)
+            || principalId.StartsWith(GuestSurface.BrainPrefix, StringComparison.Ordinal))
+        { throw new InvalidOperationException("That username is unavailable."); }
     }
 
     public async Task<Member?> Authenticate(string principalId, string password)

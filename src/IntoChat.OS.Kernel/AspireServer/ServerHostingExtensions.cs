@@ -180,6 +180,7 @@ public static class ServerHostingExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
         if (!((IApplicationBuilder)app).Properties.TryAdd("IntoChat.OS.Mapped", true)) { throw new InvalidOperationException("MapIntoChatOSServer runs once per application."); }
+        app.UseDay0EphemeralBootstrap();
         UseStaticWebShell(app);
         app.UsePlatformHttp(beforeAccountSession: beforeAccountSession);
         app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });

@@ -6,4 +6,8 @@ namespace DigitalBrain.Brains;
 /// <param name="Owner">The account the brain belongs to.</param>
 /// <param name="CreatedAt">When <see cref="IBrain.Create"/> succeeded.</param>
 [ExportableState]
-public sealed record BrainState(Owner Owner, DateTimeOffset CreatedAt);
+public sealed record BrainState(Owner Owner, DateTimeOffset CreatedAt)
+{
+    /// <summary>The brain's residency (ephemeral RAM vs durable persistent storage).</summary>
+    public BrainResidency? Residency { get; init; }
+}

@@ -5,7 +5,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Host.Http;
+using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
 namespace IntoChat.OS.Modules.Identity.Connections;
 
@@ -16,7 +19,7 @@ internal static class ConnectionEndpoints
 {
     internal static void MapConnectionNeurons(this IEndpointRouteBuilder endpoints)
     {
-        var group = OsBrainRoutes.Group(endpoints, "/connections");
+        var group = OsBrainRoutes.Group(endpoints, "/connections").WithMetadata(GuestSurface.Door.Instance);
 
         group.MapGet("", async (AuthorityNeurons neurons, [FromServices] IReadOnlyList<ConnectorDefinition> connectors) =>
         {
@@ -38,6 +41,7 @@ internal static class ConnectionEndpoints
         group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, HttpContext context, AuthorityNeurons neurons, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId) || string.IsNullOrWhiteSpace(input.Value)) { return Results.BadRequest(); }
+            if (await RequireConnectorAllowedAsync(context, input.ConnectorId, ct) is { } claimPrompt) { return claimPrompt; }
             // The connector names the grain type, so an undeclared one would address no neuron at all.
             if (!connectors.Any(connector => connector.Id == input.ConnectorId))
             { return Results.BadRequest(new { error = $"No composed module declares connector '{input.ConnectorId}'." }); }
@@ -51,16 +55,18 @@ internal static class ConnectionEndpoints
         group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, HttpContext context, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId)) { return Results.BadRequest(); }
+            if (await RequireConnectorAllowedAsync(context, input.ConnectorId, ct) is { } claimPrompt) { return claimPrompt; }
             var start = await ConnectionLogin.StartAsync(context.RequestServices, BrainScope.CurrentId(), connectionId, input.ConnectorId, input.AuthMethodId, input.Target, context.Request, ct);
             return start.Url is { } url ? Results.Ok(new { url = url.AbsoluteUri })
                 : start.Conflict ? Results.Json(new { error = start.Error }, statusCode: StatusCodes.Status409Conflict)
                 : Results.BadRequest(new { error = start.Error });
         });
 
-        group.MapPost("/{connectionId}/probe", async (string connectionId, HttpContext context, AuthorityNeurons neurons) =>
+        group.MapPost("/{connectionId}/probe", async (string connectionId, HttpContext context, AuthorityNeurons neurons, CancellationToken ct) =>
         {
             var connectorId = context.Request.Query["connectorId"].FirstOrDefault();
             var connectionKey = context.Request.Query["connectionKey"].FirstOrDefault();
+            if (await RequireConnectorAllowedAsync(context, connectorId, ct) is { } claimPrompt) { return claimPrompt; }
             var keys = await Tracked(neurons, connectionId, connectorId, connectionKey);
             return keys.Length switch
             {
@@ -70,8 +76,9 @@ internal static class ConnectionEndpoints
             };
         });
 
-        group.MapPost("/{connectorId}/{connectionId}/probe", async (string connectorId, string connectionId, AuthorityNeurons neurons) =>
+        group.MapPost("/{connectorId}/{connectionId}/probe", async (string connectorId, string connectionId, HttpContext context, AuthorityNeurons neurons, CancellationToken ct) =>
         {
+            if (await RequireConnectorAllowedAsync(context, connectorId, ct) is { } claimPrompt) { return claimPrompt; }
             var keys = await Tracked(neurons, connectionId, connectorId);
             return keys.Length switch
             {
@@ -81,18 +88,20 @@ internal static class ConnectionEndpoints
             };
         });
 
-        group.MapPost("/{connectionId}/disconnect", async (string connectionId, HttpContext context, AuthorityNeurons neurons) =>
+        group.MapPost("/{connectionId}/disconnect", async (string connectionId, HttpContext context, AuthorityNeurons neurons, CancellationToken ct) =>
         {
             var connectorId = context.Request.Query["connectorId"].FirstOrDefault();
             var connectionKey = context.Request.Query["connectionKey"].FirstOrDefault();
+            if (await RequireConnectorAllowedAsync(context, connectorId, ct) is { } claimPrompt) { return claimPrompt; }
             var keys = await Tracked(neurons, connectionId, connectorId, connectionKey);
             if (keys.Length != 1) { return keys.Length == 0 ? Results.NotFound() : Ambiguous(connectionId); }
             await neurons.Connection(keys[0]).Disconnect();
             return Results.Ok();
         });
 
-        group.MapPost("/{connectorId}/{connectionId}/disconnect", async (string connectorId, string connectionId, AuthorityNeurons neurons) =>
+        group.MapPost("/{connectorId}/{connectionId}/disconnect", async (string connectorId, string connectionId, HttpContext context, AuthorityNeurons neurons, CancellationToken ct) =>
         {
+            if (await RequireConnectorAllowedAsync(context, connectorId, ct) is { } claimPrompt) { return claimPrompt; }
             var keys = await Tracked(neurons, connectionId, connectorId);
             if (keys.Length != 1) { return keys.Length == 0 ? Results.NotFound() : Ambiguous(connectionId); }
             await neurons.Connection(keys[0]).Disconnect();
@@ -157,6 +166,31 @@ internal static class ConnectionEndpoints
         _ = connectionId;
         _ = connectorId;
         return Task.FromResult(false);
+    }
+
+    private static async Task<IResult?> RequireConnectorAllowedAsync(HttpContext context, string? connectorId, CancellationToken ct)
+    {
+        var policy = context.RequestServices.GetService<IBrainCapabilityPolicy>();
+        if (policy is not null)
+        {
+            var decision = await policy.EvaluateAsync(BrainScope.CurrentId(), BrainCapability.ExternalConnector, connectorId, ct);
+            if (!decision.Allowed)
+            {
+                return ClaimPromptResult.FromDecision(decision);
+            }
+        }
+
+        if (DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(context) is { } caller && GuestSurface.Is(caller))
+        {
+            return ClaimPromptResult.FromDecision(CapabilityDecision.RequireClaim(
+                BrainCapability.ExternalConnector,
+                string.IsNullOrWhiteSpace(connectorId)
+                    ? "Sign in to claim your workspace and manage external connections."
+                    : $"Sign in to claim your workspace and manage {connectorId}.",
+                connectorId));
+        }
+
+        return null;
     }
 
     private static IResult Conflict(string error) => Results.Json(new { error }, statusCode: StatusCodes.Status409Conflict);

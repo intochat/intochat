@@ -33,9 +33,11 @@ internal sealed class NeuronsGrpcService(OsNeuronSurface surface, IBrainObserver
 
     public override async Task<CallReply> Call(CallRequest request, ServerCallContext context)
     {
-        using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(await BrainCall.Enter(context, request.BrainId));
+        var caller = await BrainCall.Enter(context, request.BrainId);
+        using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(caller);
         try
         {
+            await BrainCall.EnforceCapabilityAsync(services, caller, request.BrainId, request.Contract, request.Key, surface, context.CancellationToken);
             var arguments = request.Arguments.IsEmpty ? "{}" : request.Arguments.ToStringUtf8();
             var result = await surface.Call(request.Contract, request.Key, request.Method, arguments, context.CancellationToken);
             return new CallReply { Result = result is { } json ? ByteString.CopyFromUtf8(json.GetRawText()) : ByteString.Empty };
@@ -45,9 +47,11 @@ internal sealed class NeuronsGrpcService(OsNeuronSurface surface, IBrainObserver
 
     public override async Task<NeuronStateReply> ReadState(NeuronStateRequest request, ServerCallContext context)
     {
-        using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(await BrainCall.Enter(context, request.BrainId));
+        var caller = await BrainCall.Enter(context, request.BrainId);
+        using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(caller);
         try
         {
+            await BrainCall.EnforceCapabilityAsync(services, caller, request.BrainId, request.Contract, request.Key, surface, context.CancellationToken);
             var id = await surface.PlainId(request.Contract, request.Key, context.CancellationToken);
             if (id is null)
             {
@@ -71,7 +75,8 @@ internal sealed class NeuronsGrpcService(OsNeuronSurface surface, IBrainObserver
     // Retained last signal per source and type first, then live ones, until the client goes away.
     public override async Task Watch(WatchRequest request, IServerStreamWriter<SignalEnvelope> responseStream, ServerCallContext context)
     {
-        using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(await BrainCall.Enter(context, request.BrainId));
+        var caller = await BrainCall.Enter(context, request.BrainId);
+        using var entered = services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>().Enter(caller);
         if (request.Sources.Count == 0) { throw new RpcException(new Status(StatusCode.InvalidArgument, "Name at least one source.")); }
         if (request.Sources.Sum(source => Math.Max(1, source.SignalTypes.Count)) > MaximumWatches)
         { throw new RpcException(new Status(StatusCode.InvalidArgument, $"At most {MaximumWatches} source signals per watch.")); }
@@ -84,6 +89,7 @@ internal sealed class NeuronsGrpcService(OsNeuronSurface surface, IBrainObserver
             var types = await kernel.Types(ct);
             foreach (var source in request.Sources)
             {
+                await BrainCall.EnforceCapabilityAsync(services, caller, request.BrainId, source.Contract, source.Key, surface, ct);
                 // One session on the session synapse neuron for the source's types.
                 var id = await surface.PlainId(source.Contract, source.Key, ct)
                     ?? throw new RpcException(new Status(StatusCode.InvalidArgument, $"{source.Contract} is not a neuron contract this brain can watch."));

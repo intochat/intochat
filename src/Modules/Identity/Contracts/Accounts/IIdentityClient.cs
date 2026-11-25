@@ -61,4 +61,7 @@ public interface IIdentityClient
 
     Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
         => throw new NotSupportedException();
+
+    Task<BrainProvision> ClaimEphemeralBrain(string brainScopeId, string principalId, string displayName, Grant[]? carriedGrants = null)
+        => throw new NotSupportedException();
 }

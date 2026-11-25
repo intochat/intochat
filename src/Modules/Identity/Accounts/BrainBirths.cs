@@ -22,4 +22,13 @@ internal sealed class BrainBirths(AuthorityNeurons neurons, EdgeAuthority edge) 
         { await neurons.Brain(BrainScope.Create(owner.AccountId, owner.BrainId).Id).Create(new Owner(owner.AccountId)); }
         return owner;
     }
+
+    public async Task<Member> BornEphemeral(Member owner, BrainResidency.Ephemeral residency)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(residency);
+        using (edge.Enter(edge.Kernel(new DigitalBrain.BrainId(owner.BrainId))))
+        { await neurons.Brain(owner.BrainId).CreateEphemeral(new Owner(owner.AccountId), residency); }
+        return owner;
+    }
 }

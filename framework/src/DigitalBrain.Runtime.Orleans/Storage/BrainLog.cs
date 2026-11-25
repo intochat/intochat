@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using DigitalBrain.Brains;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Storage;
 using DigitalBrain.Runtime.Orleans.Synapses;
@@ -13,22 +14,27 @@ namespace DigitalBrain.Runtime.Orleans;
 /// State and the signals emitted with it share one flushed, authenticated entry, so a signal is durable before
 /// any observer can see it. Each publisher numbers its signals from 1; every signal also has a brain-wide position.
 /// Checkpoints trim each publisher below the floor of the <see cref="IRetentionPolicy"/>.
+/// Ephemeral brains run purely in memory with a strict byte ceiling until promoted in-place via <see cref="PromoteToDurableAsync"/>.
 /// </summary>
 internal sealed class BrainLog : IAsyncDisposable, IJournalView
 {
     private const int MaxEntryBytes = 16 * 1024 * 1024;
     private const int SegmentHeaderBytes = 5;
     private static ReadOnlySpan<byte> SegmentMagic => "DBLG"u8;
-    private readonly string directory;
+    private string directory;
     private readonly string brainId;
-    private readonly byte[] key;
+    private byte[] key;
     private readonly Serializer serializer;
     private readonly JournalPayloads payloads;
     private readonly TimeProvider time;
     private readonly IRetentionPolicy retention;
-    private readonly IBrainLogLease ownership;
+    private IBrainLogLease ownership;
     private readonly IBrainLogFiles files;
     private readonly BrainStoreOptions options;
+    private bool ephemeral;
+    private readonly int maxMemoryBytes;
+    private long memoryUsedBytes;
+    private DateTimeOffset lastActivityAt;
     // Held across each durable write and checkpoint to guarantee contiguous sequence and file updates.
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly SemaphoreSlim checkpointGate = new(1, 1);
@@ -61,7 +67,11 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         this.payloads = payloads;
         this.time = time;
         this.retention = retention;
-        this.lastCheckpointAt = time.GetUtcNow();
+        this.ephemeral = false;
+        this.maxMemoryBytes = 0;
+        var now = time.GetUtcNow();
+        this.lastCheckpointAt = now;
+        this.lastActivityAt = now;
         try
         {
             Recover();
@@ -70,7 +80,57 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         catch { ReleaseUnopened(ownership); throw; }
     }
 
+    private BrainLog(string brainId, int maxMemoryBytes, Serializer serializer, JournalPayloads payloads, TimeProvider time,
+        IRetentionPolicy retention, IBrainLogFiles? files, BrainStoreOptions? options)
+    {
+        this.ownership = EphemeralBrainLogLease.Instance;
+        this.files = files ?? FileBrainLogFiles.Instance;
+        this.options = options ?? new BrainStoreOptions();
+        this.directory = string.Empty;
+        this.brainId = brainId;
+        this.key = [];
+        this.serializer = serializer;
+        this.payloads = payloads;
+        this.time = time;
+        this.retention = retention;
+        this.ephemeral = true;
+        this.maxMemoryBytes = maxMemoryBytes;
+        var now = time.GetUtcNow();
+        this.lastCheckpointAt = now;
+        this.lastActivityAt = now;
+    }
+
+    internal static BrainLog CreateEphemeral(string brainId, int maxMemoryBytes, Serializer serializer, JournalPayloads payloads, TimeProvider time,
+        IRetentionPolicy retention, IBrainLogFiles? files = null, BrainStoreOptions? options = null)
+        => new(brainId, maxMemoryBytes, serializer, payloads, time, retention, files, options);
+
     public string BrainId => brainId;
+
+    internal bool IsEphemeral
+    {
+        get
+        {
+            lock (stateLock) { return ephemeral; }
+        }
+    }
+
+    internal long MemoryUsedBytes
+    {
+        get
+        {
+            lock (stateLock) { return memoryUsedBytes; }
+        }
+    }
+
+    internal int MaxMemoryBytes => maxMemoryBytes;
+
+    internal DateTimeOffset LastActivityAt
+    {
+        get
+        {
+            lock (stateLock) { return lastActivityAt; }
+        }
+    }
 
     internal string Generation
     {
@@ -229,6 +289,7 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
+            if (ephemeral) { return true; }
             var path = Path.Combine(directory, ".readiness-" + Guid.NewGuid().ToString("N"));
             try
             {
@@ -313,9 +374,33 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         {
             RequireOpen();
             ct.ThrowIfCancellationRequested();
+            if (ephemeral)
+            {
+                JournalEntry<JournaledSignalPayload> ramEntry;
+                lock (stateLock)
+                {
+                    var delta = ComputeMemoryDeltaLocked(grainId, state, side, encoded);
+                    var projected = Math.Max(0, memoryUsedBytes + delta);
+                    if (maxMemoryBytes > 0 && projected > maxMemoryBytes)
+                    {
+                        throw new BrainMemoryLimitExceededException(brainId, projected, maxMemoryBytes);
+                    }
+
+                    ramEntry = _journal.Decide(grainId, state, side, publisher, encoded, time.GetUtcNow().ToUnixTimeMilliseconds());
+                    _journal.Apply(ramEntry);
+                    FoldSubscriptions(ramEntry);
+                    memoryUsedBytes = projected;
+                    lastActivityAt = time.GetUtcNow();
+                }
+
+                return ramEntry;
+            }
+
             JournalEntry<JournaledSignalPayload> entry;
+            long durableDelta;
             lock (stateLock)
             {
+                durableDelta = ComputeMemoryDeltaLocked(grainId, state, side, encoded);
                 entry = _journal.Decide(grainId, state, side, publisher, encoded, time.GetUtcNow().ToUnixTimeMilliseconds());
             }
             var brainEntry = new BrainEntry(
@@ -362,6 +447,8 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
                     FoldSubscriptions(entry);
                     uncompactedBytes += frame.Length;
                     uncompactedEntries++;
+                    memoryUsedBytes = Math.Max(0, memoryUsedBytes + durableDelta);
+                    lastActivityAt = time.GetUtcNow();
                 }
             }
             catch (Exception error) { failure = error; throw; }
@@ -372,6 +459,31 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
             gate.Release();
             TryTriggerAutoCheckpoint();
         }
+    }
+
+    // Caller holds stateLock.
+    private long ComputeMemoryDeltaLocked(string grainId, RecordWrite? state, RecordWrite? side, JournaledSignalPayload[] encoded)
+    {
+        long delta = 0;
+        if (state is not null)
+        {
+            var previous = _journal.Record(grainId, state.Name);
+            if (previous is not null) { delta -= previous.Bytes.Length; }
+            if (state.Change != StateChange.Clear) { delta += state.Bytes.Length; }
+        }
+        if (side is not null)
+        {
+            var previous = _journal.Record(grainId, side.Name);
+            if (previous is not null) { delta -= previous.Bytes.Length; }
+            if (side.Change != StateChange.Clear) { delta += side.Bytes.Length; }
+        }
+        foreach (var signal in encoded)
+        {
+            delta += signal.Json.Length
+                + System.Text.Encoding.UTF8.GetByteCount(signal.Type)
+                + 32;
+        }
+        return delta;
     }
 
     /// <summary>
@@ -542,12 +654,14 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         await checkpointGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (IsEphemeral) { return; }
             var floors = await Floors(ct).ConfigureAwait(false);
             await gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 RequireOpen();
                 ct.ThrowIfCancellationRequested();
+                if (ephemeral) { return; }
                 var started = ownership.BeginWrite();
                 var previous = generation;
                 var next = Guid.NewGuid().ToString("N");
@@ -555,29 +669,7 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
                 lock (stateLock)
                 {
                     foreach (var (publisher, floor) in floors) { Trim(publisher, floor); }
-                    var recordsSnapshot = new Dictionary<string, Dictionary<string, BrainRecord>>(StringComparer.Ordinal);
-                    foreach (var (owner, dict) in _journal.SnapshotRecords())
-                    {
-                        var inner = new Dictionary<string, BrainRecord>(StringComparer.Ordinal);
-                        foreach (var (name, jr) in dict)
-                        {
-                            inner[name] = new BrainRecord(jr.Bytes.ToArray(), jr.Version, jr.Type);
-                        }
-                        recordsSnapshot[owner] = inner;
-                    }
-                    BrainEntry[] heldSignals = [.. _journal.HeldEntries.Select(e => new BrainEntry(
-                        e.Sequence, "", "", BrainRecordChange.None, [], e.Publisher,
-                        e.Signals is JournaledSignalPayload[] arr ? arr : [.. e.Signals],
-                        e.FirstSignal, e.FirstPosition, e.AtUnixMs))];
-                    PublisherMark[] publisherMarks = [.. _journal.SnapshotMarks()
-                        .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                        .Select(pair => new PublisherMark(pair.Key, pair.Value.Floor, pair.Value.Last, pair.Value.LastPosition))];
-
-                    var snapshot = new BrainSnapshot(_journal.Sequence, _journal.Position, recordsSnapshot, heldSignals, publisherMarks);
-                    var body = serializer.SerializeToArray(snapshot);
-                    plain = new byte[SegmentHeaderBytes + body.Length];
-                    WriteHeader(plain);
-                    body.CopyTo(plain.AsSpan(SegmentHeaderBytes));
+                    plain = BuildSnapshotBytesLocked();
                 }
                 WriteFlushed(Path.Combine(directory, next + ".snapshot"), SegmentSeal.Close(key, Context("snapshot", next), plain));
                 WriteFlushed(Path.Combine(directory, next + ".log"), []);
@@ -610,6 +702,106 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
             finally { gate.Release(); }
         }
         finally { checkpointGate.Release(); }
+    }
+
+    /// <summary>
+    /// Atomically flushes an ephemeral in-memory journal to durable encrypted storage and flips this log
+    /// to persistent mode in-place, preserving every record, signal, and subscription without deactivating grains.
+    /// </summary>
+    internal async Task PromoteToDurableAsync(string targetDirectory, byte[] targetKey, IBrainLogLease targetOwnership, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetDirectory);
+        ArgumentNullException.ThrowIfNull(targetKey);
+        ArgumentNullException.ThrowIfNull(targetOwnership);
+
+        await checkpointGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await gate.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                RequireOpen();
+                ct.ThrowIfCancellationRequested();
+                if (!ephemeral)
+                {
+                    await targetOwnership.DisposeAsync().ConfigureAwait(false);
+                    return;
+                }
+
+                Directory.CreateDirectory(targetDirectory);
+                var started = targetOwnership.BeginWrite();
+                var next = Guid.NewGuid().ToString("N");
+                byte[] plain;
+                lock (stateLock)
+                {
+                    plain = BuildSnapshotBytesLocked();
+                }
+
+                var staged = Path.Combine(targetDirectory, "current." + next + ".tmp");
+                try
+                {
+                    WriteFlushed(Path.Combine(targetDirectory, next + ".snapshot"), SegmentSeal.Close(targetKey, Context("snapshot", next), plain));
+                    WriteFlushed(Path.Combine(targetDirectory, next + ".log"), []);
+                    WriteFlushed(staged, System.Text.Encoding.UTF8.GetBytes(next));
+                    targetOwnership.EndWrite(started);
+                    File.Move(staged, Path.Combine(targetDirectory, "current"), overwrite: true);
+                }
+                catch
+                {
+                    TryDelete(staged);
+                    await targetOwnership.DisposeAsync().ConfigureAwait(false);
+                    throw;
+                }
+
+                lock (stateLock)
+                {
+                    directory = targetDirectory;
+                    key = targetKey;
+                    ownership = targetOwnership;
+                    generation = next;
+                    ephemeral = false;
+                    uncompactedBytes = 0;
+                    uncompactedEntries = 0;
+                    checkpointCount++;
+                    var now = time.GetUtcNow();
+                    lastCheckpointAt = now;
+                    lastActivityAt = now;
+                }
+
+                SweepStaleFiles(next);
+            }
+            finally { gate.Release(); }
+        }
+        finally { checkpointGate.Release(); }
+    }
+
+    // Caller holds stateLock.
+    private byte[] BuildSnapshotBytesLocked()
+    {
+        var recordsSnapshot = new Dictionary<string, Dictionary<string, BrainRecord>>(StringComparer.Ordinal);
+        foreach (var (owner, dict) in _journal.SnapshotRecords())
+        {
+            var inner = new Dictionary<string, BrainRecord>(StringComparer.Ordinal);
+            foreach (var (name, jr) in dict)
+            {
+                inner[name] = new BrainRecord(jr.Bytes.ToArray(), jr.Version, jr.Type);
+            }
+            recordsSnapshot[owner] = inner;
+        }
+        BrainEntry[] heldSignals = [.. _journal.HeldEntries.Select(e => new BrainEntry(
+            e.Sequence, "", "", BrainRecordChange.None, [], e.Publisher,
+            e.Signals is JournaledSignalPayload[] arr ? arr : [.. e.Signals],
+            e.FirstSignal, e.FirstPosition, e.AtUnixMs))];
+        PublisherMark[] publisherMarks = [.. _journal.SnapshotMarks()
+            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new PublisherMark(pair.Key, pair.Value.Floor, pair.Value.Last, pair.Value.LastPosition))];
+
+        var snapshot = new BrainSnapshot(_journal.Sequence, _journal.Position, recordsSnapshot, heldSignals, publisherMarks);
+        var body = serializer.SerializeToArray(snapshot);
+        var plain = new byte[SegmentHeaderBytes + body.Length];
+        WriteHeader(plain);
+        body.CopyTo(plain.AsSpan(SegmentHeaderBytes));
+        return plain;
     }
 
     private async Task<List<(string Publisher, long Floor)>> Floors(CancellationToken ct)
@@ -939,7 +1131,7 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
         if (disposed || failure is not null || !ownership.IsHeld) { return; }
         lock (stateLock)
         {
-            if (disposed || failure is not null || !ownership.IsHeld) { return; }
+            if (disposed || ephemeral || failure is not null || !ownership.IsHeld) { return; }
             if (autoCheckpointTask is { IsCompleted: false }) { return; }
             if (!NeedsAutoCheckpoint()) { return; }
             autoCheckpointTask = Task.Run(RunAutoCheckpointAsync);
@@ -955,7 +1147,7 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
                 bool shouldRun;
                 lock (stateLock)
                 {
-                    shouldRun = NeedsAutoCheckpoint();
+                    shouldRun = !ephemeral && NeedsAutoCheckpoint();
                 }
 
                 if (!shouldRun)
@@ -1014,4 +1206,14 @@ internal sealed class BrainLog : IAsyncDisposable, IJournalView
     // A failed open cannot await in a constructor: the release starts at once and its outcome is observed, never blocked on.
     private static void ReleaseUnopened(IBrainLogLease lease)
         => _ = lease.DisposeAsync().AsTask().ContinueWith(static task => _ = task.Exception, TaskScheduler.Default);
+
+    // Pure in-memory ownership lease used while a brain is ephemeral (no lock files or disk I/O).
+    private sealed class EphemeralBrainLogLease : IBrainLogLease
+    {
+        public static EphemeralBrainLogLease Instance { get; } = new();
+        public bool IsHeld => true;
+        public long BeginWrite() => 0;
+        public void EndWrite(long started) { }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 }
