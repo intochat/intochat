@@ -180,7 +180,7 @@ jobs:
           NUGET_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: dotnet nuget push "artifacts/packages/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "${NUGET_KEY}"
 
-  # The Windows desktop bundle. It runs beside the Linux image and the deploys and none of them wait for it:
+  # The Windows desktop bundle and installer. It runs beside the Linux image and the deploys and none of them wait for it:
   # a packaging failure leaves the release without its Windows assets and leaves the deploys alone.
   package-windows:
     name: package-windows
@@ -202,12 +202,14 @@ jobs:
           [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for commit ${{ github.sha }}"; exit 1; }
 
       - name: Guard tag matches VERSION
+        id: version
         shell: bash
         run: |
           version="$(tr -d '[:space:]' < VERSION)"
           if [ "${{ github.event_name }}" = "release" ]; then
             [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
           fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -227,9 +229,9 @@ jobs:
 
       # win-x64 only: flutter build windows builds for the runner's own architecture, so an x64 runner cannot
       # produce the win-arm64 shell.
-      - name: Package the Windows bundle
+      - name: Package the Windows bundle and installer
         shell: pwsh
-        run: dotnet run intochat.cs -- package-release --rid win-x64 --output artifacts/release
+        run: dotnet run eng/package.cs --platform win-x64 --version ${{ steps.version.outputs.version }} --output artifacts/release
 
       - name: Check the bundle layout
         shell: pwsh
@@ -240,6 +242,9 @@ jobs:
           try { $names = $archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') } } finally { $archive.Dispose() }
           $missing = @('IntoChat.OS.Desktop.exe', 'intochat.cmd', 'os/IntoChat.OS.Kernel.exe', 'unithost/IntoChat.OS.Sandbox.exe', 'shell/intochat_os_flutter.exe') | Where-Object { $names -notcontains $_ }
           if ($missing) { Write-Host "::error::$($zip.Name) lacks: $($missing -join ', ')"; exit 1 }
+          foreach ($expected in 'intochat-win-x64.zip', 'IntoChat-Setup-win-x64.exe') {
+            if (-not (Test-Path -LiteralPath "artifacts/release/$expected")) { Write-Host "::error::Missing expected Windows release asset $expected"; exit 1 }
+          }
           $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if (-not (Select-String -LiteralPath artifacts/release/SHA256SUMS -SimpleMatch "$hash  $($zip.Name)" -Quiet)) { Write-Host "::error::SHA256SUMS does not list $($zip.Name) with its digest"; exit 1 }
           foreach ($file in 'latest.json', 'winget/IntoChat.OS.yaml') {
@@ -252,7 +257,11 @@ jobs:
           name: windows-bundle
           path: |
             artifacts/release/intochat-*-win-x64.zip
+            artifacts/release/intochat-win-x64.zip
+            artifacts/release/IntoChat-Setup-*-win-x64.exe
+            artifacts/release/IntoChat-Setup-win-x64.exe
             artifacts/release/SHA256SUMS
+            artifacts/release/SHA256SUMS.win-x64
             artifacts/release/latest.json
             artifacts/release/winget/IntoChat.OS.yaml
           compression-level: 0
@@ -264,9 +273,9 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip SHA256SUMS latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip intochat-win-x64.zip IntoChat-Setup-*-win-x64.exe IntoChat-Setup-win-x64.exe SHA256SUMS latest.json winget/IntoChat.OS.yaml ../../eng/install/install.ps1 --clobber
 
-  # The Linux desktop bundle (linux-x64 — native Ubuntu/Linux and WSLg).
+  # The Linux desktop bundle and Debian package (linux-x64 — native Ubuntu/Linux and WSLg).
   package-linux:
     name: package-linux
     if: inputs.rollback_tag == '' || inputs.rollback_tag == null
@@ -317,29 +326,17 @@ jobs:
           flutter config --enable-linux-desktop
           flutter pub get --enforce-lockfile
 
-      - name: Package the Linux bundle
+      - name: Package the Linux bundle and deb installer
+        run: dotnet run eng/package.cs --platform linux-x64 --version "${{ steps.version.outputs.version }}" --output artifacts/release
+
+      - name: Check the Linux bundle layout
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          STAGE="artifacts/stage-linux-x64"
-          OUT="artifacts/release"
-          mkdir -p "$STAGE/os" "$STAGE/shell" "$OUT"
-          dotnet publish src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj \
-            -c Release -r linux-x64 --self-contained -p:PublishAot=false -p:PublishSingleFile=true \
-            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE"
-          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
-            -c Release -r linux-x64 --self-contained \
-            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE/os"
-          (cd ui && flutter build linux --release)
-          cp -a ui/build/linux/x64/release/bundle/. "$STAGE/shell/"
-          cat > "$STAGE/intochat" <<'EOF'
-          #!/bin/sh
-          SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-          exec "$SCRIPT_DIR/IntoChat.OS.Desktop" "$@"
-          EOF
-          chmod +x "$STAGE/intochat" "$STAGE/IntoChat.OS.Desktop" "$STAGE/os/IntoChat.OS.Kernel" "$STAGE/shell/intochat_os_flutter"
-          ARCHIVE="intochat-${VERSION}-linux-x64.tar.gz"
-          tar -czf "$OUT/$ARCHIVE" -C "$STAGE" .
-          (cd "$OUT" && sha256sum "$ARCHIVE" > SHA256SUMS.linux-x64)
+          tar -tzf "artifacts/release/intochat-${{ steps.version.outputs.version }}-linux-x64.tar.gz" > /tmp/linux-entries.txt
+          for req in IntoChat.OS.Desktop intochat os/IntoChat.OS.Kernel unithost/IntoChat.OS.Sandbox shell/intochat_os_flutter; do
+            grep -Eq "^(\./)?${req}$" /tmp/linux-entries.txt || { echo "::error::Linux tarball lacks ${req}"; exit 1; }
+          done
+          test -f artifacts/release/intochat-linux-x64.tar.gz
+          test -f artifacts/release/intochat-linux-amd64.deb
 
       - name: Upload the Linux bundle
         uses: actions/upload-artifact@v7
@@ -347,6 +344,9 @@ jobs:
           name: linux-bundle
           path: |
             artifacts/release/intochat-*-linux-x64.tar.gz
+            artifacts/release/intochat-linux-x64.tar.gz
+            artifacts/release/intochat-*-linux-amd64.deb
+            artifacts/release/intochat-linux-amd64.deb
             artifacts/release/SHA256SUMS.linux-x64
           compression-level: 0
           retention-days: 30
@@ -356,9 +356,9 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-linux-x64.tar.gz ../../eng/install/install.sh --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-linux-x64.tar.gz intochat-linux-x64.tar.gz intochat-*-linux-amd64.deb intochat-linux-amd64.deb ../../eng/install/install.sh --clobber
 
-  # The macOS desktop bundle (osx-arm64 — Apple Silicon).
+  # The macOS desktop bundle and DMG installer (osx-arm64 — Apple Silicon).
   package-macos:
     name: package-macos
     if: inputs.rollback_tag == '' || inputs.rollback_tag == null
@@ -404,29 +404,17 @@ jobs:
           flutter config --enable-macos-desktop
           flutter pub get --enforce-lockfile
 
-      - name: Package the macOS bundle
+      - name: Package the macOS bundle and DMG installer
+        run: dotnet run eng/package.cs --platform osx-arm64 --version "${{ steps.version.outputs.version }}" --output artifacts/release
+
+      - name: Check the macOS bundle layout
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          STAGE="artifacts/stage-osx-arm64"
-          OUT="artifacts/release"
-          mkdir -p "$STAGE/os" "$STAGE/shell" "$OUT"
-          dotnet publish src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj \
-            -c Release -r osx-arm64 --self-contained -p:PublishAot=false -p:PublishSingleFile=true \
-            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE"
-          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
-            -c Release -r osx-arm64 --self-contained \
-            -p:CodeGraphRefresh=false -p:DebugType=none -o "$STAGE/os"
-          (cd ui && flutter build macos --release)
-          cp -a ui/build/macos/Build/Products/Release/intochat_os_flutter.app "$STAGE/shell/"
-          cat > "$STAGE/intochat" <<'EOF'
-          #!/bin/sh
-          SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-          exec "$SCRIPT_DIR/IntoChat.OS.Desktop" "$@"
-          EOF
-          chmod +x "$STAGE/intochat" "$STAGE/IntoChat.OS.Desktop" "$STAGE/os/IntoChat.OS.Kernel" "$STAGE/shell/intochat_os_flutter.app/Contents/MacOS/intochat_os_flutter"
-          ARCHIVE="intochat-${VERSION}-osx-arm64.tar.gz"
-          tar -czf "$OUT/$ARCHIVE" -C "$STAGE" .
-          (cd "$OUT" && shasum -a 256 "$ARCHIVE" > SHA256SUMS.osx-arm64)
+          tar -tzf "artifacts/release/intochat-${{ steps.version.outputs.version }}-osx-arm64.tar.gz" > /tmp/macos-entries.txt
+          for req in IntoChat.OS.Desktop intochat os/IntoChat.OS.Kernel unithost/IntoChat.OS.Sandbox shell/intochat_os_flutter.app/Contents/MacOS/intochat_os_flutter; do
+            grep -Eq "^(\./)?${req}$" /tmp/macos-entries.txt || { echo "::error::macOS tarball lacks ${req}"; exit 1; }
+          done
+          test -f artifacts/release/intochat-osx-arm64.tar.gz
+          test -f artifacts/release/IntoChat-macos-arm64.dmg
 
       - name: Upload the macOS bundle
         uses: actions/upload-artifact@v7
@@ -434,6 +422,10 @@ jobs:
           name: macos-bundle
           path: |
             artifacts/release/intochat-*-osx-arm64.tar.gz
+            artifacts/release/intochat-osx-arm64.tar.gz
+            artifacts/release/IntoChat-*-macos-arm64.dmg
+            artifacts/release/IntoChat-macos-arm64.dmg
+            artifacts/release/homebrew/intochat.rb
             artifacts/release/SHA256SUMS.osx-arm64
           compression-level: 0
           retention-days: 30
@@ -443,7 +435,7 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-osx-arm64.tar.gz ../../eng/install/install.sh --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-osx-arm64.tar.gz intochat-osx-arm64.tar.gz IntoChat-*-macos-arm64.dmg IntoChat-macos-arm64.dmg homebrew/intochat.rb ../../eng/install/install.sh --clobber
 
   # The Android client APK (universal release APK).
   package-android:
@@ -473,6 +465,12 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -488,15 +486,8 @@ jobs:
         working-directory: ui
         run: flutter pub get --enforce-lockfile
 
-      - name: Build Android APK
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          OUT="artifacts/release"
-          mkdir -p "$OUT"
-          (cd ui && flutter build apk --release)
-          APK="intochat-${VERSION}-android.apk"
-          cp ui/build/app/outputs/flutter-apk/app-release.apk "$OUT/$APK"
-          (cd "$OUT" && sha256sum "$APK" > SHA256SUMS.android)
+      - name: Package Android APK
+        run: dotnet run eng/package.cs --platform android --version "${{ steps.version.outputs.version }}" --output artifacts/release
 
       - name: Upload the Android APK
         uses: actions/upload-artifact@v7
@@ -504,6 +495,7 @@ jobs:
           name: android-bundle
           path: |
             artifacts/release/intochat-*-android.apk
+            artifacts/release/intochat-android.apk
             artifacts/release/SHA256SUMS.android
           compression-level: 0
           retention-days: 30
@@ -513,7 +505,7 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-android.apk --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-android.apk intochat-android.apk --clobber
 
   # The iOS client bundle (unsigned release IPA for sideloading / re-signing).
   package-ios:
@@ -543,6 +535,12 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -553,17 +551,8 @@ jobs:
         working-directory: ui
         run: flutter pub get --enforce-lockfile
 
-      - name: Build unsigned iOS IPA
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          STAGE="artifacts/stage-ios"
-          OUT="artifacts/release"
-          mkdir -p "$STAGE/Payload" "$OUT"
-          (cd ui && flutter build ios --release --no-codesign)
-          cp -a ui/build/ios/iphoneos/Runner.app "$STAGE/Payload/"
-          IPA="intochat-${VERSION}-ios-unsigned.ipa"
-          (cd "$STAGE" && zip -r -y "../../$OUT/$IPA" Payload)
-          (cd "$OUT" && shasum -a 256 "$IPA" > SHA256SUMS.ios)
+      - name: Package unsigned iOS IPA
+        run: dotnet run eng/package.cs --platform ios --version "${{ steps.version.outputs.version }}" --output artifacts/release
 
       - name: Upload the iOS IPA
         uses: actions/upload-artifact@v7
@@ -571,6 +560,7 @@ jobs:
           name: ios-bundle
           path: |
             artifacts/release/intochat-*-ios-unsigned.ipa
+            artifacts/release/intochat-ios-unsigned.ipa
             artifacts/release/SHA256SUMS.ios
           compression-level: 0
           retention-days: 30
@@ -580,9 +570,10 @@ jobs:
         working-directory: artifacts/release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-ios-unsigned.ipa --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-ios-unsigned.ipa intochat-ios-unsigned.ipa --clobber
 
-  # Combine SHA256SUMS from Windows, Linux, macOS, Android, and iOS bundles onto the GitHub Release.
+  # Combine SHA256SUMS and ensure both versioned artifacts and stable versionless aliases
+  # (/releases/latest/download/<filename>) from all 5 platforms are attached to the GitHub Release.
   publish-checksums:
     name: publish-checksums
     needs: [package-windows, package-linux, package-macos, package-android, package-ios]
@@ -598,11 +589,25 @@ jobs:
           pattern: '*-bundle'
           merge-multiple: true
 
-      - name: Merge and upload SHA256SUMS
+      - name: Merge SHA256SUMS and upload versioned and stable release assets
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          shopt -s nullglob
           cat downloaded-bundles/SHA256SUMS* 2>/dev/null | sort -u > SHA256SUMS
+          assets=(
+            downloaded-bundles/*.zip
+            downloaded-bundles/*.exe
+            downloaded-bundles/*.tar.gz
+            downloaded-bundles/*.deb
+            downloaded-bundles/*.dmg
+            downloaded-bundles/*.apk
+            downloaded-bundles/*.ipa
+          )
           if [ -s SHA256SUMS ]; then
-            gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --repo "${{ github.repository }}" --clobber
+            assets+=(SHA256SUMS)
+          fi
+          if [ "${#assets[@]}" -gt 0 ]; then
+            gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
           fi

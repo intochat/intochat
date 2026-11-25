@@ -410,7 +410,7 @@ jobs:
         working-directory: ui
         run: flutter test --no-pub --exclude-tags golden --concurrency=4
 
-  # The release workflow packages the Windows bundle with AppHost package-release. The dry run checks, on the runner image the
+  # The release workflow packages all 5 platforms with eng/package.cs. The dry run checks, on the runner image the
   # release uses, that every project it publishes is where it looks.
   package-dry-run:
     name: package-dry-run
@@ -427,9 +427,15 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - name: Dry-run the Windows release packaging
+      - name: Dry-run the release packaging script
         shell: pwsh
-        run: dotnet run intochat.cs -- package-dry-run --rid win-x64
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet run eng/package.cs --platform win-x64 --version 0.24.0 --dry-run
+          dotnet run eng/package.cs --platform linux-x64 --version 0.24.0 --dry-run
+          dotnet run eng/package.cs --platform osx-arm64 --version 0.24.0 --dry-run
+          dotnet run eng/package.cs --platform android --version 0.24.0 --dry-run
+          dotnet run eng/package.cs --platform ios --version 0.24.0 --dry-run
 
   ci:
     name: ci
