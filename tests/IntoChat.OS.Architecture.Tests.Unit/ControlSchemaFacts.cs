@@ -28,7 +28,7 @@ public sealed class ControlSchemaFacts
             .Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType)))
             .Select(type => type.Name));
 
-    // Holds vacuously until the first control neuron lands under src/IntoChat.OS.Apps/Controls; DartCommandsFacts' samples prove the check.
+    // DartCommandsFacts' samples prove the check bites.
     [Fact]
     public void Every_control_neuron_has_state_commands_and_Render()
     {

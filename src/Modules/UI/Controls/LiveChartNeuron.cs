@@ -13,11 +13,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A live chart: it owns the points and signals <see cref="ChartChanged"/>.</summary>
 [Neuron("control.liveChart"), Emits(typeof(ChartChanged))]
-public sealed class LiveChartNeuron : ControlNeuron<LiveChartState, LiveChartProps>
+public sealed class LiveChartNeuron : ControlNeuron<LiveChartState, LiveChartProps>, ILiveChartControl
 {
     [On]
     public Task Replace(Replace command)

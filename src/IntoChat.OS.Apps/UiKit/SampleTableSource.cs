@@ -9,7 +9,7 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Apps.UiKit;
 
 /// <summary>The sample table source's state: it has none, the rows are fixed.</summary>
 public sealed record SampleTableSourceState;

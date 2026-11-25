@@ -61,7 +61,7 @@ public sealed class UiChildApiFacts
     [Fact]
     public void StringDotCommandRouteIsRatchetedInApps()
     {
-        const int StringDotCommandCap = 12;
+        const int StringDotCommandCap = 11;
 
         var appsDir = Repository.ProjectNamed("IntoChat.OS.Apps").Directory;
         var files = Repository.SourceFiles(appsDir, "*.cs");

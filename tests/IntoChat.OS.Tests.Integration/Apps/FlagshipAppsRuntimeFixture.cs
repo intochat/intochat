@@ -6,5 +6,5 @@ namespace IntoChat.OS.Tests.Integration.Apps;
 
 public sealed class FlagshipAppsRuntimeFixture : BothRuntimesFixture
 {
-    protected override IReadOnlyList<Type> Modules { get; } = [.. CatalogFamily.Modules, typeof(ShippedShellAppsModule)];
+    protected override IReadOnlyList<Type> Modules { get; } = [.. CatalogFamily.Modules, typeof(ShippedShellAppsModule), typeof(IntoChat.OS.Modules.UI.UiModule)];
 }

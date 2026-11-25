@@ -5,7 +5,7 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Tests.Unit.Ino;
 using IntoChat.OS.Host.Primitives;
@@ -198,7 +198,7 @@ public sealed class InoReactorViewFacts
         Assert.Equal("working", workingConv.Status);
         Assert.False(workingConv.Composer.Enabled);
         Assert.NotNull(workingConv.Stop);
-        Assert.Equal(InoView.StopKey, workingConv.Stop!.Key);
+        Assert.Equal(ChatThreadProps.StopKey, workingConv.Stop!.Key);
 
         // 3. Needs-approval docked prompt state
         var approvalState = emptyState with
@@ -233,7 +233,7 @@ public sealed class InoReactorViewFacts
         var errorConv = InoDrawing.Conversation(errorState, view: errorView);
         Assert.Equal("failed", errorConv.Status);
         Assert.Equal("Ino has no model to answer with.", errorConv.Error?.What);
-        Assert.Equal(ChatThreadNeuron.RetryKeyOf(EntryIds.Reply("r1").Value), errorConv.Messages[^1].Retry?.Key);
+        Assert.Equal(ChatThreadProps.RetryKeyOf(EntryIds.Reply("r1").Value), errorConv.Messages[^1].Retry?.Key);
         Assert.Equal("Ino has no model to answer with.", errorConv.Messages[^1].Error?.What);
 
         // Model setup is Ino's own (its actions reach Ino): it is drawn under the conversation thread.

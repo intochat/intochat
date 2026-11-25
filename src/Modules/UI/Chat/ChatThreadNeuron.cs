@@ -2,6 +2,7 @@ using IntoChat.OS.Modules.UI.Core;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Chat.Signals;
+using ChatModelSelected = DigitalBrain.UI.Commands.ChatModelSelected;
 
 namespace IntoChat.OS.Modules.UI.Chat;
 

@@ -4,7 +4,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Modules.UI.Chat.Signals;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
@@ -97,9 +97,9 @@ public sealed class ChatThreadNeuronFacts
         var drawn = await thread.Drawn<ChatThreadView>();
         foreach (var message in drawn.Messages.Skip(1))
         {
-            Assert.Equal(ChatThreadNeuron.NoAnswer, message.Error?.What);
+            Assert.Equal(ChatThreadProps.NoAnswer, message.Error?.What);
             var retry = Assert.IsType<Button>(message.Retry);
-            Assert.Equal(ChatThreadNeuron.RetryKeyOf(message.Id), retry.Key);
+            Assert.Equal(ChatThreadProps.RetryKeyOf(message.Id), retry.Key);
             Assert.Equal((".", "control.retry"), (retry.Command!.Target, retry.Command.Signal));
             Assert.Equal(message.Id, retry.Command.Args!.Value.GetProperty("id").GetString());
         }
@@ -171,8 +171,8 @@ public sealed class ChatThreadNeuronFacts
         await thread.Send(new ImportMessages([User("m1", "hi"), Failed("m2")]));
         var view = await thread.Screen.Read();
 
-        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadNeuron.ComposerKey, "typed text");
-        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadNeuron.RetryKeyOf("m2"));
+        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadProps.ComposerKey, "typed text");
+        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadProps.RetryKeyOf("m2"));
 
         var published = thread.Published();
         Assert.Equal("typed text", Assert.IsType<Submitted>(published[0]).Values["text"]);
@@ -193,7 +193,7 @@ public sealed class ChatThreadNeuronFacts
         Assert.Null((await Drawn()).Stop);
 
         await os.Get<IScreen>(parent).Request(new Work(true)); await os.Idle();
-        Assert.Equal(ChatThreadNeuron.StopKey, (await Drawn()).Stop?.Key);
+        Assert.Equal(ChatThreadProps.StopKey, (await Drawn()).Stop?.Key);
 
         await os.Get<IScreen>(parent).Request(new Work(false)); await os.Idle();
         Assert.Null((await Drawn()).Stop);
@@ -229,8 +229,8 @@ public sealed class ChatThreadNeuronFacts
     public void TheThreadDrawsBothPickerNodes()
     {
         var view = ChatThreadNeuron.Draw("conversation", []);
-        Assert.Equal(ChatThreadNeuron.SelectModelKey, view.SelectModel!.Key);
-        Assert.Equal(ChatThreadNeuron.PinModelKey, view.PinModel!.Key);
+        Assert.Equal(ChatThreadProps.SelectModelKey, view.SelectModel!.Key);
+        Assert.Equal(ChatThreadProps.PinModelKey, view.PinModel!.Key);
         Assert.True(view.PinModel.OnSubmit.Args!.Value.GetProperty("default").GetBoolean());
     }
 
@@ -241,8 +241,8 @@ public sealed class ChatThreadNeuronFacts
         await thread.Send(new ImportMessages([]));
         var view = await thread.Screen.Read();
 
-        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadNeuron.SelectModelKey, "gpt-5.4");
-        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadNeuron.PinModelKey, "claude-sonnet-5");
+        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadProps.SelectModelKey, "gpt-5.4");
+        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadProps.PinModelKey, "claude-sonnet-5");
 
         var published = thread.Published();
         var switched = Assert.IsType<ChatModelSelected>(published[0]);

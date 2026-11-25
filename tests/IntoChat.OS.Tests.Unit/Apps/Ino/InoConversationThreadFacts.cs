@@ -5,7 +5,7 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
@@ -112,7 +112,7 @@ public sealed class InoConversationThreadFacts
         var thread = os.Get<IScreen>(ThreadId);
         var view = await thread.Read();
 
-        await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.ComposerKey, "hello there");
+        await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.ComposerKey, "hello there");
         await os.Idle();
 
         var conv = os.Get<IConversation>(new NeuronId(Brain, IConversation.Type, InoModel.ConversationKeyOf(ino.App.State.ConversationId)));

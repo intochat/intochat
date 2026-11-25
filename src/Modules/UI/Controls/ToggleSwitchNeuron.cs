@@ -11,11 +11,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A toggle switch: it owns whether it is on and signals <see cref="Toggled"/>.</summary>
 [Neuron("control.toggleSwitch"), Emits(typeof(Toggled))]
-public sealed class ToggleSwitchNeuron : ControlNeuron<ToggleSwitchState, ToggleSwitchProps>
+public sealed class ToggleSwitchNeuron : ControlNeuron<ToggleSwitchState, ToggleSwitchProps>, IToggleSwitchControl
 {
     [On]
     public Task Toggle(Toggle command)

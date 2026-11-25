@@ -150,6 +150,8 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         using var person = os.Edge.Enter(os.Edge.Person("test", "test", new BrainId("test")));
         os.RegisterCatalog();
         os.Register(typeof(SettingsApp).Assembly);
+        // Settings mounts the control neurons of the UI module.
+        os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
 
         var initialView = await screen.Read();

@@ -5,7 +5,7 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 using DigitalBrain.Units;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.UiKit;
 using IntoChat.OS.Modules.Apps;
 

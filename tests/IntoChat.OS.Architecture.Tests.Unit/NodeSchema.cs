@@ -63,10 +63,10 @@ internal static class NodeSchema
     private static IEnumerable<T> Attributes<T>(Type type, PropertyInfo property) where T : Attribute
         => property.GetCustomAttributes<T>().Concat(Parameter(type, property)?.GetCustomAttributes<T>() ?? []);
 
-    // A control neuron: a concrete Screen<TState> under IntoChat.OS.Apps.Controls (one folder per control in src/IntoChat.OS.Apps/Controls).
-    internal const string ControlsNamespace = "IntoChat.OS.Apps.Controls";
+    // A control neuron: a concrete Screen<TState> under IntoChat.OS.Modules.UI.Controls (src/Modules/UI/Controls, one file per control).
+    internal const string ControlsNamespace = "IntoChat.OS.Modules.UI.Controls";
 
-    internal static Type[] ControlNeurons() => [.. typeof(IntoChat.OS.Apps.ShippedShellAppsModule).Assembly.GetTypes()
+    internal static Type[] ControlNeurons() => [.. typeof(IntoChat.OS.Modules.UI.UiModule).Assembly.GetTypes()
         .Where(type => type is { IsClass: true, IsAbstract: false } && StateOf(type) is not null
             && (type.Namespace == ControlsNamespace || type.Namespace?.StartsWith(ControlsNamespace + ".", StringComparison.Ordinal) == true))
         .OrderBy(type => type.Name, StringComparer.Ordinal)];
@@ -86,7 +86,7 @@ internal static class NodeSchema
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Apps.Controls.ControlNeuron<,>)) { return current.GetGenericArguments()[1]; }
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Modules.UI.Controls.ControlNeuron<,>)) { return current.GetGenericArguments()[1]; }
         }
         return null;
     }

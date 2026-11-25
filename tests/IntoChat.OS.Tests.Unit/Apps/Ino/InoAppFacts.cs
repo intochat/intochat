@@ -14,7 +14,7 @@ using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
@@ -124,7 +124,7 @@ public sealed class InoAppFacts
         var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
         var view = await thread.Read();
 
-        await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.RetryKeyOf(failedReplyId));
+        await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.RetryKeyOf(failedReplyId));
         await os.Idle();
 
         Assert.Equal(1, BackgroundConversation.Regenerates);
@@ -598,7 +598,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.SelectModelKey, "gpt-5.4");
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.SelectModelKey, "gpt-5.4");
             await os.Idle();
 
             Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
@@ -625,7 +625,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.PinModelKey, "gpt-5.4");
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.PinModelKey, "gpt-5.4");
             await os.Idle();
 
             Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
@@ -666,7 +666,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.SelectModelKey, KnownModels.Gemma4.Id.Value);
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.SelectModelKey, KnownModels.Gemma4.Id.Value);
             await os.Idle();
 
             Assert.Equal(KnownModels.Gemma4.Id, Assert.Single(FakeDevice.Installs));
@@ -863,7 +863,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadNeuron.PinModelKey, KnownModels.Gemma4.Id.Value);
+            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.PinModelKey, KnownModels.Gemma4.Id.Value);
             await os.Idle();
 
             Assert.Equal((ModelRole.Chat, KnownModels.Gemma4.Id), Assert.Single(FakeDevice.Uses));

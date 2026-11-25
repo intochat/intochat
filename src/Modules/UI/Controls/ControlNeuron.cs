@@ -1,9 +1,9 @@
-using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Invocation;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>
 /// The base of every control neuron. A control stores only what the user changes; its setup (label, enabled, content) is the props
@@ -19,7 +19,7 @@ public abstract class ControlNeuron<TState, TProps> : Screen<TState>, IControl<T
     protected string Key => ControlKeys.Of(Id);
 
     /// <summary>The props the parent routed with the running command; null for a command sent to the control directly.</summary>
-    protected TProps? Props => CommandProps is { } json ? json.Deserialize<TProps>(JsonSerializerOptions.Web) : null;
+    protected TProps? Props => CommandProps is { } json ? (TProps?)RuntimeProtocol.Deserialize(json, typeof(TProps)) : null;
 
     /// <summary>Sets an on/off value: controlled (<paramref name="controlled"/> set) it only signals a change; otherwise it stores and signals.</summary>
     private protected Task SetOn(bool? controlled, bool current, bool next, Func<bool, TState> store)

@@ -1,6 +1,6 @@
 using DigitalBrain.Invocation;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Conversations;

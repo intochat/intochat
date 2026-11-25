@@ -13,11 +13,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A form: it keeps the last submitted values and signals <see cref="Submitted"/>.</summary>
 [Neuron("control.form"), Emits(typeof(Submitted))]
-public sealed class FormNeuron : ControlNeuron<FormState, FormProps>
+public sealed class FormNeuron : ControlNeuron<FormState, FormProps>, IFormControl
 {
     [On]
     public Task Submit(Submit command)

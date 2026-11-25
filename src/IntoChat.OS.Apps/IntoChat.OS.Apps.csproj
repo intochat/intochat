@@ -28,6 +28,7 @@
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
+    <ProjectReference Include="../Modules/UI/Contracts/IntoChat.OS.Modules.UI.Contracts.csproj" />
     <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../Components/Aspire/Contracts/IntoChat.Aspire.Contracts.csproj" />
     <ProjectReference Include="../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />

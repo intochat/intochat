@@ -15,7 +15,8 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Apps.AgentApp;
+using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Host.Primitives;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Memory;
@@ -104,7 +105,7 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         => InoView.ScreenNode(
             state,
             Voice,
-            props => Child<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props),
+            props => Child<IChatThreadControl, ChatThreadProps>(InoView.ConversationKey, props),
             ConversationView,
             SessionsPage,
             ThreadFailureText,
@@ -305,10 +306,10 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         await base.OnActivate(cancellationToken);
         await TryOptionalAsync("conversation-thread", async () =>
         {
-            await FollowChild<ChatThreadNeuron, RetryRequested>(InoView.ConversationKey);
-            await FollowChild<ChatThreadNeuron, Submitted>(InoView.ConversationKey);
-            await FollowChild<ChatThreadNeuron, StopRequested>(InoView.ConversationKey);
-            await FollowChild<ChatThreadNeuron, ChatModelSelected>(InoView.ConversationKey);
+            await FollowChild<IChatThreadControl, RetryRequested>(InoView.ConversationKey);
+            await FollowChild<IChatThreadControl, Submitted>(InoView.ConversationKey);
+            await FollowChild<IChatThreadControl, StopRequested>(InoView.ConversationKey);
+            await FollowChild<IChatThreadControl, ChatModelSelected>(InoView.ConversationKey);
         });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         if (ThisMachine is { Value.Length: > 0 } machine)

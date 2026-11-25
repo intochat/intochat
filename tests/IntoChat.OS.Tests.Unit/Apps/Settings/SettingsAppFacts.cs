@@ -69,7 +69,7 @@ public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neurons.Neuron,
 public sealed class SettingsAppFacts
 {
     public static IEnumerable<TheoryDataRow<ScreenOperationCase>> Operations
-        => ScreenBaseline.Cases(typeof(SettingsApp), os => os.RegisterCatalog());
+        => ScreenBaseline.Cases(typeof(SettingsApp), os => os.RegisterCatalog().Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly));
 
     [Theory, MemberData(nameof(Operations))]
     public Task Baseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
@@ -81,6 +81,8 @@ public sealed class SettingsAppFacts
         await using var os = TestOS.Local();
         os.RegisterCatalog();
         os.Register(typeof(SettingsApp).Assembly);
+        // Settings mounts the control neurons of the UI module.
+        os.Register(typeof(IntoChat.OS.Modules.UI.UiModule).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
         Assert.NotNull(await screen.Read());
     }

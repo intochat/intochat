@@ -16,50 +16,20 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Modules.UI.Chat.Signals;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>A chat thread: it owns the messages and signals what the user asks of them.</summary>
 [Neuron("control.chatThread"), Emits(typeof(MessageAppended)), Emits(typeof(MessageUpdated)), Emits(typeof(RetryRequested)), Emits(typeof(Submitted)), Emits(typeof(StopRequested)), Emits(typeof(ChatModelSelected))]
-public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>
+public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThreadProps>, IChatThreadControl
 {
     [JsonSerializable(typeof(Dictionary<string, bool>))]
     [JsonSerializable(typeof(Dictionary<string, string>))]
     private sealed partial class ChatThreadArgsJson : JsonSerializerContext;
-    /// <summary>The reason a failed message draws when it carries none.</summary>
-    public const string NoAnswer = "The model did not answer.";
-
-    /// <summary>The most messages drawn; older ones stay held but are not drawn.</summary>
-    public const int MaxDrawnMessages = 100;
-
-    /// <summary>The most characters of message text drawn in all.</summary>
-    public const int MaxDrawnChars = 1_000_000;
-
-    /// <summary>The key of the composer node.</summary>
-    public const string ComposerKey = "composer";
-
-    /// <summary>The key of the composer's per-conversation model picker target.</summary>
-    public const string SelectModelKey = "composer-model";
-
-    /// <summary>The key of the composer's pin-default model picker target.</summary>
-    public const string PinModelKey = "composer-model-default";
-
-    /// <summary>The key of the stop button.</summary>
-    public const string StopKey = "stop";
-
-    /// <summary>The key of the error line's retry button.</summary>
-    public const string ErrorRetryKey = "error-action";
 
     private static readonly JsonElement PinModelArgs = JsonSerializer.SerializeToElement(
         new Dictionary<string, bool> { ["default"] = true },
         ChatThreadArgsJson.Default.DictionaryStringBoolean);
-
-    /// <summary>The key of a message's retry button.</summary>
-    public static string RetryKeyOf(string id) => $"retry:{id}";
-
-    /// <summary>The key of a completed reply's regenerate button.</summary>
-    public static string RegenerateKeyOf(string id) => $"regenerate:{id}";
 
     [On]
     public Task AppendMessage(AppendMessage command)
@@ -156,7 +126,7 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
         return [.. result.TakeLast(ChatThreadState.MaxMessages)];
     }
 
-    /// <summary>What a thread with <paramref name="messages"/> draws under <paramref name="key"/>: the last 100 messages (at most 1,000,000 characters of text), each failed one with its reason and a retry.</summary>
+    /// <summary>What a thread with <paramref name="messages"/> draws under <paramref name="key"/>: the last 100 messages (at most 1,000,000 characters of text, <see cref="ChatThreadProps.MaxDrawnMessages"/> and <see cref="ChatThreadProps.MaxDrawnChars"/>), each failed one with its reason and a retry.</summary>
     public static ChatThreadView Draw(string key, IReadOnlyList<ThreadMessage> messages, bool showsStop = false, bool showsRetry = false)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -164,11 +134,11 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
         return new ChatThreadView(
             key,
             [.. Shown(messages).Select(DrawMessage)],
-            new ComposerNode(ComposerKey, new Emit("control.chatThread", "control.submitText")),
-            showsStop ? new Button(StopKey, "Stop", new Command(".", "control.stop"), AutomationName: "Stop") : null,
-            showsRetry ? new Button(ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again") : null,
-            SelectModel: new ModelSelectNode(SelectModelKey, new Emit("control.chatThread", "control.selectModel")),
-            PinModel: new ModelSelectNode(PinModelKey, new Emit("control.chatThread", "control.selectModel", PinModelArgs)));
+            new ComposerNode(ChatThreadProps.ComposerKey, new Emit("control.chatThread", "control.submitText")),
+            showsStop ? new Button(ChatThreadProps.StopKey, "Stop", new Command(".", "control.stop"), AutomationName: "Stop") : null,
+            showsRetry ? new Button(ChatThreadProps.ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again") : null,
+            SelectModel: new ModelSelectNode(ChatThreadProps.SelectModelKey, new Emit("control.chatThread", "control.selectModel")),
+            PinModel: new ModelSelectNode(ChatThreadProps.PinModelKey, new Emit("control.chatThread", "control.selectModel", PinModelArgs)));
     }
 
     protected override View Render(ChatThreadState state)
@@ -182,9 +152,9 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
         var failed = message.IsFailed && message.Role == "assistant";
         var canRegenerate = !failed && message.CanRegenerate && message.Role == "assistant" && message.Status == "completed";
         var retry = failed
-            ? new Button(RetryKeyOf(message.Id), "Try again", RetryCommand(message.Id), AutomationName: "Try again")
+            ? new Button(ChatThreadProps.RetryKeyOf(message.Id), "Try again", RetryCommand(message.Id), AutomationName: "Try again")
             : canRegenerate
-                ? new Button(RegenerateKeyOf(message.Id), "Regenerate", RetryCommand(message.Id), AutomationName: "Regenerate")
+                ? new Button(ChatThreadProps.RegenerateKeyOf(message.Id), "Regenerate", RetryCommand(message.Id), AutomationName: "Regenerate")
                 : null;
         return new MessageNode(
             message.Id,
@@ -197,7 +167,7 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
             Retry: retry,
             ModelLabel: message.Model,
             ProviderIcon: message.ProviderIcon,
-            Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? NoAnswer : message.Failure) : null);
+            Error: failed ? new ErrorLineNode(string.IsNullOrWhiteSpace(message.Failure) ? ChatThreadProps.NoAnswer : message.Failure) : null);
     }
 
     private static Command RetryCommand(string id)
@@ -207,17 +177,17 @@ public sealed partial class ChatThreadNeuron : ControlNeuron<ChatThreadState, Ch
 
     private static IReadOnlyList<ThreadMessage> Shown(IReadOnlyList<ThreadMessage> messages)
     {
-        var selected = new List<ThreadMessage>(Math.Min(messages.Count, MaxDrawnMessages));
+        var selected = new List<ThreadMessage>(Math.Min(messages.Count, ChatThreadProps.MaxDrawnMessages));
         var total = 0;
-        for (var i = messages.Count - 1; i >= 0 && selected.Count < MaxDrawnMessages; i--)
+        for (var i = messages.Count - 1; i >= 0 && selected.Count < ChatThreadProps.MaxDrawnMessages; i--)
         {
             var text = messages[i].Text ?? string.Empty;
-            if (selected.Count == 0 && text.Length > MaxDrawnChars)
+            if (selected.Count == 0 && text.Length > ChatThreadProps.MaxDrawnChars)
             {
-                selected.Add(messages[i] with { Text = text[..MaxDrawnChars] });
+                selected.Add(messages[i] with { Text = text[..ChatThreadProps.MaxDrawnChars] });
                 break;
             }
-            if (total + text.Length > MaxDrawnChars) { break; }
+            if (total + text.Length > ChatThreadProps.MaxDrawnChars) { break; }
             selected.Add(messages[i]);
             total += text.Length;
         }

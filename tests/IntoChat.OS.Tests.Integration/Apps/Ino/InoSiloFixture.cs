@@ -395,6 +395,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
                 [
                     typeof(InoWiringTestModule),
                     typeof(ShippedShellAppsModule),
+                    typeof(IntoChat.OS.Modules.UI.UiModule),
                     typeof(AppsModule),
                     typeof(IntoChat.OS.Modules.Runs.RunsModule),
                     typeof(IntoChat.OS.Modules.Authoring.AuthoringModule),

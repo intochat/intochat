@@ -3,7 +3,6 @@ using DigitalBrain.Components;
 using DigitalBrain.Testing;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Tests.Integration.Journeys;
 using IntoChat.OS.Tests.Support.Fakes;
 using IntoChat.OS.Tests.Support.Fakes.Postgres;
@@ -13,7 +12,7 @@ namespace IntoChat.OS.Tests.Integration.Modules.Catalog.Flows;
 
 public sealed class SelfImprovementLoopFacts
 {
-    private static readonly Type[] LoopModules = [.. Journey.SliceModules, typeof(UiModule)];
+    private static readonly Type[] LoopModules = Journey.SliceModules;
 
     [Theory]
     [MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]

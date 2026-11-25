@@ -147,3 +147,11 @@ public sealed record RetryRequested(string Id) : Signal;
 /// <summary>The user asked the parent to stop.</summary>
 [Signal("control.stopRequested")]
 public sealed record StopRequested : Signal;
+
+/// <summary>The user chose a model for a chat (and optionally pinned it as the Chat role default).</summary>
+/// <param name="ChatId">The full key of the chat that chose it.</param>
+/// <param name="ModelId">The chosen model id.</param>
+/// <param name="MakeDefault">True to also pin the model as the person's Chat role default.</param>
+// The alias predates the move from the ui.chat signals: wires and journals already hold it, so it stays.
+[Signal("ui.chat-model-selected")]
+public sealed record ChatModelSelected(string ChatId, string ModelId, bool MakeDefault = false) : Signal;

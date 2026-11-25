@@ -7,9 +7,10 @@ using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Conversations;
+using IntoChat.OS.Modules.UI.Controls;
 using static IntoChat.OS.UI.Kit;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Apps.AgentApp;
 
 /// <summary>Optional caller-supplied hooks for customizing <see cref="ConversationThreadProjection.ToThreadMessages"/>.</summary>
 public sealed record ConversationThreadOptions
@@ -49,12 +50,12 @@ public sealed record ConversationThreadPropsOptions
 
 /// <summary>
 /// Pure projection and incremental view merge for <see cref="ConversationView"/> shared by
-/// <c>InoApp</c> and runtime agent-app screens mounting <see cref="ChatThreadNeuron"/>.
+/// <c>InoApp</c> and runtime agent-app screens mounting <see cref="IChatThreadControl"/>.
 /// </summary>
 public static class ConversationThreadProjection
 {
-    public const int MaxRenderedMessages = ChatThreadNeuron.MaxDrawnMessages;
-    public const int MaxRenderedChars = ChatThreadNeuron.MaxDrawnChars;
+    public const int MaxRenderedMessages = ChatThreadProps.MaxDrawnMessages;
+    public const int MaxRenderedChars = ChatThreadProps.MaxDrawnChars;
 
     /// <summary>Merges a full or incremental <see cref="ConversationView"/> read into the previously cached view.</summary>
     public static ConversationView MergeView(ConversationView? previous, ConversationView incoming, bool full = false)
@@ -417,7 +418,7 @@ public static class ConversationThreadProjection
             "no-provider" => "No model is configured.",
             "budget" => "The monthly limit is reached.",
             "paused" => "Conversation is paused.",
-            _ => ChatThreadNeuron.NoAnswer,
+            _ => ChatThreadProps.NoAnswer,
         };
     }
 
@@ -456,7 +457,7 @@ public static class ConversationThreadProjection
         }
 
         var code = FailureCodeOf(latestRun);
-        var what = (describeFailure ?? DescribeFailureDefault)(code) ?? ChatThreadNeuron.NoAnswer;
+        var what = (describeFailure ?? DescribeFailureDefault)(code) ?? ChatThreadProps.NoAnswer;
         return new ChatThreadError(what, ActionLabel: "Try again", Retry: true);
     }
 
@@ -566,7 +567,7 @@ public static class ConversationThreadProjection
         };
         var failureCode = FailureCodeOf(run);
         var describe = options?.DescribeFailure ?? DescribeFailureDefault;
-        var failureText = describe(failureCode) ?? ChatThreadNeuron.NoAnswer;
+        var failureText = describe(failureCode) ?? ChatThreadProps.NoAnswer;
 
         var rawModel = run.Model is { Provider: not AiProvider.Host, Model.Length: > 0 } resolved ? resolved.Model : null;
         var (displayModel, providerIcon) = FormatModelChip(rawModel);

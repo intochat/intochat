@@ -10,11 +10,11 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 
-namespace IntoChat.OS.Apps.Controls;
+namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>An expander: it owns whether its content is shown and signals <see cref="Expanded"/>.</summary>
 [Neuron("control.expander"), Emits(typeof(Expanded))]
-public sealed class ExpanderNeuron : ControlNeuron<ExpanderState, ExpanderProps>
+public sealed class ExpanderNeuron : ControlNeuron<ExpanderState, ExpanderProps>, IExpanderControl
 {
     [On]
     public Task Expand(Expand command)

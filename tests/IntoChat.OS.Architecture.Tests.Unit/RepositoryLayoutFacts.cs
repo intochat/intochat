@@ -24,6 +24,7 @@ public sealed class RepositoryLayoutFacts
         ["IntoChat.OS.Modules.Shell"] = "IntoChat.OS.Modules.Flutter",
         ["IntoChat.OS.Modules.Shell.Contracts"] = "IntoChat.OS.Modules.Flutter",
         ["IntoChat.OS.Modules.Storage"] = "IntoChat.OS.Modules.LocalDisk",
+        ["IntoChat.OS.Modules.UI.Contracts"] = "IntoChat.OS.Modules.UI",
         ["IntoChat.OS.Modules.Windows"] = "IntoChat.OS.Modules.Microsoft.Windows",
         ["IntoChat.Aspire.Contracts"] = "IntoChat.Aspire",
         ["IntoChat.Muncly.Contracts"] = "IntoChat.Muncly",

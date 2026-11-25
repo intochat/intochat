@@ -1,7 +1,7 @@
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
-using IntoChat.OS.Apps.Controls;
+using IntoChat.OS.Modules.UI.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 
