@@ -117,14 +117,14 @@ public sealed class StateViewFacts
     }
 
     [Fact]
-    public async Task ActivatePublishesTheEmitToTheOwner()
+    public async Task ACommandPublishesItsSignalToTheOwner()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var before = (await views.Read("vw"))!;
 
-        await views.Activate("vw", before.Generation, "refresh", "now", null);
+        await views.Click("refresh", "now");
         await os.Idle();
 
         var state = await ((IBrainObserver)os).State(Board, Ct);
@@ -139,77 +139,60 @@ public sealed class StateViewFacts
     }
 
     [Fact]
-    public async Task ActivateRefusesACommandToAnotherAddress()
+    public async Task ACommandToAChildIsRefused()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
         var journaled = os.Journal(Board.Brain).Signals(Board).Count;
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation, "foreign", null, null));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Click("foreign"));
         await os.Idle();
 
-        Assert.Equal(ActivationRefusedException.NoSlots, refused.Reason);
+        Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
         Assert.Equal(journaled, os.Journal(Board.Brain).Signals(Board).Count);
     }
 
     [Fact]
-    public async Task ActivateRefusesAStaleGeneration()
+    public async Task AnUnknownNodeIsRefused()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
-        var view = (await views.Read("vw"))!;
-
-        var journaled = os.Journal(Board.Brain).Signals(Board).Count;
-
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation - 1, "refresh", null, null));
-        await os.Idle();
-
-        Assert.Equal(ActivationRefusedException.Stale, refused.Reason);
-        Assert.Equal(journaled, os.Journal(Board.Brain).Signals(Board).Count);
-    }
-
-    [Fact]
-    public async Task ActivateRefusesAnUnknownNode()
-    {
-        using var platform = TestStamp.Kernel();
-        await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
         var journaled = os.Journal(Board.Brain).Signals(Board).Count;
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation, "missing", null, null));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Click("missing"));
 
         Assert.Equal(ActivationRefusedException.UnknownNode, refused.Reason);
         Assert.Equal(journaled, os.Journal(Board.Brain).Signals(Board).Count);
     }
 
     [Fact]
-    public async Task ActivateRefusesANodeWithoutEmit()
+    public async Task ANodeWithoutACommandIsRefused()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
         var journaled = os.Journal(Board.Brain).Signals(Board).Count;
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation, "plain", null, null));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Click("plain"));
 
         Assert.Equal(ActivationRefusedException.NoEmit, refused.Reason);
         Assert.Equal(journaled, os.Journal(Board.Brain).Signals(Board).Count);
     }
 
     [Fact]
-    public async Task ActivateStampsTheHostAssertedBy()
+    public async Task ACommandStampsTheActingPersonAsBy()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
 
-        await views.Activate("vw", view.Generation, "refresh", null, "p1");
+        using (os.Edge.Enter(os.Edge.Person("p1", "p1-account", Board.Brain))) { await views.Click("refresh"); }
         await os.Idle();
 
         var emit = Assert.Single(os.Journal(Board.Brain).Signals(Board), item => SignalAliases.Of(item.Signal) == "x.refresh");
@@ -218,14 +201,14 @@ public sealed class StateViewFacts
     }
 
     [Fact]
-    public async Task ActivateWithoutByEmitsNoBy()
+    public async Task ACommandWithoutAPersonEmitsNoBy()
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
 
-        await views.Activate("vw", view.Generation, "refresh", "now", null);
+        await views.Click("refresh", "now");
         await os.Idle();
 
         Assert.Equal(System.Text.Json.JsonValueKind.Null, (await ((IBrainObserver)os).State(Board, Ct))?.GetProperty("by").ValueKind);
@@ -293,11 +276,11 @@ public sealed class StateViewFacts
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
         Assert.Contains("\"hidden\"", view.View.GetRawText(), StringComparison.Ordinal);
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Activate("vw", view.Generation, "hidden", null, null));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => views.Click("hidden"));
 
         Assert.Equal(ActivationRefusedException.UnknownNode, refused.Reason);
         Assert.Null(ViewNodes.Find(System.Text.Json.JsonElement.Parse("""{"kind":"row","children":[{"kind":"button","command":{"target":".","signal":"s","args":{"kind":"x","key":"k"}}}]}"""), "k"));
@@ -314,11 +297,11 @@ public sealed class StateViewFacts
             finished.Enqueue(signal);
             return Task.CompletedTask;
         });
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
         var before = await ((IBrainObserver)os).State(Board, Ct);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => views.Activate("vw", view.Generation, "boom", null, null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => views.Click("boom"));
         await os.Idle();
 
         Assert.Single(os.Journal(Board.Brain).Signals(Board), item => SignalAliases.Of(item.Signal) == "x.boom");
@@ -356,10 +339,10 @@ public sealed class StateViewFacts
     {
         using var platform = TestStamp.Kernel();
         await using var os = await Started();
-        var views = os.Get<IViewReader>(Board);
+        var views = os.Get<IScreen>(Board);
         var view = (await views.Read("vw"))!;
 
-        await views.Activate("vw", view.Generation, "forge", null, null);
+        await views.Click("forge");
         await os.Idle();
 
         Assert.Equal(0, (await ((IBrainObserver)os).State(Board, Ct))?.GetProperty("refreshes").GetInt32());

@@ -48,28 +48,6 @@ public sealed class UnitNeuronScreenFacts
     }
 
     [Fact]
-    public void ScreenActionCanBeConstructedWithVariousSignatures()
-    {
-        var action1 = new ScreenAction("custom-alias", 42, "node-1", "val-1");
-        Assert.Equal("custom-alias", action1.Alias);
-        Assert.Equal(42, action1.Generation);
-        Assert.Equal("node-1", action1.NodeKey);
-        Assert.Equal("val-1", action1.FieldValue);
-
-        var action2 = new ScreenAction(10, "node-2", "val-2");
-        Assert.Null(action2.Alias);
-        Assert.Equal(10, action2.Generation);
-        Assert.Equal("node-2", action2.NodeKey);
-        Assert.Equal("val-2", action2.FieldValue);
-
-        var action3 = new ScreenAction(5, "node-3");
-        Assert.Null(action3.Alias);
-        Assert.Equal(5, action3.Generation);
-        Assert.Equal("node-3", action3.NodeKey);
-        Assert.Null(action3.FieldValue);
-    }
-
-    [Fact]
     public async Task AsksExtensionsInvokeReadStateAndGetJson()
     {
         var ct = TestContext.Current.CancellationToken;

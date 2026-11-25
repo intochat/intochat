@@ -84,12 +84,12 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
     }
 
-    [McpServerTool(Name = ActName), Description("Trigger an interactive control (button click, field submit/change, navigation item) on a screen by control key and optional value, returning the updated screen snapshot.")]
+    [McpServerTool(Name = ActName), Description("Send the command of an interactive control (button click, field submit, navigation item) named by its key in screen_read's controls, with an optional value, through the app's screen (a child's control through its parent), returning the updated screen snapshot.")]
     public async Task<CallToolResult> Act(
         [Description("App id or runtime unit alias.")] string appId,
         [Description("Control key from screen_read's controls array.")] string key,
         [Description("Optional field input value or action argument.")] string? value = null,
-        [Description("Optional optimistic view generation token from screen_read; omitted uses the current generation.")] long? generation = null,
+        [Description("Optional view generation from screen_read; the action is refused as stale when the screen has moved on. Omitted acts on the current view.")] long? generation = null,
         [Description("Optional workspace instance id (defaults to 'main').")] string instanceId = "main",
         CancellationToken cancellationToken = default)
     {

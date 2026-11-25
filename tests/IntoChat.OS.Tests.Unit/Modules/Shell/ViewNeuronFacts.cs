@@ -4,12 +4,13 @@ using DigitalBrain.Access;
 using DigitalBrain.Errors;
 using DigitalBrain.Invocation;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Flutter.Views;
 using TestOS = DigitalBrain.Testing.TestOS;
 
 namespace IntoChat.OS.Modules.Flutter;
 
-// The view neuron on TestOS: it stores an app's View as its wire JSON and resolves an activation by key to a typed action.
+// The view neuron on TestOS: it stores an app's View as its wire JSON, and each keyed node of it names the command it sends.
 public sealed class ViewNeuronFacts
 {
     private static readonly NeuronId Tasks = new(new BrainId("owner"), UIVocabulary.ViewType, "apps/tasks/view");
@@ -66,56 +67,30 @@ public sealed class ViewNeuronFacts
     }
 
     [Fact]
-    public async Task ActivateResolvesCommandAndIntentByKey()
+    public async Task TheStoredViewNamesEachKeyedNodesCommand()
     {
         using var person = Edge.AsPerson();
         await using var os = Started();
         var view = os.Get<IView>(Tasks);
         await view.Publish(1, Sample);
+        var published = (await view.Read())!;
 
-        var cancel = await view.Activate(1, "cancel", null);
-        Assert.Equal(ViewActivationKind.Command, cancel.Kind);
-        // A button's command to "." is for the view's own app; the edge routes it there.
-        Assert.Equal((".", "cancel"), (cancel.Command!.Target, cancel.Command.Signal));
-        Assert.Equal("[\"f/1\",\"x:y\"]", cancel.Command.Args!.Value.GetRawText());
+        // A button's command to "." is for the view's own app; the view neuron's Dispatch routes it there.
+        var cancel = published.CommandAt("cancel");
+        Assert.Equal((".", "cancel"), (cancel.Target, cancel.Signal));
+        Assert.Equal("[\"f/1\",\"x:y\"]", cancel.Args!.Value.GetRawText());
 
-        var copy = await view.Activate(1, "copy", null);
-        Assert.Equal(new Intent(IntentKind.Copy, "neuron://owner/tasks"), copy.Intent);
+        var rename = published.CommandAt("title", "Ship docs");
+        Assert.Equal(("rename", "Ship docs"), (rename.Signal, rename.Args!.Value.GetProperty("value").GetString()));
 
-        var rename = await view.Activate(1, "title", "Ship docs");
-        Assert.Equal(("rename", "Ship docs"), (rename.Command!.Signal, rename.Value));
+        var nav = published.CommandAt("nav-filter");
+        Assert.Equal((".", "filter"), (nav.Target, nav.Signal));
+        Assert.Equal("\"all\"", nav.Args!.Value.GetRawText());
 
-        var nav = await view.Activate(1, "nav-filter", null);
-        Assert.Equal(ViewActivationKind.Command, nav.Kind);
-        Assert.Equal((".", "filter"), (nav.Command!.Target, nav.Command.Signal));
-        Assert.Equal("\"all\"", nav.Command.Args!.Value.GetRawText());
-    }
-
-    [Fact]
-    public async Task ActivateOnApprovalCardDoesNotReturnResolveAction()
-    {
-        using var person = Edge.AsPerson();
-        await using var os = Started();
-        var view = os.Get<IView>(Tasks);
-        await view.Publish(1, Sample);
-
-        var approval = await view.Activate(1, "approval", "approve");
-
-        Assert.Equal(ViewActivationKind.None, approval.Kind);
-        Assert.Null(approval.Resolve);
-    }
-
-    [Fact]
-    public async Task AStaleGenerationAnUnknownKeyOrADisabledButtonIsRefused()
-    {
-        using var person = Edge.AsPerson();
-        await using var os = Started();
-        var view = os.Get<IView>(Tasks);
-        await view.Publish(1, Sample);
-
-        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(2, "cancel", null));
-        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(1, "missing", null));
-        await Assert.ThrowsAsync<StaleActionException>(() => view.Activate(1, "off", null));
+        // An intent is the client's and an approval the confirmation inbox's: neither sends a command; an unknown key names no node.
+        Assert.Equal(ActivationRefusedException.NoEmit, Assert.Throws<ActivationRefusedException>(() => published.CommandAt("copy")).Reason);
+        Assert.Equal(ActivationRefusedException.NoEmit, Assert.Throws<ActivationRefusedException>(() => published.CommandAt("approval")).Reason);
+        Assert.Equal(ActivationRefusedException.UnknownNode, Assert.Throws<ActivationRefusedException>(() => published.CommandAt("missing")).Reason);
     }
 
     [Fact]

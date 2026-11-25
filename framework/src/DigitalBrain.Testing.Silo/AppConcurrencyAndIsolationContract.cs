@@ -5,8 +5,8 @@ using Xunit;
 namespace DigitalBrain.Testing;
 
 /// <summary>
-/// Reusable contract test suite verifying cold-start rendering, key isolation, and optimistic-concurrency
-/// activation semantics for a screen across both <see cref="NeuronRuntimeKind.TestOS"/> and
+/// Reusable contract test suite verifying cold-start rendering, key isolation, and concurrent commands
+/// for a screen across both <see cref="NeuronRuntimeKind.TestOS"/> and
 /// <see cref="NeuronRuntimeKind.Silo"/> runtimes.
 /// </summary>
 /// <typeparam name="TScreen">The concrete screen type under test.</typeparam>
@@ -18,10 +18,10 @@ public abstract class AppConcurrencyAndIsolationContract<TScreen, TFixture>(TFix
     where TFixture : BothRuntimesFixture
 {
     /// <summary>
-    /// Optional interactive node key in the screen's initial view to exercise under a 10-caller
-    /// optimistic-concurrency race. Return <see langword="null"/> to skip the concurrent activation test.
+    /// Optional key of a node in the screen's initial view whose command 10 callers send at once. Return <see langword="null"/> to
+    /// skip the concurrent command test.
     /// </summary>
-    protected virtual string? ConcurrentActivationKey => null;
+    protected virtual string? ConcurrentCommandKey => null;
 
     /// <summary>Opens a new <see cref="AppSession{TScreen}"/> on the specified runtime.</summary>
     protected Task<AppSession<TScreen>> Open(NeuronRuntimeKind kind, string? key = null, CancellationToken ct = default)
@@ -60,14 +60,15 @@ public abstract class AppConcurrencyAndIsolationContract<TScreen, TFixture>(TFix
     }
 
     /// <summary>
-    /// When <see cref="ConcurrentActivationKey"/> is overridden, races 10 callers activating the same
-    /// initial generation concurrently and asserts at most 1 succeeds while all others are refused as stale.
+    /// When <see cref="ConcurrentCommandKey"/> is overridden, races 10 callers sending that node's command from the same initial
+    /// view and asserts every one is handled: a command carries no generation, so each is judged by the screen's state when its turn
+    /// runs, and the turns run one at a time, so none fails and the screen still draws a view afterwards.
     /// </summary>
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
-    public async Task ConcurrentActivation_SameGeneration_AtMostOneSucceeds(NeuronRuntimeKind kind)
+    public async Task ConcurrentCommands_FromOneView_AreEachHandled(NeuronRuntimeKind kind)
     {
-        var activationKey = ConcurrentActivationKey;
-        if (string.IsNullOrWhiteSpace(activationKey))
+        var commandKey = ConcurrentCommandKey;
+        if (string.IsNullOrWhiteSpace(commandKey))
         {
             return;
         }
@@ -91,27 +92,15 @@ public abstract class AppConcurrencyAndIsolationContract<TScreen, TFixture>(TFix
             var tasks = sessions.Select(async session =>
             {
                 await gate.Task.ConfigureAwait(false);
-                try
-                {
-                    await session.Click(activationKey).ConfigureAwait(false);
-                    return (Succeeded: true, RefusedReason: (string?)null);
-                }
-                catch (ActivationRefusedException ex)
-                {
-                    return (Succeeded: false, RefusedReason: ex.Reason);
-                }
+                await session.Click(commandKey).ConfigureAwait(false);
+                return session.CurrentView.Generation;
             }).ToArray();
 
             gate.SetResult();
-            var results = await Task.WhenAll(tasks);
+            var generations = await Task.WhenAll(tasks);
 
-            var succeeded = results.Count(r => r.Succeeded);
-            var staleRefusals = results.Count(r => !r.Succeeded && r.RefusedReason == ActivationRefusedException.Stale);
-
-            Assert.True(
-                succeeded <= 1,
-                $"Expected at most 1 caller to win optimistic-concurrency race on {typeof(TScreen).Name} ({kind}), but {succeeded} succeeded.");
-            Assert.Equal(CallerCount, succeeded + staleRefusals);
+            Assert.All(generations, generation => Assert.True(generation >= initialGeneration,
+                $"A command on {typeof(TScreen).Name} ({kind}) left the view at generation {generation}, before {initialGeneration}."));
         }
         finally
         {

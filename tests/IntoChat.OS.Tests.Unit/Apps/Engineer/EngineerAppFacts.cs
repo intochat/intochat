@@ -309,7 +309,7 @@ public sealed class EngineerAppFacts
 
             // Switch back to Candidate w1 via rendered UI button 'engineer:candidate:select:1'!
             var renderedView = (await screen.Read())!;
-            await screen.Activate(renderedView.Alias, renderedView.Generation, EngineerApp.CandidateSelectKey(0));
+            await screen.Click(EngineerApp.CandidateSelectKey(0));
             await os.Idle();
             Assert.Contains("Sub0", (await editor.Read()).Content, StringComparison.Ordinal);
             var afterBtnPromote = await runs.InspectEngineerRun(delegated.FlowId, Ct);
@@ -399,7 +399,7 @@ public sealed class EngineerAppFacts
         Assert.Contains("engineer:pr:reply:701", prRaw, StringComparison.Ordinal);
 
         // Clicking Reply button invokes IRepository.ReplyToReviewComment and marks the thread replied!
-        await screen.Activate(prView.Alias, prView.Generation, "engineer:pr:reply:701");
+        await screen.Click("engineer:pr:reply:701");
         await os.Idle();
         Assert.NotNull(prSource.LastReply);
         Assert.Equal(204, prSource.LastReply!.PullRequestNumber);

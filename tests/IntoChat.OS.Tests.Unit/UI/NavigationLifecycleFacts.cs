@@ -168,7 +168,7 @@ public sealed class NavigationLifecycleFacts
         Assert.Contains("Section: resources", initial!.View.GetRawText(), StringComparison.Ordinal);
 
         // 1. Trigger typed arrival via UiCommand button helper (NavigateToCommand -> INavigatedTo<BrowserNavArgs>)
-        await screen.Activate("app.test.nav-sample", initial.Generation, "btn-nav-trace");
+        await screen.Click("btn-nav-trace");
         await os.Idle();
 
         var afterNav = await screen.Open();
@@ -179,12 +179,12 @@ public sealed class NavigationLifecycleFacts
         Assert.Contains("\"transition\":\"shared-axis-x\"", afterNavJson, StringComparison.Ordinal);
 
         // 2. Mark draft dirty, then attempt unforced departure -> refused by CleanBeforeDeparture rule!
-        await screen.Activate("app.test.nav-sample", afterNav.Generation, "btn-toggle-dirty");
+        await screen.Click("btn-toggle-dirty");
         await os.Idle();
         var dirtyView = await screen.Open();
         Assert.NotNull(dirtyView);
 
-        await screen.Activate("app.test.nav-sample", dirtyView!.Generation, "btn-leave");
+        await screen.Click("btn-leave");
         await os.Idle();
 
         Assert.Contains(rejectedHeard, r => r.Rules.Contains("unsaved_draft"));
@@ -193,7 +193,7 @@ public sealed class NavigationLifecycleFacts
         Assert.Contains("Save or discard draft changes before leaving this screen.", blockedView!.View.GetRawText(), StringComparison.Ordinal);
 
         // 3. Forced departure bypasses soft refusal guard, clears LastRejection, and runs OnNavigatedFrom!
-        await screen.Activate("app.test.nav-sample", blockedView.Generation, "btn-force-leave");
+        await screen.Click("btn-force-leave");
         await os.Idle();
 
         var departedView = await screen.Open();
@@ -439,7 +439,7 @@ public sealed class NavigationLifecycleFacts
         // 4. IScreen.Dispatch("ui.navigate-from") surfaces ActivationRefusedException with Rule:<code >: <message> when blocked
         var guarded = os.Get<IScreen>(new NeuronId(brain, "app.test.nav-sample", "guard-check"));
         var guardedInitial = await guarded.Open();
-        await guarded.Activate("app.test.nav-sample", guardedInitial!.Generation, "btn-toggle-dirty");
+        await guarded.Click("btn-toggle-dirty");
         await os.Idle();
 
         var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() =>

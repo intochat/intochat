@@ -152,7 +152,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-act");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
+        using var person = os.Edge.Enter(os.Edge.Person("alice@intochat.io", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -160,7 +160,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         Assert.NotNull(initialView);
 
         // Activate button with host-asserted caller "alice@intochat.io"
-        await screen.Activate("app.test_counter", 1L, "btn-press", fieldValue: null, by: "alice@intochat.io");
+        await screen.Click("btn-press");
         await os.Idle();
 
         var updatedView = await screen.Read();
@@ -169,32 +169,6 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         var text = updatedView.View.GetRawText();
         Assert.Contains("Count: 1", text);
         Assert.Contains("LastBy: alice@intochat.io", text);
-    }
-
-    [Fact]
-    public async Task T1_Screen_Activate_StaleGeneration_ThrowsActivationRefusedException()
-    {
-        var os = _fixture.OS;
-        os.Register<TestCounterScreen>();
-
-        var brain = NewBrain("screen-stale");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.test_counter", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        // Advance to generation 2
-        await screen.Request("test-counter.press", JsonSerializer.SerializeToElement(new TestCounterPress("inc")));
-        await os.Idle();
-
-        var view = await screen.Read();
-        Assert.NotNull(view);
-        Assert.Equal(2L, view.Generation);
-
-        // Attempt activation with stale generation 1L
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.test_counter", 1L, "btn-press"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
     }
 
     [Fact]
@@ -210,17 +184,17 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
 
         // 1. Unknown node
         var exUnknown = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.test_counter", 1L, "ghost-key-does-not-exist"));
+            screen.Click("ghost-key-does-not-exist"));
         Assert.Equal(ActivationRefusedException.UnknownNode, exUnknown.Reason);
 
         // 2. Node without emit (field with null OnSubmit)
         var exNoEmit = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.test_counter", 1L, "fld-no-emit"));
+            screen.Click("fld-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, exNoEmit.Reason);
 
         // 3. A command to a child the view does not show
         var exAlien = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.test_counter", 1L, "btn-alien"));
+            screen.Click("btn-alien"));
         Assert.Equal(ActivationRefusedException.UnknownChild, exAlien.Reason);
     }
 

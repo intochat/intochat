@@ -7,7 +7,7 @@ namespace IntoChat.OS.Tests.Integration.Apps;
 public sealed class GalleryAppContractFacts(FlagshipAppsRuntimeFixture fixture)
     : AppConcurrencyAndIsolationContract<GalleryApp, FlagshipAppsRuntimeFixture>(fixture)
 {
-    protected override string? ConcurrentActivationKey => "nav:colors";
+    protected override string? ConcurrentCommandKey => "nav:colors";
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task Navigation_SwitchesToColorsSection_ViaAppSession(NeuronRuntimeKind kind)

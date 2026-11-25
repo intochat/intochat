@@ -41,13 +41,13 @@ public sealed class AppSession<TScreen> : IAsyncDisposable
     /// <summary>The most recently observed published view.</summary>
     public PublishedView CurrentView { get; private set; }
 
-    /// <summary>Activates the node with <paramref name="key"/> in the current view and updates <see cref="CurrentView"/>.</summary>
-    /// <param name="key">The node key to activate.</param>
+    /// <summary>Sends the command of the node with <paramref name="key"/> in the current view and updates <see cref="CurrentView"/>.</summary>
+    /// <param name="key">The node key.</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task<PublishedView> Click(string key, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        CurrentView = await _driver.ActivateAsync(key, ct).ConfigureAwait(false);
+        CurrentView = await _driver.ClickAsync(key, ct).ConfigureAwait(false);
         return CurrentView;
     }
 

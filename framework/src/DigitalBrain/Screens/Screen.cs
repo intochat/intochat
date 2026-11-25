@@ -240,36 +240,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     public Task<PublishedView?> Open() => Read(Alias);
 
     /// <inheritdoc />
-    public Task Act(ScreenAction action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        return Activate(action.Alias ?? Alias, action.Generation, action.NodeKey, action.FieldValue, Context.Caller?.ToString());
-    }
-
-    /// <inheritdoc />
     public virtual Task<PublishedView?> Read(string? alias = null)
         => Task.FromResult(_view is { } view && (alias is null || string.Equals(view.Alias, alias, StringComparison.Ordinal)) ? view : null);
-
-    /// <inheritdoc />
-    public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)
-    {
-        ArgumentNullException.ThrowIfNull(alias);
-        ArgumentNullException.ThrowIfNull(nodeKey);
-        if (_view is not { } view || !string.Equals(view.Alias, alias, StringComparison.Ordinal) || view.Generation != generation)
-        {
-            throw new ActivationRefusedException(ActivationRefusedException.Stale);
-        }
-
-        var node = ViewNodes.Find(view.View, nodeKey) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
-        // A node's command: "." is this screen (the activator stays on the payload), any other target goes the way of Dispatch.
-        if (ViewNodes.CommandOf(node) is { } command)
-        {
-            return command.Target == "."
-                ? Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
-                : Send(command);
-        }
-        throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
-    }
 
     /// <inheritdoc />
     public Task Dispatch(Command command) => Send(command);

@@ -123,7 +123,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         os.Register<MachineScreen>();
 
         var brain = NewBrain("screen-atomic-turn");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
+        using var person = os.Edge.Enter(os.Edge.Person("alice@intochat.io", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.machine_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -134,7 +134,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         Assert.Contains("Value: 0", initialView.View.GetRawText());
 
         // Client triggers button activation
-        await screen.Activate("app.machine_screen", 1L, "btn-step", fieldValue: null, by: "alice@intochat.io");
+        await screen.Click("btn-step");
         await os.Idle();
 
         // State, view, and signals committed atomically; generation advanced to 2L
@@ -157,7 +157,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         var screen = os.Get<IScreen>(screenId);
 
         // Advance to generation 2L
-        await screen.Activate("app.machine_screen", 1L, "btn-step", fieldValue: null, by: "bob");
+        await screen.Click("btn-step");
         await os.Idle();
 
         var gen2View = await screen.Read();
@@ -167,7 +167,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
 
         // Calling failing action throws and rolls back state mutation
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.machine_screen", 2L, "btn-fail"));
+            screen.Click("btn-fail"));
 
         Assert.Contains("Simulated transaction reaction failure", ex.Message);
 
@@ -190,7 +190,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         var screen = os.Get<IScreen>(screenId);
 
         // Advance to generation 2L
-        await screen.Activate("app.machine_screen", 1L, "btn-step");
+        await screen.Click("btn-step");
         await os.Idle();
 
         var view2 = await screen.Read();
@@ -198,7 +198,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         Assert.Equal(2L, view2.Generation);
 
         // Trigger NoOp which re-saves identical view
-        await screen.Activate("app.machine_screen", 2L, "btn-noop");
+        await screen.Click("btn-noop");
         await os.Idle();
 
         var viewAfterNoOp = await screen.Read();
@@ -225,7 +225,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
 
         // Action triggers state change that renders view with button containing reserved 'by'
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.machine_screen", 1L, "btn-inject-by"));
+            screen.Click("btn-inject-by"));
 
         Assert.Contains("declares the host-reserved 'by'", ex.Message);
 
@@ -250,24 +250,19 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         Assert.NotNull(view);
         Assert.Equal(1L, view.Generation);
 
-        // 1. Stale generation
-        var exStale = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.machine_screen", 999L, "btn-step"));
-        Assert.Equal(ActivationRefusedException.Stale, exStale.Reason);
-
-        // 2. Unknown node key
+        // 1. Unknown node key
         var exUnknown = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.machine_screen", 1L, "non-existent-button"));
+            screen.Click("non-existent-button"));
         Assert.Equal(ActivationRefusedException.UnknownNode, exUnknown.Reason);
 
-        // 3. Node without emit
+        // 2. Node without emit
         var exNoEmit = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.machine_screen", 1L, "fld-no-emit"));
+            screen.Click("fld-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, exNoEmit.Reason);
 
-        // 4. A command to a child the view does not show
+        // 3. A command to a child the view does not show
         var exForeign = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.machine_screen", 1L, "btn-alien"));
+            screen.Click("btn-alien"));
         Assert.Equal(ActivationRefusedException.UnknownChild, exForeign.Reason);
     }
 }

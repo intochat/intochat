@@ -2,7 +2,6 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Errors;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -14,8 +13,8 @@ using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 
-// Stores an app's View as its wire JSON, verbatim; resolves an activation by key and hands the typed action to the edge. It is the
-// screen of a sandboxed app: POST /act reaches it through IScreen.Dispatch, and a command to "." becomes the owning app's request.
+// Stores an app's View as its wire JSON, verbatim. It is the screen of a sandboxed app: POST /act and screen_act reach it through
+// IScreen.Dispatch, and a command to "." becomes the owning app's request.
 [Neuron(UIVocabulary.ViewType)]
 internal sealed partial class ViewNeuron
     : UiNeuron<ViewState>, IView, IScreen
@@ -33,17 +32,6 @@ internal sealed partial class ViewNeuron
     public Task<PublishedView?> Read() => Task.FromResult(Snapshot.Json is { } json
         ? new PublishedView(FullKey, Snapshot.Generation, ViewValidation.Parse(json))
         : null);
-
-    [DigitalBrain.Contracts.ReadOnlyCall]
-    public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        if (Snapshot.Json is not { } json || Snapshot.Generation != generation
-            || ViewValidation.Find(ViewValidation.Parse(json), key) is not { } node
-            || node.TryGetProperty("enabled", out var enabled) && enabled.ValueKind == JsonValueKind.False)
-        { throw new StaleActionException("This action is no longer available. Read the view again."); }
-        return Task.FromResult(ViewValidation.ActionOf(node) with { Value = fieldValue });
-    }
 
     public Task<PublishedView?> Open() => Read();
 
@@ -65,31 +53,15 @@ internal sealed partial class ViewNeuron
         {
             throw new ActivationRefusedException(ActivationRefusedException.NoEmit, $"The view of {FullKey} sends no '{command.Signal}'.");
         }
-        await Emit(command.Signal, command.Args, fieldValue: null, Context.Caller?.For?.Principal);
+        await Emit(command.Signal, command.Args, Context.Caller?.For?.Principal);
     }
 
     public Task Request(string signal, JsonElement? args = null) => Dispatch(new Command(".", signal, args));
 
-    public Task Act(ScreenAction action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        return Activate(action.Alias ?? FullKey, action.Generation, action.NodeKey, action.FieldValue, Context.Caller?.For?.Principal);
-    }
-
-    // Key activation, as IScreen still offers it to agents: the node's command to "." goes to the owning app.
-    public async Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)
-    {
-        RequireSameBrain();
-        var action = await Activate(generation, nodeKey, fieldValue);
-        if (action is not { Kind: ViewActivationKind.Command, Command: { } command }) { throw new ActivationRefusedException(ActivationRefusedException.NoEmit); }
-        if (!ViewValidation.ToSelf(command)) { throw new ActivationRefusedException(ActivationRefusedException.NoSlots); }
-        await Emit(command.Signal, command.Args, fieldValue, by);
-    }
-
-    private Task Emit(string signal, JsonElement? args, string? fieldValue, string? by)
+    private Task Emit(string signal, JsonElement? args, string? by)
     {
         if (OwningApp() is not { } app) { throw new UnauthorizedAccessException($"{FullKey} is not an app's view."); }
-        return Get<IApp>(app).Emit(signal, ViewArgs.Stamped(args, fieldValue, by).GetRawText());
+        return Get<IApp>(app).Emit(signal, ViewArgs.Stamped(args, value: null, by).GetRawText());
     }
 
     // The app whose view this is: apps/{name}/view in this brain.
@@ -215,32 +187,6 @@ internal static class ViewValidation
             }
         }
         return false;
-    }
-
-    // A node's action: its command (to "." for the view's own app, or to a child address, which a slotless view cannot reach) or its
-    // client-local intent. The view was normalized on parse (LegacyViewJson), so a stored emit reads as its command.
-    public static ViewActivation ActionOf(JsonElement node)
-    {
-        // An info bar's command is its "close", a field's is its "onSubmit"; no other kind reads them. A kindless part (a chat composer,
-        // a model picker) sends its "command", or else its "onSubmit".
-        var member = Text(node, "kind") switch
-        {
-            "infoBar" => "close",
-            "field" => "onSubmit",
-            null => Has(node, "command", JsonValueKind.Object) ? "command" : "onSubmit",
-            _ => "command",
-        };
-        if (node.TryGetProperty(member, out var command) && command.ValueKind == JsonValueKind.Object)
-        {
-            if (Text(command, "target") is not { Length: > 0 } target || Text(command, "signal") is not { Length: > 0 } sent) { return ViewActivation.None; }
-            JsonElement? sentArgs = command.TryGetProperty("args", out var c) && c.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? c.Clone() : null;
-            return new(ViewActivationKind.Command, Command: new Command(target, sent, sentArgs));
-        }
-        var intent = node.TryGetProperty("intent", out var i) && i.ValueKind == JsonValueKind.Object ? i
-            : Text(node, "kind") == "intent" ? node : (JsonElement?)null;
-        if (intent is { } found && Text(found, "intentKind") is { } kind && Enum.TryParse<IntentKind>(kind, ignoreCase: true, out var parsed))
-        { return new(ViewActivationKind.Intent, Intent: new Intent(parsed, Text(found, "arg"))); }
-        return ViewActivation.None;
     }
 
     private static string? Text(JsonElement element, string name)

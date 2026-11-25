@@ -136,11 +136,11 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
         return new RoomView(State.Revision, messages, State.PinnedScreens, present);
     }
 
-    public async Task<PublishedView> Act(string screenType, string screenKey, ScreenAction action, CancellationToken ct = default)
+    public async Task<PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(screenType);
         ArgumentException.ThrowIfNullOrWhiteSpace(screenKey);
-        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(command);
         await RequireSeat().ConfigureAwait(true);
 
         var type = screenType.Trim();
@@ -156,7 +156,7 @@ internal sealed class RoomNeuron(IServiceProvider? services = null) : Neuron<Roo
         using (AsSocialModule())
         {
             var screen = Context.Get<IScreen>(new NeuronId(Id.Brain, type, key));
-            await screen.Act(action).ConfigureAwait(true);
+            await screen.Dispatch(command).ConfigureAwait(true);
             view = await screen.Read().ConfigureAwait(true)
                 ?? throw new InvalidOperationException($"Pinned screen '{type}/{key}' produced no published view.");
         }

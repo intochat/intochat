@@ -67,7 +67,7 @@ public sealed class AspireHttpSessionDriver : IAppSessionDriver
     }
 
     /// <inheritdoc />
-    public Task<PublishedView> ActivateAsync(string key, CancellationToken ct = default) => PressAsync(key, value: null, ct);
+    public Task<PublishedView> ClickAsync(string key, CancellationToken ct = default) => PressAsync(key, value: null, ct);
 
     /// <inheritdoc />
     public Task<PublishedView> TypeAsync(string key, string text, CancellationToken ct = default)
@@ -85,16 +85,15 @@ public sealed class AspireHttpSessionDriver : IAppSessionDriver
         ct.ThrowIfCancellationRequested();
 
         var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
-        var command = CommandOf(current.View, key)
-            ?? throw new InvalidOperationException($"The view of '{_app}' has no node '{key}' that sends a command.");
+        var command = current.CommandAt(key);
         using var response = await _host.Os.PostAsJsonAsync(
             $"/brains/{_scope}/act",
             new
             {
                 neuron = $"{_scope}/apps/{_app}",
-                target = command.GetProperty("target").GetString(),
-                signal = command.GetProperty("signal").GetString(),
-                args = command.TryGetProperty("args", out var args) ? args.Clone() : (JsonElement?)null,
+                target = command.Target,
+                signal = command.Signal,
+                args = command.Args,
                 value,
             },
             ct).ConfigureAwait(false);
@@ -102,32 +101,6 @@ public sealed class AspireHttpSessionDriver : IAppSessionDriver
 
         await WaitForSettledViewAsync(current.Generation, ct).ConfigureAwait(false);
         return await ReadViewAsync(ct).ConfigureAwait(false);
-    }
-
-    private static JsonElement? CommandOf(JsonElement element, string key)
-    {
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key)
-            {
-                foreach (var member in new[] { "command", "onSubmit", "close" })
-                {
-                    if (element.TryGetProperty(member, out var command) && command.ValueKind == JsonValueKind.Object) { return command.Clone(); }
-                }
-            }
-            foreach (var property in element.EnumerateObject())
-            {
-                if (property.Name is not ("command" or "onSubmit" or "close" or "args") && CommandOf(property.Value, key) is { } found) { return found; }
-            }
-        }
-        else if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                if (CommandOf(item, key) is { } found) { return found; }
-            }
-        }
-        return null;
     }
 
     /// <inheritdoc />

@@ -224,39 +224,7 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
-    public void Press_StaleGeneration_ThrowsActivationRefusedException()
-    {
-        var wire = JsonSerializer.SerializeToElement(new
-        {
-            kind = "button",
-            key = "btn",
-            command = new { target = ".", signal = "adv.bump" }
-        });
-        var published = new PublishedView(StateAlias, 5, wire);
-
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, StateAlias, generation: 4, "btn", null, "user1"));
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public void Press_CommandToAChild_IsRefusedWithNoSlots()
-    {
-        var wire = JsonSerializer.SerializeToElement(new
-        {
-            kind = "button",
-            key = "btn",
-            command = new { target = "child", signal = "adv.bump" }
-        });
-        var published = new PublishedView(StateAlias, 1, wire);
-
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
-        Assert.Equal(ActivationRefusedException.NoSlots, ex.Reason);
-    }
-
-    [Fact]
-    public void Press_StrayCloseOnAButton_IsNotActivatable()
+    public void CommandAt_StrayCloseOnAButton_SendsNoCommand()
     {
         var wire = JsonSerializer.SerializeToElement(new
         {
@@ -266,21 +234,12 @@ public sealed class UnitMachineAdversarialFacts
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
+        var ex = Assert.Throws<ActivationRefusedException>(() => published.CommandAt("btn"));
         Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
     }
 
     [Fact]
-    public void Press_NullView_ThrowsActivationRefusedException()
-    {
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(null, StateAlias, generation: 1, "btn", null, "user1"));
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public void Press_MismatchedClaimedAlias_ThrowsActivationRefusedException()
+    public void CommandAt_UnknownNode_ThrowsActivationRefusedException()
     {
         var wire = JsonSerializer.SerializeToElement(new
         {
@@ -290,29 +249,12 @@ public sealed class UnitMachineAdversarialFacts
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, "wrong.alias", generation: 1, "btn", null, "user1"));
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public void Press_UnknownNode_ThrowsActivationRefusedException()
-    {
-        var wire = JsonSerializer.SerializeToElement(new
-        {
-            kind = "button",
-            key = "btn",
-            command = new { target = ".", signal = "adv.bump" }
-        });
-        var published = new PublishedView(StateAlias, 1, wire);
-
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, StateAlias, generation: 1, "non_existent_key", null, "user1"));
+        var ex = Assert.Throws<ActivationRefusedException>(() => published.CommandAt("non_existent_key"));
         Assert.Equal(ActivationRefusedException.UnknownNode, ex.Reason);
     }
 
     [Fact]
-    public void Press_NodeWithoutCommand_ThrowsActivationRefusedException()
+    public void CommandAt_NodeWithoutCommand_ThrowsActivationRefusedException()
     {
         var wire = JsonSerializer.SerializeToElement(new
         {
@@ -322,29 +264,22 @@ public sealed class UnitMachineAdversarialFacts
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, StateAlias, generation: 1, "label", null, "user1"));
+        var ex = Assert.Throws<ActivationRefusedException>(() => published.CommandAt("label"));
         Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
     }
 
     [Fact]
-    public void Press_CommandToAnotherAddress_ThrowsActivationRefusedException()
+    public async Task UnitNeuron_Dispatch_CommandToAChild_IsRefusedWithUnknownChild()
     {
-        var wire = JsonSerializer.SerializeToElement(new
-        {
-            kind = "button",
-            key = "btn",
-            command = new { target = "elsewhere", signal = "adv.bump" }
-        });
-        var published = new PublishedView(StateAlias, 1, wire);
+        var neuron = new UnitNeuron<AdvCounter>(new SynapseCatalogSource(SynapseCatalog.Scan([typeof(AdvCounter), typeof(AdvSynapses)])), new UnboundSlotResolver());
+        NeuronAttachment.Attach(neuron, new RecordingContext(NeuronId.Parse(NeuronAddress)));
 
-        var ex = Assert.Throws<ActivationRefusedException>(() =>
-            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
-        Assert.Equal(ActivationRefusedException.NoSlots, ex.Reason);
+        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() => neuron.Dispatch(new Command("child", "adv.bump")));
+        Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
 
     [Fact]
-    public void Press_PayloadConstruction_StripsAuthorByAndAppendsActivatorByAndFieldValue()
+    public void CommandAt_WithAValue_StripsAnAuthorByAndJoinsTheValue()
     {
         var wire = JsonSerializer.SerializeToElement(new
         {
@@ -354,16 +289,16 @@ public sealed class UnitMachineAdversarialFacts
         });
         var published = new PublishedView(StateAlias, 1, wire);
 
-        var emitted = _machine.Press(published, StateAlias, 1, "btn", fieldValue: "typed_val", by: "real_activator");
+        var command = published.CommandAt("btn", "typed_val");
 
-        Assert.Equal("adv.bump", emitted.Alias);
-        Assert.Equal(99, emitted.Payload.GetProperty("count").GetInt32());
-        Assert.Equal("typed_val", emitted.Payload.GetProperty("value").GetString());
-        Assert.Equal("real_activator", emitted.Payload.GetProperty("by").GetString());
+        Assert.Equal("adv.bump", command.Signal);
+        Assert.Equal(99, command.Args!.Value.GetProperty("count").GetInt32());
+        Assert.Equal("typed_val", command.Args.Value.GetProperty("value").GetString());
+        Assert.False(command.Args.Value.TryGetProperty("by", out _));
     }
 
     [Fact]
-    public async Task UnitNeuron_Activate_SingleCommitAtomicTurnWithoutReadback()
+    public async Task UnitNeuron_Dispatch_SingleCommitAtomicTurnWithoutReadback()
     {
         var neuronId = NeuronId.Parse(NeuronAddress);
         var context = new RecordingContext(neuronId);
@@ -378,8 +313,9 @@ public sealed class UnitMachineAdversarialFacts
         context.Store(JsonSerializer.SerializeToUtf8Bytes(new StoredUnit<AdvCounter>(new AdvCounter(0), publishedView), DigitalBrain.Invocation.RuntimeProtocol.Json));
         await NeuronAttachment.Activate(neuron, TestContext.Current.CancellationToken);
 
-        // Perform UI press
-        await neuron.Activate(StateAlias, generation: 1, nodeKey: "bump_btn", fieldValue: null, by: "alice");
+        // Send the button's command as the person alice
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Person("alice", "alice-account", neuronId.Brain);
+        await neuron.Dispatch(publishedView.CommandAt("bump_btn"));
 
         // Assert: EXACTLY ONE commit entry written to journal!
         var write = Assert.Single(context.Writes);
@@ -392,7 +328,7 @@ public sealed class UnitMachineAdversarialFacts
         Assert.Equal(2, currentView.Generation);
 
         // Assert signals committed in that single entry:
-        // [said (the EmittedSignal from Press), StateChanged, ViewChanged(gen 2)]
+        // [said (the EmittedSignal of the command), StateChanged, ViewChanged(gen 2)]
         Assert.Equal(3, write.Signals.Count);
         var said = Assert.IsType<EmittedSignal>(write.Signals[0]);
         Assert.Equal("adv.bump", said.Alias);
@@ -409,7 +345,7 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
-    public async Task UnitNeuron_Activate_UnchangedState_OnlyPublishesSaidWithoutCommit()
+    public async Task UnitNeuron_Dispatch_UnchangedState_OnlyPublishesSaidWithoutCommit()
     {
         var neuronId = NeuronId.Parse(NeuronAddress);
         var context = new RecordingContext(neuronId);
@@ -427,7 +363,7 @@ public sealed class UnitMachineAdversarialFacts
         context.Store(JsonSerializer.SerializeToUtf8Bytes(new StoredUnit<AdvCounter>(new AdvCounter(10), publishedView), DigitalBrain.Invocation.RuntimeProtocol.Json));
         await NeuronAttachment.Activate(neuron, TestContext.Current.CancellationToken);
 
-        await neuron.Activate(StateAlias, generation: 1, nodeKey: "noop_btn", fieldValue: null, by: "alice");
+        await neuron.Dispatch(publishedView.CommandAt("noop_btn"));
 
         // Zero writes because state was unchanged!
         Assert.Empty(context.Writes);
@@ -436,7 +372,7 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
-    public async Task UnitNeuron_Activate_FailingReaction_PublishesSaidBeforeRethrow()
+    public async Task UnitNeuron_Dispatch_FailingReaction_PublishesSaidBeforeRethrow()
     {
         var neuronId = NeuronId.Parse(NeuronAddress);
         var context = new RecordingContext(neuronId);
@@ -455,7 +391,7 @@ public sealed class UnitMachineAdversarialFacts
         await NeuronAttachment.Activate(neuron, TestContext.Current.CancellationToken);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            neuron.Activate(StateAlias, generation: 1, nodeKey: "fail_btn", fieldValue: null, by: "alice"));
+            neuron.Dispatch(publishedView.CommandAt("fail_btn")));
         Assert.Equal("boom from reaction", ex.Message);
 
         // Zero writes

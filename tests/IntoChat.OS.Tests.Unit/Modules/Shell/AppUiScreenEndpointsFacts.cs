@@ -34,7 +34,6 @@ public sealed class AppUiScreenEndpointsFacts
     private sealed class FakeScreen : IScreen
     {
         private readonly PublishedView _published;
-        public List<(string Alias, long Generation, string Key, string? Value, string? By)> Activations { get; } = [];
 
         public FakeScreen(PublishedView published)
         {
@@ -43,24 +42,8 @@ public sealed class AppUiScreenEndpointsFacts
 
         public Task<PublishedView?> Open() => Read();
 
-        public Task Act(ScreenAction action) => Activate(action.Alias ?? _published.Alias, action.Generation, action.NodeKey, action.FieldValue);
-
         public Task<PublishedView?> Read(string? alias = null)
             => Task.FromResult<PublishedView?>(_published);
-
-        public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)
-        {
-            if (generation != _published.Generation)
-            {
-                throw new ActivationRefusedException(ActivationRefusedException.Stale);
-            }
-            if (nodeKey == "btn-alien")
-            {
-                throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
-            }
-            Activations.Add((alias, generation, nodeKey, fieldValue, by));
-            return Task.CompletedTask;
-        }
 
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
         public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));

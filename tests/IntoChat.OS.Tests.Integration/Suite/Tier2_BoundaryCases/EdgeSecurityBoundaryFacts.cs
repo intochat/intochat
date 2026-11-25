@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using DigitalBrain.Testing;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Invocation;
@@ -286,7 +287,7 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
         os.Register<PayloadSanitizerProbeScreen>();
 
         var brain = NewBrain("payload-sanitizer");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
+        using var person = os.Edge.Enter(os.Edge.Person("alice@intochat.io", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.payload_sanitizer_probe", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -300,7 +301,7 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
         Assert.Contains("By: none;Action: deposit;Amount: 500", afterRequest.View.GetRawText());
 
         // Host Activate stamps host-asserted "by" onto emitted signal payload
-        await screen.Activate("app.payload_sanitizer_probe", afterRequest.Generation, "btn-deposit", fieldValue: null, by: "alice@intochat.io");
+        await screen.Click("btn-deposit");
         await os.Idle();
 
         var afterActivate = await screen.Read();

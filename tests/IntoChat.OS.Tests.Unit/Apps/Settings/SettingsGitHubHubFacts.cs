@@ -420,7 +420,7 @@ public sealed class SettingsGitHubHubFacts
 
         // 1. Click settings:github-policy:auto-10 -> 10m per rolling 1-hour window
         var open1 = await screen.Open();
-        await screen.Activate("app.settings", open1!.Generation, "settings:github-policy:auto-10");
+        await screen.Click("settings:github-policy:auto-10");
         await os.Idle();
 
         Assert.Equal("auto-10", settings.App.State.GitHubTriagePolicyPreset);
@@ -437,7 +437,7 @@ public sealed class SettingsGitHubHubFacts
 
         // 2. Click settings:github-policy:draft-only -> 0m per PolicyWindowKind.None
         var open2 = await screen.Open();
-        await screen.Activate("app.settings", open2!.Generation, "settings:github-policy:draft-only");
+        await screen.Click("settings:github-policy:draft-only");
         await os.Idle();
 
         Assert.Equal("draft-only", settings.App.State.GitHubTriagePolicyPreset);
@@ -453,7 +453,7 @@ public sealed class SettingsGitHubHubFacts
 
         // 3. Click settings:github-policy:reset -> retires rule
         var open3 = await screen.Open();
-        await screen.Activate("app.settings", open3!.Generation, "settings:github-policy:reset");
+        await screen.Click("settings:github-policy:reset");
         await os.Idle();
 
         Assert.Equal("reset", settings.App.State.GitHubTriagePolicyPreset);
@@ -480,7 +480,7 @@ public sealed class SettingsGitHubHubFacts
 
             // 1. Install Draft mode via button activation
             var openDraft = await screen.Open();
-            await screen.Activate("app.settings", openDraft!.Generation, "settings:github-synapse:draft");
+            await screen.Click("settings:github-synapse:draft");
             await os.Idle();
 
             Assert.Single(FakeIssueTriageInoStudioNeuron.Calls);
@@ -495,7 +495,7 @@ public sealed class SettingsGitHubHubFacts
 
             // 2. Install AutoComment mode via button activation
             var openAuto = await screen.Open();
-            await screen.Activate("app.settings", openAuto!.Generation, "settings:github-synapse:auto");
+            await screen.Click("settings:github-synapse:auto");
             await os.Idle();
 
             Assert.Equal(2, FakeIssueTriageInoStudioNeuron.Calls.Count);

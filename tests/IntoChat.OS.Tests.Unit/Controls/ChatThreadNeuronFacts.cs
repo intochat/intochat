@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain.Testing;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
@@ -171,8 +172,8 @@ public sealed class ChatThreadNeuronFacts
         await thread.Send(new ImportMessages([User("m1", "hi"), Failed("m2")]));
         var view = await thread.Screen.Read();
 
-        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadProps.ComposerKey, "typed text");
-        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadProps.RetryKeyOf("m2"));
+        await thread.Screen.Click(ChatThreadProps.ComposerKey, "typed text");
+        await thread.Screen.Click(ChatThreadProps.RetryKeyOf("m2"));
 
         var published = thread.Published();
         Assert.Equal("typed text", Assert.IsType<Submitted>(published[0]).Values["text"]);
@@ -241,8 +242,8 @@ public sealed class ChatThreadNeuronFacts
         await thread.Send(new ImportMessages([]));
         var view = await thread.Screen.Read();
 
-        await thread.Screen.Activate(view!.Alias, view.Generation, ChatThreadProps.SelectModelKey, "gpt-5.4");
-        await thread.Screen.Activate(view.Alias, view.Generation, ChatThreadProps.PinModelKey, "claude-sonnet-5");
+        await thread.Screen.Click(ChatThreadProps.SelectModelKey, "gpt-5.4");
+        await thread.Screen.Click(ChatThreadProps.PinModelKey, "claude-sonnet-5");
 
         var published = thread.Published();
         var switched = Assert.IsType<ChatModelSelected>(published[0]);

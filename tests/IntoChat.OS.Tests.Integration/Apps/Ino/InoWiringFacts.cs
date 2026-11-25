@@ -218,7 +218,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
                 var current = await screen.Read() ?? noProviderView;
                 try
                 {
-                    await screen.Activate("app.ino", current.Generation, InoView.ProviderCredentialKey, "sk-proj-testkey1234567890", brain);
+                    await screen.Click(InoView.ProviderCredentialKey, "sk-proj-testkey1234567890");
                     break;
                 }
                 catch (ActivationRefusedException) when (attempt < 5)

@@ -210,8 +210,6 @@ public sealed class ScreenViewMarkFacts
         public Task Publish(long generation, View view) => Task.CompletedTask;
         public Task<PublishedView?> Read() => Task.FromResult<PublishedView?>(new("kit", 1,
             raw ?? JsonSerializer.SerializeToElement(new View("Kit", new Heading("Kit text")), JsonSerializerOptions.Web)));
-        public Task<IntoChat.OS.Modules.Flutter.Views.ViewActivation> Activate(long generation, string key, string? fieldValue)
-            => throw new NotSupportedException();
     }
 
     // Only the Kit app's IView answers; every other neuron is missing.
@@ -264,9 +262,7 @@ public sealed class ScreenViewMarkFacts
     private sealed class FailingScreen(Exception error) : IScreen
     {
         public Task<PublishedView?> Open() => Task.FromResult<PublishedView?>(null);
-        public Task Act(ScreenAction action) => Task.CompletedTask;
         public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(null);
-        public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
         public Task Dispatch(Command command) => Task.FromException(error);
         public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(error);

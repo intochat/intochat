@@ -133,7 +133,7 @@ public sealed class AgentAppScreenFacts
         Assert.Equal([tregKey], seated.Definition.ToolSources ?? []);
 
         // Click starter button via IScreen.Activate -> triggers Say -> projects reply into ChatThreadNeuron.
-        await screen.Activate("agentapp", published.Generation, "starter:0", null, "local");
+        await screen.Click("starter:0");
 
         Assert.Equal(["Show open bugs"], RecordingConversation.SaidTexts);
 

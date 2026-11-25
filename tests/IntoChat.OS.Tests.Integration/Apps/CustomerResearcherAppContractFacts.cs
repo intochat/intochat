@@ -25,7 +25,7 @@ public sealed class CustomerResearcherRuntimeFixture : BothRuntimesFixture
 public sealed class CustomerResearcherAppContractFacts(CustomerResearcherRuntimeFixture fixture)
     : AppConcurrencyAndIsolationContract<CustomerResearcherApp, CustomerResearcherRuntimeFixture>(fixture)
 {
-    protected override string? ConcurrentActivationKey => "btn:clear";
+    protected override string? ConcurrentCommandKey => "btn:clear";
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task TypingACompanyAndClickingResearchSavesIt(NeuronRuntimeKind kind)

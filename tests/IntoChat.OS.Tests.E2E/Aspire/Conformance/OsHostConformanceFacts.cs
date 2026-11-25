@@ -49,7 +49,7 @@ public sealed class OsHostConformanceFacts(OsAppHostFixture host)
         Assert.Equal(JsonValueKind.Object, initialView.View.ValueKind);
         Assert.True(initialView.Generation >= 0);
 
-        var activatedView = await driver.ActivateAsync("nav-desktop", ct);
+        var activatedView = await driver.ClickAsync("nav-desktop", ct);
         Assert.Equal(JsonValueKind.Object, activatedView.View.ValueKind);
         Assert.True(activatedView.Generation >= initialView.Generation);
     }

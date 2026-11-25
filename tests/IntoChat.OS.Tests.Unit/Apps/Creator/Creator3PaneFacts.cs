@@ -267,9 +267,6 @@ public sealed class Creator3PaneFacts
 
         public Task<PublishedView?> Read()
             => Task.FromResult<PublishedView?>(new PublishedView("creator", 1L, System.Text.Json.JsonSerializer.SerializeToElement(new View("Creator", new Text("Ready")))));
-
-        public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
-            => Task.FromResult(new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
     }
 
     private sealed class MockApprovalsNeuron : IApprovals

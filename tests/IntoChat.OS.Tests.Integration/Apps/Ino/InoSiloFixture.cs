@@ -216,24 +216,8 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public IScreen ThreadScreen(string brain) => SiloNeurons.Get<IScreen>(Services, ThreadOf(brain));
 
-    // Activates a node of the conversation thread (the composer, a message's retry, the stop, the error line's retry) on its current view.
-    public async Task ActOnThreadAsync(string brain, string key, string? value = null)
-    {
-        var thread = ThreadScreen(brain);
-        for (var attempt = 0; ; attempt++)
-        {
-            var current = await thread.Read() ?? throw new InvalidOperationException("The conversation thread has no view.");
-            try
-            {
-                await thread.Activate(current.Alias, current.Generation, key, value, brain);
-                return;
-            }
-            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale && attempt < 5)
-            {
-                await Task.Delay(25);
-            }
-        }
-    }
+    // Sends the command of a node of the conversation thread (the composer, a message's retry, the stop, the error line's retry) on its current view.
+    public Task ActOnThreadAsync(string brain, string key, string? value = null) => ThreadScreen(brain).Click(key, value);
 
     public async Task<PublishedView?> ReadComposedAsync(IScreen screen)
     {
