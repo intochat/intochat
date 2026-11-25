@@ -371,9 +371,17 @@ internal static class OrleansRuntimeAot
 
         public TField DeepCopy(TField input, CopyContext context)
         {
-            if (!typeof(TField).IsValueType && input is not null && context.TryGetCopy<object>(input, out var existing))
+            if (!typeof(TField).IsValueType)
             {
-                return (TField)existing;
+                if (input is null)
+                {
+                    return default!;
+                }
+
+                if (context.TryGetCopy<object>(input, out var existing))
+                {
+                    return (TField)existing;
+                }
             }
 
             var surrogate = _converter.ConvertToSurrogate(in input);

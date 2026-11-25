@@ -142,6 +142,18 @@ public sealed class SurrogateRoundTripFacts
         var brainState = new BrainState(owner, now);
         Assert.Equal(brainState, await grain.EchoBrainState(brainState));
 
+        var ephemeralBrainState = new BrainState(owner, now)
+        {
+            Residency = new BrainResidency.Ephemeral(8 * 1024 * 1024, TimeSpan.FromHours(12), 10),
+        };
+        Assert.Equal(ephemeralBrainState, await grain.EchoBrainState(ephemeralBrainState));
+
+        var persistentBrainState = new BrainState(owner, now)
+        {
+            Residency = new BrainResidency.Persistent("ada"),
+        };
+        Assert.Equal(persistentBrainState, await grain.EchoBrainState(persistentBrainState));
+
         var secret = new SealedSecret { Cipher = "cipher-base64", KeyId = "key-1" };
         Assert.Equal(secret, await grain.EchoSealedSecret(secret));
 

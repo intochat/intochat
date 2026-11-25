@@ -249,11 +249,17 @@ internal sealed class BrainResidencySurrogateConverter : IConverter<BrainResiden
 {
     public BrainResidency ConvertFromSurrogate(in BrainResidencySurrogate surrogate)
         => surrogate.IsEphemeral
-            ? new BrainResidency.Ephemeral(surrogate.MaxMemoryBytes, surrogate.IdleTtl, surrogate.MaxTrialTurns)
-            : new BrainResidency.Persistent(surrogate.OwnerPrincipalId ?? string.Empty);
+            ? new BrainResidency.Ephemeral(
+                surrogate.MaxMemoryBytes > 0 ? surrogate.MaxMemoryBytes : BrainResidency.Ephemeral.DefaultMaxMemoryBytes,
+                surrogate.IdleTtl,
+                surrogate.MaxTrialTurns)
+            : string.IsNullOrWhiteSpace(surrogate.OwnerPrincipalId)
+                ? null!
+                : new BrainResidency.Persistent(surrogate.OwnerPrincipalId);
 
     public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency value) => value switch
     {
+        null => default,
         BrainResidency.Ephemeral ephemeral => new()
         {
             IsEphemeral = true,
@@ -274,28 +280,41 @@ internal sealed class BrainResidencySurrogateConverter : IConverter<BrainResiden
 internal sealed class EphemeralBrainResidencySurrogateConverter : IConverter<BrainResidency.Ephemeral, BrainResidencySurrogate>
 {
     public BrainResidency.Ephemeral ConvertFromSurrogate(in BrainResidencySurrogate surrogate)
-        => new(surrogate.MaxMemoryBytes, surrogate.IdleTtl, surrogate.MaxTrialTurns);
+        => !surrogate.IsEphemeral && surrogate.MaxMemoryBytes <= 0
+            ? null!
+            : new(
+                surrogate.MaxMemoryBytes > 0 ? surrogate.MaxMemoryBytes : BrainResidency.Ephemeral.DefaultMaxMemoryBytes,
+                surrogate.IdleTtl,
+                surrogate.MaxTrialTurns);
 
-    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency.Ephemeral value) => new()
-    {
-        IsEphemeral = true,
-        MaxMemoryBytes = value.MaxMemoryBytes,
-        IdleTtl = value.IdleTtl,
-        MaxTrialTurns = value.MaxTrialTurns,
-    };
+    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency.Ephemeral value)
+        => value is null
+            ? default
+            : new()
+            {
+                IsEphemeral = true,
+                MaxMemoryBytes = value.MaxMemoryBytes,
+                IdleTtl = value.IdleTtl,
+                MaxTrialTurns = value.MaxTrialTurns,
+            };
 }
 
 [RegisterConverter]
 internal sealed class PersistentBrainResidencySurrogateConverter : IConverter<BrainResidency.Persistent, BrainResidencySurrogate>
 {
     public BrainResidency.Persistent ConvertFromSurrogate(in BrainResidencySurrogate surrogate)
-        => new(surrogate.OwnerPrincipalId ?? string.Empty);
+        => string.IsNullOrWhiteSpace(surrogate.OwnerPrincipalId)
+            ? null!
+            : new(surrogate.OwnerPrincipalId);
 
-    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency.Persistent value) => new()
-    {
-        IsEphemeral = false,
-        OwnerPrincipalId = value.OwnerPrincipalId,
-    };
+    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency.Persistent value)
+        => value is null
+            ? default
+            : new()
+            {
+                IsEphemeral = false,
+                OwnerPrincipalId = value.OwnerPrincipalId,
+            };
 }
 
 /// <summary>Orleans wire form of <see cref="BrainState"/>.</summary>
