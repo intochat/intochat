@@ -190,7 +190,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
         Assert.NotNull(markdrawView);
 
-        // The screen has no route to workspace files (a workspace CSV is read by Ino's data neuron); it renders on the silo.
+        // It renders on the silo; a workspace CSV reaches the screen through its IWorkspaceFiles slot (WorkspaceFilesFacts).
         var dataStudio = fixture.AttachSilo<DataStudioApp>(brain);
         await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
         await fixture.PublishAppViewToSiloAsync(brain, "data", null, dataStudio.Render());

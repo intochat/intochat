@@ -74,7 +74,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddHostedService<AppMenuHost>();
         services.AddNeuronProxies();
         services.TryAddSingleton<PolicyWriter>();
-        services.TryAddSingleton<ArtifactLiveHub>();
+        StorageContentHosting.AddServices(services);
         services.TryAddSingleton(new IntoChat.OS.Host.Conversations.ConversationDefaults(
             DefaultAgentId: "ino",
             LegacyAgentKeyPrefix: "ino/conversations/",
@@ -91,7 +91,6 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(endpoints);
         AppsEndpoints.Map(endpoints);
         ArtCraftWebEndpoints.Map(endpoints);
-        ArtifactEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
     }

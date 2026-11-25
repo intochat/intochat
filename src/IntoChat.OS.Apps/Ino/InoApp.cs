@@ -43,6 +43,8 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
     [Slot(Key = IInoRecords.Key)] private partial IInoRecords Records { get; }
     [Slot(Key = "compute", Required = false)] private partial ICompute? Compute { get; }
     [Slot(Key = DataKey)] private partial IData Data { get; }
+    // The brain's workspace files: a query-db over a workspace file reads it here.
+    [Slot(Key = WorkspaceFilesDefaults.Key, Required = false)] private partial IWorkspaceFiles? WorkspaceFiles { get; }
     [Slot(Key = "memory", Required = false)] private partial IMemory? Memory { get; }
     [Slot(Key = "main", Required = false)] private partial IAppStudio? AppStudio { get; }
     [Slot(Key = ModelsKey)] private partial IModelCatalog ModelCatalog { get; }
@@ -514,7 +516,13 @@ public sealed partial class InoApp : AggregateScreen<InoAppState>, INavigatedTo<
         var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
         var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
         DataQueryResult result;
-        try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, brain: Context.Caller?.Brain ?? default); }
+        try
+        {
+            var brain = Context.Caller?.Brain ?? default;
+            result = await IntoChat.OS.Apps.Data.WorkspaceDataset.Read(WorkspaceFiles, sql) is { } dataset
+                ? DataAnalyticsEngine.ExecuteInMemory(sql, database, dataset.Text, dataset.Path, brain)
+                : await DataAnalyticsEngine.ExecuteAsync(sql, database, brain: brain);
+        }
         catch (Exception error) when (error is not OperationCanceledException) { if (Logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); } await Commit(State with { Status = $"Could not run the query: {error.Message}" }); return; }
         if (Memory is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6)); }
         await Commit(InoModel.DecideQueryDbSuccess(State, result, database));

@@ -5,8 +5,8 @@ Shipped: true
 Operations: open, read-canvas, sync-scene, patch-elements, from-data, save, export, ui.command
 
 Excalidraw-inspired interactive diagram, architecture, and data-flow canvas studio powered by the Flutter markdraw package.
-Keeps the active .markdraw scene in its own state (this screen has no route to workspace files, see OWED.md),
-and exposes co-drawing operations (read-canvas, patch-elements, from-data, sync-scene) so both the user and Ino can inspect
+Keeps the active .markdraw scene in its own state and saves and exports it as workspace files (/work/*, through
+IWorkspaceFiles), and exposes co-drawing operations (read-canvas, patch-elements, from-data, sync-scene) so both the user and Ino can inspect
 and mutate the exact same live canvas without overwriting hand-drawn strokes.
 */
 using IntoChat.OS.Host.Apps;
@@ -46,8 +46,11 @@ public sealed record MarkdrawSave(string? Document = null, string? Content = nul
 public sealed record MarkdrawExport(string? Format = null, string? TargetPath = null) : Signal;
 
 [Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw", Icon = "pen-tool", Category = "Studio", Dock = 4)]
-public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
+public sealed partial class MarkdrawApp : AggregateScreen<MarkdrawAppState>
 {
+    // The brain's workspace files: a saved scene and an export are written there, and an existing document is opened from it.
+    [Slot(Key = WorkspaceFilesDefaults.Key, Required = false)] private partial IWorkspaceFiles? WorkspaceFiles { get; }
+
     protected override Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -100,13 +103,13 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
         description: "Excalidraw-inspired diagram, whiteboard, and architecture studio with .markdraw Markdown sketch blocks, .excalidraw JSON interop, and shared Ino co-drawing.",
         operations:
         [
-            new("open", "Open a .markdraw or .excalidraw file or initialize an architecture/data-flow template."),
+            new("open", "Open a .markdraw or .excalidraw file of the workspace or initialize an architecture/data-flow template."),
             new("read-canvas", "Inspect all shapes, nodes, text labels, and arrows currently on the active Markdraw canvas."),
             new("sync-scene", "Synchronize interactive user canvas edits from the Flutter MarkdrawEditor widget."),
             new("patch-elements", "Co-draw on the active canvas by adding, updating, or connecting nodes and arrows without losing user strokes."),
             new("from-data", "Generate or update an interactive data-flow or schema diagram on the canvas from a dataset or SQL table."),
-            new("save", "Save the active .markdraw or .excalidraw document (kept in the screen's state)."),
-            new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format."),
+            new("save", "Save the active .markdraw or .excalidraw document to the workspace (/work/*)."),
+            new("export", "Export the active Markdraw scene to .excalidraw JSON or .svg vector format in the workspace."),
             new(UiCommand.SignalAlias, "Dispatch a typed Markdraw aggregate command."),
         ],
         studio: true,
@@ -121,6 +124,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
         ArgumentNullException.ThrowIfNull(request);
         var doc = ResolveTargetDoc(request.Document);
         var content = !string.IsNullOrWhiteSpace(request.Template) ? SelectTemplateContent(request.Template, doc) : State.Content;
+        if (string.IsNullOrWhiteSpace(request.Template) && await ReadFromWorkspaceAsync(doc) is { Length: > 0 } saved) { content = saved; }
         var drawings = State.WorkspaceDrawings;
 
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
@@ -237,8 +241,12 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
             return;
         }
 
-        var (savedDoc, drawings) = (doc, State.WorkspaceDrawings);
-        await Show(State with { ActiveDocument = savedDoc, Format = InferFormat(savedDoc, content), Content = content, Elements = elements, WorkspaceDrawings = drawings, Status = $"Saved {savedDoc} ({elements.Length} element(s), rev {State.Revision})" });
+        var failed = await WriteToWorkspaceAsync(doc, content);
+        var drawings = failed is null ? Drawn(doc) : State.WorkspaceDrawings;
+        var status = failed is null
+            ? $"Saved {doc} to the workspace ({elements.Length} element(s), rev {State.Revision})"
+            : $"Kept {doc} in this canvas ({elements.Length} element(s), rev {State.Revision}); not saved to the workspace: {failed}";
+        await Show(State with { ActiveDocument = doc, Format = InferFormat(doc, content), Content = content, Elements = elements, WorkspaceDrawings = drawings, Status = status });
     }
 
     [On]
@@ -265,13 +273,15 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
             _ => MarkdrawSceneEngine.RenderExcalidrawJson(State.Elements),
         };
 
-        var drawings = State.WorkspaceDrawings;
+        var failed = await WriteToWorkspaceAsync(targetPath, payload);
 
         await Show(decision.Next with
         {
             LastExportPath = targetPath,
-            WorkspaceDrawings = drawings,
-            Status = $"Exported {State.Elements.Length} element(s) to {targetPath} ({effectiveFormat})",
+            WorkspaceDrawings = failed is null ? Drawn(targetPath) : State.WorkspaceDrawings,
+            Status = failed is null
+                ? $"Exported {State.Elements.Length} element(s) to {targetPath} ({effectiveFormat})"
+                : $"Exported {State.Elements.Length} element(s) as {effectiveFormat}, kept in this canvas; not written to {targetPath}: {failed}",
         });
     }
 
@@ -346,7 +356,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
                             .. state.WorkspaceDrawings.Select(path => MutedText(path).Tabular().ToNode()),
                         ])
                     ],
-                    !string.IsNullOrWhiteSpace(state.LastExportPath) ? Card("Last Export", state.LastExportPath)[MutedText("Kept in this canvas")].ToNode() : null
+                    !string.IsNullOrWhiteSpace(state.LastExportPath) ? Card("Last Export", state.LastExportPath)[MutedText("Last export path")].ToNode() : null
                 ],
                 trailing: VStack(Space.Md)[
                     MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
@@ -407,4 +417,34 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>
 
     private static string NormalizeExportPath(string raw, string defaultFormat)
         => IntoChat.OS.Apps.Data.DataStudioDecisions.StoredPath(raw, $"/work/architecture.{defaultFormat}", $".{defaultFormat}");
+
+    private string[] Drawn(string path) => [.. State.WorkspaceDrawings.Append(path).Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    // The text of the workspace file at the path, or null when there is none (or no workspace).
+    private async Task<string?> ReadFromWorkspaceAsync(string path)
+    {
+        if (WorkspaceFiles is not { } files) { return null; }
+        try { return await files.Read(path) is { } bytes ? System.Text.Encoding.UTF8.GetString(bytes) : null; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<MarkdrawApp>().LogSwallowed(error, "reading a drawing from the workspace");
+            return null;
+        }
+    }
+
+    // Writes the text as a workspace file; null when it is there, else why it is not.
+    private async Task<string?> WriteToWorkspaceAsync(string path, string text)
+    {
+        if (WorkspaceFiles is not { } files) { return "this screen has no workspace."; }
+        try
+        {
+            _ = await files.Write(path, System.Text.Encoding.UTF8.GetBytes(text));
+            return null;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<MarkdrawApp>().LogSwallowed(error, "writing a drawing to the workspace");
+            return error.Message;
+        }
+    }
 }

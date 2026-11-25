@@ -213,7 +213,7 @@ public sealed class StorageContentGateway(
         }
 
         var token = new UploadTicket(brainId, storageKey, folderValue, name, string.IsNullOrEmpty(planId) ? null : planId, clock.GetUtcNow() + UploadTicket.Lifetime).Protect(_tickets);
-        var url = "/brains/" + brainId + "/storage/" + storageKey + "/items/" + Uri.EscapeDataString(folderValue)
+        var url = "/brains/" + Uri.EscapeDataString(brainId) + "/storage/" + StorageContentEndpoints.Segment(storageKey) + "/items/" + StorageContentEndpoints.Escape(folderValue)
             + "/content/" + Uri.EscapeDataString(name) + "?ticket=" + Uri.EscapeDataString(token);
         return Results.Ok(new Dictionary<string, string> { ["ticket"] = token, ["url"] = url });
     }

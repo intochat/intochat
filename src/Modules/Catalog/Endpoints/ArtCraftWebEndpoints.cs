@@ -124,6 +124,8 @@ internal static class ArtCraftWebEndpoints
 
         var docQuery = context.Request.Query["doc"].FirstOrDefault();
         var activeDoc = !string.IsNullOrWhiteSpace(docQuery) ? docQuery! : descriptor.DefaultDocument;
+        // The page is open to anyone; only a person's session gives it a brain whose workspace it reads and saves.
+        var brain = DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(context) is { Actor: DigitalBrain.Access.Actor.Person } person ? person.Brain.Value : null;
 
         var bundleDir = ResolveWasmBundleDirectory(descriptor, env);
         if (bundleDir is not null)
@@ -140,7 +142,7 @@ internal static class ArtCraftWebEndpoints
 
                 if (!rawHtml.Contains("data-artcraft-vfs-bridge", StringComparison.OrdinalIgnoreCase))
                 {
-                    var bridgeScript = RenderVfsBridgeScript(descriptor, activeDoc);
+                    var bridgeScript = RenderVfsBridgeScript(descriptor, activeDoc, brain);
                     rawHtml = rawHtml.Replace("</head>", $"{bridgeScript}\n</head>", StringComparison.OrdinalIgnoreCase);
                 }
 
@@ -148,7 +150,7 @@ internal static class ArtCraftWebEndpoints
             }
         }
 
-        var html = RenderInteractiveStudioHtml(descriptor, activeDoc);
+        var html = RenderInteractiveStudioHtml(descriptor, activeDoc, brain);
         return Results.Content(html, "text/html; charset=utf-8", Encoding.UTF8);
     }
 
@@ -238,10 +240,15 @@ internal static class ArtCraftWebEndpoints
         return Directory.Exists(baseWwwRoot) ? baseWwwRoot : null;
     }
 
-    public static string RenderVfsBridgeScript(ArtCraftAppDescriptor d, string? activeDocument = null)
+    // The page's documents are files of the brain's workspace, read and saved through the hosted storage content route
+    // (StorageContentHosting): the workspace item by path, its content, an upload ticket, and the person's answer when a save
+    // would replace a file. brain is the brain of the person whose session opened the page; without one the page loads and
+    // saves nothing.
+    public static string RenderVfsBridgeScript(ArtCraftAppDescriptor d, string? activeDocument = null, string? brain = null)
     {
         ArgumentNullException.ThrowIfNull(d);
         var doc = JsonSerializer.Serialize(string.IsNullOrWhiteSpace(activeDocument) ? d.DefaultDocument : activeDocument);
+        var brainJson = string.IsNullOrWhiteSpace(brain) ? "null" : "\"" + System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(brain) + "\"";
         var appId = JsonSerializer.Serialize(d.Id);
         var title = JsonSerializer.Serialize(d.Title);
         var extsJson = JsonSerializer.Serialize(d.SupportedExtensions);
@@ -252,8 +259,20 @@ internal static class ArtCraftWebEndpoints
       const appId = {{appId}};
       const title = {{title}};
       const supportedExtensions = {{extsJson}};
+      const brain = {{brainJson}};
       const params = new URLSearchParams(window.location.search);
       let activeDocument = params.get('doc') || {{doc}};
+      const locate = async (path) => {
+        if (!brain || typeof path !== 'string' || path.trim().length === 0) return null;
+        const res = await fetch('/brains/' + encodeURIComponent(brain) + '/workspace/item?path=' + encodeURIComponent(path.trim()));
+        return res.ok ? await res.json() : null;
+      };
+      const upload = async (found, bytes, planId) => {
+        const ticket = await fetch(found.ticket + (planId ? '&planId=' + encodeURIComponent(planId) : ''), { method: 'POST' });
+        if (!ticket.ok) return ticket;
+        const granted = await ticket.json();
+        return fetch(granted.url, { method: 'PUT', headers: { 'X-Upload': '1' }, body: bytes });
+      };
       const bridge = {
         appId,
         title,
@@ -268,34 +287,35 @@ internal static class ArtCraftWebEndpoints
         },
         getState: () => ({ appId, title, activeDocument, wasmReady: Boolean(window.wasmBindings) }),
         loadArtifactBytes: async (docPath) => {
-          const target = docPath || activeDocument;
-          const res = await fetch('/artifacts/bytes?path=' + encodeURIComponent(target));
+          const found = await locate(docPath || activeDocument);
+          if (!found || !found.content) return null;
+          const res = await fetch(found.content);
           if (!res.ok) return null;
           return new Uint8Array(await res.arrayBuffer());
         },
         saveArtifactBytes: async (bytes, docPath) => {
-          const target = docPath || activeDocument;
-          const res = await fetch('/artifacts/bytes?path=' + encodeURIComponent(target) + '&actor=user', {
-            method: 'PUT',
-            body: bytes
-          });
-          return res.ok ? await res.json() : null;
+          const found = await locate(docPath || activeDocument);
+          if (!found) return null;
+          let res = await upload(found, bytes, null);
+          if (res.status === 409) {
+            // The file is there: it is replaced only when the person says so.
+            const parked = await res.json();
+            if (!window.confirm('Replace ' + found.name + ' in your workspace?')) return null;
+            const answered = await fetch(found.overwrites + encodeURIComponent(parked.planId), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ approve: true })
+            });
+            if (!answered.ok) return null;
+            res = await upload(found, bytes, parked.planId);
+          }
+          return res.ok ? { path: found.path, name: found.name } : null;
         },
         runCommand: (cmd, cmdParams) => {
           window.dispatchEvent(new CustomEvent('artcraft:command', { detail: { appId, cmd, params: cmdParams, activeDocument } }));
           return { ok: true, appId, cmd, activeDocument };
         }
       };
-      // Live SSE subscription: whenever Ino mutates activeDocument via MCP, notify the open WASM canvas immediately.
-      try {
-        const es = new EventSource('/artifacts/stream?path=' + encodeURIComponent(activeDocument));
-        es.addEventListener('artifact', (msg) => {
-          try {
-            const detail = JSON.parse(msg.data);
-            window.dispatchEvent(new CustomEvent('artcraft:artifact-updated', { detail }));
-          } catch (_) {}
-        });
-      } catch (_) {}
       window[appId] = bridge;
       window.artcraftStudio = bridge;
       window.addEventListener('message', (event) => {
@@ -312,12 +332,12 @@ internal static class ArtCraftWebEndpoints
 """;
     }
 
-    public static string RenderInteractiveStudioHtml(ArtCraftAppDescriptor d, string? activeDocument = null)
+    public static string RenderInteractiveStudioHtml(ArtCraftAppDescriptor d, string? activeDocument = null, string? brain = null)
     {
         ArgumentNullException.ThrowIfNull(d);
         if (string.Equals(d.Id, "artcraft", StringComparison.OrdinalIgnoreCase))
         {
-            return RenderArtCraftHubHtml(d, activeDocument);
+            return RenderArtCraftHubHtml(d, activeDocument, brain);
         }
 
         var doc = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(activeDocument) ? d.DefaultDocument : activeDocument);
@@ -329,7 +349,7 @@ internal static class ArtCraftWebEndpoints
         var cmdId = WebUtility.HtmlEncode(d.DefaultCommandId);
         var cliBin = WebUtility.HtmlEncode(d.CliBinary);
         var paramsJson = WebUtility.HtmlEncode(d.DefaultParametersJson);
-        var bridgeScript = RenderVfsBridgeScript(d, activeDocument);
+        var bridgeScript = RenderVfsBridgeScript(d, activeDocument, brain);
         var hasWasmRelease = !string.IsNullOrWhiteSpace(d.WebReleaseZipUrl);
         var autoBootFlag = hasWasmRelease ? "true" : "false";
 
@@ -399,9 +419,9 @@ internal static class ArtCraftWebEndpoints
 """;
     }
 
-    private static string RenderArtCraftHubHtml(ArtCraftAppDescriptor hub, string? activeDocument)
+    private static string RenderArtCraftHubHtml(ArtCraftAppDescriptor hub, string? activeDocument, string? brain)
     {
-        var bridgeScript = RenderVfsBridgeScript(hub, activeDocument);
+        var bridgeScript = RenderVfsBridgeScript(hub, activeDocument, brain);
         var cards = new StringBuilder();
         foreach (var app in ArtCraftCatalog.All)
         {

@@ -5,8 +5,8 @@ Shipped: true
 Operations: open, query, group-by, switch-chart, export-csv, to-markdraw
 
 Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization studio Neuron (apps/data).
-Powered by DataAnalyticsEngine (inline data and relational tables; this screen has no route to workspace files, see OWED.md),
-and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
+Powered by DataAnalyticsEngine over workspace files (/work/*.csv, *.tsv, *.json, read and written through IWorkspaceFiles)
+and relational tables, and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
 using IntoChat.OS.Host.Apps;
 using System.Text.Json.Serialization;
@@ -88,8 +88,11 @@ public sealed record DataStudioAppState(
 }
 
 [Neuron("app.data"), Screen("app.data", Title = "Data Studio", Icon = "bar-chart-2", Category = "Studio", Dock = 3)]
-public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>
+public sealed partial class DataStudioApp : AggregateScreen<DataStudioAppState>
 {
+    // The brain's workspace files: datasets are read from it, exports and diagrams written to it.
+    [Slot(Key = WorkspaceFilesDefaults.Key, Required = false)] private partial IWorkspaceFiles? WorkspaceFiles { get; }
+
     protected override Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -108,8 +111,8 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>
             new("query", "Run a SQL or natural-language analytical query (WHERE, GROUP BY, SUM/AVG/COUNT/MIN/MAX, ORDER BY, LIMIT)."),
             new("group-by", "Aggregate the active dataset by a column using SUM, AVG, COUNT, MIN, or MAX."),
             new("switch-chart", "Switch the active chart visualization between bar, line, and pie."),
-            new("export-csv", "Export the current filtered or aggregated table as CSV (kept in the screen; it is not written to the workspace)."),
-            new("to-markdraw", "Generate a live Markdraw data-lineage diagram from the active dataset and chart."),
+            new("export-csv", "Export the current filtered or aggregated table as a CSV file in the workspace (/work/*.csv)."),
+            new("to-markdraw", "Generate a live Markdraw data-lineage diagram from the active dataset and chart, saved in the workspace."),
         ],
         studio: true,
         toolbar:
@@ -180,7 +183,9 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>
         ArgumentNullException.ThrowIfNull(request);
         var stem = Path.GetFileNameWithoutExtension(State.ActiveSource.Replace("postgres:", string.Empty, StringComparison.OrdinalIgnoreCase));
         var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{(string.IsNullOrWhiteSpace(stem) ? "analytics-export" : stem)}-export.csv" : DataStudioDecisions.NormalizeCsvExportPath(request.TargetPath);
-        await Show(DataStudioDecisions.DecideExportCsv(State, targetPath, await ListWorkspaceDatasetsAsync(State.ActiveSource)));
+        var failed = await WriteToWorkspaceAsync(targetPath, DataAnalyticsEngine.SerializeToCsv(State.Columns, State.Rows));
+        var next = DataStudioDecisions.DecideExportCsv(State, targetPath, await ListWorkspaceDatasetsAsync(State.ActiveSource));
+        await Show(failed is null ? next : next with { Summary = $"{next.Summary} It is kept in this screen only: {failed}" });
     }
 
     [On]
@@ -188,7 +193,10 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var docPath = string.IsNullOrWhiteSpace(request.Document) ? "/work/data-lineage.markdraw" : MarkdrawApp.NormalizeDocumentPath(request.Document);
-        await Show(DataStudioDecisions.DecideToMarkdraw(State, docPath));
+        var summary = $"{State.Rows.Length} rows · Total €{State.Total:N0} · Avg €{State.Average:N0}";
+        var failed = await WriteToWorkspaceAsync(docPath, MarkdrawSceneEngine.BuildDataLineageMarkdraw(State.ChartTitle, State.Columns, summary, State.SourceNeuronUri));
+        var next = DataStudioDecisions.DecideToMarkdraw(State, docPath);
+        await Show(failed is null ? next : next with { Summary = $"{next.Summary} It is kept in this screen only: {failed}" });
     }
 
     public Task GroupByColumnAsync(string column) => GroupBy(new DataStudioGroupBy(column, "SUM"));
@@ -206,10 +214,44 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>
             ? $"{queryText} FROM {source}"
             : queryText;
 
-        var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, brain: Context.Caller?.Brain ?? default);
+        var brain = Context.Caller?.Brain ?? default;
+        var result = await WorkspaceDataset.Read(WorkspaceFiles, effectiveQuery) is { } dataset
+            ? DataAnalyticsEngine.ExecuteInMemory(effectiveQuery, source, dataset.Text, dataset.Path, brain)
+            : await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, brain: brain);
         await Show(DataStudioDecisions.DecideQueryResult(State, source, queryText, preferredChartKind, result, await ListWorkspaceDatasetsAsync(source), CurrentBrainId));
     }
 
-    private static Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
-        => Task.FromResult<string[]>(string.IsNullOrWhiteSpace(activeSource) ? [] : [activeSource]);
+    // Writes the text as a workspace file; null when it is there, else why it is not.
+    private async Task<string?> WriteToWorkspaceAsync(string path, string text)
+    {
+        if (WorkspaceFiles is not { } files) { return "this screen has no workspace."; }
+        try
+        {
+            _ = await files.Write(path, System.Text.Encoding.UTF8.GetBytes(text));
+            return null;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<DataStudioApp>().LogSwallowed(error, "writing a file to the workspace");
+            return error.Message;
+        }
+    }
+
+    // The active source and the datasets at the top of the workspace.
+    private async Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
+    {
+        var list = string.IsNullOrWhiteSpace(activeSource) ? new List<string>() : [activeSource];
+        if (WorkspaceFiles is { } files)
+        {
+            try
+            {
+                list.AddRange((await files.List("")).Where(file => !file.IsFolder && Path.GetExtension(file.Name).ToLowerInvariant() is ".csv" or ".tsv" or ".json").Select(file => file.Path));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<DataStudioApp>().LogSwallowed(error, "listing the workspace's datasets");
+            }
+        }
+        return [.. list.Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
 }

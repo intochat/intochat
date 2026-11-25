@@ -30,6 +30,13 @@ A capability is something a brain can do that a connection provides, for example
 
 Modules bring connections and capabilities. See [modules](modules.md).
 
+## Workspace files
+
+Each brain has a workspace: a confined folder on the host, offered as a storage connection (`CloudModule`). Code reaches it by path in two ways, both under the caller the kernel stamped:
+
+- A screen declares an `IWorkspaceFiles` slot (read, write, list and find by path, `/work/...` in stored state). Only callers of the brain pass, and an app needs the shipped grant; Data Studio, Markdraw, Ino and the ArtCraft studios hold it.
+- A web page, such as an ArtCraft studio, uses the storage content route the host serves (`StorageContentEndpoints`, hosted by `StorageContentHosting`): `/brains/{brain}/workspace/item?path=` finds a file, `/brains/{brain}/storage/{storage}/items/{id}/content` reads it, and an upload ticket writes it. `{storage}` is the connection key in one encoded form (`StorageContentEndpoints.Segment`). Replacing a file waits for the person's answer. The Files screen's previews use the same route.
+
 ## Friends and groups
 
 A friend is a link two people confirmed. One makes a single-use 24-hour `Code` through `IFriends` (stored under neuron type `friends.links`), the other redeems it, and each brain records the other's account in its one friend roster.
