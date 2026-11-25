@@ -58,22 +58,29 @@ internal sealed class BrainClaimService(
             throw new ArgumentException("An ephemeral try identity cannot claim a brain.", nameof(ownerPrincipalId));
         }
 
-        if (!ephemeral.Contains(ephemeralBrainId))
+        if (!ephemeral.TryBeginClaim(ephemeralBrainId))
         {
             throw new InvalidOperationException("No active ephemeral brain is available to claim.");
         }
 
-        var carriedGrants = ephemeral.SnapshotCarriedGrants(ephemeralBrainId);
-        var provision = await identity.ClaimEphemeralBrain(ephemeralBrainId, ownerPrincipalId, displayName, carriedGrants)
-            .WaitAsync(ct).ConfigureAwait(false);
-
-        await edge.AsKernel(new BrainId(ephemeralBrainId), async () =>
+        try
         {
-            await neurons.Brain(ephemeralBrainId).Claim(ownerPrincipalId, provision.Member.AccountId).WaitAsync(ct).ConfigureAwait(false);
-            return true;
-        }).ConfigureAwait(false);
+            var carriedGrants = ephemeral.SnapshotCarriedGrants(ephemeralBrainId);
+            var provision = await identity.ClaimEphemeralBrain(ephemeralBrainId, ownerPrincipalId, displayName, carriedGrants)
+                .WaitAsync(ct).ConfigureAwait(false);
 
-        ephemeral.MarkPromoted(ephemeralBrainId, ownerPrincipalId);
-        return provision.Member;
+            await edge.AsKernel(new BrainId(ephemeralBrainId), async () =>
+            {
+                await neurons.Brain(ephemeralBrainId).Claim(ownerPrincipalId, provision.Member.AccountId).WaitAsync(ct).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+
+            ephemeral.MarkPromoted(ephemeralBrainId, ownerPrincipalId);
+            return provision.Member;
+        }
+        finally
+        {
+            ephemeral.EndClaim(ephemeralBrainId);
+        }
     }
 }

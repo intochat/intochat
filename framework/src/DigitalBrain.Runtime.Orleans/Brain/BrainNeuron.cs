@@ -64,7 +64,7 @@ public sealed class BrainNeuron
             throw new ArgumentException("An ephemeral try identity cannot claim a brain into persistent storage.", nameof(ownerPrincipalId));
         }
 
-        RequireClaimer(ownerPrincipalId);
+        RequireClaimer(ownerPrincipalId, accountId);
 
         if (State.Owner is null)
         {
@@ -73,8 +73,7 @@ public sealed class BrainNeuron
 
         if (State.Residency is BrainResidency.Persistent existing)
         {
-            if (string.Equals(existing.OwnerPrincipalId, ownerPrincipalId, StringComparison.Ordinal)
-                || string.Equals(State.Owner.AccountId, ownerPrincipalId, StringComparison.Ordinal))
+            if (string.Equals(existing.OwnerPrincipalId, ownerPrincipalId, StringComparison.Ordinal))
             {
                 return new BrainState(State.Owner, State.CreatedAt) { Residency = existing };
             }
@@ -85,7 +84,11 @@ public sealed class BrainNeuron
         // Legacy persisted brains without an explicit Residency field are already persistent.
         if (State.Residency is null)
         {
-            if (string.Equals(State.Owner.AccountId, ownerPrincipalId, StringComparison.Ordinal))
+            var effectiveAccountId = !string.IsNullOrWhiteSpace(accountId)
+                ? accountId
+                : Context.Caller?.Actor is Actor.Person callerPerson ? callerPerson.Account : null;
+            if (!string.IsNullOrWhiteSpace(effectiveAccountId)
+                && string.Equals(State.Owner.AccountId, effectiveAccountId, StringComparison.Ordinal))
             {
                 return new BrainState(State.Owner, State.CreatedAt) { Residency = new BrainResidency.Persistent(ownerPrincipalId) };
             }
@@ -99,7 +102,12 @@ public sealed class BrainNeuron
             await residencyStorage.PromoteAsync(BrainId, CancellationToken.None);
         }
 
-        var nextOwner = new Owner(string.IsNullOrWhiteSpace(accountId) ? ownerPrincipalId : accountId);
+        var resolvedAccountId = !string.IsNullOrWhiteSpace(accountId)
+            ? accountId
+            : Context.Caller?.Actor is Actor.Person claimingPerson && !string.IsNullOrWhiteSpace(claimingPerson.Account)
+                ? claimingPerson.Account
+                : ownerPrincipalId;
+        var nextOwner = new Owner(resolvedAccountId);
         var persistent = new BrainResidency.Persistent(ownerPrincipalId);
         var updated = new BrainStorage
         {
@@ -154,10 +162,17 @@ public sealed class BrainNeuron
     }
 
     // Claiming is the platform's act (after verifying session cookie + authenticated principal) or the direct claiming person.
-    private void RequireClaimer(string ownerPrincipalId)
+    private void RequireClaimer(string ownerPrincipalId, string? accountId)
     {
         var caller = Context.Caller ?? throw new UnauthorizedAccessException("Only the platform or the claiming principal may claim a brain.");
-        if (caller.Actor is Actor.Kernel || (caller.Actor is Actor.Person person && caller.Direct && person.Account == ownerPrincipalId)) { return; }
+        if (caller.Actor is Actor.Kernel
+            || (caller.Actor is Actor.Person person
+                && caller.Direct
+                && string.Equals(person.Principal, ownerPrincipalId, StringComparison.Ordinal)
+                && (string.IsNullOrWhiteSpace(accountId) || string.Equals(person.Account, accountId, StringComparison.Ordinal))))
+        {
+            return;
+        }
         throw new UnauthorizedAccessException("Only the platform or the claiming principal may claim a brain.");
     }
 }

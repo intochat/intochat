@@ -9,5 +9,5 @@ public interface IBrainBirths
     Task<Member> Born(BrainProvision provision);
 
     Task<Member> BornEphemeral(Member owner, BrainResidency.Ephemeral residency)
-        => Born(new BrainProvision(owner, true));
+        => throw new NotSupportedException("Implementations must explicitly provide BornEphemeral.");
 }

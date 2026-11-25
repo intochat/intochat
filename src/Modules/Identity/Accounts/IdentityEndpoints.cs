@@ -39,7 +39,9 @@ internal static class IdentityEndpoints
         IntoChat.OS.Modules.Identity.External.GuestSignIn.Map(routes);
         routes.MapGet("/identity/session", Session);
         routes.MapGet("/identity/residency", Residency);
-        routes.MapPost("/identity/claim", ClaimAsync).WithMetadata(GuestSurface.Door.Instance);
+        routes.MapPost("/identity/claim", ClaimAsync)
+            .WithMetadata(GuestSurface.Door.Instance)
+            .AddEndpointFilter<IpThrottleFilter>();
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);

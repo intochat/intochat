@@ -138,6 +138,12 @@ public static class Day0EphemeralBootstrap
             },
             Lifetime = record.Residency.IdleTtl,
         };
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.OnStarting(static state =>
+        {
+            ((HttpContext)state).Response.Headers.CacheControl = "no-store";
+            return Task.CompletedTask;
+        }, context);
         await issuer.IssueAsync(context, request, context.RequestAborted).ConfigureAwait(false);
 
         // Stamp context.User and stash in Items so UseAuthentication cannot overwrite it with a stale evicted cookie.

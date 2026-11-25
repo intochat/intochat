@@ -73,7 +73,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         {
             if (!string.IsNullOrWhiteSpace(brainScopeId) && records.TryGetValue(brainScopeId, out var existing))
             {
-                if (now - existing.LastActivityAt < existing.Residency.IdleTtl)
+                if (existing.Claiming || now - existing.LastActivityAt < existing.Residency.IdleTtl)
                 {
                     existing.LastActivityAt = now;
                     return existing;
@@ -82,10 +82,10 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
                 (toEvict ??= []).Add(brainScopeId);
             }
 
-            // Sweep expired entries before enforcing count/memory caps.
+            // Sweep expired entries before enforcing count/memory caps (never evict a brain mid-claim).
             foreach (var (id, rec) in records.ToArray())
             {
-                if (now - rec.LastActivityAt >= rec.Residency.IdleTtl)
+                if (!rec.Claiming && now - rec.LastActivityAt >= rec.Residency.IdleTtl)
                 {
                     records.Remove(id);
                     (toEvict ??= []).Add(id);
@@ -95,7 +95,8 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
             var maxActive = Math.Max(1, opts.MaxActiveBrains);
             while (records.Count >= maxActive)
             {
-                var lru = records.Values.OrderBy(r => r.LastActivityAt).First();
+                var lru = records.Values.Where(r => !r.Claiming).OrderBy(r => r.LastActivityAt).FirstOrDefault();
+                if (lru is null) { break; }
                 records.Remove(lru.BrainId);
                 (toEvict ??= []).Add(lru.BrainId);
             }
@@ -164,7 +165,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         var now = clock.GetUtcNow();
         lock (gate)
         {
-            return records.TryGetValue(brainScopeId, out var rec) && now - rec.LastActivityAt < rec.Residency.IdleTtl;
+            return records.TryGetValue(brainScopeId, out var rec) && (rec.Claiming || now - rec.LastActivityAt < rec.Residency.IdleTtl);
         }
     }
 
@@ -178,7 +179,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         var now = clock.GetUtcNow();
         lock (gate)
         {
-            if (records.TryGetValue(brainScopeId, out var rec) && now - rec.LastActivityAt < rec.Residency.IdleTtl)
+            if (records.TryGetValue(brainScopeId, out var rec) && (rec.Claiming || now - rec.LastActivityAt < rec.Residency.IdleTtl))
             {
                 record = rec;
                 return true;
@@ -198,7 +199,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         var now = clock.GetUtcNow();
         lock (gate)
         {
-            if (records.TryGetValue(brainScopeId, out var rec) && now - rec.LastActivityAt < rec.Residency.IdleTtl)
+            if (records.TryGetValue(brainScopeId, out var rec) && (rec.Claiming || now - rec.LastActivityAt < rec.Residency.IdleTtl))
             {
                 rec.LastActivityAt = now;
                 row = rec.ToAuthorityRow();
@@ -215,7 +216,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         var now = clock.GetUtcNow();
         lock (gate)
         {
-            if (!records.TryGetValue(brainScopeId, out var rec) || now - rec.LastActivityAt >= rec.Residency.IdleTtl)
+            if (!records.TryGetValue(brainScopeId, out var rec) || (!rec.Claiming && now - rec.LastActivityAt >= rec.Residency.IdleTtl))
             {
                 added = [];
                 return false;
@@ -349,6 +350,45 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         }
     }
 
+    /// <summary>
+    /// Atomically verifies that <paramref name="brainScopeId"/> is live and pins it against background sweeper / LRU eviction
+    /// while <see cref="BrainClaimService.ClaimAsync"/> commits promotion into durable storage.
+    /// Returns <see langword="false"/> if the brain is missing, expired, or already being claimed.
+    /// </summary>
+    public bool TryBeginClaim(string brainScopeId)
+    {
+        if (string.IsNullOrWhiteSpace(brainScopeId)) { return false; }
+        var now = clock.GetUtcNow();
+        lock (gate)
+        {
+            if (!records.TryGetValue(brainScopeId, out var rec)
+                || rec.Claiming
+                || now - rec.LastActivityAt >= rec.Residency.IdleTtl)
+            {
+                return false;
+            }
+
+            rec.Claiming = true;
+            rec.LastActivityAt = now;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Releases an in-flight claim pin on <paramref name="brainScopeId"/> if it has not already been promoted/removed.
+    /// </summary>
+    public void EndClaim(string brainScopeId)
+    {
+        if (string.IsNullOrWhiteSpace(brainScopeId)) { return; }
+        lock (gate)
+        {
+            if (records.TryGetValue(brainScopeId, out var rec))
+            {
+                rec.Claiming = false;
+            }
+        }
+    }
+
     public void MarkPromoted(string brainScopeId, string ownerPrincipalId)
     {
         if (string.IsNullOrWhiteSpace(brainScopeId)) { return; }
@@ -362,6 +402,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
     /// <summary>
     /// Evicts idle-expired ephemeral brains and enforces both <see cref="EphemeralBrainOptions.MaxActiveBrains"/>
     /// and <see cref="EphemeralBrainOptions.TotalMemoryBudgetBytes"/> via LRU eviction.
+    /// Brains pinned via <see cref="TryBeginClaim"/> are never evicted while promotion is in flight.
     /// </summary>
     public async Task<int> SweepAsync(CancellationToken ct = default)
     {
@@ -374,7 +415,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
         {
             foreach (var (id, rec) in records.ToArray())
             {
-                if (now - rec.LastActivityAt >= rec.Residency.IdleTtl)
+                if (!rec.Claiming && now - rec.LastActivityAt >= rec.Residency.IdleTtl)
                 {
                     records.Remove(id);
                     evicted.Add(id);
@@ -384,7 +425,8 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
             var maxActive = Math.Max(1, opts.MaxActiveBrains);
             while (records.Count > maxActive)
             {
-                var lru = records.Values.OrderBy(r => r.LastActivityAt).First();
+                var lru = records.Values.Where(r => !r.Claiming).OrderBy(r => r.LastActivityAt).FirstOrDefault();
+                if (lru is null) { break; }
                 records.Remove(lru.BrainId);
                 evicted.Add(lru.BrainId);
             }
@@ -404,6 +446,7 @@ internal sealed class EphemeralBrainRegistry : IBrainResidencyRegistry
                 foreach (var rec in ordered)
                 {
                     if (total <= opts.TotalMemoryBudgetBytes) { break; }
+                    if (rec.Claiming) { continue; }
                     records.Remove(rec.BrainId);
                     evicted.Add(rec.BrainId);
                     total -= sizes[rec.BrainId];
@@ -433,6 +476,7 @@ internal sealed class EphemeralBrainRecord
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset LastActivityAt { get; set; }
     public int TurnsUsed { get; set; }
+    public bool Claiming { get; set; }
     public List<Grant> Grants { get; }
 
     public EphemeralBrainRecord(

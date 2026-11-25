@@ -42,9 +42,15 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
     {
         ArgumentNullException.ThrowIfNull(claimService);
         ValidateRegistration(principalId, password);
+        if (!string.IsNullOrWhiteSpace(principalId) && await identity.IsRegistered(principalId).WaitAsync(ct))
+        {
+            throw new InvalidOperationException("That username is unavailable.");
+        }
+
         var credential = Credential(principalId);
         if (await Own(credential.Hash) is { } existing)
         {
+            // Only an interrupted, incomplete registration may resume with the same password; an already-registered principal is rejected above.
             if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed)
             { throw new InvalidOperationException("That username is unavailable."); }
             return await claimService.ClaimAsync(ephemeralBrainId, principalId, displayName, ct);

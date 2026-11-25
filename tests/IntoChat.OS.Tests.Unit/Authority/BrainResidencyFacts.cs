@@ -301,6 +301,7 @@ public sealed class BrainResidencyFacts
             Assert.Contains(cookieName + "=", cookieHeader, StringComparison.Ordinal);
             Assert.Contains("httponly", cookieHeader, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("samesite=lax", cookieHeader, StringComparison.OrdinalIgnoreCase);
+            Assert.True(firstResp.Headers.CacheControl?.NoStore == true);
 
             var snap1 = await firstResp.Content.ReadFromJsonAsync<BrainResidencySnapshot>(Ct);
             Assert.NotNull(snap1);
@@ -338,6 +339,147 @@ public sealed class BrainResidencyFacts
         }
     }
 
+    [Fact]
+    public async Task IBrainBirths_DefaultBornEphemeral_FailsClosedWithNotSupported()
+    {
+        IBrainBirths minimal = new MinimalBrainBirths();
+        var owner = new Member
+        {
+            PrincipalId = "try-abc",
+            AccountId = "try-abc",
+            BrainId = "try-abc",
+            DisplayName = "Guest",
+            Role = MemberRole.Owner,
+            JoinedAt = DateTimeOffset.UtcNow,
+        };
+
+        await Assert.ThrowsAsync<NotSupportedException>(() => minimal.BornEphemeral(owner, BrainResidency.Ephemeral.Default));
+    }
+
+    [Fact]
+    public async Task EphemeralBrainRegistry_ClaimPinning_PreventsConcurrentClaimAndSweeperOrLruEviction()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+        var storage = new FakeResidencyStorage();
+        var options = Options.Create(new EphemeralBrainOptions
+        {
+            MaxMemoryBytes = 1024,
+            IdleTtl = TimeSpan.FromMinutes(10),
+            MaxActiveBrains = 1,
+            TotalMemoryBudgetBytes = 500,
+        });
+        var registry = new EphemeralBrainRegistry(clock, options, storage);
+
+        var pinned = registry.Mint();
+        storage.SetMemory(pinned.BrainId, 900);
+
+        Assert.True(registry.TryBeginClaim(pinned.BrainId));
+        // Second concurrent claim attempt is rejected while pinned.
+        Assert.False(registry.TryBeginClaim(pinned.BrainId));
+
+        // Even past IdleTtl and over aggregate memory budget, sweeper must not evict pinned brain.
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.Equal(0, await registry.SweepAsync(Ct));
+        Assert.True(registry.Contains(pinned.BrainId));
+        Assert.DoesNotContain(pinned.BrainId, storage.Evicted);
+
+        // Minting a new brain under MaxActiveBrains = 1 also must not evict the pinned brain.
+        var other = registry.Mint();
+        Assert.True(registry.Contains(pinned.BrainId));
+        Assert.True(registry.Contains(other.BrainId));
+
+        // After EndClaim, the expired brain can be swept normally.
+        registry.EndClaim(pinned.BrainId);
+        Assert.True(await registry.SweepAsync(Ct) >= 1);
+        Assert.False(registry.Contains(pinned.BrainId));
+        Assert.Contains(pinned.BrainId, storage.Evicted);
+    }
+
+    [Fact]
+    public async Task BrainNeuron_Claim_VerifiesPersonPrincipalNotAccountId_AndRefusesAccountIdSpoof()
+    {
+        var sc = new ServiceCollection();
+        sc.AddLogging();
+        using var sp = sc.BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = sp);
+        os.Register(typeof(DigitalBrain.Runtime.Orleans.BrainStoreOptions).Assembly);
+
+        var brainId = "try-" + Guid.NewGuid().ToString("N")[..12];
+        var brainIdTyped = new BrainId(brainId);
+        await os.Edge.AsKernel(brainIdTyped, async () =>
+        {
+            var brain = os.Get<IBrain>(new NeuronId(brainIdTyped, IBrain.Type, "main"));
+            await brain.CreateEphemeral(new Owner(brainId), BrainResidency.Ephemeral.Default);
+            return true;
+        });
+
+        // Direct person whose Principal ("alice") differs from Account GUID ("acct-guid-123") can claim for "alice".
+        var aliceCaller = os.Edge.Person("alice", "acct-guid-123", brainIdTyped);
+        using (os.Edge.Enter(aliceCaller))
+        {
+            var brain = os.Get<IBrain>(new NeuronId(brainIdTyped, IBrain.Type, "main"));
+            // Cannot claim for someone else's principal even if matching own account or not.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Claim("bob", "acct-guid-123"));
+            // Cannot claim using own Account GUID as the principal id.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Claim("acct-guid-123", "acct-guid-123"));
+
+            var claimed = await brain.Claim("alice", "acct-guid-123");
+            Assert.Equal("acct-guid-123", claimed.Owner.AccountId);
+            Assert.Equal("alice", Assert.IsType<BrainResidency.Persistent>(claimed.Residency).OwnerPrincipalId);
+        }
+
+        // Kernel attempting to claim the already-persistent brain using the AccountId as ownerPrincipalId must be rejected.
+        await os.Edge.AsKernel(brainIdTyped, async () =>
+        {
+            var brain = os.Get<IBrain>(new NeuronId(brainIdTyped, IBrain.Type, "main"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Claim("acct-guid-123", "acct-guid-123"));
+            return true;
+        });
+    }
+
+    [Fact]
+    public async Task BrainCall_EnforceCapabilityAsync_BlocksConnectorAutomationDeviceAndSecretCallsForEphemeralBrains()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+        var registry = new EphemeralBrainRegistry(clock, Options.Create(new EphemeralBrainOptions()));
+        var ephemeral = registry.Mint();
+        var policy = new DefaultBrainCapabilityPolicy(registry);
+
+        var sc = new ServiceCollection();
+        sc.AddSingleton<IBrainResidencyRegistry>(registry);
+        sc.AddSingleton<IBrainCapabilityPolicy>(policy);
+        using var sp = sc.BuildServiceProvider();
+
+        var guestCaller = IntoChat.OS.Tests.TestEdge.Authority.Guest(ephemeral.BrainId, ephemeral.BrainId, new BrainId(ephemeral.BrainId));
+
+        foreach (var (contract, key, expected) in new (string, string, BrainCapability)[]
+        {
+            ("DigitalBrain.Capabilities.Connections.IConnection", $"{ephemeral.BrainId}/connection/github/main", BrainCapability.ExternalConnector),
+            ("IntoChat.OS.Modules.GitHub.Repository.IRepository", $"{ephemeral.BrainId}/connection/github/main", BrainCapability.ExternalConnector),
+            ("IntoChat.OS.Modules.Time.Reminders.IReminder", $"{ephemeral.BrainId}/daily", BrainCapability.BackgroundAutomation),
+            ("IntoChat.OS.Modules.Time.Timers.ITimer", $"{ephemeral.BrainId}/t1", BrainCapability.BackgroundAutomation),
+            ("IntoChat.OS.Modules.Devices.IDeviceEnrollment", $"{ephemeral.BrainId}/device-enrollment", BrainCapability.DeviceEnrollment),
+            ("IntoChat.OS.Modules.Identity.Secrets.IOsVault", $"{ephemeral.BrainId}/vault", BrainCapability.DurableSecrets),
+        })
+        {
+            var error = await Assert.ThrowsAsync<ClaimRequiredException>(() =>
+                BrainCall.EnforceCapabilityAsync(sp, guestCaller, ephemeral.BrainId, contract, key, surface: null, Ct));
+            Assert.Equal(expected, error.Decision.Capability);
+        }
+
+        // Administrative identity neurons are refused with UnauthorizedAccessException for guests.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            BrainCall.EnforceCapabilityAsync(sp, guestCaller, ephemeral.BrainId, "IGrantsNeuron", $"{ephemeral.BrainId}/grants", surface: null, Ct));
+
+        // Core desktop/workspace/app neurons remain allowed for ephemeral guests.
+        await BrainCall.EnforceCapabilityAsync(sp, guestCaller, ephemeral.BrainId, "IWorkspace", $"{ephemeral.BrainId}/main", surface: null, Ct);
+
+        // Persistent brains are allowed for all capabilities.
+        var ownerCaller = IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "acct-alice", new BrainId("brain-alice"));
+        await BrainCall.EnforceCapabilityAsync(sp, ownerCaller, "brain-alice", "IntoChat.OS.Modules.Time.Reminders.IReminder", "brain-alice/daily", surface: null, Ct);
+        await BrainCall.EnforceCapabilityAsync(sp, ownerCaller, "brain-alice", "IntoChat.OS.Modules.Devices.IDeviceEnrollment", "brain-alice/device-enrollment", surface: null, Ct);
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset start) : TimeProvider
     {
         private DateTimeOffset current = start;
@@ -355,6 +497,11 @@ public sealed class BrainResidencyFacts
         public Task PromoteAsync(string brainId, CancellationToken ct = default) { Promoted.Add(brainId); return Task.CompletedTask; }
         public Task EvictAsync(string brainId, CancellationToken ct = default) { Evicted.Add(brainId); memory.Remove(brainId); return Task.CompletedTask; }
         public long GetMemoryUsedBytes(string brainId) => memory.GetValueOrDefault(brainId);
+    }
+
+    private sealed class MinimalBrainBirths : IBrainBirths
+    {
+        public Task<Member> Born(BrainProvision provision) => Task.FromResult(provision.Member);
     }
 
     private sealed class RecordingBrainBirths : IBrainBirths

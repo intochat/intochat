@@ -75,6 +75,7 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
         Assert.Contains(cookieName + "=", setCookieHeader, StringComparison.Ordinal);
         Assert.Contains("httponly", setCookieHeader, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("samesite=lax", setCookieHeader, StringComparison.OrdinalIgnoreCase);
+        Assert.True(sessionResp.Headers.CacheControl?.NoStore == true);
 
         using var sessionDoc = JsonDocument.Parse(await sessionResp.Content.ReadAsStringAsync(Ct));
         var root = sessionDoc.RootElement;
@@ -100,7 +101,7 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
         var brainDiskDir = Path.Combine(storeDir, brainHash);
         Assert.False(Directory.Exists(brainDiskDir));
 
-        // 4. External OAuth connectors cleanly return HTTP 428 Precondition Required + CLAIM_REQUIRED (not opaque 403).
+        // 4. External OAuth connectors (login, probe, disconnect) cleanly return HTTP 428 Precondition Required + CLAIM_REQUIRED (not opaque 403).
         using var connectorResp = await browser.PostAsJsonAsync(
             $"/brains/{ephemeralBrainId}/connections/gh-main/login",
             new { connectorId = "github", authMethodId = "oauth" },
@@ -114,6 +115,11 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
             Assert.Equal("github", claimDoc.RootElement.GetProperty("resource").GetString());
             Assert.Equal("/identity/claim", claimDoc.RootElement.GetProperty("claimEndpoint").GetString());
         }
+
+        using var probeResp = await browser.PostAsync($"/brains/{ephemeralBrainId}/connections/github/gh-main/probe", content: null, Ct);
+        Assert.Equal(HttpStatusCode.PreconditionRequired, probeResp.StatusCode);
+        using var disconnectResp = await browser.PostAsync($"/brains/{ephemeralBrainId}/connections/github/gh-main/disconnect", content: null, Ct);
+        Assert.Equal(HttpStatusCode.PreconditionRequired, disconnectResp.StatusCode);
 
         // 5. Durable vault secrets also return HTTP 428 CLAIM_REQUIRED.
         using var secretResp = await browser.PostAsJsonAsync(
@@ -156,6 +162,16 @@ public sealed class BrainResidencyIntegrationFacts : IAsyncLifetime
             Assert.True(claimedDoc.RootElement.GetProperty("claimed").GetBoolean());
             Assert.False(claimedDoc.RootElement.GetProperty("residency").GetProperty("isEphemeral").GetBoolean());
         }
+
+        // 7b. A second ephemeral visitor attempting to register-claim with the already-registered username is rejected (409), even with the same password.
+        using var browser2 = NewBrowser();
+        using var sessionResp2 = await browser2.GetAsync("/identity/session", Ct);
+        Assert.Equal(HttpStatusCode.OK, sessionResp2.StatusCode);
+        using var duplicateClaimResp = await browser2.PostAsJsonAsync(
+            "/identity/claim",
+            new { principalId = username, password = "correct-horse-battery-staple", displayName = "Duplicate Claimer" },
+            Ct);
+        Assert.Equal(HttpStatusCode.Conflict, duplicateClaimResp.StatusCode);
 
         // 8. Exact BrainId was promoted in-place from RAM to encrypted durable disk storage!
         Assert.True(Directory.Exists(brainDiskDir));

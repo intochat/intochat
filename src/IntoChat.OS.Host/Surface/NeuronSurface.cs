@@ -214,6 +214,15 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
 
 
 
+    // Resolves a contract alias or name to its CLR interface when registered in this brain, or null when unknown.
+    public async Task<Type?> TryResolveContract(string name, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name)) { return null; }
+        try { return await Contract(name, ct).ConfigureAwait(false); }
+        catch (ArgumentException) { return null; }
+        catch (TypeLoadException) { return null; }
+    }
+
     private async Task<Type> Contract(string name, CancellationToken ct)
         => LoadedContracts.Find(Entry(await Neurons(ct).ConfigureAwait(false), name).Name, ContractAssemblyPrefixes);
 
