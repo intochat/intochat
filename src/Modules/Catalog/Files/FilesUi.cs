@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
 /// Shared domain <see cref="Rule"/> invariants for <c>Files</c> path, name, and inline write validation (<c>UK-17</c>).
-/// Enforced identically on UI controls (<c>.Guard(rule)</c>) and inside <see cref="FilesWorkspaceNeuron"/>.
+/// Enforced identically on UI controls (<c>.Guard(rule)</c>) and inside <see cref="FilesWorkspaceScreen"/>.
 /// </summary>
 internal static class FilesPathRules
 {
@@ -45,9 +45,7 @@ internal static class FilesPathRules
         "Open a writable folder before creating a subfolder.");
 }
 
-internal sealed record FilesActEnvelope(long ExpectedRevision, FilesWorkspaceInput Input);
-
-// The Files views' node vocabulary over IntoChat.OS.UI.Kit: every button emits to the files app with the revision it was drawn at.
+// The Files views' node vocabulary over IntoChat.OS.UI.Kit: every button sends FilesRun to the screen with the revision it was drawn at.
 internal static class FilesUi
 {
     public const string Primary = ButtonTone.Accent;
@@ -58,11 +56,13 @@ internal static class FilesUi
     public const string Neutral = "neutral";
     public const string Working = "working";
 
-    // A files request as FilesRequests forwards it: the verb, the revision the person saw and the item index it names.
-    public static Emit Act(string revision, string verb, int? index = null)
-        => new("files", verb == "search-all" ? "search" : verb, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new FilesActEnvelope(
+    // A files request as the screen takes it: the verb, the revision the person saw and the item index it names.
+    public static Command Act(string revision, string verb, int? index = null)
+        => new(".", FilesRun.Alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new FilesRun(
+            verb == "search-all" ? "search" : verb,
             long.Parse(revision, CultureInfo.InvariantCulture),
-            new FilesWorkspaceInput(Index: index, Everywhere: verb == "search-all")), typeof(FilesActEnvelope)));
+            index,
+            Everywhere: verb == "search-all"), typeof(FilesRun)));
 
     public static Node Text(string text) => Kit.Text(text);
 
@@ -71,7 +71,7 @@ internal static class FilesUi
     public static Node Button(
         string key,
         string text,
-        Emit action,
+        Command action,
         bool enabled = true,
         string style = Secondary,
         string? icon = null,
@@ -85,7 +85,7 @@ internal static class FilesUi
             Ghost => GhostButton(text, icon),
             _ => Kit.Button(text, icon),
         };
-        builder.Key(key).Small(small).Emits(action);
+        builder.Key(key).Small(small).Sends(action);
         if (guard is not null)
         {
             builder.Guard(guard);

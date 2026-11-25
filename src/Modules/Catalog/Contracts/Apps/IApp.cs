@@ -10,7 +10,6 @@ namespace IntoChat.OS.Modules.Apps;
 public interface IApp
 {
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<AppSnapshot> Read();
-    [DigitalBrain.Contracts.Interleaves] Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation);
     Task<AppSnapshot> Create(AppManifest manifest, string spec);
     Task<AppSnapshot> SaveSpec(string spec, Guid operationId);                 // minor bump
     Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId);    // patch bump

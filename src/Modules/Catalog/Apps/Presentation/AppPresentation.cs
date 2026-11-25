@@ -1,28 +1,8 @@
-using System.Text.Json;
-
 namespace IntoChat.OS.Modules.Apps.Presentations;
 
-internal sealed class AppPresentation(AppState state)
+// An app's presentation blackboard: the running and attention flags its activity sets.
+internal static class AppPresentation
 {
-    private static readonly string[] ReservedBlackboardKeys = ["running", "attention"];
-    public AppState State => state;
-
-    public AppState? Publish(IntoChat.OS.Modules.Apps.Presentation spec)
-    {
-        var current = state.Presentation;
-        if (current is { Root: { } root, Error: null } && System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(root, typeof(IntoChat.OS.Modules.Apps.Presentation))) == System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(spec, typeof(IntoChat.OS.Modules.Apps.Presentation))))
-        {
-            return null;
-        }
-
-        var declaredKeys = spec.Sphere?.BlackboardKeys ?? [];
-        var keys = declaredKeys.Concat(ReservedBlackboardKeys).ToHashSet(StringComparer.Ordinal);
-        var blackboard = (current?.Blackboard ?? []).Where(pair => keys.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal);
-        var next = state.Clone();
-        next.Presentation = new(state.ProgramRevision, (current?.Revision ?? 0) + 1, spec, null, blackboard);
-        return next;
-    }
-
     public static Signals.PresentationChanged? ApplyActivity(AppState next, string key, string state)
     {
         var running = state is "working" or "reading" or "searching" or "listening" ? "true" : "false";
