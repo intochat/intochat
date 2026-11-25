@@ -109,7 +109,8 @@ public sealed class TasksCancelOnRealHostFacts
         // The person's cancel, with the presence proof, by the route that reaches the screen's Request today.
         Accepted(await Send(host, "/apps/tasks/request", new { operation = "cancel", input = JsonSerializer.Serialize(new { flowId }) }, presence: true));
 
-        var ended = await Eventually(() => ReadFlow(host, flowId), view => view.Status != FlowStatus.Waiting, "the person's cancel did not end the run");
+        var ended = await Eventually(() => ReadFlow(host, flowId), view => view is not null && view.Status != FlowStatus.Waiting, "the person's cancel did not end the run");
+        Assert.NotNull(ended);
         Assert.Equal(FlowStatus.Cancelled, ended.Status);
         Assert.Equal("Cancelled from Tasks", ended.Detail);
         Assert.False(await Eventually(() => IsPending(host, planId), pending => !pending, "the plan stayed in the inbox"));
@@ -166,6 +167,7 @@ public sealed class TasksCancelOnRealHostFacts
         var waiting = await Eventually(() => ReadFlow(host, flowId),
             view => view is { Status: FlowStatus.Failed or FlowStatus.Cancelled or FlowStatus.Completed } or { Status: FlowStatus.Waiting, WaitingStep: "approve", ConfirmationPlanId: not null },
             "the plan flow did not reach its approval");
+        Assert.NotNull(waiting);
         Assert.Equal((FlowStatus.Waiting, WaitReason.Approval), (waiting.Status, waiting.WaitingFor));
         Assert.NotEmpty(((SwappableChatModel)host.Services.GetRequiredService<IChatClient>()).Requests);
         var planId = waiting.ConfirmationPlanId!;
@@ -175,7 +177,7 @@ public sealed class TasksCancelOnRealHostFacts
 
     private static async Task StillWaitsForThePerson(EdgeKernelHarness host, string flowId, string planId)
     {
-        var view = await ReadFlow(host, flowId);
+        var view = await ReadFlow(host, flowId) ?? throw new InvalidOperationException($"The index has no flow {flowId}.");
         Assert.Equal((FlowStatus.Waiting, "approve", WaitReason.Approval), (view.Status, view.WaitingStep, view.WaitingFor));
         using (Edge(host).EnterKernel(new BrainId(host.Scope)))
         {
@@ -198,10 +200,10 @@ public sealed class TasksCancelOnRealHostFacts
         return id;
     }
 
-    private static async Task<FlowView> ReadFlow(EdgeKernelHarness host, string flowId)
+    private static async Task<FlowView?> ReadFlow(EdgeKernelHarness host, string flowId)
     {
         using var _ = Edge(host).EnterKernel(new BrainId(host.Scope));
-        return await Flows(host).Read(flowId, Ct) ?? throw new InvalidOperationException($"The index has no flow {flowId}.");
+        return await Flows(host).Read(flowId, Ct);
     }
 
     private static async Task<bool> IsPending(EdgeKernelHarness host, string planId)
