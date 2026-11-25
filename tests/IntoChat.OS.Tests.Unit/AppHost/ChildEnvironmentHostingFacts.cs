@@ -261,7 +261,7 @@ public sealed class ChildEnvironmentHostingFacts
     public void SandboxModuleHosting_IsolatesContainerPublishArtifactsPath()
     {
         var repoRoot = Path.Combine(Path.GetTempPath(), "intochat-repo-root");
-        var projectPath = Path.Combine(repoRoot, "src", "IntoChat.OS.Sandbox", "IntoChat.OS.Sandbox.csproj");
+        var projectPath = Path.Combine(repoRoot, "sandbox", "IntoChat.OS.Sandbox.csproj");
 
         var startInfo = SandboxModuleHosting.CreatePublishStartInfo(repoRoot, projectPath);
 
