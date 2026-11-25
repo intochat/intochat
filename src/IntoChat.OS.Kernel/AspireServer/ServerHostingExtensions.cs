@@ -22,6 +22,7 @@ using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Serialization;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
+using IntoChat.OS.Host.Http;
 using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Host.ServiceDefaults;
 using IntoChat.OS.Host.Modules;
@@ -185,6 +186,7 @@ public static class ServerHostingExtensions
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();
+        app.MapDownloadHub();
         IntoChat.OS.Kernel.RuntimeShutdownEndpoints.Map(app);
         IntoChat.OS.Kernel.Auth.WebViewTicketEndpoints.Map(app);
         IntoChat.OS.Kernel.Sandbox.SandboxEdgeEndpoints.Map(app);

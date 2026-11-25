@@ -17,13 +17,18 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="IntoChat chat and product shell.">
+  <meta name="description" content="IntoChat OS — personal AI operating system.">
+  <meta name="color-scheme" content="light dark">
 
-  <!-- iOS meta tags & icons -->
+  <!-- iOS & Mobile Web-Clip PWA meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="IntoChat">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
@@ -31,7 +36,14 @@
 
   <title>IntoChat</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0B1220">
+  <meta name="theme-color" content="#FBFAF7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#17140F" media="(prefers-color-scheme: dark)">
+  <style>
+    html, body { margin: 0; background-color: #FBFAF7; }
+    @media (prefers-color-scheme: dark) {
+      html, body { background-color: #17140F; }
+    }
+  </style>
 </head>
 <body>
   <!--

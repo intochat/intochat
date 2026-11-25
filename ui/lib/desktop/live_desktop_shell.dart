@@ -11,6 +11,7 @@ import '../workspace/cross_window_router.dart';
 import '../workspace/spatial_app_canvas.dart';
 import '../workspace/workspace_app.dart';
 import 'desktop_overlays.dart';
+import 'guest_status_pill.dart';
 import 'os_bar.dart';
 import 'presence_layer.dart';
 import 'smart_desktop.dart';
@@ -80,6 +81,13 @@ class LiveDesktopShell extends StatefulWidget {
     this.talk,
     this.speak,
     this.storeSecret,
+    this.isGuest = false,
+    this.isEphemeral = false,
+    this.guestRemaining,
+    this.onSaveBrain,
+    this.onDownloadApp,
+    this.onOpenUrl,
+    this.downloadHubUri,
     required this.knowsApp,
   });
 
@@ -149,6 +157,27 @@ class LiveDesktopShell extends StatefulWidget {
   /// Host capability a form uses to store a secret field in the person's vault.
   final SecretStore? storeSecret;
 
+  /// True when the active session runs on a Day-0 guest brain.
+  final bool isGuest;
+
+  /// True when the active brain is ephemeral (in-RAM temporary session).
+  final bool isEphemeral;
+
+  /// Optional remaining lifetime shown in the guest status pill (defaults to `24h`).
+  final Duration? guestRemaining;
+
+  /// Triggered when the guest taps `Save My Brain →`.
+  final VoidCallback? onSaveBrain;
+
+  /// Optional override when the guest taps `Download App ↓`; when omitted, opens the in-shell [DownloadAppModal].
+  final VoidCallback? onDownloadApp;
+
+  /// Opens an external download asset or `/download` hub URL.
+  final void Function(Uri url)? onOpenUrl;
+
+  /// Optional deep-link URI for the host's `/download` hub.
+  final Uri? downloadHubUri;
+
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
 }
@@ -192,9 +221,51 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   Map<String, SmartAppTileSpec> _catalogById = const {};
   bool _allAppsOpen = false;
   bool _themeStudioOpen = false;
+  bool _downloadModalOpen = false;
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   DesktopSystemSheetKind _systemSheet = DesktopSystemSheetKind.none;
+
+  bool get _isGuestSession =>
+      widget.isGuest || widget.isEphemeral || widget.brain.startsWith('try-');
+
+  void _handleDownloadAppTap() {
+    if (widget.onDownloadApp != null) {
+      widget.onDownloadApp!();
+      return;
+    }
+    setState(() {
+      _popover = DesktopPopoverKind.none;
+      _allAppsOpen = false;
+      _themeStudioOpen = false;
+      _downloadModalOpen = true;
+    });
+  }
+
+  List<Widget> _buildGuestChromeOverlays() => [
+    if (_isGuestSession)
+      Positioned(
+        top: 10,
+        left: 16,
+        right: 16,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: GuestStatusPill(
+            remaining: widget.guestRemaining,
+            onSaveBrain: widget.onSaveBrain,
+            onDownloadApp: _handleDownloadAppTap,
+          ),
+        ),
+      ),
+    if (_downloadModalOpen)
+      Positioned.fill(
+        child: DownloadAppModal(
+          onClose: () => setState(() => _downloadModalOpen = false),
+          onOpenUrl: widget.onOpenUrl,
+          downloadHubUri: widget.downloadHubUri,
+        ),
+      ),
+  ];
 
   @override
   void initState() {
@@ -624,6 +695,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
 
     if (e.logicalKey == LogicalKeyboardKey.escape && e is KeyDownEvent) {
+      if (_downloadModalOpen) {
+        setState(() => _downloadModalOpen = false);
+        return true;
+      }
       if (_themeStudioOpen) {
         setState(() => _themeStudioOpen = false);
         return true;
@@ -1822,6 +1897,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         ),
                       ),
                     _adaptiveTopActions(windows, dockButtons),
+                    ..._buildGuestChromeOverlays(),
                     if (_systemSheet != DesktopSystemSheetKind.none)
                       Positioned.fill(
                         child: DesktopSystemModalSheet(
@@ -1962,6 +2038,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     ),
                   ),
                 _adaptiveTopActions(windows, dockButtons),
+                ..._buildGuestChromeOverlays(),
                 if (_systemSheet != DesktopSystemSheetKind.none)
                   Positioned.fill(
                     child: DesktopSystemModalSheet(
@@ -2829,6 +2906,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   ),
                 ),
               ],
+
+              // 11. Day-0 Guest Status Pill & In-Shell Download Modal
+              ..._buildGuestChromeOverlays(),
             ],
           ),
         );

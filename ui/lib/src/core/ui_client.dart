@@ -117,12 +117,56 @@ final class IntoChatOSUiClient {
   String? principalId;
   String? accountId;
   String? defaultBrainId;
+  String? sessionAppId;
+  bool isEphemeralSession = false;
+  DateTime? guestExpiresAt;
+
+  /// True when the active session is an ephemeral / guest brain, either explicitly flagged
+  /// by the session payload, stamped as the `guest` app, or carrying the reserved `try-`
+  /// guest principal/brain prefix.
+  bool get isGuestSession =>
+      isEphemeralSession ||
+      sessionAppId == 'guest' ||
+      (principalId?.startsWith('try-') ?? false) ||
+      (defaultBrainId?.startsWith('try-') ?? false);
+
+  /// Remaining lifetime of the guest session when the server reported an expiration time.
+  Duration? get guestRemaining {
+    final expires = guestExpiresAt;
+    if (expires == null) return null;
+    final diff = expires.difference(DateTime.now().toUtc());
+    return diff.isNegative ? Duration.zero : diff;
+  }
 
   void _useSession(Map<String, dynamic> session) {
     principalId = session['principalId'] as String;
     accountId = session['accountId'] as String;
     defaultBrainId = session['brainId'] as String;
+    sessionAppId = session['appId'] as String?;
+    isEphemeralSession =
+        session['isGuest'] == true || session['isEphemeral'] == true;
+    guestExpiresAt = _parseGuestExpiry(session);
     workspaceIdentity = '$principalId|$accountId';
+  }
+
+  static DateTime? _parseGuestExpiry(Map<String, dynamic> session) {
+    final expiresAt = session['expiresAt'];
+    if (expiresAt is String && expiresAt.isNotEmpty) {
+      return DateTime.tryParse(expiresAt)?.toUtc();
+    }
+    if (expiresAt is num) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        (expiresAt * 1000).round(),
+        isUtc: true,
+      );
+    }
+    final remainingSeconds = session['remainingSeconds'];
+    if (remainingSeconds is num) {
+      return DateTime.now().toUtc().add(
+        Duration(seconds: remainingSeconds.round()),
+      );
+    }
+    return null;
   }
 
   Future<void> readSession() async {
