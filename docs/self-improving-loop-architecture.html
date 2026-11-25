@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntoChat Self-Improving Loop &amp; Connected Client Compute Architecture RFC</title>
+<style>
+  :root {
+    --bg: #0f0e0d;
+    --surface: #1a1816;
+    --surface-2: #24211e;
+    --surface-3: #2d2925;
+    --border: #332e2a;
+    --border-light: #48413b;
+    --text: #f3efe9;
+    --muted: #a69d94;
+    --accent: #e87a48;
+    --accent-soft: rgba(232, 122, 72, 0.14);
+    --accent-glow: rgba(232, 122, 72, 0.28);
+    --green: #4ade80;
+    --green-soft: rgba(74, 222, 128, 0.12);
+    --red: #f87171;
+    --red-soft: rgba(248, 113, 113, 0.12);
+    --blue: #60a5fa;
+    --blue-soft: rgba(96, 165, 250, 0.12);
+    --purple: #c084fc;
+    --purple-soft: rgba(192, 132, 252, 0.12);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.12);
+    --cyan: #22d3ee;
+    --cyan-soft: rgba(34, 211, 238, 0.12);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    padding: 0 0 100px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Navigation Bar */
+  .nav-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(15, 14, 13, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .nav-brand .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .nav-links {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 999px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .nav-links a:hover, .nav-links a.active {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Container */
+  .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 36px 24px 0;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .badge-accent { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(232, 122, 72, 0.3); }
+  .badge-purple { background: var(--purple-soft); color: var(--purple); border: 1px solid rgba(192, 132, 252, 0.3); }
+  .badge-blue { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(96, 165, 250, 0.3); }
+  .badge-green { background: var(--green-soft); color: var(--green); border: 1px solid rgba(74, 222, 128, 0.3); }
+  .badge-amber { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+
+  h1 {
+    margin: 0 0 14px;
+    font-size: 34px;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 17px;
+    margin: 0 0 20px;
+    max-width: 920px;
+    line-height: 1.6;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .meta-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .meta-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Section Styles */
+  section {
+    margin-bottom: 64px;
+    scroll-margin-top: 80px;
+  }
+  .section-header {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .section-tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  h2 {
+    margin: 0;
+    font-size: 24px;
+    letter-spacing: -0.015em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-desc {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 900px;
+  }
+
+  /* Cards & Grids */
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .card:hover {
+    border-color: var(--border-light);
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  .card-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .card p {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* Callouts & Alerts */
+  .callout {
+    background: var(--surface-2);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 14px;
+  }
+  .callout-amber {
+    border-left-color: var(--amber);
+    background: rgba(251, 191, 36, 0.05);
+  }
+  .callout-green {
+    border-left-color: var(--green);
+    background: rgba(74, 222, 128, 0.05);
+  }
+  .callout-blue {
+    border-left-color: var(--blue);
+    background: rgba(96, 165, 250, 0.05);
+  }
+  .callout-purple {
+    border-left-color: var(--purple);
+    background: rgba(192, 132, 252, 0.05);
+  }
+  .callout-title {
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Tables */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    margin: 20px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+  th {
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255, 255, 255, 0.015); }
+
+  /* SVG Diagrams */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin: 24px 0;
+    overflow-x: auto;
+  }
+  .diagram-caption {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 14px;
+    font-family: var(--mono);
+  }
+
+  /* Code & Mono */
+  code, pre { font-family: var(--mono); }
+  code {
+    background: var(--surface-2);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  pre {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  /* Interactive Tabs */
+  .tab-bar {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tab-btn:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .tab-btn.active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: rgba(232, 122, 72, 0.3);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Decision Panel */
+  .decision-panel {
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+  }
+  .decision-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .decision-item:hover { border-color: var(--accent); }
+  .decision-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .decision-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .decision-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .option-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .option-label:hover { border-color: var(--muted); }
+  .option-label input[type="radio"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .option-label.recommended {
+    border-color: rgba(74, 222, 128, 0.4);
+    background: rgba(74, 222, 128, 0.05);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 10px var(--accent-glow);
+  }
+  .btn-accent:hover {
+    background: #f18c5e;
+  }
+  .btn-secondary {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover {
+    background: var(--surface-3);
+    border-color: var(--border-light);
+  }
+
+  /* Status Pill */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .status-live { background: var(--green-soft); color: var(--green); }
+  .status-gap { background: var(--amber-soft); color: var(--amber); }
+  .status-proposed { background: var(--blue-soft); color: var(--blue); }
+
+  /* Feature Checklist */
+  .check-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    font-size: 13px;
+  }
+  .check-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    color: var(--muted);
+  }
+  .check-list li strong { color: var(--text); }
+  .check-list li::before {
+    content: "âœ“";
+    color: var(--green);
+    font-weight: 700;
+  }
+  .check-list li.warn::before {
+    content: "âš ";
+    color: var(--amber);
+  }
+  .check-list li.cross::before {
+    content: "âœ•";
+    color: var(--red);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 20px 16px 0; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 20px; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sticky Header Nav -->
+<nav class="nav-bar">
+  <div class="nav-brand">
+    <div class="dot"></div>
+    <span>IntoChat Architecture RFC</span>
+  </div>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#section-1">1. Current Reality</a>
+    <a href="#section-2">2. End-to-End Loop</a>
+    <a href="#section-3">3. Containment Options</a>
+    <a href="#section-4">4. Target Architecture</a>
+    <a href="#section-5">5. Rollout &amp; Decisions</a>
+  </div>
+  <div class="nav-status">
+    <span class="badge badge-accent">v0.24.0 / cloud v0.2.0</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Document Header -->
+  <header id="overview">
+    <div class="badge-row">
+      <span class="badge badge-accent">Owner Architecture RFC</span>
+      <span class="badge badge-purple">No Code Changes â€” Design Only</span>
+      <span class="badge badge-blue">Milestones: intochat v0.24.0 + cloud v0.2.0</span>
+      <span class="badge badge-green">Connected Client Compute</span>
+    </div>
+
+    <h1>Autonomous Self-Improving Loop &amp; Sovereign Connected Client Compute</h1>
+    <p class="subtitle">
+      A comprehensive architectural design linking IntoChat team discussions, GitHub issues, native multi-agent squad orchestration (Ino + Synapses), distributed sovereign compute across user Windows/Linux/Android clients, and multi-tier containment (MXC, leased devcontainer slots, cloud ACA).
+    </p>
+
+    <div class="meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">Primary Author</span>
+        <span class="meta-value">Architecture &amp; Refactoring Lead</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Collaborators</span>
+        <span class="meta-value">Refactor Scout, Security &amp; QA Lead, Aspire Guardian, OS &amp; Cloud Leads</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Status</span>
+        <span class="meta-value" style="color: var(--amber);">Awaiting Owner Review &amp; Decisions</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Implementation Rule</span>
+        <span class="meta-value" style="color: var(--accent);">Strict: Implementation ONLY after owner approval</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Executive Summary -->
+  <div class="callout callout-blue">
+    <div class="callout-title">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Executive Summary &amp; Core Thesis
+    </div>
+    <p style="margin: 0; font-size: 14px; line-height: 1.6;">
+      As IntoChat launches <code>v0.24.0</code> alongside <code>cloud v0.2.0</code>, we possess all atomic primitives for autonomous software development: durable flow execution (<code>EngineerFlow</code>), black-box candidate verification (<code>ProcessCandidateHost</code>, <code>EngineerLiveVerifier</code>), multi-model local/frontier routing (PR #390), out-of-process sandboxing (<code>IntoChat.OS.Sandbox</code>), and device hardware/model tracking (<code>Devices</code> module).
+      <br/><br/>
+      <strong>The Breakthrough:</strong> Rather than offloading coding execution to expensive cloud VMs or third-party proprietary sandboxes, IntoChat will turn the user's <strong>enrolled client devices (Windows, Linux, Android) into sovereign compute and sandbox execution nodes</strong>. Connected clients execute code to orchestrate Neurons over closed edge reverse proxies, leveraging local GPUs (Ollama/Foundry) and local CPU cores, with seamless fallbacks to lightweight OS containment (Microsoft MXC), leased devcontainer slots (<code>agent-dev-slots</code>) for heavy Aspire runs, and headless Azure Container Apps Dynamic Sessions when user machines are asleep.
+    </p>
+  </div>
+
+  <!-- SECTION 1: WHAT WE HAVE TODAY (CODE-VERIFIED INVENTORY) -->
+  <section id="section-1">
+    <div class="section-header">
+      <span class="section-tag">Section 1</span>
+      <h2>Code-Verified Inventory: What Works Today &amp; What Is Missing</h2>
+      <p class="section-desc">
+        A rigorous audit of <code>intochat/intochat</code> and <code>intochat/cloud</code> on current <code>master</code>. Every component listed below exists in real C# source files and unit facts.
+      </p>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Component &amp; Source Location</th>
+            <th>Current Production Reality</th>
+            <th>Role in Self-Improving Loop</th>
+            <th>Status / Missing Gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>Ino &amp; Brain Orchestrator</strong><br/>
+              <code>src/Modules/Catalog</code><br/>
+              <code>src/IntoChat.OS.Kernel</code>
+            </td>
+            <td>
+              Ino agent maintains conversational memory, <code>SessionJournal</code> writeback, and tools access. Dispatches durable flows and unit compilation.
+            </td>
+            <td>
+              Acts as Lead Orchestrator: translates user chat into structured specs, convenes squad teams, and supervises stage transitions.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Gap: Lacks native multi-agent squad chat dispatch protocol.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>EngineerFlow (9 Stages)</strong><br/>
+              <code>src/Modules/Catalog/Flows/EngineerFlow.cs</code>
+            </td>
+            <td>
+              Durable flow: <code>brainstorm-and-plan</code>, <code>prepare-worktree</code>, <code>implement-tasks</code>, <code>build-and-test</code>, <code>live-verify</code>, <code>approval-gate</code>, <code>push</code>, <code>pr</code>, <code>clean</code>.
+            </td>
+            <td>
+              The end-to-end orchestration spine. Manages isolated worktrees, repair budgets, and deterministic candidate scoring.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Gated by human approval at <code>approval-gate</code>.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>InoNativeHarness &amp; Escalation</strong><br/>
+              <code>src/Modules/Catalog/Flows/Harness</code><br/>
+              PR #390 (<code>feat/m2-multi-model-escalation</code>)
+            </td>
+            <td>
+              Runs <code>2x2</code> parallel slice execution via <code>ModelWorker</code>. Implements dynamic local Ollama &rarr; frontier Think model (Claude/Codex) escalation after 2 repair failures.
+            </td>
+            <td>
+              High-throughput code authoring with cost control (local default, cloud frontier for complex repairs).
+            </td>
+            <td>
+              <span class="status-pill status-live">Verified (PR #390)</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Zero unsealed credentials reach worker.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>ProcessCandidateHost</strong><br/>
+              <code>src/Components/Aspire/Neurons/Candidates</code>
+            </td>
+            <td>
+              Runs candidate OS in headless child process. Allocates dynamic ephemeral loopback port (never 5080/5081), temporary home under <code>{workdir}/homes/{sha}</code> (never <code>~/.intochat</code>).
+            </td>
+            <td>
+              Verifies candidate branch live without colliding with the live developer environment or live Aspire cluster.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Gap: Local process only; not distributed to client nodes.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>EngineerLiveVerifier</strong><br/>
+              <code>src/Modules/Catalog/Flows/Live</code>
+            </td>
+            <td>
+              Probes candidate HTTP <code>/health</code>, MCP <code>tools/list</code>, and verifies zero error spans in telemetry. Fail-closed posture.
+            </td>
+            <td>
+              Black-box contract and smoke gate preventing broken candidates from advancing to PR.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Strictly rejects crashes and error logs.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>IntoChat.OS.Sandbox &amp; UnitHost</strong><br/>
+              <code>src/IntoChat.OS.Sandbox</code><br/>
+              <code>src/IntoChat.OS.Kernel/Sandbox</code>
+            </td>
+            <td>
+              Out-of-process worker with <code>AppLoadContext</code> (banned process, socket, network types). Attached to Windows JobObject; child environment scrubbed of secrets.
+            </td>
+            <td>
+              Executes sandboxed app packages and dynamic code. Communicates over stdin/stdout or closed HTTP edge reverse proxy.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live (Apps)</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Gap: Currently optimized for apps, not full .NET SDK compiler builds.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>Sandbox Edge Bridge &amp; AppToken</strong><br/>
+              <code>src/IntoChat.OS.Kernel/Sandbox/SandboxEdgeEndpoints.cs</code>
+            </td>
+            <td>
+              Reverse-proxy endpoints: <code>/edge/sandbox/invoke</code> (slots, capabilities, AI, tables), <code>/edge/sandbox/signals</code>, <code>/edge/sandbox/logs</code>. Token bound to brain + app.
+            </td>
+            <td>
+              Allows sandboxed code to orchestrate Neurons and publish signals without direct socket or database/Orleans access.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live &amp; Secure</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Enforces zero-trust capability mediation.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>Devices Module &amp; Runtimes</strong><br/>
+              <code>src/Modules/Devices</code>
+            </td>
+            <td>
+              Detects CPU/GPU/RAM via <code>HardwareProbe</code>. Manages local LLMs via <code>ILocalRuntime</code> (Ollama, FoundryLocal, SherpaOnnx). Implements P-256 paired device link &amp; chat relay.
+            </td>
+            <td>
+              The foundation for <em>Connected Client Compute</em>. Already registers client hardware and local models.
+            </td>
+            <td>
+              <span class="status-pill status-gap">Needs Extension</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Gap: Currently routes chat streams, not yet compute/sandbox tasks.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <strong>Cloud Topology &amp; Invariants</strong><br/>
+              <code>intochat/cloud</code><br/>
+              <code>IntoChat.Cloud.AppHost</code>
+            </td>
+            <td>
+              3-container topology: <code>OS.ComputePool</code>, <code>Cloud.ControlPlane</code>, <code>OS.Sandbox</code>. Hard invariant D6: two isolated Orleans clusters talking over signed HTTP edges only.
+            </td>
+            <td>
+              Provides cloud control plane, device enrollment edge, and headless fallback execution.
+            </td>
+            <td>
+              <span class="status-pill status-live">Live &amp; Enforced</span>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">Zero shared Orleans state across cloud &amp; OS.</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Summary of Architectural Gaps -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--amber);">Gap 1: Device Task Relay</span>
+          <span class="badge badge-amber">Network</span>
+        </div>
+        <p>
+          The <code>Devices</code> module today relays chat completions (<code>IDeviceChatRoute</code>) but does not expose a general <code>IComputeExecutionRoute</code> for shipping git worktrees, executing build commands, or streaming stdout/stderr back to the brain.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--amber);">Gap 2: Build SDK in Sandbox</span>
+          <span class="badge badge-amber">Sandbox</span>
+        </div>
+        <p>
+          <code>IntoChat.OS.Sandbox</code> uses an in-memory <code>AppLoadContext</code> that bans process spawning. To run <code>dotnet build</code> or <code>git</code>, we need OS-level containment (JobObjects/cgroups via MXC or leased devcontainer slots) rather than in-process assembly isolation.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:var(--amber);">Gap 3: Multi-Agent Squad Chat</span>
+          <span class="badge badge-amber">Orchestration</span>
+        </div>
+        <p>
+          While Ino and individual agents run inside the kernel, IntoChat OS lacks a first-class "Squad Circle" UI where users can watch Planner, Coder, Verifier, and Security Lead converse, debate diffs, and stream logs in real time.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: END-TO-END LIVE LOOP ARCHITECTURE -->
+  <section id="section-2">
+    <div class="section-header">
+      <span class="section-tag">Section 2</span>
+      <h2>End-to-End Live Loop: Discussion &rarr; Verification &rarr; Promotion</h2>
+      <p class="section-desc">
+        How a user request in chat traverses Ino, dynamic agent squads, compute dispatch to connected clients, isolated candidate verification, and human-in-the-loop promotion.
+      </p>
+    </div>
+
+    <!-- High-Craft SVG Flowchart -->
+    <div class="diagram-box">
+      <svg width="100%" height="420" viewBox="0 0 1100 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#e87a48" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#e87a48" stop-opacity="0.05"/>
+          </linearGradient>
+          <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#60a5fa" stop-opacity="0.05"/>
+          </linearGradient>
+          <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4ade80" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#4ade80" stop-opacity="0.05"/>
+          </linearGradient>
+          <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c084fc" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#c084fc" stop-opacity="0.05"/>
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <!-- Stage 1: Discussion & Spec -->
+        <rect x="20" y="40" width="160" height="130" rx="10" fill="url(#grad-accent)" stroke="#e87a48" stroke-width="1.5" />
+        <text x="35" y="65" fill="#e87a48" font-family="var(--sans)" font-size="12" font-weight="700">STAGE 1</text>
+        <text x="35" y="85" fill="#f3efe9" font-family="var(--sans)" font-size="14" font-weight="700">User Discussion</text>
+        <text x="35" y="105" fill="#a69d94" font-family="var(--sans)" font-size="11">Chat / Team Room</text>
+        <text x="35" y="125" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Extract IssueSpec</text>
+        <text x="35" y="145" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Sync GitHub Issue</text>
+
+        <!-- Arrow 1 -> 2 -->
+        <path d="M180 105 L210 105" stroke="#332e2a" stroke-width="2" marker-end="url(#arrow)" />
+        <polygon points="210,101 218,105 210,109" fill="#e87a48" />
+
+        <!-- Stage 2: Squad Orchestration -->
+        <rect x="220" y="40" width="180" height="130" rx="10" fill="url(#grad-purple)" stroke="#c084fc" stroke-width="1.5" />
+        <text x="235" y="65" fill="#c084fc" font-family="var(--sans)" font-size="12" font-weight="700">STAGE 2</text>
+        <text x="235" y="85" fill="#f3efe9" font-family="var(--sans)" font-size="14" font-weight="700">Squad Orchestration</text>
+        <text x="235" y="105" fill="#a69d94" font-family="var(--sans)" font-size="11">Ino Lead + Synapses</text>
+        <text x="235" y="125" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Planner &amp; Refactor Scout</text>
+        <text x="235" y="145" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Partition &le; 150 LOC Slices</text>
+
+        <!-- Arrow 2 -> 3 -->
+        <path d="M400 105 L430 105" stroke="#332e2a" stroke-width="2" />
+        <polygon points="430,101 438,105 430,109" fill="#c084fc" />
+
+        <!-- Stage 3: Compute Dispatch -->
+        <rect x="440" y="40" width="200" height="130" rx="10" fill="url(#grad-blue)" stroke="#60a5fa" stroke-width="1.5" />
+        <text x="455" y="65" fill="#60a5fa" font-family="var(--sans)" font-size="12" font-weight="700">STAGE 3</text>
+        <text x="455" y="85" fill="#f3efe9" font-family="var(--sans)" font-size="14" font-weight="700">Compute Dispatcher</text>
+        <text x="455" y="105" fill="#a69d94" font-family="var(--sans)" font-size="11">Devices Module Discovery</text>
+        <text x="455" y="125" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Match CPU/GPU &amp; Models</text>
+        <text x="455" y="145" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Dispatch to Client Node</text>
+
+        <!-- Arrow 3 -> Execution Nodes (Down) -->
+        <path d="M540 170 L540 220" stroke="#332e2a" stroke-width="2" />
+        <polygon points="536,220 540,228 544,220" fill="#60a5fa" />
+
+        <!-- Node Options Box (Middle-Down) -->
+        <rect x="360" y="230" width="360" height="160" rx="10" fill="#1a1816" stroke="#48413b" stroke-width="1.5" />
+        <text x="375" y="255" fill="#f3efe9" font-family="var(--sans)" font-size="13" font-weight="700">Available Execution Nodes (Tiered)</text>
+
+        <!-- Client Node A -->
+        <rect x="375" y="270" width="165" height="50" rx="6" fill="#24211e" stroke="#332e2a" />
+        <text x="385" y="290" fill="#4ade80" font-family="var(--mono)" font-size="11" font-weight="700">&#128187; Connected PC (MXC)</text>
+        <text x="385" y="306" fill="#a69d94" font-family="var(--sans)" font-size="10">Local GPU / Zero Cost / Fast</text>
+
+        <!-- Client Node B -->
+        <rect x="548" y="270" width="160" height="50" rx="6" fill="#24211e" stroke="#332e2a" />
+        <text x="558" y="290" fill="#60a5fa" font-family="var(--mono)" font-size="11" font-weight="700">&#128230; Leased Dev-Slot</text>
+        <text x="558" y="306" fill="#a69d94" font-family="var(--sans)" font-size="10">Docker Compose / Aspire</text>
+
+        <!-- Client Node C -->
+        <rect x="375" y="328" width="165" height="50" rx="6" fill="#24211e" stroke="#332e2a" />
+        <text x="385" y="348" fill="#c084fc" font-family="var(--mono)" font-size="11" font-weight="700">&#9729; Cloud ACA Session</text>
+        <text x="385" y="364" fill="#a69d94" font-family="var(--sans)" font-size="10">Headless Fallback (Kata)</text>
+
+        <!-- Client Node D -->
+        <rect x="548" y="328" width="160" height="50" rx="6" fill="#24211e" stroke="#332e2a" />
+        <text x="558" y="348" fill="#fbbf24" font-family="var(--mono)" font-size="11" font-weight="700">&#128241; Android Terminal</text>
+        <text x="558" y="364" fill="#a69d94" font-family="var(--sans)" font-size="10">Local Draft / Small Models</text>
+
+        <!-- Arrow from Node Box -> Stage 4 -->
+        <path d="M720 310 L750 310 L750 105 L770 105" stroke="#332e2a" stroke-width="2" />
+        <polygon points="770,101 778,105 770,109" fill="#4ade80" />
+
+        <!-- Stage 4: Isolated Verification -->
+        <rect x="780" y="40" width="170" height="130" rx="10" fill="url(#grad-green)" stroke="#4ade80" stroke-width="1.5" />
+        <text x="795" y="65" fill="#4ade80" font-family="var(--sans)" font-size="12" font-weight="700">STAGE 4</text>
+        <text x="795" y="85" fill="#f3efe9" font-family="var(--sans)" font-size="14" font-weight="700">Live Verification</text>
+        <text x="795" y="105" fill="#a69d94" font-family="var(--sans)" font-size="11">ProcessCandidateHost</text>
+        <text x="795" y="125" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; Ephemeral Port &amp; Home</text>
+        <text x="795" y="145" fill="#a69d94" font-family="var(--sans)" font-size="11">&bull; /health + MCP Probe</text>
+
+        <!-- Arrow 4 -> 5 -->
+        <path d="M950 105 L975 105" stroke="#332e2a" stroke-width="2" />
+        <polygon points="975,101 983,105 975,109" fill="#fbbf24" />
+
+        <!-- Stage 5: Promotion & Merge -->
+        <rect x="985" y="40" width="100" height="130" rx="10" fill="url(#grad-accent)" stroke="#fbbf24" stroke-width="1.5" />
+        <text x="995" y="65" fill="#fbbf24" font-family="var(--sans)" font-size="11" font-weight="700">STAGE 5</text>
+        <text x="995" y="85" fill="#f3efe9" font-family="var(--sans)" font-size="13" font-weight="700">Promotion</text>
+        <text x="995" y="105" fill="#a69d94" font-family="var(--sans)" font-size="10">Human Gate</text>
+        <text x="995" y="125" fill="#a69d94" font-family="var(--sans)" font-size="10">&bull; ChangeCard</text>
+        <text x="995" y="145" fill="#a69d94" font-family="var(--sans)" font-size="10">&bull; Green Merge</text>
+
+        <!-- Closed Edge Bridge Connection -->
+        <path d="M540 390 L540 405 L110 405 L110 170" stroke="#e87a48" stroke-dasharray="4 4" stroke-width="1.5" />
+        <text x="260" y="400" fill="#e87a48" font-family="var(--mono)" font-size="11">Reverse-Proxy Edge Crossing (/edge/sandbox/invoke) with AppToken</text>
+      </svg>
+      <div class="diagram-caption">Figure 1: Full 5-Stage Lifecycle of IntoChat Autonomous Self-Improving Loop</div>
+    </div>
+
+    <!-- Step Breakdown Cards -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">1. Discussion &rarr; Spec Conversion</span>
+          <span class="badge badge-accent">Intent</span>
+        </div>
+        <p>
+          A user or squad member requests a feature, optimization, or bugfix in IntoChat. Ino's conversational intelligence extracts unambiguous acceptance criteria, affected architectural boundaries, and non-goals, minting an <code>IssueSpec</code> and binding to a tracked GitHub issue.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">2. Squad &amp; Synapse Orchestration</span>
+          <span class="badge badge-purple">Planning</span>
+        </div>
+        <p>
+          Ino convenes a specialized dynamic squad inside IntoChat OS: <strong>Lead Planner</strong>, <strong>Refactor Scout</strong> (running CodeGraph/LSP queries), <strong>Coder</strong>, and <strong>Security QA</strong>. The plan is partitioned into small vertical slices (&le; 150 LOC) with strict <code>Old Code &rarr; New Code</code> definitions.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">3. Sovereign Compute Dispatch</span>
+          <span class="badge badge-blue">Execution</span>
+        </div>
+        <p>
+          The <code>Devices</code> module matches tasks against active paired nodes. Code generation defaults to local Ollama (zero API cost), automatically escalating to frontier reasoning models (Claude/Codex) via PR #390 only when two local repair cycles fail.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">4. Isolated Candidate Verification</span>
+          <span class="badge badge-green">Verification</span>
+        </div>
+        <p>
+          <code>ProcessCandidateHost</code> builds the candidate branch in an isolated git worktree and boots a headless OS instance on an ephemeral loopback port (never 5080/5081) with a temporary home (never <code>~/.intochat</code>). <code>EngineerLiveVerifier</code> tests <code>/health</code>, MCP endpoints, and telemetry before presenting the result.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: DEEP COMPARISON OF 4 CONTAINMENT OPTIONS -->
+  <section id="section-3">
+    <div class="section-header">
+      <span class="section-tag">Section 3</span>
+      <h2>Deep Comparison: 4 Containment &amp; Execution Options</h2>
+      <p class="section-desc">
+        A rigorous comparative analysis of the four viable execution backends for running autonomous agent code, builds, and live candidate tests.
+      </p>
+    </div>
+
+    <!-- Interactive Option Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('opt-matrix')">&#128202; Comparison Matrix</button>
+      <button class="tab-btn" onclick="switchTab('opt-a')">&#128187; Option A: Native Sandbox &amp; Client Nodes</button>
+      <button class="tab-btn" onclick="switchTab('opt-b')">&#128737; Option B: Microsoft Execution Containers (MXC)</button>
+      <button class="tab-btn" onclick="switchTab('opt-c')">&#128230; Option C: Leased Devcontainer Slots</button>
+      <button class="tab-btn" onclick="switchTab('opt-d')">&#9729; Option D: Cloud ACA &amp; Codespaces</button>
+    </div>
+
+    <!-- TAB 1: Comparison Matrix -->
+    <div id="opt-matrix" class="tab-content active">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Evaluation Dimension</th>
+              <th>(A) Native Sandbox + Client Nodes</th>
+              <th>(B) Microsoft MXC (SDK)</th>
+              <th>(C) Leased Devcontainer Slots</th>
+              <th>(D) Cloud ACA Sessions / Codespaces</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Isolation Boundary</strong></td>
+              <td>JobObject (Win) / Process Sandbox</td>
+              <td>ProcessContainer / AppContainer / cgroups</td>
+              <td>Docker Compose, unprivileged UID 1000</td>
+              <td>Kata MicroVM / Hyper-V Container</td>
+            </tr>
+            <tr>
+              <td><strong>Neuron &amp; Synapse IPC</strong></td>
+              <td><span style="color:var(--green); font-weight:700;">Native</span> (<code>/edge/sandbox</code> proxy)</td>
+              <td><span style="color:var(--green); font-weight:700;">Native</span> (Local loopback relay)</td>
+              <td>Bridged over container virtual network</td>
+              <td>Secured reverse tunnel / gateway</td>
+            </tr>
+            <tr>
+              <td><strong>Platform Coverage</strong></td>
+              <td>Windows, Linux, macOS, Android</td>
+              <td>Windows, Linux (macOS experimental)</td>
+              <td>Any host with Docker / Podman</td>
+              <td>Cloud-only (Azure / GitHub)</td>
+            </tr>
+            <tr>
+              <td><strong>Cold-Start Latency</strong></td>
+              <td><span style="color:var(--green); font-weight:700;">&lt; 50ms</span></td>
+              <td><span style="color:var(--green); font-weight:700;">&lt; 150ms</span></td>
+              <td>1.5s &ndash; 4.0s (slot lease)</td>
+              <td>5s &ndash; 15s (microVM allocation)</td>
+            </tr>
+            <tr>
+              <td><strong>Cost Profile</strong></td>
+              <td><span style="color:var(--green); font-weight:700;">$0 / Sovereign</span> (User hardware)</td>
+              <td><span style="color:var(--green); font-weight:700;">$0 / Sovereign</span> (Local host)</td>
+              <td>$0 local / $0.05/hr cloud host</td>
+              <td>Metered cloud billing per minute</td>
+            </tr>
+            <tr>
+              <td><strong>Build Toolchain Capability</strong></td>
+              <td>Limited (no full .NET SDK in sandbox)</td>
+              <td>Full .NET SDK, Roslyn, Git</td>
+              <td><span style="color:var(--green); font-weight:700;">Full Aspire Multi-Service Stack</span></td>
+              <td>Full Stack (Codespaces) / Python-heavy (ACA)</td>
+            </tr>
+            <tr>
+              <td><strong>Complexity &amp; Pre-reqs</strong></td>
+              <td>None (built into IntoChat Client)</td>
+              <td>NuGet package (<code>Microsoft.Mxc.Sdk</code>)</td>
+              <td>Requires Docker / Compose daemon</td>
+              <td>Requires Azure account / GitHub token</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: Option A -->
+    <div id="opt-a" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">&#128187; Option A: IntoChat Native Sandbox + Connected Client Nodes</span>
+          <span class="badge badge-accent">Owner Favorite</span>
+        </div>
+        <p>
+          Leverages the user's paired IntoChat client installations (Windows, Linux, or Android) as compute nodes. When connected, the client registers its hardware capabilities (CPU/GPU/RAM via <code>HardwareProbe</code>) and local models (via <code>ILocalRuntime</code>). The central brain dispatches coding tasks to the client over the secure P-256 paired device edge.
+        </p>
+        <div class="grid-2" style="margin-top:14px;">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">Advantages</span>
+            <ul class="check-list">
+              <li><strong>Zero Cloud Infrastructure Bills:</strong> Runs 100% on hardware the user already owns.</li>
+              <li><strong>Native Neuron Orchestration:</strong> Sandboxed code calls directly into brain Neurons via <code>IntoChatClient</code>.</li>
+              <li><strong>Data Privacy &amp; Custody:</strong> Source code and secrets never leave the user's trusted devices.</li>
+              <li><strong>Android Edge Nodes:</strong> Android devices can contribute local small-model drafting (Qwen 1.5B) or run lightweight verification.</li>
+            </ul>
+          </div>
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase;">Limitations</span>
+            <ul class="check-list">
+              <li class="warn"><strong>Offline Sensitivity:</strong> Jobs cannot run if the user's client devices are offline.</li>
+              <li class="warn"><strong>Sandboxed SDK:</strong> The native C# sandbox load context prohibits process spawning, requiring a helper runner for <code>dotnet build</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Option B -->
+    <div id="opt-b" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">&#128737; Option B: Microsoft Execution Containers (MXC / Microsoft.Mxc.Sdk)</span>
+          <span class="badge badge-blue">Desktop Native</span>
+        </div>
+        <p>
+          Microsoft's official open-source policy-driven containment SDK (<code>Microsoft.Mxc.Sdk</code> for .NET). Uses Windows <code>ProcessContainer</code> (job objects + AppContainer tokens + Learning Mode) and Linux cgroups/namespaces to confine processes without needing Docker Desktop or full hypervisor VMs.
+        </p>
+        <div class="grid-2" style="margin-top:14px;">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">Advantages</span>
+            <ul class="check-list">
+              <li><strong>First-Class .NET SDK:</strong> Clean C# bindings directly consumable by <code>IntoChat.OS.Host</code>.</li>
+              <li><strong>Sub-Second Startup:</strong> Boots an isolated process container in &lt; 150ms.</li>
+              <li><strong>No Docker Dependency:</strong> Runs out of the box on Windows and Linux workstations.</li>
+              <li><strong>Granular Resource Policies:</strong> Limits readable directories, network domains, and scrubbed env vars.</li>
+            </ul>
+          </div>
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase;">Limitations</span>
+            <ul class="check-list">
+              <li class="warn"><strong>macOS Support:</strong> MXC on macOS is experimental / less mature than Windows.</li>
+              <li class="warn"><strong>Single-Host:</strong> Designed for local process containment, not multi-node orchestration.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Option C -->
+    <div id="opt-c" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">&#128230; Option C: Leased Devcontainer Slots (hanzhad/agent-dev-slots + Aspire)</span>
+          <span class="badge badge-purple">Aspire Gold Standard</span>
+        </div>
+        <p>
+          Adopts the proven <code>agent-dev-slots</code> pattern: pre-warmed, leased Docker Compose devcontainer slots (<code>acquire</code> / <code>run</code> / <code>release</code>). Operates as unprivileged <code>uid 1000</code>, with ephemeral homes (no <code>~/.ssh</code> leaks), dynamic port leasing, and full support for running .NET Aspire multi-service systems in isolation.
+        </p>
+        <div class="grid-2" style="margin-top:14px;">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">Advantages</span>
+            <ul class="check-list">
+              <li><strong>Full Aspire Stacks:</strong> Can boot full Postgres, Redis, Orleans, and Web nodes without port clashes.</li>
+              <li><strong>Zero Collision Across Agents:</strong> Leased slots guarantee parallel agents never step on files or ports.</li>
+              <li><strong>Credential Scrubbing:</strong> Injects temporary tokens (e.g. <code>FORGE_AUTH</code>) without persisting keys.</li>
+              <li><strong>Reproducible CI Match:</strong> Uses exact same container image as GitHub Actions CI.</li>
+            </ul>
+          </div>
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase;">Limitations</span>
+            <ul class="check-list">
+              <li class="warn"><strong>Requires Docker:</strong> Host must have Docker or Podman engine running.</li>
+              <li class="warn"><strong>Higher Memory Footprint:</strong> Pre-warmed slots consume RAM continuously.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: Option D -->
+    <div id="opt-d" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">&#9729; Option D: Cloud Ephemeral Containers (ACA Dynamic Sessions) vs. Codespaces</span>
+          <span class="badge badge-amber">Headless Fallback</span>
+        </div>
+        <p>
+          Cloud-hosted scale-to-zero sandboxes. Azure Container Apps (ACA) Dynamic Sessions provides lightweight Kata microVMs allocated on demand via REST. GitHub Codespaces provides full-featured hosted developer environments suitable for external open-source contributors.
+        </p>
+        <div class="grid-2" style="margin-top:14px;">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--green); text-transform:uppercase;">Advantages</span>
+            <ul class="check-list">
+              <li><strong>Always Available:</strong> Operates when the user's PC is powered off or disconnected.</li>
+              <li><strong>Hypervisor Isolation:</strong> Kata microVMs offer hardware-level security boundaries.</li>
+              <li><strong>Elastic Bursting:</strong> Run 10 parallel candidate tournaments simultaneously.</li>
+            </ul>
+          </div>
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--amber); text-transform:uppercase;">Limitations</span>
+            <ul class="check-list">
+              <li class="warn"><strong>Metered Cloud Cost:</strong> Incurs ongoing cloud billing per compute minute.</li>
+              <li class="warn"><strong>Slower Cold Start:</strong> MicroVM allocation takes 5&ndash;15 seconds.</li>
+              <li class="warn"><strong>Closed Gateway Latency:</strong> Neuron edge calls incur network roundtrip delays.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4: RECOMMENDED TARGET ARCHITECTURE ("WHAT IS BEST") -->
+  <section id="section-4">
+    <div class="section-header">
+      <span class="section-tag">Section 4</span>
+      <h2>Recommended Target Architecture: Unified Sovereign Hybrid</h2>
+      <p class="section-desc">
+        How these four technologies compose cleanly into an elegant, tiered architecture instead of competing with each other.
+      </p>
+    </div>
+
+    <!-- Tier Architecture Overview Box -->
+    <div class="card" style="border-color: var(--accent); background: linear-gradient(180deg, var(--surface) 0%, rgba(232, 122, 72, 0.04) 100%);">
+      <div class="card-header">
+        <span class="card-title" style="color: var(--accent); font-size:18px;">The 5-Tier Hybrid Execution Framework</span>
+        <span class="badge badge-accent">Unified Synthesis</span>
+      </div>
+      <p style="font-size: 14.5px; color: var(--text);">
+        Rather than choosing one execution engine, we establish a clean division of responsibility: <strong>IntoChat Sandbox + Connected Client Nodes</strong> forms the sovereign control and routing plane, with containment backends selected dynamically based on task weight and environment:
+      </p>
+
+      <div class="grid-2" style="margin-top: 16px;">
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--accent); font-size:14px; margin-bottom:6px;">Tier 1: Desktop OS Containment (MXC)</div>
+          <div style="font-size:13px; color:var(--muted);">
+            On developer PCs and enrolled client workstations (Windows/Linux), <code>IntoChat.OS.Sandbox</code> adopts <code>Microsoft.Mxc.Sdk</code>. Confines coding agents to target worktrees with sub-second startup, zero Docker overhead, and scrubbed environment variables.
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--purple); font-size:14px; margin-bottom:6px;">Tier 2: Candidate Verification (agent-dev-slots)</div>
+          <div style="font-size:13px; color:var(--muted);">
+            For heavy candidate verification requiring live Aspire multi-service orchestration (Postgres, ClickHouse, Redis, Orleans silos), <code>ICandidateHost</code> leases an isolated slot from <code>agent-dev-slots</code> with dynamic port mapping and unprivileged UID 1000.
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--blue); font-size:14px; margin-bottom:6px;">Tier 3: Headless Cloud Fallback (ACA Sessions)</div>
+          <div style="font-size:13px; color:var(--muted);">
+            When the user is away and all paired client machines are asleep, the Cloud Control Plane transparently routes background refactoring and PR triage to Azure Container Apps Dynamic Sessions (Kata microVMs) scaling to zero when idle.
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:700; color:var(--amber); font-size:14px; margin-bottom:6px;">Tier 4: Mobile &amp; Edge Coprocessors (Android)</div>
+          <div style="font-size:13px; color:var(--muted);">
+            Enrolled Android clients running FlutterMix contribute local small-model drafting (e.g. Qwen 2.5 Coder 1.5B via ONNX/llama.cpp) or experimental Linux-on-Android terminal environments for lightweight triage and test streaming.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Boundaries Callout -->
+    <div class="callout callout-amber" style="margin-top:24px;">
+      <div class="callout-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Hard Invariant: The Zero-Trust Sandbox Boundary
+      </div>
+      <p style="margin: 0; font-size: 13.5px; line-height: 1.6;">
+        Across all four tiers, three non-negotiable security invariants are enforced:
+        <br/>
+        <strong>1. Closed Orleans Gateway:</strong> Sandboxed processes and client nodes <em>never join the Orleans cluster</em>. They communicate exclusively through the authenticated reverse-proxy edge (<code>SandboxEdgeEndpoints</code>) using short-lived <code>AppToken</code> credentials bound to brain and app.
+        <br/>
+        <strong>2. Zero-Token Vault:</strong> Frontier API keys (Claude, OpenAI) and Git credentials live sealed in the Host Vault. They are injected as ephemeral headers during proxy transit and never written to the candidate filesystem or sandbox environment.
+        <br/>
+        <strong>3. Mandatory Human ChangeCard Gate:</strong> No candidate branch can be merged to master or pushed to an external origin without explicit human sign-off via an interactive ChangeCard in IntoChat UI.
+      </p>
+    </div>
+  </section>
+
+  <!-- SECTION 5: PHASED ROLLOUT & DECISIONS FOR OWNER SIGN-OFF -->
+  <section id="section-5">
+    <div class="section-header">
+      <span class="section-tag">Section 5</span>
+      <h2>Phased Rollout Plan &amp; Owner Decisions</h2>
+      <p class="section-desc">
+        Structured vertical slices for implementation, accompanied by the interactive decision panel for owner sign-off.
+      </p>
+    </div>
+
+    <!-- 4 Rollout Slices -->
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-1: Connected Client Compute in Devices</span>
+          <span class="badge badge-accent">Slice 1</span>
+        </div>
+        <p>
+          Extend <code>IntoChat.OS.Modules.Devices</code> to advertise compute capacity (CPU, GPU, RAM, SDK presence) alongside existing local models. Implement <code>IComputeExecutionRoute</code> over the paired P-256 edge relay, enabling the brain to dispatch git worktrees and stream execution progress.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-2: MXC Desktop Containment Backend</span>
+          <span class="badge badge-blue">Slice 2</span>
+        </div>
+        <p>
+          Integrate <code>Microsoft.Mxc.Sdk</code> into <code>IntoChat.OS.Host</code>. Implement <code>MxcSandboxHost</code> providing sub-second OS-level process containment on Windows (ProcessContainer) and Linux (cgroups), replacing raw JobObjects with policy-driven folder and network isolation.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-3: Leased Devcontainer Slot Provider</span>
+          <span class="badge badge-purple">Slice 3</span>
+        </div>
+        <p>
+          Implement <code>AgentDevSlotsCandidateHost</code> implementing <code>ICandidateHost</code>. Allows heavy candidate verification runs to lease pre-warmed Docker Compose slots with dynamic port allocation and unprivileged UID 1000 execution for complete Aspire full-stack fidelity.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Slice RFC-4: Cloud ACA Sessions &amp; Android Edge Worker</span>
+          <span class="badge badge-amber">Slice 4</span>
+        </div>
+        <p>
+          Deliver the headless cloud fallback via Azure Container Apps Dynamic Sessions for off-hours autonomous improvements, plus the Android client background worker for local small-model drafting and test output streaming.
+        </p>
+      </div>
+    </div>
+
+    <!-- Interactive Decision Panel -->
+    <div class="decision-panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:18px; color:var(--text);">&#9997; Owner Sign-Off &amp; Architectural Choices</h3>
+        <span class="badge badge-accent">Interactive Decision Card</span>
+      </div>
+      <p style="margin:0 0 20px; font-size:13.5px; color:var(--muted);">
+        Please select your preferred configuration for the four key architectural decision points. Click "Copy Approved Decision Config" to output the decisions into chat.
+      </p>
+
+      <!-- Decision 1 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">1. Primary Desktop Containment Engine</span>
+          <span class="badge badge-green">Recommended: MXC</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d1" value="mxc" checked />
+            <strong>(Recommended) Microsoft MXC (Microsoft.Mxc.Sdk)</strong> &mdash; Sub-second startup, no Docker dependency, native C# SDK.
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d1" value="jobobject" />
+            <strong>Keep Raw Windows JobObjects only</strong> &mdash; Lower functionality, Windows-only, no unified Linux/macOS story.
+          </label>
+        </div>
+      </div>
+
+      <!-- Decision 2 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">2. Connected Client Compute Consent Model</span>
+          <span class="badge badge-green">Recommended: Paired Opt-In</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d2" value="optin" checked />
+            <strong>(Recommended) Explicit Device Toggle</strong> &mdash; Client settings card: "Allow this device to accept background compute tasks" (Default ON for desktop, OFF for battery mobile).
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d2" value="always" />
+            <strong>Automatic for all enrolled devices</strong> &mdash; Any paired client automatically accepts delegated compute.
+          </label>
+        </div>
+      </div>
+
+      <!-- Decision 3 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">3. Aspire Candidate Verification Backend</span>
+          <span class="badge badge-green">Recommended: Hybrid</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d3" value="hybrid" checked />
+            <strong>(Recommended) Hybrid: ProcessCandidateHost for fast unit checks + agent-dev-slots for Aspire full-stack</strong>
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d3" value="devslots-only" />
+            <strong>agent-dev-slots for all verifications</strong> &mdash; Slower unit tests, but 100% container uniformity.
+          </label>
+        </div>
+      </div>
+
+      <!-- Decision 4 -->
+      <div class="decision-item">
+        <div class="decision-header">
+          <span class="decision-title">4. Headless Cloud Fallback Provider</span>
+          <span class="badge badge-green">Recommended: ACA Sessions</span>
+        </div>
+        <div class="decision-options">
+          <label class="option-label recommended">
+            <input type="radio" name="d4" value="aca" checked />
+            <strong>(Recommended) Azure Container Apps Dynamic Sessions (Kata MicroVMs)</strong> &mdash; Scale-to-zero, fast microVM boot.
+          </label>
+          <label class="option-label">
+            <input type="radio" name="d4" value="codespaces" />
+            <strong>GitHub Codespaces API</strong> &mdash; Good for public OSS contributors, higher per-hour baseline cost.
+          </label>
+        </div>
+      </div>
+
+      <!-- Export / Copy Action -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; flex-wrap:wrap; gap:12px;">
+        <div id="decision-status" style="font-size:13px; color:var(--green); font-weight:600;">
+          All 4 recommended options selected.
+        </div>
+        <button class="btn btn-accent" onclick="copyDecisions()">
+          &#128203; Copy Approved Decision Config
+        </button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Interactive Scripts -->
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  function copyDecisions() {
+    const d1 = document.querySelector('input[name="d1"]:checked').value;
+    const d2 = document.querySelector('input[name="d2"]:checked').value;
+    const d3 = document.querySelector('input[name="d3"]:checked').value;
+    const d4 = document.querySelector('input[name="d4"]:checked').value;
+
+    const payload = {
+      rfc: "intochat-self-improving-loop-v0.24.0",
+      status: "APPROVED_BY_OWNER",
+      decisions: {
+        desktop_containment: d1,
+        client_compute_consent: d2,
+        candidate_verification_backend: d3,
+        cloud_fallback_provider: d4
+      },
+      next_action: "Dispatch worker for RFC-1 (Devices Compute Route)"
+    };
+
+    const text = JSON.stringify(payload, null, 2);
+    navigator.clipboard.writeText(text).then(() => {
+      const status = document.getElementById('decision-status');
+      status.innerText = "Copied to clipboard! Ready to paste into chat.";
+      setTimeout(() => {
+        status.innerText = "All 4 options selected.";
+      }, 4000);
+    });
+  }
+</script>
+</body>
+</html>
