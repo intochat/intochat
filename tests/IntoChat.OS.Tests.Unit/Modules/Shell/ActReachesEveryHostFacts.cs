@@ -306,7 +306,6 @@ public sealed class ActReachesEveryHostFacts
     {
         public Task Publish(long generation, View view) => throw new NotSupportedException();
         public Task<PublishedView?> Read() => throw new NotSupportedException();
-        public Task<ViewActivation> Activate(long generation, string nodeKey, string? fieldValue) => throw new NotSupportedException();
     }
 
     private sealed class CapturingLoggerProvider : ILoggerProvider

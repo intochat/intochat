@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 
-// A screen neuron that records Request and Activate calls by key; every other operation is unsupported.
+// A screen neuron that records Request and Dispatch calls; every other operation is unsupported.
 [Neuron("apps.app2")]
 internal sealed class RecordingApp : Neuron, IScreen, IApp
 {
@@ -23,15 +23,7 @@ internal sealed class RecordingApp : Neuron, IScreen, IApp
 
     public Task<PublishedView?> Open() => Read(alias: null);
 
-    public Task Act(ScreenAction action) => Activate(action.Alias ?? string.Empty, action.Generation, action.NodeKey, action.FieldValue);
-
     public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(null);
-
-    public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)
-    {
-        Requests.Add((Id.Key, nodeKey, fieldValue ?? string.Empty));
-        return Task.CompletedTask;
-    }
 
     public Task Request(string signal, JsonElement? args = null)
     {

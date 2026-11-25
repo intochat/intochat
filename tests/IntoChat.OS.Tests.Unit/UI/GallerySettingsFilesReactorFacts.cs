@@ -104,7 +104,7 @@ public sealed class GallerySettingsFilesReactorFacts
         Assert.Contains("Welcome to IntoChat UI Gallery", homeWire, StringComparison.Ordinal);
 
         // 2. Charts page: two independent live IChart neurons (stream + query-bound revenue)
-        await screen.Activate("app.gallery", opened.Generation, "nav:charts");
+        await screen.Click("nav:charts");
         await os.Idle();
         var chartsView = await screen.Open();
         var chartsWire = chartsView!.View.GetRawText();
@@ -113,17 +113,17 @@ public sealed class GallerySettingsFilesReactorFacts
         Assert.Contains(GalleryApp.RevenueChartKey, chartsWire, StringComparison.Ordinal);
 
         // 3. Graphs & DDD Rules page: open BankAccount for Alice -> +$50 -> -$70 refused -> -$30 succeeds
-        await screen.Activate("app.gallery", chartsView.Generation, "nav:graphs");
+        await screen.Click("nav:graphs");
         await os.Idle();
         var graphsInitial = await screen.Open();
         Assert.NotNull(graphsInitial);
 
-        await screen.Activate("app.gallery", graphsInitial!.Generation, "bank:open");
+        await screen.Click("bank:open");
         await os.Idle();
         var afterOpen = await screen.Open();
         Assert.NotNull(afterOpen);
 
-        await screen.Activate("app.gallery", afterOpen!.Generation, "bank:deposit-50");
+        await screen.Click("bank:deposit-50");
         await os.Idle();
         var afterDeposit = await screen.Open();
         Assert.NotNull(afterDeposit);
@@ -140,7 +140,7 @@ public sealed class GallerySettingsFilesReactorFacts
         Assert.Contains("Domain rule refused command", afterRefused!.View.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("Alice: $50", afterRefused.View.GetRawText(), StringComparison.Ordinal);
 
-        await screen.Activate("app.gallery", afterRefused.Generation, "bank:withdraw-30");
+        await screen.Click("bank:withdraw-30");
         await os.Idle();
         var afterWithdraw = await screen.Open();
         var withdrawWire = afterWithdraw!.View.GetRawText();

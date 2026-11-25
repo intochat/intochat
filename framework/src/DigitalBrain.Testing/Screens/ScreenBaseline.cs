@@ -59,7 +59,7 @@ public static class ScreenBaseline
 
     /// <summary>
     /// Executes one baseline row: ensures initial view exists, requests the signal with empty input, asserts non-null view,
-    /// verifies state inspectability round-trip, and validates activation refusal invariants.
+    /// verifies state inspectability round-trip, and validates the unknown-child refusal.
     /// </summary>
     public static async Task RunAsync(ScreenOperationCase operation)
     {
@@ -123,9 +123,8 @@ public static class ScreenBaseline
             }
         }
 
-        // 5. Activation refusal invariant checks
-        await Assert.ThrowsAsync<ActivationRefusedException>(() => screen.Activate(currentView.Alias, currentView.Generation - 1, "nonexistent-node-key")).ConfigureAwait(false);
-        await Assert.ThrowsAsync<ActivationRefusedException>(() => screen.Activate(currentView.Alias, currentView.Generation, "nonexistent-node-key")).ConfigureAwait(false);
+        // 5. Refusal invariant: a command to a child key the view does not show is refused before any handler runs.
+        await Assert.ThrowsAsync<ActivationRefusedException>(() => screen.Dispatch(new DigitalBrain.UI.Command("nonexistent-child-key", operation.Signal))).ConfigureAwait(false);
 
         if (watch.Elapsed > Budget)
         {

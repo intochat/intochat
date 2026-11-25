@@ -124,22 +124,28 @@ public sealed class ScreenDirectoryNeuronFacts
         }
     }
 
-    private sealed class MockView : IView
+    // A sandboxed app's view neuron: it stores the view and takes the app's commands through IScreen.Dispatch.
+    private sealed class MockView : IView, IScreen
     {
         public PublishedView? Published { get; set; }
-        public ViewActivation? ActivationResult { get; set; }
-        public List<(long Generation, string Key, string? Value)> Activations { get; } = [];
+        public List<Command> Dispatched { get; } = [];
 
         public Task Publish(long generation, View view) => Task.CompletedTask;
 
         public Task<PublishedView?> Read() => Task.FromResult(Published);
 
-        public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
+        public Task<PublishedView?> Open() => Read();
+
+        public Task<PublishedView?> Read(string? alias) => Read();
+
+        public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+
+        public Task Request(string signal, JsonElement? args = null) => Dispatch(new Command(".", signal, args));
+
+        public Task Dispatch(Command command)
         {
-            Activations.Add((generation, key, fieldValue));
-            return Task.FromResult(ActivationResult is { } res
-                ? res with { Value = fieldValue }
-                : new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
+            Dispatched.Add(command);
+            return Task.CompletedTask;
         }
     }
 
@@ -196,6 +202,7 @@ public sealed class ScreenDirectoryNeuronFacts
 
         var mockView = new MockView { Published = new PublishedView("owner/apps/calculator/view", 2L, json) };
         proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IScreen>("owner/apps/calculator/view", mockView);
         proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
         proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
 
@@ -230,6 +237,7 @@ public sealed class ScreenDirectoryNeuronFacts
 
         var mockView = new MockView { Published = new PublishedView("owner/apps/calculator/view", 1L, json) };
         proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IScreen>("owner/apps/calculator/view", mockView);
         proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
         proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
 
@@ -244,10 +252,10 @@ public sealed class ScreenDirectoryNeuronFacts
 
         Assert.True(result.Accepted);
         Assert.NotNull(result.Screen);
-        var act = Assert.Single(mockView.Activations);
-        Assert.Equal(1L, act.Generation);
-        Assert.Equal("btn-1", act.Key);
-        Assert.Equal("value", act.Value);
+        // The node's command goes to the view neuron's Dispatch with the value joined to its args.
+        var sent = Assert.Single(mockView.Dispatched);
+        Assert.Equal((".", "1"), (sent.Target, sent.Signal));
+        Assert.Equal("value", sent.Args?.GetProperty("value").GetString());
     }
 
     [Fact]
@@ -258,13 +266,10 @@ public sealed class ScreenDirectoryNeuronFacts
         var view = new View("Calculator", new Column([new ApprovalCardNode("card-1", "plan-99", "Approve", "Summary", [], Resolve: new Resolve("plan-99"))]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
 
-        var mockView = new MockView
-        {
-            Published = new PublishedView("owner/apps/calculator/view", 1L, json),
-            ActivationResult = new ViewActivation(ViewActivationKind.Resolve, Resolve: new Resolve("plan-99")),
-        };
+        var mockView = new MockView { Published = new PublishedView("owner/apps/calculator/view", 1L, json) };
         var inbox = new MockConfirmationInbox();
         proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IScreen>("owner/apps/calculator/view", mockView);
         proxies.Register<IConfirmationInbox>(IConfirmationInbox.Key(Scope), inbox);
         proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
         proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
@@ -278,6 +283,7 @@ public sealed class ScreenDirectoryNeuronFacts
 
         Assert.False(result.Accepted);
         Assert.Empty(inbox.Resolved);
+        Assert.Empty(mockView.Dispatched);
     }
 
     [Fact]

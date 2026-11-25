@@ -1,3 +1,4 @@
+using DigitalBrain.Testing;
 using DigitalBrain;
 using DigitalBrain.Neurons;
 using global::Microsoft.Extensions.DependencyInjection;
@@ -187,7 +188,7 @@ public sealed class WorkspaceWindowsFacts
 
         using (os.Edge.Enter(os.Edge.Person("alice", "acct", brain)))
         {
-            await desktopScreen.Activate("app.desktop", published!.Generation, "dock-files", by: "alice");
+            await desktopScreen.Click("dock-files");
             await os.Idle();
 
             var updated = await ws.Read();
@@ -225,7 +226,7 @@ public sealed class WorkspaceWindowsFacts
         Assert.NotNull(latestDesktopView);
         using (os.Edge.Enter(os.Edge.Person("alice", "acct", brain)))
         {
-            await desktopScreen.Activate("app.desktop", latestDesktopView!.Generation, "dock-settings", by: "alice");
+            await desktopScreen.Click("dock-settings");
             await os.Idle();
             var afterEditedActivate = await ws.Read();
             Assert.DoesNotContain(afterEditedActivate.OpenViews, v => v.App == IntoChat.OS.Host.Primitives.AppRef.Of(brain, "settings").Key);

@@ -134,140 +134,6 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
     }
 
     [Fact]
-    public async Task T2_Screen_Activate_ObsoleteGeneration_ThrowsActivationRefusedStale()
-    {
-        var os = _fixture.OS;
-        os.Register<BoundaryTestScreen>();
-
-        var brain = NewBrain("screen-stale");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.boundary_screen", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        var initialView = await screen.Read();
-        Assert.NotNull(initialView);
-        Assert.Equal(1L, initialView.Generation);
-
-        // Advance screen to generation 2
-        await screen.Request("boundary-test.inc", JsonSerializer.SerializeToElement(new BoundaryInc()));
-        await os.Idle();
-
-        var gen2View = await screen.Read();
-        Assert.NotNull(gen2View);
-        Assert.Equal(2L, gen2View.Generation);
-
-        // Attempt activation with obsolete generation 1L
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", 1L, "btn-inc"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public async Task T2_Screen_Activate_ZeroGeneration_ThrowsActivationRefusedStale()
-    {
-        var os = _fixture.OS;
-        os.Register<BoundaryTestScreen>();
-
-        var brain = NewBrain("screen-zero");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.boundary_screen", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        var view = await screen.Read();
-        Assert.NotNull(view);
-        Assert.Equal(1L, view.Generation);
-
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", 0L, "btn-inc"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public async Task T2_Screen_Activate_NegativeGeneration_ThrowsActivationRefusedStale()
-    {
-        var os = _fixture.OS;
-        os.Register<BoundaryTestScreen>();
-
-        var brain = NewBrain("screen-neg");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.boundary_screen", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        var view = await screen.Read();
-        Assert.NotNull(view);
-
-        var ex1 = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", -1L, "btn-inc"));
-        Assert.Equal(ActivationRefusedException.Stale, ex1.Reason);
-
-        var exMin = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", long.MinValue, "btn-inc"));
-        Assert.Equal(ActivationRefusedException.Stale, exMin.Reason);
-    }
-
-    [Fact]
-    public async Task T2_Screen_Activate_FutureGeneration_ThrowsActivationRefusedStale()
-    {
-        var os = _fixture.OS;
-        os.Register<BoundaryTestScreen>();
-
-        var brain = NewBrain("screen-future");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.boundary_screen", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        var view = await screen.Read();
-        Assert.NotNull(view);
-        Assert.Equal(1L, view.Generation);
-
-        var ex99 = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", 99L, "btn-inc"));
-        Assert.Equal(ActivationRefusedException.Stale, ex99.Reason);
-
-        var exMax = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", long.MaxValue, "btn-inc"));
-        Assert.Equal(ActivationRefusedException.Stale, exMax.Reason);
-    }
-
-    [Fact]
-    public async Task T2_Screen_Activate_MismatchingAlias_ThrowsActivationRefusedStale()
-    {
-        var os = _fixture.OS;
-        os.Register<BoundaryTestScreen>();
-
-        var brain = NewBrain("screen-mismatch-alias");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.boundary_screen", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        var view = await screen.Read();
-        Assert.NotNull(view);
-        Assert.Equal(1L, view.Generation);
-
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.foreign_alias", 1L, "btn-inc"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public async Task T2_Screen_Activate_NullAlias_ThrowsArgumentNullException()
-    {
-        var os = _fixture.OS;
-        os.Register<BoundaryTestScreen>();
-
-        var brain = NewBrain("screen-null-alias");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
-        var screenId = new NeuronId(brain, "app.boundary_screen", "default");
-        var screen = os.Get<IScreen>(screenId);
-
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            screen.Activate(null!, 1L, "btn-inc"));
-    }
-
-    [Fact]
     public async Task T2_Screen_Activate_NullNodeKey_ThrowsArgumentNullException()
     {
         var os = _fixture.OS;
@@ -279,7 +145,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         var screen = os.Get<IScreen>(screenId);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            screen.Activate("app.boundary_screen", 1L, null!));
+            screen.Click(null!));
     }
 
     [Fact]
@@ -297,7 +163,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", 1L, "non-existent-button"));
+            screen.Click("non-existent-button"));
 
         Assert.Equal(ActivationRefusedException.UnknownNode, ex.Reason);
     }
@@ -318,7 +184,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
 
         // fld-no-emit is a Field without submit emit
         var exField = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", 1L, "fld-no-emit"));
+            screen.Click("fld-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, exField.Reason);
     }
 
@@ -338,7 +204,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
 
         // btn-alien commands the child "alien", which the view of "app.boundary_screen" does not show
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.boundary_screen", 1L, "btn-alien"));
+            screen.Click("btn-alien"));
 
         Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
@@ -361,7 +227,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
 
         // Activating btn-inject-by renders view with author-declared 'by', which throws InvalidOperationException
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.boundary_screen", 1L, "btn-inject-by"));
+            screen.Click("btn-inject-by"));
 
         Assert.Contains("declares the host-reserved 'by'", ex.Message);
 
@@ -396,7 +262,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         Assert.Equal(1L, view2.Generation);
 
         // Activation using unchanged generation 1L continues to succeed
-        await screen.Activate("app.boundary_screen", 1L, "btn-inc");
+        await screen.Click("btn-inc");
         await os.Idle();
 
         var view3 = await screen.Read();
@@ -480,7 +346,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
 
         // Activating btn-oversized triggers reaction that renders view exceeding 2 MB -> Throws InvalidOperationException
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.boundary_screen", 1L, "btn-oversized"));
+            screen.Click("btn-oversized"));
 
         Assert.Contains("exceeds the 2097152-byte cap", ex.Message);
 

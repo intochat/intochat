@@ -62,25 +62,6 @@ internal sealed class UnitMachine<TState>(string alias, string neuron) where TSt
         return (step with { View = view, Signals = [.. step.Signals, new ViewChanged(alias, view.Generation)] }, ViewOutcome.Stored);
     }
 
-    /// <exception cref="ActivationRefusedException">The view is stale, the node is unknown or sends no command, or its command names a child.</exception>
-    public EmittedSignal Press(PublishedView? view, string claimed, long generation, string nodeKey, string? fieldValue, string? by)
-    {
-        if (view is null || !string.Equals(view.Alias, claimed, StringComparison.Ordinal) || view.Generation != generation)
-        {
-            throw new ActivationRefusedException(ActivationRefusedException.Stale);
-        }
-
-        var node = ViewNodes.Find(view.View, nodeKey) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
-        // A unit has no child neurons: a button's command reaches it only through its own address ".".
-        if (ViewNodes.CommandOf(node) is { } command)
-        {
-            return command.Target == "."
-                ? new EmittedSignal(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
-                : throw new ActivationRefusedException(ActivationRefusedException.NoSlots);
-        }
-        throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
-    }
-
     private IReadOnlyList<Signal> Silent(UnitStep<TState> step, Signal cause)
     {
         var changed = new StateChanged(neuron, SignalAliases.Of(cause));

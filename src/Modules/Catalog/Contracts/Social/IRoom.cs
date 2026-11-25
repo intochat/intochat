@@ -30,8 +30,9 @@ public interface IRoom
     [Shared, ReadOnlyCall]
     Task<RoomView> Read(long? sinceRevision = null, CancellationToken ct = default);
 
+    /// <summary>Sends a command through a pinned screen's Dispatch (a key path reaches its children through it) and returns its view after.</summary>
     [Shared]
-    Task<PublishedView> Act(string screenType, string screenKey, ScreenAction action, CancellationToken ct = default);
+    Task<PublishedView> Act(string screenType, string screenKey, DigitalBrain.UI.Command command, CancellationToken ct = default);
 
     [Shared]
     Task Here(CancellationToken ct = default);

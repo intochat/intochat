@@ -120,7 +120,7 @@ public sealed class UnitMachineFacts
     }
 
     [Fact]
-    public void PressValidatesStaleGenerationAndAnotherAddress()
+    public void AKeyedNodeNamesItsCommandAndANodeWithoutOneIsRefused()
     {
         var element = JsonSerializer.SerializeToElement(new
         {
@@ -128,34 +128,19 @@ public sealed class UnitMachineFacts
             children = new object[]
             {
                 new { key = "btn", kind = "button", command = new { target = ".", signal = "test.bump", args = new { amount = 5 } } },
-                new { key = "foreign_btn", kind = "button", command = new { target = "other", signal = "test.bump" } },
                 new { key = "plain_btn", kind = "button" }
             }
         });
 
         var published = new PublishedView("counter", 2, element);
 
-        // Stale generation
-        Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 1, "btn", null, null));
+        Assert.Equal(ActivationRefusedException.UnknownNode, Assert.Throws<ActivationRefusedException>(() => published.CommandAt("unknown")).Reason);
+        Assert.Equal(ActivationRefusedException.NoEmit, Assert.Throws<ActivationRefusedException>(() => published.CommandAt("plain_btn")).Reason);
 
-        // Wrong alias
-        Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "wrong", 2, "btn", null, null));
-
-        // Unknown node
-        Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 2, "unknown", null, null));
-
-        // No command
-        Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 2, "plain_btn", null, null));
-
-        // A command to another address (a unit has no children)
-        Assert.Throws<ActivationRefusedException>(() => _machine.Press(published, "counter", 2, "foreign_btn", null, null));
-
-        // Valid press
-        var pressed = _machine.Press(published, "counter", 2, "btn", null, "user_1");
-        Assert.Equal("test.bump", pressed.Alias);
-        Assert.True(pressed.Payload.TryGetProperty("amount", out var amount));
-        Assert.Equal(5, amount.GetInt32());
-        Assert.True(pressed.Payload.TryGetProperty("by", out var by));
-        Assert.Equal("user_1", by.GetString());
+        var command = published.CommandAt("btn");
+        Assert.Equal((".", "test.bump"), (command.Target, command.Signal));
+        Assert.Equal(5, command.Args!.Value.GetProperty("amount").GetInt32());
+        // Only the screen that handles the command names who acted.
+        Assert.False(command.Args.Value.TryGetProperty("by", out _));
     }
 }

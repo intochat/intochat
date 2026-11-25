@@ -89,7 +89,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         os.Register<TestAuditedCounterScreen>();
 
         var brain = NewBrain("screen-edge-direct");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
+        using var person = os.Edge.Enter(os.Edge.Person("alice@intochat.io", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.audited_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -102,7 +102,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         var caller = CreatePersonCaller(_fixture.Edge, principal: "alice@intochat.io", account: "acct_1", brain: brain);
         Assert.False(caller.Inside);
 
-        await screen.Activate("app.audited_counter", 1L, "btn-increment", fieldValue: null, by: "alice@intochat.io");
+        await screen.Click("btn-increment");
         await os.Idle();
 
         var updatedView = await screen.Read();
@@ -148,7 +148,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
 
         // "btn-alien" commands the child "alien", which the view of "app.audited_counter" does not show
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.audited_counter", 1L, "btn-alien", fieldValue: null, by: "alice"));
+            screen.Click("btn-alien"));
 
         Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
 
@@ -177,7 +177,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         {
             Assert.True(edge.IsKernelActive);
 
-            await screen.Activate("app.audited_counter", 1L, "btn-increment");
+            await screen.Click("btn-increment");
             await os.Idle();
         }
 
@@ -205,7 +205,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
 
         foreach (var actor in actors)
         {
-            await screen.Activate("app.audited_counter", currentGen, "btn-increment", fieldValue: null, by: actor);
+            using (os.Edge.Enter(os.Edge.Person(actor, "acct_" + actor, brain))) { await screen.Click("btn-increment"); }
             await os.Idle();
 
             currentGen++;

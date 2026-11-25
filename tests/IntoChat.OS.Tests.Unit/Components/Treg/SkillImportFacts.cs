@@ -247,7 +247,7 @@ public sealed class SkillImportFacts
         Assert.False(seated.Definition.IncludeComponentOperations);
         Assert.Equal([tregConnectionKey], seated.Definition.ToolSources ?? []);
 
-        await screen.Activate("agentapp", published.Generation, "starter:0", null, "local");
+        await screen.Click("starter:0");
 
         Assert.Equal(["Reverse engineer Nike's Black Friday campaign"], RecordingConversation.SaidTexts);
 

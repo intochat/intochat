@@ -7,7 +7,7 @@ using Xunit;
 namespace DigitalBrain.Testing.Tests.Unit.Screens;
 
 [Signal("counter.increment")]
-public sealed record CounterIncrement(int By = 1) : Signal;
+public sealed record CounterIncrement(int Step = 1) : Signal;
 
 public sealed record CounterState(int Count)
 {
@@ -25,7 +25,7 @@ public sealed class CounterScreen : Screen<CounterState>
         ]));
 
     [On]
-    public Task Increment(CounterIncrement signal) => Show(State with { Count = State.Count + signal.By });
+    public Task Increment(CounterIncrement signal) => Show(State with { Count = State.Count + signal.Step });
 }
 
 public sealed class AppSessionFacts

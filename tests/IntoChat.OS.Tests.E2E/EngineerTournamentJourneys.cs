@@ -204,7 +204,7 @@ public sealed class EngineerTournamentJourneys
 
         // Promote Candidate w2 by clicking 'Select Candidate w2' ('engineer:candidate:select:2') on EngineerApp!
         var liveView = (await engineerScreen.Read())!;
-        await engineerScreen.Activate(liveView.Alias, liveView.Generation, EngineerApp.CandidateSelectKey(1));
+        await engineerScreen.Click(EngineerApp.CandidateSelectKey(1));
         await os.Idle();
 
         // Verify EngineerApp switched ICodeEditor to w2's diff and updated ITable scoreboard to mark w2 SELECTED!

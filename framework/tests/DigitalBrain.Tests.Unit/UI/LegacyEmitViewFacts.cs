@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
+using DigitalBrain.Testing;
 using DigitalBrain.Tests.Unit.Neurons;
 using DigitalBrain.Tests.Unit.Screens;
 using DigitalBrain.Tests.Unit.Synapses;
@@ -61,7 +62,8 @@ public sealed class LegacyEmitViewFacts
         Assert.False(button.TryGetProperty("emit", out _));
         Assert.Equal(".", button.GetProperty("command").GetProperty("target").GetString());
 
-        await unit.Activate("ledger", served.Generation, "charge", null, "alice");
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Person("alice", "alice-account", id.Brain);
+        await unit.Click("charge");
 
         var said = Assert.Single(context.Published.OfType<EmittedSignal>());
         Assert.Equal(("test.charging", 5, "alice"), (said.Alias, said.Payload.GetProperty("amount").GetInt32(), said.Payload.GetProperty("by").GetString()));

@@ -81,14 +81,14 @@ public sealed class SocialPostsAndRoomsJourney
         Assert.Equal("hello", msg.Text);
         Assert.Contains(roomView.PinnedScreens, p => p.ScreenType == "app.calculator" && p.ScreenKey == calcKey);
 
-        // Press key-0 ("7") on the pinned CalculatorApp with current generation.
-        var afterPress = await bobRoom.Act("app.calculator", calcKey, new(initialGen, "key-0"), ct);
+        // Press key-0 ("7") on the pinned CalculatorApp: the room sends that key's command through the screen's Dispatch.
+        var afterPress = await bobRoom.Act("app.calculator", calcKey, calcSession.CurrentView.CommandAt("key-0"), ct);
         Assert.True(afterPress.Generation > initialGen);
 
-        // A stale generation is refused with ActivationRefusedException.Stale.
-        var stale = await Assert.ThrowsAsync<ActivationRefusedException>(
-            () => bobRoom.Act("app.calculator", calcKey, new(initialGen, "key-0"), ct));
-        Assert.Equal(ActivationRefusedException.Stale, stale.Reason);
+        // A command to a child the calculator does not show is refused before any handler runs.
+        var unknown = await Assert.ThrowsAsync<ActivationRefusedException>(
+            () => bobRoom.Act("app.calculator", calcKey, calcSession.CurrentView.CommandAt("key-0") with { Target = "no-such-child" }, ct));
+        Assert.Equal(ActivationRefusedException.UnknownChild, unknown.Reason);
 
         // 6. Bob's IRooms.LastRevision(roomId) reflects the Changed nudges.
         var lastRev = await bobRooms.LastRevision(roomId, ct);

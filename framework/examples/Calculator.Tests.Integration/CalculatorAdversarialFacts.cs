@@ -128,11 +128,11 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
     }
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
-    public async Task ConcurrentActivations_OptimisticConcurrency_ExactlyOneSucceeds(NeuronRuntimeKind kind)
+    public async Task ConcurrentCommands_FromOneView_AreEachHandledOnce(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
         using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
-        var screenId = runtime.Id("app.interactive-adversarial", "activation-race-" + Guid.NewGuid().ToString("N"));
+        var screenId = runtime.Id("app.interactive-adversarial", "command-race-" + Guid.NewGuid().ToString("N"));
         var screen = runtime.Get<IScreen>(screenId);
 
         var initialView = await screen.Read();
@@ -140,54 +140,29 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
         Assert.Equal(1, initialView.Generation);
         Assert.Contains("Count: 0", initialView.View.GetRawText());
 
+        // All 20 callers send the button's command taken from the SAME initial view. A command carries no generation: each is
+        // judged by the state its turn sees, and the turns run one at a time, so every one is handled and none is lost.
         const int concurrentCallers = 20;
-        var successes = new ConcurrentBag<int>();
-        var staleExceptions = new ConcurrentBag<ActivationRefusedException>();
-        var otherExceptions = new ConcurrentBag<Exception>();
-
-        var tasks = Enumerable.Range(0, concurrentCallers).Select(i => Task.Run(async () =>
+        var command = initialView.CommandAt("btn-inc");
+        var failures = new ConcurrentBag<Exception>();
+        var tasks = Enumerable.Range(0, concurrentCallers).Select(_ => Task.Run(async () =>
         {
-            try
-            {
-                // All 20 callers attempt to activate using the SAME initial generation 1
-                await screen.Activate("app.interactive-adversarial", initialView.Generation, "btn-inc");
-                successes.Add(i);
-            }
-            catch (ActivationRefusedException ex) when (ex.Reason == ActivationRefusedException.Stale)
-            {
-                staleExceptions.Add(ex);
-            }
-            catch (Exception ex)
-            {
-                otherExceptions.Add(ex);
-            }
+            try { await screen.Dispatch(command); }
+            catch (Exception ex) { failures.Add(ex); }
         })).ToArray();
 
         await Task.WhenAll(tasks);
         await runtime.Idle();
 
-        // INVARIANT CHECK:
-        // Exactly ONE caller must succeed
-        Assert.Single(successes);
-
-        // Exactly (concurrentCallers - 1) callers must receive ActivationRefusedException.Stale
-        Assert.Equal(concurrentCallers - 1, staleExceptions.Count);
-
-        // No unhandled exceptions or crashes
-        Assert.Empty(otherExceptions);
-
-        // View generation must be exactly 2
+        Assert.Empty(failures);
         var finalView = await screen.Read();
         Assert.NotNull(finalView);
-        Assert.Equal(2, finalView.Generation);
-
-        // Count must be 1 (incremented exactly ONCE, not multiple times)
-        var raw = finalView.View.GetRawText();
-        Assert.Contains("Count: 1", raw);
+        Assert.Equal(1 + concurrentCallers, finalView.Generation);
+        Assert.Contains($"Count: {concurrentCallers}", finalView.View.GetRawText());
     }
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
-    public async Task ChainedSequentialActivations_IncrementsGenerationPredictably(NeuronRuntimeKind kind)
+    public async Task ChainedSequentialCommands_IncrementGenerationPredictably(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
         using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
@@ -202,7 +177,7 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
         const int steps = 5;
         for (var i = 0; i < steps; i++)
         {
-            await screen.Activate("app.interactive-adversarial", view.Generation, "btn-inc");
+            await screen.Click("btn-inc");
             view = await screen.Read();
             Assert.NotNull(view);
             Assert.Equal(2 + i, view.Generation);
@@ -224,19 +199,19 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
         Assert.Contains("Count: 0", view0.View.GetRawText());
 
         // Perform 3 sequential activations
-        await screen.Activate("app.interactive-adversarial", 1, "btn-inc");
+        await screen.Click("btn-inc");
         var view1 = await screen.Read();
         Assert.NotNull(view1);
         Assert.Equal(2, view1.Generation);
         Assert.Contains("Count: 1", view1.View.GetRawText());
 
-        await screen.Activate("app.interactive-adversarial", 2, "btn-inc");
+        await screen.Click("btn-inc");
         var view2 = await screen.Read();
         Assert.NotNull(view2);
         Assert.Equal(3, view2.Generation);
         Assert.Contains("Count: 2", view2.View.GetRawText());
 
-        await screen.Activate("app.interactive-adversarial", 3, "btn-inc");
+        await screen.Click("btn-inc");
         var view3 = await screen.Read();
         Assert.NotNull(view3);
         Assert.Equal(4, view3.Generation);

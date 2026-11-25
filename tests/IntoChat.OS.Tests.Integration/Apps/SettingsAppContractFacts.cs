@@ -7,7 +7,7 @@ namespace IntoChat.OS.Tests.Integration.Apps;
 public sealed class SettingsAppContractFacts(FlagshipAppsRuntimeFixture fixture)
     : AppConcurrencyAndIsolationContract<SettingsApp, FlagshipAppsRuntimeFixture>(fixture)
 {
-    protected override string? ConcurrentActivationKey => "nav-desktop";
+    protected override string? ConcurrentCommandKey => "nav-desktop";
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task Navigation_SwitchesToDesktopSection_ViaAppSession(NeuronRuntimeKind kind)

@@ -5,6 +5,7 @@ using System.Text.Json;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
+using DigitalBrain.Testing;
 using DigitalBrain.Tests.Unit.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
@@ -155,80 +156,13 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
     }
 
     // =========================================================================
-    // Focus 2: IScreen.Activate 4-Case Refusal Matrix & Zero Journal Side Effects
+    // Focus 2: a keyed node's command through Dispatch: refusal matrix & zero journal side effects
     // =========================================================================
 
     [Theory]
-    [InlineData(2L)]   // Future generation (current is 1)
-    [InlineData(0L)]   // Generation zero
-    [InlineData(-1L)]  // Negative generation
-    [InlineData(100L)] // Arbitrary future generation
-    public async Task Activate_Case1_StaleGeneration_ThrowsActivationRefusedException_WithZeroJournaling(long staleGen)
-    {
-        var (screen, context) = await Attached();
-        var initialView = await screen.Read();
-        Assert.NotNull(initialView);
-        Assert.Equal(1, initialView.Generation);
-
-        var beforeWrites = context.Writes.Count;
-        var beforeViewWrites = context.ViewWrites.Count;
-        var beforePublished = context.Published.Count;
-        var beforeState = screen.CurrentState;
-
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("challenger.screen", staleGen, "btn-valid"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-
-        // Verification: Absolutely ZERO state or signal journaled
-        Assert.Equal(beforeWrites, context.Writes.Count);
-        Assert.Equal(beforeViewWrites, context.ViewWrites.Count);
-        Assert.Equal(beforePublished, context.Published.Count);
-
-        // State and view are untouched
-        Assert.Equal(beforeState.Counter, screen.CurrentState.Counter);
-        Assert.Equal(beforeState.Text, screen.CurrentState.Text);
-
-        var viewAfter = await screen.Read();
-        Assert.Equal(initialView.Generation, viewAfter?.Generation);
-        Assert.Equal(initialView.View.GetRawText(), viewAfter?.View.GetRawText());
-    }
-
-    [Fact]
-    public async Task Activate_UninitializedScreen_ThrowsActivationRefusedException_Stale()
-    {
-        var screen = new ChallengerScreen();
-        // Do not activate - _view remains null
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("challenger.screen", 1, "btn-valid"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public async Task Activate_Case1_MismatchedAlias_ThrowsActivationRefusedException_WithZeroJournaling()
-    {
-        var (screen, context) = await Attached();
-        var initialView = await screen.Read();
-        Assert.NotNull(initialView);
-
-        var beforeWrites = context.Writes.Count;
-        var beforeState = screen.CurrentState;
-
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("wrong.screen.alias", initialView.Generation, "btn-valid"));
-
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-        Assert.Equal(beforeWrites, context.Writes.Count);
-        Assert.Equal(beforeState.Counter, screen.CurrentState.Counter);
-    }
-
-    [Theory]
     [InlineData("btn-nonexistent")]
-    [InlineData("")]
-    [InlineData("   ")]
     [InlineData("random-key-not-in-tree")]
-    public async Task Activate_Case2_UnknownNodeKey_ThrowsActivationRefusedException_WithZeroJournaling(string unknownKey)
+    public async Task Click_Case2_UnknownNodeKey_ThrowsActivationRefusedException_WithZeroJournaling(string unknownKey)
     {
         var (screen, context) = await Attached();
         var initialView = await screen.Read();
@@ -240,7 +174,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
         var beforeState = screen.CurrentState;
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("challenger.screen", initialView.Generation, unknownKey));
+            screen.Click(unknownKey));
 
         Assert.Equal(ActivationRefusedException.UnknownNode, ex.Reason);
 
@@ -259,7 +193,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
     [Theory]
     [InlineData("btn-no-emit")]
     [InlineData("fld-no-submit")]
-    public async Task Activate_Case3_NodeHasNoEmit_ThrowsActivationRefusedException_WithZeroJournaling(string noEmitKey)
+    public async Task Click_Case3_NodeHasNoEmit_ThrowsActivationRefusedException_WithZeroJournaling(string noEmitKey)
     {
         var (screen, context) = await Attached();
         var initialView = await screen.Read();
@@ -271,7 +205,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
         var beforeState = screen.CurrentState;
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("challenger.screen", initialView.Generation, noEmitKey));
+            screen.Click(noEmitKey));
 
         Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
 
@@ -290,7 +224,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
     [Theory]
     [InlineData("btn-alien-owner")]
     [InlineData("fld-alien-submit")]
-    public async Task Activate_Case4_CommandToAnUnshownChild_ThrowsActivationRefusedException_WithZeroJournaling(string alienKey)
+    public async Task Click_Case4_CommandToAnUnshownChild_ThrowsActivationRefusedException_WithZeroJournaling(string alienKey)
     {
         var (screen, context) = await Attached();
         var initialView = await screen.Read();
@@ -302,7 +236,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
         var beforeState = screen.CurrentState;
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("challenger.screen", initialView.Generation, alienKey));
+            screen.Click(alienKey));
 
         Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
 
@@ -319,7 +253,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
     }
 
     [Fact]
-    public async Task Activate_NullArguments_ThrowsArgumentNullException_WithZeroJournaling()
+    public async Task Click_NullArguments_ThrowsArgumentNullException_WithZeroJournaling()
     {
         var (screen, context) = await Attached();
         var initialView = await screen.Read();
@@ -328,16 +262,13 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
         var beforeWrites = context.Writes.Count;
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            screen.Activate(null!, initialView.Generation, "btn-valid"));
-
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            screen.Activate("challenger.screen", initialView.Generation, null!));
+            screen.Click(null!));
 
         Assert.Equal(beforeWrites, context.Writes.Count);
     }
 
     [Fact]
-    public async Task Activate_ValidInteraction_JournalsStateAndBumpsGeneration()
+    public async Task Click_ValidInteraction_JournalsStateAndBumpsGeneration()
     {
         var (screen, context) = await Attached();
         var initialView = await screen.Read();
@@ -347,7 +278,7 @@ public sealed class ScreenSignalsAndRefusalChallengerFacts
 
         var beforeWrites = context.Writes.Count;
 
-        await screen.Activate("challenger.screen", initialView.Generation, "btn-valid");
+        await screen.Click("btn-valid");
 
         // Positive control: verify that a valid activation DOES journal and bump generation
         Assert.Equal(1, screen.CurrentState.Counter);

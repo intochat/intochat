@@ -90,7 +90,7 @@ public sealed class DirectNeuronSessionDriver : IAppSessionDriver
     }
 
     /// <inheritdoc />
-    public async Task<PublishedView> ActivateAsync(string key, CancellationToken ct = default)
+    public async Task<PublishedView> ClickAsync(string key, CancellationToken ct = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -99,7 +99,7 @@ public sealed class DirectNeuronSessionDriver : IAppSessionDriver
         var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
         using (var scope = _edge.Enter(_person))
         {
-            await _screen.Activate(current.Alias, current.Generation, key).ConfigureAwait(false);
+            await _screen.Dispatch(current.CommandAt(key)).ConfigureAwait(false);
         }
         await WaitForIdleAsync(ct).ConfigureAwait(false);
         return await ReadViewAsync(ct).ConfigureAwait(false);
@@ -116,7 +116,7 @@ public sealed class DirectNeuronSessionDriver : IAppSessionDriver
         var current = _lastView ?? await ReadViewAsync(ct).ConfigureAwait(false);
         using (var scope = _edge.Enter(_person))
         {
-            await _screen.Activate(current.Alias, current.Generation, key, fieldValue: text).ConfigureAwait(false);
+            await _screen.Dispatch(current.CommandAt(key, text)).ConfigureAwait(false);
         }
         await WaitForIdleAsync(ct).ConfigureAwait(false);
         return await ReadViewAsync(ct).ConfigureAwait(false);

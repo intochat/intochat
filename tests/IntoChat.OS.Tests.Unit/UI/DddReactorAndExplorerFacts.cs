@@ -241,7 +241,7 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Contains("Click below to greet.", initial.View.GetRawText(), StringComparison.Ordinal);
 
         // Activate via deterministic expression-derived key cmd:Toggle
-        await screen.Activate("app.test.hello", initial.Generation, "cmd:Toggle");
+        await screen.Click("cmd:Toggle");
         await os.Idle();
 
         var toggled = await screen.Open();
@@ -319,12 +319,12 @@ public sealed class DddReactorAndExplorerFacts
 
         // 1. Open account -> alice: $0
         var v1 = (await screen.Open())!;
-        await screen.Activate("app.test.bank", v1.Generation, "cmd:Open:alice");
+        await screen.Click("cmd:Open:alice");
         await os.Idle();
 
         // 2. Deposit $50 -> alice: $50
         var v2 = (await screen.Open())!;
-        await screen.Activate("app.test.bank", v2.Generation, "cmd:Deposit:50");
+        await screen.Click("cmd:Deposit:50");
         await os.Idle();
 
         var v3 = (await screen.Open())!;
@@ -342,7 +342,7 @@ public sealed class DddReactorAndExplorerFacts
             StringComparison.Ordinal);
 
         // 3. Bypass UI disabled flag via direct Screen.Activate / MCP on cmd:Withdraw:70 -> server enforces exact same Rule!
-        await screen.Activate("app.test.bank", v3.Generation, "cmd:Withdraw:70");
+        await screen.Click("cmd:Withdraw:70");
         await os.Idle();
 
         // Ephemeral Rejected signal published to cluster listeners
@@ -362,7 +362,7 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Contains("\"kind\":\"infoBar\"", v4.View.GetRawText(), StringComparison.Ordinal);
 
         // 4. Valid -$30 withdrawal succeeds, clears LastRejection banner, and journals Withdrawn(30, 20)
-        await screen.Activate("app.test.bank", v4.Generation, "cmd:Withdraw:30");
+        await screen.Click("cmd:Withdraw:30");
         await os.Idle();
 
         var v5 = (await screen.Open())!;
@@ -393,7 +393,7 @@ public sealed class DddReactorAndExplorerFacts
         var savesAfterOpen = os.Journal(brain).Signals(id).Count;
 
         // 1. Pure TState transition (ToggleSidebar) updates state + view with zero domain events
-        await screen.Activate("app.test.workspace-filter", v1.Generation, "cmd:ToggleSidebar");
+        await screen.Click("cmd:ToggleSidebar");
         await os.Idle();
 
         var v2 = (await screen.Open())!;
@@ -405,7 +405,7 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Equal(savesAfterOpen + 1, os.Journal(brain).Signals(id).Count);
 
         // 2. Typed field binding: Arg.Text injects fieldValue straight into SetQuery(string query)
-        await screen.Activate("app.test.workspace-filter", v2.Generation, "search-box", fieldValue: "  quarterly invoices  ");
+        await screen.Click("search-box", "  quarterly invoices  ");
         await os.Idle();
 
         var stateAfterSearch = (await ((IBrainObserver)os).State(id, Ct))!.Value
@@ -414,7 +414,7 @@ public sealed class DddReactorAndExplorerFacts
 
         // 3. Async screen orchestration method (() => SyncExchangeRateAsync()) calls IFxOracle neuron and saves RateSynced
         var v3 = (await screen.Open())!;
-        await screen.Activate("app.test.workspace-filter", v3.Generation, "cmd:SyncExchangeRateAsync");
+        await screen.Click("cmd:SyncExchangeRateAsync");
         await os.Idle();
 
         var v4 = (await screen.Open())!;

@@ -1,9 +1,13 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Contracts;
 using DigitalBrain.Log;
 using DigitalBrain.State;
+using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Modules.Flutter.Screens;
 
@@ -83,24 +87,74 @@ internal sealed partial class ScreenDirectoryNeuron
                 ? (child.Key[(slash + 1)..], child)
                 : null;
 
-    // The slot child and its node key a key path names: "slot/key" while the leading segment names a slot of the view (descending
-    // through nested slots); null when the key names no slot.
-    private async Task<(NeuronId Child, string Key)?> SlotTargetAsync(JsonElement view, string key)
+    // The screen that takes the app's commands and its current view: the one the resolver names, or else (no resolver) the first
+    // host that has a view, in the order Read tries them.
+    private async Task<(NeuronId Id, PublishedView View)?> TopScreenAsync(string brainId, string appId, string normalizedApp, string kind)
     {
-        (NeuronId Child, string Key)? target = null;
-        var current = view;
+        foreach (var id in await ScreenCandidatesAsync(brainId, appId, normalizedApp, kind))
+        {
+            try
+            {
+                if (await ResolveNeuron<IScreen>(id).Read() is { } view) { return (id, view); }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.LogSwallowed(ex, $"Could not read screen '{id}' to act on it.");
+            }
+        }
+        return null;
+    }
+
+    private async Task<NeuronId[]> ScreenCandidatesAsync(string brainId, string appId, string normalizedApp, string kind)
+    {
+        if (!BrainId.IsValid(brainId)) { return []; }
+        var brain = new BrainId(brainId);
+        if (targetResolver is not null)
+        {
+            return await targetResolver.ResolveAsync(brain, normalizedApp) is { Kind: not IScreenTargetResolver.ConfirmationsKind } resolved ? [resolved.ScreenId] : [];
+        }
+        var unit = new NeuronId(brain, normalizedApp, "default");
+        if (string.Equals(kind, IScreenTargetResolver.AgentAppKind, StringComparison.Ordinal)) { return [new NeuronId(brain, "agentapp", normalizedApp)]; }
+        if (string.Equals(kind, IScreenTargetResolver.UnitKind, StringComparison.Ordinal)) { return [unit]; }
+        var viewName = appId.Contains('/', StringComparison.Ordinal) ? appId : IntoChat.OS.Host.Primitives.AppRef.Of(brain, normalizedApp).ViewKey;
+        var view = PlainNeuronContracts.IdOf(typeof(IView), viewName);
+        return !normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal)
+            ? [new NeuronId(brain, normalizedApp.StartsWith("app.", StringComparison.Ordinal) ? normalizedApp : "app." + normalizedApp, "default"), view, unit]
+            : [view, unit];
+    }
+
+    // The view a key path's node is in: while the leading segment names a slot of the view, the path descends into that child, read
+    // through the top-level screen as a client reads it. Returns the child path ("" for the screen itself), its view and the node key.
+    private async Task<(string Path, PublishedView View, string Key)> NodeViewAsync(NeuronId screen, PublishedView top, string key)
+    {
+        var path = "";
+        var view = top;
         var rest = key;
         for (var depth = 0; depth < MaxSlotDepth && rest.IndexOf('/', StringComparison.Ordinal) is var slash and > 0; depth++)
         {
             var segment = rest[..slash];
-            if (FindSlot(current, segment) is not { } child) { break; }
-            target = (child, rest[(slash + 1)..]);
+            if (FindSlot(view.View, segment) is null) { break; }
+            path = path.Length == 0 ? segment : path + "/" + segment;
+            view = await ResolveNeuron<IScreen>(screen).ReadChild(path) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
             rest = rest[(slash + 1)..];
-            if (await ResolveNeuron<IScreen>(child).Read() is not { } next) { break; }
-            current = next.View;
         }
-        return target;
+        return (path, view, rest);
     }
+
+    // A node's command target, relative to the view it is in, as a target of the top-level screen: the child path, then the target.
+    private static string Through(string path, Command command)
+    {
+        if (path.Length == 0) { return command.Target; }
+        if (ViewValidation.ToSelf(command)) { return path; }
+        return path + "/" + (command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target);
+    }
+
+    // A node that only names a client-local intent and sends no command.
+    private static bool IsIntent(JsonElement node)
+        => !HasObject(node, "command") && !HasObject(node, "onSubmit") && !HasObject(node, "close")
+            && (HasObject(node, "intent") || node.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "intent");
+
+    private static bool HasObject(JsonElement node, string name) => node.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Object;
 
     private static NeuronId? FindSlot(JsonElement view, string slotKey)
     {

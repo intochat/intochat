@@ -4,6 +4,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
+using DigitalBrain.Testing;
 using DigitalBrain.Tests.Unit.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
@@ -379,13 +380,14 @@ public sealed class ScreenAdversarialFacts
     }
 
     [Fact]
-    public async Task Security_Activate_HostAssertedBy_InjectedAndOverridesClient()
+    public async Task Security_Click_ThePersonCallerIsInjectedAsBy()
     {
-        var (screen, _) = await Attached<AdversarialScreen>();
+        var (screen, context) = await Attached<AdversarialScreen>();
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Person("authenticated-user@intochat.com", "acct", new BrainId("alice"));
         var view = await screen.Read();
         Assert.NotNull(view);
 
-        await screen.Activate("app.adversarial-test", view.Generation, "fld-input", fieldValue: "typed-text", by: "authenticated-user@intochat.com");
+        await screen.Click("fld-input", "typed-text");
 
         var updatedView = await screen.Read();
         Assert.NotNull(updatedView);
@@ -417,7 +419,8 @@ public sealed class ScreenAdversarialFacts
         var view = await screen.Read();
         Assert.NotNull(view);
 
-        await screen.Activate("app.adversarial-test", view.Generation, "btn-set-caller", by: "real-alice@intochat.com");
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Person("real-alice@intochat.com", "acct", new BrainId("alice"));
+        await screen.Click("btn-set-caller");
 
         var updatedView = await screen.Read();
         Assert.NotNull(updatedView);
@@ -451,8 +454,9 @@ public sealed class ScreenAdversarialFacts
         var view = await screen.Read();
         Assert.NotNull(view);
 
-        // Host provides NO authenticated identity (null)
-        await screen.Activate("app.adversarial-test", view.Generation, "btn-set-caller", by: null);
+        // The caller is no person: no identity is stamped
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Scheduler(new BrainId("alice"));
+        await screen.Click("btn-set-caller");
 
         var updatedView = await screen.Read();
         Assert.NotNull(updatedView);
@@ -499,54 +503,42 @@ public sealed class ScreenAdversarialFacts
     }
 
     // =========================================================================
-    // 4. Activation Invariants & Refusal Reasons
+    // 4. Refusal Reasons of a keyed node's command
     // =========================================================================
 
     [Fact]
-    public async Task Activate_StaleGeneration_RefusedWithStale()
+    public async Task Click_UnknownNode_RefusedWithUnknownNode()
     {
         var (screen, _) = await Attached<AdversarialScreen>();
         var view = await screen.Read();
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.adversarial-test", view.Generation + 5, "btn-update-visible"));
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public async Task Activate_UnknownNode_RefusedWithUnknownNode()
-    {
-        var (screen, _) = await Attached<AdversarialScreen>();
-        var view = await screen.Read();
-        Assert.NotNull(view);
-
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.adversarial-test", view.Generation, "non-existent-button"));
+            screen.Click("non-existent-button"));
         Assert.Equal(ActivationRefusedException.UnknownNode, ex.Reason);
     }
 
     [Fact]
-    public async Task Activate_NoEmitNode_RefusedWithNoEmit()
+    public async Task Click_NoEmitNode_RefusedWithNoEmit()
     {
         var (screen, _) = await Attached<AdversarialScreen>();
         var view = await screen.Read();
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.adversarial-test", view.Generation, "btn-no-emit"));
+            screen.Click("btn-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
     }
 
     [Fact]
-    public async Task Activate_CommandToAnUnshownChild_RefusedWithUnknownChild()
+    public async Task Click_CommandToAnUnshownChild_RefusedWithUnknownChild()
     {
         var (screen, _) = await Attached<AdversarialScreen>();
         var view = await screen.Read();
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.adversarial-test", view.Generation, "btn-foreign"));
+            screen.Click("btn-foreign"));
         Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
 }

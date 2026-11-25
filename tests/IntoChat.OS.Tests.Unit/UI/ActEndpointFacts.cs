@@ -26,9 +26,7 @@ public sealed class ActEndpointFacts
         public string[] Shown { get; init; } = ["dark-mode"];
         public List<Command> Dispatched { get; } = [];
         public Task<PublishedView?> Open() => Task.FromResult<PublishedView?>(null);
-        public Task Act(ScreenAction action) => Task.CompletedTask;
         public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(null);
-        public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
         public Task<PublishedView?> ReadChild(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
         public Task Dispatch(Command command)

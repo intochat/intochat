@@ -1820,12 +1820,8 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
     {
         public Task<PublishedView?> Open() => Read();
 
-        public Task Act(ScreenAction action) => Task.CompletedTask;
-
         public Task<PublishedView?> Read(string? alias = null)
             => Task.FromResult<PublishedView?>(new PublishedView(alias ?? "app.engineer", 1, view));
-
-        public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
 
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
 

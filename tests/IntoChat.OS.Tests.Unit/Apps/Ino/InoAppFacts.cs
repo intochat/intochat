@@ -124,7 +124,7 @@ public sealed class InoAppFacts
         var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
         var view = await thread.Read();
 
-        await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.RetryKeyOf(failedReplyId));
+        await thread.Click(ChatThreadProps.RetryKeyOf(failedReplyId));
         await os.Idle();
 
         Assert.Equal(1, BackgroundConversation.Regenerates);
@@ -576,7 +576,7 @@ public sealed class InoAppFacts
         var view = await thread.Read();
 
         // Ino said it cannot take a message: the thread refuses the text in order, before it could reach Ino.
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => thread.Activate(view!.Alias, view.Generation, "composer", "second question"));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => thread.Click("composer", "second question"));
         await os.Idle();
 
         Assert.Equal(ControlProps.Disabled, refused.Reason);
@@ -598,7 +598,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.SelectModelKey, "gpt-5.4");
+            await thread.Click(ChatThreadProps.SelectModelKey, "gpt-5.4");
             await os.Idle();
 
             Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
@@ -625,7 +625,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.PinModelKey, "gpt-5.4");
+            await thread.Click(ChatThreadProps.PinModelKey, "gpt-5.4");
             await os.Idle();
 
             Assert.Equal("gpt-5.4", ino.App.State.SelectedModel);
@@ -666,7 +666,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.SelectModelKey, KnownModels.Gemma4.Id.Value);
+            await thread.Click(ChatThreadProps.SelectModelKey, KnownModels.Gemma4.Id.Value);
             await os.Idle();
 
             Assert.Equal(KnownModels.Gemma4.Id, Assert.Single(FakeDevice.Installs));
@@ -863,7 +863,7 @@ public sealed class InoAppFacts
             var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
             var view = await thread.Read();
 
-            await thread.Activate(view!.Alias, view.Generation, ChatThreadProps.PinModelKey, KnownModels.Gemma4.Id.Value);
+            await thread.Click(ChatThreadProps.PinModelKey, KnownModels.Gemma4.Id.Value);
             await os.Idle();
 
             Assert.Equal((ModelRole.Chat, KnownModels.Gemma4.Id), Assert.Single(FakeDevice.Uses));
@@ -1432,7 +1432,7 @@ public sealed class InoAppFacts
         Assert.Contains(InoView.SendDraftKey, arrivedRaw, StringComparison.Ordinal);
         Assert.Contains(InoView.DismissDraftKey, arrivedRaw, StringComparison.Ordinal);
 
-        await screen.Activate("app.ino", arrivedView.Generation, InoView.SendDraftKey);
+        await screen.Click(InoView.SendDraftKey);
         await os.Idle();
         Assert.Equal(1, BackgroundConversation.Says);
         Assert.Equal("run-1", ino.App.State.ActiveRunId);
@@ -1490,7 +1490,7 @@ public sealed class InoAppFacts
         Assert.Equal("Explain failing PR check", ino.App.State.DraftPrompt);
 
         var seededAgain = (await screen.Open())!;
-        await screen.Activate("app.ino", seededAgain.Generation, InoView.DismissDraftKey);
+        await screen.Click(InoView.DismissDraftKey);
         await os.Idle();
         Assert.Null(ino.App.State.DraftPrompt);
         Assert.Null(ino.App.State.ActiveFocusTarget);

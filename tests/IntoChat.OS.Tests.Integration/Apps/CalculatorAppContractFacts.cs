@@ -7,7 +7,7 @@ namespace IntoChat.OS.Tests.Integration.Apps;
 public sealed class CalculatorAppContractFacts(FlagshipAppsRuntimeFixture fixture)
     : AppConcurrencyAndIsolationContract<CalculatorApp, FlagshipAppsRuntimeFixture>(fixture)
 {
-    protected override string? ConcurrentActivationKey => "key-0";
+    protected override string? ConcurrentCommandKey => "key-0";
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task Keypad_ComputesAndClearsExpression_ViaAppSession(NeuronRuntimeKind kind)

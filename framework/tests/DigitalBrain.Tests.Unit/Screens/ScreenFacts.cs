@@ -3,6 +3,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
+using DigitalBrain.Testing;
 using DigitalBrain.Tests.Unit.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
@@ -135,13 +136,13 @@ public sealed class ScreenFacts
     }
 
     [Fact]
-    public async Task Activate_ValidInteraction_ExecutesReaction()
+    public async Task Click_ValidInteraction_ExecutesReaction()
     {
         var (screen, _) = await Attached<SampleCounterScreen>();
         var initialView = await screen.Read();
         Assert.NotNull(initialView);
 
-        await screen.Activate("app.sample-counter", initialView.Generation, "btn-inc");
+        await screen.Click("btn-inc");
 
         var updatedView = await screen.Read();
         Assert.NotNull(updatedView);
@@ -173,13 +174,14 @@ public sealed class ScreenFacts
     }
 
     [Fact]
-    public async Task Activate_WithHostAssertedBy_InjectsAuthenticatedCaller()
+    public async Task Click_AsAPerson_InjectsThePersonAsBy()
     {
-        var (screen, _) = await Attached<SampleCounterScreen>();
+        var (screen, context) = await Attached<SampleCounterScreen>();
+        context.Caller = DigitalBrain.Access.EdgeAuthority.CreateInternal().Person("alice@company.com", "alice-account", new BrainId("alice"));
         var initialView = await screen.Read();
         Assert.NotNull(initialView);
 
-        await screen.Activate("app.sample-counter", initialView.Generation, "fld-input", fieldValue: "ignored", by: "alice@company.com");
+        await screen.Click("fld-input", "ignored");
 
         var updatedView = await screen.Read();
         Assert.NotNull(updatedView);
@@ -187,50 +189,38 @@ public sealed class ScreenFacts
     }
 
     [Fact]
-    public async Task Activate_StaleGeneration_ThrowsActivationRefusedException()
+    public async Task Click_UnknownNode_ThrowsActivationRefusedException()
     {
         var (screen, _) = await Attached<SampleCounterScreen>();
         var view = await screen.Read();
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.sample-counter", view.Generation + 999, "btn-inc"));
-        Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
-    }
-
-    [Fact]
-    public async Task Activate_UnknownNode_ThrowsActivationRefusedException()
-    {
-        var (screen, _) = await Attached<SampleCounterScreen>();
-        var view = await screen.Read();
-        Assert.NotNull(view);
-
-        var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.sample-counter", view.Generation, "nonexistent-button"));
+            screen.Click("nonexistent-button"));
         Assert.Equal(ActivationRefusedException.UnknownNode, ex.Reason);
     }
 
     [Fact]
-    public async Task Activate_NoEmitNode_ThrowsActivationRefusedException()
+    public async Task Click_NoEmitNode_ThrowsActivationRefusedException()
     {
         var (screen, _) = await Attached<SampleCounterScreen>();
         var view = await screen.Read();
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.sample-counter", view.Generation, "btn-no-emit"));
+            screen.Click("btn-no-emit"));
         Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
     }
 
     [Fact]
-    public async Task Activate_CommandToAChildTheViewDoesNotShow_ThrowsActivationRefusedException()
+    public async Task Click_CommandToAChildTheViewDoesNotShow_ThrowsActivationRefusedException()
     {
         var (screen, _) = await Attached<SampleCounterScreen>();
         var view = await screen.Read();
         Assert.NotNull(view);
 
         var ex = await Assert.ThrowsAsync<ActivationRefusedException>(() =>
-            screen.Activate("app.sample-counter", view.Generation, "btn-alien"));
+            screen.Click("btn-alien"));
         Assert.Equal(ActivationRefusedException.UnknownChild, ex.Reason);
     }
 

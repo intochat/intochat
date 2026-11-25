@@ -429,6 +429,9 @@ internal sealed partial class ScreenDirectoryNeuron(
             PendingApprovals: pendingApprovals);
     }
 
+    // An agent acts by key: the node at the key path of the view it read ("key" on the screen, "slot/key" on a child) names a
+    // command, which goes to the top-level screen's Dispatch with the child path as its target, so a child is reached only through
+    // its parent and the parent's gates. A generation, when given, must be the one the agent read.
     public async Task<ScreenActionResult> Act(string appId, string key, string? value = null, long? generation = null, string instanceId = "main")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appId);
@@ -443,8 +446,6 @@ internal sealed partial class ScreenDirectoryNeuron(
             return new ScreenActionResult(false, $"Screen for app '{appId}' not found.");
         }
 
-        var targetGen = generation ?? current.Generation;
-
         // Special case: confirmations screen resolution
         if (normalizedApp == "confirmations" && value is "approve" or "deny")
         {
@@ -453,134 +454,41 @@ internal sealed partial class ScreenDirectoryNeuron(
             return new ScreenActionResult(approveResult.Accepted, approveResult.Message, updatedSnapshot);
         }
 
-        // Try IScreen: agentapp/{normalizedApp} when Read resolved an agent app, or app.{normalizedApp}/default otherwise.
-        var isAgentScreen = string.Equals(current.Kind, IScreenTargetResolver.AgentAppKind, StringComparison.Ordinal);
-        if (isAgentScreen || (!string.Equals(current.Kind, "unit", StringComparison.Ordinal)
-            && (!normalizedApp.Contains('.', StringComparison.Ordinal) || normalizedApp.StartsWith("app.", StringComparison.Ordinal))))
-        {
-            try
-            {
-                var screenAlias = isAgentScreen
-                    ? "agentapp"
-                    : normalizedApp.StartsWith("app.", StringComparison.Ordinal) ? normalizedApp : "app." + normalizedApp;
-                var screenId = isAgentScreen
-                    ? new NeuronId(new BrainId(brainId), "agentapp", normalizedApp)
-                    : new NeuronId(new BrainId(brainId), screenAlias, "default");
-                var screen = ResolveNeuron<IScreen>(screenId);
-                var pub = await screen.Read();
-                if (pub is not null)
-                {
-                    var callerPersonId = Context.Caller?.For?.Principal is { Length: > 0 } person ? person : "user";
-                    // A key path "slot/key" (as Read lists a slot child's controls) activates the key on that slot's own view.
-                    if (await SlotTargetAsync(pub.View, key) is { } slot)
-                    {
-                        var child = ResolveNeuron<IScreen>(slot.Child);
-                        var childView = await child.Read() ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
-                        await child.Activate(childView.Alias, childView.Generation, slot.Key, value, callerPersonId);
-                        return new ScreenActionResult(true, "Action accepted.", await Read(appId, instanceId));
-                    }
-                    if (pub.Generation != targetGen) { throw new ActivationRefusedException(ActivationRefusedException.Stale); }
-                    // An intent is the client's to perform and a resolve the inbox's to answer: neither is a screen's action.
-                    var node = ViewValidation.Find(pub.View, key) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
-                    switch (ViewValidation.ActionOf(node).Kind)
-                    {
-                        case ViewActivationKind.Command: await screen.Activate(pub.Alias, targetGen, key, value, callerPersonId); break;
-                        case ViewActivationKind.Intent: break;
-                        default: throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
-                    }
-                    var updated = await Read(appId, instanceId);
-                    return new ScreenActionResult(true, "Action accepted.", updated);
-                }
-            }
-            catch (UnauthorizedAccessException unauth)
-            {
-                return new ScreenActionResult(false, unauth.Message);
-            }
-            catch (ActivationRefusedException refused)
-            {
-                return new ScreenActionResult(false, $"Action refused: {refused.Reason}");
-            }
-            catch (StaleActionException stale)
-            {
-                return new ScreenActionResult(false, stale.Message);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.LogSwallowed(ex, "IScreen activation fallback.");
-            }
-        }
-
-        // Try IView (skip when resolved as a runtime unit, and only activate when published)
-        if (!string.Equals(current.Kind, "unit", StringComparison.Ordinal))
-        {
-            try
-            {
-                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
-                var viewNeuron = ResolveNeuron<IView>(viewName);
-                if (await viewNeuron.Read() is not null)
-                {
-                    var activation = await viewNeuron.Activate(targetGen, key, value);
-
-                    switch (activation.Kind)
-                    {
-                        case ViewActivationKind.Command when ViewValidation.ToSelf(activation.Command!):
-                            // A command to "." is the view's own app: the view's name without "/view".
-                            var self = viewName.EndsWith("/view", StringComparison.Ordinal) ? viewName[..^"/view".Length] : viewName;
-                            var appKey = IntoChat.OS.Host.Primitives.AppRef.TryParse(new BrainId(brainId), self, out var selfRef)
-                                ? selfRef.Key
-                                : IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brainId), self).Key;
-                            var command = activation.Command!;
-                            var args = value is null ? command.Args : ViewArgs.WithValue(command.Args, value);
-                            await ResolveNeuron<IApp>(appKey).Emit(command.Signal, args?.GetRawText() ?? "");
-                            break;
-                        case ViewActivationKind.Resolve:
-                            throw new UnauthorizedAccessException("Only the OS confirmation inbox can answer a confirmation.");
-                        case ViewActivationKind.Intent:
-                            break;
-                        case ViewActivationKind.Command:
-                            // A slotless app: a command to a child address has nowhere to go.
-                            return new ScreenActionResult(false, $"{ActivationRefusedException.NoSlots}: {appId} has no child slots, so the command to '{activation.Command!.Target}' has nowhere to go.");
-                    }
-
-                    var updated = await Read(appId, instanceId);
-                    return new ScreenActionResult(true, "Action accepted.", updated);
-                }
-            }
-            catch (UnauthorizedAccessException unauth)
-            {
-                return new ScreenActionResult(false, unauth.Message);
-            }
-            catch (StaleActionException stale)
-            {
-                return new ScreenActionResult(false, stale.Message);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.LogSwallowed(ex, "IView activation fallback.");
-            }
-        }
-
-        // Try runtime unit IViewReader
         try
         {
-            var unitNeuronId = new NeuronId(new BrainId(brainId), normalizedApp, "default");
-            var reader = ResolveNeuron<IViewReader>(unitNeuronId);
-            var callerPersonId = Context.Caller?.For?.Principal is { Length: > 0 } person ? person : "user";
-            await reader.Activate(normalizedApp, targetGen, key, value, callerPersonId);
-            var updated = await Read(appId, instanceId);
-            return new ScreenActionResult(true, "Action accepted.", updated);
+            if (generation is { } seen && seen != current.Generation) { throw new ActivationRefusedException(ActivationRefusedException.Stale); }
+            var screen = await TopScreenAsync(brainId, appId, normalizedApp, current.Kind)
+                ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
+            var (path, view, nodeKey) = await NodeViewAsync(screen.Id, screen.View, key);
+            var node = ViewValidation.Find(view.View, nodeKey) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
+            if (node.TryGetProperty("enabled", out var enabled) && enabled.ValueKind == JsonValueKind.False)
+            {
+                throw new ActivationRefusedException(ControlProps.Disabled);
+            }
+            if (node.TryGetProperty("resolve", out var resolve) && resolve.ValueKind == JsonValueKind.Object)
+            {
+                throw new UnauthorizedAccessException("Only the OS confirmation inbox can answer a confirmation.");
+            }
+            // An intent is the client's to perform: no screen hears it.
+            if (!IsIntent(node))
+            {
+                var command = view.CommandAt(nodeKey);
+                var args = value is null ? command.Args : ViewArgs.WithValue(command.Args, value);
+                await ResolveNeuron<IScreen>(screen.Id).Dispatch(command with { Target = Through(path, command), Args = args });
+            }
+            return new ScreenActionResult(true, "Action accepted.", await Read(appId, instanceId));
         }
         catch (ActivationRefusedException refused)
         {
             return new ScreenActionResult(false, $"Action refused: {refused.Reason}");
         }
-        catch (StaleActionException stale)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or StaleActionException or ArgumentException)
         {
-            return new ScreenActionResult(false, stale.Message);
+            return new ScreenActionResult(false, ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Log.LogSwallowed(ex, $"runtime unit view activation failed for '{appId}' control '{key}'");
+            Log.LogSwallowed(ex, $"Acting on '{key}' of '{appId}' failed.");
             return new ScreenActionResult(false, ex.Message);
         }
     }

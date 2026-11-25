@@ -24,7 +24,7 @@ public sealed class RoomAdmissionFacts
 
     private static IFriends Roster(Person person) => person.Get<IFriends>(FriendsDefaults.Id(person.Brain.Value));
 
-    private static ScreenAction Press => new(null, 1, "key-0");
+    private static DigitalBrain.UI.Command Press => new(".", "calculator.press");
 
     [Theory, MemberData(nameof(NeuronRuntimeKinds.Both), MemberType = typeof(NeuronRuntimeKinds))]
     public async Task AStrangerCannotWriteIntoAnotherPersonsRoomIndex(NeuronRuntimeKind kind)

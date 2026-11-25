@@ -199,14 +199,14 @@ public sealed class HelloWorldInteractiveAppFacts
         Assert.Contains("Say Hello", json1, StringComparison.Ordinal);
 
         // 4. Click "toggle-hello" -> "Hello, IntoChat OS!" appears
-        await reader.Activate("hello.world", v1.Generation, "toggle-hello", null, "person");
+        await runtime.Get<IScreen>(new NeuronId(runtime.Brain, "hello.world", "default")).Click("toggle-hello");
         var v2 = await WaitForViewGenerationAsync(reader, "hello.world", minGeneration: v1.Generation + 1);
         var json2 = JsonSerializer.Serialize(v2, ViewJson);
         Assert.Contains("Hello, IntoChat OS!", json2, StringComparison.Ordinal);
         Assert.Contains("Hide Hello", json2, StringComparison.Ordinal);
 
         // 5. Click "toggle-hello" again -> "Hello, IntoChat OS!" hides
-        await reader.Activate("hello.world", v2.Generation, "toggle-hello", null, "person");
+        await runtime.Get<IScreen>(new NeuronId(runtime.Brain, "hello.world", "default")).Click("toggle-hello");
         var v3 = await WaitForViewGenerationAsync(reader, "hello.world", minGeneration: v2.Generation + 1);
         var json3 = JsonSerializer.Serialize(v3, ViewJson);
         Assert.DoesNotContain("Hello, IntoChat OS!", json3, StringComparison.Ordinal);
@@ -252,11 +252,11 @@ public sealed class HelloWorldInteractiveAppFacts
         var v1 = await WaitForViewGenerationAsync(reader, "helloworld", minGeneration: 1);
         Assert.DoesNotContain("Hello, IntoChat OS!", JsonSerializer.Serialize(v1, ViewJson), StringComparison.Ordinal);
 
-        await reader.Activate("helloworld", v1.Generation, "toggle-hello", null, "person");
+        await runtime.Get<IScreen>(new NeuronId(runtime.Brain, "helloworld", "default")).Click("toggle-hello");
         var v2 = await WaitForViewGenerationAsync(reader, "helloworld", minGeneration: v1.Generation + 1);
         Assert.Contains("Hello, IntoChat OS!", JsonSerializer.Serialize(v2, ViewJson), StringComparison.Ordinal);
 
-        await reader.Activate("helloworld", v2.Generation, "toggle-hello", null, "person");
+        await runtime.Get<IScreen>(new NeuronId(runtime.Brain, "helloworld", "default")).Click("toggle-hello");
         var v3 = await WaitForViewGenerationAsync(reader, "helloworld", minGeneration: v2.Generation + 1);
         Assert.DoesNotContain("Hello, IntoChat OS!", JsonSerializer.Serialize(v3, ViewJson), StringComparison.Ordinal);
     }

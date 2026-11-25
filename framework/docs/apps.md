@@ -19,7 +19,7 @@ The class is marked `[Neuron("app.<id>")]`. The neuron type is also the alias th
 4. `Render` runs inside the save. It cannot await: everything it shows is in the state.
 
 A client reads the view through `IScreen`: `Open()` and `Read()` return the `PublishedView` (alias, generation, view JSON).
-`Act(action)` activates a node of the view the client saw. A stale generation is refused.
+A screen takes commands only through `Dispatch(command)`; a command carries no generation and is judged by the screen's state when its turn runs. A caller that picks a node by key (an agent, a test) takes that node's command with `view.CommandAt(key, value)` and sends it through the top-level screen's `Dispatch`, so a child is reached through its parent; `ScreenClicks.Click(key, value)` in `DigitalBrain.Testing` does both.
 A node carries a `Command` built with `Sends(signal)` (`ScreenCommands.Sends` outside a screen): sending it brings that typed signal back to the screen's own `[On]` reaction. A data node whose pick carries an item (`Chart`, `DataTable`, `BrainSceneNode`) has its own `Select` command, sent with the picked item as `value`. A view stored before every action was a command may still hold an `emit`; the host reads it as the command to `"."` it means when it loads the view (`LegacyViewJson`).
 `Follow<TSource, TSignal>(key)` makes a signal of another neuron reach the screen.
 

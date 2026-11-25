@@ -152,21 +152,21 @@ public sealed class StudioAndCraftReactorFacts
         var c0 = (await calc.Open())!;
         Assert.False(FindNodeByKey(c0.View, "clear-display").GetProperty("enabled").GetBoolean());
 
-        await calc.Activate("app.calculator", c0.Generation, "clear-display");
+        await calc.Click("clear-display");
         await os.Idle();
         Assert.Contains(rejectedHeard, r => r.Rules.Contains("display_already_empty"));
 
         var c1 = (await calc.Open())!;
-        await calc.Activate("app.calculator", c1.Generation, "key-0");  // 7
+        await calc.Click("key-0");  // 7
         await os.Idle();
         var c2 = (await calc.Open())!;
-        await calc.Activate("app.calculator", c2.Generation, "key-15"); // +
+        await calc.Click("key-15"); // +
         await os.Idle();
         var c3 = (await calc.Open())!;
-        await calc.Activate("app.calculator", c3.Generation, "key-9");  // 2
+        await calc.Click("key-9");  // 2
         await os.Idle();
         var c4 = (await calc.Open())!;
-        await calc.Activate("app.calculator", c4.Generation, "key-14"); // =
+        await calc.Click("key-14"); // =
         await os.Idle();
 
         var c5 = (await calc.Open())!;
@@ -183,7 +183,7 @@ public sealed class StudioAndCraftReactorFacts
         Assert.False(FindNodeByKey(d0.View, "export-csv").GetProperty("enabled").GetBoolean());
         Assert.False(FindNodeByKey(d0.View, "diagram-in-markdraw").GetProperty("enabled").GetBoolean());
 
-        await data.Activate("app.data", d0.Generation, "line");
+        await data.Click("line");
         await os.Idle();
         var dataState = (await ((IBrainObserver)os).State(dataId, Ct))!.Value
             .Deserialize<DataStudioAppState>(RuntimeProtocol.OptionsFor(typeof(DataStudioAppState)))!;
@@ -197,10 +197,10 @@ public sealed class StudioAndCraftReactorFacts
         var photoId = new NeuronId(brain, "app.photocraft", "main");
         var photo = os.Get<IScreen>(photoId);
         var p0 = (await photo.Open())!;
-        await photo.Activate("app.photocraft", p0.Generation, "mode-mcp");
+        await photo.Click("mode-mcp");
         await os.Idle();
         var p1 = (await photo.Open())!;
-        await photo.Activate("app.photocraft", p1.Generation, "toggle-layer-0");
+        await photo.Click("toggle-layer-0");
         await os.Idle();
         var photoState = (await ((IBrainObserver)os).State(photoId, Ct))!.Value
             .Deserialize<PhotoCraftAppState>(RuntimeProtocol.OptionsFor(typeof(PhotoCraftAppState)))!;
@@ -209,7 +209,7 @@ public sealed class StudioAndCraftReactorFacts
         var mdId = new NeuronId(brain, "app.markdraw", "main");
         var md = os.Get<IScreen>(mdId);
         var m0 = (await md.Open())!;
-        await md.Activate("app.markdraw", m0.Generation, "tpl-pipeline");
+        await md.Click("tpl-pipeline");
         await os.Idle();
         var mdState = (await ((IBrainObserver)os).State(mdId, Ct))!.Value
             .Deserialize<MarkdrawAppState>(RuntimeProtocol.OptionsFor(typeof(MarkdrawAppState)))!;

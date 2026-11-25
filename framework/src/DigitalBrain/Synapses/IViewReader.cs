@@ -5,7 +5,7 @@ using DigitalBrain.Kernel;
 namespace DigitalBrain.Units;
 
 /// <summary>
-/// The current view of a state alias, read and activated at that alias's state neuron (<c>{brain}/{alias}/default</c>).
+/// The current view of a state alias, read at that alias's state neuron (<c>{brain}/{alias}/default</c>).
 /// A view synapse returning a <c>DigitalBrain.UI.View</c> stores it there, as its wire JSON, with a generation that increases on every
 /// stored view; the view and its generation are saved with the state, so they survive deactivation and restart.
 /// </summary>
@@ -16,31 +16,6 @@ public interface IViewReader
     /// <param name="alias">The state alias.</param>
     [ReadOnlyCall]
     Task<PublishedView?> Read(string alias);
-
-    /// <summary>
-    /// Activates the node whose <c>"key"</c> is <paramref name="nodeKey"/> in the view of <paramref name="generation"/>: journals its
-    /// <c>"command"</c>'s signal (payload its <c>args</c>, plus <c>value</c> when <paramref name="fieldValue"/> is given) and runs the alias's
-    /// reactions on it. The caller is the signal's cause.
-    /// </summary>
-    /// <remarks>
-    /// The owner's reactions run inline, inside this call, after the signal is journaled: a state neuron never hears its own journal,
-    /// so the call returns once the owner has reacted. Other neurons with an alias edge on the signal get it through the journal.
-    /// The owner's envelope carries the caller's trace and, as its cause, the address of the journaled entry.
-    /// Journaling and reacting are not one transaction: a reaction that fails after the signal is journaled behaves like any failing
-    /// reaction on a journaled signal, so the signal stands, the state is unchanged, <see cref="SynapseFinished"/> reports
-    /// <c>failed</c>, and the failure is thrown to the caller.
-    /// </remarks>
-    /// <param name="alias">The state alias that owns the view.</param>
-    /// <param name="generation">The generation of the view the caller saw.</param>
-    /// <param name="nodeKey">The key of the activated node.</param>
-    /// <param name="fieldValue">The field value, if the node is a field.</param>
-    /// <param name="by">
-    /// Who activated the node (an opaque identity, e.g. a person id), set as the payload's reserved <c>"by"</c> member: stamped by the
-    /// host; a unit may trust it. Null leaves the payload without <c>"by"</c>. An author can never set it: a view whose command args declare
-    /// <c>"by"</c> is refused at publish.
-    /// </param>
-    /// <exception cref="ActivationRefusedException">The view is stale, the node is unknown or sends no command, or its command names a child.</exception>
-    Task Activate(string alias, long generation, string nodeKey, string? fieldValue, string? by);
 }
 
 /// <summary>The stored view of a state alias.</summary>
@@ -49,7 +24,7 @@ public interface IViewReader
 /// <param name="View">The view as wire JSON (the <c>DigitalBrain.UI</c> shape, nodes discriminated by <c>"kind"</c>).</param>
 public sealed record PublishedView(string Alias, long Generation, JsonElement View);
 
-/// <summary>An activation was refused; nothing was journaled.</summary>
+/// <summary>A command was refused before any handler ran; nothing was journaled.</summary>
 public sealed class ActivationRefusedException : InvalidOperationException
 {
     /// <summary>The generation is not the current view's (or there is no view yet).</summary>

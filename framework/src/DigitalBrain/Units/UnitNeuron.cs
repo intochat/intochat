@@ -141,12 +141,6 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
 
     public Task<PublishedView?> Open() => Read(_stateAlias);
 
-    public Task Act(ScreenAction action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        return Activate(action.Alias ?? _stateAlias, action.Generation, action.NodeKey, action.FieldValue, Context.Caller?.ToString());
-    }
-
     public Task<PublishedView?> Read(string? alias = null) =>
         Task.FromResult(State.View is { } view && (alias is null || string.Equals(view.Alias, alias, StringComparison.Ordinal)) ? view : null);
 
@@ -169,14 +163,6 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
         return Turn(journaled.Signal, journaled.TraceId, journaled.CausationId, null, ct,
             fromAsks: journaled.Publisher == AskRules.AsksOf(Id),
             causeAddress: Causation.Address(journaled.Publisher, journaled.Sequence));
-    }
-
-    public async Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)
-    {
-        ArgumentNullException.ThrowIfNull(alias);
-        ArgumentNullException.ThrowIfNull(nodeKey);
-        var pressed = Machine.Press(State.View, alias, generation, nodeKey, fieldValue, by);
-        await Turn(pressed, Context.TraceId, null, said: pressed, CancellationToken.None).ConfigureAwait(true);
     }
 
     // A unit has no UI children: only "." reaches it. The reaction hears who acted from the kernel-stamped caller, never from the

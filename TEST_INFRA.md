@@ -67,7 +67,7 @@ Set `INTOCHAT_TEST_VISUAL=desktop` to attach `VisualDebugWindow` during interact
 Located in `DigitalBrain.Testing.Silo`, any screen test class can inherit from `AppConcurrencyAndIsolationContract<TScreen, TFixture>` (where `TFixture : BothRuntimesFixture`) to automatically verify across both `TestOS` and `Silo`:
 1. **`ColdStart_RendersValidInitialView`**: Opening a fresh `AppSession.OpenAsync<TScreen>(runtime)` produces a non-null `CurrentView` with `Generation >= 1`.
 2. **`IsolatedKeys_DoNotShareState`**: Two sessions opened with distinct keys render independently without cross-session state leakage.
-3. **`ConcurrentActivation_SameGeneration_AtMostOneSucceeds`**: When the subclass overrides `ConcurrentActivationKey`, 10 callers race concurrently on the same initial generation; at most 1 succeeds and all others fail with `ActivationRefusedException` (`Reason == ActivationRefusedException.Stale`).
+3. **`ConcurrentCommands_FromOneView_AreEachHandled`**: When the subclass overrides `ConcurrentCommandKey`, 10 callers send that node's command from the same initial view at once; a command carries no generation, so every one is handled and the view's generation never goes back.
 
 ---
 

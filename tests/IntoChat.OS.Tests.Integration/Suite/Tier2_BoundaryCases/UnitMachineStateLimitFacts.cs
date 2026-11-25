@@ -72,11 +72,7 @@ public sealed class UnitMachineStateLimitFacts : E2ETestBase, IClassFixture<Test
         var screen = os.Get<IScreen>(neuronId);
         var view = await screen.Read();
         Assert.NotNull(view);
-        await screen.Activate(
-            "unit.limit_exact",
-            view.Generation,
-            "apply",
-            data.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        await screen.Click("apply", data.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]
@@ -141,7 +137,7 @@ public sealed class UnitMachineStateLimitFacts : E2ETestBase, IClassFixture<Test
 
         // Activate button that triggers expansion beyond 2 MB
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.unit_limit_screen", 1L, "btn-expand"));
+            screen.Click("btn-expand"));
 
         Assert.Contains("exceeds the 2097152-byte cap", ex.Message);
 

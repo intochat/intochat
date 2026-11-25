@@ -262,13 +262,13 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-launch");
-        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
+        using var person = os.Edge.Enter(os.Edge.Person("alice@intochat.io", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
         _ = CreatePersonCaller(_fixture.Edge, "alice", "acct_1", brain);
 
-        await screen.Activate("app.desktop_shell", 1L, "launch-calculator", fieldValue: null, by: "alice@intochat.io");
+        await screen.Click("launch-calculator");
         await os.Idle();
 
         var updated = await screen.Read();
@@ -294,11 +294,11 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         var screen = os.Get<IScreen>(screenId);
 
         // Turn 1 -> 2: Launch calculator (w-1)
-        await screen.Activate("app.desktop_shell", 1L, "launch-calculator", by: "alice");
+        await screen.Click("launch-calculator");
         await os.Idle();
 
         // Turn 2 -> 3: Launch notes (w-2)
-        await screen.Activate("app.desktop_shell", 2L, "launch-notes", by: "alice");
+        await screen.Click("launch-notes");
         await os.Idle();
 
         var view3 = await screen.Read();
@@ -308,7 +308,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         Assert.Contains("ActiveWindow: w-2", view3.View.GetRawText());
 
         // Turn 3 -> 4: Focus w-1
-        await screen.Activate("app.desktop_shell", 3L, "focus-w-1", by: "alice");
+        await screen.Click("focus-w-1");
         await os.Idle();
 
         var view4 = await screen.Read();
@@ -317,7 +317,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         Assert.Contains("ActiveWindow: w-1", view4.View.GetRawText());
 
         // Turn 4 -> 5: Pin w-1
-        await screen.Activate("app.desktop_shell", 4L, "pin-w-1", by: "alice");
+        await screen.Click("pin-w-1");
         await os.Idle();
 
         var view5 = await screen.Read();
@@ -326,7 +326,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         Assert.Contains("PinnedApps: ino,creator,calculator", view5.View.GetRawText());
 
         // Turn 5 -> 6: Minimize w-1 -> w-2 becomes active
-        await screen.Activate("app.desktop_shell", 5L, "minimize-w-1", by: "alice");
+        await screen.Click("minimize-w-1");
         await os.Idle();
 
         var view6 = await screen.Read();
@@ -347,13 +347,13 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         var screen = os.Get<IScreen>(screenId);
 
         // Launch w-1, w-2
-        await screen.Activate("app.desktop_shell", 1L, "launch-calculator", by: "alice");
+        await screen.Click("launch-calculator");
         await os.Idle();
-        await screen.Activate("app.desktop_shell", 2L, "launch-notes", by: "alice");
+        await screen.Click("launch-notes");
         await os.Idle();
 
         // Close w-2 (active window reverts to w-1)
-        await screen.Activate("app.desktop_shell", 3L, "close-w-2", by: "alice");
+        await screen.Click("close-w-2");
         await os.Idle();
 
         var view4 = await screen.Read();
@@ -363,7 +363,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         Assert.Contains("ActiveWindow: w-1", view4.View.GetRawText());
 
         // Close w-1 (active window becomes none)
-        await screen.Activate("app.desktop_shell", 4L, "close-w-1", by: "alice");
+        await screen.Click("close-w-1");
         await os.Idle();
 
         var view5 = await screen.Read();
@@ -387,7 +387,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         // Open 8 windows sequentially
         for (long gen = 1; gen <= 8; gen++)
         {
-            await screen.Activate("app.desktop_shell", gen, "launch-calculator", by: "alice");
+            await screen.Click("launch-calculator");
             await os.Idle();
         }
 
@@ -398,21 +398,21 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
 
         // Launch 9th window: throws InvalidOperationException
         var exWindowCap = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.desktop_shell", 9L, "launch-calculator", by: "alice"));
+            screen.Click("launch-calculator"));
         Assert.Contains("Maximum window cap (8) reached.", exWindowCap.Message);
 
         // Tab cap: add 7 additional tabs to w-1 (total 8 tabs)
         long currentGen = 9L;
         for (int i = 2; i <= 8; i++)
         {
-            await screen.Activate("app.desktop_shell", currentGen, "tab-w-1", by: "alice");
+            await screen.Click("tab-w-1");
             await os.Idle();
             currentGen++;
         }
 
         // 9th tab throws InvalidOperationException
         var exTabCap = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            screen.Activate("app.desktop_shell", currentGen, "tab-w-1", by: "alice"));
+            screen.Click("tab-w-1"));
         Assert.Contains("Maximum tab cap (8) reached.", exTabCap.Message);
     }
 
@@ -427,9 +427,9 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
-        await screen.Activate("app.desktop_shell", 1L, "launch-calculator", by: "alice");
+        await screen.Click("launch-calculator");
         await os.Idle();
-        await screen.Activate("app.desktop_shell", 2L, "pin-w-1", by: "alice");
+        await screen.Click("pin-w-1");
         await os.Idle();
 
         // Deactivate and reactivate neuron to verify true durable seat persistence across restarts

@@ -92,7 +92,7 @@ public sealed class OrleansAppFacts
         Assert.Contains("/orleans#/overview", opened!.View.GetRawText(), StringComparison.Ordinal);
 
         // Switch section via pill button activation ("orleans:section:silos")
-        await screen.Activate("app.orleans", opened.Generation, "orleans:section:silos");
+        await screen.Click("orleans:section:silos");
         await os.Idle();
         var silosView = await screen.Open();
         Assert.Contains("/orleans#/silos", silosView!.View.GetRawText(), StringComparison.Ordinal);
@@ -125,7 +125,7 @@ public sealed class OrleansAppFacts
 
         // Clear grain filter via toolbar button
         var beforeClear = await screen.Open();
-        await screen.Activate("app.orleans", beforeClear!.Generation, "orleans:clear-filter");
+        await screen.Click("orleans:clear-filter");
         await os.Idle();
         var clearedWire = (await screen.Open())!.View.GetRawText();
         Assert.Contains("/orleans#/grains", clearedWire, StringComparison.Ordinal);
