@@ -101,28 +101,28 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         var parent = IsAttached ? Id : new NeuronId(new BrainId("preview"), "preview", "preview");
         var child = new NeuronId(parent.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(parent, key));
         if (!rendering.TryAdd(key, new ChildEntry(child, props))) { throw new InvalidOperationException($"The view of '{Alias}' names child '{key}' twice."); }
-        if (props is null) { return new NeuronRef("slot", child.ToString()); }
+        if (props is null) { return new NeuronRef(NeuronRef.ChildKind, child.ToString()); }
         var wire = PooledJson.Encode(props, props.GetType());
         if (HoldsChildRef(wire))
         {
             throw new InvalidOperationException($"The props of child '{key}' of '{Alias}' hold a child; control content is data nodes only.");
         }
-        return new NeuronRef("slot", child.ToString(), wire);
+        return new NeuronRef(NeuronRef.ChildKind, child.ToString(), wire);
     }
 
-    // True when the JSON holds a neuronRef node of refKind "slot" at any depth.
+    // True when the JSON holds a neuronRef node of refKind "child" at any depth.
     private static bool HoldsChildRef(JsonElement json) => json.ValueKind switch
     {
         JsonValueKind.Array => json.EnumerateArray().Any(HoldsChildRef),
         JsonValueKind.Object => (json.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "neuronRef"
-                && json.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == "slot")
+                && json.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == NeuronRef.ChildKind)
             || json.EnumerateObject().Any(property => HoldsChildRef(property.Value)),
         _ => false,
     };
 
     /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate. The screen that handles it finds the acting person's principal under "by" in the payload.</summary>
     /// <exception cref="ArgumentException">The target key is empty, "..", or contains '/' after the optional "./" (returned as a faulted task).</exception>
-    /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    /// <exception cref="ActivationRefusedException">The current view names no child with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     protected Task Send(Command command)
     {
         try
@@ -138,20 +138,20 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
                 // applied its gates before routing; a screen that is no child never reads props from a command.
                 return command.Props is { } props && ParentId is not null ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
             }
-            var slot = Hop(command.Target, out var rest);
-            // The parent decides whether a slot is enabled: its props in the current view gate every command routed to the child.
-            if (slot.Props is { IsEnabled: false }) { throw new ActivationRefusedException(ControlProps.Disabled); }
-            // Props that gate commands (a selection's items, its mode) judge a command addressed to their own slot before the child is reached.
-            if (rest == "." && slot.Props is ICommandGate gate && gate.RefusalOf(command.Signal, command.Args) is { } refusal)
+            var child = Hop(command.Target, out var rest);
+            // The parent decides whether a child is enabled: its props in the current view gate every command routed to the child.
+            if (child.Props is { IsEnabled: false }) { throw new ActivationRefusedException(ControlProps.Disabled); }
+            // Props that gate commands (a selection's items, its mode) judge a command addressed to their own child before the child is reached.
+            if (rest == "." && child.Props is ICommandGate gate && gate.RefusalOf(command.Signal, command.Args) is { } refusal)
             {
                 throw new ActivationRefusedException(refusal);
             }
             // Each hop is the next parent's Dispatch, which applies its own gate; awaited, so the child's failure reaches the caller.
-            // The last hop carries this screen's props for the slot (and only those: a sender's own Props never pass through).
-            return Get<IScreen>(slot.Id).Dispatch(command with
+            // The last hop carries this screen's props for the child (and only those: a sender's own Props never pass through).
+            return Get<IScreen>(child.Id).Dispatch(command with
             {
                 Target = rest,
-                Props = rest == "." && slot.Props is { } slotProps ? PooledJson.Encode(slotProps, slotProps.GetType()) : null,
+                Props = rest == "." && child.Props is { } childProps ? PooledJson.Encode(childProps, childProps.GetType()) : null,
             });
         }
         catch (Exception error) when (error is ArgumentException or ActivationRefusedException)
@@ -191,7 +191,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     }
 
     /// <summary>
-    /// The props the parent gave this screen's slot, as JSON, while a reaction runs for a command the parent routed to it; null for a
+    /// The props the parent gave this screen as a child, as JSON, while a reaction runs for a command the parent routed to it; null for a
     /// screen that is no child, a delivered signal, or a call. Scoped to that command's async flow, not stored.
     /// </summary>
     protected JsonElement? CommandProps => CommandScope.PropsFor(this);
@@ -221,7 +221,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     {
         if (_view is not null)
         {
-            // A stored legacy view: the slots it names are the current state's.
+            // A stored legacy view: the children it names are the current state's.
             _ = RenderValidated(State, out _children);
             return;
         }

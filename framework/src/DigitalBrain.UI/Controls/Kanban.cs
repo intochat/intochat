@@ -9,7 +9,7 @@ public sealed record KanbanState
     public string? SelectedCardId { get; init; }
 }
 
-/// <summary>What a kanban neuron draws: its key and selected card. The client draws the title, columns and cards from the slot's props.</summary>
+/// <summary>What a kanban neuron draws: its key and selected card. The client draws the title, columns and cards from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="SelectedCardId">The board's own selected card; null when none is selected or the parent owns the selection.</param>
 [ViewNode("kanbanView")]

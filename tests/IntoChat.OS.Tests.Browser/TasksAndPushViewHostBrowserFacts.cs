@@ -34,7 +34,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 
         await page.GotoAsync(host.ShellFor("apps/tasks/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
         await page.KeyedNode("tasks-shell").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
-        await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
+        await page.ChildNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
 
         try
         {
@@ -43,11 +43,11 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
             {
                 Assert.Equal(0, await page.SemanticsPrefix($"neuron:{oldKind}:").CountAsync().WaitAsync(ct));
             }
-            await page.SlotNode(TasksApp.StepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.SlotNode(TasksApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(TasksApp.StepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(TasksApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
 
-            var kanbanBox = await page.SlotNode(TasksApp.KanbanKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
+            var kanbanBox = await page.ChildNode(TasksApp.KanbanKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Studio Kanban Board: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
             Assert.True(
                 kanbanBox.HeightRatio(StudioViewportHeight) >= 0.70f && kanbanBox.Height >= 630f,
@@ -63,7 +63,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 
             await page.WaitForTimeoutAsync(250).WaitAsync(ct);
 
-            var stepperInitial = await page.ReadSemanticsSubtreeTextAsync($"slot:{TasksApp.StepperKey}", ct);
+            var stepperInitial = await page.ReadSemanticsSubtreeTextAsync($"child:{TasksApp.StepperKey}", ct);
             Assert.Contains("Backlog", stepperInitial, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Done", stepperInitial, StringComparison.OrdinalIgnoreCase);
 
@@ -78,8 +78,8 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 
             // 4. The tab strip child switches to Table, Approvals and back to Board via ViewHost push
             await SelectTasksTabAsync(page, "Table", ct);
-            await page.SlotNode(TasksApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            var tableBox = await page.SlotNode(TasksApp.TableKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
+            await page.ChildNode(TasksApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            var tableBox = await page.ChildNode(TasksApp.TableKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Studio Table View: {tableBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
             Assert.True(
                 tableBox.HeightRatio(StudioViewportHeight) >= 0.70f && tableBox.Y <= 52f,
@@ -89,7 +89,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
             await page.WaitForTimeoutAsync(200).WaitAsync(ct);
 
             await SelectTasksTabAsync(page, "Board", ct);
-            await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             // 5. Exercise compact top-bar "New Task" button (tasks:add -> task-4 on the board)
             await page.ClickButtonAsync("tasks:add", ct);
@@ -206,14 +206,14 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
     {
         for (var i = 0; i < 60; i++)
         {
-            var current = await page.ReadSemanticsSubtreeTextAsync($"slot:{key}", ct);
+            var current = await page.ReadSemanticsSubtreeTextAsync($"child:{key}", ct);
             if (current.Contains(expectedSubstring, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
             await page.WaitForTimeoutAsync(150).WaitAsync(ct);
         }
-        Assert.Contains(expectedSubstring, await page.ReadSemanticsSubtreeTextAsync($"slot:{key}", ct), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedSubstring, await page.ReadSemanticsSubtreeTextAsync($"child:{key}", ct), StringComparison.OrdinalIgnoreCase);
     }
 
     // The board's own "Move right" arrow on a card (control.kanban draws it as a tooltip button), which sends control.moveCard.
@@ -228,7 +228,7 @@ public sealed class TasksAndPushViewHostBrowserFacts(WebShellHost host)
 
     internal static async Task SelectTasksTabAsync(IPage page, string label, CancellationToken ct)
     {
-        var strip = page.SlotNode(TasksApp.TabsKey).First;
+        var strip = page.ChildNode(TasksApp.TabsKey).First;
         await strip.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
         var byRole = strip.GetByRole(AriaRole.Tab, new() { Name = label, Exact = true }).First;
         var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : strip.GetByText(label, new() { Exact = true }).First;

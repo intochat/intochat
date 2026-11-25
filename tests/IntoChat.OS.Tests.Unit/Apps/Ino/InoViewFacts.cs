@@ -602,7 +602,7 @@ public sealed class InoViewFacts
         var nodes = InoView.RenderCardNodes(
             new InoCard("node-bad", "node", "Hostile", "", IFocus.DefaultKey, "done")
             {
-                Node = """{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""",
+                Node = """{"kind":"neuronRef","refKind":"child","neuronUri":"x"}""",
             }).ToArray();
 
         Assert.Empty(nodes);

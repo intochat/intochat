@@ -27,7 +27,7 @@ public sealed record QueryTableState
 
 /// <summary>
 /// What a query table neuron draws: its key, query, selection, and the current page's rows as read from the source (cells in
-/// <paramref name="ColumnIds"/> order). The client draws the title and column titles from the slot's props; a table with inline rows
+/// <paramref name="ColumnIds"/> order). The client draws the title and column titles from the child's props; a table with inline rows
 /// carries no rows here, and the client draws the props' rows through the query.
 /// </summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>

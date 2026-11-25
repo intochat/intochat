@@ -13,10 +13,10 @@ using IntoChat.OS.Tests.Support;
 namespace IntoChat.OS.Tests.Unit.Scenarios;
 
 // Runs a scenario against the shipped UI Gallery on TestOS: an Act is the command the edge /act sends (IScreen.Dispatch by key path, as
-// the local person), a Read is the visible text of the target's subtree with every slot child's own view drawn in place.
+// the local person), a Read is the visible text of the target's subtree with every child's own view drawn in place.
 internal sealed class KernelDriver(InstalledApp<GalleryApp> app) : IScenarioDriver
 {
-    private const int MaxSlotDepth = 4;
+    private const int MaxChildDepth = 4;
     private static readonly BrainId Brain = new("local");
     private string _lastRead = "";
 
@@ -44,79 +44,79 @@ internal sealed class KernelDriver(InstalledApp<GalleryApp> app) : IScenarioDriv
         using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
         var view = await app.Screen.Read() ?? throw new InvalidOperationException("The Gallery has no view.");
         var subtree = target == "." ? view.View : await Find(view.View, target)
-            ?? throw new InvalidOperationException($"The Gallery shows no node or slot '{target}'.");
+            ?? throw new InvalidOperationException($"The Gallery shows no node or child '{target}'.");
         var texts = new List<string>();
         await Collect(subtree, texts, 0);
         _lastRead = JsonSerializer.Serialize(new { target, texts });
         return string.Join("\n", texts);
     }
 
-    // The page as the Flutter driver replays it: the top-level view and the root view of every slot child it shows (nested slots
-    // too, to the same depth a read draws), keyed by the slot's key path, as GET /apps/{name}/slots/{path} serves them: slot refs name
+    // The page as the Flutter driver replays it: the top-level view and the root view of every child it shows (nested children
+    // too, to the same depth a read draws), keyed by the child's key path, as GET /apps/{name}/children/{path} serves them: child refs name
     // their key, never the child's neuron id.
     public async Task<JsonElement> Snapshot()
     {
         using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
         var view = await app.Screen.Read() ?? throw new InvalidOperationException("The Gallery has no view.");
-        var slots = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
-        await Slots(view.View, "", slots, 0);
-        return JsonSerializer.SerializeToElement(new { view = IntoChat.OS.Modules.Flutter.SlotKeys.Screen(view.View), slots });
+        var children = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
+        await Children(view.View, "", children, 0);
+        return JsonSerializer.SerializeToElement(new { view = IntoChat.OS.Modules.Flutter.ChildKeys.Screen(view.View), children });
     }
 
-    private async Task Slots(JsonElement json, string path, SortedDictionary<string, JsonElement> slots, int depth)
+    private async Task Children(JsonElement json, string path, SortedDictionary<string, JsonElement> children, int depth)
     {
         switch (json.ValueKind)
         {
             case JsonValueKind.Object:
-                if (SlotOf(json) is { } slot)
+                if (ChildOf(json) is { } reference)
                 {
-                    var slotPath = path.Length == 0 ? slot.Key : path + "/" + slot.Key;
-                    if (depth < MaxSlotDepth && !slots.ContainsKey(slotPath) && await ChildView(slot.Child) is { } child)
+                    var childPath = path.Length == 0 ? reference.Key : path + "/" + reference.Key;
+                    if (depth < MaxChildDepth && !children.ContainsKey(childPath) && await ChildView(reference.Child) is { } child)
                     {
-                        slots[slotPath] = JsonSerializer.SerializeToElement(new { root = IntoChat.OS.Modules.Flutter.SlotKeys.Hide(child), acts = DigitalBrain.UI.View.ActRoute });
-                        await Slots(child, slotPath, slots, depth + 1);
+                        children[childPath] = JsonSerializer.SerializeToElement(new { root = IntoChat.OS.Modules.Flutter.ChildKeys.Hide(child), acts = DigitalBrain.UI.View.ActRoute });
+                        await Children(child, childPath, children, depth + 1);
                     }
                     return;
                 }
-                foreach (var property in json.EnumerateObject()) { await Slots(property.Value, path, slots, depth); }
+                foreach (var property in json.EnumerateObject()) { await Children(property.Value, path, children, depth); }
                 break;
             case JsonValueKind.Array:
-                foreach (var item in json.EnumerateArray()) { await Slots(item, path, slots, depth); }
+                foreach (var item in json.EnumerateArray()) { await Children(item, path, children, depth); }
                 break;
         }
     }
 
     public Task<string?> Evidence(int stepIndex, CancellationToken ct) => Task.FromResult<string?>(_lastRead.Length == 0 ? null : _lastRead);
 
-    // Resolves a key path the way the server routes it: slot keys first. While the leading segment names a slot of the current view,
-    // descend into that slot child's view; the last segment is a slot of the current view, else the node with that key in it.
+    // Resolves a key path the way the server routes it: child keys first. While the leading segment names a child of the current view,
+    // descend into that child's view; the last segment is a child of the current view, else the node with that key in it.
     private async Task<JsonElement?> Find(JsonElement view, string target)
     {
         var current = view;
         var rest = target;
-        for (var depth = 0; depth < MaxSlotDepth && rest.IndexOf('/', StringComparison.Ordinal) is var slash and > 0; depth++)
+        for (var depth = 0; depth < MaxChildDepth && rest.IndexOf('/', StringComparison.Ordinal) is var slash and > 0; depth++)
         {
-            if (Slot(current, rest[..slash]) is not { } slot || await ChildView(slot.Child) is not { } child) { break; }
+            if (ChildRef(current, rest[..slash]) is not { } reference || await ChildView(reference.Child) is not { } child) { break; }
             current = child;
             rest = rest[(slash + 1)..];
         }
-        return Slot(current, rest)?.Node ?? Keyed(current, rest);
+        return ChildRef(current, rest)?.Node ?? Keyed(current, rest);
     }
 
-    // A slot of this view (not of its slot children, which are only references here) with that key.
-    private static (JsonElement Node, NeuronId Child)? Slot(JsonElement json, string key)
+    // A child of this view (not of its children's children, which are only references here) with that key.
+    private static (JsonElement Node, NeuronId Child)? ChildRef(JsonElement json, string key)
     {
         if (json.ValueKind == JsonValueKind.Object)
         {
-            if (SlotOf(json) is { } slot) { return slot.Key == key ? (json, slot.Child) : null; }
+            if (ChildOf(json) is { } reference) { return reference.Key == key ? (json, reference.Child) : null; }
             foreach (var property in json.EnumerateObject())
             {
-                if (!IsData(property.Name) && Slot(property.Value, key) is { } found) { return found; }
+                if (!IsData(property.Name) && ChildRef(property.Value, key) is { } found) { return found; }
             }
         }
         else if (json.ValueKind == JsonValueKind.Array)
         {
-            foreach (var item in json.EnumerateArray()) { if (Slot(item, key) is { } found) { return found; } }
+            foreach (var item in json.EnumerateArray()) { if (ChildRef(item, key) is { } found) { return found; } }
         }
         return null;
     }
@@ -125,7 +125,7 @@ internal sealed class KernelDriver(InstalledApp<GalleryApp> app) : IScenarioDriv
     {
         if (json.ValueKind == JsonValueKind.Object)
         {
-            if (SlotOf(json) is not null) { return null; }
+            if (ChildOf(json) is not null) { return null; }
             if (json.TryGetProperty("key", out var value) && value.ValueKind == JsonValueKind.String && value.GetString() == key) { return json; }
             foreach (var property in json.EnumerateObject())
             {
@@ -139,17 +139,17 @@ internal sealed class KernelDriver(InstalledApp<GalleryApp> app) : IScenarioDriv
         return null;
     }
 
-    // Every string a node shows, slot children drawn in place; keys, kinds, addresses and action payloads are not visible text.
+    // Every string a node shows, children drawn in place; keys, kinds, addresses and action payloads are not visible text.
     private async Task Collect(JsonElement json, List<string> texts, int depth)
     {
         switch (json.ValueKind)
         {
             case JsonValueKind.Object:
-                if (SlotOf(json) is { } slot)
+                if (ChildOf(json) is { } reference)
                 {
-                    // The parent's props for the slot (a chart title, a label, a placeholder) are drawn with the child's view.
+                    // The parent's props for the child (a chart title, a label, a placeholder) are drawn with the child's view.
                     if (json.TryGetProperty("props", out var props)) { await Collect(props, texts, depth); }
-                    if (depth < MaxSlotDepth && await ChildView(slot.Child) is { } child) { await Collect(child, texts, depth + 1); }
+                    if (depth < MaxChildDepth && await ChildView(reference.Child) is { } child) { await Collect(child, texts, depth + 1); }
                     return;
                 }
                 foreach (var property in json.EnumerateObject())
@@ -172,8 +172,8 @@ internal sealed class KernelDriver(InstalledApp<GalleryApp> app) : IScenarioDriv
 
     private static bool IsData(string name) => name is "command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "props";
 
-    private static (string Key, NeuronId Child)? SlotOf(JsonElement json)
-        => json.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == "slot"
+    private static (string Key, NeuronId Child)? ChildOf(JsonElement json)
+        => json.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == NeuronRef.ChildKind
             && json.TryGetProperty("neuronUri", out var uri) && uri.ValueKind == JsonValueKind.String
             && NeuronId.TryParse(uri.GetString(), out var child) && child.Key.LastIndexOf('/') is var slash and > 0
                 ? (child.Key[(slash + 1)..], child)

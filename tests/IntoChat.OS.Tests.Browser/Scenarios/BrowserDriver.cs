@@ -36,9 +36,9 @@ public sealed record ScenarioRecording(string RepoRoot, string RunId)
 }
 
 // Runs scenario steps on the web shell in a real browser. The shell draws to a canvas, so the driver works on Flutter's semantics
-// DOM (?semantics=true): a slot is the element with flt-semantics-identifier "slot:<path>", a keyed node the element with
-// "key:<key>" (both set by the shell). A target resolves as the kernel driver does: slot paths first, then the last segment as a
-// node key within the deepest slot found. An act is a click on the control that sends the step's signal; a read is the text the
+// DOM (?semantics=true): a child is the element with flt-semantics-identifier "child:<path>", a keyed node the element with
+// "key:<key>" (both set by the shell). A target resolves as the kernel driver does: child paths first, then the last segment as a
+// node key within the deepest child found. An act is a click on the control that sends the step's signal; a read is the text the
 // browser shows under the target (visible elements only: rendered text, values and accessible names).
 public sealed class BrowserDriver(IPage page, ScenarioRecording recording, string scenario, bool headed) : IScenarioDriver
 {
@@ -103,7 +103,7 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
         for (var i = 0; i < segments.Length; i++)
         {
             var candidate = path.Length == 0 ? segments[i] : path + "/" + segments[i];
-            var slot = page.Locator($"[flt-semantics-identifier=\"slot:{candidate}\"]");
+            var slot = page.Locator($"[flt-semantics-identifier=\"child:{candidate}\"]");
             if (await Shown(slot))
             {
                 if (i == segments.Length - 1) { return slot.First; }

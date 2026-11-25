@@ -3,22 +3,22 @@ using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
 
-/// <summary>A control neuron whose props are <typeparamref name="TProps"/>: it ties <c>Slot&lt;TChild, TProps&gt;(key, props)</c> to the child's own props record.</summary>
-/// <typeparam name="TProps">The props record the parent writes on the control's slot.</typeparam>
+/// <summary>A control neuron whose props are <typeparamref name="TProps"/>: it ties <c>Child&lt;TChild, TProps&gt;(key, props)</c> to the child's own props record.</summary>
+/// <typeparam name="TProps">The props record the parent writes on the control's child node.</typeparam>
 #pragma warning disable CA1040 // A marker: the constraint is the whole point.
 public interface IControl<TProps> where TProps : ControlProps;
 #pragma warning restore CA1040
 
 /// <summary>
-/// A control's props: the setup its parent decides, written on the slot node in the parent's view (<c>Slot&lt;TChild&gt;(key, props)</c>)
-/// and re-rendered with the parent. The child neuron stores only what the user changes. A command routed through the parent to a slot
+/// A control's props: the setup its parent decides, written on the child node in the parent's view (<c>Child&lt;TChild&gt;(key, props)</c>)
+/// and re-rendered with the parent. The child neuron stores only what the user changes. A command routed through the parent to a child
 /// whose props are disabled is refused with <see cref="Disabled"/>.
 /// </summary>
 /// <param name="IsEnabled">False draws the control disabled, and the parent refuses every command routed to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the label or header, then the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the label or header, then the child key.</param>
 public abstract record ControlProps(bool IsEnabled = true, string? AutomationName = null)
 {
-    /// <summary>The refusal reason of a command to a slot whose props are disabled.</summary>
+    /// <summary>The refusal reason of a command to a child whose props are disabled.</summary>
     public const string Disabled = "control.disabled";
 
     /// <summary>The refusal reason of a command sent to a screen's child by anything but its parent: a child takes commands only through its parent's gates.</summary>
@@ -53,7 +53,7 @@ public sealed record ExpanderProps(string Header, IReadOnlyList<Node> Children, 
     : ControlProps(IsEnabled, AutomationName);
 
 /// <summary>
-/// Props that check a command routed to their slot. The parent's Send asks them about every command before the child is reached, because
+/// Props that check a command routed to their child. The parent's Send asks them about every command before the child is reached, because
 /// what the check needs (the items, the mode) is the parent's: the child stores only what the user changes.
 /// </summary>
 public interface ICommandGate
@@ -64,7 +64,7 @@ public interface ICommandGate
     string? RefusalOf(string signal, JsonElement? args);
 }
 
-/// <summary>The refusal reasons of a selection routed to a slot.</summary>
+/// <summary>The refusal reasons of a selection routed to a child.</summary>
 public static class SelectionRefusals
 {
     /// <summary>The alias of the select command (<c>DigitalBrain.UI.Commands.Select</c>, which this assembly cannot reference).</summary>
@@ -75,10 +75,10 @@ public static class SelectionRefusals
         => signal != SelectSignal ? null
             : refusal(args is { ValueKind: JsonValueKind.Object } json && json.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null);
 
-    /// <summary>The id names no item of the slot's props.</summary>
+    /// <summary>The id names no item of the child's props.</summary>
     public const string UnknownItem = "control.unknownItem";
 
-    /// <summary>The slot's props allow no selection.</summary>
+    /// <summary>The child's props allow no selection.</summary>
     public const string SelectionOff = "control.selectionOff";
 }
 
@@ -91,7 +91,7 @@ public sealed record TabStripItem(string Id, string Label, string? Icon = null);
 /// <summary>The props of a tab strip: what its parent decides.</summary>
 /// <param name="Items">The tabs, in order.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the child key.</param>
 /// <param name="SelectedId">Set when the parent owns the selection (a controlled control): drawn instead of the child's state, and a
 /// Select only signals SelectionChanged; the child stores nothing. Null leaves the selection to the child.</param>
 public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null)
@@ -158,7 +158,7 @@ public enum ListSelectionMode
 /// <param name="Items">The items, in order.</param>
 /// <param name="SelectionMode">Single lets one item be selected; None refuses every selection (control.selectionOff).</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the child key.</param>
 /// <param name="SelectedId">Set when the parent owns the selection (a controlled control): drawn instead of the child's state, and a
 /// Select only signals SelectionChanged; the child stores nothing. Null leaves the selection to the child.</param>
 public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectionMode SelectionMode = ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null)
@@ -218,13 +218,13 @@ public sealed record FormInput(
 /// <param name="Value">The last submitted value.</param>
 public sealed record FormValue(string Key, string Value);
 
-/// <summary>The refusal reasons of a submit routed to a form slot.</summary>
+/// <summary>The refusal reasons of a submit routed to a form child.</summary>
 public static class FormRefusals
 {
     /// <summary>The alias of the submit command (<c>DigitalBrain.UI.Commands.Submit</c>, which this assembly cannot reference).</summary>
     public const string SubmitSignal = "control.submit";
 
-    /// <summary>A submitted key names no field of the slot's props.</summary>
+    /// <summary>A submitted key names no field of the child's props.</summary>
     public const string UnknownField = "control.unknownField";
 
     /// <summary>A submitted key names a read-only field.</summary>
@@ -256,7 +256,7 @@ public static class FormRefusals
 /// <param name="Fields">The fields, in order.</param>
 /// <param name="SubmitLabel">The submit button's text.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the child key.</param>
 public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLabel = "Submit", bool IsEnabled = true, string? AutomationName = null)
     : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
@@ -309,7 +309,7 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SubmitLabel, SequenceHash.Of(Fields));
 }
 
-/// <summary>The refusal reasons of a command routed to a live chart slot.</summary>
+/// <summary>The refusal reasons of a command routed to a live chart child.</summary>
 public static class ChartRefusals
 {
     /// <summary>The alias of the replace command (<c>DigitalBrain.UI.Commands.Replace</c>, which this assembly cannot reference).</summary>
@@ -318,7 +318,7 @@ public static class ChartRefusals
     /// <summary>The alias of the append command (<c>DigitalBrain.UI.Commands.Append</c>, which this assembly cannot reference).</summary>
     public const string AppendSignal = "control.append";
 
-    /// <summary>The slot's props name a chart kind the chart cannot draw.</summary>
+    /// <summary>The child's props name a chart kind the chart cannot draw.</summary>
     public const string UnknownKind = "control.unknownKind";
 
     /// <summary>The chart kinds: bar, line, area, pie.</summary>
@@ -348,7 +348,7 @@ public sealed record LiveChartProps(string Title, string Kind = "bar", bool IsEn
 /// <param name="Value">The point's value.</param>
 public sealed record LivePoint(string EventId, string Label, double Value);
 
-/// <summary>The refusal reasons of a command routed to a query table slot.</summary>
+/// <summary>The refusal reasons of a command routed to a query table child.</summary>
 public static class TableRefusals
 {
     /// <summary>The alias of the sort command (<c>DigitalBrain.UI.Commands.Sort</c>, which this assembly cannot reference).</summary>
@@ -357,7 +357,7 @@ public static class TableRefusals
     /// <summary>The alias of the page command (<c>DigitalBrain.UI.Commands.Page</c>, which this assembly cannot reference).</summary>
     public const string PageSignal = "control.page";
 
-    /// <summary>A sort names no column of the slot's props.</summary>
+    /// <summary>A sort names no column of the child's props.</summary>
     public const string UnknownColumn = "control.unknownColumn";
 
     /// <summary>The alias of the select-row command (<c>DigitalBrain.UI.Commands.SelectRow</c>, which this assembly cannot reference).</summary>
@@ -366,7 +366,7 @@ public static class TableRefusals
     /// <summary>A page number below 1.</summary>
     public const string PageOutOfRange = "control.pageOutOfRange";
 
-    /// <summary>A row selection names no row of the slot's props (a table that reads a source has none).</summary>
+    /// <summary>A row selection names no row of the child's props (a table that reads a source has none).</summary>
     public const string UnknownRow = "control.unknownRow";
 }
 
@@ -502,7 +502,7 @@ public sealed record ModelChoice(
 /// <param name="EmptyText">The text drawn while the thread holds no message; null draws nothing.</param>
 /// <param name="Error">An error no message carries, drawn under the messages; null draws none.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the child key.</param>
 /// <param name="Models">The choices offered by the composer model picker; null hides the picker list.</param>
 /// <param name="ActiveModelId">The canonical id of the active model; null when unset.</param>
 /// <param name="Conversation">The conversation neuron key (e.g. "conversations/c-...") to watch for streaming deltas; null disables delta watching.</param>
@@ -618,16 +618,16 @@ public sealed record KanbanColumnItem(string Id, string Title, string? Icon = nu
 /// <param name="Assignee">An optional assignee name.</param>
 public sealed record KanbanCardItem(string Id, string ColumnId, string Title, string? Subtitle = null, string? Tag = null, string? Assignee = null);
 
-/// <summary>The refusal reasons of a command routed to a kanban slot.</summary>
+/// <summary>The refusal reasons of a command routed to a kanban child.</summary>
 public static class KanbanRefusals
 {
     /// <summary>The alias of the move command (<c>DigitalBrain.UI.Commands.MoveCard</c>, which this assembly cannot reference).</summary>
     public const string MoveCardSignal = "control.moveCard";
 
-    /// <summary>A move names no card of the slot's props.</summary>
+    /// <summary>A move names no card of the child's props.</summary>
     public const string UnknownCard = "control.unknownCard";
 
-    /// <summary>A move names no column of the slot's props.</summary>
+    /// <summary>A move names no column of the child's props.</summary>
     public const string UnknownColumn = "control.unknownColumn";
 
     /// <summary>A move's position is below 0 or past the target column's other cards.</summary>
@@ -713,7 +713,7 @@ public sealed record StepperItem(string Id, string Label, StepperStatus Status =
 /// <param name="Steps">The steps, in order.</param>
 /// <param name="Title">An optional title above the steps.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the title, then the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the title, then the child key.</param>
 /// <param name="ActiveStepId">Set when the parent owns the active step (a controlled stepper): drawn instead of the stepper's state, and
 /// a Select only signals SelectionChanged; the stepper stores nothing. Null leaves the active step to the stepper.</param>
 public sealed record StepperProps(IReadOnlyList<StepperItem> Steps, string? Title = null, bool IsEnabled = true, string? AutomationName = null, string? ActiveStepId = null)
@@ -739,7 +739,7 @@ public sealed record StepperProps(IReadOnlyList<StepperItem> Steps, string? Titl
 /// <param name="IsFolder">True when it can be expanded; a node other nodes sit in is a folder too.</param>
 public sealed record TreeItem(string Id, string Label, string? ParentId = null, string? Icon = null, bool IsFolder = false);
 
-/// <summary>The refusal reasons of a command routed to a tree slot.</summary>
+/// <summary>The refusal reasons of a command routed to a tree child.</summary>
 public static class TreeRefusals
 {
     /// <summary>The alias of the expand-node command (<c>DigitalBrain.UI.Commands.ExpandNode</c>, which this assembly cannot reference).</summary>
@@ -752,7 +752,7 @@ public static class TreeRefusals
 /// <summary>The props of a tree: what its parent decides.</summary>
 /// <param name="Nodes">The nodes, each placed by its parent id; siblings in the order given.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
-/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the child key.</param>
 /// <param name="SelectedId">Set when the parent owns the selection (a controlled tree): drawn instead of the tree's state, and a Select
 /// only signals SelectionChanged; the tree stores nothing. Null leaves the selection to the tree.</param>
 /// <param name="ExpandedIds">Set when the parent owns the expanded folders, for example to open the tree to the selected node: drawn
@@ -782,13 +782,13 @@ public sealed record TreeProps(IReadOnlyList<TreeItem> Nodes, bool IsEnabled = t
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectedId, SequenceHash.Of(Nodes), ExpandedIds is null ? 0 : SequenceHash.Of(ExpandedIds));
 }
 
-/// <summary>The refusal reasons of a command routed to a slider slot.</summary>
+/// <summary>The refusal reasons of a command routed to a slider child.</summary>
 public static class SliderRefusals
 {
     /// <summary>The alias of the set-value command (<c>DigitalBrain.UI.Commands.SetValue</c>, which this assembly cannot reference).</summary>
     public const string SetValueSignal = "control.setValue";
 
-    /// <summary>A value that is no number or lies outside the slot's props' range.</summary>
+    /// <summary>A value that is no number or lies outside the child's props' range.</summary>
     public const string OutOfRange = "control.outOfRange";
 }
 

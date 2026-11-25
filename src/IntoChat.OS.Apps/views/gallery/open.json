@@ -8,7 +8,7 @@
       "kind": "splitPane",
       "leading": {
         "kind": "neuronRef",
-        "refKind": "slot",
+        "refKind": "child",
         "neuronUri": "nav",
         "props": {
           "items": [
@@ -510,7 +510,7 @@
           },
           {
             "kind": "neuronRef",
-            "refKind": "slot",
+            "refKind": "child",
             "neuronUri": "message",
             "props": {
               "placeholder": "Message",

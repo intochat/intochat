@@ -46,7 +46,7 @@ internal static class InoDrawing
 
     // The props Ino wrote on its conversation slot in a view it rendered.
     internal static ChatThreadProps PropsOf(View view)
-        => ChatThreadComposition.FirstSlot(System.Text.Json.JsonSerializer.SerializeToElement(view, RuntimeProtocol.OptionsFor(typeof(View)))) is { } slot
+        => ChatThreadComposition.FirstChild(System.Text.Json.JsonSerializer.SerializeToElement(view, RuntimeProtocol.OptionsFor(typeof(View)))) is { } slot
             ? ChatThreadComposition.PropsOf(slot.Props)
             : throw new InvalidOperationException("The view has no conversation slot.");
 }

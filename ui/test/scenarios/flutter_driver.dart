@@ -3,8 +3,8 @@
 // renderer, replaying the pages the kernel showed, and journals every step in
 // the C# `StepTaken` shape. Its semantics mirror the kernel's reference driver
 // (tests/IntoChat.OS.Tests.Unit/Scenarios/KernelDriver.cs), read from what
-// Flutter draws: a target is a key path resolved through slots first (the
-// slot's view host), then node keys (the node's keyed widget); "." is the
+// Flutter draws: a target is a key path resolved through children first (the
+// child's view host), then node keys (the node's keyed widget); "." is the
 // page root; an expect reads the text drawn under the target; an expectShown
 // holds when a widget is drawn for the target.
 import 'dart:convert';
@@ -49,18 +49,18 @@ class UiScenario {
 }
 
 /// A page as the kernel showed it: its top-level view and the root view of
-/// every slot child it shows, keyed by the slot's key path
-/// (`{"view": {...}, "slots": {"nav": {"root": ...}, "a/b": ...}}`).
+/// every child it shows, keyed by the child's key path
+/// (`{"view": {...}, "children": {"nav": {"root": ...}, "a/b": ...}}`).
 class PageViews {
-  PageViews(this.view, this.slots);
+  PageViews(this.view, this.children);
 
   factory PageViews.fromJson(Map<String, dynamic> json) => PageViews(
     Map<String, dynamic>.from(json['view'] as Map),
-    Map<String, dynamic>.from((json['slots'] as Map?) ?? const {}),
+    Map<String, dynamic>.from((json['children'] as Map?) ?? const {}),
   );
 
   final Map<String, dynamic> view;
-  final Map<String, dynamic> slots;
+  final Map<String, dynamic> children;
 }
 
 /// Replays what the kernel showed for one scenario, recorded by the C#
@@ -111,23 +111,23 @@ class ReplayHost {
 
   PageViews get page => recorded[_shown]!;
 
-  /// Serves the view host: the top-level view, or a slot child's view.
+  /// Serves the view host: the top-level view, or a child's view.
   Future<Map<String, dynamic>> load(String kind, String name) async {
     if (name == viewName(scenario.appId)) {
       return {'generation': revision, 'view': page.view};
     }
-    // A slot child is read by its app's key path (`{root}/slots/{path}`), as
-    // `GET /apps/{app}/slots/{path}` serves it; the recording keys slots by path.
+    // A child is read by its app's key path (`{root}/children/{path}`), as
+    // `GET /apps/{app}/children/{path}` serves it; the recording keys children by path.
     final prefix =
-        '${viewName(scenario.appId).replaceFirst(RegExp(r'/view$'), '')}/slots/';
-    if (kind != 'slot' || !name.startsWith(prefix)) {
+        '${viewName(scenario.appId).replaceFirst(RegExp(r'/view$'), '')}/children/';
+    if (kind != 'child' || !name.startsWith(prefix)) {
       throw StateError(
-        '${scenario.name} reads "$kind" "$name" outside the slot route.',
+        '${scenario.name} reads "$kind" "$name" outside the child route.',
       );
     }
-    final slot = page.slots[name.substring(prefix.length)];
-    if (slot is Map) {
-      return {'generation': revision, 'view': Map<String, dynamic>.from(slot)};
+    final child = page.children[name.substring(prefix.length)];
+    if (child is Map) {
+      return {'generation': revision, 'view': Map<String, dynamic>.from(child)};
     }
     throw StateError('${scenario.name} recorded no view "$name".');
   }
@@ -289,8 +289,8 @@ class FlutterDriver {
 
   String? evidence(int index) => _lastRead.isEmpty ? null : _lastRead;
 
-  // Slot keys first: while the leading segment names a slot drawn here,
-  // descend into that slot's view host; the last segment is a slot, else
+  // Child keys first: while the leading segment names a child drawn here,
+  // descend into that child's view host; the last segment is a child, else
   // the node drawn with that key in the current view.
   Finder? _find(String target) {
     final root = find.byKey(rootKey, skipOffstage: false);
@@ -301,7 +301,7 @@ class FlutterDriver {
     for (var i = 0; i < segments.length; i++) {
       final candidate = path.isEmpty ? segments[i] : '$path/${segments[i]}';
       final slot = find.byWidgetPredicate(
-        (widget) => widget is ViewHost && widget.slotPath == candidate,
+        (widget) => widget is ViewHost && widget.childPath == candidate,
         skipOffstage: false,
       );
       if (slot.evaluate().isNotEmpty) {

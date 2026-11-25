@@ -230,7 +230,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         }
     }
 
-    private SettingsSlots ChildSlots => new(
+    private SettingsChildren ChildBuilders => new(
         Child<IToggleSwitchControl, ToggleSwitchProps>,
         Child<IComboBoxControl, ComboBoxProps>,
         Child<IFormControl, FormProps>);
@@ -452,7 +452,7 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
     public View Render() => PreviewView(State);
 
     protected override Node Render(SettingsAppState state)
-        => SettingsViewRenderer.RenderRoot(state, ChildSlots, state.LastRejection ?? base.LastRejection);
+        => SettingsViewRenderer.RenderRoot(state, ChildBuilders, state.LastRejection ?? base.LastRejection);
 
     // The controls are controlled: their values are props of this view, so a save re-renders them; nothing is pushed to them.
     private Task UpdateAsync(SettingsAppState next) => Show(next with { LastRejection = null });

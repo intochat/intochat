@@ -7,7 +7,7 @@ import '../primitives/slider.dart';
 import 'node_context.dart';
 
 /// What a slider neuron draws: the value from the neuron's view; the label,
-/// range, step and unit from the slot's props. The value is the props' when
+/// range, step and unit from the child's props. The value is the props' when
 /// the parent owns it, else the neuron's, else the props' minimum. While the
 /// person drags, the slider draws the dragged value and ignores the props;
 /// on release it sends one `SetValue` to the neuron itself (`.`), and the
@@ -42,7 +42,7 @@ class _SliderViewState extends State<_SliderView> {
 
   @override
   Widget build(BuildContext context) {
-    final props = SliderProps.fromJson(widget.ctx.slotProps);
+    final props = SliderProps.fromJson(widget.ctx.childProps);
     final enabled = props.isEnabled && widget.ctx.interactive;
     final max = props.max > props.min ? props.max : props.min + 1;
     final step = props.step > 0 ? props.step : (max - props.min) / 100;

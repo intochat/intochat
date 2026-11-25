@@ -2,7 +2,7 @@
 # Stepper
 
 A control neuron: a row of steps of which one is active. Its title and steps (each with its status) are props its parent writes on the
-slot. It owns the active step: Select stores it and signals SelectionChanged, or, when the parent owns the active step (props
+child node. It owns the active step: Select stores it and signals SelectionChanged, or, when the parent owns the active step (props
 ActiveStepId), only signals it, every time. The parent refuses a Select naming no step of its props (control.unknownItem).
 */
 using DigitalBrain;

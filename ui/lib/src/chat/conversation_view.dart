@@ -49,7 +49,7 @@ class ConversationView extends StatefulWidget {
   final NodeContext ctx;
 
   /// Runs the error line's action instead of sending its command (an action
-  /// the slot's parent decided, which the thread's view does not hold).
+  /// the child's parent decided, which the thread's view does not hold).
   final VoidCallback? onErrorAction;
 
   /// Model choices shown in the composer's model picker popover.

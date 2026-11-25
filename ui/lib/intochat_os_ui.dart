@@ -35,7 +35,7 @@ export 'src/nodes/metric_tile.dart';
 export 'src/nodes/neuron_ref.dart';
 export 'src/nodes/node_common.dart' show UiNodeTone, nodeToneOf, toneOf;
 export 'src/nodes/node_context.dart';
-export 'src/composition/slot_route.dart';
+export 'src/composition/child_route.dart';
 export 'src/nodes/node_renderer.dart';
 export 'src/flame/behavior/default_idle_tree.dart';
 export 'src/flame/behavior/tree_runtime.dart';

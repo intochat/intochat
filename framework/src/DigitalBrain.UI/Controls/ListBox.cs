@@ -9,7 +9,7 @@ public sealed record ListBoxState
     public string? SelectedId { get; init; }
 }
 
-/// <summary>What a list box neuron draws: its key and selected id. The client draws the items, selection mode and enabled from the slot's props.</summary>
+/// <summary>What a list box neuron draws: its key and selected id. The client draws the items, selection mode and enabled from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="SelectedId">The selected item's id; null selects none.</param>
 [ViewNode("listBoxView")]

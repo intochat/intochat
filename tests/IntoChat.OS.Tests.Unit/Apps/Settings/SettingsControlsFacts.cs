@@ -80,7 +80,7 @@ public sealed class SettingsControlsFacts
 
     private static IEnumerable<JsonElement> Slots(JsonElement json) => json.ValueKind switch
     {
-        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "slot" ? [json] : Enumerable.Empty<JsonElement>())
+        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "child" ? [json] : Enumerable.Empty<JsonElement>())
             .Concat(json.EnumerateObject().SelectMany(property => Slots(property.Value))),
         JsonValueKind.Array => json.EnumerateArray().SelectMany(Slots),
         _ => [],

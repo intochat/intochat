@@ -43,12 +43,12 @@ internal sealed partial class ViewNeuron
 
     // A command to "." is the owning app's request ({brain}/apps/{name}), only for a signal the current view sends to ".", and with
     // the acting person stamped under "by" when the args are an object (a positional array has no member to carry it). A command
-    // to any other target has nowhere to go: the app has no child slots.
+    // to any other target has nowhere to go: the app has no children.
     public async Task Dispatch(Command command)
     {
         ArgumentNullException.ThrowIfNull(command);
         RequireSameBrain();
-        if (!ViewValidation.ToSelf(command)) { throw new ActivationRefusedException(ActivationRefusedException.NoSlots); }
+        if (!ViewValidation.ToSelf(command)) { throw new ActivationRefusedException(ActivationRefusedException.NoChildren); }
         if (Snapshot.Json is not { } json || !ViewValidation.SendsToSelf(ViewValidation.Parse(json), command.Signal))
         {
             throw new ActivationRefusedException(ActivationRefusedException.NoEmit, $"The view of {FullKey} sends no '{command.Signal}'.");

@@ -1,7 +1,7 @@
 /*
 # Kanban
 
-A control neuron: a board of columns holding cards. Its title, columns and cards are props its parent writes on the slot; the board never
+A control neuron: a board of columns holding cards. Its title, columns and cards are props its parent writes on the child node; the board never
 stores a card. MoveCard only signals CardMoved, and the parent moves the card in the props it renders next, so the board shows a move
 only once the parent took it. The parent refuses a move naming a card or a column its props do not hold (control.unknownCard,
 control.unknownColumn), a position past the column's other cards (control.indexOutOfRange) and a move from another column into a full

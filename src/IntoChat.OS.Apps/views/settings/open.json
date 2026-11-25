@@ -273,7 +273,7 @@
         "children": [
           {
             "kind": "neuronRef",
-            "refKind": "slot",
+            "refKind": "child",
             "neuronUri": "search",
             "props": {
               "fields": [
@@ -605,7 +605,7 @@
                     "children": [
                       {
                         "kind": "neuronRef",
-                        "refKind": "slot",
+                        "refKind": "child",
                         "neuronUri": "theme-mode",
                         "props": {
                           "header": "Appearance mode",
@@ -781,7 +781,7 @@
                       },
                       {
                         "kind": "neuronRef",
-                        "refKind": "slot",
+                        "refKind": "child",
                         "neuronUri": "regional",
                         "props": {
                           "fields": [

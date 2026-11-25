@@ -1,7 +1,7 @@
 /*
 # Tree
 
-A control neuron: nodes nested by parent id, whose folders open and close. Its nodes are props its parent writes on the slot. It owns
+A control neuron: nodes nested by parent id, whose folders open and close. Its nodes are props its parent writes on the child node. It owns
 the selected node and the expanded folders, and either can be the parent's instead (props SelectedId, ExpandedIds), so a parent can
 open the tree to the node it selected. Owned by the tree, Select and ExpandNode store the change and signal SelectionChanged and
 NodeExpanded, and a command that changes nothing signals nothing; owned by the parent, they only signal, every time, and the tree

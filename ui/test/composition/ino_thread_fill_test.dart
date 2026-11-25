@@ -67,7 +67,7 @@ void main() {
                 'children': [
                   {
                     'kind': 'neuronRef',
-                    'refKind': 'slot',
+                    'refKind': 'child',
                     'neuronUri': 'ino/thread',
                   },
                 ],
@@ -103,10 +103,10 @@ void main() {
     (tester) async {
       await _pumpHost(
         tester,
-        kind: 'slot',
-        name: 'local/apps/ino/slots/conversation',
+        kind: 'child',
+        name: 'local/apps/ino/children/conversation',
         load: (kind, name) async => switch (name) {
-          'local/apps/ino/slots/conversation' => {
+          'local/apps/ino/children/conversation' => {
             'generation': 1,
             'view': {'title': 'Ino', 'root': _chatThreadRoot()},
           },

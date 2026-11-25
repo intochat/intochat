@@ -7,16 +7,16 @@ namespace IntoChat.OS.Modules.UI.Controls;
 
 /// <summary>
 /// The base of every control neuron. A control stores only what the user changes; its setup (label, enabled, content) is the props
-/// its parent writes on the slot, and the parent refuses commands to a disabled slot, so a control has no enabled check of its own.
+/// its parent writes on the child node, and the parent refuses commands to a disabled child, so a control has no enabled check of its own.
 /// When the props carry the value (a controlled control: the parent owns it), a command names the absolute value it asks for and the
 /// control signals that value every time, without comparing it with the props (which may be a render behind); it stores nothing, the
 /// parent applies the value idempotently and re-renders the props, and the client draws the props' value.
 /// </summary>
 /// <typeparam name="TState">What the user changes, stored by the control.</typeparam>
-/// <typeparam name="TProps">What the parent decides, written on the slot (it names the props record the catalog and the client read).</typeparam>
+/// <typeparam name="TProps">What the parent decides, written on the child node (it names the props record the catalog and the client read).</typeparam>
 public abstract class ControlNeuron<TState, TProps> : Screen<TState>, IControl<TProps> where TState : class, new() where TProps : ControlProps
 {
-    /// <summary>The key the control draws its view under: the last segment of its address (a slot's child key).</summary>
+    /// <summary>The key the control draws its view under: the last segment of its address (a child's key).</summary>
     protected string Key => ControlKeys.Of(Id);
 
     /// <summary>The props the parent routed with the running command; null for a command sent to the control directly.</summary>

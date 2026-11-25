@@ -62,7 +62,7 @@ internal static partial class InoCards
             uri = $"{uri}/view";
         }
 
-        return Slot(uri, resolved);
+        return Embed(uri, resolved);
     }
 
     internal static InoCard? FromResult(string result)

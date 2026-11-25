@@ -4,20 +4,20 @@ using IntoChat.OS.Modules.Web;
 
 namespace IntoChat.OS.Apps.Settings;
 
-/// <summary>What the Settings view needs from its screen to draw a control neuron: a slot with props (only the screen can render one).</summary>
-internal sealed record SettingsSlots(
+/// <summary>What the Settings view needs from its screen to draw a control neuron: a child with props (only the screen can render one).</summary>
+internal sealed record SettingsChildren(
     Func<string, ToggleSwitchProps, Node> ToggleSwitch,
     Func<string, ComboBoxProps, Node> ComboBox,
     Func<string, FormProps, Node> Form);
 
 /// <summary>
-/// The control neurons Settings draws, by slot key. Each is controlled: the app owns the preference and passes it as the control's
+/// The control neurons Settings draws, by child key. Each is controlled: the app owns the preference and passes it as the control's
 /// props value, the control only signals the person's change (Toggled, SelectionChanged, Submitted), and the app follows that signal,
 /// stores the preference and re-renders the props.
 /// </summary>
 internal static class SettingsControls
 {
-    /// <summary>The brain variable that lists setting keys a brain admin locks (comma-separated): drawn disabled, refused at the slot.</summary>
+    /// <summary>The brain variable that lists setting keys a brain admin locks (comma-separated): drawn disabled, refused at the child.</summary>
     public const string ManagedVariable = "SETTINGS_MANAGED";
 
     internal sealed record SettingSwitch(string Key, string Section, string Label, Func<SettingsAppState, bool> Get, Func<SettingsAppState, bool, SettingsAppState> Set);
@@ -123,26 +123,26 @@ internal static class SettingsControls
         => (state.Variables ?? []).FirstOrDefault(variable => string.Equals(variable.Key, ManagedVariable, StringComparison.OrdinalIgnoreCase)) is { } managed
             && managed.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains(key, StringComparer.Ordinal);
 
-    public static Node ToggleSwitch(SettingsSlots slots, SettingsAppState state, SettingSwitch toggle)
+    public static Node ToggleSwitch(SettingsChildren children, SettingsAppState state, SettingSwitch toggle)
     {
         var managed = IsManaged(state, toggle.Key);
-        return slots.ToggleSwitch(toggle.Key, new ToggleSwitchProps(managed ? $"{toggle.Label} (managed)" : toggle.Label, IsEnabled: !managed, AutomationName: toggle.Label, IsOn: toggle.Get(state)));
+        return children.ToggleSwitch(toggle.Key, new ToggleSwitchProps(managed ? $"{toggle.Label} (managed)" : toggle.Label, IsEnabled: !managed, AutomationName: toggle.Label, IsOn: toggle.Get(state)));
     }
 
-    public static Node ComboBox(SettingsSlots slots, SettingsAppState state, string key, string header, IReadOnlyList<ComboBoxOption> options)
+    public static Node ComboBox(SettingsChildren children, SettingsAppState state, string key, string header, IReadOnlyList<ComboBoxOption> options)
     {
         var managed = IsManaged(state, key);
         var selected = Combos.Single(combo => combo.Key == key).Get(state);
-        return slots.ComboBox(key, new ComboBoxProps(managed ? $"{header} (managed)" : header, options, IsEnabled: !managed, AutomationName: header, SelectedId: selected));
+        return children.ComboBox(key, new ComboBoxProps(managed ? $"{header} (managed)" : header, options, IsEnabled: !managed, AutomationName: header, SelectedId: selected));
     }
 
-    public static Node SearchForm(SettingsSlots slots, SettingsAppState state)
-        => slots.Form(Search, new FormProps([new FormInput("query", "Search settings", Value: state.SearchQuery, Placeholder: "Search settings…", MaxLength: 80)], "Search", AutomationName: "Search settings"));
+    public static Node SearchForm(SettingsChildren children, SettingsAppState state)
+        => children.Form(Search, new FormProps([new FormInput("query", "Search settings", Value: state.SearchQuery, Placeholder: "Search settings…", MaxLength: 80)], "Search", AutomationName: "Search settings"));
 
-    public static Node RegionalForm(SettingsSlots slots, SettingsAppState state)
+    public static Node RegionalForm(SettingsChildren children, SettingsAppState state)
     {
         var managed = IsManaged(state, Regional);
-        return slots.Form(Regional, new FormProps(
+        return children.Form(Regional, new FormProps(
             [
                 new FormInput("displayName", "Display name", Value: state.DisplayName, MaxLength: 64),
                 new FormInput("language", "Language", Value: state.Language, MaxLength: 32),
@@ -154,20 +154,20 @@ internal static class SettingsControls
             AutomationName: "Regional settings"));
     }
 
-    public static Node InstallModelForm(SettingsSlots slots, SettingsAppState state)
+    public static Node InstallModelForm(SettingsChildren children, SettingsAppState state)
     {
         var managed = IsManaged(state, InstallModel);
-        return slots.Form(InstallModel, new FormProps(
+        return children.Form(InstallModel, new FormProps(
             [new FormInput("model", "Model ID", Placeholder: "e.g. gemma4:e2b", MaxLength: 120)],
             "Install model",
             IsEnabled: !managed,
             AutomationName: "Install a model"));
     }
 
-    public static Node SearxngUrlForm(SettingsSlots slots, SettingsAppState state)
+    public static Node SearxngUrlForm(SettingsChildren children, SettingsAppState state)
     {
         var managed = IsManaged(state, SearxngUrl);
-        return slots.Form(SearxngUrl, new FormProps(
+        return children.Form(SearxngUrl, new FormProps(
             [
                 new FormInput(
                     "url",
@@ -181,10 +181,10 @@ internal static class SettingsControls
             AutomationName: "SearXNG URL"));
     }
 
-    public static Node McpAddFormControl(SettingsSlots slots, SettingsAppState state)
+    public static Node McpAddFormControl(SettingsChildren children, SettingsAppState state)
     {
         var managed = IsManaged(state, McpAddForm);
-        return slots.Form(McpAddForm, new FormProps(
+        return children.Form(McpAddForm, new FormProps(
             [
                 new FormInput("name", "Server name", Value: "", Placeholder: "docs", MaxLength: 32),
                 new FormInput("url", "Server URL", Value: "", Placeholder: "https://example.org/mcp", MaxLength: 512),
@@ -194,10 +194,10 @@ internal static class SettingsControls
             AutomationName: "Add MCP server"));
     }
 
-    public static Node ApiKeysForm(SettingsSlots slots, SettingsAppState state)
+    public static Node ApiKeysForm(SettingsChildren children, SettingsAppState state)
     {
         var managed = IsManaged(state, ApiKeys);
-        return slots.Form(ApiKeys, new FormProps(
+        return children.Form(ApiKeys, new FormProps(
             [
                 new FormInput("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKind.Secret, Placeholder: "sk-ant-…"),
                 new FormInput("OPENAI_API_KEY", "OpenAI API key", FormFieldKind.Secret, Placeholder: "sk-…"),
@@ -210,10 +210,10 @@ internal static class SettingsControls
             AutomationName: "Seal API keys in Secure Vault"));
     }
 
-    public static Node GitHubPatForm(SettingsSlots slots, SettingsAppState state)
+    public static Node GitHubPatForm(SettingsChildren children, SettingsAppState state)
     {
         var managed = IsManaged(state, GitHubPat);
-        return slots.Form(GitHubPat, new FormProps(
+        return children.Form(GitHubPat, new FormProps(
             [
                 new FormInput("Repository", "Repository (owner/repo)", Placeholder: "owner/repo", MaxLength: 140),
                 new FormInput("PersonalAccessToken", "Personal access token", FormFieldKind.Secret, Placeholder: "github_pat_…"),

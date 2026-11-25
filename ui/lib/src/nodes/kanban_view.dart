@@ -8,7 +8,7 @@ import '../theme/ui_icon.dart';
 import 'node_context.dart';
 
 /// What a kanban neuron draws: the selected card from the neuron's view; the
-/// title, columns and cards from the slot's props, each card in its column in
+/// title, columns and cards from the child's props, each card in its column in
 /// props order. The selection is the props' when the parent owns it, else the
 /// neuron's. A tap on a card sends `Select`; a card's arrows, or a drop of a
 /// dragged card on another column, send `MoveCard` to the end of that column,
@@ -16,7 +16,7 @@ import 'node_context.dart';
 /// parent checks the move and moves the card in the props it renders next, so
 /// a refused move leaves the board as it was. Disabled props send nothing.
 Widget renderKanbanView(KanbanViewNode node, NodeContext ctx) {
-  final props = KanbanProps.fromJson(ctx.slotProps);
+  final props = KanbanProps.fromJson(ctx.childProps);
   final selectedId = props.selectedCardId ?? node.selectedCardId;
   final enabled = props.isEnabled && ctx.interactive;
   final columns = props.columns;

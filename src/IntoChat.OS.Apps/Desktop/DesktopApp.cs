@@ -677,7 +677,7 @@ public sealed partial class DesktopApp : AggregateScreen<DesktopAppState>
                 HasTabStrip(winId)
                     ? Child<ITabStripControl, TabStripProps>(WindowTabsKey(winId), new TabStripProps(tabItems, AutomationName: $"{title} tabs", SelectedId: $"{winId}/{activeIndex}"))
                     : new Spacer(0),
-                Kit.Slot(brain is { Length: > 0 } ? IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
+                Kit.Embed(brain is { Length: > 0 } ? IntoChat.OS.Host.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }
 

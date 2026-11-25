@@ -2,7 +2,7 @@
 # Check box
 
 A control neuron: a box that a person checks or clears. It owns whether it is checked and signals Toggled when the value changes.
-Its label, enabled and accessible name are props its parent writes on the slot; the parent refuses commands while disabled.
+Its label, enabled and accessible name are props its parent writes on the child node; the parent refuses commands while disabled.
 */
 using DigitalBrain;
 using DigitalBrain.Neurons;

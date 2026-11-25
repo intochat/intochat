@@ -50,7 +50,7 @@ internal static class AppUiEndpoints
         });
         apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http), resolvers.FirstOrDefault()));
-        apps.MapGet("/{name}/slots/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
+        apps.MapGet("/{name}/children/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => ReadChild(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
         OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, [FromServices] IEnumerable<IScreenTargetResolver> resolvers, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger, resolvers.FirstOrDefault()));
@@ -64,7 +64,7 @@ internal static class AppUiEndpoints
     // each hop refusing a key its current view does not show. A raw child id is not a screen name and is refused here.
     // Value is a field's text: it joins the args as "value". Args never name "by": the screen that handles the command stamps the person.
     // A node's client-local intent never comes here: the client performs it from the node.
-    // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded, NoSlots);
+    // Responses: 200 delivered; 400 a missing or malformed field, args naming "by", or a value the args already declare (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded, NoChildren);
     // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
     internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
         IHostedAppTypes? hosted = null, ILogger? logger = null, IScreenTargetResolver? resolver = null)
@@ -128,7 +128,7 @@ internal static class AppUiEndpoints
         return Results.Ok(new { delivered = true });
     }
 
-    // GET /apps/{name}/slots/{path}: the view of a UI child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
+    // GET /apps/{name}/children/{path}: the view of a UI child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
     // and its child table, one key per hop ("a/b"), never by the child's neuron id (which the response does not carry either: its own
     // children are named by key). Responses: 200 the view; 400 a malformed path; 404 {reason: UnknownChild} a key the view does not show;
     // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed
@@ -150,7 +150,7 @@ internal static class AppUiEndpoints
             || path.StartsWith("./", StringComparison.Ordinal)
             || !IntoChat.OS.Host.Primitives.SafeRelativePath.TryParse(path, out _))
         {
-            return Results.BadRequest(new { error = "A slot path is one or more keys separated by '/'." });
+            return Results.BadRequest(new { error = "A child path is one or more keys separated by '/'." });
         }
         var resolvedTarget = await ResolveScreenTargetAsync(resolver, scope, neuron, ct);
         NeuronId screenId;
@@ -169,11 +169,11 @@ internal static class AppUiEndpoints
         try
         {
             var view = await brain.Get<IScreen>(screenId).ReadChild(path).WaitAsync(ct);
-            return Results.Json(SlotKeys.Screen(view), ViewJson);
+            return Results.Json(ChildKeys.Screen(view), ViewJson);
         }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.UnknownChild)
         {
-            return Results.NotFound(new { error = $"{neuron} shows no slot '{path}'.", reason = refused.Reason });
+            return Results.NotFound(new { error = $"{neuron} shows no child '{path}'.", reason = refused.Reason });
         }
         catch (ActivationRefusedException refused)
         {
@@ -181,7 +181,7 @@ internal static class AppUiEndpoints
         }
         catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
         {
-            (logger ?? ConsoleLog).LogWarning(error, "Reading slot {Path} of {Neuron} failed.", path, neuron);
+            (logger ?? ConsoleLog).LogWarning(error, "Reading child {Path} of {Neuron} failed.", path, neuron);
             return Results.UnprocessableEntity(new { error = error.Message, reason = "HandlerFailed" });
         }
     }
@@ -220,7 +220,7 @@ internal static class AppUiEndpoints
                 var failing = unitView is null ? null : await brain.Get<IDebuggerReads>(IDebuggerReads.Key(scope)).Failing(unit).WaitAsync(ct);
                 return Results.Ok(new
                 {
-                    Revision = unitView?.Generation ?? 0L,
+                    Generation = unitView?.Generation ?? 0L,
                     Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
                     Root = unitView is null ? null : new ViewRef(UIVocabulary.ViewType, new NeuronId(new BrainId(scope), unit, unit).FullKey()),
                     Error = UnitError(unitView, failing),
@@ -251,7 +251,7 @@ internal static class AppUiEndpoints
                                 {
                                     return Results.Ok(new
                                     {
-                                        Revision = published.Generation,
+                                        published.Generation,
                                         Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
                                         Root = new ViewRef(UIVocabulary.ViewType, directViewName),
                                         Error = (string?)null,
@@ -269,7 +269,7 @@ internal static class AppUiEndpoints
                     {
                         return Results.Ok(new
                         {
-                            Revision = directView.Generation,
+                            directView.Generation,
                             Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
                             Root = new ViewRef(UIVocabulary.ViewType, directViewName),
                             Error = (string?)null,
@@ -373,7 +373,7 @@ internal static class AppUiEndpoints
                         log.LogSwallowed(error, "Screen view for unit could not be read.");
                     }
                 }
-                return Results.Json(SlotKeys.Hide(unitView), ViewJson);
+                return Results.Json(ChildKeys.Hide(unitView), ViewJson);
             }
             if (ScreenAlias(scope, name) is { } screenAlias)
             {
@@ -392,7 +392,7 @@ internal static class AppUiEndpoints
                         var published = await brain.Get<IScreen>(resolvedViewScreenId).Read().WaitAsync(ct);
                         if (published is not null)
                         {
-                            return Results.Json(SlotKeys.Screen(published), ViewJson);
+                            return Results.Json(ChildKeys.Screen(published), ViewJson);
                         }
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
@@ -402,7 +402,7 @@ internal static class AppUiEndpoints
                 }
                 else if (await brain.Get<IView>(name).Read().WaitAsync(ct) is { } directAppView)
                 {
-                    return Results.Json(SlotKeys.Hide(directAppView), ViewJson);
+                    return Results.Json(ChildKeys.Hide(directAppView), ViewJson);
                 }
                 var candidateUnit = screenAlias["app.".Length..];
                 try
@@ -410,7 +410,7 @@ internal static class AppUiEndpoints
                     var unitFallback = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
                     if (unitFallback is not null)
                     {
-                        return Results.Json(SlotKeys.Hide(unitFallback), ViewJson);
+                        return Results.Json(ChildKeys.Hide(unitFallback), ViewJson);
                     }
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
@@ -418,7 +418,7 @@ internal static class AppUiEndpoints
                     log.LogSwallowed(error, "Unit view fallback could not be read.");
                 }
             }
-            return Results.Json(SlotKeys.Hide(await brain.Get<IView>(name).Read().WaitAsync(ct)), ViewJson);
+            return Results.Json(ChildKeys.Hide(await brain.Get<IView>(name).Read().WaitAsync(ct)), ViewJson);
         }
         return kind switch
         {

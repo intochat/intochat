@@ -6,11 +6,11 @@ import 'node_common.dart';
 import 'node_context.dart';
 
 /// What an expander neuron draws: whether it is expanded from the neuron's
-/// view; its header, children, enabled and accessible name from the slot's
+/// view; its header, children, enabled and accessible name from the child's
 /// props. The header sends `Expand` to the neuron itself (`.`); the neuron
 /// owns whether it is expanded and redraws. Disabled props send nothing.
 Widget renderExpanderView(ExpanderViewNode node, NodeContext ctx) {
-  final props = ExpanderProps.fromJson(ctx.slotProps);
+  final props = ExpanderProps.fromJson(ctx.childProps);
   final enabled = props.isEnabled && ctx.interactive;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,

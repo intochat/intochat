@@ -1022,7 +1022,7 @@ Map<String, dynamic> desktopViewJson({required Map<String, String> windows}) {
       },
       {
         'kind': 'neuronRef',
-        'refKind': 'slot',
+        'refKind': 'child',
         'neuronUri':
             'brain-1/control.tabStrip/brain-1/app.desktop/default/tabs-$id',
         'props': {

@@ -261,7 +261,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (pub is not null)
                 {
                     generation = pub.Generation;
-                    viewJson = SlotKeys.Hide(await InlineSlotsAsync(pub.View));
+                    viewJson = ChildKeys.Hide(await InlineChildrenAsync(pub.View));
                     if (isAgentTarget)
                     {
                         resolvedKind = IScreenTargetResolver.AgentAppKind;
@@ -284,7 +284,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (pub is not null)
                 {
                     generation = pub.Generation;
-                    viewJson = SlotKeys.Hide(pub.View);
+                    viewJson = ChildKeys.Hide(pub.View);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -303,7 +303,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (unitView is not null)
                 {
                     generation = unitView.Generation;
-                    viewJson = SlotKeys.Hide(unitView.View);
+                    viewJson = ChildKeys.Hide(unitView.View);
                     resolvedKind = "unit";
                 }
             }
@@ -371,7 +371,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                         if (pub is not null)
                         {
                             generation = pub.Generation;
-                            viewJson = SlotKeys.Hide(pub.View);
+                            viewJson = ChildKeys.Hide(pub.View);
                         }
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
@@ -415,7 +415,7 @@ internal sealed partial class ScreenDirectoryNeuron(
             }
         }
 
-        var controls = ExtractControls(viewJson);
+        var controls = ExtractNodes(viewJson);
         var pendingApprovals = await ExtractApprovals(brainId, normalizedApp, viewJson);
 
         return new ScreenSnapshot(

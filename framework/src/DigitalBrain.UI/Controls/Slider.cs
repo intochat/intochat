@@ -9,7 +9,7 @@ public sealed record SliderControlState
     public double? Value { get; init; }
 }
 
-/// <summary>What a slider neuron draws: its key and value. The client draws the label, range and unit from the slot's props.</summary>
+/// <summary>What a slider neuron draws: its key and value. The client draws the label, range and unit from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="Value">The slider's own value; null when it has none yet or the parent owns the value.</param>
 [ViewNode("sliderView")]

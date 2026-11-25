@@ -9,7 +9,7 @@ public sealed record StepperControlState
     public string? ActiveStepId { get; init; }
 }
 
-/// <summary>What a stepper neuron draws: its key and active step. The client draws the title and steps from the slot's props.</summary>
+/// <summary>What a stepper neuron draws: its key and active step. The client draws the title and steps from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="ActiveStepId">The stepper's own active step; null when none is active or the parent owns the active step.</param>
 [ViewNode("stepperView")]

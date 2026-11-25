@@ -7,7 +7,7 @@ import '../generated/node_commands.dart';
 import 'node_context.dart';
 
 /// What a form neuron draws: the fields, submit label, enabled and accessible
-/// name from the slot's props; the last submitted values from the neuron's view.
+/// name from the child's props; the last submitted values from the neuron's view.
 /// Typed text stays here until Submit, which sends every editable field's
 /// value at once (typed or not) to the neuron itself (`.`). Read-only fields
 /// are drawn but not sent. A secret field's typed text goes only to the
@@ -32,7 +32,7 @@ class _FormViewState extends State<_FormView> {
   final _typed = <String>{};
   String? _secretError;
 
-  FormProps get _props => FormProps.fromJson(widget.ctx.slotProps);
+  FormProps get _props => FormProps.fromJson(widget.ctx.childProps);
 
   static bool _isSecret(FormInput field) => field.kind == FormFieldKind.secret;
 

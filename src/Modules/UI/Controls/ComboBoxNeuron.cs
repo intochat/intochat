@@ -2,7 +2,7 @@
 # Combo box
 
 A control neuron: a drop-down of options of which one is selected. It owns the selected id and signals SelectionChanged when it changes.
-Its header, options, enabled and accessible name are props its parent writes on the slot; the parent refuses commands while disabled and
+Its header, options, enabled and accessible name are props its parent writes on the child node; the parent refuses commands while disabled and
 refuses a Select naming no option of the props (control.unknownItem), because the options are the parent's.
 */
 using DigitalBrain;

@@ -2837,13 +2837,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 }
 
-/// The tabs of a desktop window frame, from its tab strip child (a `slot`
+/// The tabs of a desktop window frame, from its tab strip child (a `child`
 /// reference whose props are the strip's [TabStripProps]): each tab's id,
 /// label, whether it is selected and enabled, and the child key a pick acts on.
 List<Map<String, dynamic>> desktopWindowTabs(List<Node> frameChildren) {
   final strip = frameChildren
       .whereType<NeuronRefNode>()
-      .where((ref) => ref.refKind == 'slot' && ref.props is Map)
+      .where((ref) => ref.refKind == 'child' && ref.props is Map)
       .firstOrNull;
   if (strip == null) return const [];
   final props = TabStripProps.fromJson(

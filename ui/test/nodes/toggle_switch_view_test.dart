@@ -12,8 +12,8 @@ void main() {
       view: 'local/apps/settings/view',
       generation: 1,
       actNeuron: 'local/apps/settings',
-      slotPath: 'dark-mode',
-      slotProps: const {
+      childPath: 'dark-mode',
+      childProps: const {
         'label': 'Dark mode',
         'onContent': 'On',
         'offContent': 'Off',
@@ -64,7 +64,7 @@ void main() {
             NodeContext(
               view: 'local/apps/settings/view',
               generation: 1,
-              slotProps: const {'label': 'Wi-Fi', 'isEnabled': false},
+              childProps: const {'label': 'Wi-Fi', 'isEnabled': false},
               send: (event) async {
                 sent.add(event);
                 return null;

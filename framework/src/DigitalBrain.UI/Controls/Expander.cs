@@ -9,7 +9,7 @@ public sealed record ExpanderState
     public bool IsExpanded { get; init; }
 }
 
-/// <summary>What an expander neuron draws: its key and whether it is expanded. The client draws the header, content and enabled from the slot's props.</summary>
+/// <summary>What an expander neuron draws: its key and whether it is expanded. The client draws the header, content and enabled from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="IsExpanded">True shows the content.</param>
 [ViewNode("expanderView")]

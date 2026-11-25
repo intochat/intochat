@@ -1079,7 +1079,7 @@ public sealed partial class FriendsApp : AggregateScreen<FriendsAppState>
                         LinkLabel: "Fork App-Post",
                         Open: Button("Fork App-Post").Key($"fork-{post.PostId}").Sends(new FriendsForkPost(post.PostId)))
                     : new RecordCardNode($"App-Post · {audience}", post.PostId, fields, Subtitle: post.Text),
-                .. post.Mine ? embedded.Select(child => (Node)Kit.Slot(child.TargetNeuronUri)) : [],
+                .. post.Mine ? embedded.Select(child => (Node)Kit.Embed(child.TargetNeuronUri)) : [],
                 .. post.Mine
                     ? new Node[]
                     {

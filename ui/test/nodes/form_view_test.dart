@@ -40,8 +40,8 @@ Future<List<Map<String, dynamic>>> _pump(
               view: 'local/apps/settings/view',
               generation: 1,
               actNeuron: 'local/apps/settings',
-              slotPath: 'profile',
-              slotProps: props,
+              childPath: 'profile',
+              childProps: props,
               send: (event) async {
                 sent.add(event);
                 return {'delivered': true};
@@ -148,8 +148,8 @@ void main() {
               NodeContext(
                 view: 'local/apps/settings/view',
                 actNeuron: 'local/apps/settings',
-                slotPath: 'profile',
-                slotProps: _props,
+                childPath: 'profile',
+                childProps: _props,
                 send: (event) async {
                   sent.add(event);
                   return {'delivered': true};

@@ -37,7 +37,7 @@ public static class ChatThreadComposition
     }
 
     // The neuron uri and props of the first slot in a view's wire JSON; null when it has none.
-    public static (string NeuronUri, JsonElement Props)? FirstSlot(JsonElement view)
+    public static (string NeuronUri, JsonElement Props)? FirstChild(JsonElement view)
     {
         var pending = new Stack<JsonElement>([view]);
         while (pending.Count > 0)
@@ -45,7 +45,7 @@ public static class ChatThreadComposition
             var element = pending.Pop();
             if (element.ValueKind == JsonValueKind.Object)
             {
-                if (element.TryGetProperty("refKind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "slot"
+                if (element.TryGetProperty("refKind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "child"
                     && element.TryGetProperty("neuronUri", out var uri) && element.TryGetProperty("props", out var props))
                 {
                     return (uri.GetString()!, props);

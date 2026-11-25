@@ -505,13 +505,13 @@ public static class Kit
         DigitalBrain.UI.Button? skip = null)
         => new(name, why, savedIn, status, enter, skip);
 
-    // ── Composition (Slots) ──────────────────────────────────────────────────
+    // ── Composition (Embed) ──────────────────────────────────────────────────
 
     /// <summary>
     /// Mounts another live neuron's view or surface inside this tree (<see cref="NeuronRef"/>),
     /// enabling recursive micro-frontend composition across compiled and runtime units.
     /// </summary>
-    public static NeuronRef Slot(string neuronUri, string refKind = "view")
+    public static NeuronRef Embed(string neuronUri, string refKind = "view")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(neuronUri);
         ArgumentException.ThrowIfNullOrWhiteSpace(refKind);

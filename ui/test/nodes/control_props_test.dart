@@ -4,7 +4,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 // A control's label, header, content and enabled are its slot's props
-// (NodeContext.slotProps). Without props a control draws safe defaults, and
+// (NodeContext.childProps). Without props a control draws safe defaults, and
 // props never leak to the nodes nested inside a control.
 NodeContext _ctx(
   List<Map<String, dynamic>> sent, [
@@ -12,7 +12,7 @@ NodeContext _ctx(
 ]) => NodeContext(
   view: 'local/apps/settings/view',
   generation: 1,
-  slotProps: props,
+  childProps: props,
   send: (event) async {
     sent.add(event);
     return {'delivered': true};

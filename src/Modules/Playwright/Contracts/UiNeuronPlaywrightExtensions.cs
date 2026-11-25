@@ -36,10 +36,10 @@ public static partial class UiNeuronPlaywrightExtensions
         return page.Locator($"[flt-semantics-identifier='key:{key}']");
     }
 
-    public static PlaywrightSdk.ILocator SlotNode(this PlaywrightSdk.IPage page, string slotPath)
+    public static PlaywrightSdk.ILocator ChildNode(this PlaywrightSdk.IPage page, string childPath)
     {
         ArgumentNullException.ThrowIfNull(page);
-        return page.Locator($"[flt-semantics-identifier='slot:{slotPath}']");
+        return page.Locator($"[flt-semantics-identifier='child:{childPath}']");
     }
 
     public static PlaywrightSdk.ILocator SemanticsId(this PlaywrightSdk.IPage page, string identifier)

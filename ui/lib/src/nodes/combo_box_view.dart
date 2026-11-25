@@ -6,11 +6,11 @@ import '../generated/node_commands.dart';
 import 'node_context.dart';
 
 /// What a combo box neuron draws: the selected id from the neuron's view; the
-/// header, options, enabled and accessible name from the slot's props. A pick
+/// header, options, enabled and accessible name from the child's props. A pick
 /// sends `Select` to the neuron itself (`.`); the parent checks the id against
 /// the props and the neuron owns the selection. Disabled props send nothing.
 Widget renderComboBoxView(ComboBoxViewNode node, NodeContext ctx) {
-  final props = ComboBoxProps.fromJson(ctx.slotProps);
+  final props = ComboBoxProps.fromJson(ctx.childProps);
   // A controlled control draws the parent's selection; otherwise the neuron's.
   final selectedId = props.selectedId ?? node.selectedId;
   final enabled = props.isEnabled && ctx.interactive;

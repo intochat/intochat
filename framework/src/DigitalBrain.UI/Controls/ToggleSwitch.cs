@@ -9,7 +9,7 @@ public sealed record ToggleSwitchState
     public bool IsOn { get; init; }
 }
 
-/// <summary>What a toggle switch neuron draws: its key and value. The client draws the label, contents and enabled from the slot's props.</summary>
+/// <summary>What a toggle switch neuron draws: its key and value. The client draws the label, contents and enabled from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="IsOn">True when on.</param>
 [ViewNode("toggleSwitchView")]

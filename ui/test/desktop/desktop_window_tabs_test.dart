@@ -6,7 +6,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 // the strip's props); a pick acts on that child through POST /act.
 void main() {
   const strip = NeuronRefNode(
-    refKind: 'slot',
+    refKind: 'child',
     neuronUri: 'brain-1/control.tabStrip/brain-1/app.desktop/default/tabs-w-1',
     props: {
       'items': [

@@ -13,10 +13,10 @@ import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
-import 'slot_route.dart';
+import 'child_route.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
-/// window onto another app's view (`viewport`), a live nested `Slot` (`neuronRef`),
+/// window onto another app's view (`viewport`), a live nested child or embed (`neuronRef`),
 /// or the hosted web browser (`webbrowser`). A chat transcript and its composer
 /// are view nodes. It reads the node once on mount and once per change signal
 /// (`ViewChanged` for a view) and hands a view to [NodeRenderer].
@@ -30,12 +30,12 @@ class ViewHost extends StatefulWidget {
     this.onAction,
     required this.knowsApp,
     this.ancestors = const {},
-    this.slotDepth = 0,
-    this.slotAncestors = const {},
+    this.childDepth = 0,
+    this.childAncestors = const {},
     this.actNeuron,
-    this.slotPath = '',
-    this.slotProps = const {},
-    this.inlineSlot = false,
+    this.childPath = '',
+    this.childProps = const {},
+    this.inlineChild = false,
     this.revision = 0,
     this.enabled = true,
     this.events,
@@ -56,21 +56,21 @@ class ViewHost extends StatefulWidget {
   /// whatever its kind, so an approval card inside an app or unit view stays display-only.
   final bool embedded;
 
-  /// True when mounted inline via a `NeuronRef` (`Screen.Child<T>`, wire `refKind: 'slot'`) inside a parent view or chat turn.
-  final bool inlineSlot;
+  /// True when mounted inline via a `NeuronRef` (`Screen.Child<T>`, wire `refKind: 'child'`) inside a parent view or chat turn.
+  final bool inlineChild;
 
-  /// Current `NeuronRef` (`Screen.Child<T>`) recursion depth (capped at [maxSlotDepth] = 4).
-  final int slotDepth;
+  /// Current `NeuronRef` (`Screen.Child<T>`) recursion depth (capped at [maxEmbedDepth] = 4).
+  final int childDepth;
 
   /// Visited `neuronUri` / resolved view names along the active child-ref chain.
-  final Set<String> slotAncestors;
+  final Set<String> childAncestors;
 
-  /// For a UI child (wire `refKind: 'slot'`): the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
+  /// For a UI child (wire `refKind: 'child'`): the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
   final String? actNeuron;
-  final String slotPath;
+  final String childPath;
 
-  /// For a UI child: the props its parent wrote on the `NeuronRef` node (see [NodeContext.slotProps]).
-  final Map<String, dynamic> slotProps;
+  /// For a UI child: the props its parent wrote on the `NeuronRef` node (see [NodeContext.childProps]).
+  final Map<String, dynamic> childProps;
 
   final NeuronLoader load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
@@ -330,8 +330,8 @@ class _ViewHostState extends State<ViewHost> {
     watchSignal: widget.watchSignal,
     callNeuron: widget.callNeuron,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
-    slotDepth: widget.slotDepth,
-    slotAncestors: widget.slotAncestors,
+    childDepth: widget.childDepth,
+    childAncestors: widget.childAncestors,
     revision: widget.revision,
     enabled: widget.enabled,
     transcribe: widget.transcribe,
@@ -342,7 +342,7 @@ class _ViewHostState extends State<ViewHost> {
   );
 
   /// Dedicated surface kinds hosted via `ViewHost` (`viewport`, `webbrowser`).
-  /// Live `Slot` (`NeuronRef`) view kinds are handled via [isSlotRefKind];
+  /// Live `NeuronRef` view kinds are handled via [isEmbedRefKind];
   /// `confirmation` is never referable.
   static const _referable = {'viewport', 'webbrowser'};
 
@@ -350,7 +350,7 @@ class _ViewHostState extends State<ViewHost> {
     String rawKind,
     String rawName,
     String identity,
-    Set<String> activeSlotAncestors,
+    Set<String> activeChildAncestors,
     Map<String, dynamic> props,
   ) {
     final kind = rawKind.trim().toLowerCase();
@@ -367,31 +367,31 @@ class _ViewHostState extends State<ViewHost> {
       );
     }
 
-    if (!isSlotRefKind(kind)) return null;
+    if (!isEmbedRefKind(kind)) return null;
 
     final trimmedUri = rawName.trim();
     if (trimmedUri.isEmpty) return null;
 
-    // A `slot` naming a bare key is this view's child: it is read and acted on through this view's root
-    // app with its key path (`{root}/slots/{path}`), never by the child's own neuron name (the kernel
-    // sends a screen's children by key only). A slot naming a whole address (`local/units/bank`) embeds
+    // A `child` naming a bare key is this view's child: it is read and acted on through this view's root
+    // app with its key path (`{root}/children/{path}`), never by the child's own neuron name (the kernel
+    // sends a screen's children by key only). A child naming a whole address (`local/units/bank`) embeds
     // that neuron's own view by name.
-    final isChild = isChildSlot(kind, trimmedUri);
+    final isChild = isScreenChild(kind, trimmedUri);
     final root =
         widget.actNeuron ??
         (widget.name.endsWith('/view')
             ? widget.name.substring(0, widget.name.length - 5)
             : widget.name);
-    final slotKey = isChild ? trimmedUri : '';
-    if (isChild && !isSlotKey(slotKey)) return null;
-    final slotPath = !isChild
+    final childKey = isChild ? trimmedUri : '';
+    if (isChild && !isChildKey(childKey)) return null;
+    final childPath = !isChild
         ? ''
-        : widget.slotPath.isEmpty
-        ? slotKey
-        : '${widget.slotPath}/$slotKey';
+        : widget.childPath.isEmpty
+        ? childKey
+        : '${widget.childPath}/$childKey';
     final resolvedName = isChild
-        ? '$root/slots/$slotPath'
-        : resolveSlotTargetName(
+        ? '$root/children/$childPath'
+        : resolveEmbedTargetName(
             parentView: widget.name,
             refKind: kind,
             neuronUri: trimmedUri,
@@ -400,28 +400,28 @@ class _ViewHostState extends State<ViewHost> {
       return null;
     }
 
-    final targetIdentity = '${isChild ? 'slot' : 'view'}:$resolvedName';
-    if (activeSlotAncestors.contains(resolvedName) ||
-        (!isChild && activeSlotAncestors.contains(trimmedUri)) ||
+    final targetIdentity = '${isChild ? 'child' : 'view'}:$resolvedName';
+    if (activeChildAncestors.contains(resolvedName) ||
+        (!isChild && activeChildAncestors.contains(trimmedUri)) ||
         widget.ancestors.contains(targetIdentity)) {
-      return SlotGuardNotice(
+      return EmbedGuardNotice(
         neuronUri: rawName,
         message: 'This component cannot be displayed.',
       );
     }
-    if (widget.slotDepth >= maxSlotDepth) {
-      return SlotGuardNotice(
+    if (widget.childDepth >= maxEmbedDepth) {
+      return EmbedGuardNotice(
         neuronUri: rawName,
-        message: 'Nested slot limit reached.',
+        message: 'Nested view limit reached.',
       );
     }
 
     return ViewHost(
-      key: ValueKey('slot:$resolvedName'),
+      key: ValueKey('child:$resolvedName'),
       actNeuron: isChild ? root : null,
-      slotPath: slotPath,
-      slotProps: props,
-      kind: isChild ? 'slot' : 'view',
+      childPath: childPath,
+      childProps: props,
+      kind: isChild ? 'child' : 'view',
       name: resolvedName,
       load: widget.load,
       onActivate: widget.onActivate,
@@ -431,11 +431,11 @@ class _ViewHostState extends State<ViewHost> {
       refreshEvery: widget.refreshEvery,
       watchSignal: widget.watchSignal,
       callNeuron: widget.callNeuron,
-      // A slot child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
+      // A child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
       watch: isChild ? null : widget.watch,
       ancestors: {...widget.ancestors, identity},
-      slotDepth: widget.slotDepth + 1,
-      slotAncestors: {...activeSlotAncestors, resolvedName},
+      childDepth: widget.childDepth + 1,
+      childAncestors: {...activeChildAncestors, resolvedName},
       revision: widget.revision,
       enabled: widget.enabled,
       transcribe: widget.transcribe,
@@ -443,19 +443,19 @@ class _ViewHostState extends State<ViewHost> {
       speak: widget.speak,
       storeSecret: widget.storeSecret,
       embedded: true,
-      inlineSlot: true,
+      inlineChild: true,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final content = KeyedSubtree(key: _focusKey, child: _content(context));
-    // A slot names its key path in the semantics tree, so a browser finds it as
-    // `flt-semantics-identifier="slot:<path>"` without reading widget keys.
-    return widget.slotPath.isEmpty
+    // A child names its key path in the semantics tree, so a browser finds it as
+    // `flt-semantics-identifier="child:<path>"` without reading widget keys.
+    return widget.childPath.isEmpty
         ? content
         : Semantics(
-            identifier: 'slot:${widget.slotPath}',
+            identifier: 'child:${widget.childPath}',
             container: true,
             explicitChildNodes: true,
             child: content,
@@ -465,17 +465,17 @@ class _ViewHostState extends State<ViewHost> {
   Widget _content(BuildContext context) {
     final identity = '${widget.kind}:${widget.name}';
     if (widget.ancestors.contains(identity) || widget.ancestors.length >= 16) {
-      return widget.inlineSlot
-          ? SlotGuardNotice(
+      return widget.inlineChild
+          ? EmbedGuardNotice(
               neuronUri: widget.name,
               message: 'This component cannot be displayed.',
             )
           : const Center(child: Text('This component cannot be displayed.'));
     }
-    if (widget.inlineSlot && widget.slotDepth > maxSlotDepth) {
-      return SlotGuardNotice(
+    if (widget.inlineChild && widget.childDepth > maxEmbedDepth) {
+      return EmbedGuardNotice(
         neuronUri: widget.name,
-        message: 'Nested slot limit reached.',
+        message: 'Nested view limit reached.',
       );
     }
 
@@ -483,7 +483,7 @@ class _ViewHostState extends State<ViewHost> {
     if (data == null) {
       return _ReadState(
         viewName: widget.name,
-        inlineSlot: widget.inlineSlot,
+        inlineChild: widget.inlineChild,
         error: _error,
         state: WindowState(
           _error == null ? WindowStatus.loading : WindowStatus.failed,
@@ -497,7 +497,7 @@ class _ViewHostState extends State<ViewHost> {
         !(widget.kind == 'confirmation' && widget.embedded);
     switch (widget.kind) {
       case 'view':
-      case 'slot':
+      case 'child':
       case 'confirmation':
         // An app view reads as {generation, view}; the confirmation inbox as the view itself.
         final rawView = data['view'] is Map ? data['view'] as Map : data;
@@ -511,7 +511,7 @@ class _ViewHostState extends State<ViewHost> {
         }
         final normalizedView = _normalizeViewJson(rawView);
         final buttonHints = _extractButtonHints(normalizedView);
-        final activeSlotAncestors = {...widget.slotAncestors, widget.name};
+        final activeChildAncestors = {...widget.childAncestors, widget.name};
         final ctx = NodeContext(
           view: widget.name,
           generation: data['generation'] is num
@@ -525,15 +525,20 @@ class _ViewHostState extends State<ViewHost> {
           callNeuron: widget.callNeuron,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
-          reference: (kind, name, props) =>
-              _buildReference(kind, name, identity, activeSlotAncestors, props),
+          reference: (kind, name, props) => _buildReference(
+            kind,
+            name,
+            identity,
+            activeChildAncestors,
+            props,
+          ),
           confirmation: widget.kind == 'confirmation' && !widget.embedded,
           enabled: enabled,
-          slotDepth: widget.slotDepth,
-          slotAncestors: activeSlotAncestors,
+          childDepth: widget.childDepth,
+          childAncestors: activeChildAncestors,
           actNeuron: widget.actNeuron,
-          slotPath: widget.slotPath,
-          slotProps: widget.slotProps,
+          childPath: widget.childPath,
+          childProps: widget.childProps,
           buttonHints: buttonHints,
           transcribe: widget.transcribe,
           talk: widget.talk,
@@ -552,11 +557,11 @@ class _ViewHostState extends State<ViewHost> {
                 builder: (context, constraints) => constraints.hasBoundedHeight
                     ? SizedBox.expand(child: renderedView)
                     : SizedBox(
-                        height: widget.inlineSlot ? 420 : 560,
+                        height: widget.inlineChild ? 420 : 560,
                         child: renderedView,
                       ),
               )
-            : widget.inlineSlot
+            : widget.inlineChild
             ? renderedView
             : SingleChildScrollView(primary: false, child: renderedView);
         final signals = _brainSignals;
@@ -658,9 +663,9 @@ class _ViewHostState extends State<ViewHost> {
   }
 }
 
-/// Normalizes optional inline child/slot fields on conversation messages so
+/// Normalizes optional inline child/child fields on conversation messages so
 /// `MessageNode.fromJson` populates `cards` seamlessly for inline UI kit nodes
-/// and `Slot` (`NeuronRef`) composition (`UK-18` readiness).
+/// and `NeuronRef` composition (`UK-18` readiness).
 Map<String, dynamic> _normalizeViewJson(Map raw) {
   Object? walk(Object? value, {bool inMessages = false}) {
     if (value is List) {
@@ -743,22 +748,22 @@ class _ReadState extends StatelessWidget {
   const _ReadState({
     required this.viewName,
     required this.state,
-    this.inlineSlot = false,
+    this.inlineChild = false,
     this.error,
     this.onRetry,
   });
 
   final String viewName;
   final WindowState state;
-  final bool inlineSlot;
+  final bool inlineChild;
   final Object? error;
   final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     if (state.status == WindowStatus.loading) {
-      final skeleton = SlotSkeleton(compact: inlineSlot);
-      return inlineSlot
+      final skeleton = EmbedSkeleton(compact: inlineChild);
+      return inlineChild
           ? skeleton
           : Center(
               child: ConstrainedBox(
@@ -799,6 +804,6 @@ class _ReadState extends StatelessWidget {
       ctx: retryCtx,
       onAction: onRetry,
     );
-    return inlineSlot ? line : Center(child: line);
+    return inlineChild ? line : Center(child: line);
   }
 }

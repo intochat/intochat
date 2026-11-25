@@ -391,7 +391,7 @@ public sealed class SettingsGitHubHubFacts
 
     private static IEnumerable<JsonElement> Children(JsonElement json) => json.ValueKind switch
     {
-        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "slot" ? [json] : Enumerable.Empty<JsonElement>())
+        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "child" ? [json] : Enumerable.Empty<JsonElement>())
             .Concat(json.EnumerateObject().SelectMany(property => Children(property.Value))),
         JsonValueKind.Array => json.EnumerateArray().SelectMany(Children),
         _ => [],
