@@ -1,18 +1,18 @@
 using System.Text.Json;
 using DigitalBrain.Testing.Scenarios;
-using IntoChat.OS.Apps.UiKit;
+using IntoChat.OS.Apps.Gallery;
 
 namespace IntoChat.OS.Tests.Support;
 
-// The UI Kit scenarios every driver runs: one per page. They live here (not in a test project) so the export fact and the kernel
+// The UI Gallery scenarios every driver runs: one per page. They live here (not in a test project) so the export fact and the kernel
 // driver in IntoChat.OS.Tests.Unit, the E2E tier and the Flutter driver (through ui/test/scenarios/scenarios.json) share one list.
 public static class ShowcaseScenarios
 {
-    public static IReadOnlyList<UiScenario> All { get; } = [.. UiKitPages.All.Select(For)];
+    public static IReadOnlyList<UiScenario> All { get; } = [.. GalleryPages.All.Select(For)];
 
-    private static UiScenario For(UiKitPage page) => page.Id switch
+    private static UiScenario For(GalleryPage page) => page.Id switch
     {
-        UiKitPages.FailedReply => new(page.Id, UiKitApp.AppName,
+        GalleryPages.FailedReply => new(page.Id, GalleryApp.AppName,
         [
             Open(page.Id),
             new Expect(".", page.Title),
@@ -23,33 +23,33 @@ public static class ShowcaseScenarios
             new Act(page.Id, "control.retry", Args(new { id = "f2" })),
             new Expect(".", "control.retry"),
         ]),
-        UiKitPages.LiveChart => new(page.Id, UiKitApp.AppName,
+        GalleryPages.LiveChart => new(page.Id, GalleryApp.AppName,
         [
             Open(page.Id),
             new Expect(".", page.Title),
             new ExpectShown(page.Id),
             new Expect(page.Id, "Live points"),
-            new Expect(page.Id, UiKitPages.ChartSeed[^1].Label),
-            new Act(".", "uikit.append", null),
-            new Expect(page.Id, UiKitPages.Point(1).Label),
+            new Expect(page.Id, GalleryPages.ChartSeed[^1].Label),
+            new Act(".", "gallery.append", null),
+            new Expect(page.Id, GalleryPages.Point(1).Label),
         ]),
         // The nav lists every title, so a title alone does not prove the page opened: a control or scenario page is also expected to
         // show its own slot (only the open page draws it), a data node page a text of its own example that the nav does not show.
-        _ when page.Group == UiKitPages.DataNode => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title), new Expect(".", ExampleText(page))]),
-        _ => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title), new ExpectShown(page.Id)]),
+        _ when page.Group == GalleryPages.DataNode => new(page.Id, GalleryApp.AppName, [Open(page.Id), new Expect(".", page.Title), new Expect(".", ExampleText(page))]),
+        _ => new(page.Id, GalleryApp.AppName, [Open(page.Id), new Expect(".", page.Title), new ExpectShown(page.Id)]),
     };
 
     // Opening a page is what a user does: select it in the nav.
-    private static Act Open(string page) => new(UiKitPages.Nav, "control.select", Args(new { id = page }));
+    private static Act Open(string page) => new(GalleryPages.Nav, "control.select", Args(new { id = page }));
 
     private static string[] Shown => ["value", "text", "title", "label", "body", "content", "subtitle", "placeholder", "caption", "description", "message", "name"];
 
     // The first text a data node page's own example shows that no nav entry contains, read from the example the page renders.
-    private static string ExampleText(UiKitPage page)
+    private static string ExampleText(GalleryPage page)
     {
-        var examples = UiKitPages.Examples(page.Id, UiKitPages.NodeKinds[page.Id]);
+        var examples = GalleryPages.Examples(page.Id, GalleryPages.NodeKinds[page.Id]);
         if (examples.Count == 0) { return $"The {page.Id} node has no [Showcase] example yet."; }
-        string[] nav = [.. UiKitPages.All.SelectMany(item => new[] { item.Id, item.Title, item.Group })];
+        string[] nav = [.. GalleryPages.All.SelectMany(item => new[] { item.Id, item.Title, item.Group })];
         var texts = examples.SelectMany(node => Strings(JsonSerializer.SerializeToElement(node, JsonSerializerOptions.Web), null)).ToArray();
         return texts.Where(text => text.Name is { } name && Shown.Contains(name, StringComparer.OrdinalIgnoreCase)).Concat(texts)
             .Select(text => Drawn(text.Value))

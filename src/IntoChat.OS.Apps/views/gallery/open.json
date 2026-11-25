@@ -1,1557 +1,553 @@
 {
   "appId": "gallery",
   "scenario": "open",
-  "side": {
-    "title": "UI Kit Catalog",
-    "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "surface",
-          "children": [
-            {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "tagPill",
-                  "label": "fluent-acrylic",
-                  "tone": "accent",
-                  "icon": "palette"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "floating-glass",
-                  "tone": "neutral",
-                  "icon": "layout"
-                }
-              ],
-              "gap": 6,
-              "padding": 0
-            },
-            {
-              "kind": "text",
-              "value": "Identity: fluent-acrylic · floating-glass",
-              "tone": "muted",
-              "tabular": true,
-              "mono": false
-            }
-          ],
-          "surfaceKind": "acrylic",
-          "title": "UI Gallery · Component Studio",
-          "subtitle": null,
-          "padding": 18
-        },
-        {
-          "kind": "field",
-          "key": "gallery-search",
-          "name": "apps/gallery/gallery-search",
-          "fieldKind": "Search",
-          "placeholder": "Search 5 categories & LFP cards…",
-          "onSubmit": {
-            "owner": "apps/gallery",
-            "signal": "filter",
-            "args": [
-              "all",
-              ""
-            ]
-          }
-        },
-        {
-          "kind": "divider",
-          "label": "CATEGORIES (5)"
-        },
-        {
-          "kind": "column",
-          "children": [
-            {
-              "kind": "navItem",
-              "key": "cat-home",
-              "label": "Catalog Grid (Home)",
-              "icon": "house",
-              "action": "select:home",
-              "selected": false,
-              "badge": "30",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "cat-all",
-              "label": "All Controls",
-              "icon": "layout-grid",
-              "action": "filter:all",
-              "selected": true,
-              "badge": "30",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "cat-design",
-              "label": "Design & Identity",
-              "icon": "palette",
-              "action": "filter:design",
-              "selected": false,
-              "badge": "4",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "cat-controls",
-              "label": "Basic Input",
-              "icon": "mouse-pointer-click",
-              "action": "filter:controls",
-              "selected": false,
-              "badge": "7",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "cat-layout",
-              "label": "Layout & App Shell",
-              "icon": "panel-left",
-              "action": "filter:layout",
-              "selected": false,
-              "badge": "4",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "cat-lfp",
-              "label": "Data & 13 LFP Chat Cards",
-              "icon": "table",
-              "action": "filter:chat-lfp",
-              "selected": false,
-              "badge": "13",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "cat-3d",
-              "label": "3D Brain & Neurons",
-              "icon": "brain-circuit",
-              "action": "filter:3d-brain",
-              "selected": false,
-              "badge": "2",
-              "emit": null
-            }
-          ],
-          "gap": 4,
-          "padding": 0
-        },
-        {
-          "kind": "divider",
-          "label": "CONTROLS (30)"
-        },
-        {
-          "kind": "column",
-          "children": [
-            {
-              "kind": "navItem",
-              "key": "sample-themes",
-              "label": "7 UI Identities & Glass Materiality",
-              "icon": "palette",
-              "action": "select:themes",
-              "selected": false,
-              "badge": "Design",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-typography",
-              "label": "Typography (Inter + InterDisplay + tnum)",
-              "icon": "type",
-              "action": "select:typography",
-              "selected": false,
-              "badge": "Design",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-iconography",
-              "label": "Iconography & Squircle IcAppIcon Builder",
-              "icon": "sparkles",
-              "action": "select:iconography",
-              "selected": false,
-              "badge": "Design",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-acrylic-surface",
-              "label": "AcrylicSurface & Specular Border",
-              "icon": "layers",
-              "action": "select:acrylic-surface",
-              "selected": false,
-              "badge": "Design",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-buttons",
-              "label": "Btn (Styles, Sizes & Icons)",
-              "icon": "mouse-pointer-click",
-              "action": "select:buttons",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-inputs",
-              "label": "Field & TextField",
-              "icon": "text-cursor-input",
-              "action": "select:inputs",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-switch",
-              "label": "IcSwitch (with Lock State)",
-              "icon": "toggle-right",
-              "action": "select:switch",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-select",
-              "label": "Select & Dropdown",
-              "icon": "list-filter",
-              "action": "select:select",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-tag-pill",
-              "label": "TagPill & Status Badges",
-              "icon": "tag",
-              "action": "select:tag-pill",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-progress-infobar",
-              "label": "Progress & InfoBar",
-              "icon": "loader",
-              "action": "select:progress-infobar",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-files-neuron-uri",
-              "label": "Distributed neuron:// File Addressing",
-              "icon": "folder",
-              "action": "select:files-neuron-uri",
-              "selected": false,
-              "badge": "Input",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-app-shell",
-              "label": "Ui.AppShell & Ui.StatCard Builders",
-              "icon": "panel-left",
-              "action": "select:app-shell",
-              "selected": false,
-              "badge": "Layout",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-tabs",
-              "label": "Tabs & Segmented Views",
-              "icon": "folder-kanban",
-              "action": "select:tabs",
-              "selected": false,
-              "badge": "Layout",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-surfaces",
-              "label": "IcAcrylicBox Surfaces",
-              "icon": "square-stack",
-              "action": "select:surfaces",
-              "selected": false,
-              "badge": "Layout",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-stat-card",
-              "label": "StatCard (Ui.StatCard)",
-              "icon": "trending-up",
-              "action": "select:stat-card",
-              "selected": false,
-              "badge": "Layout",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-table-card",
-              "label": "TableCard & Postgres SQL Result (LFP)",
-              "icon": "table",
-              "action": "select:table-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-chart-card",
-              "label": "ChartCard (LFP)",
-              "icon": "chart-column",
-              "action": "select:chart-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-approval-card",
-              "label": "ApprovalCard (LFP)",
-              "icon": "check-check",
-              "action": "select:approval-card",
-              "selected": true,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-choice-card",
-              "label": "ChoiceCard (LFP)",
-              "icon": "list-checks",
-              "action": "select:choice-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-draft-card",
-              "label": "DraftCard (LFP)",
-              "icon": "mail",
-              "action": "select:draft-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-change-preview-card",
-              "label": "ChangePreviewCard (LFP)",
-              "icon": "git-compare",
-              "action": "select:change-preview-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-app-install-card",
-              "label": "AppInstallCard (LFP)",
-              "icon": "package-plus",
-              "action": "select:app-install-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-record-card",
-              "label": "RecordCard (LFP)",
-              "icon": "contact",
-              "action": "select:record-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-secret-card",
-              "label": "SecretCard (LFP)",
-              "icon": "key-round",
-              "action": "select:secret-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-job-card",
-              "label": "JobCard (LFP)",
-              "icon": "workflow",
-              "action": "select:job-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-remember-card",
-              "label": "RememberCard (LFP)",
-              "icon": "brain",
-              "action": "select:remember-card",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-file-cards",
-              "label": "FileCards (FileCard, FileChip & SaveToPicker) (LFP)",
-              "icon": "file-check",
-              "action": "select:file-cards",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-error-line",
-              "label": "ErrorLine (LFP)",
-              "icon": "triangle-alert",
-              "action": "select:error-line",
-              "selected": false,
-              "badge": "LFP",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-brain-scene-3d",
-              "label": "BrainScene3D Orbital Graph",
-              "icon": "brain-circuit",
-              "action": "select:brain-scene-3d",
-              "selected": false,
-              "badge": "3D",
-              "emit": null
-            },
-            {
-              "kind": "navItem",
-              "key": "sample-neuron-paths",
-              "label": "Distributed NeuronId Addressing",
-              "icon": "network",
-              "action": "select:neuron-paths",
-              "selected": false,
-              "badge": "3D",
-              "emit": null
-            }
-          ],
-          "gap": 4,
-          "padding": 0
-        }
-      ],
-      "gap": 10,
-      "padding": 0
-    }
-  },
+  "side": null,
   "main": {
     "title": "UI Gallery",
     "root": {
-      "kind": "appShell",
-      "key": "gallery-shell",
-      "sidebar": {
-        "kind": "column",
-        "children": [
-          {
-            "kind": "button",
-            "key": "nav:home",
-            "label": "Home",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "home"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+      "kind": "splitPane",
+      "leading": {
+        "kind": "neuronRef",
+        "refKind": "slot",
+        "neuronUri": "nav",
+        "props": {
+          "items": [
+            {
+              "id": "message",
+              "title": "Message",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "accent",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:home",
-            "style": "primary",
-            "icon": "sparkles",
-            "small": true
-          },
-          {
-            "kind": "divider",
-            "label": "Design system"
-          },
-          {
-            "kind": "button",
-            "key": "nav:colors",
-            "label": "Colors & surfaces",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "colors"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "failed-reply",
+              "title": "Failed reply",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:colors",
-            "style": "ghost",
-            "icon": "palette",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:typography",
-            "label": "Typography",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "typography"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "card-in-chat",
+              "title": "Card in chat",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:typography",
-            "style": "ghost",
-            "icon": "type",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:icons",
-            "label": "Iconography",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "icons"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "activity-row",
+              "title": "Activity row",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:icons",
-            "style": "ghost",
-            "icon": "shapes",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:spacing",
-            "label": "Spacing & layout",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "spacing"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "composer",
+              "title": "Composer with model picker",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:spacing",
-            "style": "ghost",
-            "icon": "layout-grid",
-            "small": true
-          },
-          {
-            "kind": "divider",
-            "label": "Basic input"
-          },
-          {
-            "kind": "button",
-            "key": "nav:buttons",
-            "label": "Buttons & actions",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "buttons"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "empty",
+              "title": "Empty",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:buttons",
-            "style": "ghost",
-            "icon": "mouse-pointer-click",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:form",
-            "label": "Form & Vault (IForm)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "form"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "waiting",
+              "title": "Waiting",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:form",
-            "style": "ghost",
-            "icon": "key-round",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:winui-inputs",
-            "label": "WinUI 3 Inputs (1)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "winui-inputs"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "live-chart",
+              "title": "Live chart",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:winui-inputs",
-            "style": "ghost",
-            "icon": "sliders",
-            "small": true
-          },
-          {
-            "kind": "divider",
-            "label": "Navigation & layout"
-          },
-          {
-            "kind": "button",
-            "key": "nav:tabs",
-            "label": "Tabs (ITabs)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "tabs"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "table-query",
+              "title": "Table query",
+              "subtitle": null,
+              "group": "Scenarios"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:tabs",
-            "style": "ghost",
-            "icon": "panel-top",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:dialog",
-            "label": "Dialog (IDialog)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "dialog"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "appShell",
+              "title": "appShell",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:dialog",
-            "style": "ghost",
-            "icon": "message-square",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:winui-nav",
-            "label": "WinUI 3 Nav (2)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "winui-nav"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "appTile",
+              "title": "appTile",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:winui-nav",
-            "style": "ghost",
-            "icon": "compass",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:media",
-            "label": "Menus, Grid & Media (3)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "media"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "approvalCard",
+              "title": "approvalCard",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:media",
-            "style": "ghost",
-            "icon": "image",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:workspace",
-            "label": "Workspace Kit (3)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "workspace"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "badge",
+              "title": "badge",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:workspace",
-            "style": "ghost",
-            "icon": "code",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:wave3",
-            "label": "WinUI 3 Wave 3 (3)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "wave3"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "brainScene",
+              "title": "brainScene",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:wave3",
-            "style": "ghost",
-            "icon": "milestone",
-            "small": true
-          },
-          {
-            "kind": "divider",
-            "label": "Data & charts"
-          },
-          {
-            "kind": "button",
-            "key": "nav:charts",
-            "label": "Charts (IChart)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "charts"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "button",
+              "title": "button",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:charts",
-            "style": "ghost",
-            "icon": "chart-column",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:table",
-            "label": "Data table (ITable)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "table"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "card",
+              "title": "card",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:table",
-            "style": "ghost",
-            "icon": "table",
-            "small": true
-          },
-          {
-            "kind": "divider",
-            "label": "Agent & patterns"
-          },
-          {
-            "kind": "button",
-            "key": "nav:chat",
-            "label": "DevUI Chat (IChatThread)",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "chat"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "chart",
+              "title": "chart",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:chat",
-            "style": "ghost",
-            "icon": "sparkles",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:cards",
-            "label": "Status & chat cards",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "cards"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "chatThread",
+              "title": "chatThread",
+              "subtitle": null,
+              "group": "Controls"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:cards",
-            "style": "ghost",
-            "icon": "layers",
-            "small": true
-          },
-          {
-            "kind": "button",
-            "key": "nav:graphs",
-            "label": "State graphs & DDD",
-            "command": {
-              "target": ".",
-              "signal": "ui.command",
-              "args": {
-                "target": "state",
-                "method": "SelectPage",
-                "args": [
-                  "graphs"
-                ],
-                "valueIndex": null,
-                "value": null,
-                "guardReason": null,
-                "tooltip": null
-              }
+            {
+              "id": "chatThreadView",
+              "title": "chatThreadView",
+              "subtitle": null,
+              "group": "Data nodes"
             },
-            "intent": null,
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "nav:graphs",
-            "style": "ghost",
-            "icon": "brain-circuit",
-            "small": true
-          }
-        ],
-        "gap": 4,
-        "padding": 0
+            {
+              "id": "checkBox",
+              "title": "checkBox",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "checkBoxView",
+              "title": "checkBoxView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "choiceCard",
+              "title": "choiceCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "collection",
+              "title": "collection",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "column",
+              "title": "column",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "comboBox",
+              "title": "comboBox",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "comboBoxView",
+              "title": "comboBoxView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "conversation",
+              "title": "conversation",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "dataTable",
+              "title": "dataTable",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "diffCard",
+              "title": "diffCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "divider",
+              "title": "divider",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "draftCard",
+              "title": "draftCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "emptyState",
+              "title": "emptyState",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "errorLine",
+              "title": "errorLine",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "expander",
+              "title": "expander",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "expanderView",
+              "title": "expanderView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "field",
+              "title": "field",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "form",
+              "title": "form",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "formView",
+              "title": "formView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "grid",
+              "title": "grid",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "heading",
+              "title": "heading",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "iconButton",
+              "title": "iconButton",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "image",
+              "title": "image",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "infoBar",
+              "title": "infoBar",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "intent",
+              "title": "intent",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "jobCard",
+              "title": "jobCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "jsonTree",
+              "title": "jsonTree",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "kanban",
+              "title": "kanban",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "kanbanView",
+              "title": "kanbanView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "listBox",
+              "title": "listBox",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "listBoxView",
+              "title": "listBoxView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "liveChart",
+              "title": "liveChart",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "liveChartView",
+              "title": "liveChartView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "markdown",
+              "title": "markdown",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "metricTile",
+              "title": "metricTile",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "navItem",
+              "title": "navItem",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "neuronRef",
+              "title": "neuronRef",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "progress",
+              "title": "progress",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "queryTable",
+              "title": "queryTable",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "queryTableView",
+              "title": "queryTableView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "recordCard",
+              "title": "recordCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "row",
+              "title": "row",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "secretCard",
+              "title": "secretCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "slider",
+              "title": "slider",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "sliderView",
+              "title": "sliderView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "spacer",
+              "title": "spacer",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "splitPane",
+              "title": "splitPane",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "statCard",
+              "title": "statCard",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "stepper",
+              "title": "stepper",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "stepperView",
+              "title": "stepperView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "surface",
+              "title": "surface",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "tabStrip",
+              "title": "tabStrip",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "tabStripView",
+              "title": "tabStripView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "tagPill",
+              "title": "tagPill",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "text",
+              "title": "text",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "toast",
+              "title": "toast",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "toggleSwitch",
+              "title": "toggleSwitch",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "toggleSwitchView",
+              "title": "toggleSwitchView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "tree",
+              "title": "tree",
+              "subtitle": null,
+              "group": "Controls"
+            },
+            {
+              "id": "treeView",
+              "title": "treeView",
+              "subtitle": null,
+              "group": "Data nodes"
+            },
+            {
+              "id": "webBrowser",
+              "title": "webBrowser",
+              "subtitle": null,
+              "group": "Data nodes"
+            }
+          ],
+          "selectionMode": "Single",
+          "selectedId": "message",
+          "isEnabled": true,
+          "automationName": "Gallery pages"
+        }
       },
-      "body": {
+      "trailing": {
         "kind": "column",
-        "children": [
-          {
-            "kind": "column",
-            "children": [
-              {
-                "kind": "surface",
-                "children": [
-                  {
-                    "kind": "column",
-                    "children": [
-                      {
-                        "kind": "row",
-                        "children": [
-                          {
-                            "kind": "tagPill",
-                            "label": "18 live UI neurons",
-                            "tone": "done",
-                            "icon": "check"
-                          },
-                          {
-                            "kind": "tagPill",
-                            "label": "gRPC NeuronWatchMux",
-                            "tone": "working",
-                            "icon": "loader-circle"
-                          },
-                          {
-                            "kind": "tagPill",
-                            "label": "WinUI 3 NavigationShell",
-                            "tone": "neutral",
-                            "icon": null
-                          }
-                        ],
-                        "gap": 8,
-                        "padding": 0
-                      },
-                      {
-                        "kind": "divider",
-                        "label": "Live OS Identity & Theme Switcher"
-                      },
-                      {
-                        "kind": "text",
-                        "value": "Click any identity preset to persist to IUserSettings and live-update the entire Flutter OS shell:",
-                        "tone": "muted",
-                        "tabular": false,
-                        "mono": false
-                      },
-                      {
-                        "kind": "row",
-                        "children": [
-                          {
-                            "kind": "button",
-                            "key": "preset-warm-paper",
-                            "label": "Warm Paper",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "warm-paper",
-                                "BarLayout": "classic-bottom"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "neutral",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-warm-paper",
-                            "style": "secondary",
-                            "icon": "sun",
-                            "small": true
-                          },
-                          {
-                            "kind": "button",
-                            "key": "preset-fluent-acrylic",
-                            "label": "Fluent Acrylic",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "fluent-acrylic",
-                                "BarLayout": "floating-glass"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "accent",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-fluent-acrylic",
-                            "style": "primary",
-                            "icon": "palette",
-                            "small": true
-                          },
-                          {
-                            "kind": "button",
-                            "key": "preset-warm-mica",
-                            "label": "Fluent Warm Mica",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "fluent-warm-mica",
-                                "BarLayout": "floating-glass"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "neutral",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-warm-mica",
-                            "style": "secondary",
-                            "icon": "sun",
-                            "small": true
-                          },
-                          {
-                            "kind": "button",
-                            "key": "preset-linear-carbon",
-                            "label": "Linear Carbon",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "linear-carbon",
-                                "BarLayout": "classic-bottom"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "neutral",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-linear-carbon",
-                            "style": "secondary",
-                            "icon": "sliders-horizontal",
-                            "small": true
-                          },
-                          {
-                            "kind": "button",
-                            "key": "preset-spatial-glass",
-                            "label": "Spatial Glass",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "spatial-glass",
-                                "BarLayout": "compact-pill"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "neutral",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-spatial-glass",
-                            "style": "secondary",
-                            "icon": "sparkles",
-                            "small": true
-                          },
-                          {
-                            "kind": "button",
-                            "key": "preset-cyber-synaptic",
-                            "label": "Cyber Synaptic",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "cyber-synaptic",
-                                "BarLayout": "split-top-dock"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "neutral",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-cyber-synaptic",
-                            "style": "secondary",
-                            "icon": "zap",
-                            "small": true
-                          },
-                          {
-                            "kind": "button",
-                            "key": "preset-nordic-tactical",
-                            "label": "Nordic Tactical",
-                            "command": {
-                              "target": ".",
-                              "signal": "gallery.switch-identity",
-                              "args": {
-                                "StylePreset": "nordic-tactical",
-                                "BarLayout": "split-top-dock"
-                              }
-                            },
-                            "intent": null,
-                            "enabled": true,
-                            "tone": "neutral",
-                            "tooltip": null,
-                            "visible": true,
-                            "automationName": "preset-nordic-tactical",
-                            "style": "secondary",
-                            "icon": "shield",
-                            "small": true
-                          }
-                        ],
-                        "gap": 8,
-                        "padding": 0
-                      }
-                    ],
-                    "gap": 12,
-                    "padding": 0
-                  }
-                ],
-                "surfaceKind": "acrylic",
-                "title": "Welcome to IntoChat UI Gallery",
-                "subtitle": "Every interactive control below is a real stateful DigitalBrain Neuron in IntoChat.OS.Modules.UI rendered directly over gRPC.",
-                "padding": 18
-              },
-              {
-                "kind": "heading",
-                "value": "Explore by category",
-                "level": 2,
-                "subtitle": null
-              },
-              {
-                "kind": "grid",
-                "columns": 3,
-                "children": [
-                  {
-                    "kind": "card",
-                    "title": "Charts (IChart)",
-                    "body": "Two independent stateful IChart neurons: live streaming Append + IChartSource query binding.",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "home:open:charts",
-                        "label": "Open Charts (IChart)",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "SelectPage",
-                            "args": [
-                              "charts"
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "accent",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "home:open:charts",
-                        "style": "primary",
-                        "icon": "chart-column",
-                        "small": true
-                      }
-                    ],
-                    "header": null,
-                    "footer": null
-                  },
-                  {
-                    "kind": "card",
-                    "title": "Data Table (ITable)",
-                    "body": "Query-backed ITable neuron with live filter, sorting, pagination, and row selection.",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "home:open:table",
-                        "label": "Open Data Table (ITable)",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "SelectPage",
-                            "args": [
-                              "table"
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "accent",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "home:open:table",
-                        "style": "primary",
-                        "icon": "table",
-                        "small": true
-                      }
-                    ],
-                    "header": null,
-                    "footer": null
-                  },
-                  {
-                    "kind": "card",
-                    "title": "Basic Input",
-                    "body": "Button tones, compact sizing, and guarded Buttons with domain invariants.",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "home:open:buttons",
-                        "label": "Open Basic Input",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "SelectPage",
-                            "args": [
-                              "buttons"
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "accent",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "home:open:buttons",
-                        "style": "primary",
-                        "icon": "mouse-pointer-click",
-                        "small": true
-                      }
-                    ],
-                    "header": null,
-                    "footer": null
-                  },
-                  {
-                    "kind": "card",
-                    "title": "Design System",
-                    "body": "Colors, surfaces, InterDisplay + Inter typography, tabular numerals, icons, and 4pt/8pt spacing.",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "home:open:colors",
-                        "label": "Open Design System",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "SelectPage",
-                            "args": [
-                              "colors"
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "accent",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "home:open:colors",
-                        "style": "primary",
-                        "icon": "palette",
-                        "small": true
-                      }
-                    ],
-                    "header": null,
-                    "footer": null
-                  },
-                  {
-                    "kind": "card",
-                    "title": "Navigation & Layout",
-                    "body": "ITabs, AppShell, SplitPane, and responsive grids.",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "home:open:tabs",
-                        "label": "Open Navigation & Layout",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "SelectPage",
-                            "args": [
-                              "tabs"
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "accent",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "home:open:tabs",
-                        "style": "primary",
-                        "icon": "panel-top",
-                        "small": true
-                      }
-                    ],
-                    "header": null,
-                    "footer": null
-                  },
-                  {
-                    "kind": "card",
-                    "title": "State Graphs & DDD",
-                    "body": "Live BankAccount aggregate with Rule guards and unfolded Accordant StateGraphView.",
-                    "children": [
-                      {
-                        "kind": "button",
-                        "key": "home:open:graphs",
-                        "label": "Open State Graphs & DDD",
-                        "command": {
-                          "target": ".",
-                          "signal": "ui.command",
-                          "args": {
-                            "target": "state",
-                            "method": "SelectPage",
-                            "args": [
-                              "graphs"
-                            ],
-                            "valueIndex": null,
-                            "value": null,
-                            "guardReason": null,
-                            "tooltip": null
-                          }
-                        },
-                        "intent": null,
-                        "enabled": true,
-                        "tone": "accent",
-                        "tooltip": null,
-                        "visible": true,
-                        "automationName": "home:open:graphs",
-                        "style": "primary",
-                        "icon": "brain-circuit",
-                        "small": true
-                      }
-                    ],
-                    "header": null,
-                    "footer": null
-                  }
-                ],
-                "gap": 12
-              }
-            ],
-            "gap": 16,
-            "padding": 0
-          }
-        ],
-        "gap": 16,
-        "padding": 0
-      },
-      "toolbar": {
-        "kind": "row",
         "children": [
           {
             "kind": "heading",
-            "value": "IntoChat UI Gallery",
-            "level": 2,
-            "subtitle": "WinUI 3-style live showcase · Stateful Modules.UI neurons over gRPC"
+            "value": "Message",
+            "level": 1,
+            "subtitle": "Scenarios"
           },
           {
-            "kind": "spacer",
-            "size": 0
+            "kind": "neuronRef",
+            "refKind": "slot",
+            "neuronUri": "message",
+            "props": {
+              "placeholder": "Message",
+              "canSend": true,
+              "activeModelLabel": null,
+              "activeProviderIcon": null,
+              "dictation": false,
+              "status": "ready",
+              "working": false,
+              "emptyText": null,
+              "error": null,
+              "models": null,
+              "activeModelId": null,
+              "conversation": null,
+              "readAloud": false,
+              "talkConversation": null,
+              "isEnabled": true,
+              "automationName": "Message"
+            }
           },
           {
-            "kind": "tagPill",
-            "label": "fluent-acrylic",
-            "tone": "done",
-            "icon": "check"
+            "kind": "divider",
+            "label": "Event log"
           },
           {
-            "kind": "tagPill",
-            "label": "Ready · Select any page from the navigation rail.",
+            "kind": "text",
+            "value": "No signals yet: use a control.",
             "tone": "neutral",
-            "icon": null
-          },
-          {
-            "kind": "button",
-            "key": "gallery:open-uikit",
-            "label": "Open UI Kit",
-            "command": null,
-            "intent": {
-              "intentKind": "OpenWindow",
-              "arg": "os://window/open?app=uikit"
-            },
-            "enabled": true,
-            "tone": "neutral",
-            "tooltip": null,
-            "visible": true,
-            "automationName": "gallery:open-uikit",
-            "style": "secondary",
-            "icon": "widgets",
-            "small": true
+            "tabular": false,
+            "mono": false
           }
         ],
-        "gap": 8,
+        "gap": 12,
         "padding": 0
       },
-      "inspector": null
+      "leadingExtent": 280,
+      "gap": 16
     }
   }
 }

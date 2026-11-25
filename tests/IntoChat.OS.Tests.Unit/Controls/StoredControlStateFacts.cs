@@ -74,7 +74,7 @@ public sealed class StoredControlStateFacts
         await using var os = TestOS.Local();
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", ControlHarness.Brain));
         typeof(TestOS).GetMethod(nameof(TestOS.Register), Type.EmptyTypes)!.MakeGenericMethod(neuron).Invoke(os, null);
-        var id = new NeuronId(ControlHarness.Brain, typeId, "app.uikit/default/stored");
+        var id = new NeuronId(ControlHarness.Brain, typeId, "app.gallery/default/stored");
         os.SeedStoredState(id, json);
 
         var view = await os.Get<IScreen>(id).Read() ?? throw new InvalidOperationException($"{id} has no view.");

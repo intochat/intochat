@@ -6,15 +6,15 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using IntoChat.OS.Modules.UI.Controls;
 using IntoChat.OS.Apps.Tests.Unit;
-using IntoChat.OS.Apps.UiKit;
+using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Tests.Support;
 
 namespace IntoChat.OS.Tests.Unit.Scenarios;
 
-// Runs a scenario against the shipped UI Kit on TestOS: an Act is the command the edge /act sends (IScreen.Dispatch by key path, as
+// Runs a scenario against the shipped UI Gallery on TestOS: an Act is the command the edge /act sends (IScreen.Dispatch by key path, as
 // the local person), a Read is the visible text of the target's subtree with every slot child's own view drawn in place.
-internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
+internal sealed class KernelDriver(InstalledApp<GalleryApp> app) : IScenarioDriver
 {
     private const int MaxSlotDepth = 4;
     private static readonly BrainId Brain = new("local");
@@ -27,7 +27,7 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
         os.Register<CheckBoxNeuron>().Register<ExpanderNeuron>().Register<TabStripNeuron>().Register<ListBoxNeuron>()
             .Register<LiveChartNeuron>().Register<QueryTableNeuron>().Register<SampleTableSource>()
             .Register<KanbanNeuron>().Register<StepperNeuron>().Register<TreeNeuron>().Register<SliderNeuron>();
-        return new(await os.Install<UiKitApp>());
+        return new(await os.Install<GalleryApp>());
     }
 
     public async Task Act(Act step, CancellationToken ct)
@@ -42,9 +42,9 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
     public async Task<string> Read(string target, CancellationToken ct)
     {
         using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
-        var view = await app.Screen.Read() ?? throw new InvalidOperationException("The UI Kit has no view.");
+        var view = await app.Screen.Read() ?? throw new InvalidOperationException("The Gallery has no view.");
         var subtree = target == "." ? view.View : await Find(view.View, target)
-            ?? throw new InvalidOperationException($"The UI Kit shows no node or slot '{target}'.");
+            ?? throw new InvalidOperationException($"The Gallery shows no node or slot '{target}'.");
         var texts = new List<string>();
         await Collect(subtree, texts, 0);
         _lastRead = JsonSerializer.Serialize(new { target, texts });
@@ -57,7 +57,7 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
     public async Task<JsonElement> Snapshot()
     {
         using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
-        var view = await app.Screen.Read() ?? throw new InvalidOperationException("The UI Kit has no view.");
+        var view = await app.Screen.Read() ?? throw new InvalidOperationException("The Gallery has no view.");
         var slots = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
         await Slots(view.View, "", slots, 0);
         return JsonSerializer.SerializeToElement(new { view = IntoChat.OS.Modules.Flutter.SlotKeys.Screen(view.View), slots });
@@ -203,8 +203,8 @@ public sealed class KernelScenarioFacts
         Assert.True(verdict.Passed, $"{name} failed at step {verdict.FailedStep} ({(verdict.FailedStep is { } i ? JsonSerializer.Serialize(scenario.Steps[i]) : "-")}): {verdict.Reason}");
     }
 
-    // Every scenario must bite: without its nav select (the UI Kit opens on the first page) it fails.
-    public static TheoryData<string> NotFirst => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name).Where(name => name != UiKitPages.First)];
+    // Every scenario must bite: without its nav select (the Gallery opens on the first page) it fails.
+    public static TheoryData<string> NotFirst => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name).Where(name => name != GalleryPages.First)];
 
     [Theory]
     [MemberData(nameof(NotFirst))]
@@ -233,7 +233,7 @@ public sealed class KernelScenarioFacts
         var driver = await KernelDriver.Start(os);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => driver.Read("checkBox", ct));
-        await driver.Act(new Act(UiKitPages.Nav, "control.select", JsonSerializer.SerializeToElement(new { id = "checkBox" })), ct);
+        await driver.Act(new Act(GalleryPages.Nav, "control.select", JsonSerializer.SerializeToElement(new { id = "checkBox" })), ct);
 
         Assert.Contains("Remember me", await driver.Read("checkBox", ct), StringComparison.Ordinal);
     }

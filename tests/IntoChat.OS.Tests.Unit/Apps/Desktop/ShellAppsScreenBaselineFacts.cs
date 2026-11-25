@@ -51,7 +51,6 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(SettingsApp),
         typeof(TasksApp),
         typeof(UsageApp),
-        typeof(IntoChat.OS.Apps.UiKit.UiKitApp),
         typeof(IntoChat.OS.Apps.Widgetbook.WidgetbookApp)
     ];
 
@@ -104,7 +103,7 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(36, concreteScreens.Count);
+        Assert.Equal(35, concreteScreens.Count);
         foreach (var expected in All29ShellApps)
         {
             Assert.Contains(expected, concreteScreens);

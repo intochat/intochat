@@ -33,7 +33,7 @@ public sealed class AspireAppFacts
     [
         "artcraft", "aspire", "cadcraft", "calculator", "creator", "customer-researcher", "data", "deckcraft", "designcraft", "desktop", "devui",
         "effectcraft", "engineer", "figcraft", "files", "filmcraft", "friends", "gallery", "gridcraft", "ino", "lightcraft", "markdraw",
-        "materialcraft", "orleans", "pdfcraft", "photocraft", "settings", "solidcraft", "soundcraft", "tasks", "texturecraft", "uikit", "usage",
+        "materialcraft", "orleans", "pdfcraft", "photocraft", "settings", "solidcraft", "soundcraft", "tasks", "texturecraft", "usage",
         "vectorcraft", "widgetbook", "wordcraft",
     ];
 

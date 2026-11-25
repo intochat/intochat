@@ -178,7 +178,7 @@ public sealed class SlotReadEndpointFacts
 public sealed class SlotKeysFacts
 {
     [Theory]
-    [InlineData("owner/control.listBox/owner/app.uikit/default/nav", "nav")]
+    [InlineData("owner/control.listBox/owner/app.gallery/default/nav", "nav")]
     [InlineData("owner/units/bank", "owner/units/bank")]
     [InlineData("owner/control.listBox/main", "")]
     [InlineData("not an id", "")]

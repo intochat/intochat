@@ -3,7 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Scenarios;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Apps.UiKit;
+using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Tests.Support;
 
 namespace IntoChat.OS.Tests.Unit.Scenarios;
@@ -65,8 +65,8 @@ public sealed class ScenarioExportFacts
     }
 
     [Fact]
-    public void Every_uikit_page_has_one_scenario()
-        => Assert.Equal(UiKitPages.All.Select(page => page.Id), ShowcaseScenarios.All.Select(scenario => scenario.Name));
+    public void Every_gallery_page_has_one_scenario()
+        => Assert.Equal(GalleryPages.All.Select(page => page.Id), ShowcaseScenarios.All.Select(scenario => scenario.Name));
 
     private static string Root()
     {
