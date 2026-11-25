@@ -1047,6 +1047,7 @@ final class IntoChatOSUiClient {
         'target': event['target'],
         'signal': event['signal'],
         'args': event['args'],
+        'value': ?event['value'],
       },
       timeout: const Duration(seconds: 30),
     );

@@ -65,8 +65,10 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
       );
 
 /// Sends a control's [command]: on a top-level view a command to `.` activates
-/// the [key] (unless the view acts via `/act` with a canonical dotted signal,
-/// map args, and no field [value]); anything else goes through [NodeContext.act].
+/// the [key] (unless the view acts via `/act` with a canonical dotted signal
+/// and map args); anything else goes through [NodeContext.act], which carries
+/// a field's [value] beside the args (the server adds it as `value` and the
+/// screen stamps who acted).
 Future<void> pressCommand(
   String key,
   Command? command,
@@ -82,7 +84,7 @@ Future<void> pressCommand(
   if (command == null ||
       command.target.isEmpty ||
       (ctx.isTopLevelSelf(command.target) &&
-          (!ctx.actsViaAct || !isCanonicalAct || value != null))) {
+          (!ctx.actsViaAct || !isCanonicalAct))) {
     return ctx.activate(key, value: value, context: context);
   }
   final args = command.args;
@@ -92,7 +94,8 @@ Future<void> pressCommand(
   return ctx.act(
     command.target,
     command.signal,
-    value == null ? baseArgs : <String, Object?>{...baseArgs, 'value': value},
+    baseArgs,
+    value: value,
     context: context,
   );
 }

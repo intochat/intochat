@@ -125,6 +125,62 @@ void main() {
     expect(sent.single['key'], 'append');
   });
 
+  testWidgets(
+    'a root field of a view marked for /act submits its text over /act',
+    (tester) async {
+      final sent = <Map<String, dynamic>>[];
+      final ctx = NodeContext(
+        view: 'local/apps/notes/view',
+        generation: 2,
+        actsViaAct: true,
+        send: (event) async {
+          sent.add(event);
+          return {'delivered': true};
+        },
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.intochat(Brightness.light),
+          home: Scaffold(
+            body: Builder(
+              builder: (_) => NodeRenderer.render(
+                const FieldNode(
+                  key: 'note',
+                  name: 'apps/notes/note',
+                  fieldKind: FieldKind.text,
+                  placeholder: null,
+                  onSubmit: Command(
+                    target: '.',
+                    signal: 'notes.save',
+                    args: {'draft': 'd1'},
+                    props: null,
+                  ),
+                  automationName: 'Note',
+                ),
+                ctx,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(sent.where((event) => event['kind'] == 'view'), isEmpty);
+      expect(sent.last, {
+        'kind': 'act',
+        'neuron': 'local/apps/notes',
+        'target': '.',
+        'signal': 'notes.save',
+        'args': {'draft': 'd1'},
+        'value': 'hello',
+      });
+    },
+  );
+
   test('act on a non-interactive context sends nothing', () async {
     const ctx = NodeContext(view: 'local/apps/settings/view');
     await ctx.act('.', 'toggle.set', const {});
@@ -227,7 +283,8 @@ void main() {
         'neuron': 'local/apps/uikit',
         'target': 'live-slot',
         'signal': 'control.setChecked',
-        'args': {'value': 'true'},
+        'args': <String, Object?>{},
+        'value': 'true',
       });
 
       await tester.enterText(find.byType(TextField), 'button');
@@ -238,7 +295,8 @@ void main() {
         'neuron': 'local/apps/uikit',
         'target': 'filter-slot',
         'signal': 'control.submit',
-        'args': {'scope': 'all', 'value': 'button'},
+        'args': {'scope': 'all'},
+        'value': 'button',
       });
     },
   );

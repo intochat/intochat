@@ -132,7 +132,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         _ => false,
     };
 
-    /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate.</summary>
+    /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate. The screen that handles it finds the acting person's principal under "by" in the payload.</summary>
     /// <exception cref="ArgumentException">The target key is empty, "..", or contains '/' after the optional "./" (returned as a faulted task).</exception>
     /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     protected Task Send(Command command)
@@ -144,7 +144,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
             if (command.Target == ".")
             {
-                var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: null);
+                // The handler hears who acted from the kernel-stamped caller, never from the args: a declared "by" is replaced or dropped.
+                var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: Context.Caller?.For?.Principal);
                 return command.Props is { } props && PropsFromParent(command.Signal) ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
             }
             var slot = Hop(command.Target, out var rest);
