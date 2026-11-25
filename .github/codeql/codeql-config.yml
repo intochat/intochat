@@ -1,0 +1,11 @@
+name: IntoChat OS CodeQL
+
+# Generated build output is not scanned: nobody edits it, and its alerts point at the compiler's runtime, not at our code.
+# Every path below is the output of a build whose sources stay scanned. Hand-written source is never listed here.
+paths-ignore:
+  # The Widgetbook web site the kernel serves at /widgetbook: the release output of
+  # `flutter build web -t lib/widgetbook.dart --base-href /widgetbook/ --release`, run in ui/ and copied here whole.
+  # main.dart.js is dart2js output (the Flutter web runtime's HTML-filtering and escape regexps raised 39 alerts);
+  # flutter.js, flutter_bootstrap.js and flutter_service_worker.js are Flutter's generated loader and service worker;
+  # sw.js and index.html are copies of ui/web, which stays scanned. Its sources are ui/lib and ui/web.
+  - src/IntoChat.OS.Kernel/wwwroot/widgetbook

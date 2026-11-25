@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // Workflow guard rails that no run can prove while Actions is unavailable:
-// Only ci.yml, release.yml, and artcraft-images.yml exist in .github/workflows/.
+// Only ci.yml, release.yml, artcraft-images.yml, and codeql.yml exist in .github/workflows/; codeql.yml scans with
+// .github/codeql/codeql-config.yml, which keeps generated web builds out of the scan.
 // ci.yml runs unit, integration, e2e, and flutter jobs against a single build.
 // release.yml builds images once and packages releases with no deploy scripts; deploy jobs live in the private cloud repository.
 // No workflow references scripts/ directory or PACKAGE_TOKEN or DEPLOYMENT_VALUES_TOKEN.
@@ -22,14 +23,14 @@ public sealed partial class CiWorkflowFacts
     }
 
     [Fact]
-    public void OnlyCiReleaseAndArtcraftWarmWorkflowsExist()
+    public void OnlyCiReleaseArtcraftWarmAndCodeQlWorkflowsExist()
     {
         var workflows = Directory.EnumerateFiles(Path.Combine(Repository.Root, ".github", "workflows"), "*.yml")
             .Select(Path.GetFileName)
             .Order()
             .ToArray();
 
-        string[] expected = ["artcraft-images.yml", "ci.yml", "release.yml"];
+        string[] expected = ["artcraft-images.yml", "ci.yml", "codeql.yml", "release.yml"];
         Assert.Equal(expected, workflows);
     }
 

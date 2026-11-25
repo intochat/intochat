@@ -10,9 +10,6 @@ public sealed partial class ChildVocabularyFacts
     // Reads a view stored before the rename: the one place that names the retired ref kind.
     private static readonly string LegacyReader = Path.Combine(Repository.FrameworkRoot, ModuleFolderFacts.SourceFolder, "DigitalBrain.UI", "LegacyViewJson.cs");
 
-    // The compiled Widgetbook web build is generated output (OWED: rebuilt with the next Widgetbook change).
-    private static readonly string WebBuild = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Kernel").Directory, "wwwroot");
-
     private static IEnumerable<string> Files()
     {
         var roots = new[]
@@ -23,7 +20,7 @@ public sealed partial class ChildVocabularyFacts
         };
         return roots
             .SelectMany(root => new[] { "*.cs", "*.dart", "*.json" }.SelectMany(pattern => Repository.SourceFiles(root, pattern)))
-            .Where(path => !Repository.IsUnder(path, WebBuild) && !string.Equals(Path.GetFullPath(path), Path.GetFullPath(LegacyReader), StringComparison.OrdinalIgnoreCase));
+            .Where(path => !string.Equals(Path.GetFullPath(path), Path.GetFullPath(LegacyReader), StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
