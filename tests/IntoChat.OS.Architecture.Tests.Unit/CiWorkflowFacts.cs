@@ -8,8 +8,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // ci.yml runs unit, integration, e2e, and flutter jobs against a single build.
 // release.yml builds images once and packages releases with no deploy scripts; deploy jobs live in the private cloud repository.
 // No workflow references scripts/ directory or PACKAGE_TOKEN or DEPLOYMENT_VALUES_TOKEN.
-// release.yml packages the Windows bundle with eng/release/package-release.ps1 on a Windows runner and attaches it to
-// the release; ci.yml dry-runs the same script on Windows so it cannot rot between releases.
+// release.yml packages all 5 platforms with eng/package.cs and attaches versioned and stable release assets;
+// ci.yml dry-runs eng/package.cs on Windows so it cannot rot between releases.
 public sealed partial class CiWorkflowFacts
 {
     private static string Workflow(string name) => File.ReadAllText(Path.Combine(Repository.Root, ".github", "workflows", name));
@@ -144,16 +144,17 @@ public sealed partial class CiWorkflowFacts
     private static string[] Uses(string text) =>
         Regex.Matches(text, @"(?m)^\s*(?:-\s*)?uses:\s*(?<action>\S+)").Select(m => m.Groups["action"].Value).Distinct().ToArray();
 
-    private const string PackagingCommand = "dotnet run intochat.cs -- package-release --rid win-x64";
-    private const string PackagingDryRunCommand = "dotnet run intochat.cs -- package-dry-run --rid win-x64";
+    private const string PackagingCommand = "dotnet run eng/package.cs --platform win-x64";
+    private const string PackagingDryRunCommand = "dotnet run eng/package.cs --platform win-x64 --version 0.24.0 --dry-run";
 
-    // The deploy facts above say "zero scripts": deploys go through Kernel install, and packaging the desktop bundle
-    // runs through the C# ReleasePackager command on IntoChat.OS.AppHost.
+    // The deploy facts above say "zero scripts": deploys go through Kernel install, and packaging all 5 platforms
+    // runs through the unified cross-platform C# packaging script at eng/package.cs.
     [Fact]
     public void ReleasePackagesTheWindowsBundleOnAWindowsRunnerAndAttachesItToTheRelease()
     {
-        Assert.False(File.Exists(Path.Combine(Repository.Root, "eng", "release", "package-release.ps1")), "package-release.ps1 must be retired in favor of ReleasePackager");
-        Assert.False(File.Exists(Path.Combine(Repository.Root, "eng", "release", "package-release.sh")), "package-release.sh must be retired in favor of ReleasePackager");
+        Assert.True(File.Exists(Path.Combine(Repository.Root, "eng", "package.cs")), "eng/package.cs must exist as the unified cross-platform packager");
+        Assert.False(File.Exists(Path.Combine(Repository.Root, "eng", "release", "package-release.ps1")), "package-release.ps1 must be retired in favor of eng/package.cs");
+        Assert.False(File.Exists(Path.Combine(Repository.Root, "eng", "release", "package-release.sh")), "package-release.sh must be retired in favor of eng/package.cs");
         var release = Workflow("release.yml");
         var job = Job(release, "package-windows");
 
@@ -174,12 +175,13 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains($"flutter-version: '{flutterVersion.Groups["v"].Value}'", job, StringComparison.Ordinal);
         Assert.Contains("flutter pub get --enforce-lockfile", job, StringComparison.Ordinal);
 
-        // The four kinds of asset go to the release the tag belongs to.
-        var upload = Regex.Match(job, @"gh release upload [^
-]*");
+        // Versioned archive, stable aliases, installer, checksums, and manifests go to the release the tag belongs to.
+        var upload = Regex.Match(job, @"gh release upload [^\r\n]*");
         Assert.True(upload.Success, "package-windows must attach its output with gh release upload");
         Assert.Contains("\"${GITHUB_REF_NAME}\"", upload.Value, StringComparison.Ordinal);
         Assert.Contains("intochat-*-win-x64.zip", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("intochat-win-x64.zip", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("IntoChat-Setup-win-x64.exe", upload.Value, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS", upload.Value, StringComparison.Ordinal);
         Assert.Contains("latest.json", upload.Value, StringComparison.Ordinal);
         Assert.Contains("winget/IntoChat.OS.yaml", upload.Value, StringComparison.Ordinal);
@@ -188,6 +190,44 @@ public sealed partial class CiWorkflowFacts
         Assert.DoesNotContain("secrets.", job, StringComparison.Ordinal);
         var known = Uses(Workflow("ci.yml")).Concat(Uses(release.Replace(job, "", StringComparison.Ordinal))).ToHashSet(StringComparer.Ordinal);
         Assert.All(Uses(job), action => Assert.Contains(action, known));
+    }
+
+    [Fact]
+    public void ReleasePackagesAllFivePlatformsWithUnifiedPackageScript()
+    {
+        var release = Workflow("release.yml");
+        var packageScript = File.ReadAllText(Path.Combine(Repository.Root, "eng", "package.cs"));
+
+        // Unified packager bundles IntoChat.OS.Sandbox under unithost for all 3 desktop platforms.
+        Assert.Contains("IntoChat.OS.Sandbox.csproj", packageScript, StringComparison.Ordinal);
+        Assert.Contains("unithost", packageScript, StringComparison.Ordinal);
+
+        var platformJobs = new (string JobName, string PlatformArg, string StableAlias)[]
+        {
+            ("package-windows", "--platform win-x64", "IntoChat-Setup-win-x64.exe"),
+            ("package-linux", "--platform linux-x64", "intochat-linux-amd64.deb"),
+            ("package-macos", "--platform osx-arm64", "IntoChat-macos-arm64.dmg"),
+            ("package-android", "--platform android", "intochat-android.apk"),
+            ("package-ios", "--platform ios", "intochat-ios-unsigned.ipa"),
+        };
+
+        foreach (var (jobName, platformArg, stableAlias) in platformJobs)
+        {
+            var job = Job(release, jobName);
+            Assert.Contains($"dotnet run eng/package.cs {platformArg}", job, StringComparison.Ordinal);
+            Assert.Contains("global-json-file: global.json", job, StringComparison.Ordinal);
+            Assert.Contains(stableAlias, job, StringComparison.Ordinal);
+        }
+
+        var publishChecksums = Job(release, "publish-checksums");
+        var needs = Needs(publishChecksums);
+        foreach (var (jobName, _, _) in platformJobs)
+        {
+            Assert.Contains(jobName, needs);
+        }
+
+        Assert.Contains("SHA256SUMS", publishChecksums, StringComparison.Ordinal);
+        Assert.Contains("gh release upload", publishChecksums, StringComparison.Ordinal);
     }
 
     // A Windows packaging failure must not hold back the image, and the reverse.

@@ -1,4 +1,4 @@
-# Template cask: version, channel, and SHA-256 digests are populated during release packaging (eng/release/package-release.sh).
+# Template cask: version, channel, and SHA-256 digests are populated during release packaging (eng/package.cs).
 cask "intochat" do
   arch arm: "arm64", intel: "x64"
 
