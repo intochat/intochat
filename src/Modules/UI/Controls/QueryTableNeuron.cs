@@ -2,15 +2,22 @@
 # Query table
 
 A control neuron: a table that stores a query, not rows. It owns the filter, the sort (column and direction) and the page, and signals
-TableChanged on every change. Its title, the columns it shows and the address of the source its rows come from are props its parent
-writes on the slot; the parent refuses a Sort naming a column the props do not show (control.unknownColumn) and a Page below 1
-(control.pageOutOfRange).
+TableChanged on every change. Its title, the columns it shows and where its rows come from are props its parent writes on the slot;
+the parent refuses a Sort naming a column the props do not show (control.unknownColumn) and a Page below 1 (control.pageOutOfRange).
 
-Render runs inside the save and cannot await, so the rows are read when the query changes: each command asks the source for the new
-page before it saves the query, and holds that one page in a field that is never persisted. After a reactivation the view says it is
-not loaded; the client sends a Page for the current page on first drawing it, which reads it again. A command without props, an address that names no table source of this brain (never called), or a source that throws is logged and drawn
-as the table's error line; it never fails the command or the render. Named QueryTable because a `dataTable` data node already exists;
-it draws as a queryTableView.
+The rows come from one of two places. Inline rows (props Rows, each with an id and cells) are the parent's: the neuron never reads or
+holds them, and the client filters, sorts and pages them by the stored query, because a control sees its props only while a command
+runs and so cannot draw rows that change with the parent. Without inline rows the rows are read from the table source at the props'
+address. Render runs inside the save and cannot await, so each command asks the source for the new page before it saves the query,
+and holds that one page in a field that is never persisted. After a reactivation the view says it is not loaded; the client sends a
+Page for the current page on first drawing it, which reads it again. A command without props, an address that names no table source
+of this brain (never called), or a source that throws is logged and drawn as the table's error line; it never fails the command or
+the render.
+
+An inline row can be selected by id: SelectRow stores the id and signals RowSelected, or, when the parent owns the selection (props
+SelectedRowId), only signals it. The parent refuses an id its props do not hold (control.unknownRow); a table that reads a source has
+no row ids, so it refuses every SelectRow. Named QueryTable because a `dataTable` data node already exists; it draws as a
+queryTableView.
 */
 using DigitalBrain;
 using DigitalBrain.Components;
@@ -22,8 +29,9 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.UI.Controls;
 
-/// <summary>A query table: it owns the query, reads one page from its source, and signals <see cref="TableChanged"/>.</summary>
-[Neuron("control.queryTable"), Emits(typeof(TableChanged))]
+/// <summary>A query table: it owns the query and the selected row, reads one page from its source unless its rows are inline, and signals
+/// <see cref="TableChanged"/> and <see cref="RowSelected"/>.</summary>
+[Neuron("control.queryTable"), Emits(typeof(TableChanged)), Emits(typeof(RowSelected))]
 public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, QueryTableProps>, IQueryTableControl
 {
     [Slot(Required = false)]
@@ -62,6 +70,15 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
         return Change(State with { Page = command.Number });
     }
 
+    [On]
+    public Task SelectRow(SelectRow command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.RowId);
+        if (Props?.SelectedRowId is not null) { return Publish(new RowSelected(command.RowId)); }
+        return command.RowId == State.SelectedRowId ? Task.CompletedTask : Show(State with { SelectedRowId = command.RowId }, new RowSelected(command.RowId));
+    }
+
     private async Task Change(QueryTableState next)
     {
         _shown = await Read(next).ConfigureAwait(true);
@@ -77,10 +94,13 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
             return new Shown([], [], 0, "The table has no source.");
         }
         IReadOnlyList<string> columnIds = [.. props.Columns.Select(column => column.Id)];
+        // Inline rows are the parent's and drawn by the client from the props: nothing is read.
+        if (props.Rows is not null) { return new Shown(columnIds, [], 0, null); }
         // Only a table source of this brain is called: an address naming anything else is drawn as the error line, never called.
-        if (!NeuronId.TryParse(props.SourceAddress, out var address) || !TableSources.Exists(address))
+        var source = props.SourceAddress ?? "";
+        if (!NeuronId.TryParse(source, out var address) || !TableSources.Exists(address))
         {
-            Log.NotASource(GetLogger(), props.SourceAddress, Id.ToString());
+            Log.NotASource(GetLogger(), source, Id.ToString());
             return new Shown(columnIds, [], 0, "The table's source is not a table source.");
         }
         try
@@ -93,7 +113,7 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
         catch (Exception error)
 #pragma warning restore CA1031
         {
-            Log.SourceFailed(GetLogger(), error, props.SourceAddress, Id.ToString());
+            Log.SourceFailed(GetLogger(), error, source, Id.ToString());
             return new Shown(columnIds, [], 0, "The table's source did not answer.");
         }
     }
@@ -103,7 +123,7 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
         ArgumentNullException.ThrowIfNull(state);
         var shown = _shown;
         return new(Key, new QueryTableView(Key, state.Filter, state.SortBy, state.Descending, state.Page, QueryTableState.PageSize,
-            shown?.Total ?? 0, shown is not null, shown?.ColumnIds ?? [], shown?.Rows ?? [], shown?.Error));
+            shown?.Total ?? 0, shown is not null, shown?.ColumnIds ?? [], shown?.Rows ?? [], shown?.Error, state.SelectedRowId));
     }
 
     private static partial class Log

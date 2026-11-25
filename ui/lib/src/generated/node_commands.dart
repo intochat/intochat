@@ -126,6 +126,13 @@ Future<ActivationOutcome> actQueryTablePage(
   required int number,
 }) => ctx.act(address, 'control.page', {'number': number});
 
+/// Sends `SelectRow` to the `queryTable` neuron at [address].
+Future<ActivationOutcome> actQueryTableSelectRow(
+  NodeContext ctx,
+  String address, {
+  required String rowId,
+}) => ctx.act(address, 'control.selectRow', {'rowId': rowId});
+
 /// Sends `Sort` to the `queryTable` neuron at [address].
 Future<ActivationOutcome> actQueryTableSort(
   NodeContext ctx,

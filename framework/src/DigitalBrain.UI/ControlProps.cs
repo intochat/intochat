@@ -329,8 +329,14 @@ public static class TableRefusals
     /// <summary>A sort names no column of the slot's props.</summary>
     public const string UnknownColumn = "control.unknownColumn";
 
+    /// <summary>The alias of the select-row command (<c>DigitalBrain.UI.Commands.SelectRow</c>, which this assembly cannot reference).</summary>
+    public const string SelectRowSignal = "control.selectRow";
+
     /// <summary>A page number below 1.</summary>
     public const string PageOutOfRange = "control.pageOutOfRange";
+
+    /// <summary>A row selection names no row of the slot's props (a table that reads a source has none).</summary>
+    public const string UnknownRow = "control.unknownRow";
 }
 
 /// <summary>A column of a query table: the id its rows are keyed by and the title drawn above it.</summary>
@@ -338,16 +344,35 @@ public static class TableRefusals
 /// <param name="Title">The header text.</param>
 public sealed record QueryTableColumn(string Id, string Title);
 
+/// <summary>A row a parent gives a query table inline: its id and its cells.</summary>
+/// <param name="Id">The row id a selection names; unique within the table.</param>
+/// <param name="Cells">The cell texts, in the order of the table's columns; a missing cell draws empty.</param>
+public sealed record QueryTableRow(string Id, IReadOnlyList<string> Cells)
+{
+    /// <inheritdoc />
+    public bool Equals(QueryTableRow? other) => other is not null && Id == other.Id && Cells.SequenceEqual(other.Cells);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Id, SequenceHash.Of(Cells));
+}
+
 /// <summary>
-/// The props of a query table: what its parent decides. The table owns only its query (filter, sort, page); the rows are read from the
-/// source at <see cref="SourceAddress"/> and never stored.
+/// The props of a query table: what its parent decides. The table owns only its query (filter, sort, page) and, unless the parent
+/// owns it, the selected row. Its rows are either the parent's <see cref="Rows"/>, which the client filters, sorts and pages by the
+/// table's query, or read from the source at <see cref="SourceAddress"/>; neither is stored.
 /// </summary>
 /// <param name="Title">The table's title.</param>
 /// <param name="Columns">The columns to show, in order; a sort naming any other column is refused (control.unknownColumn).</param>
-/// <param name="SourceAddress">The address of the neuron the rows are read from (a table source of the same brain).</param>
+/// <param name="SourceAddress">The address of the neuron the rows are read from (a table source of the same brain); ignored when
+/// <paramref name="Rows"/> is set.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the title.</param>
-public sealed record QueryTableProps(string Title, IReadOnlyList<QueryTableColumn> Columns, string SourceAddress, bool IsEnabled = true, string? AutomationName = null)
+/// <param name="Rows">The rows, inline: for app-computed tables of up to a few hundred rows. Only inline rows can be selected; a
+/// selection naming no row here is refused (control.unknownRow). Null reads the rows from the source.</param>
+/// <param name="SelectedRowId">Set when the parent owns the selection (a controlled table): drawn instead of the table's state, and a
+/// SelectRow only signals RowSelected; the table stores nothing. Null leaves the selection to the table.</param>
+public sealed record QueryTableProps(string Title, IReadOnlyList<QueryTableColumn> Columns, string? SourceAddress = null, bool IsEnabled = true,
+    string? AutomationName = null, IReadOnlyList<QueryTableRow>? Rows = null, string? SelectedRowId = null)
     : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
@@ -360,15 +385,19 @@ public sealed record QueryTableProps(string Title, IReadOnlyList<QueryTableColum
                 && Columns.Any(known => known.Id == column.GetString()) ? null : TableRefusals.UnknownColumn,
             TableRefusals.PageSignal => json is { } page && page.TryGetProperty("number", out var number) && number.TryGetInt32(out var n) && n >= 1
                 ? null : TableRefusals.PageOutOfRange,
+            TableRefusals.SelectRowSignal => json is { } select && select.TryGetProperty("rowId", out var rowId) && rowId.ValueKind == JsonValueKind.String
+                && Rows is { } rows && rows.Any(row => row.Id == rowId.GetString()) ? null : TableRefusals.UnknownRow,
             _ => null,
         };
     }
 
     /// <inheritdoc />
-    public bool Equals(QueryTableProps? other) => other is not null && base.Equals(other) && Title == other.Title && SourceAddress == other.SourceAddress && Columns.SequenceEqual(other.Columns);
+    public bool Equals(QueryTableProps? other) => other is not null && base.Equals(other) && Title == other.Title && SourceAddress == other.SourceAddress
+        && SelectedRowId == other.SelectedRowId && Columns.SequenceEqual(other.Columns)
+        && (Rows is null ? other.Rows is null : other.Rows is not null && Rows.SequenceEqual(other.Rows));
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, SourceAddress, SequenceHash.Of(Columns));
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, SourceAddress, SelectedRowId, SequenceHash.Of(Columns), Rows is null ? 0 : SequenceHash.Of(Rows));
 }
 
 /// <summary>What a query table asks its source for: one page of the rows matching a filter, in an order.</summary>

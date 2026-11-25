@@ -40,6 +40,7 @@ public sealed class StoredControlStateFacts
                 {
                     var table = Assert.IsType<QueryTableView>(node);
                     Assert.Equal(("ann", "name", true, 2), (table.Filter, table.SortBy, table.Descending, table.Page));
+                    Assert.Null(table.SelectedRowId);
                 }
             ),
             ["control.chatThread"] = (typeof(ChatThreadNeuron),
