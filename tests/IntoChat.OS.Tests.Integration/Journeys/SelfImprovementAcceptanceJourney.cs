@@ -55,6 +55,9 @@ public sealed class SelfImprovementAcceptanceJourney
             RunGit(sourceRepo, ["init", "--initial-branch=main"]);
             RunGit(sourceRepo, ["config", "user.name", "Acceptance Test"]);
             RunGit(sourceRepo, ["config", "user.email", "accept@example.test"]);
+            // Byte-for-byte files whatever the machine's git says (Git for Windows sets core.autocrlf=true system-wide): a
+            // conversion makes the merge see the checked-out file as changed and refuse to fast-forward.
+            RunGit(sourceRepo, ["config", "core.autocrlf", "false"]);
 
             Directory.CreateDirectory(Path.Combine(sourceRepo, "code"));
             await File.WriteAllTextAsync(

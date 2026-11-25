@@ -382,6 +382,30 @@ public sealed class FlowsNeuronFacts
         Assert.Equal("ino/conversations/main", view.Conversation);
     }
 
+    // Start interleaves with the index's other turns and records the caller's app in the index's state. Given a flow id, each
+    // Start first reads the flow's head, so forty of them and the flows' own signals save the index at once; no save may be
+    // refused as stale because another was still in flight.
+    [Fact]
+    public async Task ConcurrentStartsByAnAgentAllRecordTheirApp()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
+        var flows = Flows(runtime);
+
+        string[] ids;
+        using (runtime.Edge.Enter(runtime.Edge.Agent(new Actor.Person("person-1", "account-1"), runtime.Brain, conversation: "ino/conversations/main")))
+        {
+            ids = await Task.WhenAll(Enumerable.Range(0, 40).Select(i => flows.Start(TestFlow.Alias, "By Ino " + i, null, Inner(new TestInner()), Ct, flowId: "race" + i)));
+        }
+
+        foreach (var id in ids)
+        {
+            var view = await Eventually(flows, id, view => view.Status == FlowStatus.Completed && view.App is not null);
+            Assert.Equal("assistant", view.App);
+        }
+    }
+
     [Fact]
     public async Task CallerBecomesOwner()
     {

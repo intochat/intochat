@@ -120,19 +120,19 @@ public sealed class SynapseHostFacts
         return state!.Value.GetProperty("spent").GetDecimal();
     }
 
-    // An unloaded collectible context can need several collections before its weak handle clears, more so
-    // under parallel load; collect until nothing lingers, bounded so a real leak still fails the assertion.
+    // An unloaded collectible context clears only once no thread still runs its code and no finalizer holds it, which
+    // takes longer under parallel load; collect until nothing lingers, within a budget so a real leak still fails the assertion.
+    private static readonly TimeSpan UnloadBudget = TimeSpan.FromSeconds(30);
+
     private static void Collect(IUnitLoader loader)
     {
-        for (var i = 0; i < 50 && loader.Lingering().Count > 0; i++)
+        var deadline = DateTime.UtcNow + UnloadBudget;
+        while (loader.Lingering().Count > 0 && DateTime.UtcNow < deadline)
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
-            if (i >= 10)
-            {
-                Thread.Sleep(10);
-            }
+            Thread.Sleep(10);
         }
     }
 
@@ -279,6 +279,7 @@ public sealed class SynapseHostFacts
         var first = await DeployApproved(os, "hs6");
 
         await AssertRivalRefused(os, first.Hash!);
+        await os.Idle();
         Collect(os.Loader);
         Assert.Empty(os.Loader.Lingering());
         await Pay(os, "hs6").Charge(50m);

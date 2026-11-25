@@ -392,6 +392,10 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
 
     internal sealed class EdgeKernelHarness : IAsyncDisposable
     {
+        // How long a started host may take to answer /ready. Generous: a whole OS host starts here, often beside other test
+        // hosts on a loaded runner, and nothing here measures how fast it starts.
+        private static readonly TimeSpan ReadyBudget = TimeSpan.FromSeconds(120);
+
         private readonly WebApplication _app;
         private readonly IDisposable _ports;
         private readonly string _homeDir;
@@ -469,7 +473,7 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
                 var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
                 var proof = app.Services.GetRequiredService<IPresenceProof>();
 
-                var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+                var deadline = DateTimeOffset.UtcNow + ReadyBudget;
                 var ready = false;
                 while (DateTimeOffset.UtcNow < deadline)
                 {
@@ -491,7 +495,7 @@ public sealed class Gate20EdgeApprovalWallFacts(Gate20EdgeApprovalWallFacts.Edge
 
                 if (!ready)
                 {
-                    throw new TimeoutException($"EdgeKernelHarness at '{baseUrl}' did not become ready within 30s.");
+                    throw new TimeoutException($"EdgeKernelHarness at '{baseUrl}' did not become ready within {ReadyBudget}.");
                 }
 
                 return new EdgeKernelHarness(app, client, ports, homeDir, scope, proof.Token, ports.GatewayPort);

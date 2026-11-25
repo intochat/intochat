@@ -218,6 +218,9 @@ public sealed class EngineerRunLiveNotAvailableFacts : IDisposable
         await FlowTypeFacts.Eventually(() => flows.Read(started.FlowId, Ct), v => v is { Status: FlowStatus.Waiting, WaitingStep: "live-verify" });
 
         live.Configured = false;
+        // The index shows the wait before the flow's turn has finished its own calls; the clock jumps past the TestOS call
+        // timeout, so let that turn end first or its in-flight call times out and fails the run.
+        await runtime.Idle();
         await runtime.Elapse(EngineerFlow.LiveEnvironmentRecheck + TimeSpan.FromMinutes(1), Ct);
 
         await AtApprovalGate(flows, started.FlowId);

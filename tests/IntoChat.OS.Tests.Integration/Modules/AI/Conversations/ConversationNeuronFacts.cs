@@ -399,6 +399,7 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
 
         var runId = Assert.Single(view.Runs).RunId;
         var finalReply = view.Entries.OfType<Said>().Last(e => e.By is Participant.Assistant);
+        await WaitUntil(() => { lock (deltas) { return Task.FromResult(deltas.Count >= 200); } }, ct);
         TextDelta[] snapshot;
         lock (deltas) { snapshot = [.. deltas]; }
 
@@ -510,6 +511,8 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
         await conversation.Seat("ino", new AgentDefinition { Instructions = "x" });
         await conversation.Say("reveal");
         await WaitUntilIdle(conversation, minRuns: 1, ct);
+        // Deltas are ephemeral and reach the listener on their own path, possibly after the run is idle: wait for the last one.
+        await WaitUntil(() => Task.FromResult(Text(deltas).EndsWith('.')), ct);
 
         TextDelta[] snapshot;
         lock (deltas) { snapshot = [.. deltas]; }
@@ -550,6 +553,7 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
         await conversation.Seat("ino", new AgentDefinition { Instructions = "x" });
         await conversation.Say("reveal midstream");
         var view = await WaitUntilIdle(conversation, minRuns: 1, ct);
+        await WaitUntil(() => Task.FromResult(Text(deltas).EndsWith("text.", StringComparison.Ordinal)), ct);
 
         TextDelta[] snapshot;
         lock (deltas) { snapshot = [.. deltas]; }
@@ -636,6 +640,8 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
         var run = Assert.Single(view.Runs);
         Assert.Equal((AgentRunStatus.Cancelled, "a b "), (run.Status, run.Reply));
 
+        // The two deltas sent before the stop arrive on their own path, possibly after the run is idle.
+        await WaitUntil(() => { lock (deltas) { return Task.FromResult(deltas.Count >= 2); } }, ct);
         int count;
         lock (deltas) { count = deltas.Count; }
         Assert.True(count >= 2);
@@ -819,6 +825,11 @@ public sealed class ConversationNeuronFacts(AiFixture fixture) : IClassFixture<A
             await Task.Delay(30, ct);
         }
         return await conversation.Read();
+    }
+
+    private static string Text(List<TextDelta> deltas)
+    {
+        lock (deltas) { return string.Concat(deltas.Select(d => d.Delta)); }
     }
 
     private static async Task WaitUntil(Func<Task<bool>> predicate, CancellationToken ct)
