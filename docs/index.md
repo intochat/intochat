@@ -12,6 +12,7 @@ You have a brain: one person's or team's workspace, with its data, apps and conn
 - [Modules](modules.md): connectors and capabilities.
 - [Ino and memory](ino-and-memory.md): the agent and what it remembers.
 - [Sandbox and live behaviors](sandbox-and-live-behaviors.md): how apps made at runtime are run.
+- [Self-hosting and .NET Aspire](self-hosting.md): container hosting, Aspire AppHost integration, and package distribution.
 - [Deployment and Pulumi IaC](deployment.md): universal environment deployment, sandbox modes, and Pulumi synthesis.
 - [Native AOT readiness](native-aot-readiness.md): Native AOT compilation, Roslyn DevKit boundary, and desktop packaging.
 
