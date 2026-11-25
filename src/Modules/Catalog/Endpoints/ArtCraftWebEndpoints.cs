@@ -248,7 +248,7 @@ internal static class ArtCraftWebEndpoints
     {
         ArgumentNullException.ThrowIfNull(d);
         var doc = JsonSerializer.Serialize(string.IsNullOrWhiteSpace(activeDocument) ? d.DefaultDocument : activeDocument);
-        var brainJson = JsonSerializer.Serialize(string.IsNullOrWhiteSpace(brain) ? null : brain);
+        var brainJson = string.IsNullOrWhiteSpace(brain) ? "null" : "\"" + System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(brain) + "\"";
         var appId = JsonSerializer.Serialize(d.Id);
         var title = JsonSerializer.Serialize(d.Title);
         var extsJson = JsonSerializer.Serialize(d.SupportedExtensions);

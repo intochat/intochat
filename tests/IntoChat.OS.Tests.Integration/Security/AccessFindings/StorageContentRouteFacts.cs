@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Runtime.Http.Storage;
+using IntoChat.OS.Modules.Identity.Accounts;
 using IntoChat.OS.Modules.Identity.Contracts.Accounts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Tests.Integration.Security.AccessFindings;
 
@@ -120,6 +122,37 @@ public sealed class StorageContentRouteFacts(StorageContentRouteFacts.Kernel ker
             Assert.Equal(HttpStatusCode.Forbidden, ticket.StatusCode);
         }
         Assert.Equal("the owner's document", await Text(path));
+    }
+
+    // The screens' route (IWorkspaceFiles) and the page's route (the content route) are one workspace: a file a studio
+    // screen writes through the neuron on the silo is the file the page reads; another brain's caller reads nothing.
+    [Fact]
+    public async Task AFileWrittenThroughTheWorkspaceFilesNeuronIsReadByTheContentRoute()
+    {
+        var path = NewPath();
+        var brain = new DigitalBrain.BrainId(Host.Scope);
+        var edge = Host.Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+        var files = Host.Services.GetRequiredService<DigitalBrain.Neurons.INeuronProxies>().Get<IntoChat.OS.Modules.Apps.IWorkspaceFiles>(IntoChat.OS.Modules.Apps.WorkspaceFilesDefaults.Id(brain));
+        IntoChat.OS.Modules.Apps.WorkspaceFile written;
+        // As a studio screen calls it: the app, for the person who uses it.
+        var owner = new DigitalBrain.Access.Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin);
+        using (edge.Enter(edge.App(IntoChat.OS.Host.Primitives.AppRef.Of(brain, "data").Key, owner, brain)))
+        {
+            written = await files.Write(path, Encoding.UTF8.GetBytes("written by a screen"));
+            Assert.Equal("written by a screen", Encoding.UTF8.GetString((await files.Read(path))!));
+        }
+        using (edge.Enter(edge.Person("mallory", "mallory", new DigitalBrain.BrainId("mallory"))))
+        {
+            await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => files.Read(path));
+        }
+        // An app the workspace files are not granted to reaches nothing.
+        using (edge.Enter(edge.App(IntoChat.OS.Host.Primitives.AppRef.Of(brain, "calculator").Key, owner, brain)))
+        {
+            await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => files.Read(path));
+        }
+
+        Assert.Equal(path, written.Path);
+        Assert.Equal("written by a screen", await Text(path));
     }
 
     [Fact]

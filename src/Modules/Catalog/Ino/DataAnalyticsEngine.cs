@@ -38,7 +38,8 @@ public static partial class DataAnalyticsEngine
         return CreateEmptyResult(resolvedBrain, database, chartKind);
     }
 
-    // A screen has no route to the workspace: it runs on inline data and relational tables only.
+    // Inline data and relational tables only; a screen reads a workspace dataset through its IWorkspaceFiles slot and runs
+    // ExecuteInMemory on its text.
     public static Task<DataQueryResult> ExecuteAsync(string queryOrPrompt, string database, DigitalBrain.BrainId brain = default)
         => ExecuteOnWorkspaceAsync(queryOrPrompt, database, workspace: null, brain);
 

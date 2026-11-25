@@ -19,9 +19,13 @@ internal static class ShippedGrants
         var craft when ArtCraftCatalog.IsArtCraftApp(craft) => Tuples(
             brain,
             ArtCraftCatalog.NormalizeAppId(craft),
-            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp/{brain}/*"]),
+            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp/{brain}/*", WorkspaceFiles(brain)]),
+        // The studios that open, save and export documents as workspace files (IWorkspaceFiles).
+        "data" or "markdraw" or ShippedApps.Ino => Tuples(brain, app, [WorkspaceFiles(brain)]),
         _ => [],
     };
+
+    private static string WorkspaceFiles(string brain) => $"{WorkspaceFilesDefaults.TypeName}/{brain}/*";
 
     private static string Workspace(string brain) => $"ui.workspace/{brain}/main";
     private static string Apps(string brain) => IntoChat.OS.Host.Primitives.AppRef.WildcardTarget(new DigitalBrain.BrainId(brain));

@@ -117,6 +117,8 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
     [Slot(Key = "apps/artcraft-engine", Required = false)] private partial IArtCraftEngine? Engine { get; }
     [Slot(Required = false)] private partial IUserSettings? UserSettings { get; }
     [Slot(Required = false)] private partial DigitalBrain.Components.SlotCollection<IMcpToolConnection> McpServers { get; }
+    // The brain's workspace files: the document a studio opens is a workspace file when there is one.
+    [Slot(Key = WorkspaceFilesDefaults.Key, Required = false)] private partial IWorkspaceFiles? WorkspaceFiles { get; }
 
     private ILogger AppLogger => _appLogger;
 
@@ -133,6 +135,7 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
         var doc = NormalizeTextOrCurrent(requestedDocument, currentDocument);
         var webUrl = currentWebUrl;
         var mcpUri = currentMcpUri;
+        doc = await ResolveWorkspaceDocumentAsync(doc, explicitly: !string.IsNullOrWhiteSpace(requestedDocument));
 
         var connected = false;
         if (Studio is { } studio)
@@ -154,6 +157,26 @@ public abstract partial class ArtCraftStudioAppCore<TState>(string appId, ILogge
             ? $"{Descriptor.Title} tools connected ({FormatModeLabel(mode)}) · {ActiveDocumentLabel}: {doc}"
             : $"{Descriptor.Title} MCP server not connected ({FormatModeLabel(mode)}) · {ActiveDocumentLabel}: {doc}";
         return (mode, doc, webUrl, mcpUri, status);
+    }
+
+    // The document as the workspace file it names; for the studio's default document that is not there, the first workspace
+    // file the studio opens (by its extensions). Without a workspace, or on a failure, the document as it was asked for.
+    private async Task<string> ResolveWorkspaceDocumentAsync(string doc, bool explicitly)
+    {
+        if (WorkspaceFiles is not { } files) { return doc; }
+        try
+        {
+            if (await files.Find(doc) is { IsFolder: false } found) { return found.Path; }
+            if (explicitly || !string.Equals(doc, Descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase)) { return doc; }
+            var match = (await files.List("")).FirstOrDefault(file => !file.IsFolder
+                && Descriptor.SupportedExtensions.Any(extension => file.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)));
+            return match?.Path ?? doc;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            AppLogger.LogDebug(error, "The workspace is optional when opening {App}.", Descriptor.Title);
+            return doc;
+        }
     }
 
     protected async Task<ArtCraftEngineResult> ExecuteStudioCommandAsync(
