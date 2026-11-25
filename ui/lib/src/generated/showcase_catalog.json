@@ -704,7 +704,8 @@
         "name": "Submitted",
         "signal": "control.submitted",
         "args": {
-          "values": "Map<String, String>"
+          "values": "Map<String, String>",
+          "secretRefs": "Map<String, String>"
         }
       }
     ],
@@ -1549,7 +1550,8 @@
         "name": "Submit",
         "signal": "control.submit",
         "args": {
-          "values": "Map<String, String>"
+          "values": "Map<String, String>",
+          "secretRefs": "Map<String, String>"
         }
       }
     ],
@@ -1558,7 +1560,8 @@
         "name": "Submitted",
         "signal": "control.submitted",
         "args": {
-          "values": "Map<String, String>"
+          "values": "Map<String, String>",
+          "secretRefs": "Map<String, String>"
         }
       }
     ],
@@ -1602,6 +1605,34 @@
           "submitLabel": "Save",
           "isEnabled": true,
           "automationName": "About you"
+        }
+      },
+      {
+        "kind": "formView",
+        "key": "api-key",
+        "values": [
+          {
+            "key": "label",
+            "value": "Work"
+          }
+        ],
+        "props": {
+          "fields": [
+            {
+              "key": "label",
+              "label": "Label",
+              "kind": "Text"
+            },
+            {
+              "key": "token",
+              "label": "API key",
+              "kind": "Secret",
+              "placeholder": "Stored in your vault"
+            }
+          ],
+          "submitLabel": "Seal",
+          "isEnabled": true,
+          "automationName": "API key"
         }
       },
       {

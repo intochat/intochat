@@ -89,7 +89,11 @@ Future<ActivationOutcome> actFormSubmit(
   NodeContext ctx,
   String address, {
   required Map<String, String> values,
-}) => ctx.act(address, 'control.submit', {'values': values});
+  required Map<String, String> secretRefs,
+}) => ctx.act(address, 'control.submit', {
+  'values': values,
+  'secretRefs': secretRefs,
+});
 
 /// Sends `Select` to the `listBox` neuron at [address].
 Future<ActivationOutcome> actListBoxSelect(

@@ -5,6 +5,7 @@ public sealed record FormState
 {
     /// <summary>The last submitted value of each field, by key.</summary>
     [Showcase("""{"kind":"formView","key":"about-you","values":[{"key":"name","value":"Ada"}],"props":{"fields":[{"key":"name","label":"Display name","kind":"Text","maxLength":64},{"key":"bio","label":"Bio","kind":"Multiline","placeholder":"A line about you"},{"key":"age","label":"Age","kind":"Number"},{"key":"id","label":"Account id","kind":"Text","value":"ada-1","isReadOnly":true}],"submitLabel":"Save","isEnabled":true,"automationName":"About you"}}""")]
+    [Showcase("""{"kind":"formView","key":"api-key","values":[{"key":"label","value":"Work"}],"props":{"fields":[{"key":"label","label":"Label","kind":"Text"},{"key":"token","label":"API key","kind":"Secret","placeholder":"Stored in your vault"}],"submitLabel":"Seal","isEnabled":true,"automationName":"API key"}}""")]
     [Showcase("""{"kind":"formView","key":"budget","values":[],"props":{"fields":[{"key":"cap","label":"Monthly cap","kind":"Number","value":"50"}],"submitLabel":"Set cap","isEnabled":false,"automationName":"Budget"}}""")]
     public IReadOnlyDictionary<string, string> Values { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 

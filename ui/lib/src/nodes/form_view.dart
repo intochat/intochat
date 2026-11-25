@@ -10,9 +10,11 @@ import 'node_context.dart';
 /// name from the slot's props; the last submitted values from the neuron's view.
 /// Typed text stays here until Submit, which sends every editable field's
 /// value at once (typed or not) to the neuron itself (`.`). Read-only fields
-/// are drawn but not sent. Secret fields are not supported yet and are not
-/// drawn (the neuron's parent refuses a form that has one). Disabled props
-/// send nothing.
+/// are drawn but not sent. A secret field's typed text goes only to the
+/// person's vault ([NodeContext.storeSecret]); Submit carries the returned
+/// reference in `secretRefs`, never the text, and the field is cleared once
+/// stored. Without a secret store the secret field is drawn disabled.
+/// Disabled props send nothing.
 Widget renderFormView(FormViewNode node, NodeContext ctx) =>
     _FormView(node: node, ctx: ctx);
 
@@ -28,11 +30,16 @@ class _FormView extends StatefulWidget {
 class _FormViewState extends State<_FormView> {
   final _controllers = <String, TextEditingController>{};
   final _typed = <String>{};
+  String? _secretError;
 
   FormProps get _props => FormProps.fromJson(widget.ctx.slotProps);
 
-  // The value drawn until the person types: the parent's, else the last submitted one.
+  static bool _isSecret(FormInput field) => field.kind == FormFieldKind.secret;
+
+  // The value drawn until the person types: the parent's, else the last
+  // submitted one; a secret field always starts empty.
   String _current(FormInput field) {
+    if (_isSecret(field)) return '';
     if (field.value != null) return field.value!;
     for (final value in widget.node.values) {
       if (value.key == field.key) return value.value;
@@ -53,7 +60,11 @@ class _FormViewState extends State<_FormView> {
     // A field the person has not typed in follows the parent's and the neuron's current value.
     for (final field in _props.fields) {
       final controller = _controllers[field.key];
-      if (controller == null || _typed.contains(field.key)) continue;
+      if (controller == null ||
+          _isSecret(field) ||
+          _typed.contains(field.key)) {
+        continue;
+      }
       final current = _current(field);
       if (controller.text != current) {
         controller.text = current;
@@ -61,9 +72,6 @@ class _FormViewState extends State<_FormView> {
       }
     }
   }
-
-  static Iterable<FormInput> _offered(FormProps props) =>
-      props.fields.where((field) => field.kind != FormFieldKind.secret);
 
   @override
   void dispose() {
@@ -73,16 +81,49 @@ class _FormViewState extends State<_FormView> {
     super.dispose();
   }
 
+  // Stores each typed secret in the person's vault and returns the references
+  // by field key; null when a store failed, so nothing is submitted.
+  Future<Map<String, String>?> _storeSecrets(List<FormInput> secrets) async {
+    final store = widget.ctx.storeSecret;
+    final refs = <String, String>{};
+    for (final field in secrets) {
+      final text = _controller(field).text;
+      if (store == null || text.isEmpty) continue;
+      try {
+        refs[field.key] = await store(
+          '${widget.ctx.view}/${field.key}',
+          field.label,
+          text,
+        );
+      } on Object {
+        return null;
+      }
+    }
+    return refs;
+  }
+
   Future<void> _submit(FormProps props) async {
-    final editable = _offered(props)
-        .where((field) => !field.isReadOnly)
-        .toList();
+    final editable = props.fields.where((field) => !field.isReadOnly).toList();
+    final secrets = editable.where(_isSecret).toList();
+    final secretRefs = await _storeSecrets(secrets);
+    if (!mounted) return;
+    if (secretRefs == null) {
+      setState(() => _secretError = 'Secret not stored: try again.');
+      return;
+    }
+    // A stored secret leaves the screen; only its reference is sent.
+    for (final field in secrets) {
+      _controller(field).clear();
+    }
+    setState(() => _secretError = null);
     await actFormSubmit(
       widget.ctx,
       '.',
       values: {
-        for (final field in editable) field.key: _controller(field).text,
+        for (final field in editable)
+          if (!_isSecret(field)) field.key: _controller(field).text,
       },
+      secretRefs: secretRefs,
     );
     if (!mounted) return;
     // Every field now follows the parent's or the neuron's value again.
@@ -105,7 +146,7 @@ class _FormViewState extends State<_FormView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final field in _offered(props))
+          for (final field in props.fields)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: UiKitField(
@@ -114,10 +155,15 @@ class _FormViewState extends State<_FormView> {
                 controller: _controller(field),
                 placeholder: field.placeholder,
                 multiline: field.kind == FormFieldKind.multiline,
+                secret: _isSecret(field),
+                error: _isSecret(field) ? _secretError : null,
                 keyboardType: field.kind == FormFieldKind.number
                     ? const TextInputType.numberWithOptions(decimal: true)
                     : null,
-                enabled: enabled && !field.isReadOnly,
+                enabled:
+                    enabled &&
+                    !field.isReadOnly &&
+                    (!_isSecret(field) || widget.ctx.storeSecret != null),
               ),
             ),
           Align(

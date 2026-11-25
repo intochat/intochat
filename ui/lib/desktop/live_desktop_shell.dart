@@ -79,6 +79,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.transcribe,
     this.talk,
     this.speak,
+    this.storeSecret,
     required this.knowsApp,
   });
 
@@ -144,6 +145,9 @@ class LiveDesktopShell extends StatefulWidget {
 
   /// Host capability used by read-aloud controls to synthesize assistant replies.
   final VoiceSpeaker? speak;
+
+  /// Host capability a form uses to store a secret field in the person's vault.
+  final SecretStore? storeSecret;
 
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
@@ -1573,6 +1577,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       transcribe: widget.transcribe,
       talk: widget.talk,
       speak: widget.speak,
+      storeSecret: widget.storeSecret,
       signals: _journalFor(topWindow.viewportRef['name'] as String),
       onActivate: (activation) => _handleChildActivation(
         activation,
@@ -2045,6 +2050,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         transcribe: widget.transcribe,
         talk: widget.talk,
         speak: widget.speak,
+        storeSecret: widget.storeSecret,
         onActivate: widget.onActivate,
       );
     }
@@ -2481,6 +2487,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         transcribe: widget.transcribe,
                                         talk: widget.talk,
                                         speak: widget.speak,
+                                        storeSecret: widget.storeSecret,
                                         signals: _journalFor(
                                           w.viewportRef['name'] as String,
                                         ),
@@ -2514,6 +2521,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 transcribe: widget.transcribe,
                                 talk: widget.talk,
                                 speak: widget.speak,
+                                storeSecret: widget.storeSecret,
                                 signals: _journalFor(
                                   spec.viewportRef['name'] as String,
                                 ),

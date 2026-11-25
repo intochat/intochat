@@ -1002,6 +1002,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     widget.programmingClient!.transcribe,
                                 talk: widget.programmingClient!.talk,
                                 speak: widget.programmingClient!.speak,
+                                storeSecret: widget
+                                    .programmingClient!
+                                    .storeSecretReference,
                                 journal: (brain, since) => widget
                                     .programmingClient!
                                     .watchJournal(brain, since: since),
@@ -1081,6 +1084,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     widget.programmingClient!.transcribe,
                                 talk: widget.programmingClient!.talk,
                                 speak: widget.programmingClient!.speak,
+                                storeSecret: widget
+                                    .programmingClient!
+                                    .storeSecretReference,
                                 knowsApp: (app) =>
                                     _knownApps.contains(app) ||
                                     _knownApps.contains(app.toLowerCase()),

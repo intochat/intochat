@@ -21,9 +21,11 @@ public sealed record Select(string Id) : Signal;
 public sealed record Expand(bool IsExpanded) : Signal;
 
 /// <summary>Submits a form's values.</summary>
-/// <param name="Values">The submitted values by field name: every editable field, typed or not.</param>
+/// <param name="Values">The submitted values by field name: every editable field that is not a secret, typed or not.</param>
+/// <param name="SecretRefs">The secret fields the person filled in, by field name: the vault reference (<c>secret://{owner}/{name}</c>)
+/// the client got back from storing the typed value, never the value itself.</param>
 [Signal("control.submit")]
-public sealed record Submit(IReadOnlyDictionary<string, string> Values) : Signal;
+public sealed record Submit(IReadOnlyDictionary<string, string> Values, IReadOnlyDictionary<string, string>? SecretRefs = null) : Signal;
 
 /// <summary>Closes or dismisses a control.</summary>
 [Signal("control.close")]
@@ -46,8 +48,9 @@ public sealed record Expanded(bool IsExpanded) : Signal;
 
 /// <summary>The values a control submitted.</summary>
 /// <param name="Values">The submitted values by field name.</param>
+/// <param name="SecretRefs">The vault references the submit carried for secret fields, by field name; never a secret value.</param>
 [Signal("control.submitted")]
-public sealed record Submitted(IReadOnlyDictionary<string, string> Values) : Signal;
+public sealed record Submitted(IReadOnlyDictionary<string, string> Values, IReadOnlyDictionary<string, string>? SecretRefs = null) : Signal;
 
 /// <summary>A control was closed or dismissed.</summary>
 [Signal("control.closed")]
