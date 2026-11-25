@@ -256,4 +256,19 @@ public sealed class ChildEnvironmentHostingFacts
         Assert.True(sandboxEnv.TryGetValue("SANDBOX_ENROLL_KEY", out var enrollKey));
         Assert.False(string.IsNullOrWhiteSpace(Assert.IsType<string>(enrollKey)));
     }
+
+    [Fact]
+    public void SandboxModuleHosting_IsolatesContainerPublishArtifactsPath()
+    {
+        var repoRoot = Path.Combine(Path.GetTempPath(), "intochat-repo-root");
+        var projectPath = Path.Combine(repoRoot, "src", "IntoChat.OS.Sandbox", "IntoChat.OS.Sandbox.csproj");
+
+        var startInfo = SandboxModuleHosting.CreatePublishStartInfo(repoRoot, projectPath);
+
+        Assert.Equal("dotnet", startInfo.FileName);
+        Assert.Equal(repoRoot, startInfo.WorkingDirectory);
+        Assert.Contains("publish", startInfo.ArgumentList);
+        Assert.Contains("/t:PublishContainer", startInfo.ArgumentList);
+        Assert.Contains($"-p:ArtifactsPath={Path.Combine(repoRoot, "artifacts", "sandbox-container")}", startInfo.ArgumentList);
+    }
 }
