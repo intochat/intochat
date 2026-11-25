@@ -233,23 +233,93 @@ internal sealed class OwnerSurrogateConverter : IConverter<Owner, OwnerSurrogate
     public OwnerSurrogate ConvertToSurrogate(in Owner value) => new() { AccountId = value.AccountId };
 }
 
+/// <summary>Orleans wire form of <see cref="BrainResidency"/>.</summary>
+[GenerateSerializer, Alias("brain.residency")]
+internal struct BrainResidencySurrogate
+{
+    [Id(0)] public bool IsEphemeral;
+    [Id(1)] public int MaxMemoryBytes;
+    [Id(2)] public TimeSpan IdleTtl;
+    [Id(3)] public int MaxTrialTurns;
+    [Id(4)] public string? OwnerPrincipalId;
+}
+
+[RegisterConverter]
+internal sealed class BrainResidencySurrogateConverter : IConverter<BrainResidency, BrainResidencySurrogate>
+{
+    public BrainResidency ConvertFromSurrogate(in BrainResidencySurrogate surrogate)
+        => surrogate.IsEphemeral
+            ? new BrainResidency.Ephemeral(surrogate.MaxMemoryBytes, surrogate.IdleTtl, surrogate.MaxTrialTurns)
+            : new BrainResidency.Persistent(surrogate.OwnerPrincipalId ?? string.Empty);
+
+    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency value) => value switch
+    {
+        BrainResidency.Ephemeral ephemeral => new()
+        {
+            IsEphemeral = true,
+            MaxMemoryBytes = ephemeral.MaxMemoryBytes,
+            IdleTtl = ephemeral.IdleTtl,
+            MaxTrialTurns = ephemeral.MaxTrialTurns,
+        },
+        BrainResidency.Persistent persistent => new()
+        {
+            IsEphemeral = false,
+            OwnerPrincipalId = persistent.OwnerPrincipalId,
+        },
+        _ => throw new InvalidOperationException($"Unknown residency type {value.GetType().Name}."),
+    };
+}
+
+[RegisterConverter]
+internal sealed class EphemeralBrainResidencySurrogateConverter : IConverter<BrainResidency.Ephemeral, BrainResidencySurrogate>
+{
+    public BrainResidency.Ephemeral ConvertFromSurrogate(in BrainResidencySurrogate surrogate)
+        => new(surrogate.MaxMemoryBytes, surrogate.IdleTtl, surrogate.MaxTrialTurns);
+
+    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency.Ephemeral value) => new()
+    {
+        IsEphemeral = true,
+        MaxMemoryBytes = value.MaxMemoryBytes,
+        IdleTtl = value.IdleTtl,
+        MaxTrialTurns = value.MaxTrialTurns,
+    };
+}
+
+[RegisterConverter]
+internal sealed class PersistentBrainResidencySurrogateConverter : IConverter<BrainResidency.Persistent, BrainResidencySurrogate>
+{
+    public BrainResidency.Persistent ConvertFromSurrogate(in BrainResidencySurrogate surrogate)
+        => new(surrogate.OwnerPrincipalId ?? string.Empty);
+
+    public BrainResidencySurrogate ConvertToSurrogate(in BrainResidency.Persistent value) => new()
+    {
+        IsEphemeral = false,
+        OwnerPrincipalId = value.OwnerPrincipalId,
+    };
+}
+
 /// <summary>Orleans wire form of <see cref="BrainState"/>.</summary>
 [GenerateSerializer, Alias("brain.state")]
 internal struct BrainStateSurrogate
 {
     [Id(0)] public Owner Owner;
     [Id(1)] public DateTimeOffset CreatedAt;
+    [Id(2)] public BrainResidency? Residency;
 }
 
 [RegisterConverter]
 internal sealed class BrainStateSurrogateConverter : IConverter<BrainState, BrainStateSurrogate>
 {
-    public BrainState ConvertFromSurrogate(in BrainStateSurrogate surrogate) => new(surrogate.Owner, surrogate.CreatedAt);
+    public BrainState ConvertFromSurrogate(in BrainStateSurrogate surrogate) => new(surrogate.Owner, surrogate.CreatedAt)
+    {
+        Residency = surrogate.Residency,
+    };
 
     public BrainStateSurrogate ConvertToSurrogate(in BrainState value) => new()
     {
         Owner = value.Owner,
         CreatedAt = value.CreatedAt,
+        Residency = value.Residency,
     };
 }
 

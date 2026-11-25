@@ -69,6 +69,21 @@ public static class IdentityHosting
         services.TryAddSingleton<IPresenceProof>(provider => new PresenceProofValidator(
             provider.GetService<Microsoft.Extensions.Configuration.IConfiguration>(),
             provider.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>()));
+        services.AddOptions<EphemeralBrainOptions>().BindConfiguration(EphemeralBrainOptions.SectionName);
+        services.TryAddSingleton(provider => new EphemeralBrainRegistry(
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<IOptions<EphemeralBrainOptions>>(),
+            () => provider.GetService<DigitalBrain.Brains.IBrainResidencyStorage>(),
+            provider.GetService<IntoChat.OS.Modules.Identity.Authority.AuthorityMirror>()));
+        services.TryAddSingleton<DigitalBrain.Brains.IBrainResidencyRegistry>(provider => provider.GetRequiredService<EphemeralBrainRegistry>());
+        services.TryAddSingleton<DigitalBrain.Brains.IBrainCapabilityPolicy, DigitalBrain.Brains.DefaultBrainCapabilityPolicy>();
+        services.TryAddSingleton(provider =>
+        {
+            var limit = Math.Max(1, provider.GetRequiredService<IOptions<EphemeralBrainOptions>>().Value.MintPerMinutePerIpPrefix);
+            return new Day0EphemeralBootstrap.MintThrottle(
+                new DigitalBrain.Runtime.Http.Surface.SlidingWindowThrottle(limit, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));
+        });
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EphemeralBrainSweeper>());
         services.AddKernelCors();
         services.TryAddSingleton(LocalBrainAccess);
     }
@@ -84,6 +99,7 @@ public static class IdentityHosting
     public static void UsePlatformHttp(this WebApplication app, Action<WebApplication>? beforeAccountSession = null)
     {
         app.UseKernelCors();
+        app.UseDay0EphemeralBootstrap();
         app.UseModuleHttpSurfaces();
         app.UseAuthentication();
         beforeAccountSession?.Invoke(app);

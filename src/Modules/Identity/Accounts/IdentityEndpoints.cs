@@ -27,7 +27,7 @@ internal static class IdentityEndpoints
 
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapGet(AccountSession.CheckPath, static () => Results.NoContent());
+        routes.MapGet(AccountSession.CheckPath, static () => Results.NoContent()).WithMetadata(GuestSurface.Door.Instance);
         routes.MapPost(PresenceProof.ExchangePath, ExchangeLocalPresence);
         if (routes.ServiceProvider.GetRequiredService<IOptions<IdentityHostOptions>>().Value.BuiltInPasswordEndpoints)
         {
@@ -38,10 +38,12 @@ internal static class IdentityEndpoints
         IntoChat.OS.Modules.Identity.External.ExternalSignIn.Map(routes);
         IntoChat.OS.Modules.Identity.External.GuestSignIn.Map(routes);
         routes.MapGet("/identity/session", Session);
+        routes.MapGet("/identity/residency", Residency);
+        routes.MapPost("/identity/claim", ClaimAsync).WithMetadata(GuestSurface.Door.Instance);
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);
-        routes.MapGet("/identity/brains", BrainsAsync);
+        routes.MapGet("/identity/brains", BrainsAsync).WithMetadata(GuestSurface.Door.Instance);
         var grants = OsBrainRoutes.Group(routes, "/grants");
         grants.MapGet("", async (string brainId, HttpContext http, [FromServices] IIdentityClient identity, CancellationToken ct) =>
             Results.Ok(await identity.ListGrants(BrainScope.Create(HttpCaller.RequiredPerson(http).Account, brainId).Id).WaitAsync(ct)));
@@ -110,7 +112,13 @@ internal static class IdentityEndpoints
     {
         if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.Unauthorized(); }
         var member = await passwords.Authenticate(input.PrincipalId, input.Password ?? "").WaitAsync(ct);
-        return member is null ? Results.Unauthorized() : await IssueSessionAsync(member, http);
+        if (member is null) { return Results.Unauthorized(); }
+        var claimService = http.RequestServices.GetService<BrainClaimService>();
+        if (claimService is not null && await claimService.TryClaimFromSessionAsync(http, member.PrincipalId, member.DisplayName, ct) is { } claimed)
+        {
+            member = claimed;
+        }
+        return await IssueSessionAsync(member, http);
     }
 
     private static async Task<IResult> RegisterAsync(RegisterRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords,
@@ -122,11 +130,73 @@ internal static class IdentityEndpoints
         { return Results.Conflict(new { error = "This username is reserved." }); }
         try
         {
-            var member = await passwords.Register(input.PrincipalId, input.Password ?? "", input.DisplayName ?? input.PrincipalId).WaitAsync(ct);
+            var claimService = http.RequestServices.GetService<BrainClaimService>();
+            var ephemeralBrainId = claimService?.ActiveEphemeralBrainId(http);
+            var member = ephemeralBrainId is not null
+                ? await passwords.RegisterAndClaim(input.PrincipalId, input.Password ?? "", input.DisplayName ?? input.PrincipalId, ephemeralBrainId, claimService!, ct)
+                : await passwords.Register(input.PrincipalId, input.Password ?? "", input.DisplayName ?? input.PrincipalId).WaitAsync(ct);
             return await IssueSessionAsync(member, http);
         }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
+    }
+
+    private static async Task<IResult> ClaimAsync(ClaimBrainRequest input, HttpContext http, [FromServices] PrincipalPasswords passwords,
+        IOptions<AuthOptions> auth, IOptions<IdentityHostOptions> identityOptions, CancellationToken ct)
+    {
+        var claimService = http.RequestServices.GetService<BrainClaimService>();
+        if (claimService is null) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
+
+        // Only the ephemeral brain bound to the caller's verified HttpOnly cookie may be claimed; never trust a client-supplied brainId.
+        var ephemeralBrainId = claimService.ActiveEphemeralBrainId(http);
+        if (ephemeralBrainId is null)
+        {
+            return Results.Conflict(new { code = "NO_EPHEMERAL_BRAIN", error = "No active ephemeral brain is bound to this session." });
+        }
+
+        if (!identityOptions.Value.BuiltInPasswordEndpoints)
+        {
+            return Results.BadRequest(new { error = "Use external sign-in to claim this workspace." });
+        }
+
+        if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.BadRequest(new { error = "Username is required." }); }
+        if (!string.IsNullOrEmpty(auth.Value.Username) && string.Equals(input.PrincipalId, auth.Value.Username, StringComparison.OrdinalIgnoreCase))
+        { return Results.Conflict(new { error = "This username is reserved." }); }
+
+        try
+        {
+            Member member;
+            if (string.Equals(input.Mode, "login", StringComparison.OrdinalIgnoreCase))
+            {
+                var existing = await passwords.Authenticate(input.PrincipalId, input.Password ?? "").WaitAsync(ct);
+                if (existing is null) { return Results.Unauthorized(); }
+                member = await claimService.ClaimAsync(ephemeralBrainId, existing.PrincipalId, existing.DisplayName, ct);
+            }
+            else
+            {
+                if (!NetworkSignInGuard.Configured(http.RequestServices).OpenRegistration)
+                {
+                    return Results.StatusCode(StatusCodes.Status403Forbidden);
+                }
+                member = await passwords.RegisterAndClaim(input.PrincipalId, input.Password ?? "", input.DisplayName ?? input.PrincipalId, ephemeralBrainId, claimService, ct);
+            }
+
+            await http.RequestServices.GetRequiredService<ISessionIssuer>()
+                .IssueAsync(http, SessionFor(member, carried: null), http.RequestAborted);
+            var snapshot = SnapshotFor(http, member.BrainId, member.PrincipalId);
+            return Results.Ok(new
+            {
+                principalId = member.PrincipalId,
+                accountId = member.AccountId,
+                brainId = member.BrainId,
+                displayName = member.DisplayName,
+                claimed = true,
+                residency = FormatResidency(snapshot),
+            });
+        }
+        catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
+        catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
+        catch (UnauthorizedAccessException error) { return Results.Json(new { error = error.Message }, statusCode: StatusCodes.Status403Forbidden); }
     }
 
     private static async Task<IResult> IssueSessionAsync(Member member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
@@ -153,24 +223,69 @@ internal static class IdentityEndpoints
             .Select(claim => new Claim(claim.Type, claim.Value, claim.ValueType))];
     }
 
-    // Every resolved caller learns its brain, whichever posture resolved it: the shell's
-    // defaultBrainId must match what /mcp stamps. Only a caller nothing resolved answers 204.
+    // Every resolved caller learns its brain and residency metadata, whichever posture resolved it: the shell's
+    // defaultBrainId must match what /mcp stamps, and Slice OSS-3's Top Guest Pill binds directly to residency.
+    // Only a caller nothing resolved answers 204.
     private static IResult Session(HttpContext http, IOptions<AuthOptions> auth)
     {
         var caller = AccountSession.ResolveCaller(http, auth.Value);
-        // The fields the session answer always carried, read from the resolved caller.
-        return caller?.For is not { } person
-            ? Results.NoContent()
-            : Results.Ok(new
-            {
-                principalId = person.Principal,
-                accountId = person.Account,
-                brainId = caller.Brain.Value,
-                appId = caller.Actor is Actor.App app ? app.Key : null,
-                conversationId = caller.Conversation,
-            });
+        if (caller?.For is not { } person) { return Results.NoContent(); }
+        var snapshot = SnapshotFor(http, caller.Brain.Value, person.Principal);
+        return Results.Ok(new
+        {
+            principalId = person.Principal,
+            accountId = person.Account,
+            brainId = caller.Brain.Value,
+            appId = caller.Actor is Actor.App app ? app.Key : null,
+            conversationId = caller.Conversation,
+            residency = FormatResidency(snapshot),
+        });
     }
 
+    private static IResult Residency(HttpContext http, IOptions<AuthOptions> auth)
+    {
+        var caller = AccountSession.ResolveCaller(http, auth.Value);
+        if (caller?.For is not { } person) { return Results.NoContent(); }
+        var snapshot = SnapshotFor(http, caller.Brain.Value, person.Principal);
+        return Results.Ok(new
+        {
+            brainId = caller.Brain.Value,
+            isEphemeral = snapshot.IsEphemeral,
+            ttlSeconds = snapshot.TtlSeconds,
+            remainingTurns = snapshot.RemainingTurns,
+            memoryUsedBytes = snapshot.MemoryUsedBytes,
+            memoryLimitBytes = snapshot.MemoryLimitBytes,
+            ownerPrincipalId = snapshot.OwnerPrincipalId,
+        });
+    }
+
+    private static BrainResidencySnapshot SnapshotFor(HttpContext http, string brainId, string principalId)
+    {
+        var registry = http.RequestServices?.GetService<IBrainResidencyRegistry>();
+        if (registry is not null)
+        {
+            var snap = registry.GetSnapshot(brainId);
+            if (!snap.IsEphemeral && snap.OwnerPrincipalId is null && !GuestSurface.IsGuestPrincipal(principalId))
+            {
+                return snap with { OwnerPrincipalId = principalId };
+            }
+            return snap;
+        }
+        var storage = http.RequestServices?.GetService<IBrainResidencyStorage>();
+        return BrainResidencySnapshot.Persistent(
+            ownerPrincipalId: GuestSurface.IsGuestPrincipal(principalId) ? null : principalId,
+            memoryUsedBytes: storage?.GetMemoryUsedBytes(brainId) ?? 0);
+    }
+
+    private static object FormatResidency(BrainResidencySnapshot snapshot) => new
+    {
+        isEphemeral = snapshot.IsEphemeral,
+        ttlSeconds = snapshot.TtlSeconds,
+        remainingTurns = snapshot.RemainingTurns,
+        memoryUsedBytes = snapshot.MemoryUsedBytes,
+        memoryLimitBytes = snapshot.MemoryLimitBytes,
+        ownerPrincipalId = snapshot.OwnerPrincipalId,
+    };
 
     private static IResult ExchangeLocalPresence(LocalPresenceRequest input, HttpContext http, IOptions<AuthOptions> auth)
     {
@@ -207,6 +322,7 @@ internal static class IdentityEndpoints
     internal sealed record LoginRequest(string PrincipalId, string? Password = null);
     internal sealed record BrainSelection(string AccountId, string BrainId);
     internal sealed record RegisterRequest(string PrincipalId, string? Password = null, string? DisplayName = null);
+    internal sealed record ClaimBrainRequest(string PrincipalId, string? Password = null, string? DisplayName = null, string? Mode = null);
     internal sealed record RevokeGrant(string? Id = null, string? GrantId = null, string? AppId = null, string? SemanticTypeId = null, GrantMode Mode = GrantMode.Always);
     internal sealed record BrainView(string Id, string Kind);
 }

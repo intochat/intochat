@@ -88,13 +88,13 @@ public sealed class GuestSurfaceFacts
     [InlineData("photocraft")]
     [InlineData("helloworld")]
     [InlineData("btcalert")]
-    public void AGuest_MayOpenTheShippedDemoScreens(string appId) => Assert.True(GuestSurface.MayOpen(appId));
-
-    [Theory]
     [InlineData("creator")]
     [InlineData("ino")]
+    [InlineData("gallery")]
     [InlineData("settings")]
-    [InlineData("confirmations")]
+    public void AGuest_MayOpenBuiltInAndMiniAppScreens(string appId) => Assert.True(GuestSurface.MayOpen(appId));
+
+    [Theory]
     [InlineData("PhotoCraft")]
     [InlineData(" photocraft")]
     [InlineData("photocraft ")]
@@ -105,7 +105,7 @@ public sealed class GuestSurfaceFacts
     [InlineData("try-0a1b2c3d4e5f/apps/photocraft")]
     [InlineData("")]
     [InlineData(null)]
-    public void AGuest_MayOpenNothingElse_HoweverItIsSpelled(string? appId) => Assert.False(GuestSurface.MayOpen(appId));
+    public void AGuest_MayNotOpenMalformedOrTraversalScreenIds(string? appId) => Assert.False(GuestSurface.MayOpen(appId));
 
     [Theory]
     [InlineData(Guest)]

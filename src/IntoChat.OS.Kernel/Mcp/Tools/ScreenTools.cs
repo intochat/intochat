@@ -20,7 +20,7 @@ namespace IntoChat.OS.Kernel.Mcp.Tools;
 /// choreography. No tool answers a confirmation: MCP is stamped as the agent, and a person answers on /confirmations/{planId}.
 /// </summary>
 [McpServerToolType]
-internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
+internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, DigitalBrain.Brains.IBrainCapabilityPolicy? capabilityPolicy = null)
 {
     private const int MaxMappedErrorLength = 500;
     private static readonly JsonSerializerOptions Json = KernelMcpJsonContext.Default.Options;
@@ -31,12 +31,21 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
 
     private IScreenDirectory Directory(string tool) => brain.Get<IScreenDirectory>(IScreenDirectory.Key(caller.Stamp(tool).Brain.Value));
 
-    // A guest opens the shipped demo screens only, named exactly.
-    private void Admit(string tool, string appId)
+    private async Task AdmitAsync(string tool, string appId, CancellationToken ct)
     {
-        if (GuestSurface.Is(caller.Stamp(tool)) && !GuestSurface.MayOpen(appId))
+        var stamp = caller.Stamp(tool);
+        if (GuestSurface.Is(stamp) && !GuestSurface.MayOpen(appId))
         {
             throw new UnauthorizedAccessException($"A guest session cannot open screen '{appId}'.");
+        }
+
+        if (capabilityPolicy is not null)
+        {
+            var decision = await capabilityPolicy.EvaluateAsync(stamp.Brain.Value, DigitalBrain.Brains.BrainCapability.BuiltInApp, appId, ct).ConfigureAwait(false);
+            if (!decision.Allowed)
+            {
+                throw new DigitalBrain.Brains.ClaimRequiredException(decision);
+            }
         }
     }
 
@@ -45,9 +54,13 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
     {
         try
         {
-            var guest = GuestSurface.Is(caller.Stamp(ListName));
+            var stamp = caller.Stamp(ListName);
+            var guest = GuestSurface.Is(stamp);
             var screens = await Directory(ListName).List().WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (guest) { screens = [.. screens.Where(screen => GuestSurface.MayOpen(screen.AppId))]; }
+            if (guest)
+            {
+                screens = [.. screens.Where(screen => GuestSurface.MayOpen(screen.AppId))];
+            }
             return Text(JsonSerializer.Serialize(screens, Json));
         }
         catch (Exception error) when (Mapped(error))
@@ -65,7 +78,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
     {
         try
         {
-            Admit(ReadName, appId);
+            await AdmitAsync(ReadName, appId, cancellationToken).ConfigureAwait(false);
             var snapshot = await Directory(ReadName).Read(appId, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false)
                 ?? throw new KeyNotFoundException($"Screen '{appId}' was not found.");
 
@@ -89,7 +102,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
     {
         try
         {
-            Admit(ActName, appId);
+            await AdmitAsync(ActName, appId, cancellationToken).ConfigureAwait(false);
             var result = await Directory(ActName).Act(appId, key, value, generation, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false);
             return Text(JsonSerializer.Serialize(result, Json));
         }

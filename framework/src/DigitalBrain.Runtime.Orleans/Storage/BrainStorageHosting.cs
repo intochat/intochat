@@ -66,12 +66,14 @@ public static class BrainStorageHosting
         services.TryAddSingleton<IBrainLogOwnership>(FileLockBrainLogOwnership.Instance);
         services.TryAddSingleton<IBrainOwnershipCounters, BrainLogOwnershipCounters>();
         services.TryAddSingleton<BrainStorageKeys>();
+        services.TryAddSingleton<DigitalBrain.Brains.IBrainCapabilityPolicy, DigitalBrain.Brains.DefaultBrainCapabilityPolicy>();
         services.TryAddSingleton(sp =>
         {
             var logs = new BrainLogs(sp.GetRequiredService<BrainStorageKeys>(),
                 sp.GetRequiredService<OrleansSdk.Serialization.Serializer>(), sp.GetRequiredService<JournalPayloads>(),
                 sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IRetentionPolicy>(),
-                sp.GetRequiredService<IOptions<BrainStoreOptions>>(), sp.GetRequiredService<IBrainLogOwnership>());
+                sp.GetRequiredService<IOptions<BrainStoreOptions>>(), sp.GetRequiredService<IBrainLogOwnership>(),
+                residencyRegistry: sp.GetService<DigitalBrain.Brains.IBrainResidencyRegistry>());
             logs.OnLogCreated = log =>
             {
                 var types = sp.GetService<NeuronTypeRegistry>();
@@ -98,6 +100,7 @@ public static class BrainStorageHosting
             };
             return logs;
         });
+        services.TryAddSingleton<DigitalBrain.Brains.IBrainResidencyStorage>(sp => sp.GetRequiredService<BrainLogs>());
         // The adapters' write path shares the per-brain BrainLog (and its writer claim) with the cluster store: one writer per brain.
         services.TryAddSingleton<IBrainJournalWriter>(sp => new BrainJournalWriter(sp.GetRequiredService<BrainLogs>()));
         foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, runtime.ClusterGrainStorage)).ToArray())

@@ -72,6 +72,16 @@ internal static class BrainCall
             case RevisionConflictException e:
                 return Refused(StatusCode.Aborted, e.Message, "REVISION_CONFLICT", (CurrentRevisionTrailer, e.CurrentRevision.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             case StaleActionException e: return Refused(StatusCode.FailedPrecondition, e.Message, "STALE_ACTION");
+            case ClaimRequiredException e:
+                return Refused(
+                    StatusCode.FailedPrecondition,
+                    e.Message,
+                    e.Decision.Code,
+                    ("requires-claim", "true"),
+                    ("capability", e.Decision.Capability.ToString()),
+                    ("claim-endpoint", "/identity/claim"));
+            case BrainMemoryLimitExceededException e:
+                return Refused(StatusCode.ResourceExhausted, e.Message, "EPHEMERAL_MEMORY_LIMIT", ("requires-claim", "true"), ("claim-endpoint", "/identity/claim"));
             case ArgumentException e: return new RpcException(new Status(StatusCode.InvalidArgument, e.Message));
             case UnauthorizedAccessException e: return new RpcException(new Status(StatusCode.PermissionDenied, e.Message));
             case KeyNotFoundException e: return new RpcException(new Status(StatusCode.NotFound, e.Message));

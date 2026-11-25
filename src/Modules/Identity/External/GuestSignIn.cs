@@ -30,8 +30,8 @@ internal static class GuestSignIn
     }
 
     private static async Task<IResult> RedeemAsync(HttpContext http, [FromServices] TrustedIssuerKeys issuers, [FromServices] AuthorityNeurons neurons,
-        [FromServices] IIdentityClient identity, [FromServices] IBrainBirths births, [FromServices] TimeProvider clock,
-        [FromServices] IOptions<AuthOptions> auth, [FromServices] ILoggerFactory logs)
+        [FromServices] EphemeralBrainRegistry ephemeral, [FromServices] IBrainBirths births, [FromServices] TimeProvider clock,
+        [FromServices] IOptions<AuthOptions> auth, [FromServices] IOptions<EphemeralBrainOptions> ephemeralOptions, [FromServices] ILoggerFactory logs)
     {
         http.Response.Headers.CacheControl = "no-store";
         http.Response.Headers["Referrer-Policy"] = "no-referrer";
@@ -63,18 +63,12 @@ internal static class GuestSignIn
 
         var now = clock.GetUtcNow();
         var guest = GuestSurface.PrincipalOf(claims.Issuer, claims.Session);
-        // Idempotent: a returning visitor of the same try session gets the same guest and brain.
-        await identity.EnsureAccount(new Account { AccountId = guest, OwnerPrincipalId = guest, Name = "Guest", CreatedAt = now }).WaitAsync(http.RequestAborted);
-        var provision = await identity.EnsureBrain(new Member
-        {
-            PrincipalId = guest,
-            AccountId = guest,
-            BrainId = guest,
-            Role = MemberRole.Owner,
-            DisplayName = "Guest",
-            JoinedAt = now,
-        }).WaitAsync(http.RequestAborted);
-        var member = await births.Born(provision).WaitAsync(http.RequestAborted);
+        var stay = claims.Until > now ? claims.Until - now : ephemeralOptions.Value.IdleTtl;
+        var baseResidency = ephemeralOptions.Value.ToResidency();
+        var residency = baseResidency with { IdleTtl = stay };
+        // Pure in-memory ephemeral brain: zero orphan try-* accounts written to durable IdentityDirectoryGrain.
+        var record = ephemeral.Mint(guest, residency);
+        var member = await births.BornEphemeral(record.Owner, record.Residency).WaitAsync(http.RequestAborted);
         await http.RequestServices.GetRequiredService<DigitalBrain.Runtime.Http.ISessionIssuer>()
             .IssueAsync(http, new SessionRequest
             {

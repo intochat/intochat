@@ -51,8 +51,15 @@ public static class BrainAccessFilter
     {
         if (http.RequestServices.GetService<IIntoChatOSBrains>() is not { } brains) { return; }
         var scope = BrainScope.Create(accountId, brainId).Id;
+        var residencyRegistry = http.RequestServices.GetService<IBrainResidencyRegistry>();
         var seen = Created.GetOrCreateValue(brains);
-        var creating = seen.GetOrAdd(scope, _ => new Lazy<Task>(() => brains.Get<IBrain>(IBrain.Key(scope)).Create(new Owner(accountId))));
+        var creating = seen.GetOrAdd(scope, _ => new Lazy<Task>(() =>
+        {
+            var brain = brains.Get<IBrain>(IBrain.Key(scope));
+            return residencyRegistry is not null && residencyRegistry.TryGetEphemeral(scope, out var ephemeral)
+                ? brain.CreateEphemeral(new Owner(accountId), ephemeral)
+                : brain.Create(new Owner(accountId));
+        }));
         // Best effort: the request itself is already allowed, and the next one retries.
         try { await creating.Value; }
         catch (Exception error) when (error is not OperationCanceledException)

@@ -2,20 +2,22 @@ using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Identity.Contracts.Accounts;
 
-// Everything an anonymous /try visitor may reach: the shipped demo screens, through three MCP tools, on endpoints marked
-// with Door. Whatever is not named here is refused.
+// Ephemeral/guest identity vocabulary and HTTP endpoint door marker.
+// Capability gating for ephemeral brains is governed by DigitalBrain.Brains.IBrainCapabilityPolicy;
+// Screens and MayOpen remain binary-compatible for intochat/cloud while retiring the legacy 3-screen toy restriction.
 public static class GuestSurface
 {
-    // Reserved for guests: sign-up refuses it (PrincipalIdIsAvailable, PrincipalPasswords.Register), so the principal alone
-    // marks a guest, also after MCP re-stamps the caller as the agent. The directory's Ensure* calls do not check it: that is
-    // how the guest itself is made.
+    // Reserved for ephemeral/try visitors: sign-up refuses it (PrincipalIdIsAvailable, PrincipalPasswords.Register),
+    // so the principal alone marks an unclaimed ephemeral visitor, also after MCP re-stamps the caller as the agent.
     public const string BrainPrefix = "try-";
 
-    // A guest is never a person: its session is stamped as this app, and never inherits Actor.Person.
+    // An unclaimed ephemeral visitor is never a durable person: its session is stamped as this app, and never inherits Actor.Person.
     public const string AppId = "guest";
 
     public static IReadOnlyList<string> Tools { get; } = ["screen_list", "screen_read", "screen_act"];
 
+    // Retained for binary compatibility with intochat/cloud until Phase 2 cloud sync removes GuestTrySessionService.
+    // Runtime screen gating is now governed by IBrainCapabilityPolicy rather than this legacy list.
     public static IReadOnlyList<string> Screens { get; } = ["helloworld", "btcalert", "photocraft"];
 
     public static bool Is(Caller caller)
@@ -38,10 +40,21 @@ public static class GuestSurface
 
     public static bool MayUseTool(string? tool) => tool is not null && Tools.Contains(tool, StringComparer.Ordinal);
 
-    // The app id exactly as the caller sent it: no case folding, trimming or path form.
-    public static bool MayOpen(string? appId) => appId is not null && Screens.Contains(appId, StringComparer.Ordinal);
+    // Ephemeral brains may open any valid built-in or mini-app id in RAM (governed by IBrainCapabilityPolicy).
+    // Rejects null, empty, whitespace, uppercase, dot-segments, and path separators to prevent traversal.
+    public static bool MayOpen(string? appId)
+    {
+        if (string.IsNullOrEmpty(appId) || appId.Length > 64) { return false; }
+        for (var i = 0; i < appId.Length; i++)
+        {
+            var c = appId[i];
+            var ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (i > 0 && (c == '-' || c == '_'));
+            if (!ok) { return false; }
+        }
+        return true;
+    }
 
-    // Marks an endpoint a guest may be admitted on. A guest is anonymous on every endpoint without it.
+    // Marks an endpoint an ephemeral/guest session may reach. Operator, admin, and device endpoints stay closed without it.
     public sealed class Door
     {
         public static readonly Door Instance = new();

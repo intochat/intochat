@@ -10,6 +10,7 @@ using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.AI.Agents;
@@ -304,6 +305,7 @@ internal sealed class AgentNeuron(
             await Notify(new TurnCompleted(Key, runId, await Runner.Mask(replay.Reply ?? "")));
             return runId;
         }
+        await EnforceTrialTurnPolicyAsync();
         await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), Clock.GetUtcNow()) { FlowId = flowId, TraceId = TraceContext.Current?.TraceId } });
         try
         {
@@ -353,6 +355,10 @@ internal sealed class AgentNeuron(
             await Notify(new TurnCompleted(Key, runId, await Runner.Mask(replay.Reply ?? "")));
             yield return new AgentTurnEvent.Finished();
             yield break;
+        }
+        if (started is null)
+        {
+            await EnforceTrialTurnPolicyAsync();
         }
 
         var definition = State.Definition;
@@ -648,6 +654,30 @@ internal sealed class AgentNeuron(
         };
         try { await Publish(signal); }
         catch (Exception error) { Logger.LogWarning(error, "Agent signal delivery failed; consumers can reconcile through Read and Transcript."); }
+    }
+
+    private async Task EnforceTrialTurnPolicyAsync()
+    {
+        var policy = services.GetService<IBrainCapabilityPolicy>();
+        if (policy is not null)
+        {
+            var decision = await policy.EvaluateAsync(Scope, BrainCapability.AssistantTurn, Key);
+            if (!decision.Allowed)
+            {
+                throw new ClaimRequiredException(decision);
+            }
+        }
+
+        var registry = services.GetService<IBrainResidencyRegistry>();
+        if (registry is not null && registry.TryGetEphemeral(Scope, out var ephemeral) && !registry.TryConsumeTurn(Scope, out _))
+        {
+            throw new ClaimRequiredException(CapabilityDecision.RequireClaim(
+                BrainCapability.AssistantTurn,
+                $"You've reached the {ephemeral.MaxTrialTurns}-turn trial limit. Sign in to claim this workspace and continue your conversation without losing anything.",
+                Key,
+                CapabilityDecision.TrialTurnsExhaustedCode,
+                remainingTurns: 0));
+        }
     }
 
     private sealed class AgentTurnSink(Func<AgentRun, Task> store) : ITurnSink

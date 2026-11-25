@@ -11,4 +11,5 @@ public sealed record BrainStorage
 {
     public Owner? Owner { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
+    public BrainResidency? Residency { get; init; }
 }

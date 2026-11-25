@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using IntoChat.OS.Modules.Identity.Accounts;
+using IntoChat.OS.Modules.Identity.Contracts.Accounts;
 using IntoChat.OS.Modules.Identity.Secrets;
 
 namespace IntoChat.OS.Kernel.Platform;
@@ -41,7 +42,7 @@ public static class KernelPlatformHosting
         ArgumentNullException.ThrowIfNull(endpoints);
         RuntimeManagementEndpoints.Map(endpoints);
         endpoints.MapSiloDiagnostics();
-        endpoints.MapGrpcService<NeuronsGrpcService>();
+        endpoints.MapGrpcService<NeuronsGrpcService>().WithMetadata(GuestSurface.Door.Instance);
         return endpoints;
     }
 

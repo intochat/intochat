@@ -1,12 +1,15 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using DigitalBrain.Brains;
+using DigitalBrain.Log;
+using IntoChat.OS.Host.Logging;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Devices;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
+internal sealed class InferenceService(ModelCatalog catalog, IBrainResidencyRegistry? residencyRegistry = null) : IModelInference
 {
     bool IModelInference.HasProfile(string name) => HasProfile(name);
 
@@ -34,6 +37,21 @@ internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
             if (string.IsNullOrWhiteSpace(selection?.Model))
             {
                 selection = (selection ?? new()) with { Model = pinnedId };
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(brainId)
+            && residencyRegistry is not null
+            && residencyRegistry.TryGetEphemeral(brainId, out _)
+            && string.IsNullOrWhiteSpace(selection?.Model))
+        {
+            // Ephemeral trial brains route to the fast model role when available, falling back to default if none is configured.
+            try
+            {
+                return await catalog.Decide(brainId, ModelRole.Fast, selection, tools, ct);
+            }
+            catch (InvalidOperationException error)
+            {
+                OsConsoleLog.For<InferenceService>().LogSwallowed(error, "ephemeral fast-model fallback");
             }
         }
 
