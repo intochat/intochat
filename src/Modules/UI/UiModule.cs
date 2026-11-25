@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Routing;
 
 namespace IntoChat.OS.Modules.UI;
 
-// Unified stateful UI component neurons (Chart, Toggle, CheckBox, Select, Tabs, Expander, ListBox, Table).
+// The control neurons (control.*) a screen mounts as children, the read-only legacy ui.chat reader, and the Widgetbook site.
 [DigitalBrain.Modules.Module(UiModule.ModuleName)]
 public sealed class UiModule : DigitalBrain.Modules.Module, IHttpModule
 {
     internal const string ModuleName = "ui";
 
-    public static System.Reflection.Assembly? Contracts => typeof(Chart.IChart).Assembly;
+    public static System.Reflection.Assembly? Contracts => typeof(Controls.ICheckBoxControl).Assembly;
 
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],

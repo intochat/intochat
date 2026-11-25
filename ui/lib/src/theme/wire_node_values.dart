@@ -455,13 +455,7 @@ WireViewTransition parseViewTransition(String raw) =>
 
 bool isFillingNeuronRefKind(String refKind) =>
     switch (refKind.trim().toLowerCase()) {
-      'ui.code-editor' ||
-      'ui.chat' ||
-      'ui.property-grid' ||
-      'ui.tree-view' ||
-      'ui.table' ||
-      'viewport' ||
-      'webbrowser' => true,
+      'viewport' || 'webbrowser' => true,
       _ => false,
     };
 

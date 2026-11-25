@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
-import 'package:intochat_os_flutter_shell/src/widgets/neuron/ui_control_surface.dart';
+import 'package:intochat_os_flutter_shell/src/primitives/ui_control_surface.dart';
 
 void main() {
   testWidgets(

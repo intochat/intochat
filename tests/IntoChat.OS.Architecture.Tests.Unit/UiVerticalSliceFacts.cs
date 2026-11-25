@@ -4,7 +4,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Modules.UI.Controls;
-using IntoChat.OS.Modules.UI.Core;
+using IntoChat.OS.Modules.UI.Legacy;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -14,7 +14,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 ///    components and sandboxed apps mount a control without referencing the module.
 /// 2. Every control neuron (<c>IntoChat.OS.Modules.UI.Controls</c>) derives from <see cref="ControlNeuron{TState, TProps}"/> and
 ///    implements the contract that names its neuron type and props.
-/// 3. Every other neuron of the module is a legacy <c>ui.*</c> control on <see cref="UiNeuronBase{TState}"/>, its contract beside it.
+/// 3. The module has no other neuron than the read-only legacy <c>ui.chat</c> reader (<see cref="ILegacyChatThread"/>).
 /// </summary>
 public sealed class UiVerticalSliceFacts
 {
@@ -54,14 +54,15 @@ public sealed class UiVerticalSliceFacts
     }
 
     [Fact]
-    public void EveryOtherUiNeuronInheritsUiNeuronBase()
+    public void TheOnlyOtherNeuronIsTheLegacyChatReader()
     {
-        var violations = typeof(UiModule).Assembly.GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false } && type.Name.EndsWith("Neuron", StringComparison.Ordinal)
-                && type.Namespace != typeof(ControlNeuron<,>).Namespace && !InheritsOpenGeneric(type, typeof(UiNeuronBase<>)))
-            .Select(type => type.FullName ?? type.Name)
+        var others = typeof(UiModule).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false } && type.GetCustomAttribute<NeuronAttribute>() is not null
+                && type.Namespace != typeof(ControlNeuron<,>).Namespace)
             .ToArray();
-        Assert.Empty(violations);
+        var reader = Assert.Single(others);
+        Assert.Equal("ui.chat", reader.GetCustomAttribute<NeuronAttribute>()!.Type);
+        Assert.True(typeof(ILegacyChatThread).IsAssignableFrom(reader), $"{reader.FullName} is not the legacy chat reader.");
     }
 
     private static Type[] ControlNeurons() => [.. typeof(UiModule).Assembly.GetTypes()

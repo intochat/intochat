@@ -28,7 +28,6 @@ using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Conversations;
 using IntoChat.OS.Modules.Identity.Contracts.Grants;
-using IntoChat.OS.Modules.UI.Chat.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 
