@@ -86,9 +86,15 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
         brain.AddProjection(new SandboxKernelProjection(sandbox, enrollKey));
     }
 
-    private static async Task PublishContainerImageAsync(string repoRoot, string projectPath, CancellationToken ct)
+    private static readonly SemaphoreSlim PublishGate = new(1, 1);
+
+    internal static ProcessStartInfo CreatePublishStartInfo(string repoRoot, string projectPath)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repoRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
+
         var rid = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+        var sandboxArtifacts = Path.Combine(repoRoot, "artifacts", "sandbox-container");
         var start = new ProcessStartInfo("dotnet")
         {
             WorkingDirectory = repoRoot,
@@ -108,21 +114,36 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
         start.ArgumentList.Add("-p:EnableSdkContainerSupport=true");
         start.ArgumentList.Add("-p:CodeGraphRefresh=false");
         start.ArgumentList.Add("-p:DebugType=none");
+        start.ArgumentList.Add($"-p:ArtifactsPath={sandboxArtifacts}");
         start.ArgumentList.Add("--nologo");
+        return start;
+    }
 
-        using var process = Process.Start(start)
-            ?? throw new InvalidOperationException("Failed to start 'dotnet publish /t:PublishContainer' for IntoChat.OS.Sandbox.");
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
-        var stderrTask = process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
-
-        if (process.ExitCode != 0)
+    private static async Task PublishContainerImageAsync(string repoRoot, string projectPath, CancellationToken ct)
+    {
+        await PublishGate.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            var stdout = await stdoutTask.ConfigureAwait(false);
-            var stderr = await stderrTask.ConfigureAwait(false);
-            throw new InvalidOperationException(
-                $"Building sandbox container image '{ImageName}:{ImageTag}' failed (exit {process.ExitCode}).\n{stderr}\n{stdout}");
+            var start = CreatePublishStartInfo(repoRoot, projectPath);
+
+            using var process = Process.Start(start)
+                ?? throw new InvalidOperationException("Failed to start 'dotnet publish /t:PublishContainer' for IntoChat.OS.Sandbox.");
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+            var stderrTask = process.StandardError.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+
+            if (process.ExitCode != 0)
+            {
+                var stdout = await stdoutTask.ConfigureAwait(false);
+                var stderr = await stderrTask.ConfigureAwait(false);
+                throw new InvalidOperationException(
+                    $"Building sandbox container image '{ImageName}:{ImageTag}' failed (exit {process.ExitCode}).\n{stderr}\n{stdout}");
+            }
+        }
+        finally
+        {
+            PublishGate.Release();
         }
     }
 
