@@ -1122,6 +1122,21 @@ final class IntoChatOSUiClient {
         : Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
+  /// Stores [value] as the signed-in person's secret [name] and returns only
+  /// its reference (`secret://{owner}/{name}`), which a form submits.
+  Future<String> storeSecretReference(
+    String name,
+    String label,
+    String value,
+  ) async {
+    final secret = await storeSecret(name, label, value);
+    final reference = secret['reference'];
+    if (reference is! String || reference.isEmpty) {
+      throw StateError('The vault returned no secret reference.');
+    }
+    return reference;
+  }
+
   Future<Object?> connectorRequest(
     String workspaceId,
     String path, {

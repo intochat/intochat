@@ -32,4 +32,18 @@ public sealed class FormNeuronFacts
 
         Assert.Equal(Values(("name", "Ada"), ("bio", "Pilot")), Single(form).Values);
     }
+
+    [Fact]
+    public async Task A_secret_reference_is_signalled_but_not_kept_or_drawn()
+    {
+        await using var form = new ControlHarness(typeof(FormNeuron), key: "keys");
+        var reference = new Dictionary<string, string>(StringComparer.Ordinal) { ["token"] = "secret://ada/keys/token" };
+
+        await form.Send(new Submit(Values(("label", "Work")), reference));
+
+        var submitted = Single(form);
+        Assert.Equal(Values(("label", "Work")), submitted.Values);
+        Assert.Equal(reference, submitted.SecretRefs);
+        Assert.Equal(new FormView("keys", [new FormValue("label", "Work")]), await form.Drawn<FormView>());
+    }
 }

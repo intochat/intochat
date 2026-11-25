@@ -183,8 +183,9 @@ public enum FormFieldKind
     /// <summary>Several lines of text.</summary>
     Multiline,
 
-    /// <summary>A secret. Not supported yet: a form whose props hold one refuses every submit (control.secretUnsupported) and the
-    /// client does not draw it, because a submit is a journaled command and signal. A vault-backed path is owed.</summary>
+    /// <summary>A secret. The client stores the typed value in the person's vault (<c>POST /secrets/{owner}</c>) and the submit carries
+    /// only the returned reference in <c>SecretRefs</c>, because a submit is a journaled command and signal. A secret field's key inside
+    /// <c>Values</c> is refused (control.secretInValues).</summary>
     Secret,
 
     /// <summary>A number (invariant culture); an empty value is allowed.</summary>
@@ -194,7 +195,7 @@ public enum FormFieldKind
 /// <summary>A field of a form.</summary>
 /// <param name="Key">The key its value is submitted under.</param>
 /// <param name="Label">The text above the field.</param>
-/// <param name="Kind">What it holds; <see cref="FormFieldKind.Secret"/> is not supported yet.</param>
+/// <param name="Kind">What it holds; a <see cref="FormFieldKind.Secret"/> field is submitted as a vault reference, never as a value.</param>
 /// <param name="Value">Set when the parent owns the value (a controlled field): drawn until the person types, and a form with any such
 /// field stores nothing on submit, it only signals Submitted. Null draws the form's last submitted value.</param>
 /// <param name="Placeholder">The hint shown while empty.</param>
@@ -232,8 +233,17 @@ public static class FormRefusals
     /// <summary>A number field's value is not a number.</summary>
     public const string NotANumber = "control.notANumber";
 
-    /// <summary>The form's props hold a secret field, which forms do not support yet.</summary>
-    public const string SecretUnsupported = "control.secretUnsupported";
+    /// <summary>A secret field's key is inside the submit's values: a secret travels only as a vault reference in <c>secretRefs</c>.</summary>
+    public const string SecretInValues = "control.secretInValues";
+
+    /// <summary>A <c>secretRefs</c> key names a field that is not a secret.</summary>
+    public const string NotASecretField = "control.notASecretField";
+
+    /// <summary>A <c>secretRefs</c> value is not a vault reference (<c>secret://{owner}/{name}</c>).</summary>
+    public const string NotASecretReference = "control.notASecretReference";
+
+    /// <summary>The prefix of a vault reference (<c>DigitalBrain.Capabilities.Secrets.SecretReferences</c>, which this assembly cannot reference).</summary>
+    public const string ReferencePrefix = "secret://";
 
     /// <summary>The submit carries no values object.</summary>
     public const string NoValues = "control.noValues";
@@ -255,10 +265,10 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
         {
             return FormRefusals.NoValues;
         }
-        if (Fields.Any(field => field.Kind == FormFieldKind.Secret)) { return FormRefusals.SecretUnsupported; }
         foreach (var entry in values.EnumerateObject())
         {
             if (Fields.FirstOrDefault(field => field.Key == entry.Name) is not { } field) { return FormRefusals.UnknownField; }
+            if (field.Kind == FormFieldKind.Secret) { return FormRefusals.SecretInValues; }
             if (field.IsReadOnly) { return FormRefusals.ReadOnlyField; }
             var value = entry.Value.ValueKind == JsonValueKind.String ? entry.Value.GetString() ?? "" : entry.Value.GetRawText();
             if (field.MaxLength is { } max && value.Length > max) { return FormRefusals.TooLong; }
@@ -266,6 +276,24 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
                 && !double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
             {
                 return FormRefusals.NotANumber;
+            }
+        }
+        return SecretRefsRefusal(json);
+    }
+
+    private string? SecretRefsRefusal(JsonElement args)
+    {
+        if (!args.TryGetProperty("secretRefs", out var refs) || refs.ValueKind == JsonValueKind.Null) { return null; }
+        if (refs.ValueKind != JsonValueKind.Object) { return FormRefusals.NotASecretReference; }
+        foreach (var entry in refs.EnumerateObject())
+        {
+            if (Fields.FirstOrDefault(field => field.Key == entry.Name) is not { } field) { return FormRefusals.UnknownField; }
+            if (field.Kind != FormFieldKind.Secret) { return FormRefusals.NotASecretField; }
+            if (field.IsReadOnly) { return FormRefusals.ReadOnlyField; }
+            if (entry.Value.ValueKind != JsonValueKind.String || entry.Value.GetString() is not { } reference
+                || !reference.StartsWith(FormRefusals.ReferencePrefix, StringComparison.Ordinal) || reference.Length <= FormRefusals.ReferencePrefix.Length)
+            {
+                return FormRefusals.NotASecretReference;
             }
         }
         return null;

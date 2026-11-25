@@ -48,6 +48,7 @@ class ViewHost extends StatefulWidget {
     this.transcribe,
     this.talk,
     this.speak,
+    this.storeSecret,
     this.embedded = false,
   });
   final String kind, name;
@@ -110,6 +111,9 @@ class ViewHost extends StatefulWidget {
 
   /// Host capability used by read-aloud controls to synthesize assistant replies.
   final VoiceSpeaker? speak;
+
+  /// Host capability a form uses to store a secret field in the person's vault.
+  final SecretStore? storeSecret;
 
   @override
   State<ViewHost> createState() => _ViewHostState();
@@ -334,6 +338,7 @@ class _ViewHostState extends State<ViewHost> {
     transcribe: widget.transcribe,
     talk: widget.talk,
     speak: widget.speak,
+    storeSecret: widget.storeSecret,
     embedded: true,
   );
 
@@ -453,6 +458,7 @@ class _ViewHostState extends State<ViewHost> {
       transcribe: widget.transcribe,
       talk: widget.talk,
       speak: widget.speak,
+      storeSecret: widget.storeSecret,
       embedded: true,
       inlineSlot: true,
     );
@@ -553,6 +559,7 @@ class _ViewHostState extends State<ViewHost> {
           transcribe: widget.transcribe,
           talk: widget.talk,
           speak: widget.speak,
+          storeSecret: widget.storeSecret,
         );
         ViewHost.debugOnContext?.call(widget.name, ctx);
         final appView = AppView.fromJson(normalizedView);

@@ -31,6 +31,15 @@ typedef NeuronLoader = Future<Map<String, dynamic>> Function(
 /// the route) and returns the response body, if any.
 typedef NeuronAction = Future<Object?> Function(Map<String, dynamic> event);
 
+/// Stores a typed secret in the signed-in person's vault
+/// (`POST /secrets/{owner}`) and returns its reference (`secret://…`); the
+/// value itself never enters a view action.
+typedef SecretStore = Future<String> Function(
+  String name,
+  String label,
+  String value,
+);
+
 /// Transcribes recorded audio bytes and returns the recognized text.
 typedef VoiceTranscriber = Future<String> Function(
   Uint8List audio,
@@ -103,6 +112,7 @@ class NodeContext {
     this.transcribe,
     this.talk,
     this.speak,
+    this.storeSecret,
     this.createAudioOut,
     this.createMicStream,
     this.slotProps = const {},
@@ -179,6 +189,10 @@ class NodeContext {
   /// Synthesizes assistant replies into playable audio bytes for read-aloud.
   final VoiceSpeaker? speak;
 
+  /// Stores a form's secret field in the person's vault; null where no person
+  /// is signed in (a secret field is then drawn disabled).
+  final SecretStore? storeSecret;
+
   /// Optional factory for [AudioOut] (defaults to [SoLoudAudioOut]).
   final AudioOut Function()? createAudioOut;
 
@@ -224,6 +238,7 @@ class NodeContext {
     transcribe: transcribe,
     talk: talk,
     speak: speak,
+    storeSecret: storeSecret,
     createAudioOut: createAudioOut,
     createMicStream: createMicStream,
     actsViaAct: actsViaAct,

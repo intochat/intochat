@@ -14,10 +14,14 @@ const _props = {
   'isEnabled': true,
 };
 
+/// One call of the context's secret store: what the vault was handed.
+typedef _Stored = ({String name, String label, String value});
+
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
-  Map<String, dynamic> props,
-) async {
+  Map<String, dynamic> props, {
+  List<_Stored>? stored,
+}) async {
   final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
     MaterialApp(
@@ -42,6 +46,12 @@ Future<List<Map<String, dynamic>>> _pump(
                 sent.add(event);
                 return {'delivered': true};
               },
+              storeSecret: stored == null
+                  ? null
+                  : (name, label, value) async {
+                      stored.add((name: name, label: label, value: value));
+                      return 'secret://ada/${stored.length}';
+                    },
             ),
           ),
         ),
@@ -76,14 +86,107 @@ void main() {
     expect(sent.single['target'], 'profile');
     expect(_args(sent.single), {
       'values': {'name': 'Ada', 'bio': 'Pilot'},
+      'secretRefs': <String, String>{},
     });
   });
 
-  testWidgets('a secret field is not offered', (tester) async {
+  testWidgets(
+    'a typed secret goes to the vault only; Submit carries its reference',
+    (tester) async {
+      final stored = <_Stored>[];
+      final sent = await _pump(tester, _props, stored: stored);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('form_field_token')),
+        'sk-live-123',
+      );
+      await tester.pump();
+      expect(stored, isEmpty);
+      expect(sent, isEmpty);
+
+      await tester.tap(find.byKey(const ValueKey('form_submit')));
+      await tester.pumpAndSettle();
+
+      expect(stored, hasLength(1));
+      expect(stored.single.value, 'sk-live-123');
+      expect(stored.single.label, 'API key');
+      expect(sent, hasLength(1));
+      expect(_args(sent.single), {
+        'values': {'name': 'Ada', 'bio': 'Engineer'},
+        'secretRefs': {'token': 'secret://ada/1'},
+      });
+      expect(sent.single.toString(), isNot(contains('sk-live-123')));
+      // The typed secret is not kept on screen after it is stored.
+      expect(find.text('sk-live-123'), findsNothing);
+    },
+  );
+
+  testWidgets('an empty secret field is left out of the submit', (
+    tester,
+  ) async {
+    final stored = <_Stored>[];
+    final sent = await _pump(tester, _props, stored: stored);
+
+    await tester.tap(find.byKey(const ValueKey('form_submit')));
+    await tester.pumpAndSettle();
+
+    expect(stored, isEmpty);
+    expect(_args(sent.single)['secretRefs'], isEmpty);
+  });
+
+  testWidgets('a failed vault store submits nothing and keeps the text', (
+    tester,
+  ) async {
+    final sent = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NodeRenderer.render(
+              const FormViewNode(key: 'profile', values: []),
+              NodeContext(
+                view: 'local/apps/settings/view',
+                actNeuron: 'local/apps/settings',
+                slotPath: 'profile',
+                slotProps: _props,
+                send: (event) async {
+                  sent.add(event);
+                  return {'delivered': true};
+                },
+                storeSecret: (name, label, value) async =>
+                    throw StateError('vault down'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('form_field_token')),
+      'sk-live-123',
+    );
+    await tester.tap(find.byKey(const ValueKey('form_submit')));
+    await tester.pumpAndSettle();
+
+    expect(sent, isEmpty);
+    expect(find.text('Secret not stored: try again.'), findsOneWidget);
+  });
+
+  testWidgets('without a secret store the secret field is drawn disabled', (
+    tester,
+  ) async {
     await _pump(tester, _props);
 
-    expect(find.text('API key'), findsNothing);
-    expect(find.byKey(const ValueKey('form_field_token')), findsNothing);
+    expect(find.text('API key'), findsOneWidget);
+    final field = tester.widget<UiKitField>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('form_field_token')),
+        matching: find.byType(UiKitField),
+      ),
+    );
+    expect(field.enabled, isFalse);
   });
 
   testWidgets('a controlled field draws the parent value', (tester) async {
