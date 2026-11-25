@@ -27,8 +27,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI.Form;
-using IntoChat.OS.Modules.UI.Form.Signals;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -37,27 +35,16 @@ namespace IntoChat.OS.Apps.Settings;
 
 public sealed partial class SettingsApp
 {
-    [On]
-    public async Task OnFormSubmitted(FormSubmitted submitted)
+    // The API keys form's client stores each typed key in the person's vault; only the references arrive here, and nothing reads them yet.
+    private Task SealApiKeysAsync(IReadOnlyDictionary<string, string>? secretRefs)
     {
-        if (submitted is null || string.IsNullOrWhiteSpace(submitted.FormId))
-        {
-            return;
-        }
+        var count = secretRefs?.Count ?? 0;
+        return UpdateAsync(State with { Status = $"Sealed {count} API key{(count == 1 ? "" : "s")} in your vault." });
+    }
 
-        if (!string.Equals(submitted.FormId, GitHubPatFormKey, StringComparison.Ordinal)
-            && !submitted.FormId.EndsWith("/" + GitHubPatFormKey, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        string? Value(string field) => submitted.Values is not null
-            && submitted.Values.TryGetValue(field, out var raw)
-            && !string.IsNullOrWhiteSpace(raw)
-                ? raw.Trim()
-                : null;
-
-        var rawRepository = Value("Repository");
+    // The PAT form's secret fields arrive as vault references (secret://{owner}/{name}); the typed token never reaches this screen.
+    private async Task ConnectGitHubAsync(string? rawRepository, string? rawSlug, IReadOnlyDictionary<string, string>? secretRefs)
+    {
         if (Decision.Check("connect-github-pat", SettingsAppState.ValidateGitHubRepositoryRule(rawRepository)) is { } rejected)
         {
             await ApplySettingsDecisionAsync(rejected);
@@ -65,26 +52,26 @@ public sealed partial class SettingsApp
         }
 
         var normalizedRepo = SettingsAppState.NormalizeGitHubRepository(rawRepository)!;
-        var slug = SettingsAppState.NormalizeGitHubSlug(Value("ConnectionSlug") ?? State.GitHubConnectionSlug);
+        var slug = SettingsAppState.NormalizeGitHubSlug(rawSlug ?? State.GitHubConnectionSlug);
         var connectionKey = SettingsAppState.NormalizeGitHubConnectionKey(slug);
 
-        var patRef = submitted.SecretRefs is not null && submitted.SecretRefs.TryGetValue("PersonalAccessToken", out var pRef) ? pRef : null;
-        var webhookRef = submitted.SecretRefs is not null && submitted.SecretRefs.TryGetValue("WebhookSecret", out var wRef) ? wRef : null;
+        var patRef = secretRefs is not null && secretRefs.TryGetValue("PersonalAccessToken", out var pRef) ? pRef : null;
+        var webhookRef = secretRefs is not null && secretRefs.TryGetValue("WebhookSecret", out var wRef) ? wRef : null;
         var vault = SecretVault ?? Vault;
         string? unsealedPat = null;
-        if (patRef is not null && !string.IsNullOrWhiteSpace(patRef.VaultKey) && vault is not null)
+        if (!string.IsNullOrWhiteSpace(patRef) && vault is not null)
         {
             try
             {
-                unsealedPat = await vault.TryOpenSecretAsync(patRef.VaultKey);
+                unsealedPat = await vault.TryOpenSecretAsync(patRef);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Log.LogDebug(error, "Failed opening vault handle {VaultKey} for GitHub PAT.", patRef.VaultKey);
+                Log.LogDebug(error, "Failed opening vault reference {Reference} for GitHub PAT.", patRef);
             }
         }
 
-        var grantToken = !string.IsNullOrWhiteSpace(unsealedPat) ? unsealedPat : patRef?.VaultKey;
+        var grantToken = !string.IsNullOrWhiteSpace(unsealedPat) ? unsealedPat : patRef;
         var connected = false;
         if (TryBrainOrNull() is { } brain && !string.IsNullOrWhiteSpace(brain.Value) && !string.IsNullOrWhiteSpace(grantToken))
         {

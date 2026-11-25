@@ -30,8 +30,6 @@ using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI.Form;
-using IntoChat.OS.Modules.UI.Form.Signals;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -584,7 +582,6 @@ public sealed partial class SettingsApp
         else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
         {
             next = next with { GitHubConnectionSlug = SettingsAppState.ResolveGitHubSlug(next.SubPage, next.GitHubConnectionSlug) };
-            await EnsureGitHubPatFormConfiguredAsync();
             next = await RefreshGitHubHubProjectionAsync(next);
         }
 
