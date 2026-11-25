@@ -9,7 +9,7 @@ import 'package:widgetbook/widgetbook.dart';
 
 import 'src/widgets/ino/ino_companion_orb.dart';
 import 'src/widgets/ino/ino_orb_v2.dart';
-import 'src/widgets/neuron/ui_control_surface.dart';
+import 'src/primitives/ui_control_surface.dart';
 
 /// Free, open-source IntoChat.OS UI Kit & Neuron Widgetbook workbench.
 ///

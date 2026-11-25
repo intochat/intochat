@@ -615,7 +615,7 @@ internal sealed partial class EngineerLiveVerifier : ILiveVerifier, ILiveEnviron
         }
 
         // Verify UiNeuronPlaywrightExtensions contract readiness & Dart/UI surface integrity.
-        var uiSemanticsMethod = typeof(IntoChat.OS.Modules.Microsoft.Playwright.UiNeuronPlaywrightExtensions).GetMethod("Neuron");
+        var uiSemanticsMethod = typeof(IntoChat.OS.Modules.Microsoft.Playwright.UiNeuronPlaywrightExtensions).GetMethod(nameof(IntoChat.OS.Modules.Microsoft.Playwright.UiNeuronPlaywrightExtensions.KeyedNode));
         var uiReady = uiSemanticsMethod is not null;
         probes.Add(new EngineerLiveProbe(
             "playwright-ui-semantics-gate",

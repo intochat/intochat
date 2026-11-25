@@ -140,11 +140,6 @@ void main() {
                   'kind': 'column',
                   'children': [
                     {'kind': 'text', 'value': 'Stage:$activeStage'},
-                    {
-                      'kind': 'neuronRef',
-                      'refKind': 'ui.stepper',
-                      'neuronUri': 'engineer/stepper',
-                    },
                   ],
                 },
               },
@@ -154,22 +149,6 @@ void main() {
         }),
       )..link = link;
       addTearDown(client.close);
-
-      link.onCall = (brainId, contract, key, method, arguments) async {
-        if (contract.endsWith('IStepper') && method == 'Advance') {
-          activeStage = 'verify';
-        }
-        return {
-          'version': nodeReads + 1,
-          'title': 'Pipeline',
-          'activeStepId': activeStage,
-          'allowInteractiveSelection': true,
-          'steps': [
-            {'id': 'plan', 'title': 'Plan', 'status': 'done'},
-            {'id': 'verify', 'title': 'Verify', 'status': 'active'},
-          ],
-        };
-      };
 
       await tester.pumpWidget(
         MaterialApp(
@@ -210,8 +189,8 @@ void main() {
         isTrue,
       );
 
-      // Mutate child IStepper: without ViewChanged push, no timer reloads the parent IScreen.
-      await tester.tap(find.text('Advance'));
+      // A state change without a ViewChanged push: no timer reloads the IScreen.
+      activeStage = 'verify';
       await tester.pump(const Duration(milliseconds: 500));
       expect(nodeReads, 1);
       expect(find.text('Stage:plan'), findsOneWidget);

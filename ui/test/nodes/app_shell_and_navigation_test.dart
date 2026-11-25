@@ -48,36 +48,36 @@ void main() {
       expect(NodeRenderer.fills(brain), isTrue);
       expect(NodeRenderer.fills(browser), isTrue);
 
-      for (final refKind in [
-        'ui.code-editor',
-        'ui.chat',
-        'ui.property-grid',
-        'ui.tree-view',
-        'ui.table',
-        'viewport',
-        'webbrowser',
-      ]) {
+      for (final refKind in ['viewport', 'webbrowser']) {
         final refNode = Node.fromJson({
           'kind': 'neuronRef',
           'refKind': refKind,
-          'neuronUri': 'engineer/editor/code',
+          'neuronUri': 'engineer/browser',
         });
         expect(NodeRenderer.fills(refNode), isTrue, reason: refKind);
       }
 
+      // A ui.* control kind is gone: it no longer fills.
+      final oldControl = Node.fromJson({
+        'kind': 'neuronRef',
+        'refKind': 'ui.code-editor',
+        'neuronUri': 'engineer/editor/code',
+      });
+      expect(NodeRenderer.fills(oldControl), isFalse);
+
       // Single filling viewport wrapped inside Column / Surface / Card fills:
-      final columnWithEditor = Node.fromJson({
+      final columnWithViewport = Node.fromJson({
         'kind': 'column',
         'children': [
           {'kind': 'heading', 'value': 'Changes', 'level': 4},
           {
             'kind': 'neuronRef',
-            'refKind': 'ui.code-editor',
-            'neuronUri': 'engineer/editor/code',
+            'refKind': 'viewport',
+            'neuronUri': 'engineer/viewport',
           },
         ],
       });
-      expect(NodeRenderer.fills(columnWithEditor), isTrue);
+      expect(NodeRenderer.fills(columnWithViewport), isTrue);
 
       final surfaceWithScene = Node.fromJson({
         'kind': 'surface',

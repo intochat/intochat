@@ -6,14 +6,13 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../focus_registry.dart';
+import '../core/neuron_method_caller.dart';
 import '../models/window_state.dart';
 import '../nodes/brain_scene.dart';
 import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
-import '../widgets/neuron/neuron_widget.dart';
-import '../widgets/neuron/ui_neuron_registry.dart';
 import 'slot_route.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
@@ -356,22 +355,6 @@ class _ViewHostState extends State<ViewHost> {
   ) {
     final kind = rawKind.trim().toLowerCase();
     if (kind == 'confirmation') return null;
-
-    if (isUiNeuronKind(kind)) {
-      final caller = widget.callNeuron;
-      if (caller == null) return null;
-      var key = rawName.trim();
-      if (key.startsWith('neuron://')) {
-        key = key.substring('neuron://'.length);
-      }
-      if (key.isEmpty) return null;
-      return buildUiNeuronWidget(
-        kind: kind,
-        neuronKey: key,
-        callNeuron: caller,
-        watch: widget.watch,
-      );
-    }
 
     if (_referable.contains(kind)) {
       if (NodeContracts.tryResolve(kind) == null) return null;

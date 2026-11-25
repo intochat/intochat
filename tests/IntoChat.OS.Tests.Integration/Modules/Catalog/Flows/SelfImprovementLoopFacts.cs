@@ -38,7 +38,7 @@ public sealed class SelfImprovementLoopFacts
         await using var os = await JourneyOS.Start(kind, LoopModules, f => f.Friends().Postgres(), ct);
         var ada = os.Person("ada");
 
-        var findingsTableId = new NeuronId(ada.Brain, "ui.table", "loop-findings");
+        var findingsTableId = new NeuronId(ada.Brain, "storage", "loop-findings");
         var installs = ada.Get<IInstalls>(new NeuronId(ada.Brain, "synapse.installs", "default"));
         await installs.BindComponent(
             new ComponentId("loop.self-improvement"),

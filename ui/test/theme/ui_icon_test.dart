@@ -75,4 +75,16 @@ void main() {
   });
 
   test('default size', () => expect(uiIconSize, 18));
+
+  test('uiIconCatalog resolves every category', () {
+    expect(uiIconCategories.length, 8);
+    expect(uiIconCatalog.length, greaterThanOrEqualTo(180));
+    for (final cat in uiIconCategories) {
+      final entries = uiIconCatalog.where((e) => e.category == cat).toList();
+      expect(entries, isNotEmpty, reason: cat);
+      for (final entry in entries) {
+        expect(uiIcon(entry.slug), isNotNull, reason: entry.slug);
+      }
+    }
+  });
 }

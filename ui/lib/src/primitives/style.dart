@@ -4,7 +4,7 @@ import 'package:naked_ui/naked_ui.dart';
 
 import '../theme/ui_colors.dart';
 import '../theme/ui_tokens.dart';
-import '../widgets/neuron/ui_control_surface.dart';
+import 'ui_control_surface.dart';
 
 /// Optional state-specific style overrides mirroring C# `Mix.Style()`
 /// `hover`, `press`, and `focus` blocks.

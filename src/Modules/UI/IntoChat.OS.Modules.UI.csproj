@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
-    <Description>Stateful UI component neurons and signals for IntoChat OS.</Description>
+    <Description>The control neurons (control.*) of IntoChat OS screens.</Description>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
