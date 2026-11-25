@@ -466,6 +466,8 @@ public static partial class PulumiStackSynthesizer
         output.AppendLine("    type: azure-native:app:ContainerApp");
         output.AppendLine("    options:");
         output.AppendLine($"      dependsOn: [{string.Join(", ", dependsOn.Distinct(StringComparer.Ordinal).Select(d => $"\"${{{d}}}\""))}]");
+        output.AppendLine("      ignoreChanges:");
+        output.AppendLine("        - configuration.ingress.customDomains");
         output.Append(properties);
         if (trigger is not null)
         {

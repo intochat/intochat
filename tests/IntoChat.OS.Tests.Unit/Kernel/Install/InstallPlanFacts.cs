@@ -218,4 +218,27 @@ public sealed class InstallPlanFacts
         Assert.Equal("intochat-test-sandbox", summary.SandboxAppName);
         Assert.Contains("containerAppName: \"intochat-test-sandbox\"", summary.PulumiYaml, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ThePulumiStack_IgnoresContainerAppCustomDomainChanges()
+    {
+        var config = InstallConfig.Universal(
+            env: "test",
+            subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+            includeCloudApp: true,
+            includeSandboxApp: true);
+
+        var yaml = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules).PulumiYaml;
+
+        foreach (var name in new[] { config.OsName, config.CloudName, config.SandboxName })
+        {
+            var app = yaml.IndexOf($"containerAppName: \"{name}\"", StringComparison.Ordinal);
+            Assert.True(app > 0, $"ContainerApp '{name}' not found in synthesized Pulumi YAML.");
+            var header = yaml.LastIndexOf("type: azure-native:app:ContainerApp", app, StringComparison.Ordinal);
+            Assert.True(header > 0, $"ContainerApp header for '{name}' not found in synthesized Pulumi YAML.");
+            var optionsBlock = yaml[header..app];
+            Assert.Contains("    options:\n", optionsBlock, StringComparison.Ordinal);
+            Assert.Contains("      ignoreChanges:\n        - configuration.ingress.customDomains\n", optionsBlock, StringComparison.Ordinal);
+        }
+    }
 }

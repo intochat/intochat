@@ -107,17 +107,32 @@ jobs:
           cache-from: type=gha,scope=os
           cache-to: type=gha,mode=max,scope=os
 
+      - name: Build and push Sandbox container image
+        id: build-sandbox
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: src/IntoChat.OS.Sandbox/Dockerfile
+          push: true
+          tags: |
+            acrintochattest.azurecr.io/sandbox:${{ steps.version.outputs.version }}
+            acrintochattest.azurecr.io/sandbox:latest
+          cache-from: type=gha,scope=sandbox
+          cache-to: type=gha,mode=max,scope=sandbox
+
       - name: Write release manifest
         id: manifest
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           COMMIT="${{ github.sha }}"
           OS_DIGEST="acrintochattest.azurecr.io/os@${{ steps.build-os.outputs.digest }}"
+          SANDBOX_DIGEST="acrintochattest.azurecr.io/sandbox@${{ steps.build-sandbox.outputs.digest }}"
           cat <<EOF > release-manifest.json
           {
             "version": "${VERSION}",
             "commit": "${COMMIT}",
-            "osImage": "${OS_DIGEST}"
+            "osImage": "${OS_DIGEST}",
+            "sandboxImage": "${SANDBOX_DIGEST}"
           }
           EOF
           cat release-manifest.json
