@@ -25,9 +25,59 @@ public sealed class StorageContentEndpointFacts
         var open = await host.Client.GetAsync(host.Item("missing"), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, open.StatusCode);
 
-        using var other = host.Request(HttpMethod.Get, "/brains/b2/storage/disk/items/missing/content", "user");
+        using var other = host.Request(HttpMethod.Get, StorageContentEndpoints.ContentPath("b2", "b2/disk/main", "missing"), "user");
         var denied = await host.Client.SendAsync(other, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    }
+
+    [Fact]
+    public void TheStorageSegmentIsTheConnectionKeyInOneEncodedForm()
+    {
+        var segment = StorageContentEndpoints.Segment("alice/local-cloud/main");
+        Assert.DoesNotContain('/', segment);
+        Assert.DoesNotContain('+', segment);
+        Assert.DoesNotContain('=', segment);
+        Assert.True(StorageContentEndpoints.TryKey(segment, out var key));
+        Assert.Equal("alice/local-cloud/main", key);
+        Assert.False(StorageContentEndpoints.TryKey("alice/local-cloud/main", out _));
+        Assert.False(StorageContentEndpoints.TryKey(segment + "=", out _));
+        Assert.Equal("/brains/alice/storage/" + segment + "/items/a%2Bb/c%3D/content", StorageContentEndpoints.ContentPath("alice", "alice/local-cloud/main", "a+b/c="));
+    }
+
+    [Fact]
+    public async Task TheRawConnectionKeyIsNotARoute()
+    {
+        await using var host = await Host.Start();
+        var file = host.Storage.Inner.AddFile(host.Storage.Inner.Root, "note.txt", "hello"u8);
+
+        var raw = await host.Send(HttpMethod.Get, "/brains/b1/storage/" + Host.Key + "/items/" + Uri.EscapeDataString(file.Value) + "/content", "user");
+        var encoded = await host.Send(HttpMethod.Get, host.Item(file.Value), "user");
+
+        Assert.Equal(HttpStatusCode.NotFound, raw.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, encoded.StatusCode);
+    }
+
+    [Fact]
+    public async Task IdsWithSlashesPlusAndEqualsSignsRoundTripThroughReadTicketAndUpload()
+    {
+        await using var host = await Host.Start(idPrefix: "storage:YS9i+c=:x/");
+        var file = host.Storage.Out(host.Storage.Inner.AddFile(host.Storage.Inner.Root, "note.txt", "hello"u8));
+        var folder = (await host.Storage.Roots(TestContext.Current.CancellationToken))[0].Id.Value;
+        Assert.Contains('/', file.Value);
+
+        var read = await host.Send(HttpMethod.Get, host.Item(file.Value), "user");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        Assert.Equal("hello", await read.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        // The ticket's url is used as it is: the gateway writes the same encoded form the route reads.
+        var (_, url) = await host.TicketAndUrl(folder, "new.txt", null);
+        using var upload = host.Request(HttpMethod.Put, url, "user");
+        upload.Headers.Add("X-Upload", "1");
+        upload.Content = new ByteArrayContent("written"u8.ToArray());
+        var put = await host.Client.SendAsync(upload, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var saved = await host.Storage.Inner.List(host.Storage.Inner.Root, new ListQuery(), TestContext.Current.CancellationToken);
+        Assert.Contains(saved.Items, item => item.Name == "new.txt");
     }
 
     [Fact]
@@ -173,7 +223,7 @@ public sealed class StorageContentEndpointFacts
         var expired = await host.Client.SendAsync(expiredTicket, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, expired.StatusCode);
 
-        var approved = host.Book.Park("b1", "disk", host.Storage.Inner.Root, "notes.txt");
+        var approved = host.Book.Park("b1", Host.Key, host.Storage.Inner.Root, "notes.txt");
         host.Book.MarkStarted(approved.PlanId);
         Assert.True(host.Book.Approve(approved.PlanId, DigitalBrain.Testing.Conformance.AmbientCallerScope.LocalOwner));
         var ticket = await host.Ticket(folder, "notes.txt", approved.PlanId);
@@ -202,9 +252,9 @@ public sealed class StorageContentEndpointFacts
         public UploadPlanBook Book { get; }
         public ContentUploadLog Uploads { get; }
 
-        public static async Task<Host> Start()
+        public static async Task<Host> Start(string? idPrefix = null)
         {
-            var storage = new Watched(new FakeStorage("Disk"));
+            var storage = new Watched(new FakeStorage("Disk"), idPrefix);
             var clock = new Clock();
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
@@ -219,7 +269,8 @@ public sealed class StorageContentEndpointFacts
             builder.Services.AddSingleton(new UploadPlanBook());
             builder.Services.AddSingleton(new ContentUploadLog());
             builder.Services.AddKeyedSingleton<IIdentity>(Capability.Identity.V1Id, new FakeIdentity());
-            builder.Services.AddSingleton<Func<BrainId, string, CancellationToken, Task<IStorage>>>((_, _, _) => Task.FromResult<IStorage>(storage));
+            builder.Services.AddSingleton<Func<BrainId, string, CancellationToken, Task<IStorage>>>((_, key, _) =>
+                key == Key ? Task.FromResult<IStorage>(storage) : throw new NotFound(new ItemId(key)));
             builder.Services.AddSingleton<StorageContentGateway>();
             var app = builder.Build();
             app.Use(async (http, next) =>
@@ -239,24 +290,31 @@ public sealed class StorageContentEndpointFacts
             return new Host(app, client, storage, clock);
         }
 
-        public string Item(string id) => _app is not null ? "/brains/b1/storage/disk/items/" + Uri.EscapeDataString(id) + "/content" : "";
+        // The connection key of the storage the host serves; it has slashes, as every connection key does.
+        public const string Key = "b1/disk/main";
+
+        public string Item(string id) => _app is not null ? StorageContentEndpoints.ContentPath("b1", Key, id) : "";
 
         public string Content(string folder, string name)
-            => _app is not null ? "/brains/b1/storage/disk/items/" + Uri.EscapeDataString(folder) + "/content/" + Uri.EscapeDataString(name) : "";
+            => _app is not null ? Items + StorageContentEndpoints.Escape(folder) + "/content/" + Uri.EscapeDataString(name) : "";
+
+        private static string Items => "/brains/b1/storage/" + StorageContentEndpoints.Segment(Key) + "/items/";
 
         public string TicketPath(string folder, string name, string? planId)
         {
             if (_app is null) { throw new InvalidOperationException(); }
-            var path = "/brains/b1/storage/disk/items/" + Uri.EscapeDataString(folder) + "/upload-ticket?name=" + Uri.EscapeDataString(name);
+            var path = Items + StorageContentEndpoints.Escape(folder) + "/upload-ticket?name=" + Uri.EscapeDataString(name);
             return string.IsNullOrEmpty(planId) ? path : path + "&planId=" + Uri.EscapeDataString(planId);
         }
 
-        public async Task<string> Ticket(string folder, string name, string? planId)
+        public async Task<string> Ticket(string folder, string name, string? planId) => (await TicketAndUrl(folder, name, planId)).Ticket;
+
+        public async Task<(string Ticket, string Url)> TicketAndUrl(string folder, string name, string? planId)
         {
             var response = await Send(HttpMethod.Post, TicketPath(folder, name, planId), "user");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-            return json.RootElement.GetProperty("ticket").GetString()!;
+            return (json.RootElement.GetProperty("ticket").GetString()!, json.RootElement.GetProperty("url").GetString()!);
         }
 
         public HttpRequestMessage Request(HttpMethod method, string path, string? caller)
@@ -377,7 +435,9 @@ public sealed class StorageContentEndpointFacts
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private sealed class Watched(FakeStorage inner) : IStorage
+    // With a prefix, every id it hands out starts with it (and every id it is given must): a provider whose ids hold
+    // slashes, '+', '=' and ':' as a bound connection's ids do.
+    private sealed class Watched(FakeStorage inner, string? prefix = null) : IStorage
     {
         private readonly object _gate = new();
         public FakeStorage Inner { get; } = inner;
@@ -386,32 +446,42 @@ public sealed class StorageContentEndpointFacts
         public ByteRange? LastRead { get; private set; }
         public WritePlan? LastPlan { get; private set; }
 
+        public ItemId Out(ItemId id) => prefix is null ? id : new ItemId(prefix + id.Value);
+        private ItemId In(ItemId id) => prefix is null ? id
+            : id.Value is { } value && value.StartsWith(prefix, StringComparison.Ordinal) ? new ItemId(value[prefix.Length..]) : throw new NotFound(id);
+        private Item Out(Item item) => item with { Id = Out(item.Id) };
+        private WritePlan In(WritePlan plan) => plan with { Source = plan.Source is { } source ? In(source) : null, TargetFolder = plan.TargetFolder is { } folder ? In(folder) : null };
+
         public Task<StorageDescriptor> Describe(CancellationToken ct = default) => Inner.Describe(ct);
-        public Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default) => Inner.Roots(ct);
-        public Task<Page<Item>> List(ItemId folder, ListQuery query, CancellationToken ct = default) => Inner.List(folder, query, ct);
-        public Task<Item> Stat(ItemId id, CancellationToken ct = default) => Inner.Stat(id, ct);
+        public async Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default) => [.. (await Inner.Roots(ct)).Select(Out)];
+        public async Task<Page<Item>> List(ItemId folder, ListQuery query, CancellationToken ct = default)
+        {
+            var page = await Inner.List(In(folder), query, ct);
+            return page with { Items = [.. page.Items.Select(Out)] };
+        }
+        public async Task<Item> Stat(ItemId id, CancellationToken ct = default) => Out(await Inner.Stat(In(id), ct));
         public Task<Content> Read(ItemId id, ByteRange? range, CancellationToken ct = default)
         {
             LastRead = range;
-            return Inner.Read(id, range, ct);
+            return Inner.Read(In(id), range, ct);
         }
-        public Task<OperationId> Write(WritePlan plan, CancellationToken ct = default) => Inner.Write(plan, ct);
+        public Task<OperationId> Write(WritePlan plan, CancellationToken ct = default) => Inner.Write(In(plan), ct);
         public Task<Page<Item>> Search(SearchQuery query, CancellationToken ct = default) => Inner.Search(query, ct);
-        public Task<IReadOnlyList<Item>> Ancestors(ItemId id, CancellationToken ct = default) => Inner.Ancestors(id, ct);
-        public Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default) => Inner.OpenRead(item, range, ct);
+        public async Task<IReadOnlyList<Item>> Ancestors(ItemId id, CancellationToken ct = default) => [.. (await Inner.Ancestors(In(id), ct)).Select(Out)];
+        public Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default) => Inner.OpenRead(In(item), range, ct);
         public async Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default)
         {
             LastPlan = plan;
-            var opened = await Inner.OpenWrite(plan, ct);
+            var opened = await Inner.OpenWrite(In(plan), ct);
             return new Measured(opened, count =>
             {
                 lock (_gate) { if (count > MaxWrite) { MaxWrite = count; } }
-            }, () => Aborts++);
+            }, () => Aborts++, Out);
         }
 
-        private sealed class Measured(StorageWriteStream inner, Action<int> measure, Action aborted) : StorageWriteStream(new Counting(inner.Content, measure))
+        private sealed class Measured(StorageWriteStream inner, Action<int> measure, Action aborted, Func<ItemId, ItemId> bound) : StorageWriteStream(new Counting(inner.Content, measure))
         {
-            protected override async Task<ItemId> CommitCore(CancellationToken ct) => await inner.Commit(ct);
+            protected override async Task<ItemId> CommitCore(CancellationToken ct) => bound(await inner.Commit(ct));
             protected override async Task AbortCore(CancellationToken ct)
             {
                 aborted();

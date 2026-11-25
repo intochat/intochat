@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Http.Surface;
 using Microsoft.AspNetCore.Builder;
@@ -8,8 +10,53 @@ using NetHeaders = Microsoft.Net.Http.Headers;
 
 namespace DigitalBrain.Runtime.Http.Storage;
 
+// The {storage} segment of a route is the connection key in one encoded form: the base64url (no padding) of its UTF-8
+// text. A connection key has slashes ("alice/local-cloud/main") and the segment is one path segment, so the raw key
+// never appears in a route. Item and folder ids follow in the catch-all, each '/'-separated part escaped on its own.
 public static class StorageContentEndpoints
 {
+    // The route segment that names the connection.
+    public static string Segment(string connectionKey)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(connectionKey);
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(connectionKey)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    // The connection key a route segment names; false for a segment that is not the encoded form of one.
+    public static bool TryKey(string? segment, [NotNullWhen(true)] out string? connectionKey)
+    {
+        connectionKey = null;
+        if (string.IsNullOrEmpty(segment) || segment.Length > 2048 || segment.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))) { return false; }
+        var padded = segment.Replace('-', '+').Replace('_', '/');
+        padded = padded.PadRight(padded.Length + ((4 - (padded.Length % 4)) % 4), '=');
+        try
+        {
+            var key = new UTF8Encoding(false, true).GetString(Convert.FromBase64String(padded));
+            if (key.Length == 0 || Segment(key) != segment) { return false; }
+            connectionKey = key;
+            return true;
+        }
+        catch (Exception error) when (error is FormatException or DecoderFallbackException)
+        {
+            return false;
+        }
+    }
+
+    // An id in a route: every '/'-separated part escaped on its own, so the slashes stay path separators the catch-all keeps.
+    public static string Escape(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return string.Join('/', id.Split('/').Select(Uri.EscapeDataString));
+    }
+
+    // The content route of a file: /brains/{brain}/storage/{segment}/items/{item}/content.
+    public static string ContentPath(string brainId, string connectionKey, string item)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(brainId);
+        ArgumentException.ThrowIfNullOrEmpty(item);
+        return "/brains/" + Uri.EscapeDataString(brainId) + "/storage/" + Segment(connectionKey) + "/items/" + Escape(item) + "/content";
+    }
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
@@ -21,9 +68,9 @@ public static class StorageContentEndpoints
 
     private static async Task<IResult> Get(HttpContext http, string brainId, string storage, string rest)
     {
-        if (!TryItem(rest, out var item)) { return Results.Text("That file is not here.", statusCode: StatusCodes.Status404NotFound); }
+        if (!TryKey(storage, out var key) || !TryItem(rest, out var item)) { return Results.Text("That file is not here.", statusCode: StatusCodes.Status404NotFound); }
         var gateway = Gateway(http);
-        var download = await gateway.Open(http.Request, brainId, storage, item, http.RequestAborted).ConfigureAwait(false);
+        var download = await gateway.Open(http.Request, brainId, key, item, http.RequestAborted).ConfigureAwait(false);
         if (download.Error is not null) { return new Guarded(download.Error, null); }
         var disposition = Disposition(download.FileName, download.Inline);
         if (download.Ranged is not null)
@@ -39,16 +86,16 @@ public static class StorageContentEndpoints
 
     private static Task<IResult> Put(HttpContext http, string brainId, string storage, string rest)
     {
-        if (!TryContent(rest, out var folder, out var name) || !StorageContentGateway.SafeName(name))
+        if (!TryKey(storage, out var key) || !TryContent(rest, out var folder, out var name) || !StorageContentGateway.SafeName(name))
         {
             return Task.FromResult<IResult>(Results.Text("That location is not available.", statusCode: StatusCodes.Status403Forbidden));
         }
-        return Gateway(http).Put(http.Request, brainId, storage, folder, name, http.RequestAborted);
+        return Gateway(http).Put(http.Request, brainId, key, folder, name, http.RequestAborted);
     }
 
     private static async Task<IResult> Ticket(HttpContext http, string brainId, string storage, string rest)
     {
-        if (!TrySuffix(rest, "/upload-ticket", out var folder))
+        if (!TryKey(storage, out var key) || !TrySuffix(rest, "/upload-ticket", out var folder))
         {
             return Results.Text("That location is not available.", statusCode: StatusCodes.Status403Forbidden);
         }
@@ -63,7 +110,7 @@ public static class StorageContentEndpoints
             var body = await http.Request.ReadFromJsonAsync<TicketBody>(http.RequestAborted).ConfigureAwait(false);
             planId = body?.PlanId;
         }
-        return await Gateway(http).Ticket(brainId, storage, folder, name, planId, http.RequestAborted).ConfigureAwait(false);
+        return await Gateway(http).Ticket(brainId, key, folder, name, planId, http.RequestAborted).ConfigureAwait(false);
     }
 
     private static StorageContentGateway Gateway(HttpContext http)
