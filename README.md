@@ -1,93 +1,94 @@
-# IntoChat OS
+<p align="center">
+  <img src="docs/assets/ic-mark.svg" alt="IntoChat OS" width="80" height="80" />
+</p>
+<h1 align="center">IntoChat OS</h1>
+<p align="center">
+  <strong>Your personal AI operating system.</strong><br />
+  One sovereign brain with your memory, your apps, your connectors, and an agent called Ino that builds tools for you.
+</p>
+<p align="center">
+  <a href="https://github.com/intochat/intochat/actions/workflows/ci.yml"><img src="https://github.com/intochat/intochat/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/intochat/intochat" alt="License" /></a>
+  <a href="https://github.com/intochat/intochat/releases/latest"><img src="https://img.shields.io/github/v/release/intochat/intochat" alt="Release" /></a>
+  <img src="https://img.shields.io/badge/.NET-11_Preview-512BD4" alt=".NET 11" />
+  <img src="https://img.shields.io/badge/Flutter-3.x-02569B" alt="Flutter" />
+</p>
 
-[![ci](https://github.com/intochat/intochat/actions/workflows/ci.yml/badge.svg)](https://github.com/intochat/intochat/actions/workflows/ci.yml)
-[![license](https://img.shields.io/github/license/intochat/intochat)](LICENSE)
+<p align="center">
+  <a href="https://os.test.intochat.io"><strong>🚀 Try Live in Browser (No Sign-Up)</strong></a> <em>(WebAssembly / Web sandbox)</em> &nbsp;·&nbsp;
+  <a href="https://os.test.intochat.io/download"><strong>⬇️ Download Hub</strong></a> &nbsp;·&nbsp;
+  <a href="docs/self-hosting.md"><strong>🐳 Self-Host &amp; Aspire</strong></a>
+</p>
 
-IntoChat OS is a personal AI operating system: a distribution built on [DigitalBrain](https://github.com/intochat/intochat/tree/master/framework).
+---
 
-You have a brain: your data, your apps, your connections and an agent called Ino that does work for you. You choose where the brain runs.
+## Try in 1 Click, Own Forever
 
-The vocabulary (neuron, signal, synapse, app, module) is defined by the DigitalBrain framework; read it [there](framework/README.md#core-vocabulary).
+Launch instantly at **[os.test.intochat.io](https://os.test.intochat.io)** or install the native shell on your device from **[os.test.intochat.io/download](https://os.test.intochat.io/download)**:
 
-## What is in this repo
+| Platform | Direct Download &amp; One-Line Install |
+| :--- | :--- |
+| 🪟 **Windows (x64)** | [Installer (.exe)](https://github.com/intochat/intochat/releases/latest/download/IntoChat-Setup-win-x64.exe) · [.zip](https://github.com/intochat/intochat/releases/latest/download/IntoChat-win-x64.zip)<br>`irm https://github.com/intochat/intochat/releases/latest/download/install.ps1 \| iex` |
+| 🍎 **macOS (Apple Silicon)** | [Disk Image (.dmg)](https://github.com/intochat/intochat/releases/latest/download/IntoChat-macos-arm64.dmg) · [.tar.gz](https://github.com/intochat/intochat/releases/latest/download/IntoChat-macos-arm64.tar.gz)<br>`curl -fsSL https://github.com/intochat/intochat/releases/latest/download/install.sh \| sh` |
+| 🐧 **Linux (x64)** | [AppImage](https://github.com/intochat/intochat/releases/latest/download/IntoChat-linux-x86_64.AppImage) · [.deb](https://github.com/intochat/intochat/releases/latest/download/IntoChat-linux-amd64.deb) · [.tar.gz](https://github.com/intochat/intochat/releases/latest/download/IntoChat-linux-x86_64.tar.gz) |
+| 🤖 **Android** | [APK (.apk)](https://github.com/intochat/intochat/releases/latest/download/intochat-android.apk) |
+| 📱 **iOS** | [Unsigned IPA (.ipa)](https://github.com/intochat/intochat/releases/latest/download/intochat-ios-unsigned.ipa) · *Or install as PWA from Safari via Share → Add to Home Screen* |
 
-| Part | What it is | Where |
-|---|---|---|
-| Kernel | The host process that runs a brain on a machine | [`src/IntoChat.OS.Kernel`](src/IntoChat.OS.Kernel), [`src/IntoChat.OS.Sandbox`](src/IntoChat.OS.Sandbox) |
-| System apps | Ino, Desktop, Settings, Tasks, Creator and the rest, written as ordinary DigitalBrain apps | [`src/IntoChat.OS.Apps`](src/IntoChat.OS.Apps) |
-| Modules | Connectors and capabilities: GitHub, Google, Postgres, AI | [`src/Modules`](src/Modules) |
-| Shell | What the person sees | [`ui`](ui) (Flutter), [`src/IntoChat.OS.Desktop`](src/IntoChat.OS.Desktop) (launcher) |
+> Every shell speaks one protocol. On Android and iOS, the shell connects to your local server or cloud brain. Looking to run the container (`ghcr.io/intochat/os`) or compose a `.NET Aspire` AppHost? See [`docs/self-hosting.md`](docs/self-hosting.md).
 
-## Where a brain runs
+---
 
-1. **Sign in:** your brain runs in IntoChat Cloud.
-2. **Run on this computer:** in-memory to try, persistent to keep.
-3. **Connect to your own server:** the same kernel in a container.
+## Why IntoChat OS?
 
-The shell speaks one protocol. The only difference between the three is the brain's address. On Android and iOS the shell connects to a brain elsewhere; the kernel does not run on phones.
+### 1. One Sovereign Brain, Three Ways to Run It
+Run an ephemeral brain in **Browser RAM** for an instant trial, sign into a **Cloud Brain** (`into.chat`), or run **100% locally on your machine** (`~/.intochat`, cold start `<1.5s`, TPM/DPAPI sovereign key custody, local [Ollama](https://ollama.com) or cloud models). The shell never changes — only your brain's address does.
 
-## Quick start
+### 2. An OS That Writes Its Own Apps
+Ask **Ino** for a tool, dashboard, or workflow → Roslyn compiles it, AST-sanitizes it, sandbox-verifies it against live scenarios, and pins an interactive reactive app directly onto your workspace. Credentials stay sealed inside connections; apps never see raw tokens.
 
-Prerequisites: the .NET SDK pinned in [`global.json`](global.json) (.NET 11 preview), Docker (Linux containers) and, for the local profile, [Ollama](https://ollama.com) running on the host.
+### 3. Built on DigitalBrain (`framework/`)
+Powered by the open-source [`DigitalBrain`](framework/README.md) framework: event-sourced **Neurons**, **Signals**, **Synapses**, and strict DDD boundary contracts ([core vocabulary](framework/README.md#core-vocabulary)). Modular by construction with zero monolithic lock-in.
 
-```
-dotnet run intochat.cs preflight   # check the machine, change nothing
-dotnet run intochat.cs local       # start a lean profile against host Ollama
-dotnet run intochat.cs             # default profile, includes the Flutter shell
-```
+---
 
-Run from the repository root. Profiles and options are described in the header of [`intochat.cs`](intochat.cs).
+## Build & Contribute in 60 Seconds
 
-## The framework
+Prerequisites: the .NET SDK pinned in [`global.json`](global.json) (.NET 11 Preview), Docker (Linux containers), and [Ollama](https://ollama.com) on the host for the local profile.
 
-The DigitalBrain framework (neurons, signals, synapses, brains, apps and modules) lives in [`framework/`](framework/README.md) ([`intochat/intochat`](https://github.com/intochat/intochat/tree/master/framework)) and is consumed directly by project reference (and packed as `DigitalBrain.*` NuGet packages).
-
-## Module model
-
-A module is a folder and a `Module` class. Create one with `dotnet new digitalbrain-module`; adding it needs zero edits outside its folder, because the catalog discovers modules by reflection. Every module README lists its options and secret names from the code that binds them (`ModuleDocumentationFacts` fails when they drift; run it with `UPDATE_DOCS=1` to rewrite them). See [modules](docs/modules.md).
-
-## .NET Aspire integration
-
-An Aspire AppHost can run the IntoChat OS container through `IntoChatOSHostingExtensions` (`IntoChat.OS.Aspire.Hosting`, in [`src/IntoChat.OS.AppHost/Hosting/IntoChatOSHostingExtensions.cs`](src/IntoChat.OS.AppHost/Hosting/IntoChatOSHostingExtensions.cs)):
-
-```csharp
-using IntoChat.OS.Aspire.Hosting;
-
-var os = builder.AddIntoChatOSContainer("os", httpPort: 5080)
-    .WithImageTag("latest")
-    .WithTopology("local")
-    .WithBootstrapOwner("operator", "bootstrap-secret")
-    .WithEnvironment("IntoChatOS__Home", "/app/home");
-```
-
-`AddIntoChatOSContainer` defaults to `image: "ghcr.io/intochat/os"` and `tag: "latest"`, exposes the `"http"` endpoint targeting port `8080` (bound to `httpPort` when supplied), and registers an HTTP health check on `/health`. `WithBootstrapOwner` sets `IntoChatOS__Auth__Username` and `IntoChatOS__Auth__Password` (required when listening beyond loopback without a sign-in module unless `IntoChatOS__Auth__AllowOpenOnNetwork=true` is set), and `WithTopology` sets `IntoChatOS__Topology`. `IntoChat.OS.AppHost` is `IsPackable=true` and is consumed as a NuGet package by external AppHosts (such as IntoChat Cloud).
-
-### Your own AppHost
-
-```csharp
-using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Modules.AI.Models;
-
-builder.AddIntoChatOS("Modules")
-    .WithAI(ai => ai.Cloud(c => c.Roles(r => r.Chat(KnownModels.DeepSeekV41Flash))))
-    .AddKernel("../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj");
+```bash
+dotnet run intochat.cs preflight   # verify machine, Docker, Ollama
+dotnet run intochat.cs local       # lean local profile
+dotnet run intochat.cs             # full stack with Flutter shell
 ```
 
-## Packages and images
+Run from the repository root. All profiles and flags are documented at the top of [`intochat.cs`](intochat.cs).
 
-The [release workflow](.github/workflows/release.yml) produces:
+### `1 Folder = 1 Module` Architecture
 
-- **NuGet packages**: packs [`framework/DigitalBrain.slnx`](framework/DigitalBrain.slnx) and [`framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj`](framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj) (`DigitalBrain.*` packages and `DigitalBrain.Templates`) and publishes them on release to GitHub Packages (`https://nuget.pkg.github.com/intochat/index.json`), `nuget.org` (`https://api.nuget.org/v3/index.json`, when configured), and GitHub Release assets.
-- **Self-contained kernel binary**: publishes [`src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj`](src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj) (`linux-x64`, self-contained) as `kernel-bin.tar.gz`.
-- **Container image**: builds the unified OS image (kernel, embedded Flutter web shell, and ArtCraft web bundles) from [`src/IntoChat.OS.Kernel/Dockerfile`](src/IntoChat.OS.Kernel/Dockerfile) and pushes `acrintochattest.azurecr.io/os:<VERSION>` and `acrintochattest.azurecr.io/os:latest` alongside `release-manifest.json` (while [`Container.pubxml`](src/IntoChat.OS.Kernel/Properties/PublishProfiles/Container.pubxml) and `AddIntoChatOSContainer` reference `ghcr.io/intochat/os`, and [`.github/workflows/artcraft-images.yml`](.github/workflows/artcraft-images.yml) publishes prebuilt `ghcr.io/intochat/os-artcraft-<app>-<mcp|web>` images).
-- **Windows desktop bundle**: runs [`eng/release/package-release.ps1`](eng/release/package-release.ps1) (`win-x64`) to attach `intochat-<VERSION>-win-x64.zip`, `SHA256SUMS`, `latest.json`, and `winget/IntoChat.OS.yaml` to the GitHub Release.
+Adding a new connector or capability requires **zero external configuration edits**:
 
-Releases are tagged `v<VERSION>` from the [`VERSION`](VERSION) file (applied across the solution via [`Directory.Build.props`](Directory.Build.props)). See the [changelog](CHANGELOG.md).
+```bash
+dotnet new digitalbrain-module
+```
 
-## Documentation
+Drop your module folder under `src/Modules/`, implement a `Module` class with `[Module]` and `Manifest`, and automatic reflection discovery registers it into the OS catalog. Every module's README stays synchronized with its bound options and secrets via `ModuleDocumentationFacts` (`UPDATE_DOCS=1`). Read the full guide in [`docs/modules.md`](docs/modules.md).
 
-Concepts, architecture and guides: [`docs/`](docs/index.md). The framework has its own: [`framework/docs/`](framework/docs/README.md).
+### Repository Map
 
-## Contributing and license
+| Layer | Path | What Lives Here |
+| :--- | :--- | :--- |
+| **Kernel** | [`src/IntoChat.OS.Kernel`](src/IntoChat.OS.Kernel), [`src/IntoChat.OS.Sandbox`](src/IntoChat.OS.Sandbox) | Host process that runs a brain on a machine + isolated Roslyn/sandbox runtime |
+| **System Apps** | [`src/IntoChat.OS.Apps`](src/IntoChat.OS.Apps) | Ino, Creator, Desktop, Settings, Tasks, and built-in DigitalBrain apps |
+| **Modules** | [`src/Modules`](src/Modules) | 26 modules: AI, GitHub, Google, Postgres, Storage, Playwright, MCP, and more |
+| **Shell** | [`ui/`](ui) *(Flutter)*, [`src/IntoChat.OS.Desktop`](src/IntoChat.OS.Desktop) *(launcher)* | Cross-platform shell for Desktop, Web, and Mobile |
+| **DigitalBrain** | [`framework/`](framework/README.md) | Core runtime, primitives (Neurons, Signals, Synapses), and templates |
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Licensed under the terms in [LICENSE](LICENSE).
+---
+
+## Documentation & Community
+
+- **[Contributing Guide](CONTRIBUTING.md)** — PR workflow, architecture ratchets, and build/test commands
+- **[Module Authoring Guide](docs/modules.md)** — `1 Folder = 1 Module` model, contracts, options, and secrets
+- **[Self-Hosting & .NET Aspire](docs/self-hosting.md)** — Container hosting (`ghcr.io/intochat/os`), Aspire AppHost integration, and packages/distribution matrix
+- **[Self-Improving Loop Architecture](docs/self-improving-loop-architecture.html)** — Visual architecture of the live authoring & verification loop
+- **[Full Product Docs](docs/index.md)** · **[Framework Docs](framework/docs/README.md)** · **[Changelog](CHANGELOG.md)** · **[Security](SECURITY.md)** · **[License](LICENSE)**
