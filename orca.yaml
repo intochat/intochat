@@ -1,0 +1,3 @@
+scripts:
+  setup: dotnet --version && flutter --version
+  archive: ""

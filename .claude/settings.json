@@ -4,6 +4,8 @@
   },
   "permissions": {
     "allow": [
+      "PowerShell(orca *)",
+      "PowerShell(orca.exe *)",
       "PowerShell(dotnet *)",
       "PowerShell(aspire *)",
       "PowerShell(git *)",
