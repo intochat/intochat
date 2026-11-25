@@ -59,11 +59,11 @@ void main() {
           body: NodeRenderer.render(
             thread,
             NodeContext(
-              view: 'local/apps/ino/slots/conversation',
+              view: 'local/apps/ino/children/conversation',
               generation: 1,
               actNeuron: 'local/apps/ino',
-              slotPath: 'conversation',
-              slotProps: const {
+              childPath: 'conversation',
+              childProps: const {
                 'models': [
                   {
                     'id': 'device:vlad-pc/qwen2.5-coder:14b',

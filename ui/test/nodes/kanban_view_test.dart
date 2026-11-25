@@ -37,8 +37,8 @@ Future<List<Map<String, dynamic>>> _pump(
             view: 'local/apps/tasks/view',
             generation: 1,
             actNeuron: 'local/apps/tasks',
-            slotPath: 'board',
-            slotProps: props,
+            childPath: 'board',
+            childProps: props,
             send: (event) async {
               sent.add(event);
               if (refuse) throw StateError('control.columnFull');

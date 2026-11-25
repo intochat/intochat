@@ -6,7 +6,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
-  group('slots', slotTests);
+  group('children', childTests);
   testWidgets('button with command posts act with resolved address', (
     tester,
   ) async {
@@ -339,7 +339,7 @@ void main() {
     tester,
   ) async {
     const parent = 'local/apps/settings/view';
-    const child = 'local/apps/settings/slots/dark-mode';
+    const child = 'local/apps/settings/children/dark-mode';
     final kinds = <String, String>{};
     final streams = {
       parent: StreamController<void>.broadcast(),
@@ -375,7 +375,7 @@ void main() {
                         {'kind': 'text', 'value': 'Settings header'},
                         {
                           'kind': 'neuronRef',
-                          'refKind': 'slot',
+                          'refKind': 'child',
                           'neuronUri': 'dark-mode',
                         },
                       ],
@@ -404,7 +404,7 @@ void main() {
     final parentLoads = loads[parent];
     final childLoads = loads[child]!;
 
-    expect(kinds[child], 'slot');
+    expect(kinds[child], 'child');
 
     // A slot child has no watchable name: it reloads on its refresh timer.
     on = true;
@@ -418,8 +418,8 @@ void main() {
 }
 
 const _root = 'local/apps/settings/view';
-const _slot = 'local/apps/settings/slots/dark-mode';
-const _nested = 'local/apps/settings/slots/dark-mode/accent';
+const _slot = 'local/apps/settings/children/dark-mode';
+const _nested = 'local/apps/settings/children/dark-mode/accent';
 
 Map<String, dynamic> _view(String title, List<Map<String, dynamic>> children) =>
     {
@@ -444,13 +444,13 @@ Widget _host(Future<Object?> Function(Map<String, dynamic>) onAction) =>
             _root => _view('Settings', [
               {
                 'kind': 'neuronRef',
-                'refKind': 'slot',
+                'refKind': 'child',
                 'neuronUri': 'dark-mode',
               },
             ]),
             _slot => _view('Dark', [
               {'kind': 'text', 'value': 'Dark'},
-              {'kind': 'neuronRef', 'refKind': 'slot', 'neuronUri': 'accent'},
+              {'kind': 'neuronRef', 'refKind': 'child', 'neuronUri': 'accent'},
             ]),
             _nested => _view('Accent', [
               {'kind': 'text', 'value': 'Accent'},
@@ -461,7 +461,7 @@ Widget _host(Future<Object?> Function(Map<String, dynamic>) onAction) =>
       ),
     );
 
-void slotTests() {
+void childTests() {
   late Map<String, NodeContext> contexts;
   setUp(() {
     contexts = {};

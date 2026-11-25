@@ -2,7 +2,7 @@
 # Toggle switch
 
 A control neuron: an on/off switch. It owns whether it is on and signals Toggled when the value changes. Its label, on and off
-texts, enabled and accessible name are props its parent writes on the slot; the parent refuses commands while disabled.
+texts, enabled and accessible name are props its parent writes on the child node; the parent refuses commands while disabled.
 It replaces the legacy Switch data node (whose emit went to the owning app) for new code.
 */
 using DigitalBrain;

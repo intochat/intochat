@@ -399,7 +399,7 @@ class _CatalogNodePreviewState extends State<_CatalogNodePreview> {
     final ctx = NodeContext(
       view: 'local/apps/widgetbook/view',
       generation: 1,
-      slotProps: props is Map ? props.cast<String, dynamic>() : const {},
+      childProps: props is Map ? props.cast<String, dynamic>() : const {},
       send: (event) async {
         setState(() {
           _events.insert(0, jsonEncode(event));

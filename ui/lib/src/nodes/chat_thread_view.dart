@@ -11,11 +11,11 @@ const _readMethod = 'Read';
 
 /// What a chat thread neuron draws: the messages (a failed reply with its
 /// reason and a retry), composer, stop and retry from the neuron's view; the
-/// placeholder, model, status, empty text and error from the slot's props.
+/// placeholder, model, status, empty text and error from the child's props.
 /// It reuses the `conversation` node's renderer. The typed text stays here
 /// until it is submitted.
 Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
-  final props = ChatThreadProps.fromJson(ctx.slotProps);
+  final props = ChatThreadProps.fromJson(ctx.childProps);
   return Semantics(
     container: true,
     explicitChildNodes: true,

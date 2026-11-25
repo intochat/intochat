@@ -103,7 +103,7 @@ Map<String, dynamic> desktopPublishedView(String brain) {
                       },
                       {
                         'kind': 'neuronRef',
-                        'refKind': 'slot',
+                        'refKind': 'child',
                         'neuronUri':
                             '$brain/control.tabStrip/$brain/app.desktop/default/tabs-w1',
                         'props': {

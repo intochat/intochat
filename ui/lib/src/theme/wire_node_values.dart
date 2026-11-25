@@ -283,9 +283,9 @@ SecretState parseSecretState(String status) =>
       _ => SecretState.pending,
     };
 
-bool isSlotNeuronRefKind(String refKind) =>
+bool isEmbedNeuronRefKind(String refKind) =>
     switch (refKind.trim().toLowerCase()) {
-      'view' || 'slot' || 'app' || 'unit' || '' => true,
+      'view' || 'child' || 'app' || 'unit' || '' => true,
       _ => false,
     };
 

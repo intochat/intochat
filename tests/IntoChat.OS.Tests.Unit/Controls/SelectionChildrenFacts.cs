@@ -23,7 +23,7 @@ public sealed class SelectionChildrenFacts
         if (node.ValueKind == JsonValueKind.Object)
         {
             if (node.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
-                && node.TryGetProperty("refKind", out var refKind) && refKind.GetString() == "slot"
+                && node.TryGetProperty("refKind", out var refKind) && refKind.GetString() == "child"
                 && node.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
             {
                 return node.GetProperty("props");

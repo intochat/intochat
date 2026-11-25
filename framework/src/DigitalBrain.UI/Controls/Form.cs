@@ -17,7 +17,7 @@ public sealed record FormState
     public override int GetHashCode() => Values.Count;
 }
 
-/// <summary>What a form neuron draws: its key and last submitted values. The client draws the fields, submit label and enabled from the slot's props.</summary>
+/// <summary>What a form neuron draws: its key and last submitted values. The client draws the fields, submit label and enabled from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="Values">The last submitted values, ordered by key.</param>
 [ViewNode("formView")]

@@ -2,7 +2,7 @@
 # List box
 
 A control neuron: a list of items (title and subtitle) of which one may be selected. It owns the selected id and signals SelectionChanged when it changes.
-Its items, selection mode, enabled and accessible name are props its parent writes on the slot; the parent refuses commands while disabled and
+Its items, selection mode, enabled and accessible name are props its parent writes on the child node; the parent refuses commands while disabled and
 refuses a Select naming no item of the props (control.unknownItem) or any Select in None mode (control.selectionOff), because both are the parent's.
 */
 using DigitalBrain;

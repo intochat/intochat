@@ -178,5 +178,5 @@ internal static class FilesUi
         return builder.ToNode();
     }
 
-    public static Node Reference(string kind, string name) => Slot(name, kind);
+    public static Node Reference(string kind, string name) => Embed(name, kind);
 }

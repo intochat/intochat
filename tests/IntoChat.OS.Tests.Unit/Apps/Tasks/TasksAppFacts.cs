@@ -534,7 +534,7 @@ public sealed class TasksAppFacts
         var topRow = Assert.IsType<Row>(shell.Toolbar);
         var topNeuronRefs = Nodes(topRow).OfType<NeuronRef>().ToArray();
         Assert.Equal(TasksApp.TabsKey, ChildKey(Assert.Single(topNeuronRefs)));
-        Assert.DoesNotContain(Nodes(view).OfType<NeuronRef>(), n => n.Kind != "slot");
+        Assert.DoesNotContain(Nodes(view).OfType<NeuronRef>(), n => n.Kind != "child");
 
         var topButtons = Nodes(topRow).OfType<Button>().ToArray();
         Assert.Contains(topButtons, b => b.Key == "tasks:add" && b.Label == "New Task");
@@ -863,14 +863,14 @@ public sealed class TasksAppFacts
 
     private static string ChildKey(NeuronRef child)
     {
-        Assert.Equal("slot", child.Kind);
+        Assert.Equal("child", child.Kind);
         return child.NeuronUri[(child.NeuronUri.LastIndexOf('/') + 1)..];
     }
 
     // The props Tasks drew for its child `key`.
     private static T PropsOf<T>(View view, string key) where T : ControlProps
     {
-        var child = Assert.Single(Nodes(view).OfType<NeuronRef>(), n => n.Kind == "slot" && ChildKey(n) == key);
+        var child = Assert.Single(Nodes(view).OfType<NeuronRef>(), n => n.Kind == "child" && ChildKey(n) == key);
         return child.Props!.Value.Deserialize<T>(JsonSerializerOptions.Web)!;
     }
 

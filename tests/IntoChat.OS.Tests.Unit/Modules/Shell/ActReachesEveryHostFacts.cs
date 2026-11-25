@@ -38,7 +38,7 @@ public sealed class ActReachesEveryHostFacts
         var routes = RouteTable.Of(AppUiEndpoints.Map, services => services.Known<INeuronProxies>());
 
         Assert.Equal(
-            ["GET /brains/{brainId}/apps/node", "GET /brains/{brainId}/apps/{name}/slots/{**path}", "POST /brains/{brainId}/act", "POST /brains/{brainId}/apps/connect"],
+            ["GET /brains/{brainId}/apps/node", "GET /brains/{brainId}/apps/{name}/children/{**path}", "POST /brains/{brainId}/act", "POST /brains/{brainId}/apps/connect"],
             routes);
     }
 
@@ -217,7 +217,7 @@ public sealed class ActReachesEveryHostFacts
     // The view neuron sends only what its current view sends to ".": no other signal, and no child target (the app has no slots).
     [Theory]
     [InlineData(".", "delete-everything", "NoEmit")]
-    [InlineData("child", "save", "NoSlots")]
+    [InlineData("child", "save", "NoChildren")]
     public async Task ASandboxedAppRefusesACommandItsViewDoesNotSend(string target, string signal, string reason)
     {
         await using var os = await SandboxedOnTestOS();

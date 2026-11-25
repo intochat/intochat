@@ -6,14 +6,14 @@ import 'package:intochat_os_flutter_shell/src/generated/node_commands.dart';
 
 NodeContext _ctx(
   List<Map<String, dynamic>> sent, {
-  String slotPath = '',
+  String childPath = '',
   Map<String, dynamic> props = const {},
 }) => NodeContext(
   view: 'local/apps/settings/view',
   generation: 1,
-  actNeuron: slotPath.isEmpty ? null : 'local/apps/settings',
-  slotPath: slotPath,
-  slotProps: props,
+  actNeuron: childPath.isEmpty ? null : 'local/apps/settings',
+  childPath: childPath,
+  childProps: props,
   send: (event) async {
     sent.add(event);
     return {'delivered': true};
@@ -29,7 +29,7 @@ Future<void> _pump(WidgetTester tester, Node node, NodeContext ctx) =>
     );
 
 const _parent = 'local/apps/settings/view';
-const _child = 'local/apps/settings/slots/terms';
+const _child = 'local/apps/settings/children/terms';
 
 // A parent view whose slot carries [props], and the check box child's own view.
 Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
@@ -55,7 +55,7 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
                   'children': [
                     {
                       'kind': 'neuronRef',
-                      'refKind': 'slot',
+                      'refKind': 'child',
                       'neuronUri': 'terms',
                       'props': props,
                     },
@@ -79,7 +79,7 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
 void main() {
   test('the generated senders post an act to the neuron', () async {
     final sent = <Map<String, dynamic>>[];
-    final ctx = _ctx(sent, slotPath: 'terms');
+    final ctx = _ctx(sent, childPath: 'terms');
 
     expect(
       await actCheckBoxSetChecked(ctx, '.', isOn: true),
@@ -106,7 +106,7 @@ void main() {
       const CheckBoxViewNode(key: 'terms', isOn: false),
       _ctx(
         sent,
-        slotPath: 'terms',
+        childPath: 'terms',
         props: {'label': 'I accept', 'automationName': 'Accept the terms'},
       ),
     );

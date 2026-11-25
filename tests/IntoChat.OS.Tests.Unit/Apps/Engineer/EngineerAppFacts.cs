@@ -542,7 +542,7 @@ public sealed class EngineerAppFacts
     // The props Engineer drew for its child `key`.
     private static T PropsOf<T>(DigitalBrain.Units.PublishedView view, string key) where T : ControlProps
         => Nodes(view.View).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
-                && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+                && n.GetProperty("refKind").GetString() == "child" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
             .GetProperty("props").Deserialize<T>(System.Text.Json.JsonSerializerOptions.Web)!;
 
     // The text of the code block the Changes & Diff and PR tabs draw.

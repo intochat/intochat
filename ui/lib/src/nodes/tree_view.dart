@@ -8,7 +8,7 @@ import '../theme/ui_icon.dart';
 import 'node_context.dart';
 
 /// What a tree neuron draws: the selected node and the expanded folders from
-/// the neuron's view; the nodes from the slot's props, each under its parent
+/// the neuron's view; the nodes from the child's props, each under its parent
 /// and siblings in props order. The selection and the expanded folders are
 /// each the props' when the parent owns them, else the neuron's. A tap on a
 /// node sends `Select`, a tap on a folder's chevron `ExpandNode` with the
@@ -16,7 +16,7 @@ import 'node_context.dart';
 /// against the props. A node other nodes sit in is a folder; a node whose
 /// parent is not drawn is not drawn either. Disabled props send nothing.
 Widget renderTreeView(TreeViewNode node, NodeContext ctx) {
-  final props = TreeProps.fromJson(ctx.slotProps);
+  final props = TreeProps.fromJson(ctx.childProps);
   final selectedId = props.selectedId ?? node.selectedId;
   final expanded = {...(props.expandedIds ?? node.expandedIds)};
   final enabled = props.isEnabled && ctx.interactive;

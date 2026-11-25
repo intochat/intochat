@@ -33,8 +33,8 @@ public sealed class InoNodeCardFacts
     }
 
     [Theory]
-    [InlineData("""{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""", "neuronRef")]
-    [InlineData("""{"kind":"column","children":[{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}]}""", "neuronRef")]
+    [InlineData("""{"kind":"neuronRef","refKind":"child","neuronUri":"x"}""", "neuronRef")]
+    [InlineData("""{"kind":"column","children":[{"kind":"neuronRef","refKind":"child","neuronUri":"x"}]}""", "neuronRef")]
     [InlineData("""{"kind":"button","label":"Go","intent":{"kind":"openUrl","argument":"https://x"}}""", "action")]
     [InlineData("""{"kind":"column","children":[{"kind":"button","key":"go","label":"Go","intent":{"intentKind":"OpenWindow","arg":"https://x"}}]}""", "action")]
     [InlineData("""{"kind":"button","key":"go","label":"Go","command":{"target":".","signal":"s"}}""", "action")]
@@ -148,7 +148,7 @@ public sealed class InoNodeCardFacts
         Assert.Equal(ok.Card, extracted);
 
         // Hostile tree returns Ok=false, Card=null, actionable reason.
-        var bad = await focus.Show("Bad", """{"kind":"neuronRef","refKind":"slot","neuronUri":"x"}""");
+        var bad = await focus.Show("Bad", """{"kind":"neuronRef","refKind":"child","neuronUri":"x"}""");
         Assert.False(bad.Ok);
         Assert.Null(bad.Card);
         Assert.Contains("neuronRef", bad.Text, StringComparison.OrdinalIgnoreCase);

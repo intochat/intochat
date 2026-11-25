@@ -35,8 +35,9 @@ public sealed record ScreenSummary(
     [property: Id(5)] int PendingApprovals,
     [property: Id(6)] string InstanceId = "main");
 
+// A keyed node of a screen's view that a person can act on. The alias is the record's wire identity from before the rename and stays.
 [GenerateSerializer, Alias("ui.screen-control")]
-public sealed record ScreenControlItem(
+public sealed record ScreenNodeItem(
     [property: Id(0)] string Key,
     [property: Id(1)] string Kind,
     [property: Id(2)] string Label,
@@ -58,7 +59,7 @@ public sealed record ScreenSnapshot(
     [property: Id(3)] string Kind,
     [property: Id(4)] long Generation,
     [property: Id(5)] View? View,
-    [property: Id(6)] ScreenControlItem[] Controls,
+    [property: Id(6)] ScreenNodeItem[] Controls,
     [property: Id(7)] ScreenApprovalItem[] PendingApprovals);
 
 [GenerateSerializer, Alias("ui.screen-action-result")]

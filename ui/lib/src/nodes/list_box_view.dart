@@ -5,12 +5,12 @@ import '../generated/node_commands.dart';
 import 'node_context.dart';
 
 /// What a list box neuron draws: the selected id from the neuron's view; the
-/// items, selection mode, enabled and accessible name from the slot's props.
+/// items, selection mode, enabled and accessible name from the child's props.
 /// A tap sends `Select` to the neuron itself (`.`); the parent checks the id
 /// against the props and the neuron owns the selection. Disabled props, or a
 /// selection mode of none, send nothing.
 Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
-  final props = ListBoxProps.fromJson(ctx.slotProps);
+  final props = ListBoxProps.fromJson(ctx.childProps);
   // A controlled control draws the parent's selection; otherwise the neuron's.
   final selectedId = props.selectedId ?? node.selectedId;
   final selectable =

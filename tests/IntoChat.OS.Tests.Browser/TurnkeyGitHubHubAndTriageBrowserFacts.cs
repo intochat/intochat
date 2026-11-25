@@ -271,9 +271,9 @@ public sealed class TasksTurnkeyIssueTriageBrowserFacts(TurnkeyTriageWebShellFix
             // 1. Open TasksApp at 1440x900, verify full-bleed Kanban geometry, then switch to Approvals tab
             await page.GotoAsync(host.ShellFor("apps/tasks/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
             await page.KeyedNode("tasks-shell").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
-            await page.SlotNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 30_000 }).WaitAsync(ct);
+            await page.ChildNode(TasksApp.KanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 30_000 }).WaitAsync(ct);
 
-            var kanbanBox = await page.SlotNode(TasksApp.KanbanKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
+            var kanbanBox = await page.ChildNode(TasksApp.KanbanKey).WaitForBoxAsync(minWidth: 450f, minHeight: 630f, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Tasks Triage Kanban Board: {kanbanBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
             Assert.True(kanbanBox.HeightRatio(StudioViewportHeight) >= 0.70f && kanbanBox.Y <= 52f);
 

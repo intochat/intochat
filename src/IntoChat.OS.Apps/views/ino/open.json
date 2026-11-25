@@ -134,7 +134,7 @@
       "children": [
         {
           "kind": "neuronRef",
-          "refKind": "slot",
+          "refKind": "child",
           "neuronUri": "conversation",
           "props": {
             "placeholder": "Ask anything.",

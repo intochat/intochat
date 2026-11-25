@@ -143,9 +143,13 @@ public sealed record WebBrowser(
 }
 
 /// <summary>Reference to a live neuron control in the same brain.</summary>
-/// <param name="Kind">How the client hosts it ("slot" for a child of the view's screen).</param>
+/// <param name="Kind">How the client hosts it (<see cref="ChildKind"/> for a child of the view's screen).</param>
 /// <param name="NeuronUri">The neuron.</param>
-/// <param name="Props">A slot's props: the setup its parent decides (a <see cref="ControlProps"/> record as JSON); null for none.</param>
+/// <param name="Props">A child's props: the setup its parent decides (a <see cref="ControlProps"/> record as JSON); null for none.</param>
 [ViewNode("neuronRef")]
 public sealed record NeuronRef([property: JsonPropertyName("refKind")] string Kind, string NeuronUri,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? Props = null) : Node;
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? Props = null) : Node
+{
+    /// <summary>The ref kind of a screen's mounted control (<c>Screen.Child</c>), named by its key in the view.</summary>
+    public const string ChildKind = "child";
+}

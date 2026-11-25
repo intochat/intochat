@@ -2,7 +2,7 @@
 # Tab strip
 
 A control neuron: a row of tabs of which one is selected. It owns the selected id and signals SelectionChanged when it changes.
-Its tabs, enabled and accessible name are props its parent writes on the slot; the parent refuses commands while disabled and
+Its tabs, enabled and accessible name are props its parent writes on the child node; the parent refuses commands while disabled and
 refuses a Select naming no tab of the props (control.unknownItem), because the tabs are the parent's.
 */
 using DigitalBrain;

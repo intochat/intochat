@@ -7,7 +7,7 @@ import 'error_line.dart';
 import 'node_context.dart';
 
 /// What a query table neuron draws: the query from the neuron's view; the
-/// title and column titles from the slot's props. The rows are either the
+/// title and column titles from the child's props. The rows are either the
 /// props' inline rows, which this view filters (a case-insensitive contains
 /// on any cell), sorts (by one column, numbers as numbers) and pages by the
 /// neuron's query, or the current page the neuron read from its source.
@@ -49,7 +49,7 @@ class _QueryTableState extends State<_QueryTable> {
   void _askIfNotLoaded() {
     final node = widget.node;
     if (_asked || node.loaded || !widget.ctx.interactive) return;
-    if (QueryTableProps.fromJson(widget.ctx.slotProps).rows != null) return;
+    if (QueryTableProps.fromJson(widget.ctx.childProps).rows != null) return;
     _asked = true;
     final page = node.page < 1 ? 1 : node.page;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,7 +93,7 @@ _shown(QueryTableViewNode node, QueryTableProps props) {
 }
 
 Widget _draw(BuildContext context, QueryTableViewNode node, NodeContext ctx) {
-  final props = QueryTableProps.fromJson(ctx.slotProps);
+  final props = QueryTableProps.fromJson(ctx.childProps);
   final live = props.isEnabled && ctx.interactive;
   final titles = {for (final c in props.columns) c.id: c.title};
   final shown = _shown(node, props);

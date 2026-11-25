@@ -223,31 +223,31 @@ public sealed class InoSiloFixture : IAsyncLifetime
     public async Task<PublishedView?> ReadComposedAsync(IScreen screen)
     {
         var published = await screen.Read();
-        if (published is null || ChatThreadComposition.FirstSlot(published.View) is not { } slot) { return published; }
+        if (published is null || ChatThreadComposition.FirstChild(published.View) is not { } slot) { return published; }
         if (!NeuronId.TryParse(slot.NeuronUri, out var threadId) || await SiloNeurons.Get<IScreen>(Services, threadId).Read() is not { } thread) { return published; }
         var threadView = System.Text.Json.JsonSerializer.Deserialize<View>(thread.View, RuntimeProtocol.OptionsFor(typeof(View)))!;
         var composed = ChatThreadComposition.Compose(Assert.IsType<ChatThreadView>(threadView.Root), ChatThreadComposition.PropsOf(slot.Props));
         var view = System.Text.Json.Nodes.JsonNode.Parse(published.View.GetRawText())!;
-        ReplaceSlot(view, System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize<Node>(composed, RuntimeProtocol.OptionsFor(typeof(Node))))!);
+        ReplaceChild(view, System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize<Node>(composed, RuntimeProtocol.OptionsFor(typeof(Node))))!);
         return published with { View = System.Text.Json.JsonSerializer.SerializeToElement(view) };
     }
 
-    private static bool ReplaceSlot(System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonNode replacement)
+    private static bool ReplaceChild(System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonNode replacement)
     {
         switch (node)
         {
             case System.Text.Json.Nodes.JsonObject obj:
                 foreach (var (name, value) in obj.ToArray())
                 {
-                    if (value is System.Text.Json.Nodes.JsonObject child && (string?)child["refKind"] == "slot") { obj[name] = replacement; return true; }
-                    if (value is not null && ReplaceSlot(value, replacement)) { return true; }
+                    if (value is System.Text.Json.Nodes.JsonObject child && (string?)child["refKind"] == "child") { obj[name] = replacement; return true; }
+                    if (value is not null && ReplaceChild(value, replacement)) { return true; }
                 }
                 return false;
             case System.Text.Json.Nodes.JsonArray array:
                 for (var i = 0; i < array.Count; i++)
                 {
-                    if (array[i] is System.Text.Json.Nodes.JsonObject child && (string?)child["refKind"] == "slot") { array[i] = replacement; return true; }
-                    if (array[i] is { } item && ReplaceSlot(item, replacement)) { return true; }
+                    if (array[i] is System.Text.Json.Nodes.JsonObject child && (string?)child["refKind"] == "child") { array[i] = replacement; return true; }
+                    if (array[i] is { } item && ReplaceChild(item, replacement)) { return true; }
                 }
                 return false;
             default:

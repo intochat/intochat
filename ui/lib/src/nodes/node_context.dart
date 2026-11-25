@@ -19,8 +19,8 @@ typedef NeuronSignalWatcher = Stream<Map<String, dynamic>> Function(
 );
 
 /// Reads one node of the brain: `GET /apps/node?kind=…&name=…`, or for a
-/// `slot` (named `{brain}/apps/{app}/slots/{path}`) its app's key path
-/// `GET /apps/{app}/slots/{path}` (see `appNodePath` in slot_route.dart).
+/// `child` (named `{brain}/apps/{app}/children/{path}`) its app's key path
+/// `GET /apps/{app}/children/{path}` (see `appNodePath` in child_route.dart).
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String kind,
   String name,
@@ -103,10 +103,10 @@ class NodeContext {
     this.confirmation = false,
     this.enabled = true,
     this.depth = 0,
-    this.slotDepth = 0,
-    this.slotAncestors = const {},
+    this.childDepth = 0,
+    this.childAncestors = const {},
     this.actNeuron,
-    this.slotPath = '',
+    this.childPath = '',
     this.buttonHints = const {},
     this.transcribe,
     this.talk,
@@ -114,7 +114,7 @@ class NodeContext {
     this.storeSecret,
     this.createAudioOut,
     this.createMicStream,
-    this.slotProps = const {},
+    this.childProps = const {},
   });
 
   /// The view neuron's name, which every activation names.
@@ -144,7 +144,7 @@ class NodeContext {
   /// The app keys the shell knows; an `OpenWindow` intent for any other is refused.
   final bool Function(String app)? knowsApp;
 
-  /// Hosts a referenced neuron surface (`neuronRef`) in place with the slot's
+  /// Hosts a referenced neuron surface (`neuronRef`) in place with the child's
   /// [props]; null for a kind the host cannot show.
   final Widget? Function(String kind, String name, Map<String, dynamic> props)?
   reference;
@@ -156,20 +156,20 @@ class NodeContext {
   final bool enabled;
   final int depth;
 
-  /// Current nested `NeuronRef` (`Slot`) viewport composition depth (capped at 4).
-  final int slotDepth;
+  /// Current nested `NeuronRef` viewport composition depth (capped at 4).
+  final int childDepth;
 
-  /// Ancestor `neuronUri` / resolved view names along the active `Slot` chain for cycle detection.
-  final Set<String> slotAncestors;
+  /// Ancestor `neuronUri` / resolved view names along the active `Child` chain for cycle detection.
+  final Set<String> childAncestors;
 
   /// The top-level neuron an [act] names; null for a view that is its own
-  /// top level (derived from [view]). A slot's context carries its root's.
+  /// top level (derived from [view]). A child's context carries its root's.
   final String? actNeuron;
 
   /// The key path from [actNeuron] to this view (`""` at the top level,
-  /// `a/b` in a slot nested in slot `a`). The parent owns its children, so
+  /// `a/b` in a child nested in child `a`). The parent owns its children, so
   /// every act goes to the root and the path routes it hop by hop.
-  final String slotPath;
+  final String childPath;
 
   /// Optional per-button tooltip / `.Guard(rule)` disabled reasons extracted from view metadata.
   final Map<String, String> buttonHints;
@@ -193,11 +193,11 @@ class NodeContext {
   /// Optional factory for [MicStream] (defaults to [RecordMicStream]).
   final MicStream Function()? createMicStream;
 
-  /// The props the parent wrote on this view's slot (`neuronRef.props`): a
+  /// The props the parent wrote on this view's child (`neuronRef.props`): a
   /// control draws its label, header, content and enabled from them, and its
-  /// value from its own view. Empty outside a slot, and cleared by [deeper]:
-  /// only the slot view's root reads them.
-  final Map<String, dynamic> slotProps;
+  /// value from its own view. Empty outside a child, and cleared by [deeper]:
+  /// only the child view's root reads them.
+  final Map<String, dynamic> childProps;
 
   bool get interactive => enabled && send != null;
 
@@ -217,10 +217,10 @@ class NodeContext {
     confirmation: confirmation,
     enabled: enabled,
     depth: depth + 1,
-    slotDepth: slotDepth,
-    slotAncestors: slotAncestors,
+    childDepth: childDepth,
+    childAncestors: childAncestors,
     actNeuron: actNeuron,
-    slotPath: slotPath,
+    childPath: childPath,
     buttonHints: buttonHints,
     transcribe: transcribe,
     talk: talk,
@@ -228,7 +228,7 @@ class NodeContext {
     storeSecret: storeSecret,
     createAudioOut: createAudioOut,
     createMicStream: createMicStream,
-    // Props belong to the slot's root control only; nested nodes (an
+    // Props belong to the child's root control only; nested nodes (an
     // expander's content) never read them.
   );
 
@@ -254,12 +254,12 @@ class NodeContext {
       (view.endsWith('/view') ? view.substring(0, view.length - 5) : view);
 
   /// The act target for [address] relative to this view (`.` itself, `key`
-  /// or `./key` a slot it shows), as a key path from [neuron].
+  /// or `./key` a child it shows), as a key path from [neuron].
   String actTarget(String address) {
-    if (slotPath.isEmpty) return address;
-    if (const {'.', './'}.contains(address)) return slotPath;
+    if (childPath.isEmpty) return address;
+    if (const {'.', './'}.contains(address)) return childPath;
     final key = address.startsWith('./') ? address.substring(2) : address;
-    return '$slotPath/$key';
+    return '$childPath/$key';
   }
 
   /// Acts on a neuron [address] relative to this view:
@@ -394,8 +394,8 @@ abstract final class IntentGate {
   }
 }
 
-/// A slotted control's accessible name: its props' `automationName`, else its
-/// label or header, else its slot key.
+/// a child control's accessible name: its props' `automationName`, else its
+/// label or header, else its child key.
 String controlNameOf(String? automationName, String label, String key) =>
     automationName != null && automationName.isNotEmpty
     ? automationName

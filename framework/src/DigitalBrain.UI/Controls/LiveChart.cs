@@ -21,7 +21,7 @@ public sealed record LiveChartState
     public override int GetHashCode() => HashCode.Combine(Version, Points.Count);
 }
 
-/// <summary>What a live chart neuron draws: its key, change counter and points (labels and values). The client draws the title and kind from the slot's props.</summary>
+/// <summary>What a live chart neuron draws: its key, change counter and points (labels and values). The client draws the title and kind from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="Version">How many changes the chart has seen.</param>
 /// <param name="Points">The held points, oldest first.</param>

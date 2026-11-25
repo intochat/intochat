@@ -1611,7 +1611,7 @@
         "children": [
           {
             "kind": "neuronRef",
-            "refKind": "slot",
+            "refKind": "child",
             "neuronUri": "creator-graph-mode",
             "props": {
               "items": [
@@ -1780,7 +1780,7 @@
           },
           {
             "kind": "neuronRef",
-            "refKind": "slot",
+            "refKind": "child",
             "neuronUri": "creator-replay",
             "props": {
               "label": "Event 0 / 0",
@@ -1868,7 +1868,7 @@
           },
           {
             "kind": "neuronRef",
-            "refKind": "slot",
+            "refKind": "child",
             "neuronUri": "creator-inspector-tabs",
             "props": {
               "items": [

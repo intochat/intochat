@@ -422,13 +422,13 @@ public static class CreatorView
     private static bool TryResolveLivePreviewTarget(
         CreatorWorkspaceState state,
         Inspection inspection,
-        out string slotUri,
-        out string slotKind,
+        out string embedUri,
+        out string embedKind,
         out string? openAppId,
         out string displayTitle)
     {
-        slotUri = string.Empty;
-        slotKind = "view";
+        embedUri = string.Empty;
+        embedKind = "view";
         openAppId = null;
         displayTitle = string.Empty;
 
@@ -439,8 +439,8 @@ public static class CreatorView
 
         if (AppRef.TryParse(nodeId, out var appRef) && appRef.Name != App)
         {
-            slotUri = appRef.ChildKey("view");
-            slotKind = "app";
+            embedUri = appRef.ChildKey("view");
+            embedKind = "app";
             openAppId = appRef.Name;
             displayTitle = appRef.Name;
             return true;
@@ -450,8 +450,8 @@ public static class CreatorView
         {
             var slash = nodeId.IndexOf('/', StringComparison.Ordinal);
             if (slash <= 0 || !BrainId.IsValid(nodeId[..slash])) { return false; }
-            slotUri = new NeuronId(new BrainId(nodeId[..slash]), "units", $"{unitAlias}/view").ToString();
-            slotKind = "unit";
+            embedUri = new NeuronId(new BrainId(nodeId[..slash]), "units", $"{unitAlias}/view").ToString();
+            embedKind = "unit";
             openAppId = unitAlias;
             displayTitle = unitAlias;
             return true;
@@ -462,7 +462,7 @@ public static class CreatorView
 
     private static Node RenderLiveStudioPreview(CreatorWorkspaceState state, Inspection inspection, Children? children)
     {
-        if (!TryResolveLivePreviewTarget(state, inspection, out var slotUri, out var slotKind, out var openAppId, out var title))
+        if (!TryResolveLivePreviewTarget(state, inspection, out var embedUri, out var embedKind, out var openAppId, out var title))
         {
             return Empty(
                 "Select an App or Unit to Preview Live",
@@ -492,7 +492,7 @@ public static class CreatorView
 
         return VStack(Space.Sm)[
             viewportBar,
-            StudioFrame($"Live Studio · {title}", $"Mounted via Slot(\"{slotUri}\")", viewportWidth, Slot(slotUri, slotKind))
+            StudioFrame($"Live Studio · {title}", $"Mounted via Embed(\"{embedUri}\")", viewportWidth, Embed(embedUri, embedKind))
         ];
     }
 }

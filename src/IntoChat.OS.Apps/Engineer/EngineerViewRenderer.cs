@@ -188,9 +188,9 @@ internal static class EngineerViewRenderer
             : "apps/ino/view";
         var peekPane = StudioFrame(
             "Live App Viewport Peek",
-            $"Mounted via Slot(\"{peekUri}\")",
+            $"Mounted via Embed(\"{peekUri}\")",
             null,
-            Slot(peekUri, "app"));
+            Embed(peekUri, "app"));
         return Split(graph, peekPane, leadingExtent: 560, gap: Space.Sm);
     }
 

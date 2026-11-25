@@ -2,7 +2,7 @@
 # Expander
 
 A control neuron: a header that shows or hides its content. It owns whether it is expanded and signals Expanded when that changes.
-Its header, content, enabled and accessible name are props its parent writes on the slot; the parent refuses commands while disabled.
+Its header, content, enabled and accessible name are props its parent writes on the child node; the parent refuses commands while disabled.
 */
 using DigitalBrain;
 using DigitalBrain.Neurons;

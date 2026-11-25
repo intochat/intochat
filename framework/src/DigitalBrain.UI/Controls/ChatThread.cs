@@ -31,15 +31,15 @@ public sealed record ChatThreadState
 
 /// <summary>
 /// What a chat thread neuron draws: its messages (a failed one with its reason and a retry), and the composer, stop and retry nodes the
-/// client activates on it. The client draws the placeholder, model, status, empty text and error from the slot's props.
+/// client activates on it. The client draws the placeholder, model, status, empty text and error from the child's props.
 /// </summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="Messages">The messages drawn, oldest first.</param>
 /// <param name="Composer">The composer: it submits the typed text to the thread.</param>
 /// <param name="Stop">The stop button: present only while the props the parent last routed say it is working.</param>
 /// <param name="Retry">The error line's retry: present only while the props the parent last routed carry an error that retries.</param>
-/// <param name="Props">The slot's props, set only where a reader outside the client draws the slot in place (a screen directory); the
-/// neuron never sets it and the client reads the slot's own props.</param>
+/// <param name="Props">The child's props, set only where a reader outside the client draws the child in place (a screen directory); the
+/// neuron never sets it and the client reads the child's own props.</param>
 /// <param name="SelectModel">The addressable model-picker target that switches only this conversation's model.</param>
 /// <param name="PinModel">The addressable model-picker target that switches this conversation's model and pins the Chat role default.</param>
 [ViewNode("chatThreadView")]

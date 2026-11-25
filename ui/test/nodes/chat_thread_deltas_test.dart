@@ -58,9 +58,9 @@ void main() {
         home: Scaffold(
           body: ViewHost(
             knowsApp: (_) => false,
-            kind: 'slot',
-            name: 'local/apps/ino/slots/conversation',
-            slotProps: const {
+            kind: 'child',
+            name: 'local/apps/ino/children/conversation',
+            childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
@@ -113,9 +113,9 @@ void main() {
         home: Scaffold(
           body: ViewHost(
             knowsApp: (_) => false,
-            kind: 'slot',
-            name: 'local/apps/ino/slots/conversation',
-            slotProps: const {
+            kind: 'child',
+            name: 'local/apps/ino/children/conversation',
+            childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
@@ -163,9 +163,9 @@ void main() {
         home: Scaffold(
           body: ViewHost(
             knowsApp: (_) => false,
-            kind: 'slot',
-            name: 'local/apps/ino/slots/conversation',
-            slotProps: const {
+            kind: 'child',
+            name: 'local/apps/ino/children/conversation',
+            childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
@@ -203,9 +203,9 @@ void main() {
         home: Scaffold(
           body: ViewHost(
             knowsApp: (_) => false,
-            kind: 'slot',
-            name: 'local/apps/ino/slots/conversation',
-            slotProps: const {
+            kind: 'child',
+            name: 'local/apps/ino/children/conversation',
+            childProps: const {
               'placeholder': 'Ask anything.',
               'conversation': 'conversations/c-1',
             },
@@ -251,9 +251,9 @@ void main() {
         home: Scaffold(
           body: ViewHost(
             knowsApp: (_) => false,
-            kind: 'slot',
-            name: 'local/apps/ino/slots/conversation',
-            slotProps: const {'placeholder': 'Ask anything.'},
+            kind: 'child',
+            name: 'local/apps/ino/children/conversation',
+            childProps: const {'placeholder': 'Ask anything.'},
             watch: (_, _) => const Stream.empty(),
             watchSignal: (_, _, _) {
               watchCalls++;
@@ -305,7 +305,7 @@ void main() {
                       'children': [
                         {
                           'kind': 'neuronRef',
-                          'refKind': 'slot',
+                          'refKind': 'child',
                           'neuronUri': 'conversation',
                           'props': {
                             'placeholder': 'Ask anything.',
@@ -316,7 +316,7 @@ void main() {
                     },
                   },
                 },
-                'local/apps/ino/slots/conversation' => _chatThreadViewJson(
+                'local/apps/ino/children/conversation' => _chatThreadViewJson(
                   entry: 'r1/reply',
                 ),
                 _ => throw StateError('Unexpected load $kind:$name'),

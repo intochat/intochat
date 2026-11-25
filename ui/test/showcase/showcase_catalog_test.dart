@@ -45,7 +45,7 @@ Map<String, Set<String>> _modelFields() {
 final _fields = _modelFields();
 
 /// Kinds a control neuron draws: their accessible name comes from the slot's
-/// props (see `NodeContext.slotProps`), not from a field of the node.
+/// props (see `NodeContext.childProps`), not from a field of the node.
 final _controlViewKinds = {
   for (final entry in _catalog())
     if (entry['isNeuron'] == true)
@@ -95,7 +95,7 @@ Future<List<Map<String, dynamic>>> _pump(
     view: 'local/apps/showcase/view',
     generation: 1,
     // A control neuron's example carries its slot's props beside its node.
-    slotProps: props is Map ? props.cast<String, dynamic>() : const {},
+    childProps: props is Map ? props.cast<String, dynamic>() : const {},
     send: (event) async {
       sent.add(event);
       return null;

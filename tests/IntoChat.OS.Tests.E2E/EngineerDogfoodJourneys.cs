@@ -301,7 +301,7 @@ public sealed class EngineerDogfoodJourneys
     // The props Creator or Engineer drew on its child `key` in a published view.
     private static JsonElement ChildProps(JsonElement view, string key)
         => Nodes(view).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
-            && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+            && n.GetProperty("refKind").GetString() == "child" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
             .GetProperty("props");
 
     // The title and JSON of the jsonTree node Creator's state tab draws.

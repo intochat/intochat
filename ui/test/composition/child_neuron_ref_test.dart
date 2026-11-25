@@ -41,7 +41,7 @@ void main() {
                         },
                         {
                           'kind': 'neuronRef',
-                          'refKind': 'slot',
+                          'refKind': 'child',
                           'neuronUri': 'orders.live',
                         },
                         {
@@ -81,7 +81,7 @@ void main() {
                   },
                 },
                 // A bare-key slot is the view's child, read through its app's key path.
-                'local/apps/dashboard/slots/orders.live' => {
+                'local/apps/dashboard/children/orders.live' => {
                   'generation': 3,
                   'view': {
                     'title': 'Orders',
@@ -129,7 +129,10 @@ void main() {
       // 'browser' and 'confirmation' render display-only URI chips and never mount ViewHost.
       expect(find.text('local/browser/tab-1'), findsOneWidget);
       expect(find.text('local/confirmations'), findsOneWidget);
-      expect(loaded, contains('slot:local/apps/dashboard/slots/orders.live'));
+      expect(
+        loaded,
+        contains('child:local/apps/dashboard/children/orders.live'),
+      );
       expect(loaded, isNot(contains('view:local/browser/tab-1')));
       expect(loaded, isNot(contains('confirmation:local/confirmations')));
     },
@@ -158,7 +161,7 @@ void main() {
                     'title': 'Host',
                     'root': {
                       'kind': 'neuronRef',
-                      'refKind': 'slot',
+                      'refKind': 'child',
                       'neuronUri': 'local/units/slow',
                     },
                   },
@@ -181,12 +184,12 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // While pending, SlotSkeleton renders with warm surfaceSunk bars (#F2EFE9 in light).
-      expect(find.byType(SlotSkeleton), findsOneWidget);
+      // While pending, EmbedSkeleton renders with warm surfaceSunk bars (#F2EFE9 in light).
+      expect(find.byType(EmbedSkeleton), findsOneWidget);
       final bars = tester
           .widgetList<Container>(
             find.descendant(
-              of: find.byType(SlotSkeleton),
+              of: find.byType(EmbedSkeleton),
               matching: find.byType(Container),
             ),
           )
@@ -252,7 +255,7 @@ void main() {
                         {'kind': 'text', 'value': 'Parent header'},
                         {
                           'kind': 'neuronRef',
-                          'refKind': 'slot',
+                          'refKind': 'child',
                           'neuronUri': 'local/units/counter',
                         },
                       ],
@@ -341,7 +344,7 @@ void main() {
                       {'kind': 'text', 'value': 'Node A'},
                       {
                         'kind': 'neuronRef',
-                        'refKind': 'slot',
+                        'refKind': 'child',
                         'neuronUri': 'local/slot-b',
                       },
                     ],
@@ -358,7 +361,7 @@ void main() {
                       {'kind': 'text', 'value': 'Node B'},
                       {
                         'kind': 'neuronRef',
-                        'refKind': 'slot',
+                        'refKind': 'child',
                         'neuronUri': 'local/slot-a',
                       },
                     ],
@@ -374,7 +377,7 @@ void main() {
 
       expect(find.text('Node A'), findsOneWidget);
       expect(find.text('Node B'), findsOneWidget);
-      expect(find.byType(SlotGuardNotice), findsOneWidget);
+      expect(find.byType(EmbedGuardNotice), findsOneWidget);
       expect(find.text('This component cannot be displayed.'), findsOneWidget);
 
       // 2. Chain of 6 slots: depth 0 -> 1 -> 2 -> 3 -> 4 render, 5th nested slot halts at cap=4.
@@ -398,7 +401,7 @@ void main() {
                       {'kind': 'text', 'value': 'Level $idx'},
                       {
                         'kind': 'neuronRef',
-                        'refKind': 'slot',
+                        'refKind': 'child',
                         'neuronUri': 'local/d${idx + 1}',
                       },
                     ],
@@ -415,7 +418,7 @@ void main() {
         expect(find.text('Level $i'), findsOneWidget);
       }
       expect(find.text('Level 5'), findsNothing);
-      expect(find.text('Nested slot limit reached.'), findsOneWidget);
+      expect(find.text('Nested view limit reached.'), findsOneWidget);
     },
   );
 
@@ -458,7 +461,7 @@ void main() {
                           'children': [
                             {
                               'kind': 'neuronRef',
-                              'refKind': 'slot',
+                              'refKind': 'child',
                               'neuronUri': 'local/units/bank',
                             },
                           ],

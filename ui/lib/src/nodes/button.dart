@@ -68,7 +68,7 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
       );
 
 /// Sends a control's [command] through [NodeContext.act] (`POST /act`), the
-/// one route of a person's action, with the slot-aware target and a field's
+/// one route of a person's action, with the child-aware target and a field's
 /// [value] beside the args (the server adds it as `value` and the screen
 /// stamps who acted). A node with no command performs its client-local
 /// [intent] itself; the server never sees it. [key] names the node for the

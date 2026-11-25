@@ -1,7 +1,7 @@
 /*
 # Slider
 
-A control neuron: a value between a minimum and a maximum. Its label, range, step and unit are props its parent writes on the slot. It
+A control neuron: a value between a minimum and a maximum. Its label, range, step and unit are props its parent writes on the child node. It
 owns its value: SetValue stores it and signals ValueChanged, or, when the parent owns the value (props Value), only signals it, every
 time. The parent refuses a value outside the props' range (control.outOfRange). The client sends SetValue once, when the person lets go,
 and draws its own value while the person drags.

@@ -86,7 +86,8 @@ public sealed class ScreenSlotFacts
         Assert.NotNull(view);
         Assert.Equal("alice/app.slot-parent/main/editor", ChildId.Key);
         Assert.Contains(ChildId.ToString(), view.View.GetRawText(), StringComparison.Ordinal);
-        Assert.Contains("\"refKind\":\"slot\"", view.View.GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("\"refKind\":\"child\"", view.View.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("\"refKind\":\"slot\"", view.View.GetRawText(), StringComparison.Ordinal);
         Assert.Empty(context.Gets);
     }
 

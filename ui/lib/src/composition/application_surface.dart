@@ -1,6 +1,6 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import 'slot_route.dart';
+import 'child_route.dart';
 import 'view_host.dart';
 
 import 'package:flutter/material.dart';

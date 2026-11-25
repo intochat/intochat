@@ -32,8 +32,8 @@ Future<List<Map<String, dynamic>>> _pump(
             view: 'local/apps/engineer/view',
             generation: 1,
             actNeuron: 'local/apps/engineer',
-            slotPath: 'files',
-            slotProps: props,
+            childPath: 'files',
+            childProps: props,
             send: (event) async {
               sent.add(event);
               return {'delivered': true};

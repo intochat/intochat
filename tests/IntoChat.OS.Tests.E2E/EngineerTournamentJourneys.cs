@@ -276,7 +276,7 @@ public sealed class EngineerTournamentJourneys
     // The props Engineer drew on its child `key` in a published view.
     private static T EngineerChild<T>(DigitalBrain.Units.PublishedView view, string key)
         => EngineerNodes(view.View).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
-                && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+                && n.GetProperty("refKind").GetString() == "child" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
             .GetProperty("props").Deserialize<T>(JsonSerializerOptions.Web)!;
 
     // The text of the code block Engineer's Changes & Diff and PR tabs draw.

@@ -5,10 +5,10 @@ import 'chart.dart';
 import 'node_context.dart';
 
 /// What a live chart neuron draws: the points from the neuron's view; the
-/// title and kind from the slot's props. It reuses the `chart` data node's
+/// title and kind from the child's props. It reuses the `chart` data node's
 /// renderer. A kind the chart cannot draw shows an error, never a guess.
 Widget renderLiveChartView(LiveChartViewNode node, NodeContext ctx) {
-  final props = LiveChartProps.fromJson(ctx.slotProps);
+  final props = LiveChartProps.fromJson(ctx.childProps);
   if (!liveChartKinds.contains(props.kind)) {
     return Semantics(
       label: props.automationName ?? props.title,

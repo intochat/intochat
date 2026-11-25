@@ -4,7 +4,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
-  testWidgets('a NoSlots refusal reaches the refusal snackbar', (tester) async {
+  testWidgets('a NoChildren refusal reaches the refusal snackbar', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: UiTheme.light('intochat'),
@@ -19,7 +21,7 @@ void main() {
               '/act',
               409,
               '{"error":"child of local/apps/notes refused the command.",'
-                  '"reason":"NoSlots"}',
+                  '"reason":"NoChildren"}',
             ),
             load: (_, _) async => {
               'generation': 1,
@@ -42,7 +44,7 @@ void main() {
     await tester.tap(find.text('Toggle'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('NoSlots'), findsOneWidget);
+    expect(find.textContaining('NoChildren'), findsOneWidget);
     expect(find.textContaining('refused the command'), findsOneWidget);
   });
 }

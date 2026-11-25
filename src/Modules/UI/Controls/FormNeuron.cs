@@ -4,7 +4,7 @@
 A control neuron: a set of text fields submitted at once. Typed text stays in the client until Submit, which carries every editable
 field's value, typed or not. The form keeps the last submitted values and signals Submitted with all of them; when the parent's
 props carry field values (a controlled form) it stores nothing and only signals. Its fields, submit label, enabled and accessible name are props its parent writes on the
-slot; the parent refuses a submit naming an unknown or read-only field, a value over MaxLength and a non-number in a number field.
+child node; the parent refuses a submit naming an unknown or read-only field, a value over MaxLength and a non-number in a number field.
 A secret field never travels as a value: the client stores the typed text in the person's vault and the submit carries the vault
 reference in SecretRefs; the parent refuses a secret field's key inside Values and anything in SecretRefs that is not a reference to
 a secret field. The form signals the references with Submitted and keeps none of them.

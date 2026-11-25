@@ -243,7 +243,7 @@ public sealed class WorkspaceFilterScreen : AggregateScreen<WorkspaceFilterState
                 .Key("search-box")
                 .SendsOnChange(new WorkspaceSetQuery()),
             MutedText($"Query: {s.Query}"),
-            Kit.Slot("neuron://local/app.test.hello/default")
+            Kit.Embed("neuron://local/app.test.hello/default")
         ];
 }
 
@@ -509,8 +509,8 @@ public sealed class DddReactorAndExplorerFacts
         Assert.Equal(("neutral", null), (idle.Tone, idle.Icon));
         Assert.Equal(("accent", "hand"), (needsYou.Tone, needsYou.Icon));
 
-        // Verify Slot(...) emits NeuronRef("view", uri)
-        var slot = Slot("neuron://local/app.usage/default");
+        // Verify Embed(...) emits NeuronRef("view", uri)
+        var slot = Embed("neuron://local/app.usage/default");
         Assert.Equal("view", slot.Kind);
         Assert.Equal("neuron://local/app.usage/default", slot.NeuronUri);
 
@@ -588,7 +588,7 @@ public sealed class DddReactorAndExplorerFacts
                                     .Key("counter:increment")
                                     .Sends(new CounterIncrement(2))
                                     .Guard(State.MaxFive),
-                                Slot("neuron://local/app.usage/default")
+                                Embed("neuron://local/app.usage/default")
                             ]
                         ]);
                 }

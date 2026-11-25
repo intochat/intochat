@@ -52,7 +52,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             {
                 Assert.Equal(0, await page.SemanticsPrefix($"neuron:{oldKind}:").CountAsync().WaitAsync(ct));
             }
-            Assert.Equal(1, await page.SlotNode(CreatorView.InspectorTabsKey).CountAsync().WaitAsync(ct));
+            Assert.Equal(1, await page.ChildNode(CreatorView.InspectorTabsKey).CountAsync().WaitAsync(ct));
 
             // 2. Corner Viewport Minimap + Follow Live HUD toggle
             var minimapBox = await page.MeasureKeyedBoxAsync("flame-viewport-minimap", minWidth: 80f, minHeight: 40f, ct);
@@ -89,7 +89,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
                 string.Create(CultureInfo.InvariantCulture, $"Collapsing inspector must widen 3D canvas (before={widthWithInspector:0.#}px, collapsed={widthCollapsed:0.#}px)."));
 
             await page.ToggleShellInspectorAsync(ct);
-            await page.SlotNode(CreatorView.InspectorTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(CreatorView.InspectorTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             var widthRestored = await WaitForCanvasWidthChangeAsync(page, widthCollapsed, expectWider: false, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Creator Inspector Collapse/Expand Widths: open={widthWithInspector:0.#}px -> collapsed={widthCollapsed:0.#}px -> restored={widthRestored:0.#}px"));
             Assert.True(
@@ -98,7 +98,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
 
             // 5. Creator Time-Travel controls + keyboard stepping + Inspector tabs (State, Source, Signals, State Graph, Scenarios)
             await page.KeyedNode("replay-cursor-readout").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.SlotNode(CreatorView.ReplaySliderKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(CreatorView.ReplaySliderKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             await page.StepTimeTravelBackwardAsync(ct);
             await page.StepTimeTravelForwardAsync(ct);
@@ -109,7 +109,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await SelectInspectorTabAndWaitAsync(page, "Source", page.GetByText("No source files kept for the current selection.").First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
-            await SelectInspectorTabAndWaitAsync(page, "Signals", page.SlotNode(CreatorView.InspectorSignalsKey).First, ct);
+            await SelectInspectorTabAndWaitAsync(page, "Signals", page.ChildNode(CreatorView.InspectorSignalsKey).First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
             await SelectInspectorTabAndWaitAsync(page, "State Graph", page.SceneCameraHud().First, ct);
@@ -156,10 +156,10 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.").CountAsync().WaitAsync(ct));
 
             // The tab strip, the brainstorm thread, the worktree tree and the table are control.* children of Engineer.
-            await page.SlotNode(EngineerApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.SlotNode(EngineerApp.BrainstormKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-            await page.SlotNode(EngineerApp.WorktreesKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.SlotNode(EngineerApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(EngineerApp.TabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(EngineerApp.BrainstormKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(EngineerApp.WorktreesKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.ChildNode(EngineerApp.TableKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             await WaitForSemanticsTextContainsAsync(page, "Ino Native", ct);
             await WaitForSemanticsTextContainsAsync(page, "Ratified Plan & Ino Slices", ct);
@@ -282,7 +282,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     // The text a child of Engineer (a control.* slot) draws, once it holds `expectedSubstring`.
     private static async Task<string> WaitForSlotTextContainsAsync(IPage page, string key, string expectedSubstring, CancellationToken ct)
     {
-        var slot = page.SlotNode(key).First;
+        var slot = page.ChildNode(key).First;
         var current = string.Empty;
         for (var i = 0; i < 80; i++)
         {
@@ -299,7 +299,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     // Types into the brainstorm thread's composer (control.chatThread) and sends it; Engineer starts a brainstorm from the text.
     private static async Task SubmitBrainstormAndWaitAsync(IPage page, string message, CancellationToken ct)
     {
-        var thread = page.SlotNode(EngineerApp.BrainstormKey).First;
+        var thread = page.ChildNode(EngineerApp.BrainstormKey).First;
         await thread.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
         var input = thread.Locator("input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])").Last;
         await input.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
@@ -320,7 +320,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     // A tab of Engineer's workspace tab strip child (control.tabStrip), which sends control.select through Engineer.
     private static async Task SelectEngineerTabAsync(IPage page, string label, CancellationToken ct)
     {
-        var strip = page.SlotNode(EngineerApp.TabsKey).First;
+        var strip = page.ChildNode(EngineerApp.TabsKey).First;
         await strip.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
         var byRole = strip.GetByRole(AriaRole.Tab, new() { Name = label, Exact = true }).First;
         var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : strip.GetByText(label, new() { Exact = true }).First;
@@ -330,7 +330,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     // A node of Engineer's worktree tree child (control.tree), which sends control.select through Engineer.
     private static async Task SelectWorktreeNodeAsync(IPage page, string label, CancellationToken ct)
     {
-        var tree = page.SlotNode(EngineerApp.WorktreesKey).First;
+        var tree = page.ChildNode(EngineerApp.WorktreesKey).First;
         await tree.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
         await tree.GetByText(label, new() { Exact = false }).First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
     }
@@ -355,7 +355,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     // A tab of Creator's inspector tab strip child (control.tabStrip), which sends control.select through Creator.
     private static async Task SelectCreatorTabAsync(IPage page, string label, CancellationToken ct)
     {
-        var strip = page.SlotNode(CreatorView.InspectorTabsKey).First;
+        var strip = page.ChildNode(CreatorView.InspectorTabsKey).First;
         await strip.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
         var byRole = strip.GetByRole(AriaRole.Tab, new() { Name = label, Exact = true }).First;
         var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : strip.GetByText(label, new() { Exact = true }).First;

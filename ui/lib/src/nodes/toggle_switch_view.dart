@@ -6,11 +6,11 @@ import '../primitives/primitives.dart';
 import 'node_context.dart';
 
 /// What a toggle switch neuron draws: its value from the neuron's view, its
-/// label, on/off texts, enabled and accessible name from the slot's props. A
+/// label, on/off texts, enabled and accessible name from the child's props. A
 /// flip sends `SetChecked` to the neuron itself (`.`); the neuron owns the
 /// value and redraws. Disabled props send nothing.
 Widget renderToggleSwitchView(ToggleSwitchViewNode node, NodeContext ctx) {
-  final props = ToggleSwitchProps.fromJson(ctx.slotProps);
+  final props = ToggleSwitchProps.fromJson(ctx.childProps);
   // A controlled switch draws the parent's value; otherwise the neuron's.
   final isOn = props.isOn ?? node.isOn;
   final content = isOn ? props.onContent : props.offContent;

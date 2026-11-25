@@ -30,7 +30,7 @@ public sealed class ScenarioExportFacts
 
     public static TheoryData<string> Names => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name)];
 
-    // The Flutter driver replays what the kernel showed: ui/test/scenarios/views/<scenario>.json holds the page (view and slot
+    // The Flutter driver replays what the kernel showed: ui/test/scenarios/views/<scenario>.json holds the page (view and
     // children) before step 0 (afterIndex -1) and after every act that changed it, unindented. With INTOCHAT_REGENERATE_SCENARIOS=1 the fact rewrites it.
     [Theory]
     [MemberData(nameof(Names))]

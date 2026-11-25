@@ -1,17 +1,18 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain;
+using DigitalBrain.UI;
 using DigitalBrain.Units;
 
 namespace IntoChat.OS.Modules.Flutter;
 
-// A slot child's neuron id never leaves the kernel: a view a client reads names each slot by its key in that view (the Dart client
-// appends it to the slot path it reached the view by and reads the child at GET /brains/{id}/apps/{name}/slots/{path}).
-internal static class SlotKeys
+// A child's neuron id never leaves the kernel: a view a client reads names each child by its key in that view (the Dart client
+// appends it to the child path it reached the view by and reads the child at GET /brains/{id}/apps/{name}/children/{path}).
+internal static class ChildKeys
 {
     public static PublishedView? Hide(PublishedView? view) => view is null ? null : view with { View = Hide(view.View) };
 
-    // A screen's view, as a client reads it: slots by key, and marked so the client sends every command to the act route.
+    // A screen's view, as a client reads it: children by key, and marked so the client sends every command to the act route.
     public static PublishedView? Screen(PublishedView? view) => view is null ? null : view with { View = Screen(view.View) };
 
     public static JsonElement Screen(JsonElement view)
@@ -26,7 +27,7 @@ internal static class SlotKeys
     public static JsonElement Hide(JsonElement view)
     {
         var raw = view.GetRawText();
-        if (!raw.Contains("\"slot\"", StringComparison.Ordinal) && !raw.Contains("\"acts\"", StringComparison.Ordinal)) { return view; }
+        if (!raw.Contains("\"" + NeuronRef.ChildKind + "\"", StringComparison.Ordinal) && !raw.Contains("\"acts\"", StringComparison.Ordinal)) { return view; }
         var root = JsonNode.Parse(raw);
         if (root is null) { return view; }
         if (root is JsonObject top) { top.Remove("acts"); }
@@ -42,15 +43,15 @@ internal static class SlotKeys
                 foreach (var item in array) { if (item is not null) { Rewrite(item); } }
                 break;
             case JsonObject obj:
-                if (IsSlot(obj)) { obj["neuronUri"] = KeyOf((string?)obj["neuronUri"]); }
+                if (IsChild(obj)) { obj["neuronUri"] = KeyOf((string?)obj["neuronUri"]); }
                 foreach (var (_, value) in obj.ToArray()) { if (value is not null) { Rewrite(value); } }
                 break;
         }
     }
 
-    private static bool IsSlot(JsonObject obj)
+    private static bool IsChild(JsonObject obj)
         => obj["kind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["kind"] == "neuronRef"
-            && obj["refKind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["refKind"] == "slot"
+            && obj["refKind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["refKind"] == NeuronRef.ChildKind
             && obj["neuronUri"]?.GetValueKind() == JsonValueKind.String;
 
     // Fails closed: a child's id ("<parent id>/<key>") becomes its key; a public address of an app or unit

@@ -66,11 +66,11 @@ Future<List<Map<String, dynamic>>> _pump(
         body: NodeRenderer.render(
           Node.fromJson(thread),
           NodeContext(
-            view: 'local/apps/ino/slots/conversation',
+            view: 'local/apps/ino/children/conversation',
             generation: 3,
             actNeuron: 'local/apps/ino',
-            slotPath: 'conversation',
-            slotProps: props,
+            childPath: 'conversation',
+            childProps: props,
             talk: talk,
             speak: speak,
             createAudioOut: createAudioOut,

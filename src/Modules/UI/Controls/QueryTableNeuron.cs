@@ -2,7 +2,7 @@
 # Query table
 
 A control neuron: a table that stores a query, not rows. It owns the filter, the sort (column and direction) and the page, and signals
-TableChanged on every change. Its title, the columns it shows and where its rows come from are props its parent writes on the slot;
+TableChanged on every change. Its title, the columns it shows and where its rows come from are props its parent writes on the child node;
 the parent refuses a Sort naming a column the props do not show (control.unknownColumn) and a Page below 1 (control.pageOutOfRange).
 
 The rows come from one of two places. Inline rows (props Rows, each with an id and cells) are the parent's: the neuron never reads or

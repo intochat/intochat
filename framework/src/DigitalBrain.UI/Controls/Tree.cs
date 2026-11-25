@@ -12,7 +12,7 @@ public sealed record TreeState
     public IReadOnlyList<string> ExpandedIds { get; init; } = [];
 }
 
-/// <summary>What a tree neuron draws: its key, selected node and expanded folders. The client draws the nodes from the slot's props.</summary>
+/// <summary>What a tree neuron draws: its key, selected node and expanded folders. The client draws the nodes from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="SelectedId">The tree's own selected node; null when none is selected or the parent owns the selection.</param>
 /// <param name="ExpandedIds">The tree's own expanded folders; empty when none is expanded or the parent owns them.</param>

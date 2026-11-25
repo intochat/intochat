@@ -7,20 +7,20 @@ import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 import '../theme/wire_node_values.dart';
-import '../composition/slot_route.dart';
+import '../composition/child_route.dart';
 import 'node_context.dart';
 
-/// Maximum nested `Slot` (`NeuronRef`) composition depth before halting recursion.
-const int maxSlotDepth = 4;
+/// Maximum nested `NeuronRef` composition depth before halting recursion.
+const int maxEmbedDepth = 4;
 
-/// Returns true when [refKind] denotes an embeddable live `ViewHost` slot
-/// (`"view"`, `"slot"`, `"app"`, `"unit"`, or `""`), excluding `"browser"`,
+/// Returns true when [refKind] denotes an embeddable live `ViewHost` child
+/// (`"view"`, `"child"`, `"app"`, `"unit"`, or `""`), excluding `"browser"`,
 /// `"webbrowser"`, `"viewport"`, and `"confirmation"`.
-bool isSlotRefKind(String refKind) => isSlotNeuronRefKind(refKind);
+bool isEmbedRefKind(String refKind) => isEmbedNeuronRefKind(refKind);
 
 /// Normalizes a `NeuronRef` [neuronUri] into the target `view` neuron name
 /// relative to [parentView]'s brain scope when needed.
-String resolveSlotTargetName({
+String resolveEmbedTargetName({
   required String parentView,
   required String refKind,
   required String neuronUri,
@@ -56,31 +56,31 @@ String resolveSlotTargetName({
   return uri;
 }
 
-/// A live neuron surface (a nested `Slot` view, a `viewport`, or a `webbrowser`)
+/// A live neuron surface (a nested child or embedded view, a `viewport`, or a `webbrowser`)
 /// hosted in place; without a host (or for `confirmation`), its display-only URI chip.
 Widget renderNeuronRef(NeuronRefNode node, NodeContext ctx) {
   final rawUri = node.neuronUri.trim();
-  if (isSlotRefKind(node.refKind) && rawUri.isNotEmpty) {
-    final resolved = resolveSlotTargetName(
+  if (isEmbedRefKind(node.refKind) && rawUri.isNotEmpty) {
+    final resolved = resolveEmbedTargetName(
       parentView: ctx.view,
       refKind: node.refKind,
       neuronUri: rawUri,
     );
-    // A `slot` names only its key: its host guards cycles by key path.
-    final keyed = isChildSlot(node.refKind, rawUri);
+    // A `child` names only its key: its host guards cycles by key path.
+    final keyed = isScreenChild(node.refKind, rawUri);
     if (!keyed &&
-        (ctx.slotAncestors.contains(rawUri) ||
-            ctx.slotAncestors.contains(resolved) ||
+        (ctx.childAncestors.contains(rawUri) ||
+            ctx.childAncestors.contains(resolved) ||
             resolved == ctx.view)) {
-      return SlotGuardNotice(
+      return EmbedGuardNotice(
         neuronUri: node.neuronUri,
         message: 'This component cannot be displayed.',
       );
     }
-    if (ctx.slotDepth >= maxSlotDepth) {
-      return SlotGuardNotice(
+    if (ctx.childDepth >= maxEmbedDepth) {
+      return EmbedGuardNotice(
         neuronUri: node.neuronUri,
-        message: 'Nested slot limit reached.',
+        message: 'Nested view limit reached.',
       );
     }
   }
@@ -122,10 +122,10 @@ class _NeuronUriChip extends StatelessWidget {
   }
 }
 
-/// Non-recursive notice rendered when a `NeuronRef` slot hits a cycle or
-/// exceeds [maxSlotDepth].
-class SlotGuardNotice extends StatelessWidget {
-  const SlotGuardNotice({
+/// Non-recursive notice rendered when a `NeuronRef` child hits a cycle or
+/// exceeds [maxEmbedDepth].
+class EmbedGuardNotice extends StatelessWidget {
+  const EmbedGuardNotice({
     super.key,
     required this.neuronUri,
     required this.message,
@@ -139,7 +139,7 @@ class SlotGuardNotice extends StatelessWidget {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
     return Container(
-      key: ValueKey('slot-guard:$neuronUri'),
+      key: ValueKey('embed-guard:$neuronUri'),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: c.surfaceSunk,
@@ -165,16 +165,16 @@ class SlotGuardNotice extends StatelessWidget {
 
 /// Warm `surfaceSunk` skeleton shimmer (`DESIGN.md` §2.1 & §7: 1100 ms opacity
 /// pulse, static under reduced motion or widget test bindings).
-class SlotSkeleton extends StatefulWidget {
-  const SlotSkeleton({super.key, this.compact = false});
+class EmbedSkeleton extends StatefulWidget {
+  const EmbedSkeleton({super.key, this.compact = false});
 
   final bool compact;
 
   @override
-  State<SlotSkeleton> createState() => _SlotSkeletonState();
+  State<EmbedSkeleton> createState() => _EmbedSkeletonState();
 }
 
-class _SlotSkeletonState extends State<SlotSkeleton>
+class _EmbedSkeletonState extends State<EmbedSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -227,7 +227,7 @@ class _SlotSkeletonState extends State<SlotSkeleton>
         builder: (context, child) =>
             Opacity(opacity: 0.45 + (_controller.value * 0.55), child: child),
         child: Container(
-          key: const ValueKey('slot-skeleton'),
+          key: const ValueKey('embed-skeleton'),
           padding: EdgeInsets.symmetric(
             horizontal: widget.compact ? 12 : 16,
             vertical: widget.compact ? 10 : 14,

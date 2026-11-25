@@ -40,7 +40,7 @@ public sealed class CreatorTimeTravelFacts
         Assert.Null(creator.App.State.ReplayCursor);
         Assert.Equal(4, creator.App.State.ReplayStepCount);
         Assert.Equal(2, Bumps(creator.App.Render()));
-        Assert.DoesNotContain(AllNodes(creator.App.Render()).OfType<NeuronRef>(), n => n.Kind != "slot");
+        Assert.DoesNotContain(AllNodes(creator.App.Render()).OfType<NeuronRef>(), n => n.Kind != "child");
         var live = PropsOf<SliderProps>(creator.App.Render(), CreatorView.ReplaySliderKey);
         Assert.Equal((1d, 4d, 4d, true), (live.Min, live.Max, live.Value!.Value, live.IsEnabled));
         Assert.Equal("Live · Event 4 / 4", live.Label);
@@ -214,7 +214,7 @@ public sealed class CreatorTimeTravelFacts
     // The props Creator drew for its child `key`.
     private static T PropsOf<T>(View view, string key) where T : ControlProps
     {
-        var child = Assert.Single(AllNodes(view).OfType<NeuronRef>(), n => n.Kind == "slot" && n.NeuronUri.EndsWith("/" + key, StringComparison.Ordinal));
+        var child = Assert.Single(AllNodes(view).OfType<NeuronRef>(), n => n.Kind == "child" && n.NeuronUri.EndsWith("/" + key, StringComparison.Ordinal));
         return child.Props!.Value.Deserialize<T>(JsonSerializerOptions.Web)!;
     }
 

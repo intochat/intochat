@@ -6,7 +6,7 @@ UpdateMessage and ImportMessages (idempotent by id: a held id is replaced in pla
 repeated ids skipped). Every failed or interrupted assistant message draws its reason ("The model did not answer." when none is
 given) and a retry; Retry(id) only signals RetryRequested, and the parent does the work. The composer's text stays on the client until
 it is submitted; SubmitText signals Submitted with the text under "text", and Stop signals StopRequested. The placeholder, model,
-status, empty text and an error no message carries are props its parent writes on the slot. Named ChatThread because a `conversation`
+status, empty text and an error no message carries are props its parent writes on the child node. Named ChatThread because a `conversation`
 data node already exists; it draws as a chatThreadView with the conversation's renderer.
 */
 using System.Text.Json;

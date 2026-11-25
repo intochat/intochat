@@ -19,7 +19,7 @@ void main() {
             NodeContext(
               view: 'local/apps/settings/view',
               generation: 1,
-              slotProps: {
+              childProps: {
                 'header': 'Advanced',
                 'isEnabled': isEnabled,
                 'automationName': 'Advanced options',

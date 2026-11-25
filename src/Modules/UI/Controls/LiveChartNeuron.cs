@@ -2,7 +2,7 @@
 # Live chart
 
 A control neuron: a chart of points a feed adds to. It owns the points (the last 200) and a change counter, and signals ChartChanged
-on every change. Its title and kind (bar, line, area, pie) are props its parent writes on the slot; the parent refuses Replace and
+on every change. Its title and kind (bar, line, area, pie) are props its parent writes on the child node; the parent refuses Replace and
 Append while the kind is unknown (control.unknownKind) and the client draws an error instead of a chart. An Append whose event id the
 chart still holds is ignored (a trimmed event id may be appended again). Named LiveChart because a `chart` data node already exists;
 it draws as a liveChartView.

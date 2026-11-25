@@ -36,11 +36,11 @@ public sealed class ActivationRefusedException : InvalidOperationException
     /// <summary>The keyed node sends no command.</summary>
     public const string NoEmit = "NoEmit";
 
-    /// <summary>A command names a child key that no slot of the current view names.</summary>
+    /// <summary>A command names a child key that the current view does not name.</summary>
     public const string UnknownChild = "UnknownChild";
 
-    /// <summary>A command names a child address, but the view's owner has no child slots (a unit or a slotless app).</summary>
-    public const string NoSlots = "NoSlots";
+    /// <summary>A command names a child address, but the view's owner has no children (a unit or an app without children).</summary>
+    public const string NoChildren = "NoChildren";
 
     /// <summary>A required component slot has no binding and no default.</summary>
     public const string SlotUnbound = "slot.unbound";

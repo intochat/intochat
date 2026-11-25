@@ -140,11 +140,11 @@ public sealed record JsonTree(
 [ViewNode("toast")]
 public sealed record Toast(string Message) : Node;
 
-/// <summary>A card frame (the os <c>card</c> control): plain data with a title, a body, child nodes and optional header and footer slots.</summary>
+/// <summary>A card frame (the os <c>card</c> control): plain data with a title, a body, child nodes and optional header and footer.</summary>
 /// <param name="Title">The card title.</param>
 /// <param name="Body">The card body.</param>
 /// <param name="Children">Nodes shown below the body, in order.</param>
-/// <param name="Header">A node shown above the title, such as a badge row or a child neuron's slot.</param>
+/// <param name="Header">A node shown above the title, such as a badge row or a child neuron's ref.</param>
 /// <param name="Footer">A node shown below the children, such as a row of buttons.</param>
 [ViewNode("card")]
 public sealed record Card(

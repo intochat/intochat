@@ -347,7 +347,7 @@ public sealed class CreatorAppFacts
     private static QueryTableProps SignalsTable(InstalledApp<CreatorApp> creator)
     {
         var child = Assert.Single(Nodes(creator.App.Render()).OfType<NeuronRef>(),
-            n => n.Kind == "slot" && n.NeuronUri.EndsWith("/" + CreatorView.InspectorSignalsKey, StringComparison.Ordinal));
+            n => n.Kind == "child" && n.NeuronUri.EndsWith("/" + CreatorView.InspectorSignalsKey, StringComparison.Ordinal));
         return child.Props!.Value.Deserialize<QueryTableProps>(JsonSerializerOptions.Web)!;
     }
 

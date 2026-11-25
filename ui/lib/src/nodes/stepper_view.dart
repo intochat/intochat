@@ -7,12 +7,12 @@ import '../generated/node_commands.dart';
 import 'node_context.dart';
 
 /// What a stepper neuron draws: the active step from the neuron's view; the
-/// title and steps (each with its status) from the slot's props. The active
+/// title and steps (each with its status) from the child's props. The active
 /// step is the props' when the parent owns it, else the neuron's. A tap on a
 /// step that is not active sends `Select` to the neuron itself (`.`); the
 /// parent checks the id against the props. Disabled props send nothing.
 Widget renderStepperView(StepperViewNode node, NodeContext ctx) {
-  final props = StepperProps.fromJson(ctx.slotProps);
+  final props = StepperProps.fromJson(ctx.childProps);
   final activeId = props.activeStepId ?? node.activeStepId;
   final enabled = props.isEnabled && ctx.interactive;
   final title = props.title ?? '';

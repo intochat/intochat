@@ -126,11 +126,11 @@ Future<List<Map<String, dynamic>>> _pumpPicker(
         body: NodeRenderer.render(
           Node.fromJson(_thread),
           NodeContext(
-            view: 'local/apps/ino/slots/conversation',
+            view: 'local/apps/ino/children/conversation',
             generation: 3,
             actNeuron: 'local/apps/ino',
-            slotPath: 'conversation',
-            slotProps: {
+            childPath: 'conversation',
+            childProps: {
               'placeholder': 'Ask anything.',
               'activeModelId': 'qwen3.5:4b',
               'activeModelLabel': 'Qwen 3.5 4B',

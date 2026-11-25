@@ -13,12 +13,12 @@ namespace IntoChat.OS.Apps.Settings;
 
 internal static class SettingsViewRenderer
 {
-    public static Node RenderRoot(SettingsAppState state, SettingsSlots slots, Rejected? lastRejection = null)
+    public static Node RenderRoot(SettingsAppState state, SettingsChildren children, Rejected? lastRejection = null)
     {
         var section = SettingsAppState.NormalizeSection(state.Section);
         var sectionEntry = SettingsApp.SearchIndex.First(entry => entry.SectionId == section);
 
-        var sidebar = BuildSidebar(state, section, slots);
+        var sidebar = BuildSidebar(state, section, children);
         var contentChildren = new List<Node?>
         {
             lastRejection is not null
@@ -27,7 +27,7 @@ internal static class SettingsViewRenderer
             !string.IsNullOrEmpty(state.Sheet)
                 ? RenderModalSheet(state, state.Sheet!)
                 : null,
-            RenderSectionBody(state, section, state.SubPage, slots),
+            RenderSectionBody(state, section, state.SubPage, children),
         };
 
         return AppShell(
@@ -38,13 +38,13 @@ internal static class SettingsViewRenderer
             transition: state.ActiveTransition);
     }
 
-    private static Node BuildSidebar(SettingsAppState state, string activeSection, SettingsSlots slots)
+    private static Node BuildSidebar(SettingsAppState state, string activeSection, SettingsChildren children)
     {
         var filtered = SettingsAppState.FilterSections(state.SearchQuery);
         var groups = new[] { "Preferences", "Capabilities & Data", "Organization & System" };
         var nodes = new List<Node?>
         {
-            SettingsControls.SearchForm(slots, state),
+            SettingsControls.SearchForm(children, state),
             !string.IsNullOrWhiteSpace(state.SearchQuery)
                 ? GhostButton("Clear search", "x")
                     .Key("settings:clear-search")
@@ -154,24 +154,24 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderSectionBody(SettingsAppState state, string section, string? subPage, SettingsSlots slots) => section switch
+    private static Node RenderSectionBody(SettingsAppState state, string section, string? subPage, SettingsChildren children) => section switch
     {
-        "desktop" => RenderDesktopSection(state, slots),
+        "desktop" => RenderDesktopSection(state, children),
         "apps" => RenderAppsSection(state, subPage),
-        "connections" => RenderConnectionsSection(state, subPage, slots),
+        "connections" => RenderConnectionsSection(state, subPage, children),
         "files" => RenderFilesSection(state),
-        "models" => RenderModelsSection(state, subPage, slots),
-        "keys" => RenderKeysSection(state, slots),
+        "models" => RenderModelsSection(state, subPage, children),
+        "keys" => RenderKeysSection(state, children),
         "variables" => RenderVariablesSection(state),
         "billing" => RenderBillingSection(state),
         "team" => RenderTeamSection(state, subPage),
-        "notifications" => RenderNotificationsSection(state, slots),
+        "notifications" => RenderNotificationsSection(state, children),
         "keyboard" => RenderKeyboardSection(),
         "danger" => RenderDangerSection(),
-        _ => RenderGeneralSection(state, slots),
+        _ => RenderGeneralSection(state, children),
     };
 
-    private static Node RenderGeneralSection(SettingsAppState state, SettingsSlots slots)
+    private static Node RenderGeneralSection(SettingsAppState state, SettingsChildren children)
     {
         var connectionCount = (state.ConnectionKeys ?? []).Count;
 
@@ -183,7 +183,7 @@ internal static class SettingsViewRenderer
             ],
             Surface(SurfaceKind.Elevated, "Appearance & Regional Preferences", "How IntoChat looks and formats dates for you")[
                 VStack(Space.Md)[
-                    SettingsControls.ComboBox(slots, state, SettingsControls.ThemeMode, "Appearance mode",
+                    SettingsControls.ComboBox(children, state, SettingsControls.ThemeMode, "Appearance mode",
                     [
                         new ComboBoxOption("light", "Light"),
                         new ComboBoxOption("dark", "Dark"),
@@ -197,7 +197,7 @@ internal static class SettingsViewRenderer
                         PrefButton(state, "pref-midnight", "Midnight", state.StylePreset == "midnight", preset: "midnight"),
                         PrefButton(state, "pref-nordic", "Nordic", state.StylePreset == "nordic", preset: "nordic")
                     ],
-                    SettingsControls.RegionalForm(slots, state),
+                    SettingsControls.RegionalForm(children, state),
                     Table(
                         "Regional settings",
                         ["Setting", "Active value"],
@@ -233,7 +233,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderDesktopSection(SettingsAppState state, SettingsSlots slots) =>
+    private static Node RenderDesktopSection(SettingsAppState state, SettingsChildren children) =>
         Surface(SurfaceKind.Elevated, "Desktop & Dock", "Ambient canvas tone, adaptive bar layout, and status indicators")[
             VStack(Space.Md)[
                 Heading("Desktop canvas tone", 3, "Choose the warm paper or deep ink surface behind windows."),
@@ -243,14 +243,14 @@ internal static class SettingsViewRenderer
                     PrefButton(state, "tone-peat", "Peat", state.DesktopTone == "peat", themeMode: state.ThemeMode, desktopTone: "peat"),
                     PrefButton(state, "tone-ink", "Ink", state.DesktopTone == "ink", themeMode: state.ThemeMode, desktopTone: "ink")
                 ],
-                SettingsControls.ComboBox(slots, state, SettingsControls.BarLayout, "OS bar layout",
+                SettingsControls.ComboBox(children, state, SettingsControls.BarLayout, "OS bar layout",
                 [
                     new ComboBoxOption("floating-glass", "Floating Glass"),
                     new ComboBoxOption("compact-pill", "Compact Pill"),
                     new ComboBoxOption("classic-bottom", "Classic Bottom"),
                 ]),
                 Divider("OS bar indicators"),
-                VStack(Space.Sm, [.. SettingsControls.Toggles.Where(toggle => toggle.Section == "desktop").Select(toggle => SettingsControls.ToggleSwitch(slots, state, toggle))])
+                VStack(Space.Sm, [.. SettingsControls.Toggles.Where(toggle => toggle.Section == "desktop").Select(toggle => SettingsControls.ToggleSwitch(children, state, toggle))])
             ]
         ];
 
@@ -326,12 +326,12 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderConnectionsSection(SettingsAppState state, string? subPage, SettingsSlots slots)
+    private static Node RenderConnectionsSection(SettingsAppState state, string? subPage, SettingsChildren children)
     {
         var keys = state.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys;
         if (SettingsAppState.IsGitHubSubPage(subPage))
         {
-            return RenderGitHubConnectionHub(state, subPage!, slots);
+            return RenderGitHubConnectionHub(state, subPage!, children);
         }
 
         if (!string.IsNullOrWhiteSpace(subPage))
@@ -393,7 +393,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderGitHubConnectionHub(SettingsAppState state, string subPage, SettingsSlots slots)
+    private static Node RenderGitHubConnectionHub(SettingsAppState state, string subPage, SettingsChildren children)
     {
         var slug = SettingsAppState.ResolveGitHubSlug(subPage, state.GitHubConnectionSlug);
         var connectionKey = SettingsAppState.NormalizeGitHubConnectionKey(slug);
@@ -466,7 +466,7 @@ internal static class SettingsViewRenderer
                         .WithIntent(copyGhForwardIntent.Kind, copyGhForwardIntent.Arg)
                 ],
                 Card("Fine-Grained PAT & Webhook Onboarding", "Tokens are sealed via SecretRef and ConnectionNeuron; raw credentials never touch SettingsAppState.")[
-                    SettingsControls.GitHubPatForm(slots, state)
+                    SettingsControls.GitHubPatForm(children, state)
                 ],
                 Card("Issue Comment Policy Governance (github.issue.comment)", "Set hourly comment limits or draft-only human review before Octokit writes execute.")[
                     VStack(Space.Sm)[
@@ -743,11 +743,11 @@ internal static class SettingsViewRenderer
         _ => role.ToString(),
     };
 
-    private static Node RenderModelsSection(SettingsAppState state, string? subPage, SettingsSlots slots)
+    private static Node RenderModelsSection(SettingsAppState state, string? subPage, SettingsChildren children)
     {
         if (string.Equals(subPage, "web-tools", StringComparison.OrdinalIgnoreCase))
         {
-            return RenderWebToolsSubPage(state, slots);
+            return RenderWebToolsSubPage(state, children);
         }
 
         if (string.Equals(subPage, "local-server", StringComparison.OrdinalIgnoreCase))
@@ -807,7 +807,7 @@ internal static class SettingsViewRenderer
         {
             installChildren.Add(MutedText("No model installs in progress.").ToNode());
         }
-        installChildren.Add(SettingsControls.InstallModelForm(slots, state));
+        installChildren.Add(SettingsControls.InstallModelForm(children, state));
 
         var rolesByKey = state.Roles.ToDictionary(static row => row.Role);
         var roleControls = Enum.GetValues<ModelRole>()
@@ -826,7 +826,7 @@ internal static class SettingsViewRenderer
                     })
                     .ToArray();
                 return SettingsControls.ComboBox(
-                    slots,
+                    children,
                     state,
                     SettingsControls.RoleKey(role),
                     $"{role} — {RoleDescription(role)}",
@@ -867,7 +867,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderWebToolsSubPage(SettingsAppState state, SettingsSlots slots)
+    private static Node RenderWebToolsSubPage(SettingsAppState state, SettingsChildren children)
     {
         var selectedProvider = SettingsControls.ResolveWebSearchProvider(state);
         var braveConfigured = IsSecretConfigured(state, "BRAVE_API_KEY", "brave");
@@ -918,7 +918,7 @@ internal static class SettingsViewRenderer
             VStack(Space.Md)[
                 Card("Web search", "Choose how Ino searches the web. External pages and MCP results are fenced as untrusted content.")[
                     VStack(Space.Sm)[
-                        SettingsControls.ComboBox(slots, state, SettingsControls.WebSearchProvider, "Web search provider",
+                        SettingsControls.ComboBox(children, state, SettingsControls.WebSearchProvider, "Web search provider",
                         [
                             new ComboBoxOption(nameof(SearchProvider.Off), "Off"),
                             new ComboBoxOption(nameof(SearchProvider.Searxng), "SearXNG — free"),
@@ -927,7 +927,7 @@ internal static class SettingsViewRenderer
                             new ComboBoxOption(nameof(SearchProvider.Native), "Chat model's own search — billed by the provider"),
                         ]),
                         string.Equals(selectedProvider, nameof(SearchProvider.Searxng), StringComparison.OrdinalIgnoreCase)
-                            ? SettingsControls.SearxngUrlForm(slots, state)
+                            ? SettingsControls.SearxngUrlForm(children, state)
                             : null,
                         Divider("Search API keys"),
                         HStack(Space.Sm)[
@@ -959,7 +959,7 @@ internal static class SettingsViewRenderer
                             ? VStack(Space.Xs, mcpActionRows).ToNode()
                             : null,
                         Divider("Add MCP server"),
-                        SettingsControls.McpAddFormControl(slots, state)
+                        SettingsControls.McpAddFormControl(children, state)
                     ]
                 ],
                 HStack(Space.Sm)[
@@ -976,7 +976,7 @@ internal static class SettingsViewRenderer
         => (state.SecretStatuses != null && state.SecretStatuses.TryGetValue(secretName, out var configured) && configured)
            || HasVaultEntry(state, secretName, connectionKey);
 
-    private static Node RenderKeysSection(SettingsAppState state, SettingsSlots slots)
+    private static Node RenderKeysSection(SettingsAppState state, SettingsChildren children)
     {
         (string Provider, string Detail, string SecretName, string Connection, string ButtonId, string ButtonLabel)[] vaults =
         [
@@ -1007,7 +1007,7 @@ internal static class SettingsViewRenderer
         return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault via SecretRef and never enter neuron state or journals")[
             VStack(Space.Md)[
                 VStack(Space.Sm, cards),
-                SettingsControls.ApiKeysForm(slots, state),
+                SettingsControls.ApiKeysForm(children, state),
                 HStack(Space.Sm)[
                     PrimaryButton("Open secure vault window", Icons.KeyRound)
                         .Key("keys:open-vault")
@@ -1132,7 +1132,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderNotificationsSection(SettingsAppState state, SettingsSlots slots)
+    private static Node RenderNotificationsSection(SettingsAppState state, SettingsChildren children)
     {
         var approvalCards = state.PendingApprovals.Select(static approval =>
         {
@@ -1156,7 +1156,7 @@ internal static class SettingsViewRenderer
                         state.PendingApprovals.Count > 0 ? StatusKind.NeedsYou : StatusKind.Done,
                         state.PendingApprovals.Count > 0 ? $"{state.PendingApprovals.Count} awaiting approval" : "No pending approvals")
                 ],
-                .. SettingsControls.Toggles.Where(toggle => toggle.Section == "notifications").Select(toggle => SettingsControls.ToggleSwitch(slots, state, toggle)),
+                .. SettingsControls.Toggles.Where(toggle => toggle.Section == "notifications").Select(toggle => SettingsControls.ToggleSwitch(children, state, toggle)),
                 .. approvalCards,
             ])
         ];

@@ -9,7 +9,7 @@ public sealed record CheckBoxState
     public bool IsOn { get; init; }
 }
 
-/// <summary>What a check box neuron draws: its key and value. The client draws the label and enabled from the slot's props.</summary>
+/// <summary>What a check box neuron draws: its key and value. The client draws the label and enabled from the child's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="IsOn">True when checked.</param>
 [ViewNode("checkBoxView")]

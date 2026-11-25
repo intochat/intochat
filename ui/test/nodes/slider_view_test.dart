@@ -34,8 +34,8 @@ class _HostState extends State<_Host> {
             view: 'local/apps/creator/view',
             generation: 1,
             actNeuron: 'local/apps/creator',
-            slotPath: 'depth',
-            slotProps: props,
+            childPath: 'depth',
+            childProps: props,
             send: (event) async {
               widget.sent.add(event);
               return {'delivered': true};
