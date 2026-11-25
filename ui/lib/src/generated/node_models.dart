@@ -1984,13 +1984,17 @@ final class QueryTableProps {
     required this.title,
     required this.columns,
     required this.sourceAddress,
+    required this.rows,
+    required this.selectedRowId,
   });
 
   final bool isEnabled;
   final String? automationName;
   final String title;
   final List<QueryTableColumn> columns;
-  final String sourceAddress;
+  final String? sourceAddress;
+  final List<QueryTableRow>? rows;
+  final String? selectedRowId;
 
   factory QueryTableProps.fromJson(Map<String, dynamic> json) =>
       QueryTableProps(
@@ -2001,8 +2005,27 @@ final class QueryTableProps {
           for (final item in _list(json['columns']))
             QueryTableColumn.fromJson(_map(item)),
         ],
-        sourceAddress: _string(json['sourceAddress']),
+        sourceAddress: _stringOrNull(json['sourceAddress']),
+        rows: json['rows'] == null
+            ? null
+            : [
+                for (final item in _list(json['rows']))
+                  QueryTableRow.fromJson(_map(item)),
+              ],
+        selectedRowId: _stringOrNull(json['selectedRowId']),
       );
+}
+
+final class QueryTableRow {
+  const QueryTableRow({required this.id, required this.cells});
+
+  final String id;
+  final List<String> cells;
+
+  factory QueryTableRow.fromJson(Map<String, dynamic> json) => QueryTableRow(
+    id: _string(json['id']),
+    cells: [for (final item in _list(json['cells'])) _string(item)],
+  );
 }
 
 final class QueryTableViewNode extends Node {
@@ -2018,6 +2041,7 @@ final class QueryTableViewNode extends Node {
     required this.columnIds,
     required this.rows,
     required this.error,
+    required this.selectedRowId,
   });
 
   @override
@@ -2034,6 +2058,7 @@ final class QueryTableViewNode extends Node {
   final List<String> columnIds;
   final List<List<String>> rows;
   final String? error;
+  final String? selectedRowId;
 
   factory QueryTableViewNode.fromJson(Map<String, dynamic> json) =>
       QueryTableViewNode(
@@ -2051,6 +2076,7 @@ final class QueryTableViewNode extends Node {
             [for (final item1 in _list(item)) _string(item1)],
         ],
         error: _stringOrNull(json['error']),
+        selectedRowId: _stringOrNull(json['selectedRowId']),
       );
 }
 

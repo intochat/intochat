@@ -6,7 +6,6 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 using DigitalBrain.Units;
-using IntoChat.OS.Apps.UiKit;
 using IntoChat.OS.Modules.UI.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
@@ -16,18 +15,22 @@ public sealed record TableParentState;
 /*
 # Table parent
 
-A test parent that slots three query tables: one over the sample source, one over a source that throws, one over a recording source.
+A test parent that slots query tables: two over inline rows (one whose selection it owns), one over a source that throws, one over an
+address that is not a table source, and one over a recording source.
 */
 [Neuron("test.table-parent")]
 public sealed class TableParent : Screen<TableParentState>
 {
     internal static readonly IReadOnlyList<QueryTableColumn> Columns = [new("id", "Id"), new("name", "Name"), new("status", "Status")];
 
+    internal static readonly IReadOnlyList<QueryTableRow> People = [new("1", ["1", "Ada", "active"]), new("2", ["2", "Grace", "away"]), new("3", ["3", "Linus", "active"])];
+
     protected override View Render(TableParentState state)
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Child<QueryTableNeuron, QueryTableProps>("people", new QueryTableProps("People", Columns, "local/control.sampleTableSource/people")),
+            Child<QueryTableNeuron, QueryTableProps>("people", new QueryTableProps("People", Columns, Rows: People)),
+            Child<QueryTableNeuron, QueryTableProps>("chosen", new QueryTableProps("Chosen", Columns, Rows: People, SelectedRowId: "1")),
             Child<QueryTableNeuron, QueryTableProps>("broken", new QueryTableProps("Broken", Columns, "local/test.failingTableSource/x")),
             Child<QueryTableNeuron, QueryTableProps>("wrong", new QueryTableProps("Wrong", Columns, "local/test.notATableSource/x")),
             Child<QueryTableNeuron, QueryTableProps>("probe", new QueryTableProps("Probe", Columns, "local/test.recordingTableSource/x")),
@@ -53,7 +56,7 @@ public sealed class FailingTableSource : Neuron<FakeSourceState>, ITableSource
 /*
 # Recording table source
 
-A table source that records the queries it is asked and answers with none.
+A table source that records the queries it is asked and answers each with one row that echoes it, out of 120.
 */
 [Neuron("test.recordingTableSource")]
 public sealed class RecordingTableSource : Neuron<FakeSourceState>, ITableSource
@@ -64,8 +67,10 @@ public sealed class RecordingTableSource : Neuron<FakeSourceState>, ITableSource
 
     public Task<TablePage> Query(TableQuery q)
     {
+        ArgumentNullException.ThrowIfNull(q);
         lock (Asked) { Asked.Add(q); }
-        return Task.FromResult(new TablePage([], 0));
+        var row = new Dictionary<string, string> { ["id"] = q.Page.ToString(System.Globalization.CultureInfo.InvariantCulture), ["name"] = q.Filter };
+        return Task.FromResult(new TablePage([row], 120));
     }
 }
 
@@ -89,7 +94,6 @@ public sealed class QueryTableNeuronFacts : IAsyncDisposable
     {
         _os.Register<TableParent>();
         _os.Register<QueryTableNeuron>();
-        _os.Register<SampleTableSource>();
         _os.Register<FailingTableSource>();
         _os.Register<RecordingTableSource>();
         _os.Register<NotATableSource>();
@@ -112,12 +116,12 @@ public sealed class QueryTableNeuronFacts : IAsyncDisposable
     [Fact]
     public async Task Query_state_holds_no_rows()
     {
-        await Send("people", "control.filter", new Filter("person"));
+        await Send("probe", "control.filter", new Filter("person"));
 
         var stored = JsonSerializer.SerializeToElement(new QueryTableState { Filter = "person" }, JsonSerializerOptions.Web);
-        Assert.Equal(["descending", "filter", "page", "sortBy"], stored.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(["descending", "filter", "page", "selectedRowId", "sortBy"], stored.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(typeof(QueryTableState).GetProperties(), p => p.PropertyType != typeof(string) && p.PropertyType != typeof(bool) && p.PropertyType != typeof(int));
-        Assert.Equal(50, (await Drawn("people")).Rows.Count);
+        Assert.Single((await Drawn("probe")).Rows);
     }
 
     [Fact]
@@ -136,24 +140,62 @@ public sealed class QueryTableNeuronFacts : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Filter_narrows_sample_rows_case_insensitively()
+    public async Task A_page_draws_the_rows_the_source_answers_in_column_order()
     {
-        await Send("people", "control.filter", new Filter("PERSON 01"));
+        await Send("probe", "control.filter", new Filter("ada"));
+        await Send("probe", "control.page", new Page(2));
 
-        var drawn = await Drawn("people");
-        Assert.Equal(10, drawn.Total);
-        Assert.All(drawn.Rows, row => Assert.StartsWith("Person 01", row[1], StringComparison.Ordinal));
+        var drawn = await Drawn("probe");
+        Assert.Equal(120, drawn.Total);
+        Assert.Equal(["id", "name", "status"], drawn.ColumnIds);
+        Assert.Equal([["2", "ada", ""]], drawn.Rows);
     }
 
     [Fact]
-    public async Task Page_2_shows_rows_51_to_100()
+    public async Task Inline_rows_are_drawn_from_the_props_and_never_read_from_a_source()
     {
-        await Send("people", "control.page", new Page(2));
+        await Send("people", "control.filter", new Filter("a"));
 
         var drawn = await Drawn("people");
-        Assert.Equal(120, drawn.Total);
-        Assert.Equal(["id", "name", "status"], drawn.ColumnIds);
-        Assert.Equal([.. Enumerable.Range(51, 50).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture))], drawn.Rows.Select(row => row[0]));
+        Assert.True(drawn.Loaded);
+        Assert.Null(drawn.Error);
+        Assert.Empty(drawn.Rows);
+        Assert.Equal("a", drawn.Filter);
+        Assert.Equal([new TableChanged("a", null, false, 1)], Published("people"));
+    }
+
+    [Fact]
+    public async Task Selecting_a_known_row_stores_it_and_publishes_RowSelected()
+    {
+        await Send("people", "control.selectRow", new SelectRow("2"));
+        await Send("people", "control.selectRow", new SelectRow("2"));
+
+        Assert.Equal("2", (await Drawn("people")).SelectedRowId);
+        Assert.Equal([new RowSelected("2")], Published("people"));
+    }
+
+    [Fact]
+    public async Task A_row_id_the_props_do_not_hold_is_refused_at_the_slot()
+    {
+        var unknown = await Assert.ThrowsAsync<ActivationRefusedException>(() => Send("people", "control.selectRow", new SelectRow("9")));
+        var sourced = await Assert.ThrowsAsync<ActivationRefusedException>(() => Send("probe", "control.selectRow", new SelectRow("1")));
+
+        Assert.Equal(TableRefusals.UnknownRow, unknown.Reason);
+        Assert.Equal(TableRefusals.UnknownRow, sourced.Reason);
+        Assert.Empty(Published("people"));
+        Assert.Empty(Published("probe"));
+    }
+
+    [Fact]
+    public async Task A_controlled_selection_publishes_RowSelected_and_stores_nothing()
+    {
+        await Send("chosen", "control.selectRow", new SelectRow("2"));
+        await Send("chosen", "control.selectRow", new SelectRow("1"));
+
+        Assert.Equal([new RowSelected("2"), new RowSelected("1")], Published("chosen"));
+        Assert.Null((await Drawn("chosen")).SelectedRowId);
+        // The one state change is the activation's: no selection was stored.
+        Assert.Single(_os.Journal(Brain).Signals(Table("chosen")), entry => entry.Signal is StateChanged);
     }
 
     [Fact]

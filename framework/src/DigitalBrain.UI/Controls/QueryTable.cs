@@ -1,6 +1,6 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a query table neuron: its query, never its rows (they are read from the source).</summary>
+/// <summary>The state of a query table neuron: its query and selected row, never its rows (they are the props' or the source's).</summary>
 public sealed record QueryTableState
 {
     /// <summary>The rows a page holds.</summary>
@@ -9,6 +9,7 @@ public sealed record QueryTableState
     /// <summary>The filter text; empty matches every row.</summary>
     [Showcase("""{"kind":"queryTableView","key":"people","filter":"","sortBy":"name","descending":false,"page":1,"pageSize":50,"total":3,"loaded":true,"columnIds":["id","name","status"],"rows":[["1","Ada","active"],["2","Grace","away"],["3","Linus","active"]],"error":null,"props":{"title":"People","columns":[{"id":"id","title":"Id"},{"id":"name","title":"Name"},{"id":"status","title":"Status"}],"sourceAddress":"local/control.sampleTableSource/people","isEnabled":true,"automationName":"People"}}""")]
     [Showcase("""{"kind":"queryTableView","key":"broken","filter":"","sortBy":null,"descending":false,"page":1,"pageSize":50,"total":0,"loaded":false,"columnIds":[],"rows":[],"error":"The source did not answer.","props":{"title":"Broken","columns":[{"id":"name","title":"Name"}],"sourceAddress":"local/control.sampleTableSource/none","isEnabled":true,"automationName":"Broken"}}""")]
+    [Showcase("""{"kind":"queryTableView","key":"crew","filter":"","sortBy":"name","descending":false,"page":1,"pageSize":50,"total":0,"loaded":true,"columnIds":[],"rows":[],"error":null,"selectedRowId":"2","props":{"title":"Crew","columns":[{"id":"name","title":"Name"},{"id":"role","title":"Role"}],"rows":[{"id":"1","cells":["Ada","Engineer"]},{"id":"2","cells":["Grace","Admiral"]},{"id":"3","cells":["Linus","Maintainer"]}],"isEnabled":true,"automationName":"Crew"}}""")]
     public string Filter { get; init; } = "";
 
     /// <summary>The column id the rows are ordered by; null keeps the source's order.</summary>
@@ -19,11 +20,15 @@ public sealed record QueryTableState
 
     /// <summary>The page shown, from 1.</summary>
     public int Page { get; init; } = 1;
+
+    /// <summary>The id of the selected inline row; null selects none. Stays null while the parent owns the selection.</summary>
+    public string? SelectedRowId { get; init; }
 }
 
 /// <summary>
-/// What a query table neuron draws: its key, query, and the current page's rows as read from the source (cells in <paramref name="ColumnIds"/>
-/// order). The client draws the title and column titles from the slot's props.
+/// What a query table neuron draws: its key, query, selection, and the current page's rows as read from the source (cells in
+/// <paramref name="ColumnIds"/> order). The client draws the title and column titles from the slot's props; a table with inline rows
+/// carries no rows here, and the client draws the props' rows through the query.
 /// </summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="Filter">The filter text.</param>
@@ -37,14 +42,15 @@ public sealed record QueryTableState
 /// <param name="ColumnIds">The column ids the cells of each row follow.</param>
 /// <param name="Rows">The current page's rows.</param>
 /// <param name="Error">What went wrong reading the source; the client draws it as the table's error line. Null when the read succeeded.</param>
+/// <param name="SelectedRowId">The table's own selected row; null when none is selected or the parent owns the selection.</param>
 [ViewNode("queryTableView")]
 public sealed record QueryTableView(string Key, string Filter, string? SortBy, bool Descending, int Page, int PageSize, int Total, bool Loaded,
-    IReadOnlyList<string> ColumnIds, IReadOnlyList<IReadOnlyList<string>> Rows, string? Error) : Node
+    IReadOnlyList<string> ColumnIds, IReadOnlyList<IReadOnlyList<string>> Rows, string? Error, string? SelectedRowId = null) : Node
 {
     /// <inheritdoc />
     public bool Equals(QueryTableView? other) => other is not null && Key == other.Key && Filter == other.Filter && SortBy == other.SortBy
         && Descending == other.Descending && Page == other.Page && PageSize == other.PageSize && Total == other.Total && Loaded == other.Loaded
-        && Error == other.Error && ColumnIds.SequenceEqual(other.ColumnIds) && Rows.Count == other.Rows.Count
+        && Error == other.Error && SelectedRowId == other.SelectedRowId && ColumnIds.SequenceEqual(other.ColumnIds) && Rows.Count == other.Rows.Count
         && Rows.Zip(other.Rows).All(pair => pair.First.SequenceEqual(pair.Second));
 
     /// <inheritdoc />

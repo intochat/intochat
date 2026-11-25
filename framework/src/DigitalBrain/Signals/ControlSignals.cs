@@ -91,6 +91,16 @@ public sealed record Page(int Number) : Signal;
 [Signal("control.tableChanged")]
 public sealed record TableChanged(string Filter, string? SortBy, bool Descending, int Page) : Signal;
 
+/// <summary>Selects a row of a query table by its id. Only inline rows have ids, so a table that reads a source refuses it.</summary>
+/// <param name="RowId">The row id; one the slot's props do not hold is refused (control.unknownRow).</param>
+[Signal("control.selectRow")]
+public sealed record SelectRow(string RowId) : Signal;
+
+/// <summary>The person selected a row of a query table.</summary>
+/// <param name="RowId">The id of the selected row.</param>
+[Signal("control.rowSelected")]
+public sealed record RowSelected(string RowId) : Signal;
+
 /// <summary>Appends a message to a chat thread; a message whose id the thread holds is ignored.</summary>
 /// <param name="Message">The message.</param>
 [Signal("control.appendMessage")]

@@ -2402,7 +2402,17 @@
       },
       {
         "name": "sourceAddress",
-        "type": "String",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedRowId",
+        "type": "String?",
         "default": null
       }
     ],
@@ -2426,6 +2436,11 @@
         "name": "page",
         "type": "int",
         "default": null
+      },
+      {
+        "name": "selectedRowId",
+        "type": "String?",
+        "default": null
       }
     ],
     "commands": [
@@ -2444,6 +2459,13 @@
         }
       },
       {
+        "name": "SelectRow",
+        "signal": "control.selectRow",
+        "args": {
+          "rowId": "String"
+        }
+      },
+      {
         "name": "Sort",
         "signal": "control.sort",
         "args": {
@@ -2452,6 +2474,13 @@
       }
     ],
     "signals": [
+      {
+        "name": "RowSelected",
+        "signal": "control.rowSelected",
+        "args": {
+          "rowId": "String"
+        }
+      },
       {
         "name": "TableChanged",
         "signal": "control.tableChanged",
@@ -2543,6 +2572,59 @@
           "isEnabled": true,
           "automationName": "Broken"
         }
+      },
+      {
+        "kind": "queryTableView",
+        "key": "crew",
+        "filter": "",
+        "sortBy": "name",
+        "descending": false,
+        "page": 1,
+        "pageSize": 50,
+        "total": 0,
+        "loaded": true,
+        "columnIds": [],
+        "rows": [],
+        "error": null,
+        "selectedRowId": "2",
+        "props": {
+          "title": "Crew",
+          "columns": [
+            {
+              "id": "name",
+              "title": "Name"
+            },
+            {
+              "id": "role",
+              "title": "Role"
+            }
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "cells": [
+                "Ada",
+                "Engineer"
+              ]
+            },
+            {
+              "id": "2",
+              "cells": [
+                "Grace",
+                "Admiral"
+              ]
+            },
+            {
+              "id": "3",
+              "cells": [
+                "Linus",
+                "Maintainer"
+              ]
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Crew"
+        }
       }
     ]
   },
@@ -2602,6 +2684,11 @@
       },
       {
         "name": "error",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "selectedRowId",
         "type": "String?",
         "default": null
       }
