@@ -13,7 +13,9 @@ using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.Form;
+using IntoChat.OS.Modules.UI.Controls;
+using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.UI.Commands;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -301,49 +303,55 @@ public sealed class SettingsGitHubHubFacts
         FakeGitHubHubNeuron.Reset();
         var pat = "github_pat_" + new string('a', 32);
         var webhookSecret = "whsec_" + new string('w', 24);
+        var patRef = SecretReferences.For("local", "app.settings/default/github-pat/PersonalAccessToken", "Personal access token", isSet: true).Reference;
+        var webhookRef = SecretReferences.For("local", "app.settings/default/github-pat/WebhookSecret", "Webhook secret", isSet: true).Reference;
 
         try
         {
             var brain = new BrainId("local");
-            using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", brain));
             await using var os = TestOS.Local()
                 .RegisterCatalog()
-                .Register(typeof(UiModule).Assembly)
                 .Register<FakeGitHubHubNeuron>();
+            using var person = os.Edge.Enter(os.Edge.Person("local", "local", brain));
 
             var settings = await os.Install<SettingsApp>();
             var vault = new MemorySecretVault();
-            vault.SetSecret("vault://github/pat/main", pat);
-            vault.SetSecret("vault://github/webhook/main", webhookSecret);
+            vault.SetSecret(patRef, pat);
+            vault.SetSecret(webhookRef, webhookSecret);
             settings.App.SecretVault = vault;
 
             await settings.App.NavigateToAsync(new SettingsNavArgs("connections", "github"), cancellationToken: Ct);
             await os.Idle();
 
-            var form = os.Get<IForm>(new NeuronId(brain, "ui.form", SettingsApp.GitHubPatFormKey));
-            var formState = await form.Read();
-            Assert.Equal(4, formState.Fields.Length);
-            Assert.Contains(formState.Fields, f => f.Id == "Repository" && f.Kind == FormFieldKinds.Text);
-            Assert.Contains(formState.Fields, f => f.Id == "PersonalAccessToken" && f.Kind == FormFieldKinds.Secret);
-            Assert.Contains(formState.Fields, f => f.Id == "WebhookSecret" && f.Kind == FormFieldKinds.Secret);
-            Assert.Contains(formState.Fields, f => f.Id == "ConnectionSlug" && f.Kind == FormFieldKinds.Text);
+            // The PAT form is a control.form child of Settings; its two secret fields are drawn from props.
+            var view = await settings.Screen.Read();
+            var form = Children(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith("/" + SettingsControls.GitHubPat, StringComparison.Ordinal));
+            Assert.Contains("/control.form/", form.GetProperty("neuronUri").GetString()!, StringComparison.Ordinal);
+            var kinds = form.GetProperty("props").GetProperty("fields").EnumerateArray()
+                .ToDictionary(field => field.GetProperty("key").GetString()!, field => field.GetProperty("kind").GetString()!);
+            Assert.Equal(
+                new Dictionary<string, string> { ["Repository"] = "Text", ["PersonalAccessToken"] = "Secret", ["WebhookSecret"] = "Secret", ["ConnectionSlug"] = "Text" },
+                kinds);
+            var secretRefs = new Dictionary<string, string> { ["PersonalAccessToken"] = patRef, ["WebhookSecret"] = webhookRef };
 
-            // 1. Invalid repository format is refused by domain rule
-            await form.SetValue("Repository", "invalid-repo-without-slash");
-            await form.SetSecretRef("PersonalAccessToken", new UiSecretRef("vault://github/pat/main"));
-            await form.SetSecretRef("WebhookSecret", new UiSecretRef("vault://github/webhook/main"));
-            await form.Submit();
-            await os.Idle();
+            // 1. A raw token typed into values is refused at the gate and never reaches the form, the app or the journal.
+            var raw = await Assert.ThrowsAsync<ActivationRefusedException>(() => SubmitPat(settings, new Dictionary<string, string>
+            {
+                ["Repository"] = "intochat/os",
+                ["PersonalAccessToken"] = pat,
+            }));
+            Assert.Equal(FormRefusals.SecretInValues, raw.Reason);
+            Assert.Null(FakeGitHubHubNeuron.LastGrant);
+
+            // 2. Invalid repository format is refused by domain rule
+            await SubmitPat(settings, new Dictionary<string, string> { ["Repository"] = "invalid-repo-without-slash" }, secretRefs);
 
             Assert.NotNull(settings.App.LastRejection);
             Assert.Contains("invalid_github_repository", settings.App.LastRejection!.Rules);
             Assert.Null(FakeGitHubHubNeuron.LastGrant);
 
-            // 2. Valid "owner/repo" seals PAT grant on {brain}/connection/github/main and refreshes live status
-            await form.SetValue("Repository", "intochat/os");
-            await form.SetValue("ConnectionSlug", "main");
-            await form.Submit();
-            await os.Idle();
+            // 3. Valid "owner/repo" seals PAT grant on {brain}/connection/github/main and refreshes live status
+            await SubmitPat(settings, new Dictionary<string, string> { ["Repository"] = "intochat/os", ["ConnectionSlug"] = "main" }, secretRefs);
 
             Assert.Null(settings.App.LastRejection);
             Assert.NotNull(FakeGitHubHubNeuron.LastGrant);
@@ -356,31 +364,44 @@ public sealed class SettingsGitHubHubFacts
             Assert.True(settings.App.State.GitHubWebhookSecretConfigured);
             Assert.Contains("connection/github/main", settings.App.State.ConnectionKeys!);
 
-            // 3. Prove ZERO raw secrets in SettingsAppState, UiFormState, rendered View, or TestOS journal!
-            var formId = new NeuronId(brain, "ui.form", SettingsApp.GitHubPatFormKey);
+            // 4. Prove ZERO raw secrets in SettingsAppState, the rendered View, or the TestOS journal of Settings and its form (state and view changes included)!
             var settingsId = new NeuronId(brain, "app.settings", "default");
+            var formId = new NeuronId(brain, "control.form", ScreenExtensions.ChildAddress(settingsId, SettingsControls.GitHubPat));
             var serializedState = JsonSerializer.Serialize(settings.App.State);
-            var serializedForm = JsonSerializer.Serialize(await form.Read());
             var serializedView = JsonSerializer.Serialize(settings.App.Render(), RuntimeProtocol.OptionsFor(typeof(View)));
             var journalSignals = os.Journal(brain).Signals(formId)
                 .Concat(os.Journal(brain).Signals(settingsId))
                 .Select(e => JsonSerializer.Serialize(e.Signal, e.Signal.GetType()));
             var journalDump = string.Join("\n", journalSignals);
 
-            Assert.DoesNotContain(pat, serializedState, StringComparison.Ordinal);
-            Assert.DoesNotContain(webhookSecret, serializedState, StringComparison.Ordinal);
-            Assert.DoesNotContain(pat, serializedForm, StringComparison.Ordinal);
-            Assert.DoesNotContain(webhookSecret, serializedForm, StringComparison.Ordinal);
-            Assert.DoesNotContain(pat, serializedView, StringComparison.Ordinal);
-            Assert.DoesNotContain(webhookSecret, serializedView, StringComparison.Ordinal);
-            Assert.DoesNotContain(pat, journalDump, StringComparison.Ordinal);
-            Assert.DoesNotContain(webhookSecret, journalDump, StringComparison.Ordinal);
+            Assert.Contains(patRef, journalDump, StringComparison.Ordinal);
+            foreach (var secret in new[] { pat, webhookSecret })
+            {
+                Assert.DoesNotContain(secret, serializedState, StringComparison.Ordinal);
+                Assert.DoesNotContain(secret, serializedView, StringComparison.Ordinal);
+                Assert.DoesNotContain(secret, journalDump, StringComparison.Ordinal);
+            }
         }
         finally
         {
             FakeGitHubHubNeuron.Reset();
         }
     }
+
+    private static async Task SubmitPat(InstalledApp<SettingsApp> settings, Dictionary<string, string> values, Dictionary<string, string>? secretRefs = null)
+    {
+        var submit = new Submit(values, secretRefs);
+        await settings.Screen.Dispatch(new Command(SettingsControls.GitHubPat, "control.submit", JsonSerializer.SerializeToElement(submit, JsonSerializerOptions.Web)));
+        await settings.OS.Idle();
+    }
+
+    private static IEnumerable<JsonElement> Children(JsonElement json) => json.ValueKind switch
+    {
+        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "slot" ? [json] : Enumerable.Empty<JsonElement>())
+            .Concat(json.EnumerateObject().SelectMany(property => Children(property.Value))),
+        JsonValueKind.Array => json.EnumerateArray().SelectMany(Children),
+        _ => [],
+    };
 
     [Fact]
     public async Task SetGitHubTriagePolicy_AdoptsAuto10DraftOnlyAndResetRulesOnIPolicies()

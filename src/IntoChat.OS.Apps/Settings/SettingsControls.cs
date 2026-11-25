@@ -41,6 +41,8 @@ internal static class SettingsControls
     public const string WebSearchProvider = "web-search-provider";
     public const string SearxngUrl = "web-searxng-url";
     public const string McpAddForm = "mcp-add";
+    public const string ApiKeys = "api-keys";
+    public const string GitHubPat = "github-pat";
     public const string WebSearchProviderVariable = "web.search.provider";
     public const string WebSearxngUrlVariable = "web.search.searxng-url";
 
@@ -190,5 +192,36 @@ internal static class SettingsControls
             "Add MCP server",
             IsEnabled: !managed,
             AutomationName: "Add MCP server"));
+    }
+
+    public static Node ApiKeysForm(SettingsSlots slots, SettingsAppState state)
+    {
+        var managed = IsManaged(state, ApiKeys);
+        return slots.Form(ApiKeys, new FormProps(
+            [
+                new FormInput("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKind.Secret, Placeholder: "sk-ant-…"),
+                new FormInput("OPENAI_API_KEY", "OpenAI API key", FormFieldKind.Secret, Placeholder: "sk-…"),
+                new FormInput("GOOGLE_API_KEY", "Google Gemini API key", FormFieldKind.Secret, Placeholder: "AIza…"),
+                new FormInput("BRAVE_API_KEY", "Brave Search API key", FormFieldKind.Secret, Placeholder: "BSA…"),
+                new FormInput("TAVILY_API_KEY", "Tavily API key", FormFieldKind.Secret, Placeholder: "tvly-…"),
+            ],
+            "Seal in vault",
+            IsEnabled: !managed,
+            AutomationName: "Seal API keys in Secure Vault"));
+    }
+
+    public static Node GitHubPatForm(SettingsSlots slots, SettingsAppState state)
+    {
+        var managed = IsManaged(state, GitHubPat);
+        return slots.Form(GitHubPat, new FormProps(
+            [
+                new FormInput("Repository", "Repository (owner/repo)", Placeholder: "owner/repo", MaxLength: 140),
+                new FormInput("PersonalAccessToken", "Personal access token", FormFieldKind.Secret, Placeholder: "github_pat_…"),
+                new FormInput("WebhookSecret", "Webhook secret", FormFieldKind.Secret, Placeholder: "whsec_…"),
+                new FormInput("ConnectionSlug", "Connection slug", Value: state.GitHubConnectionSlug, Placeholder: "main", MaxLength: 64),
+            ],
+            "Seal & connect repository",
+            IsEnabled: !managed,
+            AutomationName: "Connect GitHub repository"));
     }
 }

@@ -32,8 +32,6 @@ using IntoChat.OS.Modules.Devices;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
-using IntoChat.OS.Modules.UI.Form;
-using IntoChat.OS.Modules.UI.Form.Signals;
 using IntoChat.OS.Modules.Web;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -106,13 +104,9 @@ public sealed record SettingsMcpRemove(string? Name = null) : Signal;
 [Screen("app.settings", Title = "Settings", Icon = "settings", Category = "System", Dock = 10)]
 public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INavigatedTo<SettingsNavArgs>, INavigatedFrom
 {
-    public const string ApiKeysFormKey = "settings/forms/api-keys";
-    public const string GitHubPatFormKey = "settings/forms/github-pat";
     public const string GitHubIssueCommentPolicyRuleId = "settings.github.issue.comment";
     public const string GitHubIssueCommentAction = "github.issue.comment";
 
-    [Slot(Key = ApiKeysFormKey, Required = false)] private partial IForm? ApiKeysForm { get; }
-    [Slot(Key = GitHubPatFormKey, Required = false)] private partial IForm? GitHubPatForm { get; }
     [Slot(Key = "settings")] private partial IUserSettings UserSettings { get; }
     [Slot(Key = "profile")] private partial IProfile Profile { get; }
     [Slot(Required = false)] private partial IntoChat.OS.Modules.Apps.Social.IPosts? Posts { get; }
@@ -184,7 +178,6 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         }
         else if (string.Equals(next.Section, "connections", StringComparison.Ordinal) && SettingsAppState.IsGitHubSubPage(next.SubPage))
         {
-            await EnsureGitHubPatFormConfiguredAsync();
             next = await RefreshGitHubHubProjectionAsync(next);
         }
 
@@ -217,6 +210,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
         await FollowChild<IFormControl, Submitted>(SettingsControls.InstallModel);
         await FollowChild<IFormControl, Submitted>(SettingsControls.SearxngUrl);
         await FollowChild<IFormControl, Submitted>(SettingsControls.McpAddForm);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.ApiKeys);
+        await FollowChild<IFormControl, Submitted>(SettingsControls.GitHubPat);
         if (ThisMachine is { Value.Length: > 0 } machine)
         {
             try
@@ -230,62 +225,6 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             }
 #pragma warning restore CA1031
         }
-
-        try
-        {
-            if (ApiKeysForm is { } form && (await form.Read()).Version == 0)
-            {
-                await form.Configure(
-                    "Seal API keys in Secure Vault",
-                    [
-                        new FormField("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKinds.Secret, Placeholder: "sk-ant-…"),
-                        new FormField("OPENAI_API_KEY", "OpenAI API key", FormFieldKinds.Secret, Placeholder: "sk-…"),
-                        new FormField("GOOGLE_API_KEY", "Google Gemini API key", FormFieldKinds.Secret, Placeholder: "AIza…"),
-                        new FormField("BRAVE_API_KEY", "Brave Search API key", FormFieldKinds.Secret, Placeholder: "BSA…"),
-                        new FormField("TAVILY_API_KEY", "Tavily API key", FormFieldKinds.Secret, Placeholder: "tvly-…"),
-                    ],
-                    submitLabel: "Save vault references");
-            }
-        }
-#pragma warning disable CA1031 // Optional UI module in minimal test hosts.
-        catch (Exception ex)
-        {
-            IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping API keys IForm seeding in minimal test host.");
-        }
-#pragma warning restore CA1031
-
-        await EnsureGitHubPatFormConfiguredAsync();
-    }
-
-    private async Task EnsureGitHubPatFormConfiguredAsync()
-    {
-        try
-        {
-            if (GitHubPatForm is { } githubForm && (await githubForm.Read()).Version == 0)
-            {
-                await githubForm.Configure(
-                    "Connect GitHub Repository (Fine-Grained PAT & Webhook)",
-                    [
-                        new FormField("Repository", "Repository (owner/repo)", FormFieldKinds.Text, Placeholder: "owner/repo", Required: true, MaxLength: 140),
-                        new FormField("PersonalAccessToken", "Personal access token", FormFieldKinds.Secret, Placeholder: "github_pat_…", Required: true),
-                        new FormField("WebhookSecret", "Webhook secret", FormFieldKinds.Secret, Placeholder: "whsec_…", Required: false),
-                        new FormField("ConnectionSlug", "Connection slug", FormFieldKinds.Text, Placeholder: "main", Required: false, MaxLength: 64),
-                    ],
-                    initialValues: new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["ConnectionSlug"] = State.GitHubConnectionSlug,
-                    },
-                    submitLabel: "Seal & connect repository");
-            }
-
-            await Follow<IForm, FormSubmitted>(GitHubPatFormKey);
-        }
-#pragma warning disable CA1031 // Optional UI module in minimal test hosts.
-        catch (Exception ex)
-        {
-            IntoChat.OS.Host.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping GitHub PAT IForm seeding in minimal test host.");
-        }
-#pragma warning restore CA1031
     }
 
     private SettingsSlots ChildSlots => new(
@@ -352,6 +291,8 @@ public sealed partial class SettingsApp : AggregateScreen<SettingsAppState>, INa
             SettingsControls.InstallModel => InstallModelAsync(Value("model")),
             SettingsControls.SearxngUrl => SetSearxngUrlAsync(Value("url") ?? ""),
             SettingsControls.McpAddForm => McpAdd(new SettingsMcpAdd(Value("name"), Value("url"))),
+            SettingsControls.ApiKeys => SealApiKeysAsync(submitted.SecretRefs),
+            SettingsControls.GitHubPat => ConnectGitHubAsync(Value("Repository"), Value("ConnectionSlug"), submitted.SecretRefs),
             _ => Task.CompletedTask,
         };
     }

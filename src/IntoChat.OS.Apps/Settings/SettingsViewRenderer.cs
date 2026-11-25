@@ -158,10 +158,10 @@ internal static class SettingsViewRenderer
     {
         "desktop" => RenderDesktopSection(state, slots),
         "apps" => RenderAppsSection(state, subPage),
-        "connections" => RenderConnectionsSection(state, subPage),
+        "connections" => RenderConnectionsSection(state, subPage, slots),
         "files" => RenderFilesSection(state),
         "models" => RenderModelsSection(state, subPage, slots),
-        "keys" => RenderKeysSection(state),
+        "keys" => RenderKeysSection(state, slots),
         "variables" => RenderVariablesSection(state),
         "billing" => RenderBillingSection(state),
         "team" => RenderTeamSection(state, subPage),
@@ -326,12 +326,12 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderConnectionsSection(SettingsAppState state, string? subPage)
+    private static Node RenderConnectionsSection(SettingsAppState state, string? subPage, SettingsSlots slots)
     {
         var keys = state.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys;
         if (SettingsAppState.IsGitHubSubPage(subPage))
         {
-            return RenderGitHubConnectionHub(state, subPage!);
+            return RenderGitHubConnectionHub(state, subPage!, slots);
         }
 
         if (!string.IsNullOrWhiteSpace(subPage))
@@ -393,7 +393,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderGitHubConnectionHub(SettingsAppState state, string subPage)
+    private static Node RenderGitHubConnectionHub(SettingsAppState state, string subPage, SettingsSlots slots)
     {
         var slug = SettingsAppState.ResolveGitHubSlug(subPage, state.GitHubConnectionSlug);
         var connectionKey = SettingsAppState.NormalizeGitHubConnectionKey(slug);
@@ -466,7 +466,7 @@ internal static class SettingsViewRenderer
                         .WithIntent(copyGhForwardIntent.Kind, copyGhForwardIntent.Arg)
                 ],
                 Card("Fine-Grained PAT & Webhook Onboarding", "Tokens are sealed via SecretRef and ConnectionNeuron; raw credentials never touch SettingsAppState.")[
-                    Slot(SettingsApp.GitHubPatFormKey, "ui.form")
+                    SettingsControls.GitHubPatForm(slots, state)
                 ],
                 Card("Issue Comment Policy Governance (github.issue.comment)", "Set hourly comment limits or draft-only human review before Octokit writes execute.")[
                     VStack(Space.Sm)[
@@ -976,7 +976,7 @@ internal static class SettingsViewRenderer
         => (state.SecretStatuses != null && state.SecretStatuses.TryGetValue(secretName, out var configured) && configured)
            || HasVaultEntry(state, secretName, connectionKey);
 
-    private static Node RenderKeysSection(SettingsAppState state)
+    private static Node RenderKeysSection(SettingsAppState state, SettingsSlots slots)
     {
         (string Provider, string Detail, string SecretName, string Connection, string ButtonId, string ButtonLabel)[] vaults =
         [
@@ -1007,7 +1007,7 @@ internal static class SettingsViewRenderer
         return Surface(SurfaceKind.Elevated, "API keys", "Keys are sealed in your personal vault via SecretRef and never enter neuron state or journals")[
             VStack(Space.Md)[
                 VStack(Space.Sm, cards),
-                Slot(SettingsApp.ApiKeysFormKey, "ui.form"),
+                SettingsControls.ApiKeysForm(slots, state),
                 HStack(Space.Sm)[
                     PrimaryButton("Open secure vault window", Icons.KeyRound)
                         .Key("keys:open-vault")

@@ -143,6 +143,38 @@ public sealed class SettingsControlsFacts
     }
 
     [Fact]
+    public async Task The_API_keys_form_is_a_control_form_child_whose_secrets_arrive_only_as_vault_references()
+    {
+        await using var os = TestOS.Local().RegisterCatalog();
+        var settings = await Settings(os, "keys");
+
+        using (os.Edge.Enter(os.Edge.Person("local", "local", Brain)))
+        {
+            var view = await settings.Screen.Read();
+            var form = Slots(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith("/" + SettingsControls.ApiKeys, StringComparison.Ordinal));
+            Assert.Contains("/control.form/", form.GetProperty("neuronUri").GetString()!, StringComparison.Ordinal);
+            Assert.All(form.GetProperty("props").GetProperty("fields").EnumerateArray(), field => Assert.Equal("Secret", field.GetProperty("kind").GetString()));
+            Assert.DoesNotContain("ui.form", view.View.GetRawText(), StringComparison.Ordinal);
+        }
+
+        const string key = "sk-ant-" + "raw-key-never-journaled";
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(
+            () => Send(settings, SettingsControls.ApiKeys, new Submit(new Dictionary<string, string> { ["ANTHROPIC_API_KEY"] = key })));
+        Assert.Equal(FormRefusals.SecretInValues, refused.Reason);
+
+        var reference = "secret://local/app.settings/default/api-keys/ANTHROPIC_API_KEY";
+        await Send(settings, SettingsControls.ApiKeys, new Submit(new Dictionary<string, string>(), new Dictionary<string, string> { ["ANTHROPIC_API_KEY"] = reference }));
+
+        Assert.Contains("1 API key", settings.App.State.Status, StringComparison.Ordinal);
+        var journal = string.Join("\n", os.Journal(Brain).Signals(Control("control.form", SettingsControls.ApiKeys))
+            .Concat(os.Journal(Brain).Signals(new NeuronId(Brain, "app.settings", "default")))
+            .Select(entry => JsonSerializer.Serialize(entry.Signal, entry.Signal.GetType())));
+        Assert.Contains(reference, journal, StringComparison.Ordinal);
+        Assert.DoesNotContain(key, journal, StringComparison.Ordinal);
+        Assert.DoesNotContain(key, JsonSerializer.Serialize(settings.App.State), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_form_value_over_its_limit_is_refused()
     {
         await using var os = TestOS.Local().RegisterCatalog();
