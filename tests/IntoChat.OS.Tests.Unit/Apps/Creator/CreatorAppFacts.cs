@@ -12,9 +12,6 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.CodeEditor;
-using IntoChat.OS.Modules.UI.PropertyGrid;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
@@ -31,10 +28,9 @@ public sealed class CreatorAppFacts
     public Task CreatorBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
-    public async Task SelectingAUnitPopulatesPropertyGridAndCodeEditorWithoutCardWall()
+    public async Task SelectingAUnitDrawsItsStateAsAJsonTreeAndItsSourceAsACodeBlockWithoutCardWall()
     {
         await using var os = FakeOs();
-        os.Register(typeof(UiModule).Assembly);
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local")));
         FakeReads.States["ctr"] = """{"bumps":3}""";
         FakeReads.Views["ctr"] = """{"alias":"ctr","generation":2,"view":{"title":"Counter"}}""";
@@ -50,11 +46,13 @@ public sealed class CreatorAppFacts
         Assert.Equal("creator-shell", shell.Key);
         Assert.IsType<BrainSceneNode>(shell.Body);
 
-        var propGrid = await os.Get<IPropertyGrid>(new NeuronId(new BrainId("local"), "ui.property-grid", CreatorView.InspectorStateKey)).Read();
-        Assert.Contains(propGrid.Entries, e => e.Name == "bumps" && e.Value == "3");
+        var stateTree = Assert.Single(Nodes(view).OfType<JsonTree>());
+        Assert.Equal("Live State · ctr", stateTree.Title);
+        Assert.Equal(3, JsonDocument.Parse(stateTree.Json).RootElement.GetProperty("bumps").GetInt32());
 
-        var codeEditor = await os.Get<ICodeEditor>(new NeuronId(new BrainId("local"), "ui.code-editor", CreatorView.InspectorSourceKey)).Read();
-        Assert.Equal("// the counter", codeEditor.Content);
+        await creator.Request("select", new CreatorSelect("tab:source"));
+        var source = Assert.Single(Nodes(creator.App.Render()).OfType<Surface>(), s => s.Kind == "code:csharp");
+        Assert.Equal(("ctr.cs", "// the counter"), (source.Title, source.Subtitle));
         Assert.Equal(new Selection(Selection.Node, Unit), creator.App.State.Selected);
     }
 
@@ -111,9 +109,12 @@ public sealed class CreatorAppFacts
 
         await creator.Request("select", new CreatorSelect(Value: BrainGraph.PulseKey("t1")));
 
-        var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>(), t => t.Title == "Trace t1");
-        Assert.Equal(["1", "2", "3", "4"], table.Rows.Select(r => r[0]));
-        Assert.Equal([0, 2, 4, 2], table.Rows.Select(r => r[2].Length - r[2].TrimStart().Length));
+        var table = SignalsTable(creator);
+        Assert.Equal("Trace t1", table.Title);
+        Assert.Equal(["1", "2", "3", "4"], table.Rows!.Select(r => r.Id));
+        Assert.Equal(["1", "2", "3", "4"], table.Rows!.Select(r => r.Cells[0]));
+        Assert.Equal([0, 2, 4, 2], table.Rows!.Select(r => r.Cells[2].Length - r.Cells[2].TrimStart().Length));
+        Assert.Empty(Nodes(creator.App.Render()).OfType<DataTable>());
         Assert.Equal("signals", creator.App.State.InspectorTab);
         Assert.Equal("t1", creator.App.State.TraceId);
 
@@ -152,8 +153,10 @@ public sealed class CreatorAppFacts
         await creator.Request("select", new CreatorSelect(Value: BrainGraph.EdgeKey("*", Unit, "ctr.bump" + BrainGraph.GateSuffix)));
 
         Assert.Equal(("ctr.bump", null), FakeReads.Asked);
-        var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>());
-        Assert.Equal(["7", "9"], table.Rows.Select(r => r[0]));
+        var table = SignalsTable(creator);
+        Assert.Equal(["7", "9"], table.Rows!.Select(r => r.Id));
+        Assert.Equal(["7", "9"], table.Rows!.Select(r => r.Cells[0]));
+        Assert.Empty(Nodes(creator.App.Render()).OfType<DataTable>());
         Assert.Contains(Nodes(creator.App.Render()).OfType<Button>(), b => b.Command is { Signal: "creator.trace" });
     }
 
@@ -337,8 +340,16 @@ public sealed class CreatorAppFacts
     }
 
     private static string[] Marked(InstalledApp<CreatorApp> creator)
-        => [.. Nodes(creator.App.Render()).OfType<DataTable>().Single(t => t.Title.StartsWith("Trace ", StringComparison.Ordinal)).Rows
-            .Select(r => r[0]).Where(c => c.StartsWith("▶ ", StringComparison.Ordinal)).Select(c => c[2..])];
+        => [.. SignalsTable(creator).Rows!
+            .Select(r => r.Cells[0]).Where(c => c.StartsWith("▶ ", StringComparison.Ordinal)).Select(c => c[2..])];
+
+    // The props Creator drew for its signals table child.
+    private static QueryTableProps SignalsTable(InstalledApp<CreatorApp> creator)
+    {
+        var child = Assert.Single(Nodes(creator.App.Render()).OfType<NeuronRef>(),
+            n => n.Kind == "slot" && n.NeuronUri.EndsWith("/" + CreatorView.InspectorSignalsKey, StringComparison.Ordinal));
+        return child.Props!.Value.Deserialize<QueryTableProps>(JsonSerializerOptions.Web)!;
+    }
 
     private static TraceEntry Entry(string publisher, long sequence, string? cause, string signal = "test.hop", string payload = "{}")
         => new(publisher, sequence, signal, T0.AddMilliseconds(sequence * 10), "t1", cause, payload);
@@ -355,6 +366,8 @@ public sealed class CreatorAppFacts
         os.Register<FakeReads>();
         os.Register<FakeTraces>();
         os.Register<IntoChat.OS.Modules.UI.Controls.TabStripNeuron>();
+        os.Register<IntoChat.OS.Modules.UI.Controls.SliderNeuron>();
+        os.Register<IntoChat.OS.Modules.UI.Controls.QueryTableNeuron>();
     }
 
     private static TestOS FakeOs()

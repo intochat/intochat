@@ -19,7 +19,8 @@ public static class CreatorInspector
         Inspection inspection,
         IReadOnlyList<TraceHop> timelineHops,
         FlowView[] flows,
-        Approval[] approvals)
+        Approval[] approvals,
+        CreatorView.Children? controls = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(inspection);
@@ -37,9 +38,11 @@ public static class CreatorInspector
                     .Small()
                     .Sends(new CreatorSelect())
             ],
-            // Single canonical ITabs bar — zero duplicate static Tabs(...) bar!
-            new NeuronRef("ui.tabs", CreatorView.InspectorTabsKey),
         ];
+        if (controls?.TabStrip(CreatorView.InspectorTabsKey, InspectorTabsOf(state)) is { } tabs)
+        {
+            children.Add(tabs);
+        }
 
         if (inspection.Notice is { Length: > 0 } notice)
         {
@@ -49,7 +52,7 @@ public static class CreatorInspector
         children.AddRange(state.InspectorTab switch
         {
             "source" => RenderSourceTab(state, inspection),
-            "signals" => RenderSignalsTab(state, inspection, timelineHops),
+            "signals" => RenderSignalsTab(state, inspection, timelineHops, controls),
             "state-graph" => RenderStateGraphTab(state, inspection, flows),
             "scenarios" => RenderScenariosTab(state, inspection),
             _ => RenderStateTab(state, inspection, timelineHops, flows),
@@ -128,10 +131,13 @@ public static class CreatorInspector
                 "Select any unit, app, edge, or live signal pulse in the 3D Graph to inspect its state.");
         }
 
-        // Single canonical IPropertyGrid — zero duplicate raw JSON Card below!
-        yield return new NeuronRef("ui.property-grid", CreatorView.InspectorStateKey);
-
         var steps = ReplayScript.Steps(timelineHops);
+        var cursor = Cursor(state, steps.Length);
+        var title = cursor is { } at
+            ? string.Create(CultureInfo.InvariantCulture, $"State · Event {at + 1} / {steps.Length}")
+            : (inspection.Alias is { Length: > 0 } liveAlias ? $"Live State · {liveAlias}" : "Neuron State");
+        yield return JsonTree(title, ReplayScript.StateJsonAt(steps, cursor, inspection.State));
+
         if (state.ReplayCursor is { } stepIdx && ReplayScript.Diff(steps, stepIdx) is { } diff)
         {
             yield return Table(
@@ -143,7 +149,7 @@ public static class CreatorInspector
 
     private static IEnumerable<Node> RenderSourceTab(CreatorWorkspaceState state, Inspection inspection)
     {
-        var orderedFiles = OrderedFiles(inspection.Files);
+        var orderedFiles = OrderedFiles(inspection.FileMap());
         var selectedFile = ResolveActiveFile(state.SelectedSourceFile, orderedFiles);
         if (selectedFile is not null)
         {
@@ -168,9 +174,11 @@ public static class CreatorInspector
                     .Sends(new CreatorSelect($"file:{file}")))]);
         }
 
-        yield return new NeuronRef("ui.code-editor", CreatorView.InspectorSourceKey);
-
-        if (orderedFiles.Length == 0)
+        if (selectedFile is not null && inspection.FileText(selectedFile) is { } content)
+        {
+            yield return CodeBlock(selectedFile, content, InferLanguage(selectedFile));
+        }
+        else
         {
             yield return MutedText("No source files kept for the current selection.");
         }
@@ -179,23 +187,18 @@ public static class CreatorInspector
     private static IEnumerable<Node> RenderSignalsTab(
         CreatorWorkspaceState state,
         Inspection inspection,
-        IReadOnlyList<TraceHop> timelineHops)
+        IReadOnlyList<TraceHop> timelineHops,
+        CreatorView.Children? controls)
     {
-        yield return new NeuronRef("ui.table", CreatorView.InspectorSignalsKey);
+        if (controls?.Table(CreatorView.InspectorSignalsKey, SignalsTableOf(state, inspection, timelineHops)) is { } table)
+        {
+            yield return table;
+        }
 
         if (inspection.Kind == Selection.Edge)
         {
             var parts = BrainGraph.ParseEdge(inspection.Id);
             yield return MutedText(parts is { } p ? $"{p.From} → {p.To}" : inspection.Id);
-            yield return Table(
-                string.Create(CultureInfo.InvariantCulture, $"Last {inspection.Signals.Count} signal(s)"),
-                ["#", "At", "Publisher", "Trace"],
-                [.. inspection.Signals.Select(s => (IReadOnlyList<string>)[
-                    s.Sequence.ToString(CultureInfo.InvariantCulture),
-                    s.At.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
-                    s.Publisher,
-                    s.TraceId ?? "",
-                ])]);
 
             foreach (var traceId in inspection.Signals.Select(s => s.TraceId).OfType<string>().Distinct(StringComparer.Ordinal).TakeLast(5))
             {
@@ -215,26 +218,8 @@ public static class CreatorInspector
             yield break;
         }
 
-        var first = timelineHops.Min(h => h.At);
         var steps = ReplayScript.Steps(timelineHops);
-        var cursor = state.ReplayCursor is { } c && steps.Length > 0
-            ? Math.Clamp(c, 0, steps.Length - 1)
-            : (long?)null;
-        var currentSeq = cursor is { } at ? steps[at].Sequence : (long?)null;
-        var traceTitle = state.TraceId is { Length: > 0 } tid ? $"Trace {tid}" : $"Trace {inspection.Id}";
-
-        yield return Table(
-            traceTitle,
-            ["#", "Δt", "Publisher", "Signal", "Cause"],
-            [.. timelineHops.Select(h => (IReadOnlyList<string>)[
-                (h.Sequence == currentSeq ? "▶ " : "") + h.Sequence.ToString(CultureInfo.InvariantCulture),
-                string.Create(CultureInfo.InvariantCulture, $"+{(h.At - first).TotalMilliseconds:0}ms"),
-                TraceFold.Indent(h.Depth) + h.Publisher,
-                h.Alias,
-                h.Cause ?? "",
-            ])]);
-
-        if (cursor is { } stepIdx && ReplayScript.Diff(steps, stepIdx) is { } diff)
+        if (Cursor(state, steps.Length) is { } stepIdx && ReplayScript.Diff(steps, stepIdx) is { } diff)
         {
             yield return Table(
                 string.Create(CultureInfo.InvariantCulture, $"State change at step {stepIdx + 1}"),
@@ -257,7 +242,7 @@ public static class CreatorInspector
         if (CreatorStateSpaceInspector.HasInspectableUnitOrSynapse(state, inspection, flows))
         {
             var targetAlias = inspection.Alias ?? inspection.Synapse?.Name ?? state.ActiveRunId ?? "synapse";
-            yield return CreatorStateSpaceInspector.RenderUnitSummaryCard(targetAlias, inspection.Files, inspection, state.Transcript);
+            yield return CreatorStateSpaceInspector.RenderUnitSummaryCard(targetAlias, inspection.FileMap(), inspection, state.Transcript);
             yield return CreatorStateSpaceInspector.RenderInspectionScene(state, inspection, flows);
             yield break;
         }
@@ -286,7 +271,7 @@ public static class CreatorInspector
             MutedText(alias is { Length: > 0 } ? $"Unit: {alias}" : "Select an installed unit first.")
         ];
 
-        if (inspection.Files.TryGetValue("scenarios.json", out var scenariosJson) && !string.IsNullOrWhiteSpace(scenariosJson))
+        if (inspection.FileText("scenarios.json") is { } scenariosJson && !string.IsNullOrWhiteSpace(scenariosJson))
         {
             yield return CodeBlock("scenarios.json", scenariosJson, "json", maxHeight: 180);
         }
@@ -352,6 +337,77 @@ public static class CreatorInspector
             ]);
         }
     }
+
+    // Creator owns the tab: the strip draws it and signals the person's choice.
+    public static TabStripProps InspectorTabsOf(CreatorWorkspaceState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return new(
+            [.. CreatorWorkspaceState.InspectorTabIds.Select(id => new TabStripItem(id, CreatorWorkspaceState.FormatInspectorTabTitle(id)))],
+            AutomationName: "Inspector",
+            SelectedId: state.InspectorTab);
+    }
+
+    // The signals of the selected edge, or else the timeline's hops, as inline rows keyed by sequence. Creator owns the selection: the
+    // row of the replay cursor's step is selected, and choosing a row steps the cursor there.
+    public static QueryTableProps SignalsTableOf(CreatorWorkspaceState state, Inspection inspection, IReadOnlyList<TraceHop> timelineHops)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(inspection);
+        ArgumentNullException.ThrowIfNull(timelineHops);
+        var steps = ReplayScript.Steps(timelineHops);
+        var currentSeq = Cursor(state, steps.Length) is { } at ? steps[at].Sequence : (long?)null;
+
+        QueryTableColumn[] columns;
+        QueryTableRow[] rows;
+        string title;
+        if (inspection.Kind == Selection.Edge && inspection.Signals.Length > 0)
+        {
+            title = $"Signals · {inspection.Alias ?? inspection.Id}";
+            columns = [new("seq", "#"), new("at", "At"), new("publisher", "Publisher"), new("trace", "Trace")];
+            rows =
+            [
+                .. inspection.Signals.Select(s => new QueryTableRow(Seq(s.Sequence),
+                [
+                    Seq(s.Sequence),
+                    s.At.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                    s.Publisher,
+                    s.TraceId ?? string.Empty,
+                ])),
+            ];
+        }
+        else if (timelineHops.Count > 0)
+        {
+            var first = timelineHops.Min(h => h.At);
+            title = $"Trace {(state.TraceId is { Length: > 0 } tid ? tid : inspection.Id)}";
+            columns = [new("seq", "#"), new("dt", "Δt"), new("publisher", "Publisher"), new("signal", "Signal"), new("cause", "Cause")];
+            rows =
+            [
+                .. timelineHops.Select(h => new QueryTableRow(Seq(h.Sequence),
+                [
+                    (h.Sequence == currentSeq ? "▶ " : "") + Seq(h.Sequence),
+                    string.Create(CultureInfo.InvariantCulture, $"+{(h.At - first).TotalMilliseconds:0}ms"),
+                    TraceFold.Indent(h.Depth) + h.Publisher,
+                    h.Alias,
+                    h.Cause ?? string.Empty,
+                ])),
+            ];
+        }
+        else
+        {
+            title = "Causal Signal Stream";
+            columns = [new("seq", "#"), new("signal", "Signal"), new("publisher", "Publisher")];
+            rows = [];
+        }
+
+        var selected = currentSeq is { } seq && rows.Any(r => r.Id == Seq(seq)) ? Seq(seq) : null;
+        return new QueryTableProps(title, columns, AutomationName: "Signals", Rows: rows, SelectedRowId: selected);
+    }
+
+    private static string Seq(long sequence) => sequence.ToString(CultureInfo.InvariantCulture);
+
+    private static long? Cursor(CreatorWorkspaceState state, int stepCount)
+        => state.ReplayCursor is { } c && stepCount > 0 ? Math.Clamp(c, 0, stepCount - 1) : null;
 
     internal static string[] OrderedFiles(IReadOnlyDictionary<string, string> files)
         => [.. new[] { "spec.md" }

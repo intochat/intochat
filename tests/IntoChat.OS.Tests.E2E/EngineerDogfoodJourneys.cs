@@ -13,10 +13,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.Microsoft.Roslyn;
 using IntoChat.OS.Modules.UI;
-using IntoChat.OS.Modules.UI.PropertyGrid;
-using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.Stepper;
-using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.Tests.Support;
 using Microsoft.Extensions.Configuration;
@@ -28,7 +25,7 @@ namespace IntoChat.OS.Tests.E2E;
 /// Live in-process OS end-to-end dogfood journey exercising the unified 3-app loop:
 /// <see cref="EngineerApp"/> (<c>app.engineer</c>), <see cref="EngineerFlow"/> (<c>flow.engineer</c>)
 /// across <c>N = 2</c> isolated container-volume git worktrees with real Roslyn AST edits and sandbox build/live checks,
-/// <see cref="CreatorApp"/> (<c>app.creator</c>) causal signal time-travel (<see cref="CreatorReplay"/> + <see cref="IPropertyGrid"/>),
+/// <see cref="CreatorApp"/> (<c>app.creator</c>) causal signal time-travel (<see cref="CreatorReplay"/> + its state tab's <c>jsonTree</c>),
 /// and owner SHA-bound confirmation pushing to a bare Git remote and cleaning both worktrees.
 /// </summary>
 public sealed class EngineerDogfoodJourneys
@@ -192,7 +189,7 @@ public sealed class EngineerDogfoodJourneys
         Assert.Equal("review-and-pr", (await engStepper.Read()).ActiveStepId);
         Assert.True((await engTree.Read()).Nodes.Length >= 4);
 
-        // 3. Open app.creator in the SAME brain, inspect the live flow & causal signal trace, and time-travel with CreatorReplay + IPropertyGrid!
+        // 3. Open app.creator in the SAME brain, inspect the live flow & causal signal trace, and time-travel with CreatorReplay + its state tab!
         var creatorId = new NeuronId(brain, "app.creator", "default");
         var creatorScreen = os.Get<IScreen>(creatorId);
         await creatorScreen.Request(new CreatorOpen());
@@ -208,40 +205,36 @@ public sealed class EngineerDogfoodJourneys
         await creatorScreen.Request(new CreatorTrace(waiting.TraceId));
         await os.Idle();
 
-        var replaySlider = os.Get<ISlider>(new NeuronId(brain, "ui.slider", "creator/replay/slider"));
-        var signalsTable = os.Get<ITable>(new NeuronId(brain, "ui.table", "creator/inspector/signals"));
-        var stateGrid = os.Get<IPropertyGrid>(new NeuronId(brain, "ui.property-grid", "creator/inspector/state"));
+        // The replay slider and the signals table are control.* children: their props sit on the child nodes of Creator's published view.
+        var tracedView = (await creatorScreen.Read())!.View;
+        var maxStep = ChildProps(tracedView, CreatorView.ReplaySliderKey).GetProperty("max").GetDouble();
+        Assert.True(maxStep >= 4, $"Expected multiple causal flow signals on Creator timeline; got max={maxStep}.");
+        Assert.True(ChildProps(tracedView, CreatorView.InspectorSignalsKey).GetProperty("rows").GetArrayLength() >= 4);
 
-        var initialSlider = await replaySlider.Read();
-        Assert.True(initialSlider.Max >= 4, $"Expected multiple causal flow signals on Creator timeline; got max={initialSlider.Max}.");
-        Assert.True((await signalsTable.Read()).Total >= 4);
-
-        // Step to First event -> Next event -> Previous event -> Last event, verifying IPropertyGrid ('creator/inspector/state') updates live!
+        // Step to First event -> Next event -> Previous event -> Last event on the state tab, verifying its jsonTree node updates live!
+        await creatorScreen.Request(new CreatorSelect("tab:state"));
         await creatorScreen.Request(new CreatorReplay("first"));
         await os.Idle();
-        var gridAtFirst = await stateGrid.Read();
+        var gridAtFirst = await StateTree(creatorScreen);
         Assert.StartsWith("State · Event 1 / ", gridAtFirst.Title, StringComparison.Ordinal);
-        Assert.Contains("\"eventIndex\":1", gridAtFirst.RawJson, StringComparison.Ordinal);
-        Assert.NotEmpty(gridAtFirst.Entries);
+        Assert.Contains("\"eventIndex\":1", gridAtFirst.Json, StringComparison.Ordinal);
 
         await creatorScreen.Request(new CreatorReplay("next"));
         await os.Idle();
-        var gridAtSecond = await stateGrid.Read();
+        var gridAtSecond = await StateTree(creatorScreen);
         Assert.StartsWith("State · Event 2 / ", gridAtSecond.Title, StringComparison.Ordinal);
-        Assert.Contains("\"eventIndex\":2", gridAtSecond.RawJson, StringComparison.Ordinal);
-        Assert.NotEqual(gridAtFirst.RawJson, gridAtSecond.RawJson);
+        Assert.Contains("\"eventIndex\":2", gridAtSecond.Json, StringComparison.Ordinal);
+        Assert.NotEqual(gridAtFirst.Json, gridAtSecond.Json);
 
         await creatorScreen.Request(new CreatorReplay("prev"));
         await os.Idle();
-        var gridBackAtFirst = await stateGrid.Read();
-        Assert.Equal(gridAtFirst.Title, gridBackAtFirst.Title);
-        Assert.Equal(gridAtFirst.RawJson, gridBackAtFirst.RawJson);
+        Assert.Equal(gridAtFirst, await StateTree(creatorScreen));
 
         await creatorScreen.Request(new CreatorReplay("last"));
         await os.Idle();
-        var gridAtLast = await stateGrid.Read();
+        var gridAtLast = await StateTree(creatorScreen);
         Assert.Contains("/", gridAtLast.Title, StringComparison.Ordinal);
-        Assert.NotEqual(gridAtFirst.RawJson, gridAtLast.RawJson);
+        Assert.NotEqual(gridAtFirst.Json, gridAtLast.Json);
 
         // 4. Approve the SHA-bound confirmation gate as the brain owner, advance push -> pr -> clean, and verify bare remote + cleanup!
         var inbox = os.Get<IConfirmationInbox>(new NeuronId(brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
@@ -307,6 +300,26 @@ public sealed class EngineerDogfoodJourneys
         Assert.All((await engStepper.Read()).Steps, static step => Assert.Equal(StepperStatuses.Done, step.Status));
         Assert.Empty(await inbox.Read() is var finalInbox ? finalInbox.Pending : []);
     }
+
+    // The props Creator drew on its child `key` in a published view.
+    private static JsonElement ChildProps(JsonElement view, string key)
+        => Nodes(view).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "neuronRef"
+            && n.GetProperty("refKind").GetString() == "slot" && n.GetProperty("neuronUri").GetString()!.EndsWith("/" + key, StringComparison.Ordinal))
+            .GetProperty("props");
+
+    // The title and JSON of the jsonTree node Creator's state tab draws.
+    private static async Task<(string Title, string Json)> StateTree(IScreen creator)
+    {
+        var tree = Nodes((await creator.Read())!.View).Single(n => n.TryGetProperty("kind", out var kind) && kind.GetString() == "jsonTree");
+        return (tree.GetProperty("title").GetString()!, tree.GetProperty("json").GetString()!);
+    }
+
+    private static IEnumerable<JsonElement> Nodes(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Object => [element, .. element.EnumerateObject().SelectMany(property => Nodes(property.Value))],
+        JsonValueKind.Array => element.EnumerateArray().SelectMany(Nodes),
+        _ => [],
+    };
 
     private static (string BareOrigin, string SourceRepo, string WorkTreeHome, string VolumeRoot) SeedCompilableGitRepository(string baseDir)
     {

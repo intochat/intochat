@@ -47,12 +47,12 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
                 canvasBox.Y <= 110f,
                 string.Create(CultureInfo.InvariantCulture, $"Creator top toolbar must stay compact (canvas Y <= 110px), measured: {canvasBox.Format(StudioViewportWidth, StudioViewportHeight)}"));
 
-            // Zero duplicate tab bar in Inspector, zero legacy ui.command-bar, zero raw JSON card below ui.property-grid
-            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.command-bar:").CountAsync().WaitAsync(ct));
-            Assert.Equal(1, await page.SemanticsPrefix("neuron:ui.tabs:").CountAsync().WaitAsync(ct));
-            Assert.Equal(1, await page.Neuron("ui.tabs", CreatorView.InspectorTabsKey).CountAsync().WaitAsync(ct));
-            await page.PropertyGrid(CreatorView.InspectorStateKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            Assert.Equal(0, await page.SemanticsPrefix("neuron:ui.code-editor:").CountAsync().WaitAsync(ct));
+            // One inspector tab strip child and no ui.* neuron: the state tab is a jsonTree node, the source tab a code block
+            foreach (var oldKind in new[] { "ui.command-bar", "ui.tabs", "ui.slider", "ui.property-grid", "ui.code-editor", "ui.table" })
+            {
+                Assert.Equal(0, await page.SemanticsPrefix($"neuron:{oldKind}:").CountAsync().WaitAsync(ct));
+            }
+            Assert.Equal(1, await page.SlotNode(CreatorView.InspectorTabsKey).CountAsync().WaitAsync(ct));
 
             // 2. Corner Viewport Minimap + Follow Live HUD toggle
             var minimapBox = await page.MeasureKeyedBoxAsync("flame-viewport-minimap", minWidth: 80f, minHeight: 40f, ct);
@@ -89,7 +89,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
                 string.Create(CultureInfo.InvariantCulture, $"Collapsing inspector must widen 3D canvas (before={widthWithInspector:0.#}px, collapsed={widthCollapsed:0.#}px)."));
 
             await page.ToggleShellInspectorAsync(ct);
-            await page.Neuron("ui.tabs", CreatorView.InspectorTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(CreatorView.InspectorTabsKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
             var widthRestored = await WaitForCanvasWidthChangeAsync(page, widthCollapsed, expectWider: false, ct);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[GEOMETRY] Creator Inspector Collapse/Expand Widths: open={widthWithInspector:0.#}px -> collapsed={widthCollapsed:0.#}px -> restored={widthRestored:0.#}px"));
             Assert.True(
@@ -98,7 +98,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
 
             // 5. Creator Time-Travel controls + keyboard stepping + Inspector tabs (State, Source, Signals, State Graph, Scenarios)
             await page.KeyedNode("replay-cursor-readout").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
-            await page.Neuron("ui.slider", CreatorView.ReplaySliderKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            await page.SlotNode(CreatorView.ReplaySliderKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
 
             await page.StepTimeTravelBackwardAsync(ct);
             await page.StepTimeTravelForwardAsync(ct);
@@ -106,10 +106,10 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
             await page.JumpTimeTravelLastAsync(ct);
             await page.ToggleTimeTravelModeAsync(ct);
 
-            await SelectInspectorTabAndWaitAsync(page, "Source", page.CodeEditor(CreatorView.InspectorSourceKey).First, ct);
+            await SelectInspectorTabAndWaitAsync(page, "Source", page.GetByText("No source files kept for the current selection.").First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
-            await SelectInspectorTabAndWaitAsync(page, "Signals", page.Neuron("ui.table", CreatorView.InspectorSignalsKey).First, ct);
+            await SelectInspectorTabAndWaitAsync(page, "Signals", page.SlotNode(CreatorView.InspectorSignalsKey).First, ct);
             await page.WaitForTimeoutAsync(220).WaitAsync(ct);
 
             await SelectInspectorTabAndWaitAsync(page, "State Graph", page.SceneCameraHud().First, ct);
@@ -338,7 +338,7 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
     {
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            await page.SelectTabAsync(CreatorView.InspectorTabsKey, tabLabel, ct);
+            await SelectCreatorTabAsync(page, tabLabel, ct);
             try
             {
                 await expectedTarget.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = attempt == 2 ? 15_000 : 4_000 }).WaitAsync(ct);
@@ -349,6 +349,16 @@ public sealed class EngineerAndCreatorBrowserFacts(WebShellHost host)
                 await page.WaitForTimeoutAsync(200).WaitAsync(ct);
             }
         }
+    }
+
+    // A tab of Creator's inspector tab strip child (control.tabStrip), which sends control.select through Creator.
+    private static async Task SelectCreatorTabAsync(IPage page, string label, CancellationToken ct)
+    {
+        var strip = page.SlotNode(CreatorView.InspectorTabsKey).First;
+        await strip.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        var byRole = strip.GetByRole(AriaRole.Tab, new() { Name = label, Exact = true }).First;
+        var target = await byRole.CountAsync().WaitAsync(ct) > 0 ? byRole : strip.GetByText(label, new() { Exact = true }).First;
+        await target.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
     }
 
     private static async Task WaitForSemanticsTextContainsAsync(IPage page, string expectedSubstring, CancellationToken ct)

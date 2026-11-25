@@ -275,7 +275,7 @@ public static partial class CreatorStateSpaceInspector
             return syn.Runs > 0 ? 75 : 100;
         }
 
-        if (inspection.Files.Count > 0)
+        if (inspection.Files.Length > 0)
         {
             return inspection.Id.StartsWith("draft:", StringComparison.Ordinal) ? 50 : 100;
         }
@@ -294,7 +294,7 @@ public static partial class CreatorStateSpaceInspector
 
         if (state.Selected is { Kind: Selection.Node })
         {
-            if (inspection.Files.Count > 0
+            if (inspection.Files.Length > 0
                 || inspection.Synapse is not null
                 || inspection.DeployedUnit is not null
                 || inspection.IntrospectedGraph is { States.Length: > 0 })
@@ -326,7 +326,7 @@ public static partial class CreatorStateSpaceInspector
             if (inspection.Synapse is not null
                 || inspection.DeployedUnit is not null
                 || inspection.IntrospectedGraph is { States.Length: > 0 }
-                || inspection.Files.Count > 0)
+                || inspection.Files.Length > 0)
             {
                 return true;
             }
@@ -404,9 +404,9 @@ public static partial class CreatorStateSpaceInspector
             : null;
         var passPct = ResolvePassPercent(inspection, state.Transcript, activeFlow);
 
-        if (inspection.Files.Count > 0 && inspection.Alias is { Length: > 0 } fileAlias)
+        if (inspection.Files.Length > 0 && inspection.Alias is { Length: > 0 } fileAlias)
         {
-            return RenderUnitStateScene(fileAlias, inspection.Files, passPct, inspection.Synapse);
+            return RenderUnitStateScene(fileAlias, inspection.FileMap(), passPct, inspection.Synapse);
         }
 
         if (inspection.IntrospectedGraph is { States.Length: > 0 } introspected)

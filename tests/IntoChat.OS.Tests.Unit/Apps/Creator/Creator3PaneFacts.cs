@@ -107,11 +107,7 @@ public sealed class Creator3PaneFacts
             Alias = "unit1",
             State = """{"count":5}""",
             View = """{"title":"Unit One"}""",
-            Files = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["spec.md"] = "# Unit1 Specification",
-                ["unit1.cs"] = "// unit1 code",
-            },
+            Files = [new("spec.md", "# Unit1 Specification"), new("unit1.cs", "// unit1 code")],
         };
 
         var view = CreatorView.Render(state, topology, flows, approvals, inspection, transition: IntoChat.OS.UI.ViewTransition.FadeThrough);
@@ -128,13 +124,12 @@ public sealed class Creator3PaneFacts
         Assert.Contains(leftNavItems, n => n.Key == "unit:local/unit1/default" && n.Selected);
         Assert.Contains(leftNavItems, n => n.Key == "run:cf-run-99" && n.Selected);
 
-        // Toolbar + Inspector neurons: single ITabs bar, inline ISlider, IPropertyGrid — ZERO duplicate static Tabs or ui.command-bar
+        // A view drawn without the screen has no control children (the slider, tabs and signals table are children); the state tab's
+        // JSON is a jsonTree data node, and no ui.* control is mounted.
         var allNodes = AllNodes(view).ToArray();
-        var neuronRefs = allNodes.OfType<NeuronRef>().ToArray();
-        Assert.Contains(neuronRefs, n => n.Kind == "ui.slider" && n.NeuronUri == CreatorView.ReplaySliderKey);
-        Assert.DoesNotContain(neuronRefs, n => n.Kind == "ui.command-bar");
-        Assert.Contains(neuronRefs, n => n.Kind == "ui.tabs" && n.NeuronUri == CreatorView.InspectorTabsKey);
-        Assert.Contains(neuronRefs, n => n.Kind == "ui.property-grid" && n.NeuronUri == CreatorView.InspectorStateKey);
+        Assert.DoesNotContain(allNodes.OfType<NeuronRef>(), n => n.Kind.StartsWith("ui.", StringComparison.Ordinal));
+        var stateTree = Assert.Single(allNodes.OfType<JsonTree>());
+        Assert.Equal(("Live State · unit1", """{"count":5}"""), (stateTree.Title, stateTree.Json));
         Assert.DoesNotContain(allNodes.OfType<Card>(), c => c.Title == "State" || c.Title == "Published View" || c.Title == "spec.md");
 
         // Right Inspector buttons & approval gates

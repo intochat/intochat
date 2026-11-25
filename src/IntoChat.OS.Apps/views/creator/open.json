@@ -1810,8 +1810,18 @@
           },
           {
             "kind": "neuronRef",
-            "refKind": "ui.slider",
-            "neuronUri": "creator/replay/slider"
+            "refKind": "slot",
+            "neuronUri": "creator-replay",
+            "props": {
+              "label": "Event 0 / 0",
+              "min": 0,
+              "max": 1,
+              "step": 1,
+              "unit": "",
+              "value": 0,
+              "isEnabled": false,
+              "automationName": "Replay timeline"
+            }
           },
           {
             "kind": "button",
@@ -1888,8 +1898,40 @@
           },
           {
             "kind": "neuronRef",
-            "refKind": "ui.tabs",
-            "neuronUri": "creator/inspector/tabs"
+            "refKind": "slot",
+            "neuronUri": "creator-inspector-tabs",
+            "props": {
+              "items": [
+                {
+                  "id": "state",
+                  "label": "State",
+                  "icon": null
+                },
+                {
+                  "id": "source",
+                  "label": "Source",
+                  "icon": null
+                },
+                {
+                  "id": "signals",
+                  "label": "Signals",
+                  "icon": null
+                },
+                {
+                  "id": "state-graph",
+                  "label": "State Graph",
+                  "icon": null
+                },
+                {
+                  "id": "scenarios",
+                  "label": "Scenarios",
+                  "icon": null
+                }
+              ],
+              "selectedId": "state",
+              "isEnabled": true,
+              "automationName": "Inspector"
+            }
           },
           {
             "kind": "emptyState",
@@ -1898,9 +1940,9 @@
             "suggestions": null
           },
           {
-            "kind": "neuronRef",
-            "refKind": "ui.property-grid",
-            "neuronUri": "creator/inspector/state"
+            "kind": "jsonTree",
+            "title": "Neuron State",
+            "json": "{}"
           }
         ],
         "gap": 8,
