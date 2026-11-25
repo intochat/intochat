@@ -58,6 +58,8 @@ enum IntentKind { copy, openWindow, openSettings }
 
 enum ListSelectionMode { single, none }
 
+enum StepperStatus { pending, active, done, error, skipped }
+
 /// A node of a view, discriminated by `kind`.
 sealed class Node {
   const Node();
@@ -117,6 +119,10 @@ sealed class Node {
     'chatThreadView' => ChatThreadViewNode.fromJson(json),
     'queryTableView' => QueryTableViewNode.fromJson(json),
     'listBoxView' => ListBoxViewNode.fromJson(json),
+    'kanbanView' => KanbanViewNode.fromJson(json),
+    'stepperView' => StepperViewNode.fromJson(json),
+    'treeView' => TreeViewNode.fromJson(json),
+    'sliderView' => SliderViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -1601,6 +1607,103 @@ final class JobStepNode {
   );
 }
 
+final class KanbanCardItem {
+  const KanbanCardItem({
+    required this.id,
+    required this.columnId,
+    required this.title,
+    required this.subtitle,
+    required this.tag,
+    required this.assignee,
+  });
+
+  final String id;
+  final String columnId;
+  final String title;
+  final String? subtitle;
+  final String? tag;
+  final String? assignee;
+
+  factory KanbanCardItem.fromJson(Map<String, dynamic> json) => KanbanCardItem(
+    id: _string(json['id']),
+    columnId: _string(json['columnId']),
+    title: _string(json['title']),
+    subtitle: _stringOrNull(json['subtitle']),
+    tag: _stringOrNull(json['tag']),
+    assignee: _stringOrNull(json['assignee']),
+  );
+}
+
+final class KanbanColumnItem {
+  const KanbanColumnItem({
+    required this.id,
+    required this.title,
+    required this.icon,
+    required this.wipLimit,
+  });
+
+  final String id;
+  final String title;
+  final String? icon;
+  final int? wipLimit;
+
+  factory KanbanColumnItem.fromJson(Map<String, dynamic> json) =>
+      KanbanColumnItem(
+        id: _string(json['id']),
+        title: _string(json['title']),
+        icon: _stringOrNull(json['icon']),
+        wipLimit: _intOrNull(json['wipLimit']),
+      );
+}
+
+final class KanbanProps {
+  const KanbanProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.title,
+    required this.columns,
+    required this.cards,
+    required this.selectedCardId,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String title;
+  final List<KanbanColumnItem> columns;
+  final List<KanbanCardItem> cards;
+  final String? selectedCardId;
+
+  factory KanbanProps.fromJson(Map<String, dynamic> json) => KanbanProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    title: _string(json['title']),
+    columns: [
+      for (final item in _list(json['columns']))
+        KanbanColumnItem.fromJson(_map(item)),
+    ],
+    cards: [
+      for (final item in _list(json['cards']))
+        KanbanCardItem.fromJson(_map(item)),
+    ],
+    selectedCardId: _stringOrNull(json['selectedCardId']),
+  );
+}
+
+final class KanbanViewNode extends Node {
+  const KanbanViewNode({required this.key, required this.selectedCardId});
+
+  @override
+  String get kind => 'kanbanView';
+
+  final String key;
+  final String? selectedCardId;
+
+  factory KanbanViewNode.fromJson(Map<String, dynamic> json) => KanbanViewNode(
+    key: _string(json['key']),
+    selectedCardId: _stringOrNull(json['selectedCardId']),
+  );
+}
+
 final class ListBoxItem {
   const ListBoxItem({
     required this.id,
@@ -2198,6 +2301,54 @@ final class SecretCardNode extends Node {
   );
 }
 
+final class SliderProps {
+  const SliderProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.label,
+    required this.min,
+    required this.max,
+    required this.step,
+    required this.unit,
+    required this.value,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String label;
+  final double min;
+  final double max;
+  final double step;
+  final String unit;
+  final double? value;
+
+  factory SliderProps.fromJson(Map<String, dynamic> json) => SliderProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    label: _string(json['label']),
+    min: _double(json['min']),
+    max: _double(json['max'], 100.0),
+    step: _double(json['step'], 1.0),
+    unit: _string(json['unit']),
+    value: _doubleOrNull(json['value']),
+  );
+}
+
+final class SliderViewNode extends Node {
+  const SliderViewNode({required this.key, required this.value});
+
+  @override
+  String get kind => 'sliderView';
+
+  final String key;
+  final double? value;
+
+  factory SliderViewNode.fromJson(Map<String, dynamic> json) => SliderViewNode(
+    key: _string(json['key']),
+    value: _doubleOrNull(json['value']),
+  );
+}
+
 final class SpacerNode extends Node {
   const SpacerNode({required this.size});
 
@@ -2265,6 +2416,69 @@ final class StatCardNode extends Node {
     icon: _stringOrNull(json['icon']),
     automationName: _string(json['automationName']),
   );
+}
+
+final class StepperItem {
+  const StepperItem({
+    required this.id,
+    required this.label,
+    required this.status,
+    required this.description,
+  });
+
+  final String id;
+  final String label;
+  final StepperStatus status;
+  final String? description;
+
+  factory StepperItem.fromJson(Map<String, dynamic> json) => StepperItem(
+    id: _string(json['id']),
+    label: _string(json['label']),
+    status: _enum(StepperStatus.values, json['status']),
+    description: _stringOrNull(json['description']),
+  );
+}
+
+final class StepperProps {
+  const StepperProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.steps,
+    required this.title,
+    required this.activeStepId,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<StepperItem> steps;
+  final String? title;
+  final String? activeStepId;
+
+  factory StepperProps.fromJson(Map<String, dynamic> json) => StepperProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    steps: [
+      for (final item in _list(json['steps'])) StepperItem.fromJson(_map(item)),
+    ],
+    title: _stringOrNull(json['title']),
+    activeStepId: _stringOrNull(json['activeStepId']),
+  );
+}
+
+final class StepperViewNode extends Node {
+  const StepperViewNode({required this.key, required this.activeStepId});
+
+  @override
+  String get kind => 'stepperView';
+
+  final String key;
+  final String? activeStepId;
+
+  factory StepperViewNode.fromJson(Map<String, dynamic> json) =>
+      StepperViewNode(
+        key: _string(json['key']),
+        activeStepId: _stringOrNull(json['activeStepId']),
+      );
 }
 
 final class SurfaceNode extends Node {
@@ -2456,6 +2670,79 @@ final class ToggleSwitchViewNode extends Node {
         key: _string(json['key']),
         isOn: _bool(json['isOn']),
       );
+}
+
+final class TreeItem {
+  const TreeItem({
+    required this.id,
+    required this.label,
+    required this.parentId,
+    required this.icon,
+    required this.isFolder,
+  });
+
+  final String id;
+  final String label;
+  final String? parentId;
+  final String? icon;
+  final bool isFolder;
+
+  factory TreeItem.fromJson(Map<String, dynamic> json) => TreeItem(
+    id: _string(json['id']),
+    label: _string(json['label']),
+    parentId: _stringOrNull(json['parentId']),
+    icon: _stringOrNull(json['icon']),
+    isFolder: _bool(json['isFolder']),
+  );
+}
+
+final class TreeProps {
+  const TreeProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.nodes,
+    required this.selectedId,
+    required this.expandedIds,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<TreeItem> nodes;
+  final String? selectedId;
+  final List<String>? expandedIds;
+
+  factory TreeProps.fromJson(Map<String, dynamic> json) => TreeProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    nodes: [
+      for (final item in _list(json['nodes'])) TreeItem.fromJson(_map(item)),
+    ],
+    selectedId: _stringOrNull(json['selectedId']),
+    expandedIds: json['expandedIds'] == null
+        ? null
+        : [for (final item in _list(json['expandedIds'])) _string(item)],
+  );
+}
+
+final class TreeViewNode extends Node {
+  const TreeViewNode({
+    required this.key,
+    required this.selectedId,
+    required this.expandedIds,
+  });
+
+  @override
+  String get kind => 'treeView';
+
+  final String key;
+  final String? selectedId;
+  final List<String> expandedIds;
+
+  factory TreeViewNode.fromJson(Map<String, dynamic> json) => TreeViewNode(
+    key: _string(json['key']),
+    selectedId: _stringOrNull(json['selectedId']),
+    expandedIds: [for (final item in _list(json['expandedIds'])) _string(item)],
+  );
 }
 
 final class WebBrowserNode extends Node {

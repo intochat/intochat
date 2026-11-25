@@ -314,6 +314,19 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'sections',
     'selectedId': 'general',
   },
+  'kanbanView': {'kind': 'kanbanView', 'key': 'board', 'selectedCardId': 'a'},
+  'stepperView': {
+    'kind': 'stepperView',
+    'key': 'release',
+    'activeStepId': 'build',
+  },
+  'treeView': {
+    'kind': 'treeView',
+    'key': 'files',
+    'selectedId': 'app',
+    'expandedIds': ['src'],
+  },
+  'sliderView': {'kind': 'sliderView', 'key': 'volume', 'value': 40},
   'formView': {
     'kind': 'formView',
     'key': 'profile',

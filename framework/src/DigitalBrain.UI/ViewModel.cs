@@ -61,6 +61,10 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
         ["chatThreadView"] = typeof(Controls.ChatThreadView),
         ["queryTableView"] = typeof(Controls.QueryTableView),
         ["listBoxView"] = typeof(Controls.ListBoxView),
+        ["kanbanView"] = typeof(Controls.KanbanView),
+        ["stepperView"] = typeof(Controls.StepperView),
+        ["treeView"] = typeof(Controls.TreeView),
+        ["sliderView"] = typeof(Controls.SliderView),
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>The polymorphic <c>kind</c> discriminator written in JSON.</summary>
@@ -133,4 +137,8 @@ public sealed record View(string Title, Node Root)
 [JsonDerivedType(typeof(Controls.ChatThreadView), "chatThreadView")]
 [JsonDerivedType(typeof(Controls.QueryTableView), "queryTableView")]
 [JsonDerivedType(typeof(Controls.ListBoxView), "listBoxView")]
+[JsonDerivedType(typeof(Controls.KanbanView), "kanbanView")]
+[JsonDerivedType(typeof(Controls.StepperView), "stepperView")]
+[JsonDerivedType(typeof(Controls.TreeView), "treeView")]
+[JsonDerivedType(typeof(Controls.SliderView), "sliderView")]
 public abstract record Node;
